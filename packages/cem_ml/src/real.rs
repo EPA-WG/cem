@@ -427,9 +427,13 @@ fn convert_primary_from_template_output(
         })),
         Value::Object(mut object) => {
             object.get("content").and_then(Value::as_str)?;
-            object
-                .entry("kind".to_owned())
-                .or_insert_with(|| Value::String(kind.to_owned()));
+            if let Some(existing_kind) = object.get("kind").and_then(Value::as_str) {
+                if existing_kind != kind {
+                    return None;
+                }
+            } else {
+                object.insert("kind".to_owned(), Value::String(kind.to_owned()));
+            }
             object.entry("sourceMap".to_owned()).or_insert(source_map);
             object
                 .entry("outputSpans".to_owned())

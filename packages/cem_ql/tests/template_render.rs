@@ -131,6 +131,7 @@ fn render_plan_preserves_structured_nodes_and_source_maps() {
 
     let [RenderPlanNode::Element {
         tag,
+        namespace,
         attributes,
         children,
         source_map,
@@ -140,6 +141,7 @@ fn render_plan_preserves_structured_nodes_and_source_maps() {
     };
 
     assert_eq!(tag, "button");
+    assert_eq!(*namespace, None);
     assert_eq!(attributes[0].name, "class");
     assert_eq!(attributes[0].value, "action primary");
     assert_eq!(children.len(), 1);

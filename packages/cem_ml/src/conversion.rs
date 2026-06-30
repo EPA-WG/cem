@@ -859,7 +859,7 @@ pub fn builtin_conversion_descriptors() -> Vec<ConversionDescriptor> {
             endpoint(XML_CONTENT_TYPE, XML_SCHEMA_URI),
             "schema-packages/cem-dom-projection/v1/converters/dom-to-xml.cemt",
             "XmlExportConverter",
-            "CEMT DOM-to-XML serialization requires XML target serialization and parity coverage before the edge can be promoted to ready",
+            "CEMT DOM-to-XML serialization awaits parity coverage before the edge can be promoted to ready",
             "serialization",
             100,
         ),

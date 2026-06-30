@@ -90,8 +90,9 @@ history belongs in git history and the feature-specific docs linked below.
         DOM-to-HTML converter smoke coverage.
   - [x] Add context-aware CEMT converter asset validation for packaged
         DOM-projection converter assets.
-  - [ ] Add XML target serialization; then promote the DOM-projection HTML/XML
-        descriptors from planned to ready after parity coverage.
+  - [x] Add XML target serialization for CEMT render-plan output.
+  - [ ] Add parity coverage; then promote the DOM-projection HTML/XML
+        descriptors from planned to ready.
 
 ## Schema Package Implementation List
 

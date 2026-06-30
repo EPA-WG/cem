@@ -34,8 +34,8 @@ use cem_ml::transform_template::{
 use cem_ql::eval::{AtomValue, Item, ItemStream};
 use cem_ql::render::{
     compile_template, render_compiled_template, render_plan_to_html_with_source_map,
-    CompileTemplateOptions, RenderPlan, RenderPlanAttribute, RenderPlanNode, TemplateArtifact,
-    TemplateAttributeValue, TemplateData, TemplateNode,
+    render_plan_to_xml_with_source_map, CompileTemplateOptions, RenderPlan, RenderPlanAttribute,
+    RenderPlanNode, TemplateArtifact, TemplateAttributeValue, TemplateData, TemplateNode,
 };
 use serde_json::{json, Map, Number, Value};
 
@@ -473,7 +473,11 @@ fn render_cem_ql_payload(
         })?;
     let data = template_data_from_artifacts(request.primary_input, request.secondary_inputs);
     let plan = render_payload_template(payload, &data);
-    let rendered = render_plan_to_html_with_source_map(&plan);
+    let rendered = if target_content_type_is(request.target, "application/xml") {
+        render_plan_to_xml_with_source_map(&plan)
+    } else {
+        render_plan_to_html_with_source_map(&plan)
+    };
     let identity = request.target.cloned().or_else(|| {
         Some(FormatIdentity {
             content_type: Some("text/html".to_owned()),
@@ -491,6 +495,12 @@ fn render_cem_ql_payload(
         },
         diagnostics: rendered.diagnostics,
     })
+}
+
+fn target_content_type_is(target: Option<&FormatIdentity>, expected: &str) -> bool {
+    target
+        .and_then(|identity| identity.content_type.as_deref())
+        .is_some_and(|content_type| content_type_essence(content_type) == expected)
 }
 
 fn content_type_essence(content_type: &str) -> String {
@@ -851,6 +861,7 @@ fn expand_call_node(
 ) -> Vec<RenderPlanNode> {
     let RenderPlanNode::Element {
         tag,
+        namespace,
         attributes,
         children,
         source_map,
@@ -873,6 +884,7 @@ fn expand_call_node(
 
     vec![RenderPlanNode::Element {
         tag: tag.clone(),
+        namespace: namespace.clone(),
         attributes: attributes.clone(),
         children: expand_call_nodes(children, payload, current_module, data, depth, diagnostics),
         source_map: source_map.clone(),
@@ -1352,6 +1364,24 @@ mod tests {
         TransformTemplateAdapterLookup, TransformTemplateModuleParamType,
         TransformTemplateModulePreflight, TransformTemplateResolvedModule,
     };
+
+    fn packaged_dom_projection_input(children: Vec<Value>) -> TransformTemplateDataArtifact {
+        TransformTemplateDataArtifact {
+            artifact_id: "dom".to_owned(),
+            uri: Some("dom.json".to_owned()),
+            identity: Some(FormatIdentity {
+                content_type: Some(
+                    cem_ml::schema::registry::CEM_DOM_JSON_PROJECTION_CONTENT_TYPE.to_owned(),
+                ),
+                schema: Some(cem_ml::schema::registry::CEM_DOM_PROJECTION_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            value: json_object([
+                ("kind", Value::String("document".to_owned())),
+                ("children", Value::Array(children)),
+            ]),
+        }
+    }
 
     #[test]
     fn adapter_compiles_and_renders_cem_native_template() {
@@ -4163,62 +4193,92 @@ mod tests {
                 "{uri}: {:?}",
                 compiled.diagnostics
             );
-            if uri.ends_with("dom-to-html.cemt") {
-                let primary_input = TransformTemplateDataArtifact {
-                    artifact_id: "dom".to_owned(),
-                    uri: Some("dom.json".to_owned()),
-                    identity: Some(FormatIdentity {
-                        content_type: Some(
-                            cem_ml::schema::registry::CEM_DOM_JSON_PROJECTION_CONTENT_TYPE
-                                .to_owned(),
+            let primary_input =
+                packaged_dom_projection_input(if uri.ends_with("dom-to-xml.cemt") {
+                    vec![
+                        json_object([
+                            ("kind", Value::String("processing-instruction".to_owned())),
+                            ("name", Value::String("xml-stylesheet".to_owned())),
+                            ("target", Value::String("xml-stylesheet".to_owned())),
+                            ("data", Value::String("href=\"main.css\"".to_owned())),
+                        ]),
+                        json_object([
+                            ("kind", Value::String("element".to_owned())),
+                            ("name", Value::String("p".to_owned())),
+                            ("namespace", Value::String(String::new())),
+                            (
+                                "attributes",
+                                Value::Array(vec![json_object([
+                                    ("name", Value::String("class".to_owned())),
+                                    ("namespace", Value::String(String::new())),
+                                    ("value", Value::String("lead".to_owned())),
+                                ])]),
+                            ),
+                            (
+                                "children",
+                                Value::Array(vec![json_object([
+                                    ("kind", Value::String("cdata".to_owned())),
+                                    ("data", Value::String("Hi <all>".to_owned())),
+                                ])]),
+                            ),
+                        ]),
+                    ]
+                } else {
+                    vec![json_object([
+                        ("kind", Value::String("element".to_owned())),
+                        ("name", Value::String("p".to_owned())),
+                        ("namespace", Value::String(String::new())),
+                        (
+                            "attributes",
+                            Value::Array(vec![json_object([
+                                ("name", Value::String("class".to_owned())),
+                                ("namespace", Value::String(String::new())),
+                                ("value", Value::String("lead".to_owned())),
+                            ])]),
                         ),
-                        schema: Some(
-                            cem_ml::schema::registry::CEM_DOM_PROJECTION_SCHEMA_URI.to_owned(),
-                        ),
-                        ..FormatIdentity::default()
-                    }),
-                    value: json_object([
-                        ("kind", Value::String("document".to_owned())),
                         (
                             "children",
                             Value::Array(vec![json_object([
-                                ("kind", Value::String("element".to_owned())),
-                                ("name", Value::String("p".to_owned())),
-                                ("namespace", Value::String(String::new())),
-                                (
-                                    "attributes",
-                                    Value::Array(vec![json_object([
-                                        ("name", Value::String("class".to_owned())),
-                                        ("namespace", Value::String(String::new())),
-                                        ("value", Value::String("lead".to_owned())),
-                                    ])]),
-                                ),
-                                (
-                                    "children",
-                                    Value::Array(vec![json_object([
-                                        ("kind", Value::String("text".to_owned())),
-                                        ("data", Value::String("Hi".to_owned())),
-                                    ])]),
-                                ),
+                                ("kind", Value::String("text".to_owned())),
+                                ("data", Value::String("Hi".to_owned())),
                             ])]),
                         ),
-                    ]),
-                };
-                let secondary_inputs = BTreeMap::new();
-                let rendered = adapter
-                    .render(TransformTemplateRenderRequest {
-                        compiled: &compiled.artifact,
-                        primary_input: &primary_input,
-                        secondary_inputs: &secondary_inputs,
-                        target: Some(&FormatIdentity {
-                            content_type: Some("text/html".to_owned()),
-                            ..FormatIdentity::default()
-                        }),
-                        target_scope: &ScopeConfig::default(),
-                        execution_policy: TransformExecutionPolicy::default(),
-                    })
-                    .expect("packaged DOM-to-HTML converter asset should render");
+                    ])]
+                });
+            let secondary_inputs = BTreeMap::new();
+            let target_content_type = if uri.ends_with("dom-to-xml.cemt") {
+                "application/xml"
+            } else {
+                "text/html"
+            };
+            let rendered = adapter
+                .render(TransformTemplateRenderRequest {
+                    compiled: &compiled.artifact,
+                    primary_input: &primary_input,
+                    secondary_inputs: &secondary_inputs,
+                    target: Some(&FormatIdentity {
+                        content_type: Some(target_content_type.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                    target_scope: &ScopeConfig::default(),
+                    execution_policy: TransformExecutionPolicy::default(),
+                })
+                .expect("packaged DOM projection converter asset should render");
+            assert!(
+                rendered.diagnostics.is_empty(),
+                "{uri}: {:?}",
+                rendered.diagnostics
+            );
 
+            if uri.ends_with("dom-to-xml.cemt") {
+                assert_eq!(
+                    rendered.output.value,
+                    Value::String(
+                        r#"<?xml-stylesheet href="main.css"?><p class="lead"><![CDATA[Hi <all>]]></p>"#
+                            .to_owned()
+                    )
+                );
+            } else {
                 assert_eq!(
                     rendered.output.value,
                     Value::String(r#"<p class="lead">Hi</p>"#.to_owned())

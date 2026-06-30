@@ -170,14 +170,17 @@ fn node_json(node: &RenderPlanNode) -> Value {
     match node {
         RenderPlanNode::Element {
             tag,
+            namespace,
             attributes,
             children,
             source_map,
         } => json!({
             "kind": "element",
             "tag": tag,
+            "namespace": namespace,
             "attributes": attributes.iter().map(|attribute| json!({
                 "name": attribute.name,
+                "namespace": attribute.namespace,
                 "value": attribute.value,
                 "byteOffset": source_map_offset(&attribute.source_map),
                 "sourceMap": source_map_json(&attribute.source_map)
@@ -195,6 +198,23 @@ fn node_json(node: &RenderPlanNode) -> Value {
         RenderPlanNode::Comment { text, source_map } => json!({
             "kind": "comment",
             "text": text,
+            "byteOffset": source_map_offset(source_map),
+            "sourceMap": source_map_json(source_map)
+        }),
+        RenderPlanNode::Cdata { text, source_map } => json!({
+            "kind": "cdata",
+            "text": text,
+            "byteOffset": source_map_offset(source_map),
+            "sourceMap": source_map_json(source_map)
+        }),
+        RenderPlanNode::ProcessingInstruction {
+            target,
+            data,
+            source_map,
+        } => json!({
+            "kind": "processing-instruction",
+            "target": target,
+            "data": data,
             "byteOffset": source_map_offset(source_map),
             "sourceMap": source_map_json(source_map)
         }),

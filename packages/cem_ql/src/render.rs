@@ -139,6 +139,7 @@ pub struct RenderPlan {
 pub enum RenderPlanNode {
     Element {
         tag: String,
+        namespace: Option<String>,
         attributes: Vec<RenderPlanAttribute>,
         children: Vec<RenderPlanNode>,
         source_map: SourceMapStack,
@@ -151,11 +152,21 @@ pub enum RenderPlanNode {
         text: String,
         source_map: SourceMapStack,
     },
+    Cdata {
+        text: String,
+        source_map: SourceMapStack,
+    },
+    ProcessingInstruction {
+        target: String,
+        data: String,
+        source_map: SourceMapStack,
+    },
 }
 
 #[derive(Debug, Clone)]
 pub struct RenderPlanAttribute {
     pub name: String,
+    pub namespace: Option<String>,
     pub value: String,
     /// Typed CEM-QL value before HTML/string serialization.
     ///
@@ -169,7 +180,10 @@ pub struct RenderPlanAttribute {
 
 impl PartialEq for RenderPlanAttribute {
     fn eq(&self, other: &Self) -> bool {
-        self.name == other.name && self.value == other.value && self.source_map == other.source_map
+        self.name == other.name
+            && self.namespace == other.namespace
+            && self.value == other.value
+            && self.source_map == other.source_map
     }
 }
 
@@ -336,6 +350,25 @@ pub fn render_plan_to_html_with_source_map(plan: &RenderPlan) -> TransformOutput
     }
 }
 
+pub fn render_plan_to_xml_with_source_map(plan: &RenderPlan) -> TransformOutput {
+    let mut renderer = RenderPlanXmlRenderer::default();
+    renderer.render_plan(plan);
+    let rendered_len = renderer.out.len() as u32;
+    TransformOutput {
+        target: OutputTarget::Xml,
+        rendered: renderer.out,
+        diagnostics: plan.diagnostics.clone(),
+        source_map: SourceMapStack {
+            frames: vec![SourceMapFrame {
+                source_id: SourceId(0),
+                span: FrameSpan::Single(ByteRange::new(0, rendered_len)),
+                transform: TransformKind::InterpreterRender,
+            }],
+        },
+        output_spans: renderer.spans,
+    }
+}
+
 #[derive(Default)]
 struct RenderPlanHtmlRenderer {
     out: String,
@@ -353,6 +386,7 @@ impl RenderPlanHtmlRenderer {
         match node {
             RenderPlanNode::Element {
                 tag,
+                namespace: _,
                 attributes,
                 children,
                 source_map,
@@ -386,18 +420,168 @@ impl RenderPlanHtmlRenderer {
                 self.out.push_str("-->");
                 self.record_span(start, source_map);
             }
+            RenderPlanNode::Cdata { text, source_map } => {
+                let start = self.out.len() as u64;
+                escape_text_into(&mut self.out, text);
+                self.record_span(start, source_map);
+            }
+            RenderPlanNode::ProcessingInstruction {
+                target,
+                data,
+                source_map,
+            } => {
+                let start = self.out.len() as u64;
+                self.out.push_str("<?");
+                self.out.push_str(target);
+                if !data.is_empty() {
+                    self.out.push(' ');
+                    self.out.push_str(data);
+                }
+                self.out.push_str("?>");
+                self.record_span(start, source_map);
+            }
         }
     }
 
     fn render_attribute(&mut self, attribute: &RenderPlanAttribute) {
         let start = self.out.len() as u64;
         self.out.push(' ');
+        if let Some(namespace) = attribute
+            .namespace
+            .as_deref()
+            .filter(|value| !value.is_empty())
+        {
+            self.out.push_str(namespace);
+            self.out.push(':');
+        }
         self.out.push_str(&attribute.name);
         if !attribute.value.is_empty() {
             self.out.push_str("=\"");
             escape_attr_into(&mut self.out, &attribute.value);
             self.out.push('"');
         }
+        self.record_span(start, &attribute.source_map);
+    }
+
+    fn record_span(&mut self, start: u64, origin: &SourceMapStack) {
+        let end = self.out.len() as u64;
+        if end <= start {
+            return;
+        }
+        let mut origin = origin.clone();
+        origin.push(SourceMapFrame {
+            source_id: origin
+                .frames
+                .last()
+                .map(|frame| frame.source_id)
+                .unwrap_or(SourceId(0)),
+            span: FrameSpan::Single(ByteRange::new(start, (end - start) as u32)),
+            transform: TransformKind::InterpreterRender,
+        });
+        self.spans.push(OutputSpan {
+            output_range: ByteRange::new(start, (end - start) as u32),
+            origin,
+        });
+    }
+}
+
+#[derive(Default)]
+struct RenderPlanXmlRenderer {
+    out: String,
+    spans: Vec<OutputSpan>,
+}
+
+impl RenderPlanXmlRenderer {
+    fn render_plan(&mut self, plan: &RenderPlan) {
+        for node in &plan.nodes {
+            self.render_node(node);
+        }
+    }
+
+    fn render_node(&mut self, node: &RenderPlanNode) {
+        match node {
+            RenderPlanNode::Element {
+                tag,
+                namespace: _,
+                attributes,
+                children,
+                source_map,
+            } => {
+                let open_start = self.out.len() as u64;
+                self.out.push('<');
+                self.out.push_str(tag);
+                for attribute in attributes {
+                    self.render_attribute(attribute);
+                }
+                if children.is_empty() {
+                    self.out.push_str("/>");
+                    self.record_span(open_start, source_map);
+                    return;
+                }
+
+                self.out.push('>');
+                self.record_span(open_start, source_map);
+                for child in children {
+                    self.render_node(child);
+                }
+                let close_start = self.out.len() as u64;
+                self.out.push_str("</");
+                self.out.push_str(tag);
+                self.out.push('>');
+                self.record_span(close_start, source_map);
+            }
+            RenderPlanNode::Text { text, source_map } => {
+                let start = self.out.len() as u64;
+                escape_text_into(&mut self.out, text);
+                self.record_span(start, source_map);
+            }
+            RenderPlanNode::Comment { text, source_map } => {
+                let start = self.out.len() as u64;
+                self.out.push_str("<!--");
+                self.out.push_str(text);
+                self.out.push_str("-->");
+                self.record_span(start, source_map);
+            }
+            RenderPlanNode::Cdata { text, source_map } => {
+                let start = self.out.len() as u64;
+                self.out.push_str("<![CDATA[");
+                self.out.push_str(text);
+                self.out.push_str("]]>");
+                self.record_span(start, source_map);
+            }
+            RenderPlanNode::ProcessingInstruction {
+                target,
+                data,
+                source_map,
+            } => {
+                let start = self.out.len() as u64;
+                self.out.push_str("<?");
+                self.out.push_str(target);
+                if !data.is_empty() {
+                    self.out.push(' ');
+                    self.out.push_str(data);
+                }
+                self.out.push_str("?>");
+                self.record_span(start, source_map);
+            }
+        }
+    }
+
+    fn render_attribute(&mut self, attribute: &RenderPlanAttribute) {
+        let start = self.out.len() as u64;
+        self.out.push(' ');
+        if let Some(namespace) = attribute
+            .namespace
+            .as_deref()
+            .filter(|value| !value.is_empty())
+        {
+            self.out.push_str(namespace);
+            self.out.push(':');
+        }
+        self.out.push_str(&attribute.name);
+        self.out.push_str("=\"");
+        escape_attr_into(&mut self.out, &attribute.value);
+        self.out.push('"');
         self.record_span(start, &attribute.source_map);
     }
 
@@ -927,6 +1111,29 @@ impl PlanRenderer {
                     });
                     return;
                 }
+                if local_template_name(tag) == "cdata" {
+                    out.push(RenderPlanNode::Cdata {
+                        text: self.render_constructor_text(attributes, children, "value"),
+                        source_map: source_map.clone(),
+                    });
+                    return;
+                }
+                if local_template_name(tag) == "processing-instruction" {
+                    let Some((target, target_source_map)) = self.render_constructor_name_or_alias(
+                        attributes,
+                        &["target", "name"],
+                        source_map,
+                        "processing-instruction",
+                    ) else {
+                        return;
+                    };
+                    out.push(RenderPlanNode::ProcessingInstruction {
+                        target,
+                        data: self.render_constructor_text(attributes, children, "value"),
+                        source_map: target_source_map,
+                    });
+                    return;
+                }
                 let mut attributes = attributes
                     .iter()
                     .filter_map(|attribute| self.render_attribute(attribute))
@@ -937,6 +1144,7 @@ impl PlanRenderer {
                 }
                 out.push(RenderPlanNode::Element {
                     tag: tag.clone(),
+                    namespace: None,
                     attributes,
                     children: child_nodes,
                     source_map: source_map.clone(),
@@ -1182,6 +1390,7 @@ impl PlanRenderer {
         }
         Some(RenderPlanAttribute {
             name: attribute.name.clone(),
+            namespace: None,
             value,
             value_stream,
             source_map: attribute.source_map.clone(),
@@ -1227,6 +1436,7 @@ impl PlanRenderer {
         else {
             return;
         };
+        let namespace = self.render_constructor_optional_text(attributes, "namespace");
         let mut rendered_attributes = Vec::new();
         let mut rendered_children = Vec::new();
         for child in children {
@@ -1234,6 +1444,7 @@ impl PlanRenderer {
         }
         out.push(RenderPlanNode::Element {
             tag,
+            namespace,
             attributes: rendered_attributes,
             children: rendered_children,
             source_map: tag_source_map,
@@ -1248,6 +1459,7 @@ impl PlanRenderer {
     ) -> Option<RenderPlanAttribute> {
         let (name, name_source_map) =
             self.render_constructor_name(attributes, "name", source_map, "attribute")?;
+        let namespace = self.render_constructor_optional_text(attributes, "namespace");
         let Some(value_attribute) = attributes
             .iter()
             .find(|attribute| attribute.name == "value")
@@ -1260,6 +1472,7 @@ impl PlanRenderer {
             let value = render_plan_nodes_to_text(&rendered_children);
             return Some(RenderPlanAttribute {
                 name,
+                namespace,
                 value: value.clone(),
                 value_stream: string_stream(value),
                 source_map: name_source_map,
@@ -1268,6 +1481,7 @@ impl PlanRenderer {
         let (value, value_stream) = self.render_attribute_value(value_attribute);
         Some(RenderPlanAttribute {
             name,
+            namespace,
             value,
             value_stream,
             source_map: value_attribute.source_map.clone(),
@@ -1293,6 +1507,55 @@ impl PlanRenderer {
             self.render_into(child, &mut rendered_children, &mut ignored_attributes);
         }
         render_plan_nodes_to_text(&rendered_children)
+    }
+
+    fn render_constructor_optional_text(
+        &mut self,
+        attributes: &[TemplateAttribute],
+        attribute_name: &str,
+    ) -> Option<String> {
+        attributes
+            .iter()
+            .find(|attribute| attribute.name == attribute_name)
+            .map(|attribute| self.render_attribute_value(attribute).0)
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty())
+    }
+
+    fn render_constructor_name_or_alias(
+        &mut self,
+        attributes: &[TemplateAttribute],
+        attribute_names: &[&str],
+        source_map: &SourceMapStack,
+        construct: &str,
+    ) -> Option<(String, SourceMapStack)> {
+        for attribute_name in attribute_names {
+            if attributes
+                .iter()
+                .any(|attribute| attribute.name == *attribute_name)
+            {
+                return self.render_constructor_name(
+                    attributes,
+                    attribute_name,
+                    source_map,
+                    construct,
+                );
+            }
+        }
+        self.diagnostics.push(render_diagnostic(
+            "cem.ql.render.dynamic_name_missing",
+            format!(
+                "`{construct}` constructor requires one of `{}`",
+                attribute_names
+                    .iter()
+                    .map(|name| format!("@{name}"))
+                    .collect::<Vec<_>>()
+                    .join("`, `")
+            ),
+            source_map_start(source_map),
+            source_map.clone(),
+        ));
+        None
     }
 
     fn render_constructor_name(
@@ -1772,7 +2035,9 @@ fn render_plan_nodes_to_text(nodes: &[RenderPlanNode]) -> String {
                 text.push_str(&render_plan_nodes_to_text(children));
             }
             RenderPlanNode::Text { text: chunk, .. } => text.push_str(chunk),
+            RenderPlanNode::Cdata { text: chunk, .. } => text.push_str(chunk),
             RenderPlanNode::Comment { .. } => {}
+            RenderPlanNode::ProcessingInstruction { .. } => {}
         }
     }
     text
@@ -1819,8 +2084,10 @@ mod tests {
         RenderPlan {
             nodes: vec![RenderPlanNode::Element {
                 tag: "p".to_owned(),
+                namespace: None,
                 attributes: vec![RenderPlanAttribute {
                     name: "title".to_owned(),
+                    namespace: None,
                     value: "A&B".to_owned(),
                     value_stream: ItemStream::empty(),
                     source_map: stack(3, 12),
@@ -1855,6 +2122,50 @@ mod tests {
         assert_eq!(
             render_plan_to_html_with_source_map(&plan).rendered,
             render_plan_to_html(&plan)
+        );
+    }
+
+    #[test]
+    fn source_map_render_serializes_xml_specific_nodes() {
+        let plan = RenderPlan {
+            nodes: vec![
+                RenderPlanNode::ProcessingInstruction {
+                    target: "xml-stylesheet".to_owned(),
+                    data: "href=\"main.css\"".to_owned(),
+                    source_map: stack(0, 8),
+                },
+                RenderPlanNode::Element {
+                    tag: "root".to_owned(),
+                    namespace: None,
+                    attributes: vec![RenderPlanAttribute {
+                        name: "id".to_owned(),
+                        namespace: None,
+                        value: "a&b".to_owned(),
+                        value_stream: ItemStream::empty(),
+                        source_map: stack(8, 8),
+                    }],
+                    children: vec![
+                        RenderPlanNode::Element {
+                            tag: "empty".to_owned(),
+                            namespace: None,
+                            attributes: Vec::new(),
+                            children: Vec::new(),
+                            source_map: stack(16, 8),
+                        },
+                        RenderPlanNode::Cdata {
+                            text: "x < y".to_owned(),
+                            source_map: stack(24, 8),
+                        },
+                    ],
+                    source_map: stack(8, 24),
+                },
+            ],
+            diagnostics: Vec::new(),
+        };
+
+        assert_eq!(
+            render_plan_to_xml_with_source_map(&plan).rendered,
+            r#"<?xml-stylesheet href="main.css"?><root id="a&amp;b"><empty/><![CDATA[x < y]]></root>"#
         );
     }
 

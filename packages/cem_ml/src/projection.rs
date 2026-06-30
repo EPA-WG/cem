@@ -824,6 +824,7 @@ fn project_node(doc: &CemDocument, id: AstNodeId) -> Option<Value> {
             ..
         } => json!({
             "kind": "processing-instruction",
+            "name": target,
             "target": target,
             "data": data,
             "byteRange": project_byte_range(stack_origin(source)),
@@ -1009,6 +1010,22 @@ mod tests {
         assert_eq!(attr["name"], "action");
         assert_eq!(attr["namespace"], "cem");
         assert_eq!(attr["value"], "primary");
+    }
+
+    #[test]
+    fn dom_json_processing_instruction_exposes_name_alias() {
+        let doc = parse(r#"<?xml-stylesheet href="main.css"?>{p Hi}"#);
+        let v = dom_json(&doc);
+        let pi = v["children"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|child| child["kind"] == "processing-instruction")
+            .unwrap();
+
+        assert_eq!(pi["name"], "xml-stylesheet");
+        assert_eq!(pi["target"], "xml-stylesheet");
+        assert_eq!(pi["data"], "href=\"main.css\"");
     }
 
     #[test]
