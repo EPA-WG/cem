@@ -1,0 +1,21 @@
+{
+  "site": {
+    "title": "CEM Demo",
+    "tags": ["schema", "json"],
+    "metrics": {
+      "views": 42,
+      "ratio": 0.75
+    }
+  },
+  "items": [
+    {
+      "id": "alpha",
+      "active": true
+    },
+    {
+      "id": "beta",
+      "active": false
+    }
+  ],
+  "metadata": null
+}

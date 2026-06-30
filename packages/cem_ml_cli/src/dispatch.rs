@@ -2989,8 +2989,33 @@ fn collect_embedding_diagnostics(
     diagnostics
 }
 
-fn inputs_are_all_cem_ql_source(inputs: &[eng::EngineInput]) -> bool {
-    !inputs.is_empty() && inputs.iter().all(is_cem_ql_source_input)
+fn direct_source_validation_report(
+    inputs: &[eng::EngineInput],
+    fail_level: cli::FailLevel,
+    context: &cli::ContextOptions,
+) -> Option<cem_ml::report::Report> {
+    if inputs.is_empty() {
+        return None;
+    }
+
+    let mut diagnostics = Vec::new();
+    for input in inputs {
+        if is_cem_ql_source_input(input) {
+            diagnostics.extend(collect_cem_ql_source_diagnostics(std::slice::from_ref(
+                input,
+            )));
+        } else if is_json_source_input(input) {
+            diagnostics.extend(collect_json_source_diagnostics(std::slice::from_ref(input)));
+        } else {
+            return None;
+        }
+    }
+
+    Some(cem_ml::report::Report::deterministic(
+        inputs.iter().map(|input| input.uri.clone()).collect(),
+        diagnostics,
+        report_options_snapshot(fail_level, context),
+    ))
 }
 
 fn is_cem_ql_source_input(input: &eng::EngineInput) -> bool {
@@ -3024,6 +3049,37 @@ fn is_cem_ql_source_content_type(content_type: &str) -> bool {
     )
 }
 
+fn is_json_source_input(input: &eng::EngineInput) -> bool {
+    let identity = input
+        .identity
+        .clone()
+        .unwrap_or_else(|| input.root_scope.format_identity());
+    let schema_is_json = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI);
+    let content_type = identity
+        .content_type
+        .as_deref()
+        .map(cli_content_type_essence);
+
+    match content_type.as_deref() {
+        Some(content_type) if is_json_source_content_type(content_type) => {
+            identity.schema.is_none() || schema_is_json
+        }
+        Some(_) => false,
+        None => schema_is_json,
+    }
+}
+
+fn is_json_source_content_type(content_type: &str) -> bool {
+    matches!(
+        content_type,
+        cem_ml::schema::registry::JSON_CONTENT_TYPE | "text/json"
+    )
+}
+
 fn cli_content_type_essence(content_type: &str) -> String {
     content_type
         .split(';')
@@ -3031,19 +3087,6 @@ fn cli_content_type_essence(content_type: &str) -> String {
         .unwrap_or(content_type)
         .trim()
         .to_ascii_lowercase()
-}
-
-fn cem_ql_validation_report(
-    inputs: &[eng::EngineInput],
-    fail_level: cli::FailLevel,
-    context: &cli::ContextOptions,
-) -> cem_ml::report::Report {
-    let diagnostics = collect_cem_ql_source_diagnostics(inputs);
-    cem_ml::report::Report::deterministic(
-        inputs.iter().map(|input| input.uri.clone()).collect(),
-        diagnostics,
-        report_options_snapshot(fail_level, context),
-    )
 }
 
 fn collect_cem_ql_source_diagnostics(
@@ -3091,6 +3134,33 @@ fn cem_ql_module_uri_missing_diagnostic(
         code: "cem.ql.module_uri_missing".to_owned(),
         severity: cem_ml::diagnostics::Severity::Error,
         message: "CEM-QL module source requires a `module \"...\"` URI declaration".to_owned(),
+        ..cem_ml::diagnostics::Diagnostic::default()
+    }
+}
+
+fn collect_json_source_diagnostics(
+    inputs: &[eng::EngineInput],
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    let mut diagnostics = Vec::new();
+    for input in inputs {
+        if let Err(error) = serde_json::from_slice::<serde_json::Value>(&input.bytes) {
+            diagnostics.push(json_parse_error_diagnostic(input, &error));
+        }
+    }
+    diagnostics
+}
+
+fn json_parse_error_diagnostic(
+    input: &eng::EngineInput,
+    error: &serde_json::Error,
+) -> cem_ml::diagnostics::Diagnostic {
+    cem_ml::diagnostics::Diagnostic {
+        uri: Some(input.uri.clone()),
+        line: u32::try_from(error.line()).ok(),
+        column: u32::try_from(error.column()).ok(),
+        code: "cem.json.parse_error".to_owned(),
+        severity: cem_ml::diagnostics::Severity::Error,
+        message: format!("JSON parse error: {error}"),
         ..cem_ml::diagnostics::Diagnostic::default()
     }
 }
@@ -3780,8 +3850,7 @@ pub fn run_validate<E: CemMlEngine + ?Sized>(
             s,
         );
     }
-    if inputs_are_all_cem_ql_source(&inputs) {
-        let report = cem_ql_validation_report(&inputs, args.fail_level, &args.context);
+    if let Some(report) = direct_source_validation_report(&inputs, args.fail_level, &args.context) {
         if let Err(e) = write_report_files(
             &engine_context,
             &report,
@@ -3878,8 +3947,7 @@ pub fn run_check<E: CemMlEngine + ?Sized>(
             s,
         );
     }
-    if inputs_are_all_cem_ql_source(&inputs) {
-        let report = cem_ql_validation_report(&inputs, args.fail_level, &args.context);
+    if let Some(report) = direct_source_validation_report(&inputs, args.fail_level, &args.context) {
         if let Err(e) = write_report_files(
             &engine_context,
             &report,
@@ -7520,6 +7588,63 @@ declare variable broken := 1 +"#,
         assert!(diagnostics
             .iter()
             .any(|diag| diag["code"] == "cem.ql.parse_error"));
+    }
+
+    #[test]
+    fn validate_json_source_uses_json_parser() {
+        let p = write_fixture(
+            "validate-json-source.json",
+            r#"{"message":"Hello","items":[1,2,3],"enabled":true}"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "text/json; charset=utf-8",
+                "--schema",
+                cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
+        assert!(!diagnostics.iter().any(|diag| diag["code"]
+            .as_str()
+            .is_some_and(|code| code.starts_with("cem.schema."))));
+    }
+
+    #[test]
+    fn validate_json_source_reports_parser_diagnostics() {
+        let p = write_fixture("validate-json-source-invalid.json", r#"{"broken": true,}"#);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/json",
+                "--schema",
+                cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.json.parse_error"));
     }
 
     #[test]

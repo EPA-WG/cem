@@ -16,6 +16,8 @@ const CEM_TRANSFORM_SCHEMA_URI: &str = "https://cem.dev/ns/transform/cem/1";
 const CEM_TRANSFORM_CONTENT_TYPE: &str = "application/vnd.cem.transform+cem";
 const CEM_QL_SCHEMA_URI: &str = "https://cem.dev/ns/query/cem-ql/1";
 const CEM_QL_CONTENT_TYPE: &str = "application/vnd.cem.query+cem-ql";
+const JSON_SCHEMA_URI: &str = "https://cem.dev/ns/data/json/1";
+const JSON_CONTENT_TYPE: &str = "application/json";
 
 #[derive(Debug)]
 struct ValidationExample {
@@ -243,6 +245,30 @@ fn schema_owned_examples_validate_through_cli() {
             schema_uri: CEM_QL_SCHEMA_URI,
             expected_exit: EXIT_HARD_FAILURE,
             expected_diagnostics: &["cem.ql.module_uri_missing"],
+        },
+        ValidationExample {
+            name: "json basic object",
+            path: "packages/cem_ml/schema-packages/json/v1/examples/basic-object.json",
+            content_type: JSON_CONTENT_TYPE,
+            schema_uri: JSON_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "json nested data",
+            path: "packages/cem_ml/schema-packages/json/v1/examples/nested-data.json",
+            content_type: JSON_CONTENT_TYPE,
+            schema_uri: JSON_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "json invalid trailing comma",
+            path: "packages/cem_ml/schema-packages/json/v1/examples/invalid-trailing-comma.json",
+            content_type: JSON_CONTENT_TYPE,
+            schema_uri: JSON_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.json.parse_error"],
         },
     ];
 

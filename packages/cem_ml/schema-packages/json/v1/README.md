@@ -25,3 +25,23 @@ The schema describes JSON values as a lossless resource model:
 - arrays preserve item order;
 - strings, numbers, booleans, and null preserve their JSON value kind;
 - parsers should retain lexical/source-map information when available.
+
+## Validation Examples
+
+The schema-owned examples live in [`examples/`](examples/) and are used by the
+CLI validation integration tests.
+
+| Example | Purpose | Expected result |
+| --- | --- | --- |
+| [`basic-object.json`](examples/basic-object.json) | Minimal object with string, boolean, and number values. | Pass |
+| [`nested-data.json`](examples/nested-data.json) | Nested object/array document with scalar values and null. | Pass |
+| [`invalid-trailing-comma.json`](examples/invalid-trailing-comma.json) | Object with a trailing comma rejected by the JSON parser. | Fail with `cem.json.parse_error` |
+
+Validate an example explicitly against this schema:
+
+```bash
+cargo run -p cem-ml-cli -- validate \
+  --content-type application/json \
+  --schema https://cem.dev/ns/data/json/1 \
+  packages/cem_ml/schema-packages/json/v1/examples/basic-object.json
+```

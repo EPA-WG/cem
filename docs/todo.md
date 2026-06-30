@@ -42,7 +42,7 @@ history belongs in git history and the feature-specific docs linked below.
         (`application/vnd.cem.transform+cem`, `.cemt`).
   - [x] CEM-QL module/query resources
         (`application/vnd.cem.query+cem-ql`, `text/cem-ql`).
-  - [ ] JSON (`application/json`, `text/json`).
+  - [x] JSON (`application/json`, `text/json`).
   - [ ] JSON Schema (`application/schema+json`).
   - [ ] CEM DOM projection
         (`application/vnd.cem.dom+cem-bin`,
