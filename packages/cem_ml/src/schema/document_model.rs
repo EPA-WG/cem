@@ -7,6 +7,7 @@
 //! - declared element names;
 //! - required and optional attributes per element;
 //! - direct child element allow-lists.
+//! - built-in base element references through schema `{uses}` aliases.
 //!
 //! Cardinality, ordering, scalar type checks, and semantic constraints remain
 //! follow-up work.
@@ -23,6 +24,7 @@ use crate::schema::package_loader::{
 };
 use crate::schema::registry::{
     CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
+    CEM_TRANSFORM_SCHEMA_URI,
 };
 use crate::source::{BytesSource, SourceId};
 use crate::source_map::FrameSpan;
@@ -214,6 +216,21 @@ fn validate_node(
 }
 
 fn compile_document_model(schema_uri: &str, schema_source: &str) -> SchemaDocumentModel {
+    compile_document_model_with_seen(schema_uri, schema_source, &mut BTreeSet::new())
+}
+
+fn compile_document_model_with_seen(
+    schema_uri: &str,
+    schema_source: &str,
+    seen_schema_uris: &mut BTreeSet<String>,
+) -> SchemaDocumentModel {
+    if !seen_schema_uris.insert(schema_uri.to_owned()) {
+        return SchemaDocumentModel {
+            schema_uri: schema_uri.to_owned(),
+            elements: BTreeMap::new(),
+        };
+    }
+
     let document = parse_cem_document(schema_source);
     let mut model = SchemaDocumentModel {
         schema_uri: schema_uri.to_owned(),
@@ -221,8 +238,10 @@ fn compile_document_model(schema_uri: &str, schema_source: &str) -> SchemaDocume
     };
 
     let Some(schema_id) = first_element_id_by_local_name(&document, "schema") else {
+        seen_schema_uris.remove(schema_uri);
         return model;
     };
+    let uses = collect_schema_uses(&document, schema_id);
 
     for elements_id in element_child_ids_by_local_name(&document, schema_id, "elements") {
         let Some(CemAstNode::Element { children, .. }) = document.get(elements_id) else {
@@ -235,7 +254,9 @@ fn compile_document_model(schema_uri: &str, schema_source: &str) -> SchemaDocume
             if element_local_name(child) != Some("element") {
                 continue;
             }
-            let Some(element_model) = compile_element_model(&document, *child_id) else {
+            let Some(element_model) =
+                compile_element_model(&document, *child_id, &uses, seen_schema_uris)
+            else {
                 continue;
             };
             model
@@ -244,24 +265,90 @@ fn compile_document_model(schema_uri: &str, schema_source: &str) -> SchemaDocume
         }
     }
 
+    seen_schema_uris.remove(schema_uri);
     model
 }
 
-fn compile_element_model(document: &CemDocument, node_id: AstNodeId) -> Option<ElementModel> {
+fn compile_element_model(
+    document: &CemDocument,
+    node_id: AstNodeId,
+    uses: &BTreeMap<String, String>,
+    seen_schema_uris: &mut BTreeSet<String>,
+) -> Option<ElementModel> {
     let attrs = collect_attrs(document, node_id);
     let name = attrs.get("name")?.trim().to_owned();
     if name.is_empty() {
         return None;
     }
-    let (child_elements, allow_any_child) = parse_child_set(attrs.get("children"));
 
-    Some(ElementModel {
-        name,
-        required_attributes: parse_name_set(attrs.get("required-attributes")),
-        optional_attributes: parse_name_set(attrs.get("optional-attributes")),
-        child_elements,
-        allow_any_child,
-    })
+    let mut element_model = attrs
+        .get("base")
+        .and_then(|base| resolve_base_element_model(base, uses, seen_schema_uris))
+        .unwrap_or_default();
+    element_model.name = name;
+
+    if attrs.contains_key("required-attributes") {
+        element_model.required_attributes = parse_name_set(attrs.get("required-attributes"));
+    }
+    if attrs.contains_key("optional-attributes") {
+        element_model.optional_attributes = parse_name_set(attrs.get("optional-attributes"));
+    }
+    if attrs.contains_key("children") {
+        let (child_elements, allow_any_child) = parse_child_set(attrs.get("children"));
+        element_model.child_elements = child_elements;
+        element_model.allow_any_child = allow_any_child;
+    }
+
+    Some(element_model)
+}
+
+fn collect_schema_uses(document: &CemDocument, schema_id: AstNodeId) -> BTreeMap<String, String> {
+    let mut uses = BTreeMap::new();
+    for uses_id in element_child_ids_by_local_name(document, schema_id, "uses") {
+        let Some(CemAstNode::Element { children, .. }) = document.get(uses_id) else {
+            continue;
+        };
+        for child_id in children {
+            if document.get(*child_id).and_then(element_local_name) != Some("use") {
+                continue;
+            }
+            let attrs = collect_attrs(document, *child_id);
+            let Some(alias) = attrs.get("as").map(String::as_str).map(str::trim) else {
+                continue;
+            };
+            let Some(schema_uri) = attrs.get("schema").map(String::as_str).map(str::trim) else {
+                continue;
+            };
+            if !alias.is_empty() && !schema_uri.is_empty() {
+                uses.insert(alias.to_owned(), schema_uri.to_owned());
+            }
+        }
+    }
+    uses
+}
+
+fn resolve_base_element_model(
+    base: &str,
+    uses: &BTreeMap<String, String>,
+    seen_schema_uris: &mut BTreeSet<String>,
+) -> Option<ElementModel> {
+    let (alias, element_name) = base.trim().split_once(':')?;
+    let schema_uri = uses.get(alias.trim())?.trim();
+    let element_name = element_name.trim();
+    if schema_uri.is_empty() || element_name.is_empty() {
+        return None;
+    }
+    let package = load_builtin_schema_package(schema_uri).ok()?;
+    if !is_bootstrap_document_model_schema(&package.descriptor.schema_uri) {
+        return None;
+    }
+    compile_document_model_with_seen(
+        &package.descriptor.schema_uri,
+        package.schema_source,
+        seen_schema_uris,
+    )
+    .element(element_name)
+    .cloned()
 }
 
 fn is_bootstrap_document_model_schema(schema_uri: &str) -> bool {
@@ -271,6 +358,7 @@ fn is_bootstrap_document_model_schema(schema_uri: &str) -> bool {
             | CEM_SCHEMA_URI
             | CEM_SCHEMA_PACKAGE_URI
             | CEM_NATIVE_TEMPLATE_SCHEMA_URI
+            | CEM_TRANSFORM_SCHEMA_URI
     )
 }
 
@@ -437,7 +525,7 @@ mod tests {
     use crate::schema::registry::{
         CEM_ML_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI,
         CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
-        CEM_SCHEMA_URI, HTML_CONTENT_TYPE,
+        CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, HTML_CONTENT_TYPE,
     };
 
     #[test]
@@ -480,6 +568,21 @@ mod tests {
     }
 
     #[test]
+    fn loads_transform_document_model_with_template_base_elements() {
+        let model =
+            load_builtin_document_model_for_identity(Some(CEM_TRANSFORM_SCHEMA_URI), None).unwrap();
+
+        let template = model.element("template").unwrap();
+        assert!(template.required_attributes.contains("name"));
+        assert!(template.child_elements.contains("body"));
+        let call = model.element("call").unwrap();
+        assert!(call.required_attributes.contains("template"));
+        assert!(call.optional_attributes.contains("with:*"));
+        let body = model.element("body").unwrap();
+        assert!(body.allow_any_child);
+    }
+
+    #[test]
     fn ambiguous_generic_cem_content_type_does_not_select_a_model() {
         assert!(
             load_builtin_document_model_for_identity(None, Some(CEM_ML_CONTENT_TYPE)).is_none()
@@ -514,6 +617,58 @@ mod tests {
         let diagnostics = validate_document_model(&document, &model);
 
         assert!(diagnostics.is_empty(), "{diagnostics:#?}");
+    }
+
+    #[test]
+    fn validates_transform_template_inherited_model() {
+        let model =
+            load_builtin_document_model_for_identity(None, Some(CEM_TRANSFORM_CONTENT_TYPE))
+                .unwrap();
+        let document = parse_cem_document(
+            r#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module |
+    {template @name="main" |
+        {body |
+            {call @template="card" @with:title="Welcome"}
+            {article | Output content}
+        }
+    }
+    {template @name="card" |
+        {body | {section | Card}}
+    }
+}"#,
+        );
+
+        let diagnostics = validate_document_model(&document, &model);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:#?}");
+    }
+
+    #[test]
+    fn validates_transform_template_inherited_required_attribute() {
+        let model =
+            load_builtin_document_model_for_identity(None, Some(CEM_TRANSFORM_CONTENT_TYPE))
+                .unwrap();
+        let document = parse_cem_document(
+            r#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module |
+    {template |
+        {body | Missing required template name.}
+    }
+}"#,
+        );
+
+        let diagnostics = validate_document_model(&document, &model);
+
+        assert!(diagnostics.iter().any(|diagnostic| diagnostic.code
+            == MISSING_REQUIRED_ATTRIBUTE_CODE
+            && diagnostic.message.contains("name")));
     }
 
     #[test]

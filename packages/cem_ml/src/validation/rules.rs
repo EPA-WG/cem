@@ -24,7 +24,7 @@ use crate::schema::document_model::{
 use crate::schema::registry::{
     content_type_essence, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
     CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
-    CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
+    CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI,
 };
 use crate::source_map::FrameSpan;
 use crate::validation::{
@@ -774,7 +774,7 @@ impl SemanticRule for UnboundPrefixRule {
             if KNOWN_PREFIXES.contains(&prefix.as_str()) {
                 continue;
             }
-            if prefix == "with" && is_native_template_language_document(ctx) {
+            if prefix == "with" && is_template_family_language_document(ctx) {
                 continue;
             }
             out.push(diag_at(
@@ -1188,6 +1188,7 @@ fn is_schema_language_namespace(ns: &str) -> bool {
             | CEM_SCHEMA_URI
             | CEM_SCHEMA_PACKAGE_URI
             | CEM_NATIVE_TEMPLATE_SCHEMA_URI
+            | CEM_TRANSFORM_SCHEMA_URI
     )
 }
 
@@ -1201,11 +1202,16 @@ fn is_schema_language_document(ctx: &RuleContext<'_>) -> bool {
             .unwrap_or(false)
 }
 
-fn is_native_template_language_document(ctx: &RuleContext<'_>) -> bool {
-    ctx.schema_uri == Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI)
-        || ctx.content_type.is_some_and(|content_type| {
-            content_type_essence(content_type) == CEM_NATIVE_TEMPLATE_CONTENT_TYPE
-        })
+fn is_template_family_language_document(ctx: &RuleContext<'_>) -> bool {
+    matches!(
+        ctx.schema_uri,
+        Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI | CEM_TRANSFORM_SCHEMA_URI)
+    ) || ctx.content_type.is_some_and(|content_type| {
+        matches!(
+            content_type_essence(content_type).as_str(),
+            CEM_NATIVE_TEMPLATE_CONTENT_TYPE | CEM_TRANSFORM_CONTENT_TYPE
+        )
+    })
 }
 
 fn is_schema_language_content_type(content_type: &str) -> bool {
@@ -1215,6 +1221,7 @@ fn is_schema_language_content_type(content_type: &str) -> bool {
             | CEM_SCHEMA_CONTENT_TYPE
             | CEM_SCHEMA_PACKAGE_CONTENT_TYPE
             | CEM_NATIVE_TEMPLATE_CONTENT_TYPE
+            | CEM_TRANSFORM_CONTENT_TYPE
     )
 }
 
@@ -1672,6 +1679,16 @@ mod tests {
     }
 
     #[test]
+    fn transform_with_attributes_are_not_unbound_prefix_lints() {
+        let diags = run_rules_with_identity(
+            r#"{module | {template @name=page | {body | {call @template=hero @with:title=heading}}}}"#,
+            Some(CEM_TRANSFORM_SCHEMA_URI),
+            Some(CEM_TRANSFORM_CONTENT_TYPE),
+        );
+        assert!(diags.iter().all(|d| d.code != "cem.lint.unbound_prefix"));
+    }
+
+    #[test]
     fn open_content_policy_flags_unknown_names() {
         let element_diags = run_rules(r#"{nothtml | hi}"#);
         assert!(element_diags
@@ -1702,6 +1719,20 @@ mod tests {
             r#"{module | {template @name=page | {body | {call @template=hero}}}}"#,
             Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI),
             Some(CEM_NATIVE_TEMPLATE_CONTENT_TYPE),
+        );
+        assert!(diags.iter().all(|d| {
+            d.code != "cem.schema.unknown_html_element"
+                && d.code != "cem.schema.unknown_html_attribute"
+                && d.code != "cem.schema.unresolved_namespace"
+        }));
+    }
+
+    #[test]
+    fn open_content_policy_skips_transform_language_documents() {
+        let diags = run_rules_with_identity(
+            r#"{module | {template @name=main | {body | {call @template=row}}}}"#,
+            Some(CEM_TRANSFORM_SCHEMA_URI),
+            Some(CEM_TRANSFORM_CONTENT_TYPE),
         );
         assert!(diags.iter().all(|d| {
             d.code != "cem.schema.unknown_html_element"

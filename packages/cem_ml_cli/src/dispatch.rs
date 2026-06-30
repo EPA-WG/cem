@@ -7277,6 +7277,37 @@ mod tests {
     }
 
     #[test]
+    fn validate_cem_transform_schema_selects_cem_input_adapter() {
+        let p = write_fixture(
+            "validate-cem-transform-schema.cemt",
+            r#"@doc cem-ml 1
+{module |
+  {template @name="main" |
+    {body | {p | Hi}}
+  }
+}"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--schema",
+                cem_ml::schema::registry::CEM_TRANSFORM_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
+    }
+
+    #[test]
     fn validate_html_schema_selects_html_input_adapter() {
         let p = write_fixture("validate-html-schema.data", "<p>Hi</p>");
         let (outcome, stdout, stderr) = run(

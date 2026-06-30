@@ -38,7 +38,7 @@ history belongs in git history and the feature-specific docs linked below.
         (`application/vnd.cem.schema-package+cem`, `package.cem`).
   - [x] CEM-ML native template
         (`application/vnd.cem.template+cem`).
-  - [ ] CEM-ML transform template
+  - [x] CEM-ML transform template
         (`application/vnd.cem.transform+cem`, `.cemt`).
   - [ ] CEM-QL module/query resources
         (`application/vnd.cem.query+cem-ql`, `text/cem-ql`).

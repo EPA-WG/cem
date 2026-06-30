@@ -1,0 +1,9 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module |
+    {template @name="main" |
+        {body | Converted output.}
+    }
+}
