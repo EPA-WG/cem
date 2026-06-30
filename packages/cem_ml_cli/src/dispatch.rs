@@ -26,6 +26,7 @@ use std::ffi::OsStr;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 pub const EXIT_OK: u8 = 0;
 pub const EXIT_HARD_FAILURE: u8 = 1;
@@ -3065,372 +3066,63 @@ fn direct_source_validation_report(
 }
 
 fn is_cem_ql_source_input(input: &eng::EngineInput) -> bool {
-    let identity = input
-        .identity
-        .clone()
-        .unwrap_or_else(|| input.root_scope.format_identity());
-    let schema_is_cem_ql = identity
-        .schema
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|schema| schema == cem_ml::schema::registry::CEM_QL_SCHEMA_URI);
-    let content_type = identity
-        .content_type
-        .as_deref()
-        .map(cli_content_type_essence);
-
-    match content_type.as_deref() {
-        Some(content_type) if is_cem_ql_source_content_type(content_type) => {
-            identity.schema.is_none() || schema_is_cem_ql
-        }
-        Some(_) => false,
-        None => schema_is_cem_ql,
-    }
-}
-
-fn is_cem_ql_source_content_type(content_type: &str) -> bool {
-    matches!(
-        content_type,
-        cem_ml::schema::registry::CEM_QL_CONTENT_TYPE | "text/cem-ql"
-    )
+    source_input_matches_schema_uri(input, cem_ml::schema::registry::CEM_QL_SCHEMA_URI)
 }
 
 fn is_json_source_input(input: &eng::EngineInput) -> bool {
-    let identity = input
-        .identity
-        .clone()
-        .unwrap_or_else(|| input.root_scope.format_identity());
-    let schema_is_json = identity
-        .schema
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|schema| schema == cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI);
-    let content_type = identity
-        .content_type
-        .as_deref()
-        .map(cli_content_type_essence);
-
-    match content_type.as_deref() {
-        Some(content_type) if is_json_source_content_type(content_type) => {
-            identity.schema.is_none() || schema_is_json
-        }
-        Some(_) => false,
-        None => schema_is_json,
-    }
+    source_input_matches_schema_uri(input, cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI)
 }
 
 fn is_json_schema_source_input(input: &eng::EngineInput) -> bool {
-    let identity = input
-        .identity
-        .clone()
-        .unwrap_or_else(|| input.root_scope.format_identity());
-    let schema_is_json_schema = identity
-        .schema
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|schema| schema == cem_ml::schema::registry::JSON_SCHEMA_SCHEMA_URI);
-    let content_type = identity
-        .content_type
-        .as_deref()
-        .map(cli_content_type_essence);
-
-    match content_type.as_deref() {
-        Some(content_type)
-            if content_type == cem_ml::schema::registry::JSON_SCHEMA_CONTENT_TYPE =>
-        {
-            identity.schema.is_none() || schema_is_json_schema
-        }
-        Some(_) => false,
-        None => schema_is_json_schema,
-    }
+    source_input_matches_schema_uri(input, cem_ml::schema::registry::JSON_SCHEMA_SCHEMA_URI)
 }
 
 fn is_yaml_source_input(input: &eng::EngineInput) -> bool {
-    let identity = input
-        .identity
-        .clone()
-        .unwrap_or_else(|| input.root_scope.format_identity());
-    let schema_is_yaml = identity
-        .schema
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|schema| schema == cem_ml::schema::registry::YAML_SCHEMA_URI);
-    let content_type = identity
-        .content_type
-        .as_deref()
-        .map(cli_content_type_essence);
-
-    match content_type.as_deref() {
-        Some(content_type) if is_yaml_source_content_type(content_type) => {
-            identity.schema.is_none() || schema_is_yaml
-        }
-        Some(_) => false,
-        None => schema_is_yaml,
-    }
+    source_input_matches_schema_uri(input, cem_ml::schema::registry::YAML_SCHEMA_URI)
 }
 
 fn is_csv_source_input(input: &eng::EngineInput) -> bool {
-    let identity = input
-        .identity
-        .clone()
-        .unwrap_or_else(|| input.root_scope.format_identity());
-    let schema_is_csv = identity
-        .schema
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|schema| schema == cem_ml::schema::registry::CSV_SCHEMA_URI);
-    let content_type = identity
-        .content_type
-        .as_deref()
-        .map(cli_content_type_essence);
-
-    match content_type.as_deref() {
-        Some(content_type) if is_csv_source_content_type(content_type) => {
-            identity.schema.is_none() || schema_is_csv
-        }
-        Some(_) => false,
-        None => schema_is_csv,
-    }
+    source_input_matches_schema_uri(input, cem_ml::schema::registry::CSV_SCHEMA_URI)
 }
 
 fn is_markdown_source_input(input: &eng::EngineInput) -> bool {
-    let identity = input
-        .identity
-        .clone()
-        .unwrap_or_else(|| input.root_scope.format_identity());
-    let schema_is_markdown = identity
-        .schema
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|schema| schema == cem_ml::schema::registry::MARKDOWN_SCHEMA_URI);
-    let content_type = identity
-        .content_type
-        .as_deref()
-        .map(cli_content_type_essence);
-
-    match content_type.as_deref() {
-        Some(content_type) if is_markdown_source_content_type(content_type) => {
-            identity.schema.is_none() || schema_is_markdown
-        }
-        Some(_) => false,
-        None => schema_is_markdown,
-    }
+    source_input_matches_schema_uri(input, cem_ml::schema::registry::MARKDOWN_SCHEMA_URI)
 }
 
 fn is_html_source_input(input: &eng::EngineInput) -> bool {
-    let identity = input
-        .identity
-        .clone()
-        .unwrap_or_else(|| input.root_scope.format_identity());
-    let schema_is_html = identity
-        .schema
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|schema| schema == cem_ml::schema::registry::HTML_SCHEMA_URI);
-    let content_type = identity
-        .content_type
-        .as_deref()
-        .map(cli_content_type_essence);
-
-    match content_type.as_deref() {
-        Some(content_type) if is_html_source_content_type(content_type) => {
-            identity.schema.is_none() || schema_is_html
-        }
-        Some(_) => false,
-        None => schema_is_html,
-    }
+    source_input_matches_schema_uri(input, cem_ml::schema::registry::HTML_SCHEMA_URI)
 }
 
 fn is_css_source_input(input: &eng::EngineInput) -> bool {
-    let identity = input
-        .identity
-        .clone()
-        .unwrap_or_else(|| input.root_scope.format_identity());
-    let schema_is_css = identity
-        .schema
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|schema| schema == cem_ml::schema::registry::CSS_SCHEMA_URI);
-    let content_type = identity
-        .content_type
-        .as_deref()
-        .map(cli_content_type_essence);
-
-    match content_type.as_deref() {
-        Some(content_type) if is_css_source_content_type(content_type) => {
-            identity.schema.is_none() || schema_is_css
-        }
-        Some(_) => false,
-        None => schema_is_css,
-    }
+    source_input_matches_schema_uri(input, cem_ml::schema::registry::CSS_SCHEMA_URI)
 }
 
 fn is_xml_source_input(input: &eng::EngineInput) -> bool {
-    let identity = input
-        .identity
-        .clone()
-        .unwrap_or_else(|| input.root_scope.format_identity());
-    let schema_is_xml = identity
-        .schema
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|schema| schema == cem_ml::schema::registry::XML_SCHEMA_URI);
-    let content_type = identity
-        .content_type
-        .as_deref()
-        .map(cli_content_type_essence);
-
-    match content_type.as_deref() {
-        Some(content_type) if is_xml_source_content_type(content_type) => {
-            identity.schema.is_none() || schema_is_xml
-        }
-        Some(_) => false,
-        None => schema_is_xml,
-    }
+    source_input_matches_schema_uri(input, cem_ml::schema::registry::XML_SCHEMA_URI)
 }
 
 fn is_relax_ng_source_input(input: &eng::EngineInput) -> bool {
-    let identity = input
-        .identity
-        .clone()
-        .unwrap_or_else(|| input.root_scope.format_identity());
-    let schema_is_relax_ng = identity
-        .schema
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|schema| schema == cem_ml::schema::registry::RELAX_NG_SCHEMA_URI);
-    let content_type = identity
-        .content_type
-        .as_deref()
-        .map(cli_content_type_essence);
-
-    match content_type.as_deref() {
-        Some(content_type) if is_relax_ng_source_content_type(content_type) => {
-            identity.schema.is_none() || schema_is_relax_ng
-        }
-        Some(_) => false,
-        None => schema_is_relax_ng,
-    }
+    source_input_matches_schema_uri(input, cem_ml::schema::registry::RELAX_NG_SCHEMA_URI)
 }
 
 fn is_xhtml_source_input(input: &eng::EngineInput) -> bool {
-    let identity = input
-        .identity
-        .clone()
-        .unwrap_or_else(|| input.root_scope.format_identity());
-    let schema_is_xhtml = identity
-        .schema
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|schema| schema == cem_ml::schema::registry::XHTML_SCHEMA_URI);
-    let content_type = identity
-        .content_type
-        .as_deref()
-        .map(cli_content_type_essence);
-
-    match content_type.as_deref() {
-        Some(content_type) if is_xhtml_source_content_type(content_type) => {
-            identity.schema.is_none() || schema_is_xhtml
-        }
-        Some(_) => false,
-        None => schema_is_xhtml,
-    }
+    source_input_matches_schema_uri(input, cem_ml::schema::registry::XHTML_SCHEMA_URI)
 }
 
 fn is_svg_source_input(input: &eng::EngineInput) -> bool {
-    let identity = input
-        .identity
-        .clone()
-        .unwrap_or_else(|| input.root_scope.format_identity());
-    let schema_is_svg = identity
-        .schema
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|schema| schema == cem_ml::schema::registry::SVG_SCHEMA_URI);
-    let content_type = identity
-        .content_type
-        .as_deref()
-        .map(cli_content_type_essence);
-
-    match content_type.as_deref() {
-        Some(content_type) if is_svg_source_content_type(content_type) => {
-            identity.schema.is_none() || schema_is_svg
-        }
-        Some(_) => false,
-        None => schema_is_svg,
-    }
+    source_input_matches_schema_uri(input, cem_ml::schema::registry::SVG_SCHEMA_URI)
 }
 
 fn is_mathml_source_input(input: &eng::EngineInput) -> bool {
-    let identity = input
-        .identity
-        .clone()
-        .unwrap_or_else(|| input.root_scope.format_identity());
-    let schema_is_mathml = identity
-        .schema
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|schema| schema == cem_ml::schema::registry::MATHML_SCHEMA_URI);
-    let content_type = identity
-        .content_type
-        .as_deref()
-        .map(cli_content_type_essence);
-
-    match content_type.as_deref() {
-        Some(content_type) if is_mathml_source_content_type(content_type) => {
-            identity.schema.is_none() || schema_is_mathml
-        }
-        Some(_) => false,
-        None => schema_is_mathml,
-    }
+    source_input_matches_schema_uri(input, cem_ml::schema::registry::MATHML_SCHEMA_URI)
 }
 
 fn is_xslt_source_input(input: &eng::EngineInput) -> bool {
-    let identity = input
-        .identity
-        .clone()
-        .unwrap_or_else(|| input.root_scope.format_identity());
-    let schema_is_xslt = identity
-        .schema
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|schema| schema == cem_ml::schema::registry::XSLT_SCHEMA_URI);
-    let content_type = identity
-        .content_type
-        .as_deref()
-        .map(cli_content_type_essence);
-
-    match content_type.as_deref() {
-        Some(content_type) if is_xslt_source_content_type(content_type) => {
-            identity.schema.is_none() || schema_is_xslt
-        }
-        Some(_) => false,
-        None => schema_is_xslt,
-    }
+    source_input_matches_schema_uri(input, cem_ml::schema::registry::XSLT_SCHEMA_URI)
 }
 
 fn is_cem_dom_projection_source_input(input: &eng::EngineInput) -> bool {
-    let identity = input
-        .identity
-        .clone()
-        .unwrap_or_else(|| input.root_scope.format_identity());
-    let schema_is_cem_dom = identity
-        .schema
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(is_cem_dom_projection_schema);
-    let content_type = identity
-        .content_type
-        .as_deref()
-        .map(cli_content_type_essence);
-
-    match content_type.as_deref() {
-        Some(content_type) if is_cem_dom_projection_source_content_type(content_type) => {
-            identity.schema.is_none() || schema_is_cem_dom
-        }
-        Some(_) => false,
-        None => schema_is_cem_dom,
-    }
+    source_input_matches_schema(input, is_cem_dom_projection_schema)
 }
 
 fn is_cem_dom_projection_schema(schema: &str) -> bool {
@@ -3441,157 +3133,53 @@ fn is_cem_dom_projection_schema(schema: &str) -> bool {
     )
 }
 
-fn is_cem_dom_projection_source_content_type(content_type: &str) -> bool {
-    matches!(
-        content_type,
-        cem_ml::schema::registry::CEM_DOM_PROJECTION_CONTENT_TYPE
-            | cem_ml::schema::registry::CEM_DOM_JSON_PROJECTION_CONTENT_TYPE
-    )
-}
-
 fn is_cem_ast_projection_source_input(input: &eng::EngineInput) -> bool {
-    let identity = input
-        .identity
-        .clone()
-        .unwrap_or_else(|| input.root_scope.format_identity());
-    let schema_is_cem_ast = identity
-        .schema
-        .as_deref()
-        .map(str::trim)
-        .is_some_and(|schema| schema == cem_ml::schema::registry::CEM_AST_PROJECTION_SCHEMA_URI);
-    let content_type = identity
-        .content_type
-        .as_deref()
-        .map(cli_content_type_essence);
-
-    match content_type.as_deref() {
-        Some(content_type) if is_cem_ast_projection_source_content_type(content_type) => {
-            identity.schema.is_none() || schema_is_cem_ast
-        }
-        Some(_) => false,
-        None => schema_is_cem_ast,
-    }
-}
-
-fn is_cem_ast_projection_source_content_type(content_type: &str) -> bool {
-    matches!(
-        content_type,
-        cem_ml::schema::registry::CEM_AST_PROJECTION_CONTENT_TYPE
-            | cem_ml::schema::registry::CEM_AST_JSON_PROJECTION_CONTENT_TYPE
+    source_input_matches_schema_uri(
+        input,
+        cem_ml::schema::registry::CEM_AST_PROJECTION_SCHEMA_URI,
     )
 }
 
 fn is_cem_events_projection_source_input(input: &eng::EngineInput) -> bool {
+    source_input_matches_schema_uri(
+        input,
+        cem_ml::schema::registry::CEM_EVENTS_PROJECTION_SCHEMA_URI,
+    )
+}
+
+fn source_input_matches_schema_uri(input: &eng::EngineInput, schema_uri: &str) -> bool {
+    source_input_matches_schema(input, |schema| schema == schema_uri)
+}
+
+fn source_input_matches_schema<F>(input: &eng::EngineInput, schema_matches: F) -> bool
+where
+    F: Fn(&str) -> bool,
+{
     let identity = input
         .identity
         .clone()
         .unwrap_or_else(|| input.root_scope.format_identity());
-    let schema_is_cem_events = identity
+    let explicit_schema_matches = identity
         .schema
         .as_deref()
         .map(str::trim)
-        .is_some_and(|schema| schema == cem_ml::schema::registry::CEM_EVENTS_PROJECTION_SCHEMA_URI);
-    let content_type = identity
-        .content_type
-        .as_deref()
-        .map(cli_content_type_essence);
+        .is_some_and(|schema| schema_matches(schema));
 
-    match content_type.as_deref() {
-        Some(content_type) if is_cem_events_projection_source_content_type(content_type) => {
-            identity.schema.is_none() || schema_is_cem_events
-        }
-        Some(_) => false,
-        None => schema_is_cem_events,
-    }
+    let Some(content_type) = identity.content_type.as_deref() else {
+        return explicit_schema_matches;
+    };
+
+    let Ok(descriptor) = builtin_schema_registry().resolve_content_type(content_type) else {
+        return false;
+    };
+
+    schema_matches(descriptor.schema_uri.as_str())
+        && (identity.schema.is_none() || explicit_schema_matches)
 }
 
-fn is_cem_events_projection_source_content_type(content_type: &str) -> bool {
-    matches!(
-        content_type,
-        cem_ml::schema::registry::CEM_EVENTS_PROJECTION_CONTENT_TYPE
-            | cem_ml::schema::registry::CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE
-    )
-}
-
-fn is_json_source_content_type(content_type: &str) -> bool {
-    matches!(
-        content_type,
-        cem_ml::schema::registry::JSON_CONTENT_TYPE | "text/json"
-    )
-}
-
-fn is_yaml_source_content_type(content_type: &str) -> bool {
-    matches!(
-        content_type,
-        cem_ml::schema::registry::YAML_CONTENT_TYPE
-            | "application/x-yaml"
-            | "text/yaml"
-            | "text/x-yaml"
-    )
-}
-
-fn is_csv_source_content_type(content_type: &str) -> bool {
-    content_type == cem_ml::schema::registry::CSV_CONTENT_TYPE
-}
-
-fn is_markdown_source_content_type(content_type: &str) -> bool {
-    content_type == cem_ml::schema::registry::MARKDOWN_CONTENT_TYPE
-}
-
-fn is_html_source_content_type(content_type: &str) -> bool {
-    content_type == cem_ml::schema::registry::HTML_CONTENT_TYPE
-}
-
-fn is_css_source_content_type(content_type: &str) -> bool {
-    content_type == cem_ml::schema::registry::CSS_CONTENT_TYPE
-}
-
-fn is_relax_ng_source_content_type(content_type: &str) -> bool {
-    matches!(
-        content_type,
-        cem_ml::schema::registry::RELAX_NG_XML_CONTENT_TYPE
-            | cem_ml::schema::registry::RELAX_NG_COMPACT_CONTENT_TYPE
-    )
-}
-
-fn is_xhtml_source_content_type(content_type: &str) -> bool {
-    content_type == cem_ml::schema::registry::XHTML_CONTENT_TYPE
-}
-
-fn is_svg_source_content_type(content_type: &str) -> bool {
-    content_type == cem_ml::schema::registry::SVG_CONTENT_TYPE
-}
-
-fn is_mathml_source_content_type(content_type: &str) -> bool {
-    matches!(
-        content_type,
-        cem_ml::schema::registry::MATHML_CONTENT_TYPE
-            | "application/mathml-presentation+xml"
-            | "application/mathml-content+xml"
-    )
-}
-
-fn is_xslt_source_content_type(content_type: &str) -> bool {
-    matches!(
-        content_type,
-        cem_ml::schema::registry::XSLT_CONTENT_TYPE
-            | "text/xsl"
-            | "custom-element-xslt"
-            | "text/custom-element-xslt"
-            | "application/custom-element-xslt"
-            | "text/x-custom-element-xslt"
-    )
-}
-
-fn is_xml_source_content_type(content_type: &str) -> bool {
-    matches!(
-        content_type,
-        cem_ml::schema::registry::XML_CONTENT_TYPE
-            | "text/xml"
-            | "application/xml-external-parsed-entity"
-            | "text/xml-external-parsed-entity"
-            | "application/xml-dtd"
-    )
+fn builtin_schema_registry() -> &'static cem_ml::schema::registry::SchemaRegistry {
+    static REGISTRY: OnceLock<cem_ml::schema::registry::SchemaRegistry> = OnceLock::new();
+    REGISTRY.get_or_init(cem_ml::schema::registry::SchemaRegistry::with_builtin_schemas)
 }
 
 fn cli_content_type_essence(content_type: &str) -> String {
@@ -14180,6 +13768,70 @@ owner:
         assert!(!diagnostics.iter().any(|diag| diag["code"]
             .as_str()
             .is_some_and(|code| code.starts_with("cem.schema."))));
+    }
+
+    #[test]
+    fn validate_yaml_registry_alias_without_schema_uses_direct_validator() {
+        let p = write_fixture(
+            "validate-yaml-registry-alias-invalid.yaml",
+            r#"items:
+  - [unterminated
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "text/yaml; charset=utf-8",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.yaml.parse_error"));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
+    }
+
+    #[test]
+    fn validate_registry_content_type_rejects_explicit_schema_mismatch() {
+        let p = write_fixture(
+            "validate-yaml-registry-mismatched-schema.yaml",
+            r#"items:
+  - [unterminated
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "text/yaml; charset=utf-8",
+                "--schema",
+                cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.yaml.parse_error"));
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
     }
 
     #[test]

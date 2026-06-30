@@ -73,6 +73,11 @@ history belongs in git history and the feature-specific docs linked below.
   Use the temporary transition plan in
   [`../packages/cem_ml/docs/schema-content-registry-transition.tmp.md`](../packages/cem_ml/docs/schema-content-registry-transition.tmp.md)
   to migrate the current runtime toward the design.
+  - [x] Route direct CLI source validation selection through the schema
+        registry content-type descriptors while preserving explicit schema
+        mismatch rejection.
+  - [ ] Add `ConversionRegistry` direct-edge lookup between resolved source and
+        target identities.
 
 ## Schema Package Implementation List
 
