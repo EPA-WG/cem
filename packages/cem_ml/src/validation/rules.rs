@@ -22,8 +22,9 @@ use crate::schema::document_model::{
     load_builtin_document_model_for_identity, validate_document_model,
 };
 use crate::schema::registry::{
-    content_type_essence, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
-    CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
+    content_type_essence, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
+    CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+    CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
 };
 use crate::source_map::FrameSpan;
 use crate::validation::{
@@ -1179,7 +1180,10 @@ impl SemanticRule for OpenContentPolicyRule {
 fn is_schema_language_namespace(ns: &str) -> bool {
     matches!(
         ns,
-        CEM_ML_SCHEMA_URI | CEM_SCHEMA_URI | CEM_SCHEMA_PACKAGE_URI
+        CEM_ML_SCHEMA_URI
+            | CEM_SCHEMA_URI
+            | CEM_SCHEMA_PACKAGE_URI
+            | CEM_NATIVE_TEMPLATE_SCHEMA_URI
     )
 }
 
@@ -1196,7 +1200,10 @@ fn is_schema_language_document(ctx: &RuleContext<'_>) -> bool {
 fn is_schema_language_content_type(content_type: &str) -> bool {
     matches!(
         content_type_essence(content_type).as_str(),
-        CEM_ML_CONTENT_TYPE | CEM_SCHEMA_CONTENT_TYPE | CEM_SCHEMA_PACKAGE_CONTENT_TYPE
+        CEM_ML_CONTENT_TYPE
+            | CEM_SCHEMA_CONTENT_TYPE
+            | CEM_SCHEMA_PACKAGE_CONTENT_TYPE
+            | CEM_NATIVE_TEMPLATE_CONTENT_TYPE
     )
 }
 
@@ -1665,6 +1672,20 @@ mod tests {
         assert!(diags.iter().all(|d| {
             d.code != "cem.schema.unknown_html_element"
                 && d.code != "cem.schema.unknown_html_attribute"
+        }));
+    }
+
+    #[test]
+    fn open_content_policy_skips_native_template_language_documents() {
+        let diags = run_rules_with_identity(
+            r#"{module | {template @name=page | {body | {call @template=hero}}}}"#,
+            Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI),
+            Some(CEM_NATIVE_TEMPLATE_CONTENT_TYPE),
+        );
+        assert!(diags.iter().all(|d| {
+            d.code != "cem.schema.unknown_html_element"
+                && d.code != "cem.schema.unknown_html_attribute"
+                && d.code != "cem.schema.unresolved_namespace"
         }));
     }
 

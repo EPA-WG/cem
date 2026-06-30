@@ -21,7 +21,9 @@ use crate::parser::{AstNodeId, CemAstNode};
 use crate::schema::package_loader::{
     load_builtin_schema_package, load_builtin_schema_package_for_content_type,
 };
-use crate::schema::registry::{CEM_ML_SCHEMA_URI, CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI};
+use crate::schema::registry::{
+    CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
+};
 use crate::source::{BytesSource, SourceId};
 use crate::source_map::FrameSpan;
 use crate::tokenizer::cem::CemTokenizer;
@@ -57,9 +59,11 @@ pub struct ElementModel {
 }
 
 impl ElementModel {
-    fn allows_attribute(&self, local_name: &str) -> bool {
+    fn allows_attribute(&self, prefix: &str, local_name: &str) -> bool {
         self.required_attributes.contains(local_name)
             || self.optional_attributes.contains(local_name)
+            || self.optional_attributes.contains(&format!("{prefix}:*"))
+            || self.required_attributes.contains(&format!("{prefix}:*"))
     }
 
     fn allows_child(&self, local_name: &str) -> bool {
@@ -97,22 +101,42 @@ pub fn validate_document_model(
         return diagnostics;
     }
 
-    for node in document.iter() {
-        let CemAstNode::Element {
-            expanded_name,
-            attributes,
-            children,
-            ..
-        } = node
-        else {
-            continue;
-        };
-        let local = expanded_name.local_name.as_str();
-        if should_skip_structural_name(local) {
-            continue;
-        }
+    let Some(CemAstNode::Document { root_children, .. }) = document.root() else {
+        return diagnostics;
+    };
+    for child_id in root_children {
+        validate_node(document, model, *child_id, false, &mut diagnostics);
+    }
 
-        let Some(element_model) = model.element(local) else {
+    diagnostics
+}
+
+fn validate_node(
+    document: &CemDocument,
+    model: &SchemaDocumentModel,
+    node_id: AstNodeId,
+    parent_allows_any_child: bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(node) = document.get(node_id) else {
+        return;
+    };
+    let CemAstNode::Element {
+        expanded_name,
+        attributes,
+        children,
+        ..
+    } = node
+    else {
+        return;
+    };
+    let local = expanded_name.local_name.as_str();
+    if should_skip_structural_name(local) {
+        return;
+    }
+
+    let Some(element_model) = model.element(local) else {
+        if !parent_allows_any_child {
             diagnostics.push(diag_at(
                 UNKNOWN_ELEMENT_CODE,
                 format!(
@@ -121,67 +145,72 @@ pub fn validate_document_model(
                 ),
                 node,
             ));
+        }
+        return;
+    };
+
+    let mut seen_attributes = BTreeSet::new();
+    for attr_id in attributes {
+        let Some(attr) = document.get(*attr_id) else {
             continue;
         };
-
-        let mut seen_attributes = BTreeSet::new();
-        for attr_id in attributes {
-            let Some(attr) = document.get(*attr_id) else {
-                continue;
-            };
-            let Some(attr_local) = attribute_local_name(attr) else {
-                continue;
-            };
-            seen_attributes.insert(attr_local.to_owned());
-            if !element_model.allows_attribute(attr_local) {
-                diagnostics.push(diag_at(
-                    UNKNOWN_ATTRIBUTE_CODE,
-                    format!(
-                        "attribute `{attr_local}` is not declared on element `{local}` by schema `{}`",
-                        model.schema_uri
-                    ),
-                    attr,
-                ));
-            }
-        }
-
-        for required in &element_model.required_attributes {
-            if !seen_attributes.contains(required) {
-                diagnostics.push(diag_at(
-                    MISSING_REQUIRED_ATTRIBUTE_CODE,
-                    format!(
-                        "element `{local}` is missing required attribute `{required}` from schema `{}`",
-                        model.schema_uri
-                    ),
-                    node,
-                ));
-            }
-        }
-
-        for child_id in children {
-            let Some(child) = document.get(*child_id) else {
-                continue;
-            };
-            let Some(child_local) = element_local_name(child) else {
-                continue;
-            };
-            if should_skip_structural_name(child_local) {
-                continue;
-            }
-            if !element_model.allows_child(child_local) {
-                diagnostics.push(diag_at(
-                    INVALID_CHILD_ELEMENT_CODE,
-                    format!(
-                        "element `{child_local}` is not an allowed child of `{local}` by schema `{}`",
-                        model.schema_uri
-                    ),
-                    child,
-                ));
-            }
+        let Some((attr_prefix, attr_local)) = attribute_name_parts(attr) else {
+            continue;
+        };
+        seen_attributes.insert(attr_local.to_owned());
+        if !element_model.allows_attribute(attr_prefix, attr_local) {
+            diagnostics.push(diag_at(
+                UNKNOWN_ATTRIBUTE_CODE,
+                format!(
+                    "attribute `{attr_local}` is not declared on element `{local}` by schema `{}`",
+                    model.schema_uri
+                ),
+                attr,
+            ));
         }
     }
 
-    diagnostics
+    for required in &element_model.required_attributes {
+        if !seen_attributes.contains(required) {
+            diagnostics.push(diag_at(
+                MISSING_REQUIRED_ATTRIBUTE_CODE,
+                format!(
+                    "element `{local}` is missing required attribute `{required}` from schema `{}`",
+                    model.schema_uri
+                ),
+                node,
+            ));
+        }
+    }
+
+    for child_id in children {
+        let Some(child) = document.get(*child_id) else {
+            continue;
+        };
+        let Some(child_local) = element_local_name(child) else {
+            continue;
+        };
+        if should_skip_structural_name(child_local) {
+            continue;
+        }
+        if !element_model.allows_child(child_local) {
+            diagnostics.push(diag_at(
+                INVALID_CHILD_ELEMENT_CODE,
+                format!(
+                    "element `{child_local}` is not an allowed child of `{local}` by schema `{}`",
+                    model.schema_uri
+                ),
+                child,
+            ));
+        }
+        validate_node(
+            document,
+            model,
+            *child_id,
+            element_model.allow_any_child,
+            diagnostics,
+        );
+    }
 }
 
 fn compile_document_model(schema_uri: &str, schema_source: &str) -> SchemaDocumentModel {
@@ -238,7 +267,10 @@ fn compile_element_model(document: &CemDocument, node_id: AstNodeId) -> Option<E
 fn is_bootstrap_document_model_schema(schema_uri: &str) -> bool {
     matches!(
         schema_uri,
-        CEM_ML_SCHEMA_URI | CEM_SCHEMA_URI | CEM_SCHEMA_PACKAGE_URI
+        CEM_ML_SCHEMA_URI
+            | CEM_SCHEMA_URI
+            | CEM_SCHEMA_PACKAGE_URI
+            | CEM_NATIVE_TEMPLATE_SCHEMA_URI
     )
 }
 
@@ -297,13 +329,15 @@ fn parse_child_set(value: Option<&String>) -> (BTreeSet<String>, bool) {
         if token.is_empty() {
             continue;
         }
+        if token == "*" {
+            allow_any = true;
+            continue;
+        }
         let name = token
             .trim_end_matches('*')
             .trim_end_matches('?')
             .trim_end_matches('+');
-        if name == "*" {
-            allow_any = true;
-        } else if !name.is_empty() {
+        if !name.is_empty() {
             names.insert(name.to_owned());
         }
     }
@@ -353,9 +387,12 @@ fn element_local_name(node: &CemAstNode) -> Option<&str> {
     }
 }
 
-fn attribute_local_name(node: &CemAstNode) -> Option<&str> {
+fn attribute_name_parts(node: &CemAstNode) -> Option<(&str, &str)> {
     match node {
-        CemAstNode::Attribute { expanded_name, .. } => Some(expanded_name.local_name.as_str()),
+        CemAstNode::Attribute { expanded_name, .. } => Some((
+            expanded_name.namespace_uri.as_str(),
+            expanded_name.local_name.as_str(),
+        )),
         _ => None,
     }
 }
@@ -398,8 +435,9 @@ fn diag_at(code: &str, message: String, node: &CemAstNode) -> Diagnostic {
 mod tests {
     use super::*;
     use crate::schema::registry::{
-        CEM_ML_CONTENT_TYPE, CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
-        CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI, HTML_CONTENT_TYPE,
+        CEM_ML_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI,
+        CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
+        CEM_SCHEMA_URI, HTML_CONTENT_TYPE,
     };
 
     #[test]
@@ -429,6 +467,19 @@ mod tests {
     }
 
     #[test]
+    fn loads_native_template_document_model_from_schema_uri() {
+        let model =
+            load_builtin_document_model_for_identity(Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI), None)
+                .unwrap();
+
+        let template = model.element("template").unwrap();
+        assert!(template.required_attributes.contains("name"));
+        assert!(template.child_elements.contains("body"));
+        let call = model.element("call").unwrap();
+        assert!(call.optional_attributes.contains("with:*"));
+    }
+
+    #[test]
     fn ambiguous_generic_cem_content_type_does_not_select_a_model() {
         assert!(
             load_builtin_document_model_for_identity(None, Some(CEM_ML_CONTENT_TYPE)).is_none()
@@ -438,6 +489,31 @@ mod tests {
     #[test]
     fn non_bootstrap_schema_content_type_does_not_select_a_model_yet() {
         assert!(load_builtin_document_model_for_identity(None, Some(HTML_CONTENT_TYPE)).is_none());
+    }
+
+    #[test]
+    fn validates_native_template_wildcard_attributes() {
+        let model =
+            load_builtin_document_model_for_identity(None, Some(CEM_NATIVE_TEMPLATE_CONTENT_TYPE))
+                .unwrap();
+        let document = parse_cem_document(
+            r#"@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@default template
+
+{module |
+    {template @name="page" |
+        {body | {call @template="heading" @with:title="Welcome"}}
+    }
+    {template @name="heading" |
+        {body | {h1 | Heading}}
+    }
+}"#,
+        );
+
+        let diagnostics = validate_document_model(&document, &model);
+
+        assert!(diagnostics.is_empty(), "{diagnostics:#?}");
     }
 
     #[test]

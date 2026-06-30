@@ -7249,7 +7249,12 @@ mod tests {
     fn validate_native_template_schema_selects_cem_input_adapter() {
         let p = write_fixture(
             "validate-native-template-schema.cem",
-            "@doc cem-ml 1\n{p | Hi}",
+            r#"@doc cem-ml 1
+{module |
+  {template @name="page" |
+    {body | {p | Hi}}
+  }
+}"#,
         );
         let (outcome, stdout, stderr) = run(
             &RealCemMlEngine::new(),

@@ -10,6 +10,8 @@ const CEM_SCHEMA_URI: &str = "https://cem.dev/ns/schema/1";
 const CEM_SCHEMA_CONTENT_TYPE: &str = "application/vnd.cem.schema+cem";
 const CEM_SCHEMA_PACKAGE_URI: &str = "https://cem.dev/ns/schema-package/1";
 const CEM_SCHEMA_PACKAGE_CONTENT_TYPE: &str = "application/vnd.cem.schema-package+cem";
+const CEM_NATIVE_TEMPLATE_SCHEMA_URI: &str = "https://cem.dev/ns/template/cem-native/1";
+const CEM_NATIVE_TEMPLATE_CONTENT_TYPE: &str = "application/vnd.cem.template+cem";
 
 #[derive(Debug)]
 struct ValidationExample {
@@ -155,6 +157,30 @@ fn schema_owned_examples_validate_through_cli() {
             path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-missing-required-attribute.cem",
             content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
             schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.schema_model.missing_required_attribute"],
+        },
+        ValidationExample {
+            name: "native-template basic",
+            path: "packages/cem_ml/schema-packages/cem-native-template/v1/examples/basic-template.cem",
+            content_type: CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
+            schema_uri: CEM_NATIVE_TEMPLATE_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "native-template module",
+            path: "packages/cem_ml/schema-packages/cem-native-template/v1/examples/module-template.cem",
+            content_type: CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
+            schema_uri: CEM_NATIVE_TEMPLATE_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "native-template invalid missing required attribute",
+            path: "packages/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-missing-required-attribute.cem",
+            content_type: CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
+            schema_uri: CEM_NATIVE_TEMPLATE_SCHEMA_URI,
             expected_exit: EXIT_HARD_FAILURE,
             expected_diagnostics: &["cem.schema_model.missing_required_attribute"],
         },

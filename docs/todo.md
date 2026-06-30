@@ -36,7 +36,7 @@ history belongs in git history and the feature-specific docs linked below.
         (`application/vnd.cem.schema+cem`).
   - [x] CEM-ML schema package manifest
         (`application/vnd.cem.schema-package+cem`, `package.cem`).
-  - [ ] CEM-ML native template
+  - [x] CEM-ML native template
         (`application/vnd.cem.template+cem`).
   - [ ] CEM-ML transform template
         (`application/vnd.cem.transform+cem`, `.cemt`).

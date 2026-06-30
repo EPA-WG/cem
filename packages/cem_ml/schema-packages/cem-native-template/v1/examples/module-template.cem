@@ -1,0 +1,32 @@
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@default template
+
+{module @version="1.0.0" |
+    {import
+        @as="layout"
+        @src="layout.cem"
+        @content-type="application/vnd.cem.template+cem"
+    }
+
+    {param @name="siteTitle" @type="string" @default="CEM Demo"}
+
+    {template @name="page" @visibility="public" |
+        {param @name="heading" @type="string" @required=true}
+        {body |
+            {call @template="hero" @with:title="heading"}
+            {main @class="content" |
+                {slot @name="default"}
+            }
+        }
+    }
+
+    {template @name="hero" |
+        {param @name="title" @type="string"}
+        {body |
+            {section @class="hero" |
+                {h1 | Template heading}
+            }
+        }
+    }
+}
