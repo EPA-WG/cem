@@ -168,6 +168,14 @@ pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_AMBIGUOUS_CODE: &str =
     "cem.transform_template.output_function_ambiguous";
 pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_CAPABILITY_MISSING_CODE: &str =
     "cem.transform_template.output_function_capability_missing";
+pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_IDENTITY_MISMATCH_CODE: &str =
+    "cem.transform_template.encoded_artifact_identity_mismatch";
+pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_CONTEXT_MISMATCH_CODE: &str =
+    "cem.transform_template.encoded_artifact_context_mismatch";
+pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_PRODUCED_KIND_MISMATCH_CODE: &str =
+    "cem.transform_template.encoded_artifact_produced_kind_mismatch";
+pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_DOUBLE_ENCODING_CODE: &str =
+    "cem.transform_template.encoded_artifact_double_encoding";
 
 #[derive(Debug, Clone)]
 pub struct TransformTemplateModuleParseRequest {
@@ -540,6 +548,430 @@ impl TransformTemplateOutputFunctionRegistry {
         }
 
         Ok(function)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformTemplateSourceMapPolicy {
+    Preserve,
+    #[default]
+    Generated,
+    None,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformTemplateEncodedArtifactMode {
+    #[default]
+    Document,
+    Fragment,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateEncodingTarget {
+    pub content_type: String,
+    pub schema: String,
+    pub category: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<String>,
+}
+
+impl TransformTemplateEncodingTarget {
+    pub fn new(
+        content_type: impl Into<String>,
+        schema: impl Into<String>,
+        category: impl Into<String>,
+    ) -> Self {
+        Self {
+            content_type: content_type.into(),
+            schema: schema.into(),
+            category: category.into(),
+            context: None,
+        }
+    }
+
+    pub fn with_context(mut self, context: impl Into<String>) -> Self {
+        self.context = Some(context.into());
+        self
+    }
+
+    pub fn format_identity(&self) -> FormatIdentity {
+        FormatIdentity {
+            content_type: Some(self.content_type.clone()),
+            schema: Some(self.schema.clone()),
+            ..FormatIdentity::default()
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateEncodeOptions {
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub canonical: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub preserve: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub pretty: bool,
+    #[serde(default)]
+    pub mode: TransformTemplateEncodedArtifactMode,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub encoder: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub formatter: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub colorizer: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub formatter_profile: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color_profile: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub charset: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line_ending: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quote_policy: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub indent: Option<u16>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub namespace_policy: Option<String>,
+    #[serde(default)]
+    pub source_map_policy: TransformTemplateSourceMapPolicy,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateEncodedArtifactIdentity {
+    pub produces: TransformTemplateOutputProducedKind,
+    pub target: TransformTemplateEncodingTarget,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub charset: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub binary_framing: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub formatter_profile: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color_profile: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color_capability: Option<String>,
+    #[serde(default)]
+    pub mode: TransformTemplateEncodedArtifactMode,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub canonical: bool,
+    #[serde(default)]
+    pub source_map_policy: TransformTemplateSourceMapPolicy,
+}
+
+impl TransformTemplateEncodedArtifactIdentity {
+    pub fn new(
+        produces: TransformTemplateOutputProducedKind,
+        target: TransformTemplateEncodingTarget,
+    ) -> Self {
+        Self {
+            produces,
+            target,
+            charset: None,
+            binary_framing: None,
+            formatter_profile: None,
+            color_profile: None,
+            color_capability: None,
+            mode: TransformTemplateEncodedArtifactMode::Document,
+            canonical: false,
+            source_map_policy: TransformTemplateSourceMapPolicy::Generated,
+        }
+    }
+
+    pub fn from_options(
+        produces: TransformTemplateOutputProducedKind,
+        target: TransformTemplateEncodingTarget,
+        options: &TransformTemplateEncodeOptions,
+    ) -> Self {
+        Self {
+            produces,
+            target,
+            charset: options.charset.clone(),
+            binary_framing: None,
+            formatter_profile: options.formatter_profile.clone(),
+            color_profile: options.color_profile.clone(),
+            color_capability: None,
+            mode: options.mode,
+            canonical: options.canonical,
+            source_map_policy: options.source_map_policy,
+        }
+    }
+
+    pub fn format_identity(&self) -> FormatIdentity {
+        self.target.format_identity()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateEncodedArtifact {
+    pub identity: TransformTemplateEncodedArtifactIdentity,
+    pub value: Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_map: Option<SourceMapStack>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub output_spans: Vec<OutputSpan>,
+    #[serde(default = "default_true")]
+    pub encoded: bool,
+}
+
+impl TransformTemplateEncodedArtifact {
+    pub fn new(identity: TransformTemplateEncodedArtifactIdentity, value: Value) -> Self {
+        Self {
+            identity,
+            value,
+            source_map: None,
+            output_spans: Vec::new(),
+            encoded: true,
+        }
+    }
+
+    pub fn validate_insertion(
+        &self,
+        context: &TransformTemplateEncodedArtifactInsertionContext,
+    ) -> Result<(), TransformTemplateEncodedArtifactError> {
+        if let Some(expected) = context.produces {
+            if self.identity.produces != expected {
+                return Err(
+                    TransformTemplateEncodedArtifactError::ProducedKindMismatch {
+                        expected,
+                        actual: self.identity.produces,
+                    },
+                );
+            }
+        }
+
+        if !context.content_type.trim().is_empty()
+            && content_type_essence(&self.identity.target.content_type)
+                != content_type_essence(&context.content_type)
+        {
+            return Err(TransformTemplateEncodedArtifactError::IdentityMismatch {
+                field: "contentType".to_owned(),
+                expected: context.content_type.clone(),
+                actual: self.identity.target.content_type.clone(),
+            });
+        }
+
+        if !context.schema.trim().is_empty()
+            && self.identity.target.schema.trim() != context.schema.trim()
+        {
+            return Err(TransformTemplateEncodedArtifactError::IdentityMismatch {
+                field: "schema".to_owned(),
+                expected: context.schema.clone(),
+                actual: self.identity.target.schema.clone(),
+            });
+        }
+
+        validate_optional_artifact_context(
+            "category",
+            context.category.as_deref(),
+            Some(self.identity.target.category.as_str()),
+        )?;
+        validate_optional_artifact_context(
+            "context",
+            context.context.as_deref(),
+            self.identity.target.context.as_deref(),
+        )?;
+        validate_optional_artifact_context(
+            "formatterProfile",
+            context.formatter_profile.as_deref(),
+            self.identity.formatter_profile.as_deref(),
+        )?;
+        validate_optional_artifact_context(
+            "colorProfile",
+            context.color_profile.as_deref(),
+            self.identity.color_profile.as_deref(),
+        )?;
+        validate_optional_artifact_context(
+            "colorCapability",
+            context.color_capability.as_deref(),
+            self.identity.color_capability.as_deref(),
+        )?;
+
+        if let Some(expected) = context.mode {
+            if self.identity.mode != expected {
+                return Err(TransformTemplateEncodedArtifactError::ContextMismatch {
+                    field: "mode".to_owned(),
+                    expected: format!("{expected:?}"),
+                    actual: format!("{:?}", self.identity.mode),
+                });
+            }
+        }
+
+        if let Some(expected) = context.canonical {
+            if self.identity.canonical != expected {
+                return Err(TransformTemplateEncodedArtifactError::ContextMismatch {
+                    field: "canonical".to_owned(),
+                    expected: expected.to_string(),
+                    actual: self.identity.canonical.to_string(),
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn validate_as_encode_input(&self) -> Result<(), TransformTemplateEncodedArtifactError> {
+        if self.encoded {
+            Err(TransformTemplateEncodedArtifactError::DoubleEncoding {
+                content_type: self.identity.target.content_type.clone(),
+                schema: self.identity.target.schema.clone(),
+                category: self.identity.target.category.clone(),
+                context: self.identity.target.context.clone(),
+            })
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn into_output_artifact(self, uri: Option<String>) -> TransformTemplateOutputArtifact {
+        TransformTemplateOutputArtifact {
+            uri,
+            identity: Some(self.identity.format_identity()),
+            value: self.value,
+            source_map: self.source_map,
+            output_spans: self.output_spans,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateEncodedArtifactInsertionContext {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub produces: Option<TransformTemplateOutputProducedKind>,
+    pub content_type: String,
+    pub schema: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub formatter_profile: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color_profile: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color_capability: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode: Option<TransformTemplateEncodedArtifactMode>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub canonical: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TransformTemplateEncodedArtifactError {
+    IdentityMismatch {
+        field: String,
+        expected: String,
+        actual: String,
+    },
+    ContextMismatch {
+        field: String,
+        expected: String,
+        actual: String,
+    },
+    ProducedKindMismatch {
+        expected: TransformTemplateOutputProducedKind,
+        actual: TransformTemplateOutputProducedKind,
+    },
+    DoubleEncoding {
+        content_type: String,
+        schema: String,
+        category: String,
+        context: Option<String>,
+    },
+}
+
+impl TransformTemplateEncodedArtifactError {
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::IdentityMismatch { .. } => {
+                TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_IDENTITY_MISMATCH_CODE
+            }
+            Self::ContextMismatch { .. } => {
+                TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_CONTEXT_MISMATCH_CODE
+            }
+            Self::ProducedKindMismatch { .. } => {
+                TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_PRODUCED_KIND_MISMATCH_CODE
+            }
+            Self::DoubleEncoding { .. } => TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_DOUBLE_ENCODING_CODE,
+        }
+    }
+
+    pub fn diagnostic(&self, uri: Option<&str>) -> Diagnostic {
+        Diagnostic {
+            uri: uri.map(str::to_owned),
+            code: self.code().to_owned(),
+            severity: Severity::Error,
+            message: self.message(),
+            ..Diagnostic::default()
+        }
+    }
+
+    fn message(&self) -> String {
+        match self {
+            Self::IdentityMismatch {
+                field,
+                expected,
+                actual,
+            } => format!(
+                "encoded artifact {field} `{actual}` is incompatible with insertion target `{expected}`"
+            ),
+            Self::ContextMismatch {
+                field,
+                expected,
+                actual,
+            } => format!(
+                "encoded artifact {field} `{actual}` is incompatible with insertion context `{expected}`"
+            ),
+            Self::ProducedKindMismatch { expected, actual } => format!(
+                "encoded artifact produced kind `{actual:?}` is incompatible with insertion target `{expected:?}`"
+            ),
+            Self::DoubleEncoding {
+                content_type,
+                schema,
+                category,
+                context,
+            } => {
+                let context = context
+                    .as_deref()
+                    .map(|value| format!(" context `{value}`"))
+                    .unwrap_or_default();
+                format!(
+                    "artifact for `{content_type}` schema `{schema}` category `{category}`{context} is already encoded"
+                )
+            }
+        }
+    }
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn validate_optional_artifact_context(
+    field: &str,
+    expected: Option<&str>,
+    actual: Option<&str>,
+) -> Result<(), TransformTemplateEncodedArtifactError> {
+    let Some(expected) = expected.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(());
+    };
+    if actual.map(str::trim) == Some(expected) {
+        Ok(())
+    } else {
+        Err(TransformTemplateEncodedArtifactError::ContextMismatch {
+            field: field.to_owned(),
+            expected: expected.to_owned(),
+            actual: actual.unwrap_or_default().to_owned(),
+        })
     }
 }
 
@@ -1888,6 +2320,23 @@ mod tests {
         }
     }
 
+    fn encoded_html_text_artifact() -> TransformTemplateEncodedArtifact {
+        let mut identity = TransformTemplateEncodedArtifactIdentity::new(
+            TransformTemplateOutputProducedKind::Text,
+            TransformTemplateEncodingTarget::new(
+                "text/html",
+                "https://cem.dev/ns/data/html/1",
+                "html-text",
+            )
+            .with_context("text"),
+        );
+        identity.charset = Some("utf-8".to_owned());
+        identity.formatter_profile = Some("html-pretty".to_owned());
+        identity.mode = TransformTemplateEncodedArtifactMode::Fragment;
+        identity.canonical = true;
+        TransformTemplateEncodedArtifact::new(identity, Value::String("Hello &amp; CEM".to_owned()))
+    }
+
     #[test]
     fn builtins_select_cem_native_and_xslt_template_adapters() {
         let registry = TransformTemplateAdapterRegistry::with_builtin_adapters();
@@ -2368,6 +2817,123 @@ mod tests {
             .resolve(&native_query, &capabilities)
             .expect("native function resolves with capability");
         assert_eq!(resolved_native.name, "acme.native.html-text");
+    }
+
+    #[test]
+    fn encoded_artifact_validates_matching_insertion_context() {
+        let artifact = encoded_html_text_artifact();
+        let context = TransformTemplateEncodedArtifactInsertionContext {
+            produces: Some(TransformTemplateOutputProducedKind::Text),
+            content_type: "text/html; charset=utf-8".to_owned(),
+            schema: "https://cem.dev/ns/data/html/1".to_owned(),
+            category: Some("html-text".to_owned()),
+            context: Some("text".to_owned()),
+            formatter_profile: Some("html-pretty".to_owned()),
+            color_profile: None,
+            color_capability: None,
+            mode: Some(TransformTemplateEncodedArtifactMode::Fragment),
+            canonical: Some(true),
+        };
+
+        artifact
+            .validate_insertion(&context)
+            .expect("matching insertion context");
+
+        let output = artifact.into_output_artifact(Some("out/page.html".to_owned()));
+        assert_eq!(output.uri.as_deref(), Some("out/page.html"));
+        assert_eq!(
+            output
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.content_type.as_deref()),
+            Some("text/html")
+        );
+        assert_eq!(
+            output
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.schema.as_deref()),
+            Some("https://cem.dev/ns/data/html/1")
+        );
+        assert_eq!(output.value, Value::String("Hello &amp; CEM".to_owned()));
+    }
+
+    #[test]
+    fn encoded_artifact_rejects_incompatible_context_and_double_encoding() {
+        let artifact = encoded_html_text_artifact();
+        let context_error = artifact
+            .validate_insertion(&TransformTemplateEncodedArtifactInsertionContext {
+                produces: Some(TransformTemplateOutputProducedKind::Text),
+                content_type: "text/html".to_owned(),
+                schema: "https://cem.dev/ns/data/html/1".to_owned(),
+                category: Some("html-attribute".to_owned()),
+                context: Some("double-quoted-attribute".to_owned()),
+                formatter_profile: None,
+                color_profile: None,
+                color_capability: None,
+                mode: None,
+                canonical: None,
+            })
+            .expect_err("category/context mismatch is rejected");
+
+        assert!(matches!(
+            context_error,
+            TransformTemplateEncodedArtifactError::ContextMismatch { .. }
+        ));
+        assert_eq!(
+            context_error.diagnostic(Some("template.cemt")).code,
+            TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_CONTEXT_MISMATCH_CODE
+        );
+
+        let double_encoding = artifact
+            .validate_as_encode_input()
+            .expect_err("encoded artifacts cannot be encoded again");
+        assert_eq!(
+            double_encoding.code(),
+            TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_DOUBLE_ENCODING_CODE
+        );
+    }
+
+    #[test]
+    fn encoded_artifact_rejects_identity_and_produced_kind_mismatches() {
+        let artifact = encoded_html_text_artifact();
+        let identity_error = artifact
+            .validate_insertion(&TransformTemplateEncodedArtifactInsertionContext {
+                produces: Some(TransformTemplateOutputProducedKind::Text),
+                content_type: "application/json".to_owned(),
+                schema: "https://cem.dev/ns/data/html/1".to_owned(),
+                category: Some("html-text".to_owned()),
+                context: Some("text".to_owned()),
+                formatter_profile: None,
+                color_profile: None,
+                color_capability: None,
+                mode: None,
+                canonical: None,
+            })
+            .expect_err("content type mismatch is rejected");
+        assert_eq!(
+            identity_error.code(),
+            TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_IDENTITY_MISMATCH_CODE
+        );
+
+        let produced_error = artifact
+            .validate_insertion(&TransformTemplateEncodedArtifactInsertionContext {
+                produces: Some(TransformTemplateOutputProducedKind::Bytes),
+                content_type: "text/html".to_owned(),
+                schema: "https://cem.dev/ns/data/html/1".to_owned(),
+                category: Some("html-text".to_owned()),
+                context: Some("text".to_owned()),
+                formatter_profile: None,
+                color_profile: None,
+                color_capability: None,
+                mode: None,
+                canonical: None,
+            })
+            .expect_err("produced kind mismatch is rejected");
+        assert_eq!(
+            produced_error.code(),
+            TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_PRODUCED_KIND_MISMATCH_CODE
+        );
     }
 
     #[test]

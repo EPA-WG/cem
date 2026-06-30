@@ -93,6 +93,10 @@ history belongs in git history and the feature-specific docs linked below.
         color profile/capability, fragment/document mode, canonicalization mode,
         source-map spans, and a double-encoding guard. Template insertion must
         reject incompatible target identity or context.
+    - [x] Add the initial `EncodedArtifact` contract for CEMT output values,
+          including target identity, category/context, fragment/document mode,
+          canonicalization, source-map policy, renderer bridge, insertion
+          compatibility validation, and double-encoding diagnostics.
   - [ ] Add CEMT declaration vocabulary for `encoding-function`,
         `format-function`, and `color-function` with registry-validatable
         metadata: `name`, `category`, `subject`, `produces`, `content-type`,
