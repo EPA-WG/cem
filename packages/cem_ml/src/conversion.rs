@@ -5,16 +5,22 @@
 //! lifecycle and transform-template adapters.
 
 use crate::engine::FormatIdentity;
+use crate::events::cem::CemEventNormalizer;
+use crate::parser::builder::CemAstBuilder;
+use crate::parser::document::CemDocument;
+use crate::parser::{AstNodeId, CemAstNode};
+use crate::schema::package_loader::{load_builtin_schema_package, BuiltinSchemaPackage};
 use crate::schema::registry::{
     content_type_essence, SchemaContentTypeRole, SchemaDescriptor, SchemaRegistry,
     CEM_AST_JSON_PROJECTION_CONTENT_TYPE, CEM_AST_PROJECTION_CONTENT_TYPE,
     CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_JSON_PROJECTION_CONTENT_TYPE,
     CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
     CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE, CEM_EVENTS_PROJECTION_CONTENT_TYPE,
-    CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI,
-    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
-    XML_CONTENT_TYPE, XML_SCHEMA_URI,
+    CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, HTML_CONTENT_TYPE,
+    HTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
 };
+use crate::source::{BytesSource, SourceId};
+use crate::tokenizer::cem::CemTokenizer;
 use crate::transform_template::{
     TransformTemplateAdapterCapability, TransformTemplateAdapterLookup,
     TransformTemplateAdapterRegistry,
@@ -199,6 +205,86 @@ impl std::fmt::Display for ConversionRegistryError {
 }
 
 impl std::error::Error for ConversionRegistryError {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConversionManifestError {
+    MissingPackageElement,
+    MissingAttribute {
+        converter_id: Option<String>,
+        attribute: &'static str,
+    },
+    MissingEndpoint {
+        converter_id: String,
+        endpoint: &'static str,
+    },
+    UnknownImplementation {
+        converter_id: String,
+        implementation: String,
+    },
+    UnknownReadiness {
+        converter_id: String,
+        readiness: String,
+    },
+    InvalidBoolean {
+        converter_id: String,
+        attribute: &'static str,
+        value: String,
+    },
+}
+
+impl std::fmt::Display for ConversionManifestError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::MissingPackageElement => {
+                write!(f, "schema package manifest has no package element")
+            }
+            Self::MissingAttribute {
+                converter_id,
+                attribute,
+            } => {
+                if let Some(converter_id) = converter_id {
+                    write!(
+                        f,
+                        "converter `{converter_id}` is missing required attribute `{attribute}`"
+                    )
+                } else {
+                    write!(f, "converter is missing required attribute `{attribute}`")
+                }
+            }
+            Self::MissingEndpoint {
+                converter_id,
+                endpoint,
+            } => write!(
+                f,
+                "converter `{converter_id}` is missing required `{endpoint}` endpoint"
+            ),
+            Self::UnknownImplementation {
+                converter_id,
+                implementation,
+            } => write!(
+                f,
+                "converter `{converter_id}` has unknown implementation `{implementation}`"
+            ),
+            Self::UnknownReadiness {
+                converter_id,
+                readiness,
+            } => write!(
+                f,
+                "converter `{converter_id}` has unknown readiness `{readiness}`"
+            ),
+            Self::InvalidBoolean {
+                converter_id,
+                attribute,
+                value,
+            } => write!(
+                f,
+                "converter `{converter_id}` has invalid boolean `{attribute}` value `{value}`"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ConversionManifestError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConversionLookupError {
@@ -762,8 +848,305 @@ fn primary_content_type_essence(
         })
 }
 
+pub fn conversion_descriptors_from_schema_package(
+    package: &BuiltinSchemaPackage,
+) -> Result<Vec<ConversionDescriptor>, ConversionManifestError> {
+    let document = parse_cem_document(package.manifest_source);
+    let package_id = package_manifest_package_id(package, &document)?;
+    let base_path = package_manifest_base_path(package);
+    let Some(package_node_id) = first_element_id_by_local_name(&document, "package") else {
+        return Err(ConversionManifestError::MissingPackageElement);
+    };
+
+    let mut descriptors = Vec::new();
+    for converter_id in element_child_ids_by_local_name(&document, package_node_id, "converter") {
+        descriptors.push(conversion_descriptor_from_manifest_node(
+            &document,
+            converter_id,
+            &package_id,
+            &base_path,
+        )?);
+    }
+    Ok(descriptors)
+}
+
+fn conversion_descriptor_from_manifest_node(
+    document: &CemDocument,
+    node_id: AstNodeId,
+    package_id: &str,
+    base_path: &str,
+) -> Result<ConversionDescriptor, ConversionManifestError> {
+    let attrs = collect_manifest_attrs(document, node_id);
+    let id = required_manifest_attr(&attrs, None, "id")?.to_owned();
+    let implementation = parse_manifest_implementation(
+        &id,
+        required_manifest_attr(&attrs, Some(&id), "implementation")?,
+    )?;
+    let from = manifest_endpoint(document, node_id, &id, "from")?;
+    let to = manifest_endpoint(document, node_id, &id, "to")?;
+    let readiness = attrs
+        .get("readiness")
+        .map(|value| parse_manifest_readiness(&id, value))
+        .transpose()?
+        .unwrap_or(ConversionReadiness::Ready);
+    let streamable = parse_manifest_bool(&id, &attrs, "streamable")?.unwrap_or(false);
+    let explicit_only = parse_manifest_bool(&id, &attrs, "explicit-only")?.unwrap_or(false);
+    let implicit = parse_manifest_bool(&id, &attrs, "implicit")?.unwrap_or(!explicit_only);
+
+    let template = match implementation {
+        ConversionImplementation::Cemt => {
+            let template_path = required_manifest_attr(&attrs, Some(&id), "template")?;
+            let template_content_type =
+                required_manifest_attr(&attrs, Some(&id), "template-content-type")?;
+            Some(ConversionTemplateDescriptor {
+                path: package_relative_path(base_path, template_path),
+                content_type: content_type_essence(template_content_type),
+                schema: optional_manifest_attr(&attrs, "template-schema").map(str::to_owned),
+                entrypoint: optional_manifest_attr(&attrs, "template-entrypoint")
+                    .map(str::to_owned),
+            })
+        }
+        ConversionImplementation::Rust => None,
+    };
+
+    let rust_symbol = optional_manifest_attr(&attrs, "rust-symbol").map(str::to_owned);
+    let (rust_symbol, rust_fallback) = match implementation {
+        ConversionImplementation::Cemt => (
+            None,
+            rust_symbol.map(|rust_symbol| ConversionRustFallbackDescriptor {
+                rust_symbol,
+                reason: optional_manifest_attr(&attrs, "fallback-reason")
+                    .unwrap_or_default()
+                    .to_owned(),
+            }),
+        ),
+        ConversionImplementation::Rust => (
+            Some(
+                rust_symbol.ok_or_else(|| ConversionManifestError::MissingAttribute {
+                    converter_id: Some(id.clone()),
+                    attribute: "rust-symbol",
+                })?,
+            ),
+            None,
+        ),
+    };
+
+    Ok(ConversionDescriptor {
+        id,
+        package_id: package_id.to_owned(),
+        from,
+        to,
+        implementation,
+        readiness,
+        template,
+        rust_symbol,
+        rust_fallback,
+        streamable,
+        lossiness: optional_manifest_attr(&attrs, "lossiness").map(str::to_owned),
+        implicit,
+        explicit_only,
+        cost: 100,
+    })
+}
+
+fn package_manifest_package_id(
+    package: &BuiltinSchemaPackage,
+    document: &CemDocument,
+) -> Result<String, ConversionManifestError> {
+    let Some(package_node_id) = first_element_id_by_local_name(document, "package") else {
+        return Err(ConversionManifestError::MissingPackageElement);
+    };
+    let attrs = collect_manifest_attrs(document, package_node_id);
+    Ok(optional_manifest_attr(&attrs, "id")
+        .unwrap_or(package.descriptor.package_id.as_str())
+        .to_owned())
+}
+
+fn package_manifest_base_path(package: &BuiltinSchemaPackage) -> String {
+    package
+        .descriptor
+        .source
+        .split_once("/schema/")
+        .map(|(base, _)| base.to_owned())
+        .unwrap_or_else(|| format!("schema-packages/{}/v1", package.descriptor.package_id))
+}
+
+fn package_relative_path(base_path: &str, path: &str) -> String {
+    let path = path.trim();
+    if path.is_empty()
+        || path.starts_with('/')
+        || path.starts_with("schema-packages/")
+        || path.contains("://")
+    {
+        return path.to_owned();
+    }
+    format!(
+        "{}/{}",
+        base_path.trim_end_matches('/'),
+        path.trim_start_matches("./")
+    )
+}
+
+fn manifest_endpoint(
+    document: &CemDocument,
+    converter_node_id: AstNodeId,
+    converter_id: &str,
+    endpoint_name: &'static str,
+) -> Result<ConversionEndpoint, ConversionManifestError> {
+    let endpoint_id = element_child_ids_by_local_name(document, converter_node_id, endpoint_name)
+        .into_iter()
+        .next()
+        .ok_or_else(|| ConversionManifestError::MissingEndpoint {
+            converter_id: converter_id.to_owned(),
+            endpoint: endpoint_name,
+        })?;
+    let attrs = collect_manifest_attrs(document, endpoint_id);
+    let content_type = required_manifest_attr(&attrs, Some(converter_id), "content-type")?;
+    Ok(match optional_manifest_attr(&attrs, "schema") {
+        Some(schema) => ConversionEndpoint::with_schema(content_type, schema),
+        None => ConversionEndpoint::new(content_type),
+    })
+}
+
+fn parse_manifest_implementation(
+    converter_id: &str,
+    value: &str,
+) -> Result<ConversionImplementation, ConversionManifestError> {
+    match value.trim() {
+        "cemt" => Ok(ConversionImplementation::Cemt),
+        "rust" => Ok(ConversionImplementation::Rust),
+        implementation => Err(ConversionManifestError::UnknownImplementation {
+            converter_id: converter_id.to_owned(),
+            implementation: implementation.to_owned(),
+        }),
+    }
+}
+
+fn parse_manifest_readiness(
+    converter_id: &str,
+    value: &str,
+) -> Result<ConversionReadiness, ConversionManifestError> {
+    match value.trim() {
+        "ready" => Ok(ConversionReadiness::Ready),
+        "planned" => Ok(ConversionReadiness::Planned),
+        readiness => Err(ConversionManifestError::UnknownReadiness {
+            converter_id: converter_id.to_owned(),
+            readiness: readiness.to_owned(),
+        }),
+    }
+}
+
+fn parse_manifest_bool(
+    converter_id: &str,
+    attrs: &BTreeMap<String, String>,
+    attribute: &'static str,
+) -> Result<Option<bool>, ConversionManifestError> {
+    let Some(value) = attrs.get(attribute).map(String::as_str).map(str::trim) else {
+        return Ok(None);
+    };
+    match value {
+        "" | "true" => Ok(Some(true)),
+        "false" => Ok(Some(false)),
+        _ => Err(ConversionManifestError::InvalidBoolean {
+            converter_id: converter_id.to_owned(),
+            attribute,
+            value: value.to_owned(),
+        }),
+    }
+}
+
+fn required_manifest_attr<'a>(
+    attrs: &'a BTreeMap<String, String>,
+    converter_id: Option<&str>,
+    attribute: &'static str,
+) -> Result<&'a str, ConversionManifestError> {
+    optional_manifest_attr(attrs, attribute).ok_or_else(|| {
+        ConversionManifestError::MissingAttribute {
+            converter_id: converter_id.map(str::to_owned),
+            attribute,
+        }
+    })
+}
+
+fn optional_manifest_attr<'a>(
+    attrs: &'a BTreeMap<String, String>,
+    attribute: &str,
+) -> Option<&'a str> {
+    attrs
+        .get(attribute)
+        .map(String::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
+fn parse_cem_document(input: &str) -> CemDocument {
+    let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
+    let tok = CemTokenizer::from_source(src);
+    let normalizer = CemEventNormalizer::new(tok);
+    CemAstBuilder::new(normalizer).build()
+}
+
+fn collect_manifest_attrs(document: &CemDocument, node_id: AstNodeId) -> BTreeMap<String, String> {
+    let mut attrs = BTreeMap::new();
+    let Some(CemAstNode::Element { attributes, .. }) = document.get(node_id) else {
+        return attrs;
+    };
+
+    for attr_id in attributes {
+        let Some(CemAstNode::Attribute {
+            expanded_name,
+            value,
+            ..
+        }) = document.get(*attr_id)
+        else {
+            continue;
+        };
+        attrs.insert(
+            expanded_name.local_name.clone(),
+            value.clone().unwrap_or_default(),
+        );
+    }
+
+    attrs
+}
+
+fn first_element_id_by_local_name(document: &CemDocument, local_name: &str) -> Option<AstNodeId> {
+    document.iter().find_map(|node| {
+        let CemAstNode::Element {
+            node_id,
+            expanded_name,
+            ..
+        } = node
+        else {
+            return None;
+        };
+        (expanded_name.local_name == local_name).then_some(*node_id)
+    })
+}
+
+fn element_child_ids_by_local_name(
+    document: &CemDocument,
+    node_id: AstNodeId,
+    local_name: &str,
+) -> Vec<AstNodeId> {
+    let Some(CemAstNode::Element { children, .. }) = document.get(node_id) else {
+        return Vec::new();
+    };
+    children
+        .iter()
+        .copied()
+        .filter(|child_id| {
+            matches!(
+                document.get(*child_id),
+                Some(CemAstNode::Element { expanded_name, .. })
+                    if expanded_name.local_name == local_name
+            )
+        })
+        .collect()
+}
+
 pub fn builtin_conversion_descriptors() -> Vec<ConversionDescriptor> {
-    vec![
+    let mut descriptors = vec![
         rust_edge(
             "cem-ml-to-dom-projection-rust",
             "cem-ml",
@@ -824,20 +1207,6 @@ pub fn builtin_conversion_descriptors() -> Vec<ConversionDescriptor> {
             "lossless",
             80,
         ),
-        ready_cemt_edge_with_rust_fallback(
-            "cem-dom-projection-to-html-cemt",
-            "cem-dom-projection",
-            endpoint(
-                CEM_DOM_PROJECTION_CONTENT_TYPE,
-                CEM_DOM_PROJECTION_SCHEMA_URI,
-            ),
-            endpoint(HTML_CONTENT_TYPE, HTML_SCHEMA_URI),
-            "schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt",
-            "HtmlExportConverter",
-            "Rust fallback remains available when an executable CEMT adapter is unavailable",
-            "serialization",
-            100,
-        ),
         rust_edge(
             "cem-dom-projection-to-html-rust",
             "cem-dom-projection",
@@ -847,20 +1216,6 @@ pub fn builtin_conversion_descriptors() -> Vec<ConversionDescriptor> {
             ),
             endpoint(HTML_CONTENT_TYPE, HTML_SCHEMA_URI),
             "HtmlExportConverter",
-            "serialization",
-            100,
-        ),
-        ready_cemt_edge_with_rust_fallback(
-            "cem-dom-projection-to-xml-cemt",
-            "cem-dom-projection",
-            endpoint(
-                CEM_DOM_PROJECTION_CONTENT_TYPE,
-                CEM_DOM_PROJECTION_SCHEMA_URI,
-            ),
-            endpoint(XML_CONTENT_TYPE, XML_SCHEMA_URI),
-            "schema-packages/cem-dom-projection/v1/converters/dom-to-xml.cemt",
-            "XmlExportConverter",
-            "Rust fallback remains available when an executable CEMT adapter is unavailable",
             "serialization",
             100,
         ),
@@ -921,48 +1276,22 @@ pub fn builtin_conversion_descriptors() -> Vec<ConversionDescriptor> {
             "debug-view",
             150,
         ),
-    ]
+    ];
+    descriptors.extend(builtin_package_conversion_descriptors(
+        CEM_DOM_PROJECTION_SCHEMA_URI,
+    ));
+    descriptors
 }
 
 fn endpoint(content_type: &str, schema: &str) -> ConversionEndpoint {
     ConversionEndpoint::with_schema(content_type, schema)
 }
 
-fn ready_cemt_edge_with_rust_fallback(
-    id: &str,
-    package_id: &str,
-    from: ConversionEndpoint,
-    to: ConversionEndpoint,
-    template_path: &str,
-    rust_symbol: &str,
-    fallback_reason: &str,
-    lossiness: &str,
-    cost: u32,
-) -> ConversionDescriptor {
-    ConversionDescriptor {
-        id: id.to_owned(),
-        package_id: package_id.to_owned(),
-        from,
-        to,
-        implementation: ConversionImplementation::Cemt,
-        readiness: ConversionReadiness::Ready,
-        template: Some(ConversionTemplateDescriptor {
-            path: template_path.to_owned(),
-            content_type: content_type_essence(CEM_TRANSFORM_CONTENT_TYPE),
-            schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
-            entrypoint: Some("main".to_owned()),
-        }),
-        rust_symbol: None,
-        rust_fallback: Some(ConversionRustFallbackDescriptor {
-            rust_symbol: rust_symbol.to_owned(),
-            reason: fallback_reason.to_owned(),
-        }),
-        streamable: true,
-        lossiness: Some(lossiness.to_owned()),
-        implicit: true,
-        explicit_only: false,
-        cost,
-    }
+fn builtin_package_conversion_descriptors(schema_uri: &str) -> Vec<ConversionDescriptor> {
+    let package = load_builtin_schema_package(schema_uri)
+        .expect("built-in converter package must have embedded sources");
+    conversion_descriptors_from_schema_package(&package)
+        .expect("built-in package converter metadata must be valid")
 }
 
 fn rust_edge(
@@ -1088,6 +1417,7 @@ mod tests {
         );
         assert_eq!(template.content_type, CEM_TRANSFORM_CONTENT_TYPE);
         assert_eq!(template.schema.as_deref(), Some(CEM_TRANSFORM_SCHEMA_URI));
+        assert_eq!(template.entrypoint.as_deref(), Some("main"));
 
         let fallback = selection.descriptor.rust_fallback.as_ref().unwrap();
         assert_eq!(fallback.rust_symbol, "HtmlExportConverter");
@@ -1124,6 +1454,7 @@ mod tests {
             assert_eq!(template.path, expected_path);
             assert_eq!(template.content_type, CEM_TRANSFORM_CONTENT_TYPE);
             assert_eq!(template.schema.as_deref(), Some(CEM_TRANSFORM_SCHEMA_URI));
+            assert_eq!(template.entrypoint.as_deref(), Some("main"));
 
             let asset_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(&template.path);
             let source = std::fs::read_to_string(&asset_path).unwrap_or_else(|err| {
@@ -1136,6 +1467,61 @@ mod tests {
             assert!(source.contains("@default transform"));
             assert!(source.contains(r#"{template @name="emit-node""#));
         }
+    }
+
+    #[test]
+    fn builtin_package_manifest_declares_dom_projection_cemt_converters() {
+        let package = load_builtin_schema_package(CEM_DOM_PROJECTION_SCHEMA_URI).unwrap();
+        let descriptors = conversion_descriptors_from_schema_package(&package).unwrap();
+
+        assert_eq!(descriptors.len(), 2);
+        let html = descriptors
+            .iter()
+            .find(|descriptor| descriptor.id == "cem-dom-projection-to-html-cemt")
+            .expect("HTML converter descriptor");
+        assert_eq!(html.package_id, "cem-dom-projection");
+        assert_eq!(html.implementation, ConversionImplementation::Cemt);
+        assert_eq!(html.readiness, ConversionReadiness::Ready);
+        assert_eq!(html.from.content_type, CEM_DOM_PROJECTION_CONTENT_TYPE);
+        assert_eq!(
+            html.from.schema.as_deref(),
+            Some(CEM_DOM_PROJECTION_SCHEMA_URI)
+        );
+        assert_eq!(html.to.content_type, HTML_CONTENT_TYPE);
+        assert_eq!(html.to.schema.as_deref(), Some(HTML_SCHEMA_URI));
+        assert_eq!(html.lossiness.as_deref(), Some("serialization"));
+        assert!(html.streamable);
+        assert!(html.implicit);
+        assert!(!html.explicit_only);
+
+        let template = html.template.as_ref().expect("HTML CEMT template");
+        assert_eq!(
+            template.path,
+            "schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt"
+        );
+        assert_eq!(template.content_type, CEM_TRANSFORM_CONTENT_TYPE);
+        assert_eq!(template.schema.as_deref(), Some(CEM_TRANSFORM_SCHEMA_URI));
+        assert_eq!(template.entrypoint.as_deref(), Some("main"));
+
+        let fallback = html.rust_fallback.as_ref().expect("HTML Rust fallback");
+        assert_eq!(fallback.rust_symbol, "HtmlExportConverter");
+        assert!(fallback.reason.contains("executable CEMT adapter"));
+
+        let xml = descriptors
+            .iter()
+            .find(|descriptor| descriptor.id == "cem-dom-projection-to-xml-cemt")
+            .expect("XML converter descriptor");
+        assert_eq!(xml.to.content_type, XML_CONTENT_TYPE);
+        let xml_template = xml.template.as_ref().expect("XML CEMT template");
+        assert_eq!(
+            xml_template.path,
+            "schema-packages/cem-dom-projection/v1/converters/dom-to-xml.cemt"
+        );
+        assert_eq!(xml_template.entrypoint.as_deref(), Some("main"));
+        assert_eq!(
+            xml.rust_fallback.as_ref().unwrap().rust_symbol,
+            "XmlExportConverter"
+        );
     }
 
     #[test]

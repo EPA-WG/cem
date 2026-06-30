@@ -25,7 +25,9 @@ edges are `ready` after parity coverage against the Rust serializers.
 The CLI template pass validates these converter assets with converter input
 bindings, loop bindings, and recursive `@with:*` call parameter bindings.
 CEM-QL adapter parity coverage compares packaged CEMT output against the Rust
-HTML and XML serializers on representative DOM projection fixtures.
+HTML and XML serializers on representative DOM projection fixtures. Built-in
+runtime conversion descriptors for these CEMT edges are loaded from this
+`package.cem` manifest, including the declared `main` entrypoint.
 
 ## Validation Examples
 

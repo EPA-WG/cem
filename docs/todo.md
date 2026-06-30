@@ -94,6 +94,9 @@ history belongs in git history and the feature-specific docs linked below.
   - [x] Add XML target serialization for CEMT render-plan output.
   - [x] Add parity coverage; then promote the DOM-projection HTML/XML
         descriptors from planned to ready.
+  - [x] Load DOM-projection CEMT converter descriptor metadata from
+        `package.cem`, including `template-entrypoint`, instead of duplicating
+        those CEMT edges in Rust.
 
 ## Schema Package Implementation List
 
