@@ -25,10 +25,11 @@ use crate::resolver::{
 };
 use crate::run_config::ScopeConfig;
 use crate::schema::machine::CemSchemaMachine;
+use crate::schema::package_consistency::validate_schema_package_source_consistency;
 use crate::schema::registry::{
-    CEM_DOM_JSON_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_CONTENT_TYPE,
-    CEM_DOM_PROJECTION_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, XML_CONTENT_TYPE,
-    XML_SCHEMA_URI,
+    content_type_essence, CEM_DOM_JSON_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_CONTENT_TYPE,
+    CEM_DOM_PROJECTION_SCHEMA_URI, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
+    HTML_CONTENT_TYPE, HTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
 };
 use crate::schema::vocab::CompiledSchema;
 use crate::source::{BytesSource, SourceId};
@@ -2792,6 +2793,14 @@ fn run_scheduled_validation_documents(
                     &input.root_scope,
                     context,
                 );
+                if is_schema_package_manifest_schema(input, context) {
+                    if let Some(manifest_path) = input_local_path(input, context) {
+                        input_diags.extend(validate_schema_package_source_consistency(
+                            &manifest_path,
+                            &run.document,
+                        ));
+                    }
+                }
                 input_diags.extend(run.diagnostics);
             }
         });
@@ -2817,6 +2826,27 @@ fn effective_input_identity(input: &EngineInput, context: &EngineContext) -> For
 fn is_transform_config_schema(input: &EngineInput, context: &EngineContext) -> bool {
     let identity = effective_input_identity(input, context);
     identity.schema.as_deref() == Some(TRANSFORM_CONFIG_SCHEMA_URI)
+}
+
+fn is_schema_package_manifest_schema(input: &EngineInput, context: &EngineContext) -> bool {
+    let identity = effective_input_identity(input, context);
+    identity.schema.as_deref() == Some(CEM_SCHEMA_PACKAGE_URI)
+        || identity
+            .content_type
+            .as_deref()
+            .is_some_and(|content_type| {
+                content_type_essence(content_type) == CEM_SCHEMA_PACKAGE_CONTENT_TYPE
+            })
+}
+
+fn input_local_path(input: &EngineInput, context: &EngineContext) -> Option<PathBuf> {
+    let uri = input_uri(input, context);
+    match parse_local_file_uri(&uri) {
+        Some(Ok(path)) => Some(path),
+        Some(Err(_)) => None,
+        None if !has_uri_scheme(&uri) || is_windows_drive_path(&uri) => Some(PathBuf::from(uri)),
+        None => None,
+    }
 }
 
 fn validate_transform_config_document(

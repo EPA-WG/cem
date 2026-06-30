@@ -64,6 +64,7 @@
         {constraint @kind="converter-cost-positive" @target="converter" @policy="cost, when present, must be a positive integer"}
         {constraint @kind="converter-endpoint-schema-content-type-match" @target="from to" @policy="when endpoint schema is known, content-type must be registered by that schema"}
         {constraint @kind="planned-cemt-rust-fallback" @target="converter" @policy="planned CEMT converters may declare rust-symbol as fallback hook"}
+        {constraint @kind="schema-source-metadata-consistency" @target="package schema content-type namespace" @policy="when package source is local, package schema URI, content type claims, and namespace URI claims must match the referenced schema source"}
     }
 
     {diagnostics |
@@ -85,6 +86,11 @@
         {diagnostic @code="cem.schema_package.converter_cost_invalid" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_selection_conflict" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_content_type_mismatch" @severity="error"}
+        {diagnostic @code="cem.schema_package.schema_source_unreadable" @severity="error"}
+        {diagnostic @code="cem.schema_package.schema_source_invalid" @severity="error"}
+        {diagnostic @code="cem.schema_package.schema_uri_mismatch" @severity="error"}
+        {diagnostic @code="cem.schema_package.schema_content_type_mismatch" @severity="error"}
+        {diagnostic @code="cem.schema_package.schema_namespace_mismatch" @severity="error"}
     }
 
     {open-content |

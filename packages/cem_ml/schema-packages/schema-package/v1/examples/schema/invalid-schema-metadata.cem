@@ -1,0 +1,17 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="broken-schema" @namespace="https://example.test/ns/actual-schema/1" @version="1.0.0" |
+    {content-types |
+        {content-type @value="application/vnd.example.actual+cem" @primary=true}
+    }
+
+    {namespaces |
+        {namespace @prefix="actual" @uri="https://example.test/ns/actual-schema/1"}
+    }
+
+    {elements |
+        {element @name="actual"}
+    }
+}

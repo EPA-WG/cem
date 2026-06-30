@@ -227,6 +227,18 @@ fn schema_owned_examples_validate_through_cli() {
             ],
         },
         ValidationExample {
+            name: "schema-package invalid schema metadata",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-schema-metadata.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &[
+                "cem.schema_package.schema_uri_mismatch",
+                "cem.schema_package.schema_content_type_mismatch",
+                "cem.schema_package.schema_namespace_mismatch",
+            ],
+        },
+        ValidationExample {
             name: "native-template basic",
             path: "packages/cem_ml/schema-packages/cem-native-template/v1/examples/basic-template.cem",
             content_type: CEM_NATIVE_TEMPLATE_CONTENT_TYPE,

@@ -31,6 +31,9 @@ Validation enforces the implementation-specific contract: CEMT converters must
 name a CEMT template identity, Rust converters must name a `rust-symbol`, each
 converter must have exactly one `from` and `to` endpoint, planner cost must be
 positive, and known endpoint schemas must own the declared content type.
+For local `package.cem` inputs, validation also reads the declared schema
+source and checks that the manifest schema URI, content type claims, and
+namespace URI claims match the referenced `schema/*.cem` file.
 
 ## Validation Examples
 
@@ -44,6 +47,7 @@ CLI validation integration tests.
 | [`invalid-unclosed-package.cem`](examples/invalid-unclosed-package.cem) | Missing closing package scope syntax diagnostic. | Fail with `cem.schema.unclosed_scope` |
 | [`invalid-missing-required-attribute.cem`](examples/invalid-missing-required-attribute.cem) | Manifest schema entry missing its required `source` attribute. | Fail with `cem.schema_model.missing_required_attribute` |
 | [`invalid-converter-contract.cem`](examples/invalid-converter-contract.cem) | Converter declaration with missing CEMT template identity, missing target endpoint, invalid cost, and incompatible endpoint schema/content type. | Fail with `cem.schema_package.converter_template_missing`, `cem.schema_package.converter_endpoint_missing`, `cem.schema_package.converter_cost_invalid`, `cem.schema_package.converter_content_type_mismatch` |
+| [`invalid-schema-metadata.cem`](examples/invalid-schema-metadata.cem) | Manifest schema metadata disagrees with the referenced schema source. | Fail with `cem.schema_package.schema_uri_mismatch`, `cem.schema_package.schema_content_type_mismatch`, `cem.schema_package.schema_namespace_mismatch` |
 
 Validate an example explicitly against this schema:
 

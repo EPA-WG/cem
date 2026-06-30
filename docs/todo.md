@@ -107,6 +107,9 @@ history belongs in git history and the feature-specific docs linked below.
   - [x] Load built-in schema registry descriptors from embedded
         `package.cem` manifests and schema `{uses}` declarations instead of a
         hand-maintained Rust descriptor table.
+  - [x] Add local schema-package source consistency validation for
+        `package.cem` schema URI, content type, and namespace declarations
+        against referenced `schema/*.cem` sources.
 
 ## Schema Package Implementation List
 

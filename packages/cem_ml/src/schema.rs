@@ -9,6 +9,7 @@ pub mod document_model;
 pub mod ir;
 pub mod machine;
 pub mod namespace;
+pub mod package_consistency;
 pub mod package_loader;
 pub mod package_sources;
 pub mod registry;
