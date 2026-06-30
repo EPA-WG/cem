@@ -125,7 +125,7 @@ impl Default for EngineContext {
             resolver_registry: ResolverRegistry::default(),
             template_adapter_registry: TransformTemplateAdapterRegistry::with_builtin_adapters(),
             transform_template_encode_registry:
-                TransformTemplateEncodeImplementationRegistry::default(),
+                TransformTemplateEncodeImplementationRegistry::with_builtin_encoders(),
         }
     }
 }

@@ -5085,22 +5085,115 @@ mod tests {
             }),
             root_scope: ScopeConfig::default(),
         };
-        let mut encode_registry =
-            crate::transform_template::TransformTemplateEncodeImplementationRegistry::new();
-        encode_registry.register(
-            "html.text",
-            |_binding: &crate::transform_template::TransformTemplateEncodeBinding,
-             subject: &Value| {
-                let text = subject
-                    .as_str()
-                    .ok_or_else(|| "html.text expected string subject".to_owned())?;
-                Ok(Value::String(text.replace('&', "&amp;")))
+        let context = ctx();
+        let adapter: Arc<dyn TransformTemplateAdapter> = Arc::new(ReadyCemtHtmlExportAdapter);
+        let params = BTreeMap::new();
+        let data_bindings = vec!["input".to_owned()];
+        let mut diagnostics = Vec::new();
+        let compiled = compile_transform_template(
+            TransformTemplateCompileSpec {
+                context: &context,
+                adapter: &adapter,
+                template: &template,
+                template_kind: TransformTemplateKind::CemNative,
+                entrypoint: &TransformTemplateEntrypoint::named("main"),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: TransformTemplateModuleOptions::default(),
+                execution_policy: TransformExecutionPolicy::default(),
             },
-        );
-        let context = EngineContext {
-            transform_template_encode_registry: encode_registry,
-            ..ctx()
+            &mut diagnostics,
+        )
+        .expect("template compiles");
+        let primary_input = TransformTemplateDataArtifact {
+            artifact_id: "input".to_owned(),
+            uri: None,
+            identity: None,
+            value: json!({"title": "Hello <CEM> & friends"}),
         };
+        let secondary_inputs = BTreeMap::new();
+        let target = FormatIdentity {
+            content_type: Some("text/html".to_owned()),
+            schema: Some("https://cem.dev/ns/data/html/1".to_owned()),
+            ..FormatIdentity::default()
+        };
+
+        let output = render_transform_stage(
+            TransformStageRenderSpec {
+                context: &context,
+                adapter: &adapter,
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: Some(&target),
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+                diagnostic_uri: &template.uri,
+                diagnostic_node: None,
+            },
+            &mut diagnostics,
+        )
+        .expect("template renders");
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        assert_eq!(
+            output.value,
+            Value::String("Hello &lt;CEM&gt; &amp; friends".to_owned())
+        );
+        assert_eq!(
+            output
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.content_type.as_deref()),
+            Some("text/html")
+        );
+        assert_eq!(
+            output
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.schema.as_deref()),
+            Some("https://cem.dev/ns/data/html/1")
+        );
+    }
+
+    #[test]
+    fn render_transform_stage_rejects_mixed_html_encode_contexts() {
+        let template = TemplateInput {
+            uri: "templates/page.cemt".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {encoding-function
+      @name="html.text"
+      @category="html-text"
+      @subject="string"
+      @produces="text"
+      @content-type="text/html"
+      @schema="https://cem.dev/ns/data/html/1"
+      @canonical=true}
+  {encoding-function
+      @name="html.attribute"
+      @category="html-attribute"
+      @subject="string"
+      @produces="text"
+      @content-type="text/html"
+      @schema="https://cem.dev/ns/data/html/1"
+      @canonical=true}
+  {template @name="main" @visibility="public" |
+    {body |
+      {$ encode($input.title, { contentType: "text/html", schema: "https://cem.dev/ns/data/html/1", category: "html-text", context: "text" }, { mode: "fragment", encoder: "html.text" }) }
+      {$ encode($input.title, { contentType: "text/html", schema: "https://cem.dev/ns/data/html/1", category: "html-attribute", context: "double-quoted-attribute" }, { mode: "fragment", encoder: "html.attribute" }) }
+    }
+  }
+}"#
+            .to_vec(),
+            identity: Some(FormatIdentity {
+                content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+                schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            root_scope: ScopeConfig::default(),
+        };
+        let context = ctx();
         let adapter: Arc<dyn TransformTemplateAdapter> = Arc::new(ReadyCemtHtmlExportAdapter);
         let params = BTreeMap::new();
         let data_bindings = vec!["input".to_owned()];
@@ -5148,24 +5241,14 @@ mod tests {
             },
             &mut diagnostics,
         )
-        .expect("template renders");
+        .expect("template renders with diagnostics");
 
-        assert!(diagnostics.is_empty(), "{diagnostics:?}");
-        assert_eq!(output.value, Value::String("Hello &amp; CEM".to_owned()));
-        assert_eq!(
-            output
-                .identity
-                .as_ref()
-                .and_then(|identity| identity.content_type.as_deref()),
-            Some("text/html")
-        );
-        assert_eq!(
-            output
-                .identity
-                .as_ref()
-                .and_then(|identity| identity.schema.as_deref()),
-            Some("https://cem.dev/ns/data/html/1")
-        );
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic.code
+                == crate::transform_template::TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_CONTEXT_MISMATCH_CODE
+                && diagnostic.message.contains("category")
+        }));
+        assert!(output.value.is_object());
     }
 
     #[test]

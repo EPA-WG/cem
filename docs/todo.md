@@ -145,6 +145,9 @@ history belongs in git history and the feature-specific docs linked below.
         framing across CEM, CEMT, XML, HTML, JSON, YAML, CSV, Markdown, CSS,
         CEM-QL, RELAX NG compact syntax, AI context projection, and CEM binary
         projection output categories.
+    - [x] Register initial built-in HTML text and double-quoted attribute
+          encoders for CEMT render-time execution, including category/context
+          mismatch coverage.
   - [ ] Add shared formatter functions for indentation, line endings, ordering,
         wrapping, YAML scalar style, namespace declaration placement, and
         canonical output profiles.

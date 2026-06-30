@@ -904,6 +904,13 @@ impl TransformTemplateEncodeImplementationRegistry {
         Self::default()
     }
 
+    pub fn with_builtin_encoders() -> Self {
+        let mut registry = Self::new();
+        registry.register("html.text", builtin_html_text_encoder);
+        registry.register("html.attribute", builtin_html_attribute_encoder);
+        registry
+    }
+
     pub fn register(
         &mut self,
         function_name: impl Into<String>,
@@ -940,6 +947,76 @@ impl TransformTemplateEncodeImplementationRegistry {
         };
         implementation.encode(binding, subject)
     }
+}
+
+fn builtin_html_text_encoder(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_html_encoder_binding(binding, "html.text", "html-text")?;
+    let text = subject
+        .as_str()
+        .ok_or_else(|| "html.text expected string subject".to_owned())?;
+    Ok(Value::String(transform_template_encode_html_text(text)))
+}
+
+fn builtin_html_attribute_encoder(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_html_encoder_binding(binding, "html.attribute", "html-attribute")?;
+    let text = subject
+        .as_str()
+        .ok_or_else(|| "html.attribute expected string subject".to_owned())?;
+    Ok(Value::String(transform_template_encode_html_attribute(
+        text,
+    )))
+}
+
+fn validate_builtin_html_encoder_binding(
+    binding: &TransformTemplateEncodeBinding,
+    expected_name: &str,
+    expected_category: &str,
+) -> Result<(), String> {
+    if binding.function.name != expected_name {
+        return Err(format!(
+            "HTML encoder implementation `{expected_name}` cannot execute `{}`",
+            binding.function.name
+        ));
+    }
+    if binding.identity.target.category != expected_category {
+        return Err(format!(
+            "HTML encoder `{expected_name}` expected category `{expected_category}`, got `{}`",
+            binding.identity.target.category
+        ));
+    }
+    Ok(())
+}
+
+pub fn transform_template_encode_html_text(value: &str) -> String {
+    let mut output = String::new();
+    for ch in value.chars() {
+        match ch {
+            '&' => output.push_str("&amp;"),
+            '<' => output.push_str("&lt;"),
+            '>' => output.push_str("&gt;"),
+            _ => output.push(ch),
+        }
+    }
+    output
+}
+
+pub fn transform_template_encode_html_attribute(value: &str) -> String {
+    let mut output = String::new();
+    for ch in value.chars() {
+        match ch {
+            '&' => output.push_str("&amp;"),
+            '"' => output.push_str("&quot;"),
+            '<' => output.push_str("&lt;"),
+            _ => output.push(ch),
+        }
+    }
+    output
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -4106,6 +4183,72 @@ mod tests {
             .resolve(&native_query, &capabilities)
             .expect("native function resolves with capability");
         assert_eq!(resolved_native.name, "acme.native.html-text");
+    }
+
+    #[test]
+    fn builtin_html_encode_implementations_escape_contexts_and_reject_wrong_category() {
+        let registry = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+        let mut text_identity = TransformTemplateEncodedArtifactIdentity::new(
+            TransformTemplateOutputProducedKind::Text,
+            TransformTemplateEncodingTarget::new(
+                "text/html",
+                "https://cem.dev/ns/data/html/1",
+                "html-text",
+            )
+            .with_context("text"),
+        );
+        text_identity.mode = TransformTemplateEncodedArtifactMode::Fragment;
+        let text_binding = TransformTemplateEncodeBinding {
+            function: output_function_descriptor(),
+            subject_type: "string".to_owned(),
+            identity: text_identity,
+        };
+
+        let text = registry
+            .encode(
+                &text_binding,
+                &Value::String("5 < 6 & 7 > 3 \"ok\"".to_owned()),
+            )
+            .expect("html text encoder runs");
+        assert_eq!(
+            text,
+            Value::String("5 &lt; 6 &amp; 7 &gt; 3 \"ok\"".to_owned())
+        );
+
+        let mut attribute_function = output_function_descriptor();
+        attribute_function.name = "html.attribute".to_owned();
+        attribute_function.category = "html-attribute".to_owned();
+        let attribute_binding = TransformTemplateEncodeBinding {
+            function: attribute_function,
+            subject_type: "string".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::new(
+                TransformTemplateOutputProducedKind::Text,
+                TransformTemplateEncodingTarget::new(
+                    "text/html",
+                    "https://cem.dev/ns/data/html/1",
+                    "html-attribute",
+                )
+                .with_context("double-quoted-attribute"),
+            ),
+        };
+
+        let attribute = registry
+            .encode(
+                &attribute_binding,
+                &Value::String("Tom & \"CEM\" <tag> 'ok'".to_owned()),
+            )
+            .expect("html attribute encoder runs");
+        assert_eq!(
+            attribute,
+            Value::String("Tom &amp; &quot;CEM&quot; &lt;tag> 'ok'".to_owned())
+        );
+
+        let mut wrong_category = text_binding.clone();
+        wrong_category.identity.target.category = "html-attribute".to_owned();
+        let error = registry
+            .encode(&wrong_category, &Value::String("unsafe".to_owned()))
+            .expect_err("builtin refuses mismatched category");
+        assert!(error.contains("expected category `html-text`"));
     }
 
     #[test]
