@@ -35,3 +35,24 @@ The schema describes YAML streams as a lossless resource model:
 
 Parsers must use safe tag resolution by default. Host-object or executable tags
 belong behind explicit adapter policy and runtime limits.
+
+## Validation Examples
+
+The schema-owned examples live in [`examples/`](examples/) and are used by the
+CLI validation integration tests.
+
+| Example | Purpose | Expected result |
+| --- | --- | --- |
+| [`basic-document.yaml`](examples/basic-document.yaml) | Minimal mapping with scalar values and a sequence. | Pass |
+| [`nested-stream.yml`](examples/nested-stream.yml) | Multi-document YAML stream with nested mappings and sequences. | Pass |
+| [`invalid-parse.yaml`](examples/invalid-parse.yaml) | Unterminated flow sequence rejected by the YAML parser. | Fail with `cem.yaml.parse_error` |
+| [`invalid-unsafe-tag.yaml`](examples/invalid-unsafe-tag.yaml) | Explicit non-core tag rejected by the safe default policy. | Fail with `cem.yaml.unsafe_tag` |
+
+Validate an example explicitly against this schema:
+
+```bash
+cargo run -p cem-ml-cli -- validate \
+  --content-type application/yaml \
+  --schema https://cem.dev/ns/data/yaml/1 \
+  packages/cem_ml/schema-packages/yaml/v1/examples/basic-document.yaml
+```

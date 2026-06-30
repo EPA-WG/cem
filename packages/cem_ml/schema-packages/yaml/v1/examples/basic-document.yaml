@@ -1,0 +1,6 @@
+message: Hello from CEM
+enabled: true
+retries: 3
+tags:
+  - schema
+  - validation

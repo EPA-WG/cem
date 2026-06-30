@@ -53,7 +53,7 @@ history belongs in git history and the feature-specific docs linked below.
   - [x] CEM events projection
         (`application/vnd.cem.events+cem-bin`,
         `application/vnd.cem.events+json` debug view).
-  - [ ] YAML/YML (`application/yaml`, compatibility aliases).
+  - [x] YAML/YML (`application/yaml`, compatibility aliases).
   - [ ] CSV (`text/csv`).
   - [ ] Markdown/MD markup (`text/markdown`).
   - [ ] XML (`application/xml`, XML aliases).

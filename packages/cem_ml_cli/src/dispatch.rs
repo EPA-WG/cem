@@ -3020,6 +3020,8 @@ fn direct_source_validation_report(
             diagnostics.extend(collect_json_schema_source_diagnostics(
                 std::slice::from_ref(input),
             ));
+        } else if is_yaml_source_input(input) {
+            diagnostics.extend(collect_yaml_source_diagnostics(std::slice::from_ref(input)));
         } else if is_json_source_input(input) {
             diagnostics.extend(collect_json_source_diagnostics(std::slice::from_ref(input)));
         } else {
@@ -3112,6 +3114,30 @@ fn is_json_schema_source_input(input: &eng::EngineInput) -> bool {
         }
         Some(_) => false,
         None => schema_is_json_schema,
+    }
+}
+
+fn is_yaml_source_input(input: &eng::EngineInput) -> bool {
+    let identity = input
+        .identity
+        .clone()
+        .unwrap_or_else(|| input.root_scope.format_identity());
+    let schema_is_yaml = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == cem_ml::schema::registry::YAML_SCHEMA_URI);
+    let content_type = identity
+        .content_type
+        .as_deref()
+        .map(cli_content_type_essence);
+
+    match content_type.as_deref() {
+        Some(content_type) if is_yaml_source_content_type(content_type) => {
+            identity.schema.is_none() || schema_is_yaml
+        }
+        Some(_) => false,
+        None => schema_is_yaml,
     }
 }
 
@@ -3226,6 +3252,16 @@ fn is_json_source_content_type(content_type: &str) -> bool {
     )
 }
 
+fn is_yaml_source_content_type(content_type: &str) -> bool {
+    matches!(
+        content_type,
+        cem_ml::schema::registry::YAML_CONTENT_TYPE
+            | "application/x-yaml"
+            | "text/yaml"
+            | "text/x-yaml"
+    )
+}
+
 fn cli_content_type_essence(content_type: &str) -> String {
     content_type
         .split(';')
@@ -3311,6 +3347,32 @@ fn collect_json_schema_source_diagnostics(
         if let Some(diagnostic) = json_schema_dialect_diagnostic(input, &value) {
             diagnostics.push(diagnostic);
         }
+    }
+    diagnostics
+}
+
+fn collect_yaml_source_diagnostics(
+    inputs: &[eng::EngineInput],
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    let mut diagnostics = Vec::new();
+    for input in inputs {
+        let source = match std::str::from_utf8(&input.bytes) {
+            Ok(source) => source,
+            Err(error) => {
+                diagnostics.push(yaml_unsupported_encoding_diagnostic(input, &error));
+                continue;
+            }
+        };
+
+        let mut receiver = YamlValidationReceiver {
+            input,
+            diagnostics: Vec::new(),
+        };
+        let mut parser = yaml_rust2::parser::Parser::new_from_str(source);
+        if let Err(error) = parser.load(&mut receiver, true) {
+            diagnostics.push(yaml_parse_error_diagnostic(input, &error));
+        }
+        diagnostics.extend(receiver.diagnostics);
     }
     diagnostics
 }
@@ -4183,6 +4245,114 @@ fn json_schema_parse_error_diagnostic(
         message: format!("JSON Schema parse error: {error}"),
         ..cem_ml::diagnostics::Diagnostic::default()
     }
+}
+
+fn yaml_parse_error_diagnostic(
+    input: &eng::EngineInput,
+    error: &yaml_rust2::scanner::ScanError,
+) -> cem_ml::diagnostics::Diagnostic {
+    let marker = error.marker();
+    cem_ml::diagnostics::Diagnostic {
+        uri: Some(input.uri.clone()),
+        line: u32::try_from(marker.line()).ok(),
+        column: u32::try_from(marker.col()).ok(),
+        code: "cem.yaml.parse_error".to_owned(),
+        severity: cem_ml::diagnostics::Severity::Error,
+        message: format!("YAML parse error: {error}"),
+        ..cem_ml::diagnostics::Diagnostic::default()
+    }
+}
+
+fn yaml_unsupported_encoding_diagnostic(
+    input: &eng::EngineInput,
+    error: &std::str::Utf8Error,
+) -> cem_ml::diagnostics::Diagnostic {
+    cem_ml::diagnostics::Diagnostic {
+        uri: Some(input.uri.clone()),
+        code: "cem.yaml.unsupported_encoding".to_owned(),
+        severity: cem_ml::diagnostics::Severity::Error,
+        message: format!("YAML source must be valid UTF-8: {error}"),
+        ..cem_ml::diagnostics::Diagnostic::default()
+    }
+}
+
+struct YamlValidationReceiver<'a> {
+    input: &'a eng::EngineInput,
+    diagnostics: Vec<cem_ml::diagnostics::Diagnostic>,
+}
+
+impl yaml_rust2::parser::MarkedEventReceiver for YamlValidationReceiver<'_> {
+    fn on_event(&mut self, ev: yaml_rust2::parser::Event, marker: yaml_rust2::scanner::Marker) {
+        match ev {
+            yaml_rust2::parser::Event::Scalar(_, _, _, Some(tag))
+            | yaml_rust2::parser::Event::SequenceStart(_, Some(tag))
+            | yaml_rust2::parser::Event::MappingStart(_, Some(tag)) => {
+                if !is_safe_yaml_tag(&tag) {
+                    self.diagnostics.push(yaml_unsafe_tag_diagnostic(
+                        self.input,
+                        &marker,
+                        &yaml_tag_display(&tag),
+                    ));
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn is_safe_yaml_tag(tag: &yaml_rust2::parser::Tag) -> bool {
+    let handle = tag.handle.trim();
+    let suffix = tag.suffix.trim();
+    if handle.is_empty() && suffix.is_empty() {
+        return true;
+    }
+
+    match handle {
+        "!" => suffix.is_empty(),
+        "!!" | "tag:yaml.org,2002:" => is_safe_yaml_core_tag_name(suffix),
+        _ => false,
+    }
+}
+
+fn is_safe_yaml_core_tag_name(name: &str) -> bool {
+    matches!(
+        name,
+        "binary"
+            | "bool"
+            | "float"
+            | "int"
+            | "map"
+            | "merge"
+            | "null"
+            | "omap"
+            | "pairs"
+            | "seq"
+            | "set"
+            | "str"
+            | "timestamp"
+            | "value"
+            | "yaml"
+    )
+}
+
+fn yaml_unsafe_tag_diagnostic(
+    input: &eng::EngineInput,
+    marker: &yaml_rust2::scanner::Marker,
+    tag: &str,
+) -> cem_ml::diagnostics::Diagnostic {
+    cem_ml::diagnostics::Diagnostic {
+        uri: Some(input.uri.clone()),
+        line: u32::try_from(marker.line()).ok(),
+        column: u32::try_from(marker.col()).ok(),
+        code: "cem.yaml.unsafe_tag".to_owned(),
+        severity: cem_ml::diagnostics::Severity::Error,
+        message: format!("YAML node uses unsupported explicit tag `{tag}`"),
+        ..cem_ml::diagnostics::Diagnostic::default()
+    }
+}
+
+fn yaml_tag_display(tag: &yaml_rust2::parser::Tag) -> String {
+    format!("{}{}", tag.handle, tag.suffix)
 }
 
 fn json_schema_dialect_diagnostic(
@@ -8720,6 +8890,110 @@ declare variable broken := 1 +"#,
         assert!(diagnostics
             .iter()
             .any(|diag| diag["code"] == "cem.json.parse_error"));
+    }
+
+    #[test]
+    fn validate_yaml_source_uses_yaml_parser() {
+        let p = write_fixture(
+            "validate-yaml-source.yaml",
+            r#"---
+service:
+  name: catalog
+  enabled: true
+  ports:
+    - 8080
+    - 8443
+---
+owner:
+  name: CEM
+  contacts:
+    - ops@example.test
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "text/yaml; charset=utf-8",
+                "--schema",
+                cem_ml::schema::registry::YAML_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
+        assert!(!diagnostics.iter().any(|diag| diag["code"]
+            .as_str()
+            .is_some_and(|code| code.starts_with("cem.schema."))));
+    }
+
+    #[test]
+    fn validate_yaml_source_reports_parser_diagnostics() {
+        let p = write_fixture(
+            "validate-yaml-source-invalid.yaml",
+            r#"items:
+  - one
+  - [unterminated
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/yaml",
+                "--schema",
+                cem_ml::schema::registry::YAML_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.yaml.parse_error"));
+    }
+
+    #[test]
+    fn validate_yaml_source_reports_unsafe_tag_diagnostics() {
+        let p = write_fixture(
+            "validate-yaml-source-unsafe-tag.yaml",
+            r#"payload: !include secret.yaml
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/x-yaml",
+                "--schema",
+                cem_ml::schema::registry::YAML_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.yaml.unsafe_tag"));
     }
 
     #[test]

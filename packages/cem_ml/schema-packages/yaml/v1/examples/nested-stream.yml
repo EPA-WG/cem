@@ -1,0 +1,19 @@
+---
+service:
+  name: catalog
+  enabled: true
+  ports:
+    - 8080
+    - 8443
+  limits:
+    memory: 256Mi
+    retries: 3
+---
+users:
+  - name: Ada
+    roles:
+      - admin
+      - editor
+  - name: Lin
+    roles:
+      - viewer

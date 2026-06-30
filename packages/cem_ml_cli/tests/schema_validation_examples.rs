@@ -18,6 +18,10 @@ const CEM_QL_SCHEMA_URI: &str = "https://cem.dev/ns/query/cem-ql/1";
 const CEM_QL_CONTENT_TYPE: &str = "application/vnd.cem.query+cem-ql";
 const JSON_SCHEMA_URI: &str = "https://cem.dev/ns/data/json/1";
 const JSON_CONTENT_TYPE: &str = "application/json";
+const YAML_SCHEMA_URI: &str = "https://cem.dev/ns/data/yaml/1";
+const YAML_CONTENT_TYPE: &str = "application/yaml";
+const YAML_TEXT_CONTENT_TYPE: &str = "text/yaml";
+const YAML_LEGACY_CONTENT_TYPE: &str = "application/x-yaml";
 const JSON_SCHEMA_SCHEMA_URI: &str = "https://cem.dev/ns/data/json-schema/1";
 const JSON_SCHEMA_CONTENT_TYPE: &str = "application/schema+json";
 const CEM_DOM_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/dom/1";
@@ -280,6 +284,38 @@ fn schema_owned_examples_validate_through_cli() {
             schema_uri: JSON_SCHEMA_URI,
             expected_exit: EXIT_HARD_FAILURE,
             expected_diagnostics: &["cem.json.parse_error"],
+        },
+        ValidationExample {
+            name: "yaml basic document",
+            path: "packages/cem_ml/schema-packages/yaml/v1/examples/basic-document.yaml",
+            content_type: YAML_CONTENT_TYPE,
+            schema_uri: YAML_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "yaml nested stream",
+            path: "packages/cem_ml/schema-packages/yaml/v1/examples/nested-stream.yml",
+            content_type: YAML_TEXT_CONTENT_TYPE,
+            schema_uri: YAML_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "yaml invalid parse",
+            path: "packages/cem_ml/schema-packages/yaml/v1/examples/invalid-parse.yaml",
+            content_type: YAML_CONTENT_TYPE,
+            schema_uri: YAML_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.yaml.parse_error"],
+        },
+        ValidationExample {
+            name: "yaml invalid unsafe tag",
+            path: "packages/cem_ml/schema-packages/yaml/v1/examples/invalid-unsafe-tag.yaml",
+            content_type: YAML_LEGACY_CONTENT_TYPE,
+            schema_uri: YAML_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.yaml.unsafe_tag"],
         },
         ValidationExample {
             name: "json-schema basic",
