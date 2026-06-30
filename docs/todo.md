@@ -67,6 +67,127 @@ history belongs in git history and the feature-specific docs linked below.
   - [x] HTML (`text/html`).
   - [x] CSS/scoped style content (`text/css`).
 
+- [ ] Prepare AST-to-schema output export for all supported schema packages,
+      with CEMT as the primary output producer. First review the output
+      transformation design in
+      [`../packages/cem_ml/schema-packages/README.md`](../packages/cem_ml/schema-packages/README.md)
+      and the encoding proposal in
+      [`../packages/cem_ml/docs/cemt-encoding-proposal.tmp.md`](../packages/cem_ml/docs/cemt-encoding-proposal.tmp.md).
+  - [ ] Promote the CEMT encoding proposal into canonical docs: CEMT owns
+        output production for schema-owned exports, including transformation,
+        encoding, formatting, terminal/HTML color output, source-map span
+        creation, final artifact identity, content-type-specific encoders,
+        formatters, colorizers, writer primitives, and small transformation
+        helpers. Clarify that encoding means syntax/context encoding, separate
+        from byte character encoding and transport content encoding.
+  - [ ] Define the CEMT `encode(subject, target, options?)` function and
+        expression binding. `target` must carry `contentType`, `schema`,
+        `category`, and optional context. `options` must cover canonical,
+        preserve, pretty, and fragment modes; explicit `encoder`, `formatter`,
+        `colorizer`, and `profile` selectors; charset; line ending; quote
+        policy; indent; namespace policy; and source-map policy.
+  - [ ] Define encoded artifact identity and insertion rules. Results are not
+        plain strings: they carry produced kind (`text`, `bytes`, `tokens`,
+        `chunks`, or `diagnostics`), target content type, schema URL, encoding
+        category/context, charset or binary framing identity, formatter profile,
+        color profile/capability, fragment/document mode, canonicalization mode,
+        source-map spans, and a double-encoding guard. Template insertion must
+        reject incompatible target identity or context.
+  - [ ] Add CEMT declaration vocabulary for `encoding-function`,
+        `format-function`, and `color-function` with registry-validatable
+        metadata: `name`, `category`, `subject`, `produces`, `content-type`,
+        `schema`, `canonical`, `streamable`, and typed params with required and
+        default metadata. Helpers must be declared by schema package metadata and
+        called from CEMT templates, not implemented as opaque host-side string
+        filters.
+  - [ ] Add custom encoding, formatting, and color function support. Custom
+        functions must use the same typed artifact semantics as built-ins and
+        declare package-qualified names, visibility, implementation source
+        (`cemt`, `native`, or `external`), profile, optional extension target,
+        required capability, determinism, raw-output trust, fallback behavior,
+        subject/output identity, params, and diagnostics. Registry lookup must
+        resolve by owner package, name, content type, schema, category, subject
+        type, and profile, and standard functions must not be shadowed unless
+        explicitly aliased.
+  - [ ] Add shared encoder functions for context-specific escaping and binary
+        framing across CEM, CEMT, XML, HTML, JSON, YAML, CSV, Markdown, CSS,
+        CEM-QL, RELAX NG compact syntax, AI context projection, and CEM binary
+        projection output categories.
+  - [ ] Add shared formatter functions for indentation, line endings, ordering,
+        wrapping, YAML scalar style, namespace declaration placement, and
+        canonical output profiles.
+  - [ ] Add writer primitives and CEMT bindings for syntax tokens, styled token
+        streams, byte streams, sealed binary chunks, source-map span emission,
+        and source-map preservation/generated/none policies.
+  - [ ] Add schema helper APIs for target syntax rules, void/empty element
+        policy, raw-text/RCDATA modes, namespace repair, identifier validity,
+        field/header policy, fragment/document handling, and charset/final byte
+        writer boundaries.
+  - [ ] Define CEMT color output support for terminal ANSI/SGR output and HTML
+        color output. Style roles include diagnostics, source gutters and
+        highlights, syntax tokens, diff hunks, and status states. Terminal
+        profiles must support `none`, `ansi-16`, `ansi-256`, `truecolor`, and
+        `auto`, no-color/forced-color policy, reset discipline, optional
+        hyperlinks, and plain-text fallbacks. HTML profiles must support
+        class-based output, explicit inline-style mode, CSS custom-property
+        palettes, accessible contrast policy, non-color cues, escaped text and
+        attributes, and fragment-safe output.
+  - [ ] Define subject handling for scalar values, local/qualified names,
+        namespace URIs, identifiers, structured values, CEM AST nodes, CEM DOM
+        nodes, XML/HTML nodes, token streams, normalized parser/transform
+        events, sealed binary chunks, attributes/slots, and fragments. Raw
+        target syntax must be schema-gated and never the default.
+  - [ ] Extend schema package metadata so each supported schema can declare
+        source identity, output syntax, destination content type and schema,
+        CEMT serializer template, template content type/schema, entrypoint,
+        streamability, lossiness, readiness, encoding category, formatter
+        profile, color output profile, native producer fallback symbol, fallback
+        reason, and parity expectations.
+  - [ ] Pair every native output producer with a CEMT implementation. Native
+        producers are allowed for performance and clarity, but must be
+        cross-checked against the schema-owned CEMT producer with shared
+        fixtures and diagnostics. Parity metadata must support byte-exact,
+        token-equivalent, parse-equivalent, and diagnostic-equivalent
+        comparison modes, and drift must surface as a parity diagnostic before a
+        native fast path is promoted.
+  - [ ] Implement CEMT output safety rules: context-specific categories must not
+        be conflated, encoded artifacts must not be silently re-encoded,
+        compatible-artifact concatenation must validate target identity and
+        category, character encoding must be selected at the final byte-writer
+        boundary, color must use semantic roles and non-color fallbacks, terminal
+        output must reset styles at artifact boundaries, HTML color output must
+        escape text/attribute content before styling, and source maps must be
+        produced as part of the encoding result.
+  - [ ] Add diagnostics for unknown encoder, unsupported category, unsafe raw
+        insertion, context mismatch, unsupported charset, charset mismatch,
+        double encoding, unknown formatter, unsupported terminal color
+        capability, inaccessible HTML palette, ambiguous custom function
+        resolution, missing custom function capability, unavailable custom
+        fallback, non-determinism in a canonical profile, incompatible custom
+        subject type, incompatible produced kind, lossy output, incompatible
+        artifact insertion, and CEMT/native parity mismatch.
+  - [ ] Add AI-facing context projection support as a task-shaped view over the
+        canonical AST/DOM/events/schema/token metadata, not a replacement for
+        canonical projections. Cover `ai-context-pack`, `ai-entity-graph`,
+        `ai-semantic-tokens`, `ai-context-fragment`, and
+        `ai-embedding-record`.
+  - [ ] Define AI context profile controls and safety: budgets for nodes,
+        tokens, characters, depth, diagnostics, and source excerpts; stable IDs
+        and source ranges; `summary`, `navigation`, `refactor`,
+        `token-authoring`, `diagnostic`, and `embedding` profiles; lossiness
+        metadata; lazy expansion refs to canonical projections; host/tool
+        metadata; data/instruction boundary preservation; diagnostics for unsafe
+        data/instruction mixing, unsupported profile, missing expansion target,
+        and budget-driven omission; and task fixtures/evals for retrieval, edit
+        precision, and token-budget value.
+  - [ ] Add encoding category coverage and examples for every content-type
+        family listed in the proposal: CEM-ML syntax, CEMT source, XML family,
+        HTML, JSON family, YAML, CSV, Markdown, CSS, terminal color text, HTML
+        color output, CEM-QL, RELAX NG compact syntax, AI context projections,
+        and CEM binary projections.
+  - [ ] Keep content-type-to-content-type conversion planning separate from
+        AST-to-schema output production.
+
 - Adopt the schema package content registry design as the active CEM-ML
   conversion goal:
   [`cem-ml-schema-content-registry-design.md`](cem-ml-schema-content-registry-design.md).

@@ -173,6 +173,181 @@ Downstream declarations refer to imported definitions with qualified names, for
 example `schema:media-type` or `schema:uri`. This keeps package-specific schemas
 small while preserving strict validation boundaries for their own instances.
 
+## Output Transformations To Review
+
+Input validation and output serialization are separate registry concerns. The
+current validation work proves that source bytes can be loaded, associated with
+schema URL plus content type, and checked against schema-owned rules. The next
+design step is output export from CEM AST to each supported schema package's
+syntax and destination content type.
+
+The primary target is schema-owned serialization:
+
+```text
+CEM AST
+  -> schema-owned output transform
+    -> destination syntax
+      -> destination content type
+```
+
+Content-type-to-content-type conversion remains a separate planning surface.
+For example, `text/html -> application/xhtml+xml` should be modeled as a
+conversion between two content identities, while `CEM AST -> text/html` is an
+output serializer for the HTML schema package.
+
+### Option A: Direct Schema-Owned CEMT Serializers
+
+Each schema package declares one or more CEMT templates that serialize CEM AST
+directly to the package's owned content types.
+
+Example package metadata shape:
+
+```cem
+{converter
+    @id="ast-to-html"
+    @implementation="cemt"
+    @template="templates/ast-to-html.cemt"
+    @template-content-type="application/vnd.cem.transform+cem"
+    @streamable=true
+    @lossiness="syntax-normalized" |
+    {from @content-type="application/vnd.cem.ast+cem-bin" @schema="https://cem.dev/ns/projection/ast/1"}
+    {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+}
+```
+
+Pros:
+
+- Strong schema ownership: HTML, XML, JSON, YAML, CSV, Markdown, CSS, and other
+  packages own their output syntax rules next to validation rules.
+- CEMT remains the primary conversion mechanism, with Rust fallback only for
+  bootstrap, performance, or binary/escaping-heavy emitters.
+- The registry can select serializers with the same explicit identity rules used
+  for other converters.
+
+Cons:
+
+- Many serializers repeat traversal, escaping, indentation, and source-map
+  mechanics unless shared CEMT helper modules are introduced.
+- Some syntaxes need writer-level guarantees that are awkward in pure templates:
+  JSON escaping, YAML scalar style, CSV quoting, XML namespace repair, HTML
+  foreign-content insertion modes, and binary chunk framing.
+- Bootstrap languages such as CEMT itself need a Rust fallback until the CEMT
+  runtime can safely serialize its own templates.
+
+### Option B: Shared AST Writer With Schema Syntax Profiles
+
+The runtime provides a generic AST writer. Each schema package declares a syntax
+profile: node mapping, token spelling, escaping policy, namespace policy,
+whitespace policy, and content-type bindings. CEMT templates can still call the
+writer, but do not hand-roll the full serializer.
+
+Pros:
+
+- Less duplication across XML-family packages, CEM-family packages, and
+  structured data syntaxes.
+- Centralizes byte-stable escaping, source-map generation, and streaming output
+  contracts.
+- Easier to enforce deterministic formatting and canonical output.
+
+Cons:
+
+- Requires a schema-level syntax-profile vocabulary before all packages can
+  participate.
+- Risks turning the writer into a second schema language if package-specific
+  behavior is too expressive.
+- CEMT becomes orchestration around the writer rather than the whole serializer.
+
+### Option C: Layered AST To Target Model To Syntax
+
+CEM AST is first transformed into a target semantic model, then a serializer for
+that target model writes the destination syntax.
+
+Examples:
+
+```text
+CEM AST -> HTML DOM model -> text/html
+CEM AST -> XML DOM model -> application/xml
+CEM AST -> JSON value model -> application/json
+```
+
+Pros:
+
+- Best fit for formats with existing semantic models, normalization rules, or
+  multiple serializations.
+- Allows validation and conversion steps to operate on the target model before
+  bytes are emitted.
+- Reuses DOM/projection work and supports future normalized DOM outputs.
+
+Cons:
+
+- Adds a second transform stage even when a direct serializer would be enough.
+- Can blur output serialization with content-type-to-content-type conversion.
+- Requires target semantic models for formats that may only need syntax output.
+
+### Option D: CEMT-First Producers With Shared Writer Primitives
+
+Schema packages own CEMT output producer entries, and CEMT calls content-type
+specific encoders, formatters, color output helpers, writer primitives, and
+transformation helpers for byte-stable syntax tasks: escaping, namespace
+declaration, attribute ordering, scalar style, CSV quoting, binary chunk
+framing, source-map spans, terminal ANSI/SGR color output, HTML color output,
+and canonical formatting. Native output producers are registered as paired
+fallback or fast-path implementations for performance and clarity, and must be
+cross-checked against the CEMT producer.
+
+Pros:
+
+- Preserves schema ownership and CEMT-first evolution.
+- Keeps content-type-specific encoding, formatting, and color output inside the
+  CEMT stack instead of as opaque host post-processing.
+- Avoids duplicating the most error-prone syntax mechanics in templates.
+- Lets packages move from native fallback to CEMT incrementally as writer
+  primitives become available, while native remains available for performance.
+- Makes native output producers executable oracles for CEMT parity.
+- Keeps output serialization separate from content-type-to-content-type
+  conversion while using the same registry edge model.
+
+Cons:
+
+- Requires a stable set of writer primitive APIs and CEMT bindings.
+- Needs clear tests to prove CEMT output and native output remain equivalent
+  under declared byte-exact, token-equivalent, parse-equivalent, or
+  diagnostic-equivalent parity mode.
+- Still requires per-schema output producer assets, encoder/formatter profiles,
+  and examples.
+
+Recommended review direction: Option D. CEMT is the primary output producer,
+including encoding and formatting. Native producers exist for performance and
+clarity, but are paired with CEMT implementations and cross-checked. Each
+supported schema package should eventually declare:
+
+- output source identity: CEM AST projection content type and schema URL;
+- destination identity: owned content type and schema URL;
+- CEMT output producer: asset path, content type, and entrypoint;
+- encoder and formatter profiles: escaping, namespace, whitespace, ordering,
+  line ending, scalar style, chunk framing, and canonicalization policy;
+- color output profile: semantic style roles, terminal capability policy,
+  HTML class/style policy, palette, and no-color/accessibility fallback;
+- native paired producer: Rust symbol, readiness, fallback or fast-path reason,
+  and parity mode;
+- examples: source AST fixture, expected bytes, diagnostics, and round-trip or
+  parse-back validation where applicable.
+
+CEMT output templates should use standard encoding, formatting, and color output
+function surfaces rather than hand-written escaping or host-side color filters.
+The primary proposed call is:
+
+```text
+encode(subject, target, options?) -> encoded-artifact
+```
+
+`subject` is unencoded typed data, `target` identifies destination content type,
+schema URL, and encoding category, and the result carries output identity so it
+cannot be silently double-encoded or inserted into the wrong context. Formatting
+and terminal/HTML color helpers belong to the same CEMT stack. The full
+proposal, including encoding and color categories by content type family, is in
+[`../docs/cemt-encoding-proposal.tmp.md`](../docs/cemt-encoding-proposal.tmp.md).
+
 # list of embedded schema
 
 * cem-ast-projection
