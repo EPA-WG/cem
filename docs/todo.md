@@ -40,7 +40,7 @@ history belongs in git history and the feature-specific docs linked below.
         (`application/vnd.cem.template+cem`).
   - [x] CEM-ML transform template
         (`application/vnd.cem.transform+cem`, `.cemt`).
-  - [ ] CEM-QL module/query resources
+  - [x] CEM-QL module/query resources
         (`application/vnd.cem.query+cem-ql`, `text/cem-ql`).
   - [ ] JSON (`application/json`, `text/json`).
   - [ ] JSON Schema (`application/schema+json`).

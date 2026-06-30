@@ -1,0 +1,11 @@
+module "https://example.test/queries/catalog"
+
+import "https://example.test/queries/shared" as shared
+
+declare variable limit := 10
+
+declare function label(title as string) {
+    title
+}
+
+if true then "ready" else "empty"

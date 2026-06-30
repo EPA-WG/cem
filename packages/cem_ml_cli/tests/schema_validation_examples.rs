@@ -14,6 +14,8 @@ const CEM_NATIVE_TEMPLATE_SCHEMA_URI: &str = "https://cem.dev/ns/template/cem-na
 const CEM_NATIVE_TEMPLATE_CONTENT_TYPE: &str = "application/vnd.cem.template+cem";
 const CEM_TRANSFORM_SCHEMA_URI: &str = "https://cem.dev/ns/transform/cem/1";
 const CEM_TRANSFORM_CONTENT_TYPE: &str = "application/vnd.cem.transform+cem";
+const CEM_QL_SCHEMA_URI: &str = "https://cem.dev/ns/query/cem-ql/1";
+const CEM_QL_CONTENT_TYPE: &str = "application/vnd.cem.query+cem-ql";
 
 #[derive(Debug)]
 struct ValidationExample {
@@ -209,6 +211,38 @@ fn schema_owned_examples_validate_through_cli() {
             schema_uri: CEM_TRANSFORM_SCHEMA_URI,
             expected_exit: EXIT_HARD_FAILURE,
             expected_diagnostics: &["cem.schema_model.missing_required_attribute"],
+        },
+        ValidationExample {
+            name: "cem-ql basic",
+            path: "packages/cem_ml/schema-packages/cem-ql/v1/examples/basic-query.cemql",
+            content_type: CEM_QL_CONTENT_TYPE,
+            schema_uri: CEM_QL_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "cem-ql module",
+            path: "packages/cem_ml/schema-packages/cem-ql/v1/examples/module-query.cemql",
+            content_type: CEM_QL_CONTENT_TYPE,
+            schema_uri: CEM_QL_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "cem-ql invalid parse",
+            path: "packages/cem_ml/schema-packages/cem-ql/v1/examples/invalid-parse.cemql",
+            content_type: CEM_QL_CONTENT_TYPE,
+            schema_uri: CEM_QL_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.ql.parse_error"],
+        },
+        ValidationExample {
+            name: "cem-ql invalid missing module",
+            path: "packages/cem_ml/schema-packages/cem-ql/v1/examples/invalid-missing-module.cemql",
+            content_type: CEM_QL_CONTENT_TYPE,
+            schema_uri: CEM_QL_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.ql.module_uri_missing"],
         },
     ];
 

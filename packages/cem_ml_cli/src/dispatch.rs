@@ -2989,6 +2989,112 @@ fn collect_embedding_diagnostics(
     diagnostics
 }
 
+fn inputs_are_all_cem_ql_source(inputs: &[eng::EngineInput]) -> bool {
+    !inputs.is_empty() && inputs.iter().all(is_cem_ql_source_input)
+}
+
+fn is_cem_ql_source_input(input: &eng::EngineInput) -> bool {
+    let identity = input
+        .identity
+        .clone()
+        .unwrap_or_else(|| input.root_scope.format_identity());
+    let schema_is_cem_ql = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == cem_ml::schema::registry::CEM_QL_SCHEMA_URI);
+    let content_type = identity
+        .content_type
+        .as_deref()
+        .map(cli_content_type_essence);
+
+    match content_type.as_deref() {
+        Some(content_type) if is_cem_ql_source_content_type(content_type) => {
+            identity.schema.is_none() || schema_is_cem_ql
+        }
+        Some(_) => false,
+        None => schema_is_cem_ql,
+    }
+}
+
+fn is_cem_ql_source_content_type(content_type: &str) -> bool {
+    matches!(
+        content_type,
+        cem_ml::schema::registry::CEM_QL_CONTENT_TYPE | "text/cem-ql"
+    )
+}
+
+fn cli_content_type_essence(content_type: &str) -> String {
+    content_type
+        .split(';')
+        .next()
+        .unwrap_or(content_type)
+        .trim()
+        .to_ascii_lowercase()
+}
+
+fn cem_ql_validation_report(
+    inputs: &[eng::EngineInput],
+    fail_level: cli::FailLevel,
+    context: &cli::ContextOptions,
+) -> cem_ml::report::Report {
+    let diagnostics = collect_cem_ql_source_diagnostics(inputs);
+    cem_ml::report::Report::deterministic(
+        inputs.iter().map(|input| input.uri.clone()).collect(),
+        diagnostics,
+        report_options_snapshot(fail_level, context),
+    )
+}
+
+fn collect_cem_ql_source_diagnostics(
+    inputs: &[eng::EngineInput],
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    let mut diagnostics = Vec::new();
+    for input in inputs {
+        let Ok(source) = std::str::from_utf8(&input.bytes) else {
+            diagnostics.push(cem_ql_invalid_utf8_diagnostic(input));
+            continue;
+        };
+
+        let parsed = cem_ql::api::parse(source);
+        if !parsed.module.nodes.iter().any(|node| {
+            matches!(
+                node,
+                cem_ql::parser::SurfaceNode::Module(module) if !module.uri.trim().is_empty()
+            )
+        }) {
+            diagnostics.push(cem_ql_module_uri_missing_diagnostic(input));
+        }
+        diagnostics.extend(parsed.diagnostics.into_iter().map(|mut diagnostic| {
+            diagnostic.uri = Some(input.uri.clone());
+            diagnostic
+        }));
+    }
+    diagnostics
+}
+
+fn cem_ql_invalid_utf8_diagnostic(input: &eng::EngineInput) -> cem_ml::diagnostics::Diagnostic {
+    cem_ml::diagnostics::Diagnostic {
+        uri: Some(input.uri.clone()),
+        code: "cem.ql.invalid_utf8".to_owned(),
+        severity: cem_ml::diagnostics::Severity::Error,
+        message: "CEM-QL source must be valid UTF-8".to_owned(),
+        ..cem_ml::diagnostics::Diagnostic::default()
+    }
+}
+
+fn cem_ql_module_uri_missing_diagnostic(
+    input: &eng::EngineInput,
+) -> cem_ml::diagnostics::Diagnostic {
+    cem_ml::diagnostics::Diagnostic {
+        uri: Some(input.uri.clone()),
+        code: "cem.ql.module_uri_missing".to_owned(),
+        severity: cem_ml::diagnostics::Severity::Error,
+        message: "CEM-QL module source requires a `module \"...\"` URI declaration".to_owned(),
+        ..cem_ml::diagnostics::Diagnostic::default()
+    }
+}
+
 fn collect_fixture_embedding_diagnostics(
     context: &eng::EngineContext,
     inputs: &[eng::EngineInput],
@@ -3674,6 +3780,26 @@ pub fn run_validate<E: CemMlEngine + ?Sized>(
             s,
         );
     }
+    if inputs_are_all_cem_ql_source(&inputs) {
+        let report = cem_ql_validation_report(&inputs, args.fail_level, &args.context);
+        if let Err(e) = write_report_files(
+            &engine_context,
+            &report,
+            &args.report,
+            REPORT_BASENAME_VALIDATE,
+        ) {
+            let _ = writeln!(s.stderr, "cem-ml: report write failure: {e}");
+            return Outcome::code(EXIT_IO);
+        }
+        if !s.quiet {
+            let json = serde_json::to_string_pretty(&report).unwrap_or_default();
+            let _ = writeln!(s.stdout, "{json}");
+        }
+        if fail_for_summary(args.fail_level, &report) {
+            return Outcome::code(EXIT_HARD_FAILURE);
+        }
+        return Outcome::ok();
+    }
     let embedding_diags = collect_embedding_diagnostics(&inputs);
     let req = eng::ValidateRequest {
         inputs,
@@ -3751,6 +3877,29 @@ pub fn run_check<E: CemMlEngine + ?Sized>(
             CliRequestError::Usage("check requires at least one input or --input-spec".into()),
             s,
         );
+    }
+    if inputs_are_all_cem_ql_source(&inputs) {
+        let report = cem_ql_validation_report(&inputs, args.fail_level, &args.context);
+        if let Err(e) = write_report_files(
+            &engine_context,
+            &report,
+            &args.report,
+            REPORT_BASENAME_VALIDATE,
+        ) {
+            let _ = writeln!(s.stderr, "cem-ml: report write failure: {e}");
+            return Outcome::code(EXIT_IO);
+        }
+        if !s.quiet {
+            let json = serde_json::to_string_pretty(&report).unwrap_or_default();
+            let _ = writeln!(s.stdout, "{json}");
+        }
+        if args.zero_hard_violations && report.summary.hard_violation_count > 0 {
+            return Outcome::code(EXIT_HARD_FAILURE);
+        }
+        if fail_for_summary(args.fail_level, &report) {
+            return Outcome::code(EXIT_HARD_FAILURE);
+        }
+        return Outcome::ok();
     }
     let embedding_diags = collect_embedding_diagnostics(&inputs);
     let req = eng::CheckRequest {
@@ -7305,6 +7454,72 @@ mod tests {
         assert!(!diagnostics
             .iter()
             .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
+    }
+
+    #[test]
+    fn validate_cem_ql_source_uses_cem_ql_parser() {
+        let p = write_fixture(
+            "validate-cem-ql-source.cemql",
+            r#"module "https://example.test/queries/main"
+
+declare variable count := 2
+
+count + 1"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "text/cem-ql",
+                "--schema",
+                cem_ml::schema::registry::CEM_QL_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"));
+        assert!(!diagnostics.iter().any(|diag| diag["code"]
+            .as_str()
+            .is_some_and(|code| code.starts_with("cem.schema."))));
+    }
+
+    #[test]
+    fn validate_cem_ql_source_reports_parser_diagnostics() {
+        let p = write_fixture(
+            "validate-cem-ql-source-invalid.cemql",
+            r#"module "https://example.test/queries/broken"
+
+declare variable broken := 1 +"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/vnd.cem.query+cem-ql",
+                "--schema",
+                cem_ml::schema::registry::CEM_QL_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.ql.parse_error"));
     }
 
     #[test]

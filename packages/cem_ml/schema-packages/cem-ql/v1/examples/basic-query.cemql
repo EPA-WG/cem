@@ -1,0 +1,5 @@
+module "https://example.test/queries/basic"
+
+declare variable greeting := "Hello"
+
+greeting
