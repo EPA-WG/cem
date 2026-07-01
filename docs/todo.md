@@ -295,6 +295,9 @@ history belongs in git history and the feature-specific docs linked below.
         canonical projections. Cover `ai-context-pack`, `ai-entity-graph`,
         `ai-semantic-tokens`, `ai-context-fragment`, and
         `ai-embedding-record`.
+    - [x] Add initial AST-backed AI context projection records with stable
+          canonical refs, source maps, data/instruction boundaries, and view
+          filtering for all five AI projection kinds.
   - [ ] Define AI context profile controls and safety: budgets for nodes,
         tokens, characters, depth, diagnostics, and source excerpts; stable IDs
         and source ranges; `summary`, `navigation`, `refactor`,

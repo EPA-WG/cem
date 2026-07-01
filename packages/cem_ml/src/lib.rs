@@ -8,6 +8,7 @@ pub mod report;
 
 // Tier A layered runtime contract (AC-F-10). Bodies arrive in Phase 11; types
 // here fix the public boundary used by downstream layers and `cem-ml-cli`.
+pub mod ai_context;
 pub mod api;
 pub mod ast;
 pub mod content_cache;
@@ -99,6 +100,7 @@ mod tests {
         // AC-F-V-7: every public type named in AC-F-10 resolves via the crate's
         // public path. Stable identity check — this test catches an accidental
         // rename or unintended visibility change at the layer boundary.
+        use crate::ai_context::{AiContextProjection, AiContextProjectionRequest};
         use crate::ast::BinaryAstEncoder;
         use crate::diagnostics::Diagnostic;
         use crate::events::NormalizedEvent;
@@ -110,6 +112,8 @@ mod tests {
         use crate::tokenizer::SchemaToken;
         fn _accept<T>() {}
         _accept::<Diagnostic>();
+        _accept::<AiContextProjection>();
+        _accept::<AiContextProjectionRequest>();
         _accept::<NormalizedEvent>();
         _accept::<CemAstNode>();
         _accept::<SchemaFrame>();
