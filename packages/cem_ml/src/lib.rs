@@ -102,7 +102,8 @@ mod tests {
         // rename or unintended visibility change at the layer boundary.
         use crate::ai_context::{
             AiContextBudgets, AiContextLossiness, AiContextProfile, AiContextProjection,
-            AiContextProjectionRequest,
+            AiContextProjectionRequest, AiContextTaskEvalKind, AiContextTaskEvalRequest,
+            AiContextTaskEvalResult,
         };
         use crate::ast::BinaryAstEncoder;
         use crate::diagnostics::Diagnostic;
@@ -120,6 +121,9 @@ mod tests {
         _accept::<AiContextProfile>();
         _accept::<AiContextProjection>();
         _accept::<AiContextProjectionRequest>();
+        _accept::<AiContextTaskEvalKind>();
+        _accept::<AiContextTaskEvalRequest>();
+        _accept::<AiContextTaskEvalResult>();
         _accept::<NormalizedEvent>();
         _accept::<CemAstNode>();
         _accept::<SchemaFrame>();

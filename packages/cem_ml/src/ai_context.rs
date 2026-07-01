@@ -325,6 +325,61 @@ pub struct AiContextRecord {
     pub source_map: Option<SourceMapStack>,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AiContextTaskEvalKind {
+    #[default]
+    Retrieval,
+    EditPrecision,
+    TokenBudgetValue,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiContextTaskEvalRequest {
+    #[serde(default)]
+    pub kind: AiContextTaskEvalKind,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub relevant_refs: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub edit_target_refs: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub protected_refs: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_tokens: Option<usize>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiContextTaskEvalResult {
+    pub kind: AiContextTaskEvalKind,
+    pub name: String,
+    pub passed: bool,
+    pub record_count: usize,
+    pub token_count: usize,
+    pub relevant_total: usize,
+    pub relevant_found: usize,
+    pub edit_targets_total: usize,
+    pub edit_targets_found: usize,
+    pub source_mapped_edit_targets: usize,
+    pub retrieval_precision: f64,
+    pub retrieval_recall: f64,
+    pub edit_precision: f64,
+    pub token_budget_value: f64,
+    pub within_token_budget: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub found_refs: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub missing_refs: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub missing_edit_refs: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub missing_source_mapped_edit_refs: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub protected_hit_refs: Vec<String>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct AiContextNodeCandidate {
     node_id: AstNodeId,
@@ -482,6 +537,121 @@ pub fn project_cem_document_for_ai(
     }
 }
 
+pub fn evaluate_ai_context_task_projection(
+    projection: &AiContextProjection,
+    request: AiContextTaskEvalRequest,
+) -> AiContextTaskEvalResult {
+    let record_refs = projection
+        .records
+        .iter()
+        .map(|record| record.canonical_ref.as_str())
+        .collect::<BTreeSet<_>>();
+    let source_mapped_refs = projection
+        .records
+        .iter()
+        .filter(|record| !record.source_ranges.is_empty())
+        .map(|record| record.canonical_ref.as_str())
+        .collect::<BTreeSet<_>>();
+    let found_refs = request
+        .relevant_refs
+        .iter()
+        .filter(|reference| record_refs.contains(reference.as_str()))
+        .cloned()
+        .collect::<Vec<_>>();
+    let missing_refs = request
+        .relevant_refs
+        .iter()
+        .filter(|reference| !record_refs.contains(reference.as_str()))
+        .cloned()
+        .collect::<Vec<_>>();
+    let edit_target_refs = if request.edit_target_refs.is_empty() {
+        request.relevant_refs.as_slice()
+    } else {
+        request.edit_target_refs.as_slice()
+    };
+    let edit_targets_found = edit_target_refs
+        .iter()
+        .filter(|reference| record_refs.contains(reference.as_str()))
+        .cloned()
+        .collect::<Vec<_>>();
+    let missing_edit_refs = edit_target_refs
+        .iter()
+        .filter(|reference| !record_refs.contains(reference.as_str()))
+        .cloned()
+        .collect::<Vec<_>>();
+    let source_mapped_edit_refs = edit_target_refs
+        .iter()
+        .filter(|reference| source_mapped_refs.contains(reference.as_str()))
+        .cloned()
+        .collect::<Vec<_>>();
+    let missing_source_mapped_edit_refs = edit_target_refs
+        .iter()
+        .filter(|reference| !source_mapped_refs.contains(reference.as_str()))
+        .cloned()
+        .collect::<Vec<_>>();
+    let protected_hit_refs = request
+        .protected_refs
+        .iter()
+        .filter(|reference| record_refs.contains(reference.as_str()))
+        .cloned()
+        .collect::<Vec<_>>();
+    let retrieval_precision = ai_context_ratio(found_refs.len(), projection.records.len());
+    let retrieval_recall = ai_context_ratio(found_refs.len(), request.relevant_refs.len());
+    let edit_precision = ai_context_ratio(
+        source_mapped_edit_refs.len(),
+        source_mapped_edit_refs.len() + protected_hit_refs.len(),
+    );
+    let token_count = projection.metadata.usage.tokens;
+    let token_budget_value = if token_count == 0 {
+        found_refs.len() as f64
+    } else {
+        found_refs.len() as f64 * 1_000.0 / token_count as f64
+    };
+    let within_token_budget = request
+        .max_tokens
+        .is_none_or(|max_tokens| token_count <= max_tokens);
+    let passed = match request.kind {
+        AiContextTaskEvalKind::Retrieval => {
+            !request.relevant_refs.is_empty() && missing_refs.is_empty()
+        }
+        AiContextTaskEvalKind::EditPrecision => {
+            !edit_target_refs.is_empty()
+                && missing_edit_refs.is_empty()
+                && missing_source_mapped_edit_refs.is_empty()
+                && protected_hit_refs.is_empty()
+        }
+        AiContextTaskEvalKind::TokenBudgetValue => {
+            within_token_budget
+                && !request.relevant_refs.is_empty()
+                && missing_refs.is_empty()
+                && protected_hit_refs.is_empty()
+        }
+    };
+
+    AiContextTaskEvalResult {
+        kind: request.kind,
+        name: request.name,
+        passed,
+        record_count: projection.records.len(),
+        token_count,
+        relevant_total: request.relevant_refs.len(),
+        relevant_found: found_refs.len(),
+        edit_targets_total: edit_target_refs.len(),
+        edit_targets_found: edit_targets_found.len(),
+        source_mapped_edit_targets: source_mapped_edit_refs.len(),
+        retrieval_precision,
+        retrieval_recall,
+        edit_precision,
+        token_budget_value,
+        within_token_budget,
+        found_refs,
+        missing_refs,
+        missing_edit_refs,
+        missing_source_mapped_edit_refs,
+        protected_hit_refs,
+    }
+}
+
 fn ai_context_record_for_node(
     document: &CemDocument,
     projection: AiContextProjectionKind,
@@ -619,6 +789,18 @@ fn select_ai_context_candidates(
 fn ai_context_count_omitted_node(node: &CemAstNode, budget_stats: &mut AiContextBudgetStats) {
     budget_stats.omitted_records += 1;
     budget_stats.omitted_characters += ai_context_node_character_count(node);
+}
+
+fn ai_context_ratio(numerator: usize, denominator: usize) -> f64 {
+    if denominator == 0 {
+        if numerator == 0 {
+            1.0
+        } else {
+            0.0
+        }
+    } else {
+        numerator as f64 / denominator as f64
+    }
 }
 
 fn resolve_ai_context_profile(
@@ -1007,6 +1189,29 @@ mod tests {
         CemAstBuilder::new(normalizer).build()
     }
 
+    fn record_ref_by_text(projection: &AiContextProjection, text: &str) -> String {
+        projection
+            .records
+            .iter()
+            .find(|record| record.text.as_deref() == Some(text))
+            .map(|record| record.canonical_ref.clone())
+            .unwrap_or_else(|| panic!("missing record text `{text}`"))
+    }
+
+    fn element_record_by_id<'a>(
+        projection: &'a AiContextProjection,
+        id: &str,
+    ) -> &'a AiContextRecord {
+        projection
+            .records
+            .iter()
+            .find(|record| {
+                record.kind == AiContextRecordKind::Element
+                    && record.attributes.get("id").map(String::as_str) == Some(id)
+            })
+            .unwrap_or_else(|| panic!("missing element id `{id}`"))
+    }
+
     #[test]
     fn context_pack_projects_ast_records_with_canonical_refs() {
         let document = parse("{button @id=save @cem:action=primary | Save}");
@@ -1297,5 +1502,110 @@ mod tests {
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code == AI_CONTEXT_UNSAFE_INSTRUCTION_MIX));
+    }
+
+    #[test]
+    fn task_eval_fixtures_measure_retrieval_edit_precision_and_token_budget_value() {
+        let embedding_document =
+            parse("{form | {label | Email}{button | Submit}{aside | Marketing copy}}");
+
+        let full_embedding = project_cem_document_for_ai(
+            &embedding_document,
+            AiContextProjectionRequest {
+                kind: AiContextProjectionKind::EmbeddingRecord,
+                profile: Some("embedding".to_owned()),
+                ..AiContextProjectionRequest::default()
+            },
+        );
+        let email_ref = record_ref_by_text(&full_embedding, "Email");
+        let submit_text_ref = record_ref_by_text(&full_embedding, "Submit");
+        let marketing_ref = record_ref_by_text(&full_embedding, "Marketing copy");
+        let retrieval_eval = evaluate_ai_context_task_projection(
+            &full_embedding,
+            AiContextTaskEvalRequest {
+                kind: AiContextTaskEvalKind::Retrieval,
+                name: "login-action-retrieval".to_owned(),
+                relevant_refs: vec![email_ref.clone(), submit_text_ref.clone()],
+                protected_refs: vec![marketing_ref.clone()],
+                ..AiContextTaskEvalRequest::default()
+            },
+        );
+        assert!(retrieval_eval.passed);
+        assert_eq!(retrieval_eval.relevant_found, 2);
+        assert_eq!(
+            retrieval_eval.protected_hit_refs,
+            vec![marketing_ref.clone()]
+        );
+        assert_eq!(retrieval_eval.retrieval_recall, 1.0);
+        assert!((retrieval_eval.retrieval_precision - (2.0 / 3.0)).abs() < 0.001);
+
+        let edit_document = parse(
+            "{form @id=login | {label @id=email-label | Email}{button @id=submit | Submit}{aside @id=promo | Marketing copy}}",
+        );
+        let full_context = project_cem_document_for_ai(
+            &edit_document,
+            AiContextProjectionRequest {
+                kind: AiContextProjectionKind::ContextPack,
+                profile: Some("refactor".to_owned()),
+                ..AiContextProjectionRequest::default()
+            },
+        );
+        let button = element_record_by_id(&full_context, "submit");
+        let promo = element_record_by_id(&full_context, "promo");
+        let edit_projection = project_cem_document_for_ai(
+            &edit_document,
+            AiContextProjectionRequest {
+                kind: AiContextProjectionKind::ContextFragment,
+                root: Some(button.node_id),
+                profile: Some("refactor".to_owned()),
+                ..AiContextProjectionRequest::default()
+            },
+        );
+        let edit_eval = evaluate_ai_context_task_projection(
+            &edit_projection,
+            AiContextTaskEvalRequest {
+                kind: AiContextTaskEvalKind::EditPrecision,
+                name: "submit-button-edit".to_owned(),
+                relevant_refs: vec![button.canonical_ref.clone()],
+                edit_target_refs: vec![button.canonical_ref.clone()],
+                protected_refs: vec![promo.canonical_ref.clone()],
+                ..AiContextTaskEvalRequest::default()
+            },
+        );
+        assert!(edit_eval.passed);
+        assert_eq!(edit_eval.edit_targets_found, 1);
+        assert_eq!(edit_eval.source_mapped_edit_targets, 1);
+        assert!(edit_eval.protected_hit_refs.is_empty());
+        assert_eq!(edit_eval.edit_precision, 1.0);
+
+        let budgeted_embedding = project_cem_document_for_ai(
+            &embedding_document,
+            AiContextProjectionRequest {
+                kind: AiContextProjectionKind::EmbeddingRecord,
+                profile: Some("embedding".to_owned()),
+                budgets: AiContextBudgets {
+                    max_tokens: Some(4),
+                    ..AiContextBudgets::default()
+                },
+                ..AiContextProjectionRequest::default()
+            },
+        );
+        let budget_eval = evaluate_ai_context_task_projection(
+            &budgeted_embedding,
+            AiContextTaskEvalRequest {
+                kind: AiContextTaskEvalKind::TokenBudgetValue,
+                name: "login-action-token-budget".to_owned(),
+                relevant_refs: vec![email_ref, submit_text_ref],
+                protected_refs: vec![marketing_ref],
+                max_tokens: Some(4),
+                ..AiContextTaskEvalRequest::default()
+            },
+        );
+        assert!(budget_eval.passed);
+        assert_eq!(budget_eval.record_count, 2);
+        assert_eq!(budget_eval.relevant_found, 2);
+        assert!(budget_eval.within_token_budget);
+        assert!(budget_eval.protected_hit_refs.is_empty());
+        assert!(budget_eval.token_budget_value >= 500.0);
     }
 }

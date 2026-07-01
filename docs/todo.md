@@ -298,7 +298,7 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add initial AST-backed AI context projection records with stable
           canonical refs, source maps, data/instruction boundaries, and view
           filtering for all five AI projection kinds.
-  - [ ] Define AI context profile controls and safety: budgets for nodes,
+  - [x] Define AI context profile controls and safety: budgets for nodes,
         tokens, characters, depth, diagnostics, and source excerpts; stable IDs
         and source ranges; `summary`, `navigation`, `refactor`,
         `token-authoring`, `diagnostic`, and `embedding` profiles; lossiness
@@ -311,6 +311,8 @@ history belongs in git history and the feature-specific docs linked below.
           source ranges/excerpts, lazy canonical expansion refs, host/tool
           metadata, and projection diagnostics for unsupported profiles, missing
           expansion roots, budget omissions, and unsafe data/instruction mixing.
+    - [x] Add task eval fixtures and metrics for retrieval recall/precision,
+          edit-target source-map precision, and useful records per token budget.
   - [ ] Add encoding category coverage and examples for every content-type
         family listed in the proposal: CEM-ML syntax, CEMT source, XML family,
         HTML, JSON family, YAML, CSV, Markdown, CSS, terminal color text, HTML
