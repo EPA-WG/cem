@@ -317,6 +317,9 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Resolve declared converter parity fixture paths into runner-ready
           byte inputs with fixture identity, input content identity, and
           expected diagnostic code projections.
+    - [x] Add Rust DOM-projection parity fixture execution that decodes
+          declared binary fixtures and renders HTML/XML oracle outputs for
+          CEMT/native comparison.
   - [ ] Implement CEMT output safety rules: context-specific categories must not
         be conflated, encoded artifacts must not be silently re-encoded,
         compatible-artifact concatenation must validate target identity and

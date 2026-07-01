@@ -13,8 +13,8 @@ use crate::parser::{AstNodeId, CemAstNode};
 use crate::schema::package_loader::{load_builtin_schema_package, BuiltinSchemaPackage};
 use crate::schema::registry::{
     content_type_essence, SchemaContentTypeRole, SchemaDescriptor, SchemaRegistry,
-    CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_PROJECTION_SCHEMA_URI, CEM_EVENTS_PROJECTION_SCHEMA_URI,
-    CEM_ML_SCHEMA_URI, HTML_SCHEMA_URI, XML_SCHEMA_URI,
+    CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
+    CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_SCHEMA_URI, HTML_SCHEMA_URI, XML_SCHEMA_URI,
 };
 use crate::source::{BytesSource, SourceId};
 use crate::tokenizer::cem::CemTokenizer;
@@ -38,6 +38,7 @@ pub const CONVERSION_PARITY_NATIVE_PAIR_MISSING_CODE: &str =
     "cem.converter.parity_native_pair_missing";
 pub const CONVERSION_PARITY_MODE_MISSING_CODE: &str = "cem.converter.parity_mode_missing";
 pub const CONVERSION_PARITY_DRIFT_CODE: &str = "cem.converter.parity_drift";
+pub const CONVERSION_PARITY_FIXTURE_EXECUTION_CODE: &str = "cem.converter.parity_fixture_execution";
 pub const CONVERSION_OUTPUT_SYNTAX_MISSING_CODE: &str = "cem.converter.output_syntax_missing";
 pub const CONVERSION_OUTPUT_CATEGORY_MISSING_CODE: &str = "cem.converter.output_category_missing";
 pub const CONVERSION_OUTPUT_UNSUPPORTED_CATEGORY_CODE: &str =
@@ -564,6 +565,19 @@ pub trait ConversionParityFixtureExecutor {
     ) -> ConversionParityFixtureExecution;
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct RustDomProjectionParityFixtureExecutor;
+
+impl ConversionParityFixtureExecutor for RustDomProjectionParityFixtureExecutor {
+    fn execute_conversion_parity_fixture(
+        &self,
+        descriptor: &ConversionDescriptor,
+        fixture: &ConversionParityFixture,
+    ) -> ConversionParityFixtureExecution {
+        execute_rust_dom_projection_parity_fixture(descriptor, fixture)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ConversionOutputSafetyContract<'a> {
     pub descriptor: &'a ConversionDescriptor,
@@ -1085,6 +1099,645 @@ pub fn conversion_parity_fixture_from_bytes(
         expected_diagnostics: Vec::new(),
         expected_diagnostic_codes: descriptor.expected_diagnostic_codes.clone(),
     }
+}
+
+fn execute_rust_dom_projection_parity_fixture(
+    descriptor: &ConversionDescriptor,
+    fixture: &ConversionParityFixture,
+) -> ConversionParityFixtureExecution {
+    let Some(rust_symbol) = conversion_rust_or_fallback_symbol(descriptor) else {
+        return conversion_parity_fixture_execution_error(
+            descriptor,
+            fixture,
+            "converter has no Rust symbol or Rust fallback symbol".to_owned(),
+        );
+    };
+
+    let result = match rust_symbol {
+        "HtmlExportConverter" => conversion_dom_projection_fixture_string_output(
+            fixture,
+            ConversionDomProjectionOutput::Html,
+        ),
+        "XmlExportConverter" => {
+            conversion_dom_projection_fixture_string_output(fixture, ConversionDomProjectionOutput::Xml)
+        }
+        "DomJsonDebugProjectionConverter" => {
+            conversion_dom_projection_fixture_json_output(fixture)
+        }
+        _ => Err(format!(
+            "Rust converter symbol `{rust_symbol}` is not supported by the DOM projection parity fixture executor"
+        )),
+    };
+
+    match result {
+        Ok(output) => ConversionParityFixtureExecution {
+            output: Some(output),
+            diagnostics: Vec::new(),
+        },
+        Err(message) => conversion_parity_fixture_execution_error(descriptor, fixture, message),
+    }
+}
+
+fn conversion_rust_or_fallback_symbol(descriptor: &ConversionDescriptor) -> Option<&str> {
+    descriptor.rust_symbol.as_deref().or_else(|| {
+        descriptor
+            .rust_fallback
+            .as_ref()
+            .map(|fallback| fallback.rust_symbol.as_str())
+    })
+}
+
+fn conversion_parity_fixture_execution_error(
+    descriptor: &ConversionDescriptor,
+    fixture: &ConversionParityFixture,
+    message: String,
+) -> ConversionParityFixtureExecution {
+    ConversionParityFixtureExecution {
+        output: None,
+        diagnostics: vec![Diagnostic {
+            code: CONVERSION_PARITY_FIXTURE_EXECUTION_CODE.to_owned(),
+            severity: Severity::Error,
+            message: format!(
+                "converter `{}` could not execute parity fixture `{}`: {}",
+                descriptor.id, fixture.id, message
+            ),
+            node: Some(fixture.id.clone()),
+            ..Diagnostic::default()
+        }],
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ConversionDomProjectionOutput {
+    Html,
+    Xml,
+}
+
+fn conversion_dom_projection_fixture_string_output(
+    fixture: &ConversionParityFixture,
+    output: ConversionDomProjectionOutput,
+) -> Result<Value, String> {
+    let bytes = conversion_parity_fixture_input_bytes(fixture)?;
+    let document = conversion_decode_dom_binary_projection(&bytes)?;
+    let mut rendered = String::new();
+    conversion_render_decoded_dom_children(
+        &document,
+        &document.root_children,
+        output,
+        &mut rendered,
+    );
+    Ok(Value::String(rendered))
+}
+
+fn conversion_dom_projection_fixture_json_output(
+    fixture: &ConversionParityFixture,
+) -> Result<Value, String> {
+    let bytes = conversion_parity_fixture_input_bytes(fixture)?;
+    let document = conversion_decode_dom_binary_projection(&bytes)?;
+    Ok(conversion_decoded_dom_json(&document))
+}
+
+fn conversion_parity_fixture_input_bytes(
+    fixture: &ConversionParityFixture,
+) -> Result<Vec<u8>, String> {
+    let input = fixture
+        .input
+        .as_object()
+        .ok_or_else(|| "fixture input must be an object".to_owned())?;
+    if let Some(content_type) = input.get("contentType").and_then(Value::as_str) {
+        if content_type_essence(content_type) != CEM_DOM_PROJECTION_CONTENT_TYPE {
+            return Err(format!(
+                "fixture input content type `{content_type}` is not `{CEM_DOM_PROJECTION_CONTENT_TYPE}`"
+            ));
+        }
+    }
+
+    let bytes = input
+        .get("bytes")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "fixture input must contain a `bytes` array".to_owned())?;
+    bytes
+        .iter()
+        .map(|value| {
+            value
+                .as_u64()
+                .and_then(|byte| u8::try_from(byte).ok())
+                .ok_or_else(|| "fixture `bytes` array must contain byte values".to_owned())
+        })
+        .collect()
+}
+
+#[derive(Debug, Clone)]
+struct ConversionDecodedDomDocument {
+    root_children: Vec<u32>,
+    nodes: BTreeMap<u32, ConversionDecodedDomNode>,
+}
+
+#[derive(Debug, Clone)]
+enum ConversionDecodedDomNode {
+    Element {
+        name: ConversionDecodedName,
+        attributes: Vec<u32>,
+        children: Vec<u32>,
+    },
+    Attribute {
+        name: ConversionDecodedName,
+        value: Option<String>,
+    },
+    Text(String),
+    Whitespace(String),
+    Comment(String),
+    ProcessingInstruction {
+        target: String,
+        data: String,
+    },
+    Cdata(String),
+    RawText(String),
+    Error,
+}
+
+#[derive(Debug, Clone)]
+struct ConversionDecodedName {
+    namespace: String,
+    local: String,
+}
+
+fn conversion_decode_dom_binary_projection(
+    bytes: &[u8],
+) -> Result<ConversionDecodedDomDocument, String> {
+    let mut reader = ConversionBinaryReader::new(bytes);
+    reader.read_magic()?;
+    let version = reader.read_u16()?;
+    if version != 1 {
+        return Err(format!(
+            "unsupported CEM binary projection version `{version}`"
+        ));
+    }
+    let kind = reader.read_u8()?;
+    if kind != 1 {
+        return Err(format!(
+            "expected DOM binary projection kind `1`, found `{kind}`"
+        ));
+    }
+    let schema = reader.read_str()?;
+    if schema != CEM_DOM_PROJECTION_SCHEMA_URI {
+        return Err(format!(
+            "expected DOM projection schema `{CEM_DOM_PROJECTION_SCHEMA_URI}`, found `{schema}`"
+        ));
+    }
+    let content_type = reader.read_str()?;
+    if content_type != CEM_DOM_PROJECTION_CONTENT_TYPE {
+        return Err(format!(
+            "expected DOM projection content type `{CEM_DOM_PROJECTION_CONTENT_TYPE}`, found `{content_type}`"
+        ));
+    }
+
+    let node_count = reader.read_u32()?;
+    let mut root_children = Vec::new();
+    let mut nodes = BTreeMap::new();
+    for _ in 0..node_count {
+        match reader.read_node()? {
+            ConversionDecodedBinaryNode::Document { children } => {
+                root_children = children;
+            }
+            ConversionDecodedBinaryNode::Node { id, node } => {
+                nodes.insert(id, node);
+            }
+        }
+    }
+
+    Ok(ConversionDecodedDomDocument {
+        root_children,
+        nodes,
+    })
+}
+
+enum ConversionDecodedBinaryNode {
+    Document {
+        children: Vec<u32>,
+    },
+    Node {
+        id: u32,
+        node: ConversionDecodedDomNode,
+    },
+}
+
+struct ConversionBinaryReader<'a> {
+    bytes: &'a [u8],
+    offset: usize,
+}
+
+impl<'a> ConversionBinaryReader<'a> {
+    fn new(bytes: &'a [u8]) -> Self {
+        Self { bytes, offset: 0 }
+    }
+
+    fn read_magic(&mut self) -> Result<(), String> {
+        let magic = self.read_exact(8)?;
+        if magic != b"CEMPROJ\0" {
+            return Err("fixture bytes do not start with CEM projection magic".to_owned());
+        }
+        Ok(())
+    }
+
+    fn read_node(&mut self) -> Result<ConversionDecodedBinaryNode, String> {
+        let tag = self.read_u8()?;
+        match tag {
+            1 => {
+                let _id = self.read_u32()?;
+                self.skip_source_range()?;
+                Ok(ConversionDecodedBinaryNode::Document {
+                    children: self.read_id_list()?,
+                })
+            }
+            2 => {
+                let id = self.read_u32()?;
+                self.skip_source_range()?;
+                let name = self.read_expanded_name()?;
+                let _has_explicit_boundary = self.read_bool()?;
+                let attributes = self.read_id_list()?;
+                let children = self.read_id_list()?;
+                Ok(ConversionDecodedBinaryNode::Node {
+                    id,
+                    node: ConversionDecodedDomNode::Element {
+                        name,
+                        attributes,
+                        children,
+                    },
+                })
+            }
+            3 => {
+                let id = self.read_u32()?;
+                self.skip_source_range()?;
+                let name = self.read_expanded_name()?;
+                let value = self.read_optional_str()?;
+                Ok(ConversionDecodedBinaryNode::Node {
+                    id,
+                    node: ConversionDecodedDomNode::Attribute { name, value },
+                })
+            }
+            4 => self.read_text_node(ConversionDecodedDomNode::Text),
+            5 => self.read_text_node(ConversionDecodedDomNode::Whitespace),
+            6 => self.read_text_node(ConversionDecodedDomNode::Comment),
+            7 => {
+                let id = self.read_u32()?;
+                self.skip_source_range()?;
+                let target = self.read_str()?;
+                let data = self.read_str()?;
+                Ok(ConversionDecodedBinaryNode::Node {
+                    id,
+                    node: ConversionDecodedDomNode::ProcessingInstruction { target, data },
+                })
+            }
+            8 => self.read_text_node(ConversionDecodedDomNode::Cdata),
+            9 => self.read_text_node(ConversionDecodedDomNode::RawText),
+            10 => {
+                let id = self.read_u32()?;
+                self.skip_source_range()?;
+                let _code = self.read_str()?;
+                Ok(ConversionDecodedBinaryNode::Node {
+                    id,
+                    node: ConversionDecodedDomNode::Error,
+                })
+            }
+            _ => Err(format!("unsupported DOM binary node tag `{tag}`")),
+        }
+    }
+
+    fn read_text_node(
+        &mut self,
+        build: impl FnOnce(String) -> ConversionDecodedDomNode,
+    ) -> Result<ConversionDecodedBinaryNode, String> {
+        let id = self.read_u32()?;
+        self.skip_source_range()?;
+        let data = self.read_str()?;
+        Ok(ConversionDecodedBinaryNode::Node {
+            id,
+            node: build(data),
+        })
+    }
+
+    fn read_expanded_name(&mut self) -> Result<ConversionDecodedName, String> {
+        let namespace = self.read_str()?;
+        let local = self.read_str()?;
+        if self.read_bool()? {
+            let _schema_id = self.read_u32()?;
+        }
+        Ok(ConversionDecodedName { namespace, local })
+    }
+
+    fn read_id_list(&mut self) -> Result<Vec<u32>, String> {
+        let len = self.read_u32()? as usize;
+        (0..len).map(|_| self.read_u32()).collect()
+    }
+
+    fn skip_source_range(&mut self) -> Result<(), String> {
+        if self.read_bool()? {
+            let _start = self.read_u64()?;
+            let _len = self.read_u32()?;
+        }
+        Ok(())
+    }
+
+    fn read_optional_str(&mut self) -> Result<Option<String>, String> {
+        if self.read_bool()? {
+            self.read_str().map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn read_str(&mut self) -> Result<String, String> {
+        let len = self.read_u32()? as usize;
+        let bytes = self.read_exact(len)?;
+        String::from_utf8(bytes.to_vec()).map_err(|err| err.to_string())
+    }
+
+    fn read_bool(&mut self) -> Result<bool, String> {
+        Ok(self.read_u8()? != 0)
+    }
+
+    fn read_u8(&mut self) -> Result<u8, String> {
+        Ok(self.read_exact(1)?[0])
+    }
+
+    fn read_u16(&mut self) -> Result<u16, String> {
+        let bytes = self.read_exact(2)?;
+        Ok(u16::from_be_bytes([bytes[0], bytes[1]]))
+    }
+
+    fn read_u32(&mut self) -> Result<u32, String> {
+        let bytes = self.read_exact(4)?;
+        Ok(u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
+    }
+
+    fn read_u64(&mut self) -> Result<u64, String> {
+        let bytes = self.read_exact(8)?;
+        Ok(u64::from_be_bytes([
+            bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+        ]))
+    }
+
+    fn read_exact(&mut self, len: usize) -> Result<&'a [u8], String> {
+        let end = self
+            .offset
+            .checked_add(len)
+            .ok_or_else(|| "fixture offset overflow".to_owned())?;
+        if end > self.bytes.len() {
+            return Err(
+                "fixture bytes ended before the DOM projection record completed".to_owned(),
+            );
+        }
+        let bytes = &self.bytes[self.offset..end];
+        self.offset = end;
+        Ok(bytes)
+    }
+}
+
+fn conversion_render_decoded_dom_children(
+    document: &ConversionDecodedDomDocument,
+    children: &[u32],
+    output: ConversionDomProjectionOutput,
+    out: &mut String,
+) {
+    for child in children {
+        conversion_render_decoded_dom_node(document, *child, output, out);
+    }
+}
+
+fn conversion_render_decoded_dom_node(
+    document: &ConversionDecodedDomDocument,
+    node_id: u32,
+    output: ConversionDomProjectionOutput,
+    out: &mut String,
+) {
+    let Some(node) = document.nodes.get(&node_id) else {
+        return;
+    };
+    match node {
+        ConversionDecodedDomNode::Element {
+            name,
+            attributes,
+            children,
+        } => {
+            if name.local.starts_with('@') {
+                return;
+            }
+            out.push('<');
+            conversion_push_decoded_name(out, name);
+            let mut sorted_attributes = attributes.clone();
+            sorted_attributes.sort_by(|a, b| {
+                conversion_decoded_attribute_name(document, *a)
+                    .cmp(&conversion_decoded_attribute_name(document, *b))
+            });
+            for attribute in sorted_attributes {
+                conversion_render_decoded_dom_attribute(document, attribute, output, out);
+            }
+            out.push('>');
+            conversion_render_decoded_dom_children(document, children, output, out);
+            out.push_str("</");
+            conversion_push_decoded_name(out, name);
+            out.push('>');
+        }
+        ConversionDecodedDomNode::Text(data) => conversion_escape_text_into(out, data),
+        ConversionDecodedDomNode::Whitespace(data) => out.push_str(data),
+        ConversionDecodedDomNode::Comment(data) => {
+            out.push_str("<!--");
+            out.push_str(data);
+            out.push_str("-->");
+        }
+        ConversionDecodedDomNode::ProcessingInstruction { target, data } => {
+            out.push_str("<?");
+            out.push_str(target);
+            if !data.is_empty() {
+                out.push(' ');
+                out.push_str(data);
+            }
+            out.push_str("?>");
+        }
+        ConversionDecodedDomNode::Cdata(data) => {
+            out.push_str("<![CDATA[");
+            out.push_str(data);
+            out.push_str("]]>");
+        }
+        ConversionDecodedDomNode::RawText(data) => out.push_str(data),
+        ConversionDecodedDomNode::Attribute { .. } | ConversionDecodedDomNode::Error => {}
+    }
+}
+
+fn conversion_render_decoded_dom_attribute(
+    document: &ConversionDecodedDomDocument,
+    node_id: u32,
+    output: ConversionDomProjectionOutput,
+    out: &mut String,
+) {
+    let Some(ConversionDecodedDomNode::Attribute { name, value }) = document.nodes.get(&node_id)
+    else {
+        return;
+    };
+    out.push(' ');
+    conversion_push_decoded_name(out, name);
+    match (output, value) {
+        (ConversionDomProjectionOutput::Html, None) => {}
+        (_, value) => {
+            out.push_str("=\"");
+            if let Some(value) = value {
+                match output {
+                    ConversionDomProjectionOutput::Html => {
+                        conversion_escape_html_attribute_into(out, value);
+                    }
+                    ConversionDomProjectionOutput::Xml => {
+                        conversion_escape_xml_attribute_into(out, value);
+                    }
+                }
+            }
+            out.push('"');
+        }
+    }
+}
+
+fn conversion_decoded_attribute_name(
+    document: &ConversionDecodedDomDocument,
+    node_id: u32,
+) -> (String, String) {
+    match document.nodes.get(&node_id) {
+        Some(ConversionDecodedDomNode::Attribute { name, .. }) => {
+            (name.namespace.clone(), name.local.clone())
+        }
+        _ => (String::new(), String::new()),
+    }
+}
+
+fn conversion_push_decoded_name(out: &mut String, name: &ConversionDecodedName) {
+    if !name.namespace.is_empty() {
+        out.push_str(&name.namespace);
+        out.push(':');
+    }
+    out.push_str(&name.local);
+}
+
+fn conversion_escape_text_into(out: &mut String, data: &str) {
+    for c in data.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            _ => out.push(c),
+        }
+    }
+}
+
+fn conversion_escape_html_attribute_into(out: &mut String, data: &str) {
+    for c in data.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '"' => out.push_str("&quot;"),
+            '<' => out.push_str("&lt;"),
+            _ => out.push(c),
+        }
+    }
+}
+
+fn conversion_escape_xml_attribute_into(out: &mut String, data: &str) {
+    for c in data.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&apos;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            _ => out.push(c),
+        }
+    }
+}
+
+fn conversion_decoded_dom_json(document: &ConversionDecodedDomDocument) -> Value {
+    let children = document
+        .root_children
+        .iter()
+        .filter_map(|node_id| conversion_decoded_dom_node_json(document, *node_id))
+        .collect::<Vec<_>>();
+    serde_json::json!({
+        "kind": "document",
+        "children": children,
+    })
+}
+
+fn conversion_decoded_dom_node_json(
+    document: &ConversionDecodedDomDocument,
+    node_id: u32,
+) -> Option<Value> {
+    let node = document.nodes.get(&node_id)?;
+    Some(match node {
+        ConversionDecodedDomNode::Element {
+            name,
+            attributes,
+            children,
+        } => {
+            let attributes = attributes
+                .iter()
+                .filter_map(|attribute_id| match document.nodes.get(attribute_id) {
+                    Some(ConversionDecodedDomNode::Attribute { name, value }) => {
+                        Some(serde_json::json!({
+                            "name": name.local,
+                            "namespace": name.namespace,
+                            "value": value,
+                        }))
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            let children = children
+                .iter()
+                .filter_map(|child_id| conversion_decoded_dom_node_json(document, *child_id))
+                .collect::<Vec<_>>();
+            serde_json::json!({
+                "kind": "element",
+                "name": name.local,
+                "namespace": name.namespace,
+                "attributes": attributes,
+                "children": children,
+                "byteRange": Value::Null,
+            })
+        }
+        ConversionDecodedDomNode::Attribute { .. } => return None,
+        ConversionDecodedDomNode::Text(data) => serde_json::json!({
+            "kind": "text",
+            "data": data,
+            "byteRange": Value::Null,
+        }),
+        ConversionDecodedDomNode::Whitespace(data) => serde_json::json!({
+            "kind": "whitespace",
+            "data": data,
+            "byteRange": Value::Null,
+        }),
+        ConversionDecodedDomNode::Comment(data) => serde_json::json!({
+            "kind": "comment",
+            "data": data,
+            "byteRange": Value::Null,
+        }),
+        ConversionDecodedDomNode::ProcessingInstruction { target, data } => serde_json::json!({
+            "kind": "processing-instruction",
+            "name": target,
+            "target": target,
+            "data": data,
+            "byteRange": Value::Null,
+        }),
+        ConversionDecodedDomNode::Cdata(data) => serde_json::json!({
+            "kind": "cdata",
+            "data": data,
+            "byteRange": Value::Null,
+        }),
+        ConversionDecodedDomNode::RawText(data) => serde_json::json!({
+            "kind": "raw-text",
+            "data": data,
+            "byteRange": Value::Null,
+        }),
+        ConversionDecodedDomNode::Error => serde_json::json!({
+            "kind": "error",
+            "byteRange": Value::Null,
+        }),
+    })
 }
 
 pub fn evaluate_conversion_parity_fixtures(
@@ -3242,6 +3895,70 @@ mod tests {
         .expect("read expected fixture");
         assert_eq!(bytes.len(), expected_bytes.len());
         assert!(!bytes.is_empty());
+    }
+
+    #[test]
+    fn rust_dom_projection_parity_executor_renders_declared_fixture_outputs() {
+        let registry = ConversionRegistry::with_builtin_converters();
+        let html = registry
+            .converter("cem-dom-projection-to-html-rust")
+            .expect("HTML Rust converter");
+        let xml = registry
+            .converter("cem-dom-projection-to-xml-rust")
+            .expect("XML Rust converter");
+        let cemt_html = registry
+            .converter("cem-dom-projection-to-html-cemt")
+            .expect("HTML CEMT converter");
+        let fixtures = load_conversion_parity_fixtures(cemt_html, env!("CARGO_MANIFEST_DIR"))
+            .expect("declared parity fixture loads from package path");
+        let fixture = fixtures.first().expect("declared fixture");
+        let executor = RustDomProjectionParityFixtureExecutor;
+        let expected =
+            "<article id=\"welcome\"><h1>Welcome</h1><p>This is a minimal CEM-ML document.</p></article>";
+
+        let html_execution = executor.execute_conversion_parity_fixture(html, fixture);
+        assert!(
+            html_execution.diagnostics.is_empty(),
+            "{:?}",
+            html_execution.diagnostics
+        );
+        assert_eq!(
+            html_execution.output,
+            Some(Value::String(expected.to_owned()))
+        );
+
+        let xml_execution = executor.execute_conversion_parity_fixture(xml, fixture);
+        assert!(
+            xml_execution.diagnostics.is_empty(),
+            "{:?}",
+            xml_execution.diagnostics
+        );
+        assert_eq!(
+            xml_execution.output,
+            Some(Value::String(expected.to_owned()))
+        );
+    }
+
+    #[test]
+    fn rust_dom_projection_parity_executor_checks_declared_contract_fixture() {
+        let registry = ConversionRegistry::with_builtin_converters();
+        let (contracts, diagnostics) = registry.cemt_native_parity_contracts();
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let html_contract = contracts
+            .iter()
+            .find(|contract| contract.cemt.id == "cem-dom-projection-to-html-cemt")
+            .expect("HTML CEMT parity contract");
+        let fixtures =
+            load_conversion_parity_fixtures(html_contract.cemt, env!("CARGO_MANIFEST_DIR"))
+                .expect("declared parity fixture loads from package path");
+
+        let diagnostics = evaluate_conversion_parity_fixtures(
+            html_contract,
+            &fixtures,
+            &RustDomProjectionParityFixtureExecutor,
+        );
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
     }
 
     #[test]
