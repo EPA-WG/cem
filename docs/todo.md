@@ -196,6 +196,10 @@ history belongs in git history and the feature-specific docs linked below.
           encoders for `cem-ql-module` and `rnc-document` output, including
           authoring alias handling, source identity validation, and
           line-ending normalization.
+    - [x] Register initial built-in CEM-QL and RELAX NG compact token-level
+          encoders for selectors/patterns, strings/literals, and
+          identifiers/names, including authoring alias handling and
+          context/category mismatch coverage.
     - [x] Register initial built-in AI context projection JSON encoders for
           `ai-context-pack`, `ai-entity-graph`, `ai-semantic-tokens`,
           `ai-context-fragment`, and `ai-embedding-record` output, including
