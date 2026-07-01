@@ -182,6 +182,8 @@ pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_FALLBACK_UNAVAILABLE_CODE: &str =
     "cem.transform_template.output_function_fallback_unavailable";
 pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_CANONICAL_NONDETERMINISTIC_CODE: &str =
     "cem.transform_template.output_function_canonical_nondeterministic";
+pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_SUBJECT_TYPE_INCOMPATIBLE_CODE: &str =
+    "cem.transform_template.output_function_subject_type_incompatible";
 pub const TRANSFORM_TEMPLATE_UNSAFE_RAW_INSERTION_CODE: &str =
     "cem.transform_template.unsafe_raw_insertion";
 pub const TRANSFORM_TEMPLATE_UNSUPPORTED_CHARSET_CODE: &str =
@@ -500,6 +502,14 @@ pub enum TransformTemplateOutputFunctionResolutionError {
     NonDeterministicCanonical {
         function_name: String,
     },
+    SubjectTypeIncompatible {
+        kind: Option<TransformTemplateOutputFunctionKind>,
+        name: Option<String>,
+        category: Option<String>,
+        requested_subjects: Vec<String>,
+        available_subjects: Vec<String>,
+        function_names: Vec<String>,
+    },
     UnsafeRawInsertion {
         function_name: String,
         category: String,
@@ -593,6 +603,40 @@ impl TransformTemplateOutputFunctionResolutionError {
                 ),
                 ..Diagnostic::default()
             },
+            Self::SubjectTypeIncompatible {
+                kind,
+                name,
+                category,
+                requested_subjects,
+                available_subjects,
+                function_names,
+            } => {
+                let label = transform_template_output_function_label(*kind);
+                let mut message = format!(
+                    "CEMT {label} subject type is incompatible: requested {}, but matching {} {} accept {}",
+                    format_transform_template_selector_list(requested_subjects),
+                    label,
+                    format_transform_template_selector_list(function_names),
+                    format_transform_template_selector_list(available_subjects)
+                );
+                if let Some(name) = name.as_deref().filter(|name| !name.trim().is_empty()) {
+                    message.push_str(&format!(" for requested function `{name}`"));
+                }
+                if let Some(category) = category
+                    .as_deref()
+                    .filter(|category| !category.trim().is_empty())
+                {
+                    message.push_str(&format!(" in category `{category}`"));
+                }
+                Diagnostic {
+                    uri: uri.map(str::to_owned),
+                    code: TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_SUBJECT_TYPE_INCOMPATIBLE_CODE
+                        .to_owned(),
+                    severity: Severity::Error,
+                    message,
+                    ..Diagnostic::default()
+                }
+            }
             Self::UnsafeRawInsertion {
                 function_name,
                 category,
@@ -669,12 +713,7 @@ fn transform_template_unknown_output_function_message(
     category: Option<&str>,
     subject: Option<&str>,
 ) -> String {
-    let label = match kind {
-        Some(TransformTemplateOutputFunctionKind::Encoding) => "encoder",
-        Some(TransformTemplateOutputFunctionKind::Format) => "formatter",
-        Some(TransformTemplateOutputFunctionKind::Color) => "colorizer",
-        None => "output function",
-    };
+    let label = transform_template_output_function_label(kind);
     let mut message = format!("no CEMT {label} matched the requested identity");
     if let Some(name) = name.map(str::trim).filter(|name| !name.is_empty()) {
         message.push_str(&format!(" `{name}`"));
@@ -689,6 +728,28 @@ fn transform_template_unknown_output_function_message(
         message.push_str(&format!(" and subject `{subject}`"));
     }
     message
+}
+
+fn transform_template_output_function_label(
+    kind: Option<TransformTemplateOutputFunctionKind>,
+) -> &'static str {
+    match kind {
+        Some(TransformTemplateOutputFunctionKind::Encoding) => "encoder",
+        Some(TransformTemplateOutputFunctionKind::Format) => "formatter",
+        Some(TransformTemplateOutputFunctionKind::Color) => "colorizer",
+        None => "output function",
+    }
+}
+
+fn format_transform_template_selector_list(values: &[String]) -> String {
+    if values.is_empty() {
+        return "`<none>`".to_owned();
+    }
+    values
+        .iter()
+        .map(|value| format!("`{value}`"))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 #[derive(Debug, Clone, Default)]
@@ -833,7 +894,8 @@ impl TransformTemplateOutputFunctionRegistry {
     ) -> Result<TransformTemplateEncodeBinding, TransformTemplateOutputFunctionResolutionError>
     {
         let syntax_rules = request.syntax_rules()?;
-        for subject_type in request.subject_type_candidates() {
+        let subject_types = request.subject_type_candidates();
+        for subject_type in &subject_types {
             let query = TransformTemplateOutputFunctionQuery {
                 kind: Some(TransformTemplateOutputFunctionKind::Encoding),
                 name: request.options.encoder.clone(),
@@ -861,7 +923,7 @@ impl TransformTemplateOutputFunctionRegistry {
                         && (request.options.canonical || function.canonical);
                     return Ok(TransformTemplateEncodeBinding {
                         function: function.clone(),
-                        subject_type,
+                        subject_type: subject_type.clone(),
                         identity,
                         options: request.options.clone(),
                     });
@@ -871,6 +933,21 @@ impl TransformTemplateOutputFunctionRegistry {
                 }
                 Err(error) => return Err(error),
             }
+        }
+
+        let subjectless_query = TransformTemplateOutputFunctionQuery {
+            kind: Some(TransformTemplateOutputFunctionKind::Encoding),
+            name: request.options.encoder.clone(),
+            content_type: Some(request.target.content_type.clone()),
+            schema: Some(request.target.schema.clone()),
+            category: Some(request.target.category.clone()),
+            profile: request.options.profile.clone(),
+            ..TransformTemplateOutputFunctionQuery::default()
+        };
+        if let Some(error) =
+            self.subject_type_incompatible_for_query(&subjectless_query, &subject_types)
+        {
+            return Err(error);
         }
 
         Err(TransformTemplateOutputFunctionResolutionError::Unknown {
@@ -893,7 +970,8 @@ impl TransformTemplateOutputFunctionRegistry {
             .as_ref()
             .map(|_| transform_template_canonical_color_profile_selector(&color_profile));
 
-        for subject_type in request.subject_type_candidates() {
+        let subject_types = request.subject_type_candidates();
+        for subject_type in &subject_types {
             let query = TransformTemplateOutputFunctionQuery {
                 kind: Some(TransformTemplateOutputFunctionKind::Color),
                 name: request.options.colorizer.clone(),
@@ -925,7 +1003,7 @@ impl TransformTemplateOutputFunctionRegistry {
                         && (request.options.canonical || function.canonical);
                     return Ok(TransformTemplateColorBinding {
                         function: function.clone(),
-                        subject_type,
+                        subject_type: subject_type.clone(),
                         identity,
                         options: request.options.clone(),
                         color_profile,
@@ -938,12 +1016,68 @@ impl TransformTemplateOutputFunctionRegistry {
             }
         }
 
+        let subjectless_query = TransformTemplateOutputFunctionQuery {
+            kind: Some(TransformTemplateOutputFunctionKind::Color),
+            name: request.options.colorizer.clone(),
+            content_type: Some(request.target.content_type.clone()),
+            schema: Some(request.target.schema.clone()),
+            category: Some(request.target.category.clone()),
+            profile: query_profile,
+            ..TransformTemplateOutputFunctionQuery::default()
+        };
+        if let Some(error) =
+            self.subject_type_incompatible_for_query(&subjectless_query, &subject_types)
+        {
+            return Err(error);
+        }
+
         Err(TransformTemplateOutputFunctionResolutionError::Unknown {
             kind: Some(TransformTemplateOutputFunctionKind::Color),
             name: request.options.colorizer.clone(),
             category: Some(request.target.category.clone()),
             subject: request.subject_type.as_ref().cloned(),
         })
+    }
+
+    fn subject_type_incompatible_for_query(
+        &self,
+        query: &TransformTemplateOutputFunctionQuery,
+        requested_subjects: &[String],
+    ) -> Option<TransformTemplateOutputFunctionResolutionError> {
+        let mut subjectless_query = query.clone();
+        subjectless_query.subject = None;
+        let matches = self
+            .functions
+            .iter()
+            .filter(|function| output_function_matches(function, &subjectless_query))
+            .collect::<Vec<_>>();
+        if matches.is_empty() {
+            return None;
+        }
+
+        let available_subjects = matches
+            .iter()
+            .map(|function| function.subject.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        let function_names = matches
+            .iter()
+            .map(|function| function.name.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+
+        Some(
+            TransformTemplateOutputFunctionResolutionError::SubjectTypeIncompatible {
+                kind: query.kind,
+                name: query.name.clone(),
+                category: query.category.clone(),
+                requested_subjects: requested_subjects.to_vec(),
+                available_subjects,
+                function_names,
+            },
+        )
     }
 }
 
@@ -7780,6 +7914,60 @@ mod tests {
     }
 
     #[test]
+    fn encode_binding_reports_incompatible_custom_subject_type() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        registry.register(TransformTemplateOutputFunctionDescriptor {
+            kind: TransformTemplateOutputFunctionKind::Encoding,
+            owner: Some("html".to_owned()),
+            name: "html.node".to_owned(),
+            category: "html-fragment".to_owned(),
+            subject: "html-node".to_owned(),
+            produces: TransformTemplateOutputProducedKind::Text,
+            content_type: HTML_CONTENT_TYPE.to_owned(),
+            schema: HTML_SCHEMA_URI.to_owned(),
+            canonical: false,
+            streamable: true,
+            visibility: TransformTemplateModuleVisibility::Public,
+            implementation: TransformTemplateOutputFunctionImplementation::Cemt,
+            profile: None,
+            extends: None,
+            capability: None,
+            deterministic: true,
+            trusted: false,
+            fallback: None,
+            params: Vec::new(),
+            body_declared: false,
+        });
+        let request = TransformTemplateEncodeBindingRequest::new(
+            json!({"localName": "section"}),
+            TransformTemplateEncodingTarget::new(
+                HTML_CONTENT_TYPE,
+                HTML_SCHEMA_URI,
+                "html-fragment",
+            ),
+        )
+        .with_subject_type("object")
+        .with_options(TransformTemplateEncodeOptions {
+            mode: TransformTemplateEncodedArtifactMode::Fragment,
+            encoder: Some("html.node".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let diagnostic = registry
+            .resolve_encode_binding(&request, &BTreeSet::new())
+            .expect_err("subject type mismatch is diagnostic-specific")
+            .diagnostic(Some("template.cemt"));
+
+        assert_eq!(
+            diagnostic.code,
+            TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_SUBJECT_TYPE_INCOMPATIBLE_CODE
+        );
+        assert!(diagnostic.message.contains("html.node"));
+        assert!(diagnostic.message.contains("object"));
+        assert!(diagnostic.message.contains("html-node"));
+        assert!(diagnostic.message.contains("html-fragment"));
+    }
+
+    #[test]
     fn color_binding_resolves_terminal_profile_and_colorizer() {
         let mut registry = TransformTemplateOutputFunctionRegistry::new();
         registry.register(color_output_function_descriptor(
@@ -7840,6 +8028,45 @@ mod tests {
                 canonical: Some(false),
             })
             .expect("colored artifact identity is compatible");
+    }
+
+    #[test]
+    fn color_binding_reports_incompatible_custom_subject_type() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        registry.register(color_output_function_descriptor(
+            "terminal.ansi256",
+            "terminal-color",
+            "text/plain",
+            "https://cem.dev/ns/data/text/terminal/1",
+            Some("ansi-256"),
+        ));
+        let request = TransformTemplateEncodeBindingRequest::new(
+            json!({"role": "diagnostic.error", "text": "Broken"}),
+            TransformTemplateEncodingTarget::new(
+                "text/plain",
+                "https://cem.dev/ns/data/text/terminal/1",
+                "terminal-color",
+            ),
+        )
+        .with_subject_type("object")
+        .with_options(TransformTemplateEncodeOptions {
+            colorizer: Some("terminal.ansi256".to_owned()),
+            color_profile: Some("ansi-256".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let diagnostic = registry
+            .resolve_color_binding(&request, &BTreeSet::new())
+            .expect_err("color subject type mismatch is diagnostic-specific")
+            .diagnostic(Some("template.cemt"));
+
+        assert_eq!(
+            diagnostic.code,
+            TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_SUBJECT_TYPE_INCOMPATIBLE_CODE
+        );
+        assert!(diagnostic.message.contains("terminal.ansi256"));
+        assert!(diagnostic.message.contains("object"));
+        assert!(diagnostic.message.contains("tokens"));
+        assert!(diagnostic.message.contains("terminal-color"));
     }
 
     #[test]
