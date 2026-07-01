@@ -314,6 +314,9 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add package manifest metadata for converter parity fixtures, including
           package-relative fixture paths, input identity, and expected diagnostic
           code projections for DOM serializer parity.
+    - [x] Resolve declared converter parity fixture paths into runner-ready
+          byte inputs with fixture identity, input content identity, and
+          expected diagnostic code projections.
   - [ ] Implement CEMT output safety rules: context-specific categories must not
         be conflated, encoded artifacts must not be silently re-encoded,
         compatible-artifact concatenation must validate target identity and
