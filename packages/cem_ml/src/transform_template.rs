@@ -221,6 +221,8 @@ pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_INSERTION_INCOMPATIBLE_CODE: &str 
     "cem.transform_template.encoded_artifact_insertion_incompatible";
 pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_WRITER_ADAPTER_MISSING_CODE: &str =
     "cem.transform_template.encoded_artifact_writer_adapter_missing";
+pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_WRITER_ADAPTER_FAILED_CODE: &str =
+    "cem.transform_template.encoded_artifact_writer_adapter_failed";
 pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_DOUBLE_ENCODING_CODE: &str =
     "cem.transform_template.encoded_artifact_double_encoding";
 pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_VALUE_TYPE_CODE: &str =
@@ -4593,6 +4595,23 @@ fn text_composition_artifact_for_evaluated_encode(
                 },
             )
         }
+        TransformTemplateOutputProducedKind::Chunks => {
+            if let Err(error) = evaluated
+                .artifact
+                .validate_insertion(writer_boundary_context)
+            {
+                return Err(diagnostics_for_evaluated_encode_error(
+                    error, evaluated, uri,
+                ));
+            }
+            transform_template_writer_chunk_artifact_to_text(&evaluated.artifact).map_err(
+                |message| {
+                    vec![diagnostic_for_evaluated_encode_writer_adapter_failed(
+                        evaluated, message, uri,
+                    )]
+                },
+            )
+        }
         _ => {
             match evaluated
                 .artifact
@@ -4650,6 +4669,46 @@ fn transform_template_writer_token_artifact_to_text(
                 artifact.output_spans.clone()
             };
             (artifact.source_map.clone(), output_spans)
+        }
+    };
+
+    Ok(TransformTemplateEncodedArtifact {
+        identity,
+        value: Value::String(text),
+        source_map,
+        output_spans,
+        encoded: true,
+    })
+}
+
+fn transform_template_writer_chunk_artifact_to_text(
+    artifact: &TransformTemplateEncodedArtifact,
+) -> Result<TransformTemplateEncodedArtifact, String> {
+    let chunk_stream: TransformTemplateWriterChunkStream =
+        serde_json::from_value(artifact.value.clone())
+            .map_err(|error| format!("chunk stream envelope is invalid: {error}"))?;
+    let mut text = String::new();
+    for (index, chunk) in chunk_stream.chunks.iter().enumerate() {
+        if !chunk.bytes.is_empty() {
+            return Err(format!(
+                "`chunks[{index}]` contains bytes and cannot use the default chunk-to-text writer adapter"
+            ));
+        }
+        let Some(chunk_text) = chunk.text.as_deref() else {
+            return Err(format!(
+                "`chunks[{index}]` has no text for the default chunk-to-text writer adapter"
+            ));
+        };
+        text.push_str(chunk_text);
+    }
+
+    let mut identity = artifact.identity.clone();
+    identity.produces = TransformTemplateOutputProducedKind::Text;
+    let (source_map, output_spans) = match artifact.identity.source_map_policy {
+        TransformTemplateSourceMapPolicy::None => (None, Vec::new()),
+        TransformTemplateSourceMapPolicy::Generated
+        | TransformTemplateSourceMapPolicy::Preserve => {
+            (artifact.source_map.clone(), artifact.output_spans.clone())
         }
     };
 
@@ -4730,7 +4789,7 @@ fn diagnostic_for_evaluated_encode_writer_adapter_failed(
 ) -> Diagnostic {
     let mut diagnostic = Diagnostic {
         uri: uri.map(str::to_owned),
-        code: TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_WRITER_ADAPTER_MISSING_CODE.to_owned(),
+        code: TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_WRITER_ADAPTER_FAILED_CODE.to_owned(),
         severity: Severity::Error,
         message: format!(
             "encoded artifact produced `{}` cannot use the default writer adapter: {message}",
@@ -12057,6 +12116,76 @@ mod tests {
     }
 
     #[test]
+    fn encoded_text_artifact_composition_adapts_text_chunk_streams_to_text() {
+        let first = evaluated_html_text("title", "Hello ");
+        let mut second = evaluated_html_text("body", "ignored");
+        second.artifact = TransformTemplateEncodedArtifact::from_writer_chunks(
+            second.artifact.identity.clone(),
+            vec![
+                TransformTemplateWriterChunk::text("text", "CEM").with_id("c1"),
+                TransformTemplateWriterChunk::text("text", " chunks").with_id("c2"),
+            ],
+        );
+        second.artifact.source_map = Some(source_map_stack(50, 10));
+        second.artifact.output_spans = vec![output_span(0, 10)];
+        let context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+            &first.expression.target,
+            Some(TransformTemplateOutputProducedKind::Text),
+        );
+
+        let response = compose_transform_template_encoded_text_artifacts(
+            &[first, second],
+            &context,
+            Some("templates/runtime-encoding.cemt"),
+        );
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        let artifact = response.artifact.expect("chunk stream composes to text");
+        assert_eq!(artifact.value, Value::String("Hello CEM chunks".to_owned()));
+        assert_eq!(
+            artifact.identity.produces,
+            TransformTemplateOutputProducedKind::Text
+        );
+        assert!(artifact.source_map.is_some());
+        assert_eq!(artifact.output_spans.len(), 2);
+        assert_eq!(artifact.output_spans[1].output_range, ByteRange::new(6, 10));
+    }
+
+    #[test]
+    fn encoded_text_artifact_composition_rejects_byte_chunks_for_default_text_adapter() {
+        let mut evaluated = evaluated_html_text("body", "ignored");
+        evaluated.artifact = TransformTemplateEncodedArtifact::from_writer_chunks(
+            evaluated.artifact.identity.clone(),
+            vec![TransformTemplateWriterChunk::bytes(
+                "payload",
+                vec![0x43, 0x45, 0x4d],
+            )],
+        );
+        let context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+            &evaluated.expression.target,
+            Some(TransformTemplateOutputProducedKind::Text),
+        );
+
+        let response = compose_transform_template_encoded_text_artifacts(
+            &[evaluated],
+            &context,
+            Some("templates/runtime-encoding.cemt"),
+        );
+
+        assert!(response.artifact.is_none());
+        assert!(response.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_WRITER_ADAPTER_FAILED_CODE
+                && diagnostic.node.as_deref() == Some("body")
+                && diagnostic.message.contains("chunk-to-text")
+                && diagnostic.message.contains("contains bytes")
+        }));
+    }
+
+    #[test]
     fn encoded_text_artifact_composition_reports_writer_adapter_boundary_for_non_token_artifacts() {
         let base = evaluated_html_text("body", "CEM");
         let context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
@@ -12070,13 +12199,6 @@ mod tests {
                 TransformTemplateEncodedArtifact::from_writer_bytes(
                     base.artifact.identity.clone(),
                     b"CEM".to_vec(),
-                ),
-            ),
-            (
-                "chunks",
-                TransformTemplateEncodedArtifact::from_writer_chunks(
-                    base.artifact.identity.clone(),
-                    vec![TransformTemplateWriterChunk::text("text", "CEM")],
                 ),
             ),
             (

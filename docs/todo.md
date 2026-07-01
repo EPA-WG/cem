@@ -228,6 +228,9 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add styled writer token metadata for CEMT token streams, including
           style envelope validation and default token-to-text adapter
           preservation of plain-text behavior.
+    - [x] Add a default text-chunk writer adapter for CEMT chunk streams,
+          preserving source maps/output spans for text chunks and rejecting
+          byte-bearing chunks with adapter-failed diagnostics.
   - [ ] Add schema helper APIs for target syntax rules, void/empty element
         policy, raw-text/RCDATA modes, namespace repair, identifier validity,
         field/header policy, fragment/document handling, and charset/final byte
