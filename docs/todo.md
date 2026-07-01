@@ -204,6 +204,9 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add namespace declaration placement controls for XML/CEMT formatter
           options and target syntax rules, including canonical defaults and
           non-namespace target diagnostics.
+    - [x] Add canonical formatter profile identities for standard JSON, XML,
+          YAML, and Markdown formatter aliases while preserving custom profile
+          selectors.
   - [ ] Add writer primitives and CEMT bindings for syntax tokens, styled token
         streams, byte streams, sealed binary chunks, source-map span emission,
         and source-map preservation/generated/none policies.

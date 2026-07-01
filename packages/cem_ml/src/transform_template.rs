@@ -2678,16 +2678,62 @@ fn transform_template_encode_options_are_canonical(
 }
 
 fn transform_template_encode_options_formatter_profile(
+    target: &TransformTemplateEncodingTarget,
     options: &TransformTemplateEncodeOptions,
 ) -> Option<String> {
-    options
+    let selector = options
         .formatter_profile
         .clone()
         .or_else(|| options.formatter.clone())
         .or_else(|| options.preserve.then(|| "preserve".to_owned()))
         .or_else(|| options.pretty.then(|| "pretty".to_owned()))
         .or_else(|| options.canonical.then(|| "canonical".to_owned()))
-        .or_else(|| options.profile.clone())
+        .or_else(|| options.profile.clone())?;
+    transform_template_canonical_formatter_profile_selector(
+        transform_template_target_syntax_kind(target),
+        &selector,
+    )
+}
+
+fn transform_template_canonical_formatter_profile_selector(
+    syntax: TransformTemplateTargetSyntaxKind,
+    selector: &str,
+) -> Option<String> {
+    let selector = selector.trim();
+    if selector.is_empty() {
+        return None;
+    }
+
+    let canonical = match syntax {
+        TransformTemplateTargetSyntaxKind::Json => match selector {
+            "pretty" | "json.pretty" => Some("json.pretty"),
+            "canonical" | "json.canonical" => Some("json.canonical"),
+            "preserve" | "json.preserve" => Some("json.preserve"),
+            _ => None,
+        },
+        TransformTemplateTargetSyntaxKind::Xml => match selector {
+            "pretty" | "xml.pretty" => Some("xml.pretty"),
+            "canonical" | "xml.canonical" => Some("xml.canonical"),
+            "preserve" | "xml.preserve" => Some("xml.preserve"),
+            _ => None,
+        },
+        TransformTemplateTargetSyntaxKind::Yaml => match selector {
+            "pretty" | "yaml.pretty" => Some("yaml.pretty"),
+            "canonical" | "yaml.canonical" => Some("yaml.canonical"),
+            "flow" | "yaml.flow" => Some("yaml.flow"),
+            "preserve" | "yaml.preserve" => Some("yaml.preserve"),
+            _ => None,
+        },
+        TransformTemplateTargetSyntaxKind::Markdown => match selector {
+            "wrap" | "markdown.wrap" => Some("markdown.wrap"),
+            "canonical" | "markdown.canonical" => Some("markdown.canonical"),
+            "preserve" | "markdown.preserve" => Some("markdown.preserve"),
+            _ => None,
+        },
+        _ => None,
+    };
+
+    Some(canonical.unwrap_or(selector).to_owned())
 }
 
 fn invalid_target_syntax(
@@ -3757,7 +3803,7 @@ fn transform_template_yaml_formatter_mode(
     .flatten()
     {
         match selector.trim() {
-            "" => {}
+            "" | "preserve" | "yaml.preserve" => {}
             "pretty" | "yaml.pretty" => pretty = true,
             "canonical" | "yaml.canonical" => {
                 pretty = false;
@@ -3980,7 +4026,7 @@ fn transform_template_json_formatter_mode(
     .flatten()
     {
         match selector.trim() {
-            "" => {}
+            "" | "preserve" | "json.preserve" => {}
             "pretty" | "json.pretty" => pretty = true,
             "canonical" | "json.canonical" => {
                 pretty = false;
@@ -5767,12 +5813,14 @@ impl TransformTemplateEncodedArtifactIdentity {
         target: TransformTemplateEncodingTarget,
         options: &TransformTemplateEncodeOptions,
     ) -> Self {
+        let formatter_profile =
+            transform_template_encode_options_formatter_profile(&target, options);
         Self {
             produces,
             target,
             charset: options.charset.clone(),
             binary_framing: None,
-            formatter_profile: transform_template_encode_options_formatter_profile(options),
+            formatter_profile,
             color_profile: options
                 .color_profile
                 .clone()
@@ -9631,6 +9679,64 @@ mod tests {
     }
 
     #[test]
+    fn json_and_yaml_formatters_accept_canonical_preserve_profiles() {
+        let registry = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+        let json_options = TransformTemplateEncodeOptions {
+            preserve: true,
+            ..TransformTemplateEncodeOptions::default()
+        };
+        let json_binding = TransformTemplateEncodeBinding {
+            function: json_output_function_descriptor("json.value", "json-value", "json"),
+            subject_type: "object".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::from_options(
+                TransformTemplateOutputProducedKind::Text,
+                TransformTemplateEncodingTarget::new(
+                    JSON_CONTENT_TYPE,
+                    JSON_VALUE_SCHEMA_URI,
+                    "json-value",
+                ),
+                &json_options,
+            ),
+            options: json_options,
+        };
+        assert_eq!(
+            json_binding.identity.formatter_profile.as_deref(),
+            Some("json.preserve")
+        );
+        let encoded_json = registry
+            .encode(&json_binding, &json!({"ok": true}))
+            .expect("JSON preserve formatter runs");
+        assert_eq!(encoded_json, Value::String(r#"{"ok":true}"#.to_owned()));
+
+        let yaml_options = TransformTemplateEncodeOptions {
+            preserve: true,
+            ..TransformTemplateEncodeOptions::default()
+        };
+        let yaml_binding = TransformTemplateEncodeBinding {
+            function: yaml_output_function_descriptor("yaml.value", "yaml-value", "json"),
+            subject_type: "object".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::from_options(
+                TransformTemplateOutputProducedKind::Text,
+                TransformTemplateEncodingTarget::new(
+                    YAML_CONTENT_TYPE,
+                    YAML_SCHEMA_URI,
+                    "yaml-value",
+                ),
+                &yaml_options,
+            ),
+            options: yaml_options,
+        };
+        assert_eq!(
+            yaml_binding.identity.formatter_profile.as_deref(),
+            Some("yaml.preserve")
+        );
+        let encoded_yaml = registry
+            .encode(&yaml_binding, &json!({"ok": true}))
+            .expect("YAML preserve formatter runs");
+        assert_eq!(encoded_yaml, Value::String(r#"{"ok":true}"#.to_owned()));
+    }
+
+    #[test]
     fn builtin_yaml_encode_implementations_emit_scalars_and_values() {
         let registry = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
         let scalar_binding = TransformTemplateEncodeBinding {
@@ -10291,6 +10397,82 @@ mod tests {
                 canonical: Some(false),
             })
             .expect("preserve identity is compatible with preserve insertion context");
+    }
+
+    #[test]
+    fn formatter_profile_identity_canonicalizes_standard_selectors() {
+        let json_identity = TransformTemplateEncodedArtifactIdentity::from_options(
+            TransformTemplateOutputProducedKind::Text,
+            TransformTemplateEncodingTarget::new(
+                JSON_CONTENT_TYPE,
+                JSON_VALUE_SCHEMA_URI,
+                "json-value",
+            ),
+            &TransformTemplateEncodeOptions {
+                pretty: true,
+                ..TransformTemplateEncodeOptions::default()
+            },
+        );
+        assert_eq!(
+            json_identity.formatter_profile.as_deref(),
+            Some("json.pretty")
+        );
+
+        let xml_identity = TransformTemplateEncodedArtifactIdentity::from_options(
+            TransformTemplateOutputProducedKind::Text,
+            TransformTemplateEncodingTarget::new(XML_CONTENT_TYPE, XML_SCHEMA_URI, "xml-text"),
+            &TransformTemplateEncodeOptions {
+                formatter_profile: Some("pretty".to_owned()),
+                ..TransformTemplateEncodeOptions::default()
+            },
+        );
+        assert_eq!(
+            xml_identity.formatter_profile.as_deref(),
+            Some("xml.pretty")
+        );
+
+        let yaml_identity = TransformTemplateEncodedArtifactIdentity::from_options(
+            TransformTemplateOutputProducedKind::Text,
+            TransformTemplateEncodingTarget::new(YAML_CONTENT_TYPE, YAML_SCHEMA_URI, "yaml-value"),
+            &TransformTemplateEncodeOptions {
+                formatter: Some("flow".to_owned()),
+                ..TransformTemplateEncodeOptions::default()
+            },
+        );
+        assert_eq!(
+            yaml_identity.formatter_profile.as_deref(),
+            Some("yaml.flow")
+        );
+
+        let markdown_identity = TransformTemplateEncodedArtifactIdentity::from_options(
+            TransformTemplateOutputProducedKind::Text,
+            TransformTemplateEncodingTarget::new(
+                MARKDOWN_CONTENT_TYPE,
+                MARKDOWN_SCHEMA_URI,
+                "markdown-text",
+            ),
+            &TransformTemplateEncodeOptions {
+                formatter: Some("wrap".to_owned()),
+                ..TransformTemplateEncodeOptions::default()
+            },
+        );
+        assert_eq!(
+            markdown_identity.formatter_profile.as_deref(),
+            Some("markdown.wrap")
+        );
+
+        let html_identity = TransformTemplateEncodedArtifactIdentity::from_options(
+            TransformTemplateOutputProducedKind::Text,
+            TransformTemplateEncodingTarget::new(HTML_CONTENT_TYPE, HTML_SCHEMA_URI, "html-text"),
+            &TransformTemplateEncodeOptions {
+                formatter_profile: Some("html-pretty".to_owned()),
+                ..TransformTemplateEncodeOptions::default()
+            },
+        );
+        assert_eq!(
+            html_identity.formatter_profile.as_deref(),
+            Some("html-pretty")
+        );
     }
 
     #[test]
