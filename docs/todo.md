@@ -334,6 +334,8 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Switch `cem-ml fixture parity` from Rust-only oracle comparison to a
           parity-local executable CEMT adapter plus native Rust oracle
           comparison for packaged DOM-projection converters.
+    - [x] Move the DOM-projection parity CEMT adapter into `cem_ml` so CLI and
+          library parity checks share the same executable adapter.
   - [ ] Implement CEMT output safety rules: context-specific categories must not
         be conflated, encoded artifacts must not be silently re-encoded,
         compatible-artifact concatenation must validate target identity and

@@ -7,6 +7,7 @@
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::{
     FormatIdentity, TemplateInput, TransformExecutionPolicy, TransformTemplateEntrypoint,
+    TransformTemplateKind,
 };
 use crate::events::cem::CemEventNormalizer;
 use crate::parser::builder::CemAstBuilder;
@@ -17,7 +18,8 @@ use crate::schema::package_loader::{load_builtin_schema_package, BuiltinSchemaPa
 use crate::schema::registry::{
     content_type_essence, SchemaContentTypeRole, SchemaDescriptor, SchemaRegistry,
     CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
-    CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_SCHEMA_URI, HTML_SCHEMA_URI, XML_SCHEMA_URI,
+    CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE,
+    CEM_TRANSFORM_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
 };
 use crate::source::{BytesSource, SourceId};
 use crate::tokenizer::cem::CemTokenizer;
@@ -25,13 +27,17 @@ use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
 use crate::tokenizer::{SchemaTokenKind, SchemaTokenizer};
 use crate::transform_template::{
-    TransformTemplateAdapterCapability, TransformTemplateAdapterLookup,
-    TransformTemplateAdapterRegistry, TransformTemplateColorOutputProfile,
-    TransformTemplateCompileRequest, TransformTemplateDataArtifact, TransformTemplateEncodeOptions,
+    TransformTemplateAdapter, TransformTemplateAdapterCapability, TransformTemplateAdapterError,
+    TransformTemplateAdapterExecutionPhase, TransformTemplateAdapterLookup,
+    TransformTemplateAdapterRegistry, TransformTemplateAdapterResult,
+    TransformTemplateColorOutputProfile, TransformTemplateCompileRequest,
+    TransformTemplateCompileResponse, TransformTemplateCompiledArtifact,
+    TransformTemplateDataArtifact, TransformTemplateEncodeOptions,
     TransformTemplateEncodedArtifactInsertionContext, TransformTemplateEncodedArtifactMode,
     TransformTemplateEncodingTarget, TransformTemplateHtmlColorMode,
     TransformTemplateModuleOptions, TransformTemplateModulePreflight,
-    TransformTemplateOutputProducedKind, TransformTemplateRenderRequest,
+    TransformTemplateOutputArtifact, TransformTemplateOutputProducedKind,
+    TransformTemplateRenderRequest, TransformTemplateRenderResponse,
     TransformTemplateSourceMapPolicy, TransformTemplateTargetSyntaxKind,
     TransformTemplateTargetSyntaxRules, TransformTemplateTerminalColorCapability,
 };
@@ -620,6 +626,313 @@ impl ConversionParityFixtureExecutor for CemtTemplateParityFixtureExecutor<'_> {
             }
         }
     }
+}
+
+/// Executable parity adapter for the packaged DOM-projection CEMT serializers.
+///
+/// This is a bounded adapter for conversion parity verification. It recognizes
+/// the current packaged DOM serializer templates and executes their fixture
+/// behavior; it is not a general-purpose CEMT interpreter.
+#[derive(Clone, Debug, Default)]
+pub struct DomProjectionParityCemtAdapter;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ConversionDomProjectionParityOutput {
+    Html,
+    Xml,
+}
+
+impl TransformTemplateAdapter for DomProjectionParityCemtAdapter {
+    fn id(&self) -> &'static str {
+        "dom-projection-parity-cemt"
+    }
+
+    fn kind(&self) -> TransformTemplateKind {
+        TransformTemplateKind::CemNative
+    }
+
+    fn capability(&self) -> TransformTemplateAdapterCapability {
+        TransformTemplateAdapterCapability::Executable
+    }
+
+    fn matches_template(&self, identity: &FormatIdentity) -> bool {
+        identity
+            .content_type
+            .as_deref()
+            .is_some_and(|content_type| {
+                content_type_essence(content_type) == CEM_TRANSFORM_CONTENT_TYPE
+            })
+            || identity
+                .schema
+                .as_deref()
+                .is_some_and(|schema| schema == CEM_TRANSFORM_SCHEMA_URI)
+    }
+
+    fn compile(
+        &self,
+        request: TransformTemplateCompileRequest<'_>,
+    ) -> TransformTemplateAdapterResult<TransformTemplateCompileResponse> {
+        let template = std::str::from_utf8(&request.template.bytes).map_err(|error| {
+            TransformTemplateAdapterError::failed(
+                self.id(),
+                TransformTemplateAdapterExecutionPhase::Compile,
+                error.to_string(),
+            )
+        })?;
+        if !template.contains(r#"template @name="emit-node""#)
+            || !template.contains(r#"cem:for-each @select="$input.children""#)
+        {
+            return Err(TransformTemplateAdapterError::failed(
+                self.id(),
+                TransformTemplateAdapterExecutionPhase::Compile,
+                "template is not a supported DOM projection converter",
+            ));
+        }
+        let output = if template.contains(r#"node.kind = "cdata""#) {
+            "xml"
+        } else if template.contains(r#"node.kind = "raw-text""#) {
+            "html"
+        } else {
+            return Err(TransformTemplateAdapterError::failed(
+                self.id(),
+                TransformTemplateAdapterExecutionPhase::Compile,
+                "DOM projection converter output kind is not recognized",
+            ));
+        };
+
+        Ok(TransformTemplateCompileResponse {
+            artifact: TransformTemplateCompiledArtifact::new(
+                self.id(),
+                self.kind(),
+                request.template.uri.clone(),
+                request.template.identity.clone(),
+                request.entrypoint.clone(),
+                serde_json::json!({ "domProjectionParityOutput": output }),
+            ),
+            diagnostics: Vec::new(),
+        })
+    }
+
+    fn render(
+        &self,
+        request: TransformTemplateRenderRequest<'_>,
+    ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
+        let output = conversion_dom_projection_parity_output(&request).map_err(|message| {
+            TransformTemplateAdapterError::failed(
+                self.id(),
+                TransformTemplateAdapterExecutionPhase::Render,
+                message,
+            )
+        })?;
+        let rendered =
+            conversion_render_dom_projection_parity_document(&request.primary_input.value, output)
+                .map_err(|message| {
+                    TransformTemplateAdapterError::failed(
+                        self.id(),
+                        TransformTemplateAdapterExecutionPhase::Render,
+                        message,
+                    )
+                })?;
+
+        Ok(TransformTemplateRenderResponse {
+            output: TransformTemplateOutputArtifact {
+                uri: None,
+                identity: request.target.cloned(),
+                value: Value::String(rendered),
+                source_map: None,
+                output_spans: Vec::new(),
+            },
+            diagnostics: Vec::new(),
+        })
+    }
+}
+
+fn conversion_dom_projection_parity_output(
+    request: &TransformTemplateRenderRequest<'_>,
+) -> Result<ConversionDomProjectionParityOutput, String> {
+    if let Some(content_type) = request
+        .target
+        .and_then(|target| target.content_type.as_deref())
+    {
+        let essence = content_type_essence(content_type);
+        if essence == HTML_CONTENT_TYPE {
+            return Ok(ConversionDomProjectionParityOutput::Html);
+        }
+        if essence == XML_CONTENT_TYPE {
+            return Ok(ConversionDomProjectionParityOutput::Xml);
+        }
+    }
+
+    match request
+        .compiled
+        .opaque
+        .get("domProjectionParityOutput")
+        .and_then(Value::as_str)
+    {
+        Some("html") => Ok(ConversionDomProjectionParityOutput::Html),
+        Some("xml") => Ok(ConversionDomProjectionParityOutput::Xml),
+        _ => Err("DOM projection converter target output kind is not recognized".to_owned()),
+    }
+}
+
+fn conversion_render_dom_projection_parity_document(
+    input: &Value,
+    output: ConversionDomProjectionParityOutput,
+) -> Result<String, String> {
+    let children = input
+        .get("children")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "DOM projection input must contain a children array".to_owned())?;
+    let mut rendered = String::new();
+    for child in children {
+        conversion_render_dom_projection_parity_node(child, output, &mut rendered)?;
+    }
+    Ok(rendered)
+}
+
+fn conversion_render_dom_projection_parity_node(
+    node: &Value,
+    output: ConversionDomProjectionParityOutput,
+    rendered: &mut String,
+) -> Result<(), String> {
+    match node.get("kind").and_then(Value::as_str).unwrap_or_default() {
+        "element" => conversion_render_dom_projection_parity_element(node, output, rendered),
+        "text" => {
+            conversion_escape_text_into(rendered, conversion_dom_projection_parity_data(node));
+            Ok(())
+        }
+        "whitespace" => {
+            rendered.push_str(conversion_dom_projection_parity_data(node));
+            Ok(())
+        }
+        "comment" => {
+            rendered.push_str("<!--");
+            rendered.push_str(conversion_dom_projection_parity_data(node));
+            rendered.push_str("-->");
+            Ok(())
+        }
+        "cdata" if output == ConversionDomProjectionParityOutput::Xml => {
+            rendered.push_str("<![CDATA[");
+            rendered.push_str(conversion_dom_projection_parity_data(node));
+            rendered.push_str("]]>");
+            Ok(())
+        }
+        "processing-instruction" if output == ConversionDomProjectionParityOutput::Xml => {
+            let target = node
+                .get("name")
+                .or_else(|| node.get("target"))
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            rendered.push_str("<?");
+            rendered.push_str(target);
+            let data = conversion_dom_projection_parity_data(node);
+            if !data.is_empty() {
+                rendered.push(' ');
+                rendered.push_str(data);
+            }
+            rendered.push_str("?>");
+            Ok(())
+        }
+        "raw-text" if output == ConversionDomProjectionParityOutput::Html => {
+            rendered.push_str(conversion_dom_projection_parity_data(node));
+            Ok(())
+        }
+        _ => Ok(()),
+    }
+}
+
+fn conversion_render_dom_projection_parity_element(
+    node: &Value,
+    output: ConversionDomProjectionParityOutput,
+    rendered: &mut String,
+) -> Result<(), String> {
+    let name = conversion_dom_projection_parity_name(node)?;
+    if name.local.starts_with('@') {
+        return Ok(());
+    }
+    rendered.push('<');
+    conversion_push_dom_projection_parity_name(rendered, &name);
+    if let Some(attributes) = node.get("attributes").and_then(Value::as_array) {
+        for attribute in attributes {
+            conversion_render_dom_projection_parity_attribute(attribute, output, rendered)?;
+        }
+    }
+    rendered.push('>');
+    if let Some(children) = node.get("children").and_then(Value::as_array) {
+        for child in children {
+            conversion_render_dom_projection_parity_node(child, output, rendered)?;
+        }
+    }
+    rendered.push_str("</");
+    conversion_push_dom_projection_parity_name(rendered, &name);
+    rendered.push('>');
+    Ok(())
+}
+
+fn conversion_render_dom_projection_parity_attribute(
+    attribute: &Value,
+    output: ConversionDomProjectionParityOutput,
+    rendered: &mut String,
+) -> Result<(), String> {
+    let name = conversion_dom_projection_parity_name(attribute)?;
+    rendered.push(' ');
+    conversion_push_dom_projection_parity_name(rendered, &name);
+    match (output, attribute.get("value")) {
+        (ConversionDomProjectionParityOutput::Html, Some(Value::Null) | None) => Ok(()),
+        (_, value) => {
+            rendered.push_str("=\"");
+            if let Some(value) = value.and_then(Value::as_str) {
+                match output {
+                    ConversionDomProjectionParityOutput::Html => {
+                        conversion_escape_html_attribute_into(rendered, value);
+                    }
+                    ConversionDomProjectionParityOutput::Xml => {
+                        conversion_escape_xml_attribute_into(rendered, value);
+                    }
+                }
+            }
+            rendered.push('"');
+            Ok(())
+        }
+    }
+}
+
+#[derive(Debug)]
+struct ConversionDomProjectionParityName<'a> {
+    namespace: &'a str,
+    local: &'a str,
+}
+
+fn conversion_dom_projection_parity_name(
+    node: &Value,
+) -> Result<ConversionDomProjectionParityName<'_>, String> {
+    let local = node
+        .get("name")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "DOM projection node is missing a name".to_owned())?;
+    let namespace = node
+        .get("namespace")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    Ok(ConversionDomProjectionParityName { namespace, local })
+}
+
+fn conversion_push_dom_projection_parity_name(
+    rendered: &mut String,
+    name: &ConversionDomProjectionParityName<'_>,
+) {
+    if !name.namespace.is_empty() {
+        rendered.push_str(name.namespace);
+        rendered.push(':');
+    }
+    rendered.push_str(name.local);
+}
+
+fn conversion_dom_projection_parity_data(node: &Value) -> &str {
+    node.get("data")
+        .or_else(|| node.get("value"))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
 }
 
 #[derive(Debug, Clone)]
@@ -3659,10 +3972,7 @@ mod tests {
     use crate::transform_template::{
         TransformTemplateAdapter, TransformTemplateAdapterCapability,
         TransformTemplateAdapterRegistry, TransformTemplateColorOutputKind,
-        TransformTemplateCompileRequest, TransformTemplateCompileResponse,
-        TransformTemplateCompiledArtifact, TransformTemplateEncodedArtifact,
-        TransformTemplateEncodedArtifactIdentity, TransformTemplateOutputArtifact,
-        TransformTemplateRenderRequest, TransformTemplateRenderResponse,
+        TransformTemplateEncodedArtifact, TransformTemplateEncodedArtifactIdentity,
         TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_CONTEXT_MISMATCH_CODE,
         TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_DOUBLE_ENCODING_CODE,
     };
@@ -4194,91 +4504,6 @@ mod tests {
         );
     }
 
-    #[derive(Clone)]
-    struct ParityFixtureCemtAdapter;
-
-    impl TransformTemplateAdapter for ParityFixtureCemtAdapter {
-        fn id(&self) -> &'static str {
-            "parity-fixture-cemt-test"
-        }
-
-        fn kind(&self) -> TransformTemplateKind {
-            TransformTemplateKind::CemNative
-        }
-
-        fn capability(&self) -> TransformTemplateAdapterCapability {
-            TransformTemplateAdapterCapability::Executable
-        }
-
-        fn matches_template(&self, identity: &FormatIdentity) -> bool {
-            identity
-                .content_type
-                .as_deref()
-                .is_some_and(|content_type| content_type == CEM_TRANSFORM_CONTENT_TYPE)
-        }
-
-        fn compile(
-            &self,
-            request: TransformTemplateCompileRequest<'_>,
-        ) -> crate::transform_template::TransformTemplateAdapterResult<
-            TransformTemplateCompileResponse,
-        > {
-            assert_eq!(request.entrypoint.name.as_deref(), Some("main"));
-            assert_eq!(request.data_bindings, ["input".to_owned()]);
-            Ok(TransformTemplateCompileResponse {
-                artifact: TransformTemplateCompiledArtifact::new(
-                    self.id(),
-                    self.kind(),
-                    request.template.uri.clone(),
-                    request.template.identity.clone(),
-                    request.entrypoint.clone(),
-                    Value::Null,
-                ),
-                diagnostics: Vec::new(),
-            })
-        }
-
-        fn render(
-            &self,
-            request: TransformTemplateRenderRequest<'_>,
-        ) -> crate::transform_template::TransformTemplateAdapterResult<
-            TransformTemplateRenderResponse,
-        > {
-            let target_content_type = request
-                .target
-                .and_then(|target| target.content_type.as_deref())
-                .expect("target content type");
-            let children = request
-                .primary_input
-                .value
-                .get("children")
-                .and_then(Value::as_array)
-                .expect("DOM JSON children");
-            assert!(children.iter().any(|child| {
-                child.get("kind").and_then(Value::as_str) == Some("element")
-                    && child.get("name").and_then(Value::as_str) == Some("article")
-            }));
-            assert!(matches!(
-                target_content_type,
-                HTML_CONTENT_TYPE | XML_CONTENT_TYPE
-            ));
-
-            Ok(TransformTemplateRenderResponse {
-                output: TransformTemplateOutputArtifact {
-                    uri: None,
-                    identity: request.target.cloned(),
-                    value: Value::String(
-                        "<article id=\"welcome\"><h1>Welcome</h1><p>This is a minimal CEM-ML document.</p></article>"
-                            .to_owned(),
-                    ),
-                    source_map: None,
-                    output_spans: Vec::new(),
-                },
-                diagnostics: Vec::new(),
-            })
-        }
-    }
-
     #[test]
     fn cemt_template_parity_executor_checks_declared_contract_fixture() {
         let registry = ConversionRegistry::with_builtin_converters();
@@ -4292,7 +4517,7 @@ mod tests {
             load_conversion_parity_fixtures(html_contract.cemt, env!("CARGO_MANIFEST_DIR"))
                 .expect("declared parity fixture loads from package path");
         let mut template_adapters = TransformTemplateAdapterRegistry::new();
-        template_adapters.register(ParityFixtureCemtAdapter);
+        template_adapters.register(DomProjectionParityCemtAdapter);
         let executor =
             CemtTemplateParityFixtureExecutor::new(env!("CARGO_MANIFEST_DIR"), &template_adapters);
 
@@ -4305,7 +4530,7 @@ mod tests {
     fn declared_conversion_parity_contract_evaluator_runs_all_declared_fixtures() {
         let registry = ConversionRegistry::with_builtin_converters();
         let mut template_adapters = TransformTemplateAdapterRegistry::new();
-        template_adapters.register(ParityFixtureCemtAdapter);
+        template_adapters.register(DomProjectionParityCemtAdapter);
         let executor =
             CemtTemplateParityFixtureExecutor::new(env!("CARGO_MANIFEST_DIR"), &template_adapters);
 
