@@ -31,6 +31,9 @@ Validation enforces the implementation-specific contract: CEMT converters must
 name a CEMT template identity, Rust converters must name a `rust-symbol`, each
 converter must have exactly one `from` and `to` endpoint, planner cost must be
 positive, and known endpoint schemas must own the declared content type.
+Serializer converters may also declare output-contract metadata:
+`output-syntax`, `encoding-category`, `formatter-profile`, `color-profile`, and
+`parity`.
 For local `package.cem` inputs, validation also reads the declared schema
 source and checks that the manifest schema URI, content type claims, and
 namespace URI claims match the referenced `schema/*.cem` file.

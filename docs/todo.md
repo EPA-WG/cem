@@ -227,6 +227,10 @@ history belongs in git history and the feature-specific docs linked below.
         streamability, lossiness, readiness, encoding category, formatter
         profile, color output profile, native producer fallback symbol, fallback
         reason, and parity expectations.
+    - [x] Add initial converter output-contract metadata to schema package
+          manifests and runtime descriptors: `output-syntax`,
+          `encoding-category`, `formatter-profile`, `color-profile`, and
+          `parity`, with validation and DOM projection CEMT metadata examples.
   - [ ] Pair every native output producer with a CEMT implementation. Native
         producers are allowed for performance and clarity, but must be
         cross-checked against the schema-owned CEMT producer with shared

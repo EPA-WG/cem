@@ -1185,6 +1185,8 @@ fn validate_schema_package_converter(
         validate_schema_package_bool_attr(doc, node, converter_id, attr_name, out);
     }
     validate_schema_package_readiness(doc, node, converter_id, out);
+    validate_schema_package_output_syntax(doc, node, converter_id, out);
+    validate_schema_package_parity(doc, node, converter_id, out);
     validate_schema_package_cost(doc, node, converter_id, out);
 
     if manifest_bool_value(doc, node, "explicit-only") == Some(true)
@@ -1389,6 +1391,61 @@ fn validate_schema_package_readiness(
         "cem.schema_package.converter_readiness_unknown",
         Severity::Error,
         format!("converter `{converter_id}` has unknown readiness `{readiness}`"),
+        node,
+    ));
+}
+
+fn validate_schema_package_output_syntax(
+    doc: &crate::parser::document::CemDocument,
+    node: &CemAstNode,
+    converter_id: &str,
+    out: &mut Vec<Diagnostic>,
+) {
+    let Some(output_syntax) = attr_value(doc, node, "output-syntax").map(str::trim) else {
+        return;
+    };
+    if matches!(
+        output_syntax,
+        "html"
+            | "xml"
+            | "json"
+            | "csv"
+            | "css"
+            | "markdown"
+            | "cemt"
+            | "text"
+            | "binary"
+            | "opaque"
+    ) {
+        return;
+    }
+    out.push(diag_at(
+        "cem.schema_package.converter_output_syntax_unknown",
+        Severity::Error,
+        format!("converter `{converter_id}` has unknown output syntax `{output_syntax}`"),
+        node,
+    ));
+}
+
+fn validate_schema_package_parity(
+    doc: &crate::parser::document::CemDocument,
+    node: &CemAstNode,
+    converter_id: &str,
+    out: &mut Vec<Diagnostic>,
+) {
+    let Some(parity) = attr_value(doc, node, "parity").map(str::trim) else {
+        return;
+    };
+    if matches!(
+        parity,
+        "byte-exact" | "token-equivalent" | "parse-equivalent" | "diagnostic-equivalent"
+    ) {
+        return;
+    }
+    out.push(diag_at(
+        "cem.schema_package.converter_parity_unknown",
+        Severity::Error,
+        format!("converter `{converter_id}` has unknown parity mode `{parity}`"),
         node,
     ));
 }
@@ -2118,6 +2175,11 @@ mod tests {
                     @template-content-type="application/vnd.cem.transform+cem"
                     @template-schema="https://cem.dev/ns/transform/cem/1"
                     @streamable=true
+                    @output-syntax="html"
+                    @encoding-category="html-document"
+                    @formatter-profile="canonical"
+                    @color-profile="classes"
+                    @parity="parse-equivalent"
                     @implicit=false
                     @cost=25 |
                     {from @content-type="application/vnd.example.demo+cem" @schema="https://example.test/ns/demo/1"}
@@ -2148,6 +2210,8 @@ mod tests {
                     @template-content-type="text/cem-ml"
                     @template-schema="https://cem.dev/ns/schema/1"
                     @streamable=maybe
+                    @output-syntax="pdf"
+                    @parity="mostly-equal"
                     @readiness=later
                     @explicit-only=true
                     @implicit=true
@@ -2168,6 +2232,8 @@ mod tests {
             "cem.schema_package.converter_endpoint_missing",
             "cem.schema_package.converter_boolean_invalid",
             "cem.schema_package.converter_readiness_unknown",
+            "cem.schema_package.converter_output_syntax_unknown",
+            "cem.schema_package.converter_parity_unknown",
             "cem.schema_package.converter_cost_invalid",
             "cem.schema_package.converter_selection_conflict",
             "cem.schema_package.converter_content_type_mismatch",

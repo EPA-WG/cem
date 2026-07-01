@@ -4659,6 +4659,7 @@ mod tests {
                 }),
                 streamable: true,
                 lossiness: Some("serialization".to_owned()),
+                output_contract: Default::default(),
                 implicit: true,
                 explicit_only: false,
                 cost: 1,

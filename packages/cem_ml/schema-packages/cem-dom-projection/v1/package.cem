@@ -23,6 +23,11 @@
         @rust-symbol="HtmlExportConverter"
         @streamable=true
         @lossiness="serialization"
+        @output-syntax="html"
+        @encoding-category="html-document"
+        @formatter-profile="canonical"
+        @color-profile="classes"
+        @parity="parse-equivalent"
         @implicit=true
         @readiness="ready"
         @cost=100
@@ -41,6 +46,10 @@
         @rust-symbol="XmlExportConverter"
         @streamable=true
         @lossiness="serialization"
+        @output-syntax="xml"
+        @encoding-category="xml-document"
+        @formatter-profile="canonical"
+        @parity="parse-equivalent"
         @implicit=true
         @readiness="ready"
         @cost=100

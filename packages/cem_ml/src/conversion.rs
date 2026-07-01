@@ -80,6 +80,37 @@ pub struct ConversionRustFallbackDescriptor {
     pub reason: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConversionOutputSyntax {
+    Html,
+    Xml,
+    Json,
+    Csv,
+    Css,
+    Markdown,
+    Cemt,
+    Text,
+    Binary,
+    Opaque,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConversionParityMode {
+    ByteExact,
+    TokenEquivalent,
+    ParseEquivalent,
+    DiagnosticEquivalent,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ConversionOutputContractDescriptor {
+    pub output_syntax: Option<ConversionOutputSyntax>,
+    pub encoding_category: Option<String>,
+    pub formatter_profile: Option<String>,
+    pub color_profile: Option<String>,
+    pub parity: Option<ConversionParityMode>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConversionDescriptor {
     pub id: String,
@@ -93,6 +124,7 @@ pub struct ConversionDescriptor {
     pub rust_fallback: Option<ConversionRustFallbackDescriptor>,
     pub streamable: bool,
     pub lossiness: Option<String>,
+    pub output_contract: ConversionOutputContractDescriptor,
     pub implicit: bool,
     pub explicit_only: bool,
     pub cost: u32,
@@ -221,6 +253,14 @@ pub enum ConversionManifestError {
         converter_id: String,
         readiness: String,
     },
+    UnknownOutputSyntax {
+        converter_id: String,
+        output_syntax: String,
+    },
+    UnknownParityMode {
+        converter_id: String,
+        parity: String,
+    },
     InvalidBoolean {
         converter_id: String,
         attribute: &'static str,
@@ -271,6 +311,20 @@ impl std::fmt::Display for ConversionManifestError {
             } => write!(
                 f,
                 "converter `{converter_id}` has unknown readiness `{readiness}`"
+            ),
+            Self::UnknownOutputSyntax {
+                converter_id,
+                output_syntax,
+            } => write!(
+                f,
+                "converter `{converter_id}` has unknown output syntax `{output_syntax}`"
+            ),
+            Self::UnknownParityMode {
+                converter_id,
+                parity,
+            } => write!(
+                f,
+                "converter `{converter_id}` has unknown parity mode `{parity}`"
             ),
             Self::InvalidBoolean {
                 converter_id,
@@ -900,6 +954,17 @@ fn conversion_descriptor_from_manifest_node(
     let explicit_only = parse_manifest_bool(&id, &attrs, "explicit-only")?.unwrap_or(false);
     let implicit = parse_manifest_bool(&id, &attrs, "implicit")?.unwrap_or(!explicit_only);
     let cost = parse_manifest_cost(&id, &attrs)?.unwrap_or(100);
+    let output_contract = ConversionOutputContractDescriptor {
+        output_syntax: optional_manifest_attr(&attrs, "output-syntax")
+            .map(|value| parse_manifest_output_syntax(&id, value))
+            .transpose()?,
+        encoding_category: optional_manifest_attr(&attrs, "encoding-category").map(str::to_owned),
+        formatter_profile: optional_manifest_attr(&attrs, "formatter-profile").map(str::to_owned),
+        color_profile: optional_manifest_attr(&attrs, "color-profile").map(str::to_owned),
+        parity: optional_manifest_attr(&attrs, "parity")
+            .map(|value| parse_manifest_parity_mode(&id, value))
+            .transpose()?,
+    };
 
     let template = match implementation {
         ConversionImplementation::Cemt => {
@@ -951,6 +1016,7 @@ fn conversion_descriptor_from_manifest_node(
         rust_fallback,
         streamable,
         lossiness: optional_manifest_attr(&attrs, "lossiness").map(str::to_owned),
+        output_contract,
         implicit,
         explicit_only,
         cost,
@@ -1040,6 +1106,44 @@ fn parse_manifest_readiness(
         readiness => Err(ConversionManifestError::UnknownReadiness {
             converter_id: converter_id.to_owned(),
             readiness: readiness.to_owned(),
+        }),
+    }
+}
+
+fn parse_manifest_output_syntax(
+    converter_id: &str,
+    value: &str,
+) -> Result<ConversionOutputSyntax, ConversionManifestError> {
+    match value.trim() {
+        "html" => Ok(ConversionOutputSyntax::Html),
+        "xml" => Ok(ConversionOutputSyntax::Xml),
+        "json" => Ok(ConversionOutputSyntax::Json),
+        "csv" => Ok(ConversionOutputSyntax::Csv),
+        "css" => Ok(ConversionOutputSyntax::Css),
+        "markdown" => Ok(ConversionOutputSyntax::Markdown),
+        "cemt" => Ok(ConversionOutputSyntax::Cemt),
+        "text" => Ok(ConversionOutputSyntax::Text),
+        "binary" => Ok(ConversionOutputSyntax::Binary),
+        "opaque" => Ok(ConversionOutputSyntax::Opaque),
+        output_syntax => Err(ConversionManifestError::UnknownOutputSyntax {
+            converter_id: converter_id.to_owned(),
+            output_syntax: output_syntax.to_owned(),
+        }),
+    }
+}
+
+fn parse_manifest_parity_mode(
+    converter_id: &str,
+    value: &str,
+) -> Result<ConversionParityMode, ConversionManifestError> {
+    match value.trim() {
+        "byte-exact" => Ok(ConversionParityMode::ByteExact),
+        "token-equivalent" => Ok(ConversionParityMode::TokenEquivalent),
+        "parse-equivalent" => Ok(ConversionParityMode::ParseEquivalent),
+        "diagnostic-equivalent" => Ok(ConversionParityMode::DiagnosticEquivalent),
+        parity => Err(ConversionManifestError::UnknownParityMode {
+            converter_id: converter_id.to_owned(),
+            parity: parity.to_owned(),
         }),
     }
 }
@@ -1221,6 +1325,7 @@ fn rust_edge(
         rust_fallback: None,
         streamable: true,
         lossiness: Some(lossiness.to_owned()),
+        output_contract: ConversionOutputContractDescriptor::default(),
         implicit: true,
         explicit_only: false,
         cost,
@@ -1401,6 +1506,26 @@ mod tests {
         assert_eq!(html.to.content_type, HTML_CONTENT_TYPE);
         assert_eq!(html.to.schema.as_deref(), Some(HTML_SCHEMA_URI));
         assert_eq!(html.lossiness.as_deref(), Some("serialization"));
+        assert_eq!(
+            html.output_contract.output_syntax,
+            Some(ConversionOutputSyntax::Html)
+        );
+        assert_eq!(
+            html.output_contract.encoding_category.as_deref(),
+            Some("html-document")
+        );
+        assert_eq!(
+            html.output_contract.formatter_profile.as_deref(),
+            Some("canonical")
+        );
+        assert_eq!(
+            html.output_contract.color_profile.as_deref(),
+            Some("classes")
+        );
+        assert_eq!(
+            html.output_contract.parity,
+            Some(ConversionParityMode::ParseEquivalent)
+        );
         assert!(html.streamable);
         assert!(html.implicit);
         assert!(!html.explicit_only);
@@ -1424,6 +1549,18 @@ mod tests {
             .find(|descriptor| descriptor.id == "cem-dom-projection-to-xml-cemt")
             .expect("XML converter descriptor");
         assert_eq!(xml.to.content_type, XML_CONTENT_TYPE);
+        assert_eq!(
+            xml.output_contract.output_syntax,
+            Some(ConversionOutputSyntax::Xml)
+        );
+        assert_eq!(
+            xml.output_contract.encoding_category.as_deref(),
+            Some("xml-document")
+        );
+        assert_eq!(
+            xml.output_contract.parity,
+            Some(ConversionParityMode::ParseEquivalent)
+        );
         let xml_template = xml.template.as_ref().expect("XML CEMT template");
         assert_eq!(
             xml_template.path,
@@ -1624,6 +1761,7 @@ mod tests {
                 rust_fallback: None,
                 streamable: true,
                 lossiness: Some("serialization".to_owned()),
+                output_contract: ConversionOutputContractDescriptor::default(),
                 implicit: true,
                 explicit_only: false,
                 cost: 1,
