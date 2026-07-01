@@ -653,8 +653,68 @@ const TRANSFORM_TEMPLATE_STANDARD_OUTPUT_FUNCTIONS:
     },
     TransformTemplateStandardOutputFunctionContract {
         kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "cem.name",
+        category: "cem-name",
+        subject: Some("string"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: CEM_ML_CONTENT_TYPE,
+        schema: CEM_ML_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "cem.attribute-value",
+        category: "cem-attribute-value",
+        subject: Some("string"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: CEM_ML_CONTENT_TYPE,
+        schema: CEM_ML_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "cem.content-text",
+        category: "cem-text",
+        subject: Some("string"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: CEM_ML_CONTENT_TYPE,
+        schema: CEM_ML_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "cem.string-literal",
+        category: "cem-string-literal",
+        subject: Some("string"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: CEM_ML_CONTENT_TYPE,
+        schema: CEM_ML_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
         name: "cemt.text",
         category: "cemt-module",
+        subject: Some("string"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: CEM_TRANSFORM_CONTENT_TYPE,
+        schema: CEM_TRANSFORM_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "cemt.attribute-value",
+        category: "cemt-attribute-value",
+        subject: Some("string"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: CEM_TRANSFORM_CONTENT_TYPE,
+        schema: CEM_TRANSFORM_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "cemt.string-literal",
+        category: "cemt-expression",
         subject: Some("string"),
         produces: TransformTemplateOutputProducedKind::Text,
         content_type: CEM_TRANSFORM_CONTENT_TYPE,
@@ -3127,7 +3187,13 @@ impl TransformTemplateEncodeImplementationRegistry {
         registry.register("css.string", builtin_css_string_encoder);
         registry.register("css.identifier", builtin_css_identifier_encoder);
         registry.register("cem.text", builtin_cem_text_encoder);
+        registry.register("cem.name", builtin_cem_name_encoder);
+        registry.register("cem.attribute-value", builtin_cem_attribute_value_encoder);
+        registry.register("cem.content-text", builtin_cem_content_text_encoder);
+        registry.register("cem.string-literal", builtin_cem_string_literal_encoder);
         registry.register("cemt.text", builtin_cemt_text_encoder);
+        registry.register("cemt.attribute-value", builtin_cemt_attribute_value_encoder);
+        registry.register("cemt.string-literal", builtin_cemt_string_literal_encoder);
         registry.register("cem-ql.text", builtin_cem_ql_text_encoder);
         registry.register("rnc.text", builtin_rnc_text_encoder);
         registry.register("ai.context-pack", builtin_ai_context_projection_encoder);
@@ -3616,6 +3682,50 @@ fn builtin_cem_text_encoder(
     .map(Value::String)
 }
 
+fn builtin_cem_name_encoder(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_cem_token_encoder_binding(binding, "CEM token")?;
+    let text = subject
+        .as_str()
+        .ok_or_else(|| "cem.name expected string subject".to_owned())?;
+    transform_template_encode_cem_name(text).map(Value::String)
+}
+
+fn builtin_cem_attribute_value_encoder(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_cem_token_encoder_binding(binding, "CEM token")?;
+    let text = subject
+        .as_str()
+        .ok_or_else(|| "cem.attribute-value expected string subject".to_owned())?;
+    transform_template_encode_cem_attribute_value(text, "CEM attribute value").map(Value::String)
+}
+
+fn builtin_cem_content_text_encoder(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_cem_token_encoder_binding(binding, "CEM token")?;
+    let text = subject
+        .as_str()
+        .ok_or_else(|| "cem.content-text expected string subject".to_owned())?;
+    transform_template_encode_cem_content_text(text).map(Value::String)
+}
+
+fn builtin_cem_string_literal_encoder(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_cem_token_encoder_binding(binding, "CEM token")?;
+    let text = subject
+        .as_str()
+        .ok_or_else(|| "cem.string-literal expected string subject".to_owned())?;
+    transform_template_encode_cem_string_literal(text).map(Value::String)
+}
+
 fn builtin_cemt_text_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
@@ -3630,6 +3740,30 @@ fn builtin_cemt_text_encoder(
         binding.identity.formatter_profile.as_deref(),
     )
     .map(Value::String)
+}
+
+fn builtin_cemt_attribute_value_encoder(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_cem_token_encoder_binding(binding, "CEMT token")?;
+    let text = subject
+        .as_str()
+        .ok_or_else(|| "cemt.attribute-value expected string subject".to_owned())?;
+    transform_template_encode_cem_attribute_value(text, "CEMT attribute value").map(Value::String)
+}
+
+fn builtin_cemt_string_literal_encoder(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_cem_token_encoder_binding(binding, "CEMT token")?;
+    let text = subject
+        .as_str()
+        .ok_or_else(|| "cemt.string-literal expected string subject".to_owned())?;
+    Ok(Value::String(
+        transform_template_encode_cemt_expression_string_literal(text),
+    ))
 }
 
 fn builtin_cem_ql_text_encoder(
@@ -3718,6 +3852,48 @@ fn builtin_source_text_content_type_matches(
         "cem-ql.text" => matches!(actual.as_str(), CEM_QL_CONTENT_TYPE | "text/cem-ql"),
         _ => actual == content_type_essence(expected_content_type),
     }
+}
+
+fn validate_builtin_cem_token_encoder_binding(
+    binding: &TransformTemplateEncodeBinding,
+    label: &str,
+) -> Result<(), String> {
+    let Some(expected) = standard_output_function_contract(&binding.function.name) else {
+        return Err(format!(
+            "{label} encoder implementation cannot execute `{}`",
+            binding.function.name
+        ));
+    };
+    if expected.kind != TransformTemplateOutputFunctionKind::Encoding
+        || expected.produces != TransformTemplateOutputProducedKind::Text
+        || expected.subject != Some("string")
+    {
+        return Err(format!(
+            "{label} encoder implementation cannot execute `{}`",
+            binding.function.name
+        ));
+    }
+    if content_type_essence(&binding.identity.target.content_type)
+        != content_type_essence(expected.content_type)
+    {
+        return Err(format!(
+            "{label} encoder `{}` expected content type `{}`, got `{}`",
+            binding.function.name, expected.content_type, binding.identity.target.content_type
+        ));
+    }
+    if binding.identity.target.schema != expected.schema {
+        return Err(format!(
+            "{label} encoder `{}` expected schema `{}`, got `{}`",
+            binding.function.name, expected.schema, binding.identity.target.schema
+        ));
+    }
+    if binding.identity.target.category != expected.category {
+        return Err(format!(
+            "{label} encoder `{}` expected category `{}`, got `{}`",
+            binding.function.name, expected.category, binding.identity.target.category
+        ));
+    }
+    Ok(())
 }
 
 fn builtin_ai_context_projection_encoder(
@@ -4012,6 +4188,108 @@ fn transform_template_apply_source_text_line_ending(
             "unsupported {syntax_name} source formatter line ending `{other}`"
         )),
     }
+}
+
+pub fn transform_template_encode_cem_name(value: &str) -> Result<String, String> {
+    let mut chars = value.chars();
+    let Some(first) = chars.next() else {
+        return Err("CEM name cannot be empty".to_owned());
+    };
+    if !transform_template_cem_name_start(first) {
+        return Err(format!("CEM name cannot start with `{first}`"));
+    }
+    for ch in chars {
+        if !transform_template_cem_qname_continue(ch) {
+            return Err(format!("CEM name cannot contain `{ch}`"));
+        }
+    }
+    Ok(value.to_owned())
+}
+
+pub fn transform_template_encode_cem_attribute_value(
+    value: &str,
+    context: &str,
+) -> Result<String, String> {
+    if value.chars().any(char::is_control) {
+        return Err(format!("{context} cannot contain control characters"));
+    }
+    if transform_template_cem_attribute_bare_value_is_safe(value) {
+        return Ok(value.to_owned());
+    }
+    transform_template_encode_cem_string_literal(value)
+}
+
+pub fn transform_template_encode_cem_string_literal(value: &str) -> Result<String, String> {
+    if value.chars().any(char::is_control) {
+        return Err("CEM string literal cannot contain control characters".to_owned());
+    }
+    if !value.contains('"') {
+        return Ok(format!("\"{value}\""));
+    }
+    if !value.contains('\'') {
+        return Ok(format!("'{value}'"));
+    }
+    Err(
+        "CEM string literal cannot contain both single and double quotes with the current tokenizer"
+            .to_owned(),
+    )
+}
+
+pub fn transform_template_encode_cem_content_text(value: &str) -> Result<String, String> {
+    if transform_template_cem_content_text_is_safe(value) {
+        return Ok(value.to_owned());
+    }
+    if value.contains("```") {
+        return Err(
+            "CEM text containing rich-content delimiters cannot be safely fenced".to_owned(),
+        );
+    }
+    Ok(format!("```{value}```"))
+}
+
+pub fn transform_template_encode_cemt_expression_string_literal(value: &str) -> String {
+    let mut output = String::with_capacity(value.len() + 2);
+    output.push('"');
+    for ch in value.chars() {
+        match ch {
+            '\\' => output.push_str("\\\\"),
+            '"' => output.push_str("\\\""),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            _ => output.push(ch),
+        }
+    }
+    output.push('"');
+    output
+}
+
+fn transform_template_cem_attribute_bare_value_is_safe(value: &str) -> bool {
+    !value.is_empty()
+        && !value.starts_with('{')
+        && value
+            .chars()
+            .all(|ch| ch.is_alphanumeric() || matches!(ch, '_' | '-' | '/' | '.' | ':'))
+}
+
+fn transform_template_cem_content_text_is_safe(value: &str) -> bool {
+    !value.contains('{')
+        && !value.contains('}')
+        && !value.contains("```")
+        && !value.contains("<?")
+        && !value.contains("/*")
+}
+
+fn transform_template_cem_name_start(ch: char) -> bool {
+    ch.is_alphabetic() || ch == '_'
+}
+
+fn transform_template_cem_name_continue(ch: char) -> bool {
+    ch.is_alphanumeric() || matches!(ch, '_' | '-')
+}
+
+fn transform_template_cem_qname_continue(ch: char) -> bool {
+    transform_template_cem_name_continue(ch) || ch == ':'
 }
 
 pub fn transform_template_encode_html_text(value: &str) -> String {
@@ -11423,6 +11701,163 @@ mod tests {
             )
             .expect_err("unsupported CEM source formatter is rejected");
         assert!(formatter_error.contains("unsupported CEM source formatter `cem.pretty`"));
+    }
+
+    #[test]
+    fn builtin_cem_and_cemt_token_encoders_escape_contexts() {
+        let mut functions = TransformTemplateOutputFunctionRegistry::new();
+        for (name, category, content_type, schema) in [
+            (
+                "cem.name",
+                "cem-name",
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+            ),
+            (
+                "cem.attribute-value",
+                "cem-attribute-value",
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+            ),
+            (
+                "cem.content-text",
+                "cem-text",
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+            ),
+            (
+                "cem.string-literal",
+                "cem-string-literal",
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+            ),
+            (
+                "cemt.attribute-value",
+                "cemt-attribute-value",
+                CEM_TRANSFORM_CONTENT_TYPE,
+                CEM_TRANSFORM_SCHEMA_URI,
+            ),
+            (
+                "cemt.string-literal",
+                "cemt-expression",
+                CEM_TRANSFORM_CONTENT_TYPE,
+                CEM_TRANSFORM_SCHEMA_URI,
+            ),
+        ] {
+            functions.register(source_text_output_function_descriptor(
+                name,
+                category,
+                content_type,
+                schema,
+            ));
+        }
+        let registry = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+
+        let name_request = TransformTemplateEncodeBindingRequest::new(
+            Value::String("cem:button-primary".to_owned()),
+            TransformTemplateEncodingTarget::new(
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                "cem-name",
+            ),
+        )
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some("cem.name".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let name_binding = functions
+            .resolve_encode_binding(&name_request, &BTreeSet::new())
+            .expect("CEM name encoder resolves");
+        let encoded_name = registry
+            .encode(&name_binding, &name_request.subject)
+            .expect("CEM name encoder runs");
+        assert_eq!(encoded_name, Value::String("cem:button-primary".to_owned()));
+
+        let attr_request = TransformTemplateEncodeBindingRequest::new(
+            Value::String("Hello world".to_owned()),
+            TransformTemplateEncodingTarget::new(
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                "cem-attribute-value",
+            ),
+        )
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some("cem.attribute-value".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let attr_binding = functions
+            .resolve_encode_binding(&attr_request, &BTreeSet::new())
+            .expect("CEM attribute-value encoder resolves");
+        let encoded_attr = registry
+            .encode(&attr_binding, &attr_request.subject)
+            .expect("CEM attribute-value encoder runs");
+        assert_eq!(encoded_attr, Value::String("\"Hello world\"".to_owned()));
+
+        let text_request = TransformTemplateEncodeBindingRequest::new(
+            Value::String("Use {literal} safely".to_owned()),
+            TransformTemplateEncodingTarget::new(
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                "cem-text",
+            ),
+        )
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some("cem.content-text".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let text_binding = functions
+            .resolve_encode_binding(&text_request, &BTreeSet::new())
+            .expect("CEM text encoder resolves");
+        let encoded_text = registry
+            .encode(&text_binding, &text_request.subject)
+            .expect("CEM text encoder fences brace text");
+        assert_eq!(
+            encoded_text,
+            Value::String("```Use {literal} safely```".to_owned())
+        );
+
+        let cemt_literal_request = TransformTemplateEncodeBindingRequest::new(
+            Value::String("Line 1\n\"quoted\"\\path".to_owned()),
+            TransformTemplateEncodingTarget::new(
+                CEM_TRANSFORM_CONTENT_TYPE,
+                CEM_TRANSFORM_SCHEMA_URI,
+                "cemt-expression",
+            ),
+        )
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some("cemt.string-literal".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let cemt_literal_binding = functions
+            .resolve_encode_binding(&cemt_literal_request, &BTreeSet::new())
+            .expect("CEMT string literal encoder resolves");
+        let encoded_cemt_literal = registry
+            .encode(&cemt_literal_binding, &cemt_literal_request.subject)
+            .expect("CEMT string literal encoder runs");
+        assert_eq!(
+            encoded_cemt_literal,
+            Value::String("\"Line 1\\n\\\"quoted\\\"\\\\path\"".to_owned())
+        );
+
+        let mut wrong_category = attr_binding.clone();
+        wrong_category.identity.target.category = "cem-string-literal".to_owned();
+        let category_error = registry
+            .encode(&wrong_category, &Value::String("Hello".to_owned()))
+            .expect_err("CEM token encoder rejects mismatched category");
+        assert!(category_error.contains("expected category `cem-attribute-value`"));
+
+        let quote_error = registry
+            .encode(
+                &attr_binding,
+                &Value::String("can't \"quote\" this".to_owned()),
+            )
+            .expect_err("CEM attribute-value encoder refuses unrepresentable quotes");
+        assert!(quote_error.contains("both single and double quotes"));
+
+        let name_error = registry
+            .encode(&name_binding, &Value::String("1bad".to_owned()))
+            .expect_err("CEM name encoder rejects invalid start");
+        assert!(name_error.contains("cannot start"));
     }
 
     #[test]
