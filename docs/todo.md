@@ -112,7 +112,7 @@ history belongs in git history and the feature-specific docs linked below.
           fragment modes; explicit encoder, formatter, colorizer, and profile
           selectors; charset, line ending, quote, indent, namespace, and
           source-map policies; and preserve-mode encoded artifact identity.
-  - [ ] Define encoded artifact identity and insertion rules. Results are not
+  - [x] Define encoded artifact identity and insertion rules. Results are not
         plain strings: they carry produced kind (`text`, `bytes`, `tokens`,
         `chunks`, or `diagnostics`), target content type, schema URL, encoding
         category/context, charset or binary framing identity, formatter profile,
@@ -126,6 +126,8 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add evaluated encode-artifact insertion validation helpers and
           context builders so renderer code can reject incompatible artifacts
           before writer composition.
+    - [x] Add binary framing identity to insertion contexts and reject
+          mismatched binary framing for byte/chunk output artifacts.
   - [ ] Add CEMT declaration vocabulary for `encoding-function`,
         `format-function`, and `color-function` with registry-validatable
         metadata: `name`, `category`, `subject`, `produces`, `content-type`,

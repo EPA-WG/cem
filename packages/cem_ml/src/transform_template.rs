@@ -4718,6 +4718,11 @@ impl TransformTemplateEncodedArtifact {
             context.color_capability.as_deref(),
             self.identity.color_capability.as_deref(),
         )?;
+        validate_optional_artifact_context(
+            "binaryFraming",
+            context.binary_framing.as_deref(),
+            self.identity.binary_framing.as_deref(),
+        )?;
 
         if let Some(expected) = context.mode {
             if self.identity.mode != expected {
@@ -4784,6 +4789,8 @@ pub struct TransformTemplateEncodedArtifactInsertionContext {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub color_capability: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub binary_framing: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mode: Option<TransformTemplateEncodedArtifactMode>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub canonical: Option<bool>,
@@ -4832,6 +4839,7 @@ impl TransformTemplateEncodedArtifactInsertionContext {
             formatter_profile: identity.formatter_profile.clone(),
             color_profile: identity.color_profile.clone(),
             color_capability: identity.color_capability.clone(),
+            binary_framing: identity.binary_framing.clone(),
             mode: Some(identity.mode),
             canonical: Some(identity.canonical),
         }
@@ -4849,6 +4857,11 @@ impl TransformTemplateEncodedArtifactInsertionContext {
 
     pub fn with_produces(mut self, produces: TransformTemplateOutputProducedKind) -> Self {
         self.produces = Some(produces);
+        self
+    }
+
+    pub fn with_binary_framing(mut self, binary_framing: impl Into<String>) -> Self {
+        self.binary_framing = Some(binary_framing.into());
         self
     }
 }
@@ -8137,6 +8150,7 @@ mod tests {
                 formatter_profile: Some("html-pretty".to_owned()),
                 color_profile: None,
                 color_capability: None,
+                binary_framing: None,
                 mode: Some(TransformTemplateEncodedArtifactMode::Fragment),
                 canonical: Some(true),
             })
@@ -8184,6 +8198,7 @@ mod tests {
                 formatter_profile: Some("preserve".to_owned()),
                 color_profile: None,
                 color_capability: None,
+                binary_framing: None,
                 mode: Some(TransformTemplateEncodedArtifactMode::Document),
                 canonical: Some(false),
             })
@@ -8495,6 +8510,7 @@ mod tests {
                 formatter_profile: None,
                 color_profile: Some("ansi-256".to_owned()),
                 color_capability: Some("ansi-256".to_owned()),
+                binary_framing: None,
                 mode: Some(TransformTemplateEncodedArtifactMode::Document),
                 canonical: Some(false),
             })
@@ -9845,6 +9861,79 @@ mod tests {
     }
 
     #[test]
+    fn binary_writer_artifact_validates_binary_framing_identity() {
+        let target = TransformTemplateEncodingTarget::new(
+            CEM_AST_PROJECTION_CONTENT_TYPE,
+            CEM_AST_PROJECTION_SCHEMA_URI,
+            "cem-bin-document",
+        );
+        let mut identity = TransformTemplateEncodedArtifactIdentity::new(
+            TransformTemplateOutputProducedKind::Bytes,
+            target,
+        );
+        identity.binary_framing = Some("cem-bin/ast-v1".to_owned());
+        let artifact = TransformTemplateEncodedArtifact::from_writer_bytes(
+            identity.clone(),
+            vec![0x43, 0x45, 0x4d],
+        );
+
+        artifact
+            .validate_insertion(
+                &TransformTemplateEncodedArtifactInsertionContext::from_encoded_artifact_identity(
+                    &artifact.identity,
+                ),
+            )
+            .expect("matching binary framing is accepted");
+        artifact
+            .validate_insertion(
+                &TransformTemplateEncodedArtifactInsertionContext::new(
+                    CEM_AST_PROJECTION_CONTENT_TYPE,
+                    CEM_AST_PROJECTION_SCHEMA_URI,
+                )
+                .with_category("cem-bin-document")
+                .with_produces(TransformTemplateOutputProducedKind::Bytes)
+                .with_binary_framing("cem-bin/ast-v1"),
+            )
+            .expect("explicit matching binary framing is accepted");
+
+        let mut chunk_identity = identity.clone();
+        chunk_identity.produces = TransformTemplateOutputProducedKind::Chunks;
+        let chunk_artifact = TransformTemplateEncodedArtifact::from_writer_chunks(
+            chunk_identity,
+            vec![TransformTemplateWriterChunk::bytes("payload", vec![0x43, 0x45, 0x4d]).sealed()],
+        );
+        chunk_artifact
+            .validate_insertion(
+                &TransformTemplateEncodedArtifactInsertionContext::new(
+                    CEM_AST_PROJECTION_CONTENT_TYPE,
+                    CEM_AST_PROJECTION_SCHEMA_URI,
+                )
+                .with_category("cem-bin-document")
+                .with_produces(TransformTemplateOutputProducedKind::Chunks)
+                .with_binary_framing("cem-bin/ast-v1"),
+            )
+            .expect("matching chunk binary framing is accepted");
+
+        let framing_error = artifact
+            .validate_insertion(
+                &TransformTemplateEncodedArtifactInsertionContext::new(
+                    CEM_AST_PROJECTION_CONTENT_TYPE,
+                    CEM_AST_PROJECTION_SCHEMA_URI,
+                )
+                .with_category("cem-bin-document")
+                .with_produces(TransformTemplateOutputProducedKind::Bytes)
+                .with_binary_framing("cem-bin/dom-v1"),
+            )
+            .expect_err("mismatched binary framing is rejected");
+        assert_eq!(
+            framing_error.code(),
+            TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_CONTEXT_MISMATCH_CODE
+        );
+        assert!(framing_error.message().contains("binaryFraming"));
+        assert!(framing_error.message().contains("cem-bin/dom-v1"));
+    }
+
+    #[test]
     fn writer_artifact_value_shape_validation_rejects_invalid_envelopes() {
         let target = TransformTemplateEncodingTarget::new(
             JSON_CONTENT_TYPE,
@@ -9947,6 +10036,7 @@ mod tests {
             formatter_profile: Some("html-pretty".to_owned()),
             color_profile: None,
             color_capability: None,
+            binary_framing: None,
             mode: Some(TransformTemplateEncodedArtifactMode::Fragment),
             canonical: Some(true),
         };
@@ -9987,6 +10077,7 @@ mod tests {
                 formatter_profile: None,
                 color_profile: None,
                 color_capability: None,
+                binary_framing: None,
                 mode: None,
                 canonical: None,
             })
@@ -10029,6 +10120,7 @@ mod tests {
                 formatter_profile: None,
                 color_profile: None,
                 color_capability: None,
+                binary_framing: None,
                 mode: None,
                 canonical: None,
             })
@@ -10048,6 +10140,7 @@ mod tests {
                 formatter_profile: None,
                 color_profile: None,
                 color_capability: None,
+                binary_framing: None,
                 mode: None,
                 canonical: None,
             })
