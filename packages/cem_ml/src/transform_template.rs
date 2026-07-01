@@ -1500,6 +1500,8 @@ pub struct TransformTemplateEncodeOptions {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ordering: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wrap_column: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub indent: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub namespace_policy: Option<String>,
@@ -3146,7 +3148,12 @@ fn builtin_markdown_text_encoder(
     let text = subject
         .as_str()
         .ok_or_else(|| "markdown.text expected string subject".to_owned())?;
-    Ok(Value::String(transform_template_encode_markdown_text(text)))
+    transform_template_format_markdown_text(
+        transform_template_encode_markdown_text(text),
+        &binding.options,
+        binding.identity.formatter_profile.as_deref(),
+    )
+    .map(Value::String)
 }
 
 fn builtin_markdown_inline_code_encoder(
@@ -3347,6 +3354,115 @@ pub fn transform_template_encode_markdown_text(value: &str) -> String {
         }
     }
     output
+}
+
+pub fn transform_template_format_markdown_text(
+    output: String,
+    options: &TransformTemplateEncodeOptions,
+    formatter_profile: Option<&str>,
+) -> Result<String, String> {
+    let wrap_column = transform_template_markdown_wrap_column(options, formatter_profile)?;
+    let output = if let Some(wrap_column) = wrap_column {
+        transform_template_wrap_markdown_text(&output, wrap_column)
+    } else {
+        output
+    };
+    transform_template_apply_markdown_line_ending(output, options.line_ending.as_deref())
+}
+
+fn transform_template_markdown_wrap_column(
+    options: &TransformTemplateEncodeOptions,
+    formatter_profile: Option<&str>,
+) -> Result<Option<usize>, String> {
+    let mut default_wrap = None;
+    for selector in [
+        options.formatter.as_deref(),
+        options.formatter_profile.as_deref(),
+        formatter_profile,
+    ]
+    .into_iter()
+    .flatten()
+    {
+        match selector.trim() {
+            "" | "preserve" | "markdown.preserve" | "canonical" | "markdown.canonical" => {}
+            "wrap" | "markdown.wrap" => default_wrap = Some(80),
+            other => return Err(format!("unsupported Markdown formatter `{other}`")),
+        }
+    }
+
+    let Some(selector) = options
+        .wrap_column
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Ok(default_wrap);
+    };
+
+    match selector {
+        "none" | "preserve" => Ok(None),
+        _ => {
+            let column = selector
+                .parse::<usize>()
+                .map_err(|_| format!("unsupported Markdown formatter wrap column `{selector}`"))?;
+            if column < 8 {
+                return Err(
+                    "Markdown formatter wrap column must be at least 8 characters".to_owned(),
+                );
+            }
+            Ok(Some(column))
+        }
+    }
+}
+
+fn transform_template_wrap_markdown_text(value: &str, column: usize) -> String {
+    normalize_line_endings_to_lf(value)
+        .split('\n')
+        .map(|line| transform_template_wrap_markdown_line(line, column))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn transform_template_wrap_markdown_line(line: &str, column: usize) -> String {
+    if line.trim().is_empty() {
+        return String::new();
+    }
+
+    let mut lines = Vec::new();
+    let mut current = String::new();
+    for word in line.split_whitespace() {
+        let current_len = current.chars().count();
+        let word_len = word.chars().count();
+        if current.is_empty() {
+            current.push_str(word);
+        } else if current_len + 1 + word_len <= column {
+            current.push(' ');
+            current.push_str(word);
+        } else {
+            lines.push(current);
+            current = word.to_owned();
+        }
+    }
+    if !current.is_empty() {
+        lines.push(current);
+    }
+    lines.join("\n")
+}
+
+fn transform_template_apply_markdown_line_ending(
+    output: String,
+    line_ending: Option<&str>,
+) -> Result<String, String> {
+    match line_ending.map(str::trim).filter(|value| !value.is_empty()) {
+        None | Some("preserve") => Ok(output),
+        Some("lf") | Some("\\n") => Ok(normalize_line_endings_to_lf(&output)),
+        Some("crlf") | Some("\\r\\n") => {
+            Ok(normalize_line_endings_to_lf(&output).replace('\n', "\r\n"))
+        }
+        Some(other) => Err(format!(
+            "unsupported Markdown formatter line ending `{other}`"
+        )),
+    }
 }
 
 pub fn transform_template_encode_markdown_inline_code(value: &str) -> String {
@@ -5187,6 +5303,16 @@ fn parse_cemt_encode_options(
         optional_object_string(&fields, &["quote", "quotePolicy", "quote-policy"])?;
     options.ordering =
         optional_object_string(&fields, &["ordering", "order", "keyOrder", "key-order"])?;
+    options.wrap_column = optional_object_string(
+        &fields,
+        &[
+            "wrap",
+            "wrapColumn",
+            "wrap-column",
+            "lineWidth",
+            "line-width",
+        ],
+    )?;
     options.indent = optional_object_string_preserve(&fields, &["indent"])?;
     options.namespace_policy =
         optional_object_string(&fields, &["namespacePolicy", "namespace-policy"])?;
@@ -9754,6 +9880,71 @@ mod tests {
     }
 
     #[test]
+    fn builtin_markdown_text_encoder_applies_wrapping_controls() {
+        let registry = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+        let options = TransformTemplateEncodeOptions {
+            formatter: Some("markdown.wrap".to_owned()),
+            wrap_column: Some("24".to_owned()),
+            line_ending: Some("crlf".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        };
+        let binding = TransformTemplateEncodeBinding {
+            function: markdown_output_function_descriptor(
+                "markdown.text",
+                "markdown-text",
+                "string",
+            ),
+            subject_type: "string".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::from_options(
+                TransformTemplateOutputProducedKind::Text,
+                TransformTemplateEncodingTarget::new(
+                    MARKDOWN_CONTENT_TYPE,
+                    MARKDOWN_SCHEMA_URI,
+                    "markdown-text",
+                )
+                .with_context("text"),
+                &options,
+            ),
+            options,
+        };
+
+        let encoded = registry
+            .encode(
+                &binding,
+                &Value::String("Alpha beta *bold* gamma delta epsilon".to_owned()),
+            )
+            .expect("markdown text wrapper runs");
+        assert_eq!(
+            encoded,
+            Value::String("Alpha beta \\*bold\\*\r\ngamma delta epsilon".to_owned())
+        );
+
+        let mut invalid_width = binding.clone();
+        invalid_width.options.wrap_column = Some("tiny".to_owned());
+        let width_error = registry
+            .encode(&invalid_width, &Value::String("Alpha beta".to_owned()))
+            .expect_err("invalid wrap column is rejected");
+        assert!(width_error.contains("unsupported Markdown formatter wrap column `tiny`"));
+
+        let mut too_small = binding.clone();
+        too_small.options.wrap_column = Some("4".to_owned());
+        let small_error = registry
+            .encode(&too_small, &Value::String("Alpha beta".to_owned()))
+            .expect_err("too-small wrap column is rejected");
+        assert!(small_error.contains("wrap column must be at least 8"));
+
+        let mut unsupported_formatter = binding.clone();
+        unsupported_formatter.options.formatter = Some("markdown.grid".to_owned());
+        let formatter_error = registry
+            .encode(
+                &unsupported_formatter,
+                &Value::String("Alpha beta".to_owned()),
+            )
+            .expect_err("unsupported markdown formatter is rejected");
+        assert!(formatter_error.contains("unsupported Markdown formatter `markdown.grid`"));
+    }
+
+    #[test]
     fn builtin_csv_encode_implementations_quote_fields_and_records() {
         let registry = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
         let field_binding = TransformTemplateEncodeBinding {
@@ -10882,6 +11073,7 @@ mod tests {
                     lineEnding: "lf",
                     quotePolicy: "double",
                     ordering: "lexical",
+                    wrapColumn: "72",
                     indent: "  ",
                     namespacePolicy: "repair",
                     raw: true,
@@ -10917,6 +11109,7 @@ mod tests {
         assert_eq!(parsed.options.line_ending.as_deref(), Some("lf"));
         assert_eq!(parsed.options.quote_policy.as_deref(), Some("double"));
         assert_eq!(parsed.options.ordering.as_deref(), Some("lexical"));
+        assert_eq!(parsed.options.wrap_column.as_deref(), Some("72"));
         assert_eq!(parsed.options.indent.as_deref(), Some("  "));
         assert_eq!(parsed.options.namespace_policy.as_deref(), Some("repair"));
         assert!(parsed.options.raw);

@@ -198,6 +198,9 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add canonical object ordering controls for JSON/YAML CEMT formatter
           profiles, including explicit lexical/preserve selectors and
           unsupported ordering diagnostics.
+    - [x] Add initial Markdown text wrapping controls for CEMT formatter
+          options, including wrap-column parsing, LF/CRLF output, and invalid
+          selector diagnostics.
   - [ ] Add writer primitives and CEMT bindings for syntax tokens, styled token
         streams, byte streams, sealed binary chunks, source-map span emission,
         and source-map preservation/generated/none policies.
