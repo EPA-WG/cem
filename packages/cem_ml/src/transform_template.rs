@@ -174,6 +174,8 @@ pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_CAPABILITY_MISSING_CODE: &str =
     "cem.transform_template.output_function_capability_missing";
 pub const TRANSFORM_TEMPLATE_TARGET_SYNTAX_INVALID_CODE: &str =
     "cem.transform_template.target_syntax_invalid";
+pub const TRANSFORM_TEMPLATE_COLOR_PROFILE_INVALID_CODE: &str =
+    "cem.transform_template.color_profile_invalid";
 pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_IDENTITY_MISMATCH_CODE: &str =
     "cem.transform_template.encoded_artifact_identity_mismatch";
 pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_CONTEXT_MISMATCH_CODE: &str =
@@ -471,6 +473,9 @@ pub enum TransformTemplateOutputFunctionResolutionError {
     InvalidTargetSyntax {
         message: String,
     },
+    InvalidColorProfile {
+        message: String,
+    },
 }
 
 impl TransformTemplateOutputFunctionResolutionError {
@@ -508,6 +513,13 @@ impl TransformTemplateOutputFunctionResolutionError {
             Self::InvalidTargetSyntax { message } => Diagnostic {
                 uri: uri.map(str::to_owned),
                 code: TRANSFORM_TEMPLATE_TARGET_SYNTAX_INVALID_CODE.to_owned(),
+                severity: Severity::Error,
+                message: message.clone(),
+                ..Diagnostic::default()
+            },
+            Self::InvalidColorProfile { message } => Diagnostic {
+                uri: uri.map(str::to_owned),
+                code: TRANSFORM_TEMPLATE_COLOR_PROFILE_INVALID_CODE.to_owned(),
                 severity: Severity::Error,
                 message: message.clone(),
                 ..Diagnostic::default()
@@ -622,6 +634,65 @@ impl TransformTemplateOutputFunctionRegistry {
                         subject_type,
                         identity,
                         options: request.options.clone(),
+                    });
+                }
+                Err(TransformTemplateOutputFunctionResolutionError::Unknown) => {
+                    continue;
+                }
+                Err(error) => return Err(error),
+            }
+        }
+
+        Err(TransformTemplateOutputFunctionResolutionError::Unknown)
+    }
+
+    pub fn resolve_color_binding(
+        &self,
+        request: &TransformTemplateEncodeBindingRequest,
+        host_capabilities: &BTreeSet<String>,
+    ) -> Result<TransformTemplateColorBinding, TransformTemplateOutputFunctionResolutionError> {
+        let syntax_rules = request.syntax_rules()?;
+        let color_profile = request.color_output_profile()?;
+        let explicit_profile = request.color_profile_selector();
+        let query_profile = explicit_profile
+            .as_ref()
+            .map(|_| transform_template_canonical_color_profile_selector(&color_profile));
+
+        for subject_type in request.subject_type_candidates() {
+            let query = TransformTemplateOutputFunctionQuery {
+                kind: Some(TransformTemplateOutputFunctionKind::Color),
+                name: request.options.colorizer.clone(),
+                content_type: Some(request.target.content_type.clone()),
+                schema: Some(request.target.schema.clone()),
+                category: Some(request.target.category.clone()),
+                subject: Some(subject_type.clone()),
+                profile: query_profile.clone(),
+                ..TransformTemplateOutputFunctionQuery::default()
+            };
+            match self.resolve(&query, host_capabilities) {
+                Ok(function) => {
+                    validate_transform_template_output_kind_for_syntax(
+                        function.produces,
+                        &syntax_rules,
+                    )?;
+                    let mut identity = TransformTemplateEncodedArtifactIdentity::from_options(
+                        function.produces,
+                        request.target.clone(),
+                        &request.options,
+                    );
+                    identity.color_profile = Some(
+                        transform_template_canonical_color_profile_selector(&color_profile),
+                    );
+                    identity.color_capability =
+                        transform_template_color_capability_selector(&color_profile);
+                    identity.canonical = !request.options.pretty
+                        && (request.options.canonical || function.canonical);
+                    return Ok(TransformTemplateColorBinding {
+                        function: function.clone(),
+                        subject_type,
+                        identity,
+                        options: request.options.clone(),
+                        color_profile,
                     });
                 }
                 Err(TransformTemplateOutputFunctionResolutionError::Unknown) => {
@@ -1626,6 +1697,20 @@ impl TransformTemplateEncodeBindingRequest {
 
         Ok(rules)
     }
+
+    pub fn color_profile_selector(&self) -> Option<String> {
+        transform_template_color_profile_selector(&self.options)
+    }
+
+    pub fn color_output_profile(
+        &self,
+    ) -> Result<TransformTemplateColorOutputProfile, TransformTemplateOutputFunctionResolutionError>
+    {
+        transform_template_color_output_profile_for_target(
+            &self.target,
+            self.color_profile_selector().as_deref(),
+        )
+    }
 }
 
 fn validate_transform_template_output_kind_for_syntax(
@@ -1661,6 +1746,131 @@ fn invalid_target_syntax(
 ) -> TransformTemplateOutputFunctionResolutionError {
     TransformTemplateOutputFunctionResolutionError::InvalidTargetSyntax {
         message: message.into(),
+    }
+}
+
+fn invalid_color_profile(
+    message: impl Into<String>,
+) -> TransformTemplateOutputFunctionResolutionError {
+    TransformTemplateOutputFunctionResolutionError::InvalidColorProfile {
+        message: message.into(),
+    }
+}
+
+const TRANSFORM_TEMPLATE_TERMINAL_TEXT_SCHEMA_URI: &str = "https://cem.dev/ns/data/text/terminal/1";
+
+fn transform_template_color_profile_selector(
+    options: &TransformTemplateEncodeOptions,
+) -> Option<String> {
+    transform_template_trimmed_selector(options.color_profile.as_deref())
+        .or_else(|| transform_template_trimmed_selector(options.profile.as_deref()))
+}
+
+fn transform_template_trimmed_selector(selector: Option<&str>) -> Option<String> {
+    selector
+        .map(str::trim)
+        .filter(|selector| !selector.is_empty())
+        .map(str::to_owned)
+}
+
+fn transform_template_color_output_profile_for_target(
+    target: &TransformTemplateEncodingTarget,
+    selector: Option<&str>,
+) -> Result<TransformTemplateColorOutputProfile, TransformTemplateOutputFunctionResolutionError> {
+    let target_output = transform_template_color_output_kind_for_target(target);
+    let profile = match transform_template_trimmed_selector(selector) {
+        Some(selector) => match target_output {
+            Some(TransformTemplateColorOutputKind::Terminal) => {
+                TransformTemplateColorOutputProfile::terminal_from_selector(&selector)
+                    .map_err(invalid_color_profile)?
+            }
+            Some(TransformTemplateColorOutputKind::Html) => {
+                TransformTemplateColorOutputProfile::html_from_selector(&selector)
+                    .map_err(invalid_color_profile)?
+            }
+            Some(TransformTemplateColorOutputKind::None) | None => {
+                TransformTemplateColorOutputProfile::terminal_from_selector(&selector)
+                    .or_else(|_| TransformTemplateColorOutputProfile::html_from_selector(&selector))
+                    .map_err(|_| {
+                        invalid_color_profile(format!("unsupported color profile `{selector}`"))
+                    })?
+            }
+        },
+        None => match target_output {
+            Some(TransformTemplateColorOutputKind::Terminal) => {
+                TransformTemplateColorOutputProfile::terminal(
+                    TransformTemplateTerminalColorCapability::Auto,
+                )
+            }
+            Some(TransformTemplateColorOutputKind::Html) => {
+                TransformTemplateColorOutputProfile::html(TransformTemplateHtmlColorMode::Classes)
+            }
+            Some(TransformTemplateColorOutputKind::None) | None => {
+                TransformTemplateColorOutputProfile::plain()
+            }
+        },
+    };
+
+    profile.validate().map_err(invalid_color_profile)?;
+    Ok(profile)
+}
+
+fn transform_template_color_output_kind_for_target(
+    target: &TransformTemplateEncodingTarget,
+) -> Option<TransformTemplateColorOutputKind> {
+    let category = target.category.trim();
+    let content_type = content_type_essence(&target.content_type);
+    let schema = target.schema.trim();
+
+    if category == "terminal-color" || schema == TRANSFORM_TEMPLATE_TERMINAL_TEXT_SCHEMA_URI {
+        return Some(TransformTemplateColorOutputKind::Terminal);
+    }
+
+    if category == "html-color"
+        || category.starts_with("html-color-")
+        || category.ends_with("-html-color")
+        || content_type == HTML_CONTENT_TYPE
+        || schema == HTML_SCHEMA_URI
+    {
+        return Some(TransformTemplateColorOutputKind::Html);
+    }
+
+    None
+}
+
+fn transform_template_canonical_color_profile_selector(
+    profile: &TransformTemplateColorOutputProfile,
+) -> String {
+    match profile.output {
+        TransformTemplateColorOutputKind::None => "none".to_owned(),
+        TransformTemplateColorOutputKind::Terminal => {
+            profile.terminal_capability.as_str().to_owned()
+        }
+        TransformTemplateColorOutputKind::Html => profile.html_mode.as_str().to_owned(),
+    }
+}
+
+fn transform_template_color_capability_selector(
+    profile: &TransformTemplateColorOutputProfile,
+) -> Option<String> {
+    (profile.output == TransformTemplateColorOutputKind::Terminal)
+        .then(|| profile.terminal_capability.as_str().to_owned())
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateColorBinding {
+    pub function: TransformTemplateOutputFunctionDescriptor,
+    pub subject_type: String,
+    pub identity: TransformTemplateEncodedArtifactIdentity,
+    #[serde(default)]
+    pub options: TransformTemplateEncodeOptions,
+    pub color_profile: TransformTemplateColorOutputProfile,
+}
+
+impl TransformTemplateColorBinding {
+    pub fn artifact_from_value(&self, value: Value) -> TransformTemplateEncodedArtifact {
+        TransformTemplateEncodedArtifact::new(self.identity.clone(), value)
     }
 }
 
@@ -5383,6 +5593,37 @@ mod tests {
         }
     }
 
+    fn color_output_function_descriptor(
+        name: &str,
+        category: &str,
+        content_type: &str,
+        schema: &str,
+        profile: Option<&str>,
+    ) -> TransformTemplateOutputFunctionDescriptor {
+        TransformTemplateOutputFunctionDescriptor {
+            kind: TransformTemplateOutputFunctionKind::Color,
+            owner: name.split_once('.').map(|(owner, _)| owner.to_owned()),
+            name: name.to_owned(),
+            category: category.to_owned(),
+            subject: "tokens".to_owned(),
+            produces: TransformTemplateOutputProducedKind::Text,
+            content_type: content_type.to_owned(),
+            schema: schema.to_owned(),
+            canonical: false,
+            streamable: true,
+            visibility: TransformTemplateModuleVisibility::Private,
+            implementation: TransformTemplateOutputFunctionImplementation::Cemt,
+            profile: profile.map(str::to_owned),
+            extends: None,
+            capability: None,
+            deterministic: true,
+            trusted: false,
+            fallback: None,
+            params: Vec::new(),
+            body_declared: false,
+        }
+    }
+
     fn evaluated_html_text(owner: &str, value: &str) -> TransformTemplateEvaluatedEncodeExpression {
         let mut artifact = encoded_html_text_artifact();
         artifact.value = Value::String(value.to_owned());
@@ -6494,6 +6735,158 @@ mod tests {
 
         assert_eq!(binding.function.name, "terminal.tokens");
         assert_eq!(binding.subject_type, "tokens");
+    }
+
+    #[test]
+    fn color_binding_resolves_terminal_profile_and_colorizer() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        registry.register(color_output_function_descriptor(
+            "terminal.ansi256",
+            "terminal-color",
+            "text/plain",
+            "https://cem.dev/ns/data/text/terminal/1",
+            Some("ansi-256"),
+        ));
+        let request = TransformTemplateEncodeBindingRequest::new(
+            json!([{"role": "diagnostic.error", "text": "Broken"}]),
+            TransformTemplateEncodingTarget::new(
+                "text/plain",
+                "https://cem.dev/ns/data/text/terminal/1",
+                "terminal-color",
+            ),
+        )
+        .with_subject_type("tokens")
+        .with_options(TransformTemplateEncodeOptions {
+            colorizer: Some("terminal.ansi256".to_owned()),
+            color_profile: Some("ansi-256".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+
+        let binding = registry
+            .resolve_color_binding(&request, &BTreeSet::new())
+            .expect("terminal colorizer resolves");
+
+        assert_eq!(
+            binding.function.kind,
+            TransformTemplateOutputFunctionKind::Color
+        );
+        assert_eq!(binding.function.name, "terminal.ansi256");
+        assert_eq!(binding.subject_type, "tokens");
+        assert_eq!(
+            binding.color_profile.terminal_capability,
+            TransformTemplateTerminalColorCapability::Ansi256
+        );
+        assert_eq!(binding.identity.color_profile.as_deref(), Some("ansi-256"));
+        assert_eq!(
+            binding.identity.color_capability.as_deref(),
+            Some("ansi-256")
+        );
+
+        let artifact =
+            binding.artifact_from_value(Value::String("\u{1b}[31mBroken\u{1b}[0m".to_owned()));
+        artifact
+            .validate_insertion(&TransformTemplateEncodedArtifactInsertionContext {
+                produces: Some(TransformTemplateOutputProducedKind::Text),
+                content_type: "text/plain".to_owned(),
+                schema: "https://cem.dev/ns/data/text/terminal/1".to_owned(),
+                category: Some("terminal-color".to_owned()),
+                context: None,
+                formatter_profile: None,
+                color_profile: Some("ansi-256".to_owned()),
+                color_capability: Some("ansi-256".to_owned()),
+                mode: Some(TransformTemplateEncodedArtifactMode::Document),
+                canonical: Some(false),
+            })
+            .expect("colored artifact identity is compatible");
+    }
+
+    #[test]
+    fn color_binding_resolves_html_profile_alias_to_canonical_identity() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        registry.register(color_output_function_descriptor(
+            "html.css-vars",
+            "html-color",
+            HTML_CONTENT_TYPE,
+            HTML_SCHEMA_URI,
+            Some("css-custom-properties"),
+        ));
+        let request = TransformTemplateEncodeBindingRequest::new(
+            json!([{"role": "diff.added", "text": "+ added"}]),
+            TransformTemplateEncodingTarget::new(HTML_CONTENT_TYPE, HTML_SCHEMA_URI, "html-color"),
+        )
+        .with_subject_type("tokens")
+        .with_options(TransformTemplateEncodeOptions {
+            colorizer: Some("html.css-vars".to_owned()),
+            color_profile: Some("html.css-custom-properties".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+
+        let binding = registry
+            .resolve_color_binding(&request, &BTreeSet::new())
+            .expect("HTML colorizer resolves");
+
+        assert_eq!(binding.function.name, "html.css-vars");
+        assert_eq!(
+            binding.color_profile.html_mode,
+            TransformTemplateHtmlColorMode::CssCustomProperties
+        );
+        assert_eq!(
+            binding.identity.color_profile.as_deref(),
+            Some("css-custom-properties")
+        );
+        assert_eq!(binding.identity.color_capability, None);
+    }
+
+    #[test]
+    fn color_binding_rejects_unsupported_profiles_before_lookup() {
+        let registry = TransformTemplateOutputFunctionRegistry::new();
+        let terminal_request = TransformTemplateEncodeBindingRequest::new(
+            json!([{"role": "syntax.token", "text": "let"}]),
+            TransformTemplateEncodingTarget::new(
+                "text/plain",
+                "https://cem.dev/ns/data/text/terminal/1",
+                "terminal-color",
+            ),
+        )
+        .with_subject_type("tokens")
+        .with_options(TransformTemplateEncodeOptions {
+            colorizer: Some("missing.terminal".to_owned()),
+            color_profile: Some("ansi-1024".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let terminal_error = registry
+            .resolve_color_binding(&terminal_request, &BTreeSet::new())
+            .expect_err("invalid terminal profile is rejected before lookup");
+        assert_eq!(
+            terminal_error.diagnostic(None).code,
+            TRANSFORM_TEMPLATE_COLOR_PROFILE_INVALID_CODE
+        );
+        assert!(terminal_error
+            .diagnostic(None)
+            .message
+            .contains("unsupported terminal color profile `ansi-1024`"));
+
+        let html_request = TransformTemplateEncodeBindingRequest::new(
+            json!([{"role": "syntax.token", "text": "let"}]),
+            TransformTemplateEncodingTarget::new(HTML_CONTENT_TYPE, HTML_SCHEMA_URI, "html-color"),
+        )
+        .with_subject_type("tokens")
+        .with_options(TransformTemplateEncodeOptions {
+            colorizer: Some("missing.html".to_owned()),
+            color_profile: Some("none".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let html_error = registry
+            .resolve_color_binding(&html_request, &BTreeSet::new())
+            .expect_err("terminal no-color profile is rejected for HTML targets");
+        assert_eq!(
+            html_error.diagnostic(None).code,
+            TRANSFORM_TEMPLATE_COLOR_PROFILE_INVALID_CODE
+        );
+        assert!(html_error
+            .diagnostic(None)
+            .message
+            .contains("unsupported HTML color profile `none`"));
     }
 
     #[test]

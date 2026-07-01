@@ -207,6 +207,10 @@ history belongs in git history and the feature-specific docs linked below.
           roles, terminal capability selectors (`none`, `ansi-16`, `ansi-256`,
           `truecolor`, `auto`), HTML style modes, non-color fallback policy,
           reset/escape/fragment-safety validation, and focused tests.
+    - [x] Wire color profile selectors into `color-function`/`colorizer`
+          binding resolution, including terminal/HTML target inference,
+          canonical profile identity, terminal color capability identity, and
+          early diagnostics for unsupported profile selectors.
   - [ ] Define subject handling for scalar values, local/qualified names,
         namespace URIs, identifiers, structured values, CEM AST nodes, CEM DOM
         nodes, XML/HTML nodes, token streams, normalized parser/transform
