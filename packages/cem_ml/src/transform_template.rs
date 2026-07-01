@@ -182,6 +182,10 @@ pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_FALLBACK_UNAVAILABLE_CODE: &str =
     "cem.transform_template.output_function_fallback_unavailable";
 pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_CANONICAL_NONDETERMINISTIC_CODE: &str =
     "cem.transform_template.output_function_canonical_nondeterministic";
+pub const TRANSFORM_TEMPLATE_UNSUPPORTED_CHARSET_CODE: &str =
+    "cem.transform_template.unsupported_charset";
+pub const TRANSFORM_TEMPLATE_CHARSET_MISMATCH_CODE: &str =
+    "cem.transform_template.charset_mismatch";
 pub const TRANSFORM_TEMPLATE_TARGET_SYNTAX_INVALID_CODE: &str =
     "cem.transform_template.target_syntax_invalid";
 pub const TRANSFORM_TEMPLATE_COLOR_PROFILE_INVALID_CODE: &str =
@@ -492,6 +496,14 @@ pub enum TransformTemplateOutputFunctionResolutionError {
     NonDeterministicCanonical {
         function_name: String,
     },
+    UnsupportedCharset {
+        charset: String,
+    },
+    CharsetMismatch {
+        content_type: String,
+        declared_charset: String,
+        requested_charset: String,
+    },
     InvalidTargetSyntax {
         message: String,
     },
@@ -569,6 +581,28 @@ impl TransformTemplateOutputFunctionResolutionError {
                 severity: Severity::Error,
                 message: format!(
                     "CEMT output function `{function_name}` cannot produce canonical output because it is not declared deterministic"
+                ),
+                ..Diagnostic::default()
+            },
+            Self::UnsupportedCharset { charset } => Diagnostic {
+                uri: uri.map(str::to_owned),
+                code: TRANSFORM_TEMPLATE_UNSUPPORTED_CHARSET_CODE.to_owned(),
+                severity: Severity::Error,
+                message: format!(
+                    "charset `{charset}` is not supported; supported charsets are utf-8, utf-16, utf-16be, utf-16le, and us-ascii"
+                ),
+                ..Diagnostic::default()
+            },
+            Self::CharsetMismatch {
+                content_type,
+                declared_charset,
+                requested_charset,
+            } => Diagnostic {
+                uri: uri.map(str::to_owned),
+                code: TRANSFORM_TEMPLATE_CHARSET_MISMATCH_CODE.to_owned(),
+                severity: Severity::Error,
+                message: format!(
+                    "requested charset `{requested_charset}` does not match content type `{content_type}` charset `{declared_charset}`"
                 ),
                 ..Diagnostic::default()
             },
@@ -1849,6 +1883,7 @@ impl TransformTemplateEncodeBindingRequest {
         &self,
     ) -> Result<TransformTemplateTargetSyntaxRules, TransformTemplateOutputFunctionResolutionError>
     {
+        validate_transform_template_charset_request(self)?;
         let rules = self
             .target
             .syntax_rules(&self.options)
@@ -1892,6 +1927,89 @@ impl TransformTemplateEncodeBindingRequest {
             self.color_profile_selector().as_deref(),
         )
     }
+}
+
+fn validate_transform_template_charset_request(
+    request: &TransformTemplateEncodeBindingRequest,
+) -> Result<(), TransformTemplateOutputFunctionResolutionError> {
+    let Some(requested_charset) = transform_template_requested_charset(&request.options) else {
+        return Ok(());
+    };
+    let Some(canonical_requested) =
+        transform_template_supported_charset_selector(&requested_charset)
+    else {
+        return Err(
+            TransformTemplateOutputFunctionResolutionError::UnsupportedCharset {
+                charset: requested_charset,
+            },
+        );
+    };
+
+    if let Some(declared_charset) =
+        transform_template_content_type_charset(&request.target.content_type)
+    {
+        let Some(canonical_declared) =
+            transform_template_supported_charset_selector(&declared_charset)
+        else {
+            return Err(
+                TransformTemplateOutputFunctionResolutionError::UnsupportedCharset {
+                    charset: declared_charset,
+                },
+            );
+        };
+        if canonical_declared != canonical_requested {
+            return Err(
+                TransformTemplateOutputFunctionResolutionError::CharsetMismatch {
+                    content_type: request.target.content_type.clone(),
+                    declared_charset: canonical_declared.to_owned(),
+                    requested_charset: canonical_requested.to_owned(),
+                },
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn transform_template_requested_charset(
+    options: &TransformTemplateEncodeOptions,
+) -> Option<String> {
+    options
+        .charset
+        .as_deref()
+        .map(str::trim)
+        .filter(|charset| !charset.is_empty())
+        .map(str::to_owned)
+}
+
+fn transform_template_supported_charset_selector(charset: &str) -> Option<&'static str> {
+    match charset.trim().to_ascii_lowercase().as_str() {
+        "utf-8" | "utf8" => Some("utf-8"),
+        "utf-16" | "utf16" => Some("utf-16"),
+        "utf-16be" | "utf16be" => Some("utf-16be"),
+        "utf-16le" | "utf16le" => Some("utf-16le"),
+        "us-ascii" | "ascii" => Some("us-ascii"),
+        _ => None,
+    }
+}
+
+fn transform_template_content_type_charset(content_type: &str) -> Option<String> {
+    content_type.split(';').skip(1).find_map(|parameter| {
+        let (name, value) = parameter.split_once('=')?;
+        if name.trim().eq_ignore_ascii_case("charset") {
+            Some(
+                value
+                    .trim()
+                    .trim_matches('"')
+                    .trim_matches('\'')
+                    .trim()
+                    .to_owned(),
+            )
+            .filter(|charset| !charset.is_empty())
+        } else {
+            None
+        }
+    })
 }
 
 fn validate_transform_template_output_kind_for_syntax(
@@ -6832,6 +6950,81 @@ mod tests {
             .diagnostic(None)
             .message
             .contains("`charset` is not supported for `binary` target syntax"));
+    }
+
+    #[test]
+    fn encode_binding_reports_unsupported_charset_and_charset_mismatch() {
+        let registry = TransformTemplateOutputFunctionRegistry::new();
+
+        let unsupported = TransformTemplateEncodeBindingRequest::new(
+            Value::String("Hello".to_owned()),
+            TransformTemplateEncodingTarget::new(HTML_CONTENT_TYPE, HTML_SCHEMA_URI, "html-text"),
+        )
+        .with_subject_type("string")
+        .with_options(TransformTemplateEncodeOptions {
+            charset: Some("windows-1252".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let unsupported_diagnostic = registry
+            .resolve_encode_binding(&unsupported, &BTreeSet::new())
+            .expect_err("unsupported charset is rejected before lookup")
+            .diagnostic(None);
+        assert_eq!(
+            unsupported_diagnostic.code,
+            TRANSFORM_TEMPLATE_UNSUPPORTED_CHARSET_CODE
+        );
+        assert!(unsupported_diagnostic.message.contains("windows-1252"));
+
+        let mismatch = TransformTemplateEncodeBindingRequest::new(
+            Value::String("Hello".to_owned()),
+            TransformTemplateEncodingTarget::new(
+                "text/html; charset=utf-8",
+                HTML_SCHEMA_URI,
+                "html-text",
+            ),
+        )
+        .with_subject_type("string")
+        .with_options(TransformTemplateEncodeOptions {
+            charset: Some("utf-16le".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let mismatch_diagnostic = registry
+            .resolve_encode_binding(&mismatch, &BTreeSet::new())
+            .expect_err("mismatched charset is rejected before lookup")
+            .diagnostic(None);
+        assert_eq!(
+            mismatch_diagnostic.code,
+            TRANSFORM_TEMPLATE_CHARSET_MISMATCH_CODE
+        );
+        assert!(mismatch_diagnostic.message.contains("utf-16le"));
+        assert!(mismatch_diagnostic.message.contains("utf-8"));
+    }
+
+    #[test]
+    fn encode_binding_accepts_matching_supported_charset_alias() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        registry.register(output_function_descriptor());
+        let request = TransformTemplateEncodeBindingRequest::new(
+            Value::String("Hello".to_owned()),
+            TransformTemplateEncodingTarget::new(
+                "text/html; charset=\"utf-8\"",
+                HTML_SCHEMA_URI,
+                "html-text",
+            ),
+        )
+        .with_subject_type("string")
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some("html.text".to_owned()),
+            charset: Some("UTF8".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+
+        let binding = registry
+            .resolve_encode_binding(&request, &BTreeSet::new())
+            .expect("charset aliases normalize for binding validation");
+
+        assert_eq!(binding.function.name, "html.text");
+        assert_eq!(binding.identity.charset.as_deref(), Some("UTF8"));
     }
 
     #[test]

@@ -268,6 +268,9 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add output-function diagnostics for kind-specific unknown
           encoder/formatter/colorizer lookup, unavailable custom fallback, and
           non-deterministic functions selected for canonical output.
+    - [x] Add charset diagnostics for unsupported charset selectors and
+          mismatches between the target content type charset parameter and the
+          requested writer charset.
   - [ ] Add AI-facing context projection support as a task-shaped view over the
         canonical AST/DOM/events/schema/token metadata, not a replacement for
         canonical projections. Cover `ai-context-pack`, `ai-entity-graph`,
