@@ -182,6 +182,8 @@ pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_FALLBACK_UNAVAILABLE_CODE: &str =
     "cem.transform_template.output_function_fallback_unavailable";
 pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_CANONICAL_NONDETERMINISTIC_CODE: &str =
     "cem.transform_template.output_function_canonical_nondeterministic";
+pub const TRANSFORM_TEMPLATE_UNSAFE_RAW_INSERTION_CODE: &str =
+    "cem.transform_template.unsafe_raw_insertion";
 pub const TRANSFORM_TEMPLATE_UNSUPPORTED_CHARSET_CODE: &str =
     "cem.transform_template.unsupported_charset";
 pub const TRANSFORM_TEMPLATE_CHARSET_MISMATCH_CODE: &str =
@@ -498,6 +500,11 @@ pub enum TransformTemplateOutputFunctionResolutionError {
     NonDeterministicCanonical {
         function_name: String,
     },
+    UnsafeRawInsertion {
+        function_name: String,
+        category: String,
+        content_type: String,
+    },
     UnsupportedCharset {
         charset: String,
     },
@@ -583,6 +590,19 @@ impl TransformTemplateOutputFunctionResolutionError {
                 severity: Severity::Error,
                 message: format!(
                     "CEMT output function `{function_name}` cannot produce canonical output because it is not declared deterministic"
+                ),
+                ..Diagnostic::default()
+            },
+            Self::UnsafeRawInsertion {
+                function_name,
+                category,
+                content_type,
+            } => Diagnostic {
+                uri: uri.map(str::to_owned),
+                code: TRANSFORM_TEMPLATE_UNSAFE_RAW_INSERTION_CODE.to_owned(),
+                severity: Severity::Error,
+                message: format!(
+                    "CEMT output function `{function_name}` cannot insert raw `{category}` output for `{content_type}` because it is not declared trusted"
                 ),
                 ..Diagnostic::default()
             },
@@ -831,6 +851,7 @@ impl TransformTemplateOutputFunctionRegistry {
                         &syntax_rules,
                     )?;
                     validate_transform_template_canonical_determinism(function, &request.options)?;
+                    validate_transform_template_raw_output_trust(function, &request.options)?;
                     let mut identity = TransformTemplateEncodedArtifactIdentity::from_options(
                         function.produces,
                         request.target.clone(),
@@ -1006,6 +1027,8 @@ pub struct TransformTemplateEncodeOptions {
     pub preserve: bool,
     #[serde(default, skip_serializing_if = "is_false")]
     pub pretty: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub raw: bool,
     #[serde(default)]
     pub mode: TransformTemplateEncodedArtifactMode,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2051,6 +2074,22 @@ fn validate_transform_template_canonical_determinism(
         return Err(
             TransformTemplateOutputFunctionResolutionError::NonDeterministicCanonical {
                 function_name: function.name.clone(),
+            },
+        );
+    }
+    Ok(())
+}
+
+fn validate_transform_template_raw_output_trust(
+    function: &TransformTemplateOutputFunctionDescriptor,
+    options: &TransformTemplateEncodeOptions,
+) -> Result<(), TransformTemplateOutputFunctionResolutionError> {
+    if options.raw && !function.trusted {
+        return Err(
+            TransformTemplateOutputFunctionResolutionError::UnsafeRawInsertion {
+                function_name: function.name.clone(),
+                category: function.category.clone(),
+                content_type: function.content_type.clone(),
             },
         );
     }
@@ -3696,6 +3735,9 @@ fn parse_cemt_encode_options(
     }
     if let Some(value) = optional_object_bool(&fields, &["pretty"])? {
         options.pretty = value;
+    }
+    if let Some(value) = optional_object_bool(&fields, &["raw", "rawOutput", "raw-output"])? {
+        options.raw = value;
     }
     options.encoder = optional_object_string(&fields, &["encoder"])?;
     options.formatter = optional_object_string(&fields, &["formatter"])?;
@@ -6910,6 +6952,65 @@ mod tests {
     }
 
     #[test]
+    fn encode_binding_rejects_untrusted_raw_output_function() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        let mut untrusted = output_function_descriptor();
+        untrusted.name = "html.text.raw".to_owned();
+        untrusted.trusted = false;
+        registry.register(untrusted.clone());
+
+        let request = TransformTemplateEncodeBindingRequest::new(
+            Value::String("<strong>Raw</strong>".to_owned()),
+            TransformTemplateEncodingTarget::new(HTML_CONTENT_TYPE, HTML_SCHEMA_URI, "html-text"),
+        )
+        .with_subject_type("string")
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some(untrusted.name.clone()),
+            raw: true,
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let diagnostic = registry
+            .resolve_encode_binding(&request, &BTreeSet::new())
+            .expect_err("raw output requires trusted function")
+            .diagnostic(Some("template.cemt"));
+
+        assert_eq!(
+            diagnostic.code,
+            TRANSFORM_TEMPLATE_UNSAFE_RAW_INSERTION_CODE
+        );
+        assert!(diagnostic.message.contains("html.text.raw"));
+        assert!(diagnostic.message.contains("html-text"));
+        assert!(diagnostic.message.contains("trusted"));
+    }
+
+    #[test]
+    fn encode_binding_allows_trusted_raw_output_function() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        let mut trusted = output_function_descriptor();
+        trusted.name = "html.text.raw".to_owned();
+        trusted.trusted = true;
+        registry.register(trusted.clone());
+
+        let request = TransformTemplateEncodeBindingRequest::new(
+            Value::String("<strong>Raw</strong>".to_owned()),
+            TransformTemplateEncodingTarget::new(HTML_CONTENT_TYPE, HTML_SCHEMA_URI, "html-text"),
+        )
+        .with_subject_type("string")
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some(trusted.name.clone()),
+            raw: true,
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let binding = registry
+            .resolve_encode_binding(&request, &BTreeSet::new())
+            .expect("trusted function can satisfy raw output request");
+
+        assert_eq!(binding.function.name, "html.text.raw");
+        assert!(binding.function.trusted);
+        assert!(binding.options.raw);
+    }
+
+    #[test]
     fn encode_binding_rejects_invalid_target_syntax_options() {
         let registry = TransformTemplateOutputFunctionRegistry::new();
 
@@ -8161,6 +8262,7 @@ mod tests {
                     quote: "double",
                     indent: "  ",
                     namespacePolicy: "repair",
+                    raw: true,
                     sourceMap: "generated"
                 }
             )"#,
@@ -8186,6 +8288,7 @@ mod tests {
         assert_eq!(parsed.options.quote_policy.as_deref(), Some("double"));
         assert_eq!(parsed.options.indent.as_deref(), Some("  "));
         assert_eq!(parsed.options.namespace_policy.as_deref(), Some("repair"));
+        assert!(parsed.options.raw);
         assert_eq!(
             parsed.options.source_map_policy,
             TransformTemplateSourceMapPolicy::Generated

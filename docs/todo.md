@@ -274,6 +274,8 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add encoded-artifact insertion compatibility diagnostics that preserve
           specific identity/context/produced-kind/value-shape errors while also
           surfacing a stable artifact-insertion category code for renderers.
+    - [x] Add unsafe raw insertion diagnostics so `raw` encode requests require
+          an explicitly trusted output function declaration before binding.
   - [ ] Add AI-facing context projection support as a task-shaped view over the
         canonical AST/DOM/events/schema/token metadata, not a replacement for
         canonical projections. Cover `ai-context-pack`, `ai-entity-graph`,
