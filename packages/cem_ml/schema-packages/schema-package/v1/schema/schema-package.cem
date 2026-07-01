@@ -20,9 +20,10 @@
         {element @name="schema" @required-attributes="uri source" @optional-attributes="version"}
         {element @name="content-type" @required-attributes="value" @optional-attributes="primary alias"}
         {element @name="namespace" @required-attributes="uri" @optional-attributes="prefix"}
-        {element @name="converter" @required-attributes="id implementation" @optional-attributes="template template-content-type template-schema template-entrypoint rust-symbol streamable lossiness output-syntax encoding-category formatter-profile color-profile parity implicit explicit-only readiness fallback-reason cost" @children="from to"}
+        {element @name="converter" @required-attributes="id implementation" @optional-attributes="template template-content-type template-schema template-entrypoint rust-symbol streamable lossiness output-syntax encoding-category formatter-profile color-profile parity implicit explicit-only readiness fallback-reason cost" @children="from to parity-fixture"}
         {element @name="from" @required-attributes="content-type" @optional-attributes="schema"}
         {element @name="to" @required-attributes="content-type" @optional-attributes="schema"}
+        {element @name="parity-fixture" @required-attributes="id path" @optional-attributes="content-type schema expected-diagnostics"}
         {element @name="artifact" @required-attributes="kind path" @optional-attributes="content-type schema generated"}
     }
 
@@ -55,6 +56,7 @@
         {attribute @name="cost" @type="schema:integer"}
         {attribute @name="content-type" @type="schema:media-type"}
         {attribute @name="schema" @type="schema:uri"}
+        {attribute @name="expected-diagnostics" @type="schema:string"}
         {attribute @name="kind" @type="schema:identifier"}
         {attribute @name="path" @type="schema:path"}
         {attribute @name="generated" @type="schema:boolean"}

@@ -311,6 +311,9 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add shared conversion parity fixture execution so paired CEMT/native
           producers run against the same fixture inputs and expected diagnostic
           projections before drift is reported.
+    - [x] Add package manifest metadata for converter parity fixtures, including
+          package-relative fixture paths, input identity, and expected diagnostic
+          code projections for DOM serializer parity.
   - [ ] Implement CEMT output safety rules: context-specific categories must not
         be conflated, encoded artifacts must not be silently re-encoded,
         compatible-artifact concatenation must validate target identity and

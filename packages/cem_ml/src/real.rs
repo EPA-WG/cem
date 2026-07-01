@@ -4660,6 +4660,7 @@ mod tests {
                 streamable: true,
                 lossiness: Some("serialization".to_owned()),
                 output_contract: Default::default(),
+                parity_fixtures: Vec::new(),
                 implicit: true,
                 explicit_only: false,
                 cost: 1,

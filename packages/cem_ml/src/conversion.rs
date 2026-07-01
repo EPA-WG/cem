@@ -97,6 +97,15 @@ pub struct ConversionTemplateDescriptor {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConversionParityFixtureDescriptor {
+    pub id: String,
+    pub path: String,
+    pub content_type: Option<String>,
+    pub schema: Option<String>,
+    pub expected_diagnostic_codes: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConversionRustFallbackDescriptor {
     pub rust_symbol: String,
     pub reason: String,
@@ -154,6 +163,7 @@ pub struct ConversionDescriptor {
     pub streamable: bool,
     pub lossiness: Option<String>,
     pub output_contract: ConversionOutputContractDescriptor,
+    pub parity_fixtures: Vec<ConversionParityFixtureDescriptor>,
     pub implicit: bool,
     pub explicit_only: bool,
     pub cost: u32,
@@ -2188,6 +2198,7 @@ fn conversion_descriptor_from_manifest_node(
             .map(|value| parse_manifest_parity_mode(&id, value))
             .transpose()?,
     };
+    let parity_fixtures = manifest_parity_fixtures(document, node_id, &id, base_path)?;
 
     let template = match implementation {
         ConversionImplementation::Cemt => {
@@ -2243,6 +2254,7 @@ fn conversion_descriptor_from_manifest_node(
         streamable,
         lossiness: optional_manifest_attr(&attrs, "lossiness").map(str::to_owned),
         output_contract,
+        parity_fixtures,
         implicit,
         explicit_only,
         cost,
@@ -2285,6 +2297,44 @@ fn package_relative_path(base_path: &str, path: &str) -> String {
         base_path.trim_end_matches('/'),
         path.trim_start_matches("./")
     )
+}
+
+fn manifest_parity_fixtures(
+    document: &CemDocument,
+    converter_node_id: AstNodeId,
+    converter_id: &str,
+    base_path: &str,
+) -> Result<Vec<ConversionParityFixtureDescriptor>, ConversionManifestError> {
+    element_child_ids_by_local_name(document, converter_node_id, "parity-fixture")
+        .into_iter()
+        .map(|fixture_node_id| {
+            let attrs = collect_manifest_attrs(document, fixture_node_id);
+            let id = required_manifest_attr(&attrs, Some(converter_id), "id")?.to_owned();
+            let path = package_relative_path(
+                base_path,
+                required_manifest_attr(&attrs, Some(converter_id), "path")?,
+            );
+            let content_type =
+                optional_manifest_attr(&attrs, "content-type").map(content_type_essence);
+            let schema = optional_manifest_attr(&attrs, "schema").map(str::to_owned);
+            let expected_diagnostic_codes = optional_manifest_attr(&attrs, "expected-diagnostics")
+                .map(|value| {
+                    value
+                        .split_whitespace()
+                        .map(str::to_owned)
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+
+            Ok(ConversionParityFixtureDescriptor {
+                id,
+                path,
+                content_type,
+                schema,
+                expected_diagnostic_codes,
+            })
+        })
+        .collect()
 }
 
 fn manifest_endpoint(
@@ -2553,6 +2603,7 @@ fn rust_edge(
         streamable: true,
         lossiness: Some(lossiness.to_owned()),
         output_contract: ConversionOutputContractDescriptor::default(),
+        parity_fixtures: Vec::new(),
         implicit: true,
         explicit_only: false,
         cost,
@@ -2636,6 +2687,7 @@ mod tests {
             streamable: true,
             lossiness: Some("serialization".to_owned()),
             output_contract,
+            parity_fixtures: Vec::new(),
             implicit: true,
             explicit_only: false,
             cost: 1,
@@ -2643,11 +2695,15 @@ mod tests {
     }
 
     fn package_source(manifest_source: &'static str) -> BuiltinSchemaPackage {
+        let mut descriptor = descriptor(
+            CEM_DOM_PROJECTION_SCHEMA_URI,
+            SchemaContentType::primary(CEM_DOM_PROJECTION_CONTENT_TYPE),
+        );
+        descriptor.package_id = "cem-dom-projection".to_owned();
+        descriptor.source =
+            "schema-packages/cem-dom-projection/v1/schema/cem-dom-projection.cem".to_owned();
         BuiltinSchemaPackage {
-            descriptor: descriptor(
-                CEM_DOM_PROJECTION_SCHEMA_URI,
-                SchemaContentType::primary(CEM_DOM_PROJECTION_CONTENT_TYPE),
-            ),
+            descriptor,
             manifest_source,
             schema_source: "",
         }
@@ -2807,6 +2863,21 @@ mod tests {
         assert!(html.implicit);
         assert!(!html.explicit_only);
         assert_eq!(html.cost, 100);
+        assert_eq!(html.parity_fixtures.len(), 1);
+        assert_eq!(html.parity_fixtures[0].id, "basic-dom");
+        assert_eq!(
+            html.parity_fixtures[0].path,
+            "schema-packages/cem-dom-projection/v1/examples/basic-dom.cem-bin"
+        );
+        assert_eq!(
+            html.parity_fixtures[0].content_type.as_deref(),
+            Some(CEM_DOM_PROJECTION_CONTENT_TYPE)
+        );
+        assert_eq!(
+            html.parity_fixtures[0].schema.as_deref(),
+            Some(CEM_DOM_PROJECTION_SCHEMA_URI)
+        );
+        assert!(html.parity_fixtures[0].expected_diagnostic_codes.is_empty());
 
         let template = html.template.as_ref().expect("HTML CEMT template");
         assert_eq!(
@@ -2837,6 +2908,12 @@ mod tests {
         assert_eq!(
             xml.output_contract.parity,
             Some(ConversionParityMode::ParseEquivalent)
+        );
+        assert_eq!(xml.parity_fixtures.len(), 1);
+        assert_eq!(xml.parity_fixtures[0].id, "basic-dom");
+        assert_eq!(
+            xml.parity_fixtures[0].path,
+            "schema-packages/cem-dom-projection/v1/examples/basic-dom.cem-bin"
         );
         let xml_template = xml.template.as_ref().expect("XML CEMT template");
         assert_eq!(
@@ -2940,6 +3017,66 @@ mod tests {
     }
 
     #[test]
+    fn package_manifest_declares_converter_parity_fixtures() {
+        let package = package_source(
+            r#"@doc cem-ml 1
+{package @id="test-dom-projection" @version="1.0.0" |
+    {schema @uri="https://cem.dev/ns/projection/dom/1" @source="schema/cem-dom-projection.cem"}
+    {content-type @value="application/vnd.cem.dom+cem-bin" @primary=true}
+    {converter
+        @id="dom-to-html-cemt"
+        @implementation="cemt"
+        @template="converters/dom-to-html.cemt"
+        @template-content-type="application/vnd.cem.transform+cem"
+        @template-schema="https://cem.dev/ns/transform/cem/1"
+        @template-entrypoint="main"
+        @output-syntax="html"
+        @encoding-category="html-document"
+        @parity="parse-equivalent" |
+        {from @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
+        {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+        {parity-fixture
+            @id="invalid-kind"
+            @path="examples/invalid-kind.dom.json"
+            @content-type="application/vnd.cem.dom+json"
+            @schema="https://cem.dev/ns/projection/dom/1"
+            @expected-diagnostics="cem.projection.dom.json_shape cem.converter.parity_drift"}
+    }
+}"#,
+        );
+
+        let descriptors = conversion_descriptors_from_schema_package(&package)
+            .expect("parity fixture metadata loads");
+        let descriptor = descriptors
+            .iter()
+            .find(|descriptor| descriptor.id == "dom-to-html-cemt")
+            .expect("converter descriptor");
+
+        assert_eq!(descriptor.parity_fixtures.len(), 1);
+        let fixture = &descriptor.parity_fixtures[0];
+        assert_eq!(fixture.id, "invalid-kind");
+        assert_eq!(
+            fixture.path,
+            "schema-packages/cem-dom-projection/v1/examples/invalid-kind.dom.json"
+        );
+        assert_eq!(
+            fixture.content_type.as_deref(),
+            Some(CEM_DOM_JSON_PROJECTION_CONTENT_TYPE)
+        );
+        assert_eq!(
+            fixture.schema.as_deref(),
+            Some(CEM_DOM_PROJECTION_SCHEMA_URI)
+        );
+        assert_eq!(
+            fixture.expected_diagnostic_codes,
+            vec![
+                "cem.projection.dom.json_shape".to_owned(),
+                "cem.converter.parity_drift".to_owned()
+            ]
+        );
+    }
+
+    #[test]
     fn builtin_registry_declares_cemt_native_parity_contracts() {
         let registry = ConversionRegistry::with_builtin_converters();
         let (contracts, diagnostics) = registry.cemt_native_parity_contracts();
@@ -2990,6 +3127,7 @@ mod tests {
                 streamable: true,
                 lossiness: Some("serialization".to_owned()),
                 output_contract: ConversionOutputContractDescriptor::default(),
+                parity_fixtures: Vec::new(),
                 implicit: true,
                 explicit_only: false,
                 cost: 1,
@@ -3023,6 +3161,7 @@ mod tests {
                     parity: Some(ConversionParityMode::ByteExact),
                     ..ConversionOutputContractDescriptor::default()
                 },
+                parity_fixtures: Vec::new(),
                 implicit: true,
                 explicit_only: false,
                 cost: 1,
@@ -4276,6 +4415,7 @@ mod tests {
                 streamable: true,
                 lossiness: Some("serialization".to_owned()),
                 output_contract: ConversionOutputContractDescriptor::default(),
+                parity_fixtures: Vec::new(),
                 implicit: true,
                 explicit_only: false,
                 cost: 1,
