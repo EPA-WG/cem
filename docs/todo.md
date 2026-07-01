@@ -216,6 +216,11 @@ history belongs in git history and the feature-specific docs linked below.
         nodes, XML/HTML nodes, token streams, normalized parser/transform
         events, sealed binary chunks, attributes/slots, and fragments. Raw
         target syntax must be schema-gated and never the default.
+    - [x] Add initial typed subject candidate inference for CEMT encode inputs:
+          explicit `subjectType` envelopes, local/qualified names, namespace
+          URIs, identifiers, token streams, parser/transform event streams,
+          sealed/binary chunk streams, attributes, slots, fragments, semantic
+          AST/DOM/XML/HTML node hints, and structured `map` fallbacks.
   - [ ] Extend schema package metadata so each supported schema can declare
         source identity, output syntax, destination content type and schema,
         CEMT serializer template, template content type/schema, entrypoint,

@@ -1659,9 +1659,6 @@ impl TransformTemplateEncodeBindingRequest {
             return vec![subject_type.to_owned()];
         }
         transform_template_encode_subject_type_candidates(&self.subject)
-            .into_iter()
-            .map(str::to_owned)
-            .collect()
     }
 
     pub fn syntax_rules(
@@ -2777,17 +2774,290 @@ where
     }
 }
 
-pub fn transform_template_encode_subject_type_candidates(subject: &Value) -> Vec<&'static str> {
-    match subject {
-        Value::Null => vec!["null", "json"],
-        Value::Bool(_) => vec!["boolean", "json"],
-        Value::Number(number) if number.is_i64() || number.is_u64() => {
-            vec!["integer", "number", "json"]
+pub fn transform_template_encode_subject_type_candidates(subject: &Value) -> Vec<String> {
+    let mut candidates = Vec::new();
+    append_transform_template_semantic_subject_type_candidates(&mut candidates, subject);
+    append_transform_template_json_subject_type_candidates(&mut candidates, subject);
+    candidates
+}
+
+fn append_transform_template_subject_type_candidate(
+    candidates: &mut Vec<String>,
+    candidate: impl AsRef<str>,
+) {
+    let candidate = candidate.as_ref().trim();
+    if candidate.is_empty() || candidates.iter().any(|existing| existing == candidate) {
+        return;
+    }
+    candidates.push(candidate.to_owned());
+}
+
+fn append_transform_template_subject_type_hint(candidates: &mut Vec<String>, value: &str) {
+    let normalized = value.trim().replace('_', "-").to_ascii_lowercase();
+    if normalized.is_empty() || normalized.chars().any(char::is_control) {
+        return;
+    }
+
+    match normalized.as_str() {
+        "qname" | "qualified-name" => {
+            append_transform_template_subject_type_candidate(candidates, "qualified-name");
+            append_transform_template_subject_type_candidate(candidates, "name");
         }
-        Value::Number(_) => vec!["number", "json"],
-        Value::String(_) => vec!["string", "json"],
-        Value::Array(_) => vec!["array", "json"],
-        Value::Object(_) => vec!["object", "json"],
+        "localname" | "local-name" => {
+            append_transform_template_subject_type_candidate(candidates, "local-name");
+            append_transform_template_subject_type_candidate(candidates, "name");
+        }
+        "namespace" | "namespace-uri" | "namespaceuri" => {
+            append_transform_template_subject_type_candidate(candidates, "namespace-uri");
+            append_transform_template_subject_type_candidate(candidates, "name");
+        }
+        "token-stream" | "writer-token-stream" | "tokens" => {
+            append_transform_template_subject_type_candidate(candidates, "tokens");
+            append_transform_template_subject_type_candidate(candidates, "token-stream");
+        }
+        "parser-events" | "parse-events" => {
+            append_transform_template_subject_type_candidate(candidates, "parser-events");
+            append_transform_template_subject_type_candidate(candidates, "event-stream");
+            append_transform_template_subject_type_candidate(candidates, "events");
+        }
+        "transform-events" => {
+            append_transform_template_subject_type_candidate(candidates, "transform-events");
+            append_transform_template_subject_type_candidate(candidates, "event-stream");
+            append_transform_template_subject_type_candidate(candidates, "events");
+        }
+        "event-stream" | "events" => {
+            append_transform_template_subject_type_candidate(candidates, "event-stream");
+            append_transform_template_subject_type_candidate(candidates, "events");
+        }
+        "sealed-binary-chunks" | "sealed-chunks" => {
+            append_transform_template_subject_type_candidate(candidates, "sealed-binary-chunks");
+            append_transform_template_subject_type_candidate(candidates, "binary-chunks");
+            append_transform_template_subject_type_candidate(candidates, "chunks");
+            append_transform_template_subject_type_candidate(candidates, "chunk-stream");
+        }
+        "binary-chunks" => {
+            append_transform_template_subject_type_candidate(candidates, "binary-chunks");
+            append_transform_template_subject_type_candidate(candidates, "chunks");
+            append_transform_template_subject_type_candidate(candidates, "chunk-stream");
+        }
+        "chunk-stream" | "chunks" => {
+            append_transform_template_subject_type_candidate(candidates, "chunks");
+            append_transform_template_subject_type_candidate(candidates, "chunk-stream");
+        }
+        "fragment" | "document-fragment" => {
+            append_transform_template_subject_type_candidate(candidates, "fragment");
+            append_transform_template_subject_type_candidate(candidates, "document-fragment");
+        }
+        "cem-ast" | "cem-ast-node" => {
+            append_transform_template_subject_type_candidate(candidates, "cem-ast-node");
+        }
+        "cem-dom" | "cem-dom-node" => {
+            append_transform_template_subject_type_candidate(candidates, "cem-dom-node");
+        }
+        "xmlnode" | "xml-node" => {
+            append_transform_template_subject_type_candidate(candidates, "xml-node");
+        }
+        "htmlnode" | "html-node" => {
+            append_transform_template_subject_type_candidate(candidates, "html-node");
+        }
+        other => append_transform_template_subject_type_candidate(candidates, other),
+    }
+}
+
+fn append_transform_template_semantic_subject_type_candidates(
+    candidates: &mut Vec<String>,
+    subject: &Value,
+) {
+    let Some(object) = subject.as_object() else {
+        return;
+    };
+
+    for key in [
+        "subjectType",
+        "subject-type",
+        "cemtSubjectType",
+        "cemt-subject-type",
+    ] {
+        if let Some(subject_type) = object.get(key).and_then(Value::as_str) {
+            append_transform_template_subject_type_hint(candidates, subject_type);
+        }
+    }
+
+    if object.get("tokens").is_some_and(Value::is_array) {
+        append_transform_template_subject_type_hint(candidates, "tokens");
+    }
+
+    if let Some(events) = object.get("events").and_then(Value::as_array) {
+        let has_parse_events = events.iter().any(|event| {
+            event.as_object().is_some_and(|event| {
+                event.get("parse").is_some()
+                    || event.get("channel").and_then(Value::as_str) == Some("parse")
+            })
+        });
+        let has_transform_events = events.iter().any(|event| {
+            event.as_object().is_some_and(|event| {
+                event.get("transform").is_some()
+                    || event.get("channel").and_then(Value::as_str) == Some("transform")
+            })
+        });
+        match (has_parse_events, has_transform_events) {
+            (true, false) => {
+                append_transform_template_subject_type_hint(candidates, "parser-events")
+            }
+            (false, true) => {
+                append_transform_template_subject_type_hint(candidates, "transform-events")
+            }
+            _ => append_transform_template_subject_type_hint(candidates, "event-stream"),
+        }
+    }
+
+    if let Some(chunks) = object.get("chunks").and_then(Value::as_array) {
+        let has_binary_chunks = chunks.iter().any(|chunk| {
+            chunk.as_object().is_some_and(|chunk| {
+                chunk
+                    .get("bytes")
+                    .and_then(Value::as_array)
+                    .is_some_and(|bytes| !bytes.is_empty())
+            })
+        });
+        let all_chunks_sealed = !chunks.is_empty()
+            && chunks.iter().all(|chunk| {
+                chunk
+                    .as_object()
+                    .and_then(|chunk| chunk.get("sealed"))
+                    .and_then(Value::as_bool)
+                    == Some(true)
+            });
+        if has_binary_chunks && all_chunks_sealed {
+            append_transform_template_subject_type_hint(candidates, "sealed-binary-chunks");
+        } else if has_binary_chunks {
+            append_transform_template_subject_type_hint(candidates, "binary-chunks");
+        } else {
+            append_transform_template_subject_type_hint(candidates, "chunks");
+        }
+    }
+
+    if transform_template_object_string_field(object, &["qualifiedName", "qualified-name", "qName"])
+        .is_some()
+        || transform_template_object_string_field(object, &["prefix"]).is_some()
+    {
+        append_transform_template_subject_type_hint(candidates, "qualified-name");
+    } else if transform_template_object_string_field(object, &["localName", "local-name"]).is_some()
+    {
+        append_transform_template_subject_type_hint(candidates, "local-name");
+    }
+
+    if transform_template_object_string_field(
+        object,
+        &["namespaceUri", "namespaceURI", "namespace-uri"],
+    )
+    .is_some()
+    {
+        append_transform_template_subject_type_hint(candidates, "namespace-uri");
+    }
+
+    if transform_template_object_string_field(object, &["identifier"]).is_some() {
+        append_transform_template_subject_type_hint(candidates, "identifier");
+    }
+
+    match transform_template_object_string_field(object, &["kind"])
+        .map(|kind| kind.trim().replace('_', "-").to_ascii_lowercase())
+    {
+        Some(kind) if kind == "attribute" => {
+            append_transform_template_subject_type_hint(candidates, "attribute");
+        }
+        Some(kind) if kind == "slot" => {
+            append_transform_template_subject_type_hint(candidates, "slot");
+        }
+        Some(kind) if kind == "fragment" => {
+            append_transform_template_subject_type_hint(candidates, "fragment");
+        }
+        Some(kind)
+            if matches!(
+                kind.as_str(),
+                "cem-ast-node" | "cem-dom-node" | "xml-node" | "html-node"
+            ) =>
+        {
+            append_transform_template_subject_type_hint(candidates, &kind);
+        }
+        _ => {}
+    }
+
+    if object
+        .get("fragment")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        || object.get("mode").and_then(Value::as_str) == Some("fragment")
+    {
+        append_transform_template_subject_type_hint(candidates, "fragment");
+    }
+
+    if object
+        .get("attributeName")
+        .or_else(|| object.get("attribute-name"))
+        .is_some()
+    {
+        append_transform_template_subject_type_hint(candidates, "attribute");
+    }
+
+    if object
+        .get("slotName")
+        .or_else(|| object.get("slot-name"))
+        .or_else(|| object.get("slot"))
+        .is_some()
+    {
+        append_transform_template_subject_type_hint(candidates, "slot");
+    }
+}
+
+fn transform_template_object_string_field<'a>(
+    object: &'a serde_json::Map<String, Value>,
+    keys: &[&str],
+) -> Option<&'a str> {
+    keys.iter().find_map(|key| {
+        object
+            .get(*key)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+    })
+}
+
+fn append_transform_template_json_subject_type_candidates(
+    candidates: &mut Vec<String>,
+    subject: &Value,
+) {
+    match subject {
+        Value::Null => {
+            append_transform_template_subject_type_candidate(candidates, "null");
+            append_transform_template_subject_type_candidate(candidates, "json");
+        }
+        Value::Bool(_) => {
+            append_transform_template_subject_type_candidate(candidates, "boolean");
+            append_transform_template_subject_type_candidate(candidates, "json");
+        }
+        Value::Number(number) if number.is_i64() || number.is_u64() => {
+            append_transform_template_subject_type_candidate(candidates, "integer");
+            append_transform_template_subject_type_candidate(candidates, "number");
+            append_transform_template_subject_type_candidate(candidates, "json");
+        }
+        Value::Number(_) => {
+            append_transform_template_subject_type_candidate(candidates, "number");
+            append_transform_template_subject_type_candidate(candidates, "json");
+        }
+        Value::String(_) => {
+            append_transform_template_subject_type_candidate(candidates, "string");
+            append_transform_template_subject_type_candidate(candidates, "json");
+        }
+        Value::Array(_) => {
+            append_transform_template_subject_type_candidate(candidates, "array");
+            append_transform_template_subject_type_candidate(candidates, "json");
+        }
+        Value::Object(_) => {
+            append_transform_template_subject_type_candidate(candidates, "map");
+            append_transform_template_subject_type_candidate(candidates, "object");
+            append_transform_template_subject_type_candidate(candidates, "json");
+        }
     }
 }
 
@@ -6738,6 +7008,105 @@ mod tests {
     }
 
     #[test]
+    fn encode_binding_infers_token_stream_subject_without_override() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        registry.register(TransformTemplateOutputFunctionDescriptor {
+            kind: TransformTemplateOutputFunctionKind::Encoding,
+            owner: Some("terminal".to_owned()),
+            name: "terminal.tokens".to_owned(),
+            category: "terminal-color".to_owned(),
+            subject: "tokens".to_owned(),
+            produces: TransformTemplateOutputProducedKind::Text,
+            content_type: "text/plain".to_owned(),
+            schema: "https://cem.dev/ns/data/text/terminal/1".to_owned(),
+            canonical: false,
+            streamable: true,
+            visibility: TransformTemplateModuleVisibility::Public,
+            implementation: TransformTemplateOutputFunctionImplementation::Cemt,
+            profile: None,
+            extends: None,
+            capability: None,
+            deterministic: true,
+            trusted: false,
+            fallback: None,
+            params: Vec::new(),
+            body_declared: false,
+        });
+        let request = TransformTemplateEncodeBindingRequest::new(
+            json!({"tokens": [{"kind": "text", "text": "Broken"}]}),
+            TransformTemplateEncodingTarget::new(
+                "text/plain",
+                "https://cem.dev/ns/data/text/terminal/1",
+                "terminal-color",
+            ),
+        )
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some("terminal.tokens".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+
+        let binding = registry
+            .resolve_encode_binding(&request, &BTreeSet::new())
+            .expect("token stream subject resolves without explicit override");
+
+        assert_eq!(binding.function.name, "terminal.tokens");
+        assert_eq!(binding.subject_type, "tokens");
+    }
+
+    #[test]
+    fn encode_binding_resolves_explicit_semantic_subject_hint() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        registry.register(TransformTemplateOutputFunctionDescriptor {
+            kind: TransformTemplateOutputFunctionKind::Encoding,
+            owner: Some("html".to_owned()),
+            name: "html.node".to_owned(),
+            category: "html-fragment".to_owned(),
+            subject: "html-node".to_owned(),
+            produces: TransformTemplateOutputProducedKind::Text,
+            content_type: HTML_CONTENT_TYPE.to_owned(),
+            schema: HTML_SCHEMA_URI.to_owned(),
+            canonical: false,
+            streamable: true,
+            visibility: TransformTemplateModuleVisibility::Public,
+            implementation: TransformTemplateOutputFunctionImplementation::Cemt,
+            profile: None,
+            extends: None,
+            capability: None,
+            deterministic: true,
+            trusted: false,
+            fallback: None,
+            params: Vec::new(),
+            body_declared: false,
+        });
+        let request = TransformTemplateEncodeBindingRequest::new(
+            json!({
+                "subjectType": "html-node",
+                "node": {
+                    "localName": "section",
+                    "children": []
+                }
+            }),
+            TransformTemplateEncodingTarget::new(
+                HTML_CONTENT_TYPE,
+                HTML_SCHEMA_URI,
+                "html-fragment",
+            ),
+        )
+        .with_options(TransformTemplateEncodeOptions {
+            mode: TransformTemplateEncodedArtifactMode::Fragment,
+            encoder: Some("html.node".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+
+        let binding = registry
+            .resolve_encode_binding(&request, &BTreeSet::new())
+            .expect("semantic subject hint resolves");
+
+        assert_eq!(binding.function.name, "html.node");
+        assert_eq!(binding.subject_type, "html-node");
+    }
+
+    #[test]
     fn color_binding_resolves_terminal_profile_and_colorizer() {
         let mut registry = TransformTemplateOutputFunctionRegistry::new();
         registry.register(color_output_function_descriptor(
@@ -6992,11 +7361,49 @@ mod tests {
     fn encode_subject_type_candidates_prefer_specific_types() {
         assert_eq!(
             transform_template_encode_subject_type_candidates(&json!(3)),
-            vec!["integer", "number", "json"]
+            vec!["integer".to_owned(), "number".to_owned(), "json".to_owned()]
         );
         assert_eq!(
             transform_template_encode_subject_type_candidates(&json!({"a": 1})),
-            vec!["object", "json"]
+            vec!["map".to_owned(), "object".to_owned(), "json".to_owned()]
+        );
+        assert_eq!(
+            transform_template_encode_subject_type_candidates(
+                &json!({"tokens": [{"kind": "text", "text": "hello"}]})
+            ),
+            vec![
+                "tokens".to_owned(),
+                "token-stream".to_owned(),
+                "map".to_owned(),
+                "object".to_owned(),
+                "json".to_owned()
+            ]
+        );
+        assert_eq!(
+            transform_template_encode_subject_type_candidates(&json!({
+                "subjectType": "HTMLNode",
+                "node": {"localName": "section"}
+            })),
+            vec![
+                "html-node".to_owned(),
+                "map".to_owned(),
+                "object".to_owned(),
+                "json".to_owned()
+            ]
+        );
+        assert_eq!(
+            transform_template_encode_subject_type_candidates(&json!({
+                "chunks": [{"kind": "frame", "bytes": [1, 2, 3], "sealed": true}]
+            })),
+            vec![
+                "sealed-binary-chunks".to_owned(),
+                "binary-chunks".to_owned(),
+                "chunks".to_owned(),
+                "chunk-stream".to_owned(),
+                "map".to_owned(),
+                "object".to_owned(),
+                "json".to_owned()
+            ]
         );
     }
 
