@@ -1498,6 +1498,8 @@ pub struct TransformTemplateEncodeOptions {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub quote_policy: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ordering: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub indent: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub namespace_policy: Option<String>,
@@ -3496,7 +3498,7 @@ pub fn transform_template_format_yaml_scalar(
     options: &TransformTemplateEncodeOptions,
     formatter_profile: Option<&str>,
 ) -> Result<String, String> {
-    transform_template_yaml_formatter_is_pretty(options, formatter_profile)?;
+    transform_template_yaml_formatter_mode(options, formatter_profile)?;
     let output = match transform_template_yaml_scalar_style(options)? {
         TransformTemplateYamlScalarStyle::DoubleQuoted => {
             transform_template_encode_yaml_scalar(value)
@@ -3516,8 +3518,15 @@ pub fn transform_template_format_yaml_value(
     options: &TransformTemplateEncodeOptions,
     formatter_profile: Option<&str>,
 ) -> Result<String, String> {
-    let pretty = transform_template_yaml_formatter_is_pretty(options, formatter_profile)?;
+    let mode = transform_template_yaml_formatter_mode(options, formatter_profile)?;
     transform_template_yaml_scalar_style(options)?;
+    let ordered_value;
+    let value = if mode.ordering == TransformTemplateObjectOrdering::Lexical {
+        ordered_value = transform_template_order_json_value(value);
+        &ordered_value
+    } else {
+        value
+    };
 
     let output = match value {
         Value::String(value) => {
@@ -3526,7 +3535,7 @@ pub fn transform_template_format_yaml_value(
         Value::Null => "null".to_owned(),
         Value::Bool(value) => value.to_string(),
         Value::Number(value) => value.to_string(),
-        Value::Array(_) | Value::Object(_) if pretty => {
+        Value::Array(_) | Value::Object(_) if mode.pretty => {
             transform_template_pretty_json_value(value, options.indent.as_deref())?
         }
         Value::Array(_) | Value::Object(_) => transform_template_encode_json_value(value)?,
@@ -3541,11 +3550,16 @@ enum TransformTemplateYamlScalarStyle {
     Plain,
 }
 
-fn transform_template_yaml_formatter_is_pretty(
+fn transform_template_yaml_formatter_mode(
     options: &TransformTemplateEncodeOptions,
     formatter_profile: Option<&str>,
-) -> Result<bool, String> {
+) -> Result<TransformTemplateFlowFormatterMode, String> {
     let mut pretty = options.pretty;
+    let mut ordering = if options.canonical && !options.preserve {
+        TransformTemplateObjectOrdering::Lexical
+    } else {
+        TransformTemplateObjectOrdering::Preserve
+    };
     for selector in [
         options.formatter.as_deref(),
         options.formatter_profile.as_deref(),
@@ -3557,10 +3571,15 @@ fn transform_template_yaml_formatter_is_pretty(
         match selector.trim() {
             "" => {}
             "pretty" | "yaml.pretty" => pretty = true,
-            "canonical" | "yaml.canonical" | "flow" | "yaml.flow" => pretty = false,
+            "canonical" | "yaml.canonical" => {
+                pretty = false;
+                ordering = TransformTemplateObjectOrdering::Lexical;
+            }
+            "flow" | "yaml.flow" => pretty = false,
             other => return Err(format!("unsupported YAML formatter `{other}`")),
         }
     }
+    ordering = transform_template_formatter_ordering(options, ordering, "YAML")?;
 
     if pretty {
         let indent = options.indent.as_deref().unwrap_or("  ");
@@ -3569,7 +3588,7 @@ fn transform_template_yaml_formatter_is_pretty(
         }
     }
 
-    Ok(pretty)
+    Ok(TransformTemplateFlowFormatterMode { pretty, ordering })
 }
 
 fn transform_template_yaml_scalar_style(
@@ -3738,8 +3757,15 @@ pub fn transform_template_format_json_value(
     options: &TransformTemplateEncodeOptions,
     formatter_profile: Option<&str>,
 ) -> Result<String, String> {
-    let pretty = transform_template_json_formatter_is_pretty(options, formatter_profile)?;
-    let output = if pretty {
+    let mode = transform_template_json_formatter_mode(options, formatter_profile)?;
+    let ordered_value;
+    let value = if mode.ordering == TransformTemplateObjectOrdering::Lexical {
+        ordered_value = transform_template_order_json_value(value);
+        &ordered_value
+    } else {
+        value
+    };
+    let output = if mode.pretty {
         transform_template_pretty_json_value(value, options.indent.as_deref())?
     } else {
         transform_template_encode_json_value(value)?
@@ -3747,11 +3773,16 @@ pub fn transform_template_format_json_value(
     transform_template_apply_json_line_ending(output, options.line_ending.as_deref())
 }
 
-fn transform_template_json_formatter_is_pretty(
+fn transform_template_json_formatter_mode(
     options: &TransformTemplateEncodeOptions,
     formatter_profile: Option<&str>,
-) -> Result<bool, String> {
+) -> Result<TransformTemplateFlowFormatterMode, String> {
     let mut pretty = options.pretty;
+    let mut ordering = if options.canonical && !options.preserve {
+        TransformTemplateObjectOrdering::Lexical
+    } else {
+        TransformTemplateObjectOrdering::Preserve
+    };
     for selector in [
         options.formatter.as_deref(),
         options.formatter_profile.as_deref(),
@@ -3763,11 +3794,74 @@ fn transform_template_json_formatter_is_pretty(
         match selector.trim() {
             "" => {}
             "pretty" | "json.pretty" => pretty = true,
-            "canonical" | "json.canonical" => pretty = false,
+            "canonical" | "json.canonical" => {
+                pretty = false;
+                ordering = TransformTemplateObjectOrdering::Lexical;
+            }
             other => return Err(format!("unsupported JSON formatter `{other}`")),
         }
     }
-    Ok(pretty)
+    ordering = transform_template_formatter_ordering(options, ordering, "JSON")?;
+    Ok(TransformTemplateFlowFormatterMode { pretty, ordering })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TransformTemplateFlowFormatterMode {
+    pretty: bool,
+    ordering: TransformTemplateObjectOrdering,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TransformTemplateObjectOrdering {
+    Preserve,
+    Lexical,
+}
+
+fn transform_template_formatter_ordering(
+    options: &TransformTemplateEncodeOptions,
+    default_ordering: TransformTemplateObjectOrdering,
+    syntax_name: &str,
+) -> Result<TransformTemplateObjectOrdering, String> {
+    match options
+        .ordering
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        None => Ok(default_ordering),
+        Some("preserve") | Some("source") | Some("input") => {
+            Ok(TransformTemplateObjectOrdering::Preserve)
+        }
+        Some("lexical") | Some("sorted") | Some("canonical") => {
+            Ok(TransformTemplateObjectOrdering::Lexical)
+        }
+        Some(other) => Err(format!(
+            "unsupported {syntax_name} formatter ordering `{other}`"
+        )),
+    }
+}
+
+fn transform_template_order_json_value(value: &Value) -> Value {
+    match value {
+        Value::Array(values) => Value::Array(
+            values
+                .iter()
+                .map(transform_template_order_json_value)
+                .collect(),
+        ),
+        Value::Object(values) => {
+            let ordered = values
+                .iter()
+                .map(|(key, value)| (key.clone(), transform_template_order_json_value(value)))
+                .collect::<BTreeMap<_, _>>();
+            let mut output = serde_json::Map::new();
+            for (key, value) in ordered {
+                output.insert(key, value);
+            }
+            Value::Object(output)
+        }
+        _ => value.clone(),
+    }
 }
 
 fn transform_template_pretty_json_value(
@@ -5091,6 +5185,8 @@ fn parse_cemt_encode_options(
     options.line_ending = optional_object_string(&fields, &["lineEnding", "line-ending"])?;
     options.quote_policy =
         optional_object_string(&fields, &["quote", "quotePolicy", "quote-policy"])?;
+    options.ordering =
+        optional_object_string(&fields, &["ordering", "order", "keyOrder", "key-order"])?;
     options.indent = optional_object_string_preserve(&fields, &["indent"])?;
     options.namespace_policy =
         optional_object_string(&fields, &["namespacePolicy", "namespace-policy"])?;
@@ -9237,6 +9333,78 @@ mod tests {
     }
 
     #[test]
+    fn json_and_yaml_formatters_apply_object_ordering_controls() {
+        let registry = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+        let value = json!({"z": 1, "a": {"y": 2, "b": true}});
+
+        let json_options = TransformTemplateEncodeOptions {
+            ordering: Some("lexical".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        };
+        let json_binding = TransformTemplateEncodeBinding {
+            function: json_output_function_descriptor("json.value", "json-value", "json"),
+            subject_type: "object".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::from_options(
+                TransformTemplateOutputProducedKind::Text,
+                TransformTemplateEncodingTarget::new(
+                    JSON_CONTENT_TYPE,
+                    JSON_VALUE_SCHEMA_URI,
+                    "json-value",
+                ),
+                &json_options,
+            ),
+            options: json_options,
+        };
+        let encoded_json = registry
+            .encode(&json_binding, &value)
+            .expect("JSON lexical ordering runs");
+        assert_eq!(
+            encoded_json,
+            Value::String(r#"{"a":{"b":true,"y":2},"z":1}"#.to_owned())
+        );
+
+        let yaml_options = TransformTemplateEncodeOptions {
+            formatter_profile: Some("yaml.canonical".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        };
+        let yaml_binding = TransformTemplateEncodeBinding {
+            function: yaml_output_function_descriptor("yaml.value", "yaml-value", "json"),
+            subject_type: "object".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::from_options(
+                TransformTemplateOutputProducedKind::Text,
+                TransformTemplateEncodingTarget::new(
+                    YAML_CONTENT_TYPE,
+                    YAML_SCHEMA_URI,
+                    "yaml-value",
+                ),
+                &yaml_options,
+            ),
+            options: yaml_options,
+        };
+        let encoded_yaml = registry
+            .encode(&yaml_binding, &value)
+            .expect("YAML canonical ordering runs");
+        assert_eq!(
+            encoded_yaml,
+            Value::String(r#"{"a":{"b":true,"y":2},"z":1}"#.to_owned())
+        );
+
+        let mut unsupported_json_ordering = json_binding.clone();
+        unsupported_json_ordering.options.ordering = Some("semantic".to_owned());
+        let json_error = registry
+            .encode(&unsupported_json_ordering, &value)
+            .expect_err("unsupported JSON ordering is rejected");
+        assert!(json_error.contains("unsupported JSON formatter ordering `semantic`"));
+
+        let mut unsupported_yaml_ordering = yaml_binding.clone();
+        unsupported_yaml_ordering.options.ordering = Some("semantic".to_owned());
+        let yaml_error = registry
+            .encode(&unsupported_yaml_ordering, &value)
+            .expect_err("unsupported YAML ordering is rejected");
+        assert!(yaml_error.contains("unsupported YAML formatter ordering `semantic`"));
+    }
+
+    #[test]
     fn builtin_yaml_encode_implementations_emit_scalars_and_values() {
         let registry = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
         let scalar_binding = TransformTemplateEncodeBinding {
@@ -10713,6 +10881,7 @@ mod tests {
                     charset: "utf-8",
                     lineEnding: "lf",
                     quotePolicy: "double",
+                    ordering: "lexical",
                     indent: "  ",
                     namespacePolicy: "repair",
                     raw: true,
@@ -10747,6 +10916,7 @@ mod tests {
         assert_eq!(parsed.options.charset.as_deref(), Some("utf-8"));
         assert_eq!(parsed.options.line_ending.as_deref(), Some("lf"));
         assert_eq!(parsed.options.quote_policy.as_deref(), Some("double"));
+        assert_eq!(parsed.options.ordering.as_deref(), Some("lexical"));
         assert_eq!(parsed.options.indent.as_deref(), Some("  "));
         assert_eq!(parsed.options.namespace_policy.as_deref(), Some("repair"));
         assert!(parsed.options.raw);
