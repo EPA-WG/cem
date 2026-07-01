@@ -5170,6 +5170,7 @@ mod tests {
 {module |
   {encoding-function
       @name="html.tokens"
+      @visibility="public"
       @category="html-token-stream"
       @subject="string"
       @produces="tokens"

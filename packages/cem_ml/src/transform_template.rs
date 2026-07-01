@@ -657,6 +657,7 @@ fn output_function_matches(
     query: &TransformTemplateOutputFunctionQuery,
 ) -> bool {
     query.kind.is_none_or(|kind| function.kind == kind)
+        && output_function_visible_to(function, query)
         && query
             .owner
             .as_deref()
@@ -684,6 +685,24 @@ fn output_function_matches(
             .profile
             .as_deref()
             .is_none_or(|profile| function.profile.as_deref() == Some(profile))
+}
+
+fn output_function_visible_to(
+    function: &TransformTemplateOutputFunctionDescriptor,
+    query: &TransformTemplateOutputFunctionQuery,
+) -> bool {
+    if function.visibility == TransformTemplateModuleVisibility::Public
+        || function.owner.is_none()
+        || standard_output_function_contract(&function.name)
+            .is_some_and(|contract| contract.matches_descriptor(function))
+    {
+        return true;
+    }
+
+    query
+        .owner
+        .as_deref()
+        .is_some_and(|owner| function.owner.as_deref() == Some(owner))
 }
 
 fn output_function_matches_alias(
@@ -1220,6 +1239,7 @@ impl TransformTemplateOutputFunctionRegistry {
         for subject_type in &subject_types {
             let query = TransformTemplateOutputFunctionQuery {
                 kind: Some(TransformTemplateOutputFunctionKind::Encoding),
+                owner: request.owner.clone(),
                 name: request.options.encoder.clone(),
                 content_type: Some(request.target.content_type.clone()),
                 schema: Some(request.target.schema.clone()),
@@ -1257,6 +1277,7 @@ impl TransformTemplateOutputFunctionRegistry {
 
         let subjectless_query = TransformTemplateOutputFunctionQuery {
             kind: Some(TransformTemplateOutputFunctionKind::Encoding),
+            owner: request.owner.clone(),
             name: request.options.encoder.clone(),
             content_type: Some(request.target.content_type.clone()),
             schema: Some(request.target.schema.clone()),
@@ -1294,6 +1315,7 @@ impl TransformTemplateOutputFunctionRegistry {
         for subject_type in &subject_types {
             let query = TransformTemplateOutputFunctionQuery {
                 kind: Some(TransformTemplateOutputFunctionKind::Color),
+                owner: request.owner.clone(),
                 name: request.options.colorizer.clone(),
                 content_type: Some(request.target.content_type.clone()),
                 schema: Some(request.target.schema.clone()),
@@ -1336,6 +1358,7 @@ impl TransformTemplateOutputFunctionRegistry {
 
         let subjectless_query = TransformTemplateOutputFunctionQuery {
             kind: Some(TransformTemplateOutputFunctionKind::Color),
+            owner: request.owner.clone(),
             name: request.options.colorizer.clone(),
             content_type: Some(request.target.content_type.clone()),
             schema: Some(request.target.schema.clone()),
@@ -2418,6 +2441,8 @@ pub fn parse_transform_template_encode_expression(
 pub struct TransformTemplateEncodeBindingRequest {
     pub subject: Value,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subject_type: Option<String>,
     pub target: TransformTemplateEncodingTarget,
     #[serde(default)]
@@ -2428,10 +2453,16 @@ impl TransformTemplateEncodeBindingRequest {
     pub fn new(subject: Value, target: TransformTemplateEncodingTarget) -> Self {
         Self {
             subject,
+            owner: None,
             subject_type: None,
             target,
             options: TransformTemplateEncodeOptions::default(),
         }
+    }
+
+    pub fn with_owner(mut self, owner: impl Into<String>) -> Self {
+        self.owner = Some(owner.into());
+        self
     }
 
     pub fn with_subject_type(mut self, subject_type: impl Into<String>) -> Self {
@@ -8422,7 +8453,7 @@ mod tests {
             schema: schema.to_owned(),
             canonical: false,
             streamable: true,
-            visibility: TransformTemplateModuleVisibility::Private,
+            visibility: TransformTemplateModuleVisibility::Public,
             implementation: TransformTemplateOutputFunctionImplementation::Cemt,
             profile: profile.map(str::to_owned),
             extends: None,
@@ -9067,6 +9098,7 @@ mod tests {
         let mut native = resolved.clone();
         native.name = "acme.native.html-text".to_owned();
         native.owner = Some("acme".to_owned());
+        native.visibility = TransformTemplateModuleVisibility::Public;
         native.implementation = TransformTemplateOutputFunctionImplementation::Native;
         native.capability = Some("acme.native.HtmlTextEncoder".to_owned());
         registry.register(native.clone());
@@ -9108,6 +9140,7 @@ mod tests {
         let mut alias = output_function_descriptor();
         alias.owner = Some("acme".to_owned());
         alias.name = "acme.html-text".to_owned();
+        alias.visibility = TransformTemplateModuleVisibility::Public;
         alias.extends = Some("html.text".to_owned());
         registry.register(alias);
 
@@ -9127,6 +9160,100 @@ mod tests {
         assert_eq!(binding.function.owner.as_deref(), Some("acme"));
         assert_eq!(binding.function.name, "acme.html-text");
         assert_eq!(binding.function.extends.as_deref(), Some("html.text"));
+    }
+
+    #[test]
+    fn output_function_registry_enforces_private_custom_visibility() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        let mut private = output_function_descriptor();
+        private.owner = Some("acme".to_owned());
+        private.name = "acme.html-private".to_owned();
+        private.visibility = TransformTemplateModuleVisibility::Private;
+        registry.register(private.clone());
+
+        let mut public = private.clone();
+        public.name = "acme.html-public".to_owned();
+        public.visibility = TransformTemplateModuleVisibility::Public;
+        registry.register(public.clone());
+
+        let private_query = TransformTemplateOutputFunctionQuery {
+            name: Some(private.name.clone()),
+            ..TransformTemplateOutputFunctionQuery::for_identity(
+                TransformTemplateOutputFunctionKind::Encoding,
+                HTML_CONTENT_TYPE,
+                HTML_SCHEMA_URI,
+                "html-text",
+                "string",
+            )
+        };
+
+        assert!(matches!(
+            registry.resolve(&private_query, &BTreeSet::new()),
+            Err(TransformTemplateOutputFunctionResolutionError::Unknown { .. })
+        ));
+
+        let other_owner_query = TransformTemplateOutputFunctionQuery {
+            owner: Some("other".to_owned()),
+            ..private_query.clone()
+        };
+        assert!(matches!(
+            registry.resolve(&other_owner_query, &BTreeSet::new()),
+            Err(TransformTemplateOutputFunctionResolutionError::Unknown { .. })
+        ));
+
+        let owner_query = TransformTemplateOutputFunctionQuery {
+            owner: Some("acme".to_owned()),
+            ..private_query
+        };
+        let resolved_private = registry
+            .resolve(&owner_query, &BTreeSet::new())
+            .expect("matching owner can resolve private custom function");
+        assert_eq!(resolved_private.name, private.name);
+
+        let public_query = TransformTemplateOutputFunctionQuery {
+            name: Some(public.name.clone()),
+            ..TransformTemplateOutputFunctionQuery::for_identity(
+                TransformTemplateOutputFunctionKind::Encoding,
+                HTML_CONTENT_TYPE,
+                HTML_SCHEMA_URI,
+                "html-text",
+                "string",
+            )
+        };
+        let resolved_public = registry
+            .resolve(&public_query, &BTreeSet::new())
+            .expect("public custom function resolves without owner scope");
+        assert_eq!(resolved_public.name, public.name);
+    }
+
+    #[test]
+    fn encode_binding_uses_request_owner_for_private_custom_encoder() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        let mut private = output_function_descriptor();
+        private.owner = Some("acme".to_owned());
+        private.name = "acme.html-private".to_owned();
+        private.visibility = TransformTemplateModuleVisibility::Private;
+        registry.register(private.clone());
+
+        let request = TransformTemplateEncodeBindingRequest::new(
+            Value::String("Hello".to_owned()),
+            TransformTemplateEncodingTarget::new(HTML_CONTENT_TYPE, HTML_SCHEMA_URI, "html-text"),
+        )
+        .with_subject_type("string")
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some(private.name.clone()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+
+        assert!(matches!(
+            registry.resolve_encode_binding(&request, &BTreeSet::new()),
+            Err(TransformTemplateOutputFunctionResolutionError::Unknown { .. })
+        ));
+
+        let binding = registry
+            .resolve_encode_binding(&request.with_owner("acme"), &BTreeSet::new())
+            .expect("owner-scoped request can bind private custom encoder");
+        assert_eq!(binding.function.name, private.name);
     }
 
     #[test]
