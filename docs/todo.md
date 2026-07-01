@@ -271,6 +271,10 @@ history belongs in git history and the feature-specific docs linked below.
           URIs, identifiers, token streams, parser/transform event streams,
           sealed/binary chunk streams, attributes, slots, fragments, semantic
           AST/DOM/XML/HTML node hints, and structured `map` fallbacks.
+    - [x] Add explicit raw-subject inference for schema-owned raw syntax
+          envelopes, including `raw-html`/`raw-xml` candidates and subject-type
+          incompatibility when callers try to bind raw functions from plain
+          values.
   - [ ] Extend schema package metadata so each supported schema can declare
         source identity, output syntax, destination content type and schema,
         CEMT serializer template, template content type/schema, entrypoint,

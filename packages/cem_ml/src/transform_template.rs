@@ -4968,6 +4968,44 @@ fn append_transform_template_subject_type_hint(candidates: &mut Vec<String>, val
             append_transform_template_subject_type_candidate(candidates, "fragment");
             append_transform_template_subject_type_candidate(candidates, "document-fragment");
         }
+        "raw" => append_transform_template_subject_type_candidate(candidates, "raw"),
+        "raw-syntax" => {
+            append_transform_template_subject_type_candidate(candidates, "raw-syntax");
+            append_transform_template_subject_type_candidate(candidates, "raw");
+        }
+        "raw-html" | "html-raw" | "rawhtml" | "htmlraw" => {
+            append_transform_template_raw_subject_type_hint(candidates, "html");
+        }
+        "raw-xml" | "xml-raw" | "rawxml" | "xmlraw" => {
+            append_transform_template_raw_subject_type_hint(candidates, "xml");
+        }
+        "raw-json" | "json-raw" | "rawjson" | "jsonraw" => {
+            append_transform_template_raw_subject_type_hint(candidates, "json");
+        }
+        "raw-yaml" | "yaml-raw" | "rawyaml" | "yamlraw" => {
+            append_transform_template_raw_subject_type_hint(candidates, "yaml");
+        }
+        "raw-csv" | "csv-raw" | "rawcsv" | "csvraw" => {
+            append_transform_template_raw_subject_type_hint(candidates, "csv");
+        }
+        "raw-markdown" | "markdown-raw" | "rawmarkdown" | "markdownraw" => {
+            append_transform_template_raw_subject_type_hint(candidates, "markdown");
+        }
+        "raw-css" | "css-raw" | "rawcss" | "cssraw" => {
+            append_transform_template_raw_subject_type_hint(candidates, "css");
+        }
+        "raw-text" | "text-raw" | "rawtext" | "textraw" => {
+            append_transform_template_raw_subject_type_hint(candidates, "text");
+        }
+        other if other.starts_with("raw-") => {
+            append_transform_template_raw_subject_type_hint(candidates, &other["raw-".len()..]);
+        }
+        other if other.ends_with("-raw") => {
+            append_transform_template_raw_subject_type_hint(
+                candidates,
+                &other[..other.len() - "-raw".len()],
+            );
+        }
         "cem-ast" | "cem-ast-node" => {
             append_transform_template_subject_type_candidate(candidates, "cem-ast-node");
         }
@@ -4982,6 +5020,26 @@ fn append_transform_template_subject_type_hint(candidates: &mut Vec<String>, val
         }
         other => append_transform_template_subject_type_candidate(candidates, other),
     }
+}
+
+fn append_transform_template_raw_subject_type_hint(candidates: &mut Vec<String>, syntax: &str) {
+    let syntax = syntax.trim().replace('_', "-").to_ascii_lowercase();
+    if syntax.is_empty() || syntax.chars().any(char::is_control) {
+        append_transform_template_subject_type_candidate(candidates, "raw");
+        return;
+    }
+    if syntax == "raw" {
+        append_transform_template_subject_type_candidate(candidates, "raw");
+        return;
+    }
+    if syntax == "raw-syntax" {
+        append_transform_template_subject_type_candidate(candidates, "raw-syntax");
+        append_transform_template_subject_type_candidate(candidates, "raw");
+        return;
+    }
+    append_transform_template_subject_type_candidate(candidates, format!("raw-{syntax}"));
+    append_transform_template_subject_type_candidate(candidates, "raw-syntax");
+    append_transform_template_subject_type_candidate(candidates, "raw");
 }
 
 fn append_transform_template_semantic_subject_type_candidates(
@@ -5001,6 +5059,10 @@ fn append_transform_template_semantic_subject_type_candidates(
         if let Some(subject_type) = object.get(key).and_then(Value::as_str) {
             append_transform_template_subject_type_hint(candidates, subject_type);
         }
+    }
+
+    if let Some(raw_syntax) = transform_template_explicit_raw_subject_syntax(object) {
+        append_transform_template_raw_subject_type_hint(candidates, raw_syntax);
     }
 
     if object.get("tokens").is_some_and(Value::is_array) {
@@ -5128,6 +5190,63 @@ fn append_transform_template_semantic_subject_type_candidates(
     {
         append_transform_template_subject_type_hint(candidates, "slot");
     }
+}
+
+fn transform_template_explicit_raw_subject_syntax<'a>(
+    object: &'a serde_json::Map<String, Value>,
+) -> Option<&'a str> {
+    if let Some(syntax) = transform_template_object_string_field(
+        object,
+        &[
+            "rawSyntax",
+            "raw-syntax",
+            "cemtRawSyntax",
+            "cemt-raw-syntax",
+        ],
+    ) {
+        return Some(syntax);
+    }
+
+    let is_raw_kind = transform_template_object_string_field(object, &["kind"])
+        .map(|kind| kind.trim().replace('_', "-").to_ascii_lowercase())
+        .is_some_and(|kind| kind == "raw" || kind == "raw-syntax");
+    let is_raw_flag = object
+        .get("raw")
+        .or_else(|| object.get("rawSubject"))
+        .or_else(|| object.get("raw-subject"))
+        .and_then(Value::as_bool)
+        == Some(true);
+    let has_raw_payload = transform_template_object_string_field(
+        object,
+        &[
+            "rawText",
+            "raw-text",
+            "rawValue",
+            "raw-value",
+            "rawBytes",
+            "raw-bytes",
+        ],
+    )
+    .is_some()
+        || object
+            .get("raw")
+            .is_some_and(|value| value.is_string() || value.is_array() || value.is_object());
+
+    if !(is_raw_kind || is_raw_flag || has_raw_payload) {
+        return None;
+    }
+
+    transform_template_object_string_field(
+        object,
+        &[
+            "syntax",
+            "targetSyntax",
+            "target-syntax",
+            "contentSyntax",
+            "content-syntax",
+        ],
+    )
+    .or(Some("raw"))
 }
 
 fn transform_template_object_string_field<'a>(
@@ -9242,6 +9361,62 @@ mod tests {
     }
 
     #[test]
+    fn encode_binding_raw_subjects_are_schema_gated() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        let mut raw_html = output_function_descriptor();
+        raw_html.name = "html.raw.fragment".to_owned();
+        raw_html.category = "html-raw".to_owned();
+        raw_html.subject = "raw-html".to_owned();
+        raw_html.trusted = true;
+        registry.register(raw_html.clone());
+        let target =
+            TransformTemplateEncodingTarget::new(HTML_CONTENT_TYPE, HTML_SCHEMA_URI, "html-raw");
+
+        let plain_request = TransformTemplateEncodeBindingRequest::new(
+            Value::String("<strong>Raw</strong>".to_owned()),
+            target.clone(),
+        )
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some(raw_html.name.clone()),
+            raw: true,
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let diagnostic = registry
+            .resolve_encode_binding(&plain_request, &BTreeSet::new())
+            .expect_err("plain strings must not default to raw HTML subjects")
+            .diagnostic(Some("template.cemt"));
+
+        assert_eq!(
+            diagnostic.code,
+            TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_SUBJECT_TYPE_INCOMPATIBLE_CODE
+        );
+        assert!(diagnostic.message.contains("html.raw.fragment"));
+        assert!(diagnostic.message.contains("string"));
+        assert!(diagnostic.message.contains("raw-html"));
+
+        let raw_request = TransformTemplateEncodeBindingRequest::new(
+            json!({
+                "rawSyntax": "html",
+                "text": "<strong>Raw</strong>"
+            }),
+            target,
+        )
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some(raw_html.name.clone()),
+            raw: true,
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let binding = registry
+            .resolve_encode_binding(&raw_request, &BTreeSet::new())
+            .expect("explicit raw HTML subject resolves to schema-owned function");
+
+        assert_eq!(binding.function.name, "html.raw.fragment");
+        assert_eq!(binding.subject_type, "raw-html");
+        assert!(binding.function.trusted);
+        assert!(binding.options.raw);
+    }
+
+    #[test]
     fn encode_binding_rejects_lossy_output_without_opt_in() {
         let mut registry = TransformTemplateOutputFunctionRegistry::new();
         let mut lossy = output_function_descriptor();
@@ -11254,6 +11429,51 @@ mod tests {
                 "binary-chunks".to_owned(),
                 "chunks".to_owned(),
                 "chunk-stream".to_owned(),
+                "map".to_owned(),
+                "object".to_owned(),
+                "json".to_owned()
+            ]
+        );
+        assert_eq!(
+            transform_template_encode_subject_type_candidates(&json!("<strong>Raw</strong>")),
+            vec!["string".to_owned(), "json".to_owned()]
+        );
+        assert_eq!(
+            transform_template_encode_subject_type_candidates(&json!({
+                "rawSyntax": "html",
+                "text": "<strong>Raw</strong>"
+            })),
+            vec![
+                "raw-html".to_owned(),
+                "raw-syntax".to_owned(),
+                "raw".to_owned(),
+                "map".to_owned(),
+                "object".to_owned(),
+                "json".to_owned()
+            ]
+        );
+        assert_eq!(
+            transform_template_encode_subject_type_candidates(&json!({
+                "kind": "raw",
+                "syntax": "xml",
+                "text": "<node/>"
+            })),
+            vec![
+                "raw-xml".to_owned(),
+                "raw-syntax".to_owned(),
+                "raw".to_owned(),
+                "map".to_owned(),
+                "object".to_owned(),
+                "json".to_owned()
+            ]
+        );
+        assert_eq!(
+            transform_template_encode_subject_type_candidates(&json!({
+                "kind": "raw",
+                "text": "opaque"
+            })),
+            vec![
+                "raw".to_owned(),
                 "map".to_owned(),
                 "object".to_owned(),
                 "json".to_owned()
