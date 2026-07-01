@@ -175,6 +175,9 @@ history belongs in git history and the feature-specific docs linked below.
           the produced kind before insertion validation.
     - [x] Add render text-boundary diagnostics for valid non-text writer
           artifacts that require a writer adapter before final insertion.
+    - [x] Add the first default writer adapter: CEMT token streams with text
+          payloads can compose into text output while preserving artifact
+          identity, source maps, and output spans.
   - [ ] Add schema helper APIs for target syntax rules, void/empty element
         policy, raw-text/RCDATA modes, namespace repair, identifier validity,
         field/header policy, fragment/document handling, and charset/final byte

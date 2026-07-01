@@ -5157,7 +5157,7 @@ mod tests {
     }
 
     #[test]
-    fn render_transform_stage_reports_writer_adapter_boundary_for_token_artifacts() {
+    fn render_transform_stage_adapts_token_artifacts_to_text_output() {
         let template = TemplateInput {
             uri: "templates/token-stream.cemt".to_owned(),
             bytes: br#"{@doc cem-ml 1}
@@ -5244,16 +5244,24 @@ mod tests {
             },
             &mut diagnostics,
         )
-        .expect("template renders with diagnostics");
+        .expect("template renders");
 
-        assert!(diagnostics.iter().any(|diagnostic| {
-            diagnostic.code
-                == crate::transform_template::TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_WRITER_ADAPTER_MISSING_CODE
-                && diagnostic.node.as_deref() == Some("main")
-                && diagnostic.message.contains("tokens")
-                && diagnostic.message.contains("writer adapter")
-        }));
-        assert!(output.value.is_object());
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        assert_eq!(output.value, Value::String("Hello CEM".to_owned()));
+        assert_eq!(
+            output
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.content_type.as_deref()),
+            Some("text/html")
+        );
+        assert_eq!(
+            output
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.schema.as_deref()),
+            Some("https://cem.dev/ns/data/html/1")
+        );
     }
 
     #[test]

@@ -1424,56 +1424,50 @@ pub fn compose_transform_template_encoded_text_artifacts(
     writer_boundary_context.produces = None;
 
     for evaluated in encoded {
-        if evaluated.artifact.identity.produces != TransformTemplateOutputProducedKind::Text {
-            match evaluated
-                .artifact
-                .validate_insertion(&writer_boundary_context)
-            {
-                Ok(()) => diagnostics.push(diagnostic_for_evaluated_encode_writer_adapter_missing(
-                    evaluated,
-                    TransformTemplateOutputProducedKind::Text,
-                    uri,
-                )),
-                Err(error) => {
-                    diagnostics.push(diagnostic_for_evaluated_encode_error(error, evaluated, uri))
-                }
+        let artifact = match text_composition_artifact_for_evaluated_encode(
+            evaluated,
+            &writer_boundary_context,
+            uri,
+        ) {
+            Ok(artifact) => artifact,
+            Err(diagnostic) => {
+                diagnostics.push(diagnostic);
+                continue;
             }
-            continue;
-        }
+        };
 
-        if let Err(error) = evaluated.artifact.validate_insertion(&text_context) {
+        if let Err(error) = artifact.validate_insertion(&text_context) {
             diagnostics.push(diagnostic_for_evaluated_encode_error(error, evaluated, uri));
             continue;
         }
 
-        let Some(text) = evaluated.artifact.value.as_str() else {
+        let Some(text) = artifact.value.as_str() else {
             diagnostics.push(diagnostic_for_evaluated_encode_value_type(evaluated, uri));
             continue;
         };
 
         if let Some(composition_context) = &composition_context {
-            if let Err(error) = evaluated.artifact.validate_insertion(composition_context) {
+            if let Err(error) = artifact.validate_insertion(composition_context) {
                 diagnostics.push(diagnostic_for_evaluated_encode_error(error, evaluated, uri));
                 continue;
             }
         } else {
             composition_context = Some(
                 TransformTemplateEncodedArtifactInsertionContext::from_encoded_artifact_identity(
-                    &evaluated.artifact.identity,
+                    &artifact.identity,
                 ),
             );
         }
 
         if identity.is_none() {
-            identity = Some(evaluated.artifact.identity.clone());
+            identity = Some(artifact.identity.clone());
         }
         if source_map.is_none() {
-            source_map = evaluated.artifact.source_map.clone();
+            source_map = artifact.source_map.clone();
         }
 
         output_spans.extend(
-            evaluated
-                .artifact
+            artifact
                 .output_spans
                 .iter()
                 .map(|span| shift_output_span(span, byte_offset)),
@@ -1506,6 +1500,69 @@ pub fn compose_transform_template_encoded_text_artifacts(
         }),
         diagnostics,
     }
+}
+
+fn text_composition_artifact_for_evaluated_encode(
+    evaluated: &TransformTemplateEvaluatedEncodeExpression,
+    writer_boundary_context: &TransformTemplateEncodedArtifactInsertionContext,
+    uri: Option<&str>,
+) -> Result<TransformTemplateEncodedArtifact, Diagnostic> {
+    match evaluated.artifact.identity.produces {
+        TransformTemplateOutputProducedKind::Text => Ok(evaluated.artifact.clone()),
+        TransformTemplateOutputProducedKind::Tokens => {
+            if let Err(error) = evaluated
+                .artifact
+                .validate_insertion(writer_boundary_context)
+            {
+                return Err(diagnostic_for_evaluated_encode_error(error, evaluated, uri));
+            }
+            transform_template_writer_token_artifact_to_text(&evaluated.artifact).map_err(
+                |message| {
+                    diagnostic_for_evaluated_encode_writer_adapter_failed(evaluated, message, uri)
+                },
+            )
+        }
+        _ => {
+            match evaluated
+                .artifact
+                .validate_insertion(writer_boundary_context)
+            {
+                Ok(()) => Err(diagnostic_for_evaluated_encode_writer_adapter_missing(
+                    evaluated,
+                    TransformTemplateOutputProducedKind::Text,
+                    uri,
+                )),
+                Err(error) => Err(diagnostic_for_evaluated_encode_error(error, evaluated, uri)),
+            }
+        }
+    }
+}
+
+fn transform_template_writer_token_artifact_to_text(
+    artifact: &TransformTemplateEncodedArtifact,
+) -> Result<TransformTemplateEncodedArtifact, String> {
+    let token_stream: TransformTemplateWriterTokenStream =
+        serde_json::from_value(artifact.value.clone())
+            .map_err(|error| format!("token stream envelope is invalid: {error}"))?;
+    let mut text = String::new();
+    for (index, token) in token_stream.tokens.iter().enumerate() {
+        let Some(token_text) = token.text.as_deref() else {
+            return Err(format!(
+                "`tokens[{index}]` has no text for the default token-to-text writer adapter"
+            ));
+        };
+        text.push_str(token_text);
+    }
+
+    let mut identity = artifact.identity.clone();
+    identity.produces = TransformTemplateOutputProducedKind::Text;
+    Ok(TransformTemplateEncodedArtifact {
+        identity,
+        value: Value::String(text),
+        source_map: artifact.source_map.clone(),
+        output_spans: artifact.output_spans.clone(),
+        encoded: true,
+    })
 }
 
 fn shift_output_span(span: &OutputSpan, offset: u64) -> OutputSpan {
@@ -1556,6 +1613,25 @@ fn diagnostic_for_evaluated_encode_writer_adapter_missing(
             "encoded artifact produced `{}` requires a writer adapter before insertion into `{}` output",
             actual.as_str(),
             expected.as_str()
+        ),
+        ..Diagnostic::default()
+    };
+    attach_evaluated_encode_node(&mut diagnostic, evaluated);
+    diagnostic
+}
+
+fn diagnostic_for_evaluated_encode_writer_adapter_failed(
+    evaluated: &TransformTemplateEvaluatedEncodeExpression,
+    message: String,
+    uri: Option<&str>,
+) -> Diagnostic {
+    let mut diagnostic = Diagnostic {
+        uri: uri.map(str::to_owned),
+        code: TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_WRITER_ADAPTER_MISSING_CODE.to_owned(),
+        severity: Severity::Error,
+        message: format!(
+            "encoded artifact produced `{}` cannot use the default writer adapter: {message}",
+            evaluated.artifact.identity.produces.as_str()
         ),
         ..Diagnostic::default()
     };
@@ -5819,7 +5895,48 @@ mod tests {
     }
 
     #[test]
-    fn encoded_text_artifact_composition_reports_writer_adapter_boundary_for_non_text_artifacts() {
+    fn encoded_text_artifact_composition_adapts_token_streams_to_text() {
+        let first = evaluated_html_text("title", "Hello ");
+        let mut second = evaluated_html_text("body", "ignored");
+        second.artifact = TransformTemplateEncodedArtifact::from_writer_tokens(
+            second.artifact.identity.clone(),
+            vec![
+                TransformTemplateWriterToken::new("syntax.text").with_text("CEM"),
+                TransformTemplateWriterToken::new("syntax.space").with_text(" "),
+                TransformTemplateWriterToken::new("syntax.text").with_text("tokens"),
+            ],
+        );
+        second.artifact.source_map = Some(source_map_stack(40, 3));
+        second.artifact.output_spans = vec![output_span(0, 10)];
+        let context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+            &first.expression.target,
+            Some(TransformTemplateOutputProducedKind::Text),
+        );
+
+        let response = compose_transform_template_encoded_text_artifacts(
+            &[first, second],
+            &context,
+            Some("templates/runtime-encoding.cemt"),
+        );
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        let artifact = response.artifact.expect("token stream composes to text");
+        assert_eq!(
+            artifact.identity.produces,
+            TransformTemplateOutputProducedKind::Text
+        );
+        assert_eq!(artifact.value, Value::String("Hello CEM tokens".to_owned()));
+        assert_eq!(artifact.output_spans.len(), 2);
+        assert_eq!(artifact.output_spans[1].output_range.start, 6);
+        assert_eq!(artifact.output_spans[1].output_range.len, 10);
+    }
+
+    #[test]
+    fn encoded_text_artifact_composition_reports_writer_adapter_boundary_for_non_token_artifacts() {
         let base = evaluated_html_text("body", "CEM");
         let context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
             &base.expression.target,
@@ -5827,13 +5944,6 @@ mod tests {
         );
 
         let cases = [
-            (
-                "tokens",
-                TransformTemplateEncodedArtifact::from_writer_tokens(
-                    base.artifact.identity.clone(),
-                    vec![TransformTemplateWriterToken::new("syntax.text").with_text("CEM")],
-                ),
-            ),
             (
                 "bytes",
                 TransformTemplateEncodedArtifact::from_writer_bytes(
