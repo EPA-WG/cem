@@ -1081,7 +1081,12 @@ fn builtin_xml_text_encoder(
     let text = subject
         .as_str()
         .ok_or_else(|| "xml.text expected string subject".to_owned())?;
-    Ok(Value::String(transform_template_encode_xml_text(text)))
+    transform_template_format_xml_text(
+        transform_template_encode_xml_text(text),
+        &binding.options,
+        binding.identity.formatter_profile.as_deref(),
+    )
+    .map(Value::String)
 }
 
 fn builtin_xml_attribute_encoder(
@@ -1092,7 +1097,12 @@ fn builtin_xml_attribute_encoder(
     let text = subject
         .as_str()
         .ok_or_else(|| "xml.attribute expected string subject".to_owned())?;
-    Ok(Value::String(transform_template_encode_xml_attribute(text)))
+    transform_template_format_xml_text(
+        transform_template_encode_xml_attribute(text),
+        &binding.options,
+        binding.identity.formatter_profile.as_deref(),
+    )
+    .map(Value::String)
 }
 
 fn validate_builtin_xml_encoder_binding(
@@ -1217,7 +1227,7 @@ fn transform_template_apply_json_line_ending(
     line_ending: Option<&str>,
 ) -> Result<String, String> {
     match line_ending.map(str::trim).filter(|value| !value.is_empty()) {
-        None | Some("lf") | Some("\\n") => Ok(output),
+        None | Some("lf") | Some("\\n") | Some("preserve") => Ok(output),
         Some("crlf") | Some("\\r\\n") => Ok(output.replace('\n', "\r\n")),
         Some(other) => Err(format!("unsupported JSON formatter line ending `{other}`")),
     }
@@ -1249,6 +1259,70 @@ pub fn transform_template_encode_xml_attribute(value: &str) -> String {
         }
     }
     output
+}
+
+pub fn transform_template_format_xml_text(
+    output: String,
+    options: &TransformTemplateEncodeOptions,
+    formatter_profile: Option<&str>,
+) -> Result<String, String> {
+    transform_template_validate_xml_formatter_options(options, formatter_profile)?;
+    transform_template_apply_xml_line_ending(output, options.line_ending.as_deref())
+}
+
+fn transform_template_validate_xml_formatter_options(
+    options: &TransformTemplateEncodeOptions,
+    formatter_profile: Option<&str>,
+) -> Result<(), String> {
+    for selector in [
+        options.formatter.as_deref(),
+        options.formatter_profile.as_deref(),
+        formatter_profile,
+    ]
+    .into_iter()
+    .flatten()
+    {
+        match selector.trim() {
+            "" | "canonical" | "xml.canonical" | "preserve" | "xml.preserve" | "pretty"
+            | "xml.pretty" => {}
+            other => return Err(format!("unsupported XML formatter `{other}`")),
+        }
+    }
+
+    if options.pretty {
+        let indent = options.indent.as_deref().unwrap_or("  ");
+        if !indent.chars().all(|ch| ch == ' ' || ch == '\t') {
+            return Err("XML formatter indent may contain only spaces or tabs".to_owned());
+        }
+    }
+
+    match options
+        .namespace_policy
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        None | Some("preserve") | Some("repair") | Some("canonical") => Ok(()),
+        Some(other) => Err(format!("unsupported XML namespace policy `{other}`")),
+    }
+}
+
+fn transform_template_apply_xml_line_ending(
+    output: String,
+    line_ending: Option<&str>,
+) -> Result<String, String> {
+    match line_ending.map(str::trim).filter(|value| !value.is_empty()) {
+        None | Some("preserve") => Ok(output),
+        Some("lf") | Some("\\n") => Ok(normalize_line_endings_to_lf(&output)),
+        Some("crlf") | Some("\\r\\n") => {
+            Ok(normalize_line_endings_to_lf(&output).replace('\n', "\r\n"))
+        }
+        Some(other) => Err(format!("unsupported XML formatter line ending `{other}`")),
+    }
+}
+
+fn normalize_line_endings_to_lf(value: &str) -> String {
+    value.replace("\r\n", "\n").replace('\r', "\n")
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -4720,6 +4794,58 @@ mod tests {
             .encode(&wrong_schema, &Value::String("unsafe".to_owned()))
             .expect_err("builtin refuses mismatched schema");
         assert!(error.contains("expected schema `https://cem.dev/ns/data/xml/1`"));
+    }
+
+    #[test]
+    fn builtin_xml_encoder_applies_formatter_controls() {
+        let registry = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+        let options = TransformTemplateEncodeOptions {
+            pretty: true,
+            formatter_profile: Some("xml.pretty".to_owned()),
+            indent: Some("\t".to_owned()),
+            line_ending: Some("crlf".to_owned()),
+            namespace_policy: Some("repair".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        };
+        let binding = TransformTemplateEncodeBinding {
+            function: xml_output_function_descriptor("xml.text", "xml-text", "string"),
+            subject_type: "string".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::from_options(
+                TransformTemplateOutputProducedKind::Text,
+                TransformTemplateEncodingTarget::new(XML_CONTENT_TYPE, XML_SCHEMA_URI, "xml-text")
+                    .with_context("text"),
+                &options,
+            ),
+            options,
+        };
+
+        let encoded = registry
+            .encode(
+                &binding,
+                &Value::String("Line 1\nLine 2 <CEM> & friends".to_owned()),
+            )
+            .expect("xml formatter controls run");
+        assert_eq!(
+            encoded,
+            Value::String("Line 1\r\nLine 2 &lt;CEM&gt; &amp; friends".to_owned())
+        );
+
+        let mut unsupported_formatter = binding.clone();
+        unsupported_formatter.options.formatter = Some("xml.unknown".to_owned());
+        let error = registry
+            .encode(&unsupported_formatter, &Value::String("unsafe".to_owned()))
+            .expect_err("unsupported XML formatter is rejected");
+        assert!(error.contains("unsupported XML formatter `xml.unknown`"));
+
+        let mut unsupported_namespace_policy = binding.clone();
+        unsupported_namespace_policy.options.namespace_policy = Some("hoist".to_owned());
+        let error = registry
+            .encode(
+                &unsupported_namespace_policy,
+                &Value::String("unsafe".to_owned()),
+            )
+            .expect_err("unsupported XML namespace policy is rejected");
+        assert!(error.contains("unsupported XML namespace policy `hoist`"));
     }
 
     #[test]

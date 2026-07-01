@@ -160,6 +160,9 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add initial JSON canonical/pretty formatter controls for CEMT
           render-time encoders, including indentation, LF/CRLF line endings,
           formatter profile identity, and profile mismatch diagnostics.
+    - [x] Add initial XML formatter controls for CEMT render-time encoders,
+          including LF/CRLF/preserve line endings, namespace-policy validation
+          hooks, formatter profile identity, and profile mismatch diagnostics.
   - [ ] Add writer primitives and CEMT bindings for syntax tokens, styled token
         streams, byte streams, sealed binary chunks, source-map span emission,
         and source-map preservation/generated/none policies.
