@@ -5,12 +5,11 @@
 {module |
     {encoding-function
         @name="html.text"
+        @category="html-text"
         @subject="string"
         @produces="text"
         @content-type="text/html"
-        @schema="https://cem.dev/ns/data/html/1"
-        @canonical=true
-        @streamable=true |
+        @schema="https://cem.dev/ns/data/html/1" |
         {param @name="subject" @type="string" @required=true}
     }
 }

@@ -5006,6 +5006,7 @@ mod tests {
       @content-type="text/html"
       @schema="https://cem.dev/ns/data/html/1"
       @canonical=true
+      @streamable=true
       @deterministic=true |
       {param @name="subject" @type="string" @required=true}
   }
@@ -5071,6 +5072,7 @@ mod tests {
       @content-type="text/html"
       @schema="https://cem.dev/ns/data/html/1"
       @canonical=true
+      @streamable=true
       @deterministic=true |
       {param @name="subject" @type="string" @required=true}
   }
@@ -5173,6 +5175,7 @@ mod tests {
       @content-type="text/html"
       @schema="https://cem.dev/ns/data/html/1"
       @canonical=true
+      @streamable=true
       @deterministic=true}
   {template @name="main" @visibility="public" |
     {body |
@@ -5282,6 +5285,7 @@ mod tests {
       @content-type="text/html"
       @schema="https://cem.dev/ns/data/html/1"
       @canonical=true
+      @streamable=true
       @deterministic=true}
   {encoding-function
       @name="html.attribute"
@@ -5291,6 +5295,7 @@ mod tests {
       @content-type="text/html"
       @schema="https://cem.dev/ns/data/html/1"
       @canonical=true
+      @streamable=true
       @deterministic=true}
   {template @name="main" @visibility="public" |
     {body |
@@ -5379,6 +5384,7 @@ mod tests {
       @content-type="application/json"
       @schema="https://cem.dev/ns/data/json/1"
       @canonical=true
+      @streamable=true
       @deterministic=true}
   {template @name="main" @visibility="public" |
     {body |
@@ -5479,6 +5485,7 @@ mod tests {
       @content-type="application/json"
       @schema="https://cem.dev/ns/data/json/1"
       @canonical=true
+      @streamable=true
       @deterministic=true}
   {encoding-function
       @name="json.string"
@@ -5488,6 +5495,7 @@ mod tests {
       @content-type="application/json"
       @schema="https://cem.dev/ns/data/json/1"
       @canonical=true
+      @streamable=true
       @deterministic=true}
   {template @name="main" @visibility="public" |
     {body |
@@ -5576,6 +5584,7 @@ mod tests {
       @content-type="application/json"
       @schema="https://cem.dev/ns/data/json/1"
       @canonical=true
+      @streamable=true
       @deterministic=true}
   {template @name="main" @visibility="public" |
     {body |
@@ -5662,6 +5671,7 @@ mod tests {
       @content-type="application/json"
       @schema="https://cem.dev/ns/data/json/1"
       @canonical=true
+      @streamable=true
       @deterministic=true}
   {template @name="main" @visibility="public" |
     {body |
@@ -5750,6 +5760,7 @@ mod tests {
       @content-type="application/xml"
       @schema="https://cem.dev/ns/data/xml/1"
       @canonical=true
+      @streamable=true
       @deterministic=true}
   {template @name="main" @visibility="public" |
     {body |
@@ -5850,6 +5861,7 @@ mod tests {
       @content-type="application/xml"
       @schema="https://cem.dev/ns/data/xml/1"
       @canonical=true
+      @streamable=true
       @deterministic=true}
   {template @name="main" @visibility="public" |
     {body |
@@ -5936,6 +5948,7 @@ mod tests {
       @content-type="application/xml"
       @schema="https://cem.dev/ns/data/xml/1"
       @canonical=true
+      @streamable=true
       @deterministic=true}
   {template @name="main" @visibility="public" |
     {body |
@@ -6024,6 +6037,7 @@ mod tests {
       @content-type="application/xml"
       @schema="https://cem.dev/ns/data/xml/1"
       @canonical=true
+      @streamable=true
       @deterministic=true}
   {encoding-function
       @name="xml.attribute"
@@ -6033,6 +6047,7 @@ mod tests {
       @content-type="application/xml"
       @schema="https://cem.dev/ns/data/xml/1"
       @canonical=true
+      @streamable=true
       @deterministic=true}
   {template @name="main" @visibility="public" |
     {body |

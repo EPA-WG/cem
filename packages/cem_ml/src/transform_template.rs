@@ -5606,6 +5606,14 @@ impl NativeTemplateModuleLowerer<'_> {
             self.push_missing_attr(element_name, "schema");
             return;
         };
+        let Some(canonical_raw) = required_attr(&attrs, "canonical") else {
+            self.push_missing_attr(element_name, "canonical");
+            return;
+        };
+        let Some(streamable_raw) = required_attr(&attrs, "streamable") else {
+            self.push_missing_attr(element_name, "streamable");
+            return;
+        };
         let Some(produces) = TransformTemplateOutputProducedKind::parse(&produces_raw) else {
             self.push_diag(
                 TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE,
@@ -5633,8 +5641,10 @@ impl NativeTemplateModuleLowerer<'_> {
                 }
             }
         };
-        let canonical = self.parse_bool_decl_attr(&attrs, "canonical");
-        let streamable = self.parse_bool_decl_attr(&attrs, "streamable");
+        let canonical =
+            self.parse_required_bool_decl_attr(element_name, &name, "canonical", &canonical_raw);
+        let streamable =
+            self.parse_required_bool_decl_attr(element_name, &name, "streamable", &streamable_raw);
         let deterministic = self.parse_bool_decl_attr(&attrs, "deterministic");
         let trusted = self.parse_bool_decl_attr(&attrs, "trusted");
         let lossy = self.parse_bool_decl_attr(&attrs, "lossy");
@@ -5661,6 +5671,7 @@ impl NativeTemplateModuleLowerer<'_> {
             match child_name {
                 "param" => {
                     if let Some(param) = self.parse_param_declaration(*child) {
+                        self.validate_output_function_param(*child, element_name, &name, &param);
                         params.push(param);
                     }
                     self.reject_decl_children(*child, "param");
@@ -5845,6 +5856,57 @@ impl NativeTemplateModuleLowerer<'_> {
             self.push_diag(TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE, message);
             false
         })
+    }
+
+    fn parse_required_bool_decl_attr(
+        &mut self,
+        element_name: &str,
+        function_name: &str,
+        attr_name: &str,
+        value: &str,
+    ) -> bool {
+        parse_bool_attr(Some(value)).unwrap_or_else(|message| {
+            self.push_diag(
+                TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE,
+                format!("`{element_name}` `{function_name}` has invalid `@{attr_name}`: {message}"),
+            );
+            false
+        })
+    }
+
+    fn validate_output_function_param(
+        &mut self,
+        param_id: AstNodeId,
+        element_name: &str,
+        function_name: &str,
+        param: &TransformTemplateModuleParamDeclaration,
+    ) {
+        let attrs = template_collect_attrs(self.document, param_id);
+        if attr_value(&attrs, "", "type")
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .is_none()
+        {
+            self.push_diag(
+                TRANSFORM_TEMPLATE_DECLARATION_REQUIRED_CODE,
+                format!(
+                    "`{element_name}` `{function_name}` param `{}` requires explicit `@type` metadata",
+                    param.name
+                ),
+            );
+        }
+
+        let has_default = attr_value(&attrs, "", "default").is_some();
+        if !param.required && !has_default {
+            self.push_diag(
+                TRANSFORM_TEMPLATE_DECLARATION_REQUIRED_CODE,
+                format!(
+                    "`{element_name}` `{function_name}` param `{}` must declare `@required=true` or a literal `@default`",
+                    param.name
+                ),
+            );
+        }
     }
 
     fn parse_param_type(&mut self, value: Option<&str>) -> TransformTemplateModuleParamType {
@@ -7192,6 +7254,8 @@ mod tests {
     @produces="text"
     @content-type="text/html"
     @schema="https://cem.dev/ns/data/html/1"
+    @canonical=true
+    @streamable=true
     @lossy=true}
 }"#,
                     Some(FormatIdentity {
@@ -7223,10 +7287,10 @@ mod tests {
                     "templates/bad-functions.cemt",
                     r#"{@doc cem-ml 1}
 {module |
-  {encoding-function @name="html.text" @category="html-text" @subject="string" @produces="text" @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
-  {encoding-function @name="html.text" @category="html-text" @subject="string" @produces="text" @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
-  {format-function @name="acme.native.json" @category="json-document" @subject="object" @produces="tokens" @content-type="application/json" @schema="https://acme.test/ns/api/json/1" @implementation="native"}
-  {color-function @name="broken.color" @category="terminal-color" @subject="tokens" @produces="paint" @content-type="text/plain" @schema="https://cem.dev/ns/data/text/terminal/1"}
+  {encoding-function @name="html.text" @category="html-text" @subject="string" @produces="text" @content-type="text/html" @schema="https://cem.dev/ns/data/html/1" @canonical=true @streamable=true}
+  {encoding-function @name="html.text" @category="html-text" @subject="string" @produces="text" @content-type="text/html" @schema="https://cem.dev/ns/data/html/1" @canonical=true @streamable=true}
+  {format-function @name="acme.native.json" @category="json-document" @subject="object" @produces="tokens" @content-type="application/json" @schema="https://acme.test/ns/api/json/1" @implementation="native" @canonical=true @streamable=false}
+  {color-function @name="broken.color" @category="terminal-color" @subject="tokens" @produces="paint" @content-type="text/plain" @schema="https://cem.dev/ns/data/text/terminal/1" @canonical=false @streamable=true}
 }"#,
                     Some(FormatIdentity {
                         schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
@@ -7249,6 +7313,60 @@ mod tests {
             .diagnostics
             .iter()
             .any(|diag| diag.code == TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE));
+    }
+
+    #[test]
+    fn cemt_module_parser_requires_output_function_contract_metadata() {
+        let response = parse_cem_native_template_module_options(
+            TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "templates/missing-function-contract-metadata.cemt",
+                    r#"{@doc cem-ml 1}
+{module |
+  {encoding-function @name="html.missing-canonical" @category="html-text" @subject="string" @produces="text" @content-type="text/html" @schema="https://cem.dev/ns/data/html/1" @streamable=true}
+  {encoding-function @name="html.missing-streamable" @category="html-text" @subject="string" @produces="text" @content-type="text/html" @schema="https://cem.dev/ns/data/html/1" @canonical=true}
+  {encoding-function @name="html.bad-param" @category="html-text" @subject="string" @produces="text" @content-type="text/html" @schema="https://cem.dev/ns/data/html/1" @canonical=true @streamable=true |
+    {param @name="subject"}
+  }
+}"#,
+                    Some(FormatIdentity {
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            },
+        );
+
+        let messages = response
+            .diagnostics
+            .iter()
+            .map(|diag| diag.message.as_str())
+            .collect::<Vec<_>>();
+        assert!(
+            messages
+                .iter()
+                .any(|message| message.contains("requires `@canonical`")),
+            "{messages:?}"
+        );
+        assert!(
+            messages
+                .iter()
+                .any(|message| message.contains("requires `@streamable`")),
+            "{messages:?}"
+        );
+        assert!(
+            messages
+                .iter()
+                .any(|message| message.contains("requires explicit `@type` metadata")),
+            "{messages:?}"
+        );
+        assert!(
+            messages
+                .iter()
+                .any(|message| message
+                    .contains("must declare `@required=true` or a literal `@default`")),
+            "{messages:?}"
+        );
     }
 
     #[test]
@@ -9275,6 +9393,7 @@ mod tests {
       @content-type="text/html"
       @schema="https://cem.dev/ns/data/html/1"
       @canonical=true
+      @streamable=true
       @deterministic=true |
       {param @name="subject" @type="string" @required=true}
   }

@@ -29,9 +29,9 @@
         {element @name="template" @base="template:template" @children="param body"}
         {element @name="body" @base="template:body" @children="*"}
         {element @name="call" @base="template:call"}
-        {element @name="encoding-function" @required-attributes="name category subject produces content-type schema" @optional-attributes="canonical streamable visibility implementation profile extends capability deterministic trusted fallback" @children="param body"}
-        {element @name="format-function" @required-attributes="name category subject produces content-type schema" @optional-attributes="canonical streamable visibility implementation profile extends capability deterministic trusted fallback" @children="param body"}
-        {element @name="color-function" @required-attributes="name category subject produces content-type schema" @optional-attributes="canonical streamable visibility implementation profile extends capability deterministic trusted fallback" @children="param body"}
+        {element @name="encoding-function" @required-attributes="name category subject produces content-type schema canonical streamable" @optional-attributes="visibility implementation profile extends capability deterministic trusted fallback" @children="param body"}
+        {element @name="format-function" @required-attributes="name category subject produces content-type schema canonical streamable" @optional-attributes="visibility implementation profile extends capability deterministic trusted fallback" @children="param body"}
+        {element @name="color-function" @required-attributes="name category subject produces content-type schema canonical streamable" @optional-attributes="visibility implementation profile extends capability deterministic trusted fallback" @children="param body"}
     }
 
     {attributes |

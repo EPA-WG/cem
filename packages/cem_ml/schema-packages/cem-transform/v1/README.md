@@ -139,6 +139,7 @@ CLI validation integration tests.
 | [`function-declarations.cemt`](examples/function-declarations.cemt) | Encoding, formatting, color, and custom function declarations for CEMT output production. | Pass |
 | [`invalid-missing-required-attribute.cemt`](examples/invalid-missing-required-attribute.cemt) | Template declaration missing the inherited required `name` attribute. | Fail with `cem.schema_model.missing_required_attribute` |
 | [`invalid-function-missing-category.cemt`](examples/invalid-function-missing-category.cemt) | Encoding function declaration missing required output category metadata. | Fail with `cem.schema_model.missing_required_attribute` |
+| [`invalid-function-missing-contract-metadata.cemt`](examples/invalid-function-missing-contract-metadata.cemt) | Encoding function declaration missing required canonical and streamable contract metadata. | Fail with `cem.schema_model.missing_required_attribute` |
 
 Validate an example explicitly against this schema:
 

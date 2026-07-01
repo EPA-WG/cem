@@ -128,7 +128,7 @@ history belongs in git history and the feature-specific docs linked below.
           before writer composition.
     - [x] Add binary framing identity to insertion contexts and reject
           mismatched binary framing for byte/chunk output artifacts.
-  - [ ] Add CEMT declaration vocabulary for `encoding-function`,
+  - [x] Add CEMT declaration vocabulary for `encoding-function`,
         `format-function`, and `color-function` with registry-validatable
         metadata: `name`, `category`, `subject`, `produces`, `content-type`,
         `schema`, `canonical`, `streamable`, and typed params with required and
@@ -138,6 +138,9 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add the first structural CEMT schema slice for
           `encoding-function`, `format-function`, `color-function`, params, core
           metadata, and schema-owned validation examples.
+    - [x] Require `canonical` and `streamable` output-function metadata and
+          runtime-validate function params with explicit `type` plus
+          `required` or `default` metadata.
   - [ ] Add custom encoding, formatting, and color function support. Custom
         functions must use the same typed artifact semantics as built-ins and
         declare package-qualified names, visibility, implementation source

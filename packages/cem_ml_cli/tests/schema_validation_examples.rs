@@ -336,6 +336,14 @@ fn schema_owned_examples_validate_through_cli() {
             expected_diagnostics: &["cem.schema_model.missing_required_attribute"],
         },
         ValidationExample {
+            name: "transform-template invalid function missing contract metadata",
+            path: "packages/cem_ml/schema-packages/cem-transform/v1/examples/invalid-function-missing-contract-metadata.cemt",
+            content_type: CEM_TRANSFORM_CONTENT_TYPE,
+            schema_uri: CEM_TRANSFORM_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.schema_model.missing_required_attribute"],
+        },
+        ValidationExample {
             name: "cem-ql basic",
             path: "packages/cem_ml/schema-packages/cem-ql/v1/examples/basic-query.cemql",
             content_type: CEM_QL_CONTENT_TYPE,
