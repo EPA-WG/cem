@@ -171,6 +171,9 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Register initial built-in XML text and attribute-value encoders
           for CEMT render-time execution, including XML output identity and
           context/category mismatch coverage.
+    - [x] Register initial built-in Markdown text and inline-code encoders for
+          CEMT render-time execution, including Markdown output identity and
+          schema/category mismatch coverage.
   - [ ] Add shared formatter functions for indentation, line endings, ordering,
         wrapping, YAML scalar style, namespace declaration placement, and
         canonical output profiles.

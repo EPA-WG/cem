@@ -559,6 +559,26 @@ const TRANSFORM_TEMPLATE_STANDARD_OUTPUT_FUNCTIONS:
         schema: XML_SCHEMA_URI,
         profile: None,
     },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "markdown.text",
+        category: "markdown-text",
+        subject: Some("string"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: MARKDOWN_CONTENT_TYPE,
+        schema: MARKDOWN_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "markdown.inline-code",
+        category: "markdown-inline-code",
+        subject: Some("string"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: MARKDOWN_CONTENT_TYPE,
+        schema: MARKDOWN_SCHEMA_URI,
+        profile: None,
+    },
 ];
 
 fn standard_output_function_contract(
@@ -2755,6 +2775,8 @@ impl TransformTemplateEncodeImplementationRegistry {
         registry.register("json.document", builtin_json_document_encoder);
         registry.register("xml.text", builtin_xml_text_encoder);
         registry.register("xml.attribute", builtin_xml_attribute_encoder);
+        registry.register("markdown.text", builtin_markdown_text_encoder);
+        registry.register("markdown.inline-code", builtin_markdown_inline_code_encoder);
         registry
     }
 
@@ -2975,6 +2997,66 @@ fn validate_builtin_xml_encoder_binding(
     Ok(())
 }
 
+fn builtin_markdown_text_encoder(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_markdown_encoder_binding(binding, "markdown.text", "markdown-text")?;
+    let text = subject
+        .as_str()
+        .ok_or_else(|| "markdown.text expected string subject".to_owned())?;
+    Ok(Value::String(transform_template_encode_markdown_text(text)))
+}
+
+fn builtin_markdown_inline_code_encoder(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_markdown_encoder_binding(
+        binding,
+        "markdown.inline-code",
+        "markdown-inline-code",
+    )?;
+    let text = subject
+        .as_str()
+        .ok_or_else(|| "markdown.inline-code expected string subject".to_owned())?;
+    Ok(Value::String(
+        transform_template_encode_markdown_inline_code(text),
+    ))
+}
+
+fn validate_builtin_markdown_encoder_binding(
+    binding: &TransformTemplateEncodeBinding,
+    expected_name: &str,
+    expected_category: &str,
+) -> Result<(), String> {
+    if binding.function.name != expected_name {
+        return Err(format!(
+            "Markdown encoder implementation `{expected_name}` cannot execute `{}`",
+            binding.function.name
+        ));
+    }
+    if content_type_essence(&binding.identity.target.content_type) != MARKDOWN_CONTENT_TYPE {
+        return Err(format!(
+            "Markdown encoder `{expected_name}` expected content type `{MARKDOWN_CONTENT_TYPE}`, got `{}`",
+            binding.identity.target.content_type
+        ));
+    }
+    if binding.identity.target.schema != MARKDOWN_SCHEMA_URI {
+        return Err(format!(
+            "Markdown encoder `{expected_name}` expected schema `{MARKDOWN_SCHEMA_URI}`, got `{}`",
+            binding.identity.target.schema
+        ));
+    }
+    if binding.identity.target.category != expected_category {
+        return Err(format!(
+            "Markdown encoder `{expected_name}` expected category `{expected_category}`, got `{}`",
+            binding.identity.target.category
+        ));
+    }
+    Ok(())
+}
+
 pub fn transform_template_encode_html_text(value: &str) -> String {
     let mut output = String::new();
     for ch in value.chars() {
@@ -2999,6 +3081,46 @@ pub fn transform_template_encode_html_attribute(value: &str) -> String {
         }
     }
     output
+}
+
+pub fn transform_template_encode_markdown_text(value: &str) -> String {
+    let mut output = String::new();
+    for ch in value.chars() {
+        match ch {
+            '\\' | '`' | '*' | '_' | '{' | '}' | '[' | ']' | '(' | ')' | '#' | '+' | '-' | '.'
+            | '!' | '|' | '>' => {
+                output.push('\\');
+                output.push(ch);
+            }
+            _ => output.push(ch),
+        }
+    }
+    output
+}
+
+pub fn transform_template_encode_markdown_inline_code(value: &str) -> String {
+    let mut max_backtick_run = 0usize;
+    let mut current_run = 0usize;
+    for ch in value.chars() {
+        if ch == '`' {
+            current_run += 1;
+            max_backtick_run = max_backtick_run.max(current_run);
+        } else {
+            current_run = 0;
+        }
+    }
+    let fence_len = max_backtick_run.saturating_add(1);
+    let fence = "`".repeat(fence_len.max(1));
+    let needs_padding = value
+        .chars()
+        .next()
+        .zip(value.chars().last())
+        .is_some_and(|(first, last)| first == '`' || last == '`' || first == ' ' || last == ' ');
+    if needs_padding {
+        format!("{fence} {value} {fence}")
+    } else {
+        format!("{fence}{value}{fence}")
+    }
 }
 
 pub fn transform_template_encode_json_value(value: &Value) -> Result<String, String> {
@@ -6975,6 +7097,36 @@ mod tests {
         }
     }
 
+    fn markdown_output_function_descriptor(
+        name: &str,
+        category: &str,
+        subject: &str,
+    ) -> TransformTemplateOutputFunctionDescriptor {
+        TransformTemplateOutputFunctionDescriptor {
+            kind: TransformTemplateOutputFunctionKind::Encoding,
+            owner: Some("markdown".to_owned()),
+            name: name.to_owned(),
+            category: category.to_owned(),
+            subject: subject.to_owned(),
+            produces: TransformTemplateOutputProducedKind::Text,
+            content_type: MARKDOWN_CONTENT_TYPE.to_owned(),
+            schema: MARKDOWN_SCHEMA_URI.to_owned(),
+            canonical: true,
+            streamable: true,
+            visibility: TransformTemplateModuleVisibility::Private,
+            implementation: TransformTemplateOutputFunctionImplementation::Cemt,
+            profile: None,
+            extends: None,
+            capability: None,
+            deterministic: true,
+            trusted: false,
+            lossy: false,
+            fallback: None,
+            params: Vec::new(),
+            body_declared: false,
+        }
+    }
+
     fn color_output_function_descriptor(
         name: &str,
         category: &str,
@@ -8499,6 +8651,86 @@ mod tests {
             )
             .expect_err("unsupported XML namespace policy is rejected");
         assert!(error.contains("unsupported XML namespace policy `hoist`"));
+    }
+
+    #[test]
+    fn builtin_markdown_encode_implementations_escape_text_and_inline_code() {
+        let registry = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+        let text_binding = TransformTemplateEncodeBinding {
+            function: markdown_output_function_descriptor(
+                "markdown.text",
+                "markdown-text",
+                "string",
+            ),
+            subject_type: "string".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::new(
+                TransformTemplateOutputProducedKind::Text,
+                TransformTemplateEncodingTarget::new(
+                    MARKDOWN_CONTENT_TYPE,
+                    MARKDOWN_SCHEMA_URI,
+                    "markdown-text",
+                )
+                .with_context("text"),
+            ),
+            options: TransformTemplateEncodeOptions::default(),
+        };
+        let encoded_text = registry
+            .encode(
+                &text_binding,
+                &Value::String("[CEM](url) *bold* #1 > item".to_owned()),
+            )
+            .expect("markdown text encoder runs");
+        assert_eq!(
+            encoded_text,
+            Value::String(r"\[CEM\]\(url\) \*bold\* \#1 \> item".to_owned())
+        );
+
+        let inline_code_binding = TransformTemplateEncodeBinding {
+            function: markdown_output_function_descriptor(
+                "markdown.inline-code",
+                "markdown-inline-code",
+                "string",
+            ),
+            subject_type: "string".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::new(
+                TransformTemplateOutputProducedKind::Text,
+                TransformTemplateEncodingTarget::new(
+                    MARKDOWN_CONTENT_TYPE,
+                    MARKDOWN_SCHEMA_URI,
+                    "markdown-inline-code",
+                )
+                .with_context("inline-code"),
+            ),
+            options: TransformTemplateEncodeOptions::default(),
+        };
+        let encoded_inline_code = registry
+            .encode(
+                &inline_code_binding,
+                &Value::String("use `cem` and ``tokens``".to_owned()),
+            )
+            .expect("markdown inline-code encoder runs");
+        assert_eq!(
+            encoded_inline_code,
+            Value::String("``` use `cem` and ``tokens`` ```".to_owned())
+        );
+
+        let padded_inline_code = registry
+            .encode(
+                &inline_code_binding,
+                &Value::String("`starts and ends`".to_owned()),
+            )
+            .expect("markdown inline-code padding runs");
+        assert_eq!(
+            padded_inline_code,
+            Value::String("`` `starts and ends` ``".to_owned())
+        );
+
+        let mut wrong_schema = text_binding.clone();
+        wrong_schema.identity.target.schema = HTML_SCHEMA_URI.to_owned();
+        let error = registry
+            .encode(&wrong_schema, &Value::String("unsafe".to_owned()))
+            .expect_err("builtin refuses mismatched schema");
+        assert!(error.contains("expected schema `https://cem.dev/ns/data/markdown/1`"));
     }
 
     #[test]
