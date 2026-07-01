@@ -5130,6 +5130,8 @@ pub struct TransformTemplateWriterToken {
     pub text: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub role: Option<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub style: BTreeMap<String, Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub value: Option<Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -5142,6 +5144,7 @@ impl TransformTemplateWriterToken {
             kind: kind.into(),
             text: None,
             role: None,
+            style: BTreeMap::new(),
             value: None,
             output_span: None,
         }
@@ -5154,6 +5157,16 @@ impl TransformTemplateWriterToken {
 
     pub fn with_role(mut self, role: impl Into<String>) -> Self {
         self.role = Some(role.into());
+        self
+    }
+
+    pub fn with_style(mut self, style: BTreeMap<String, Value>) -> Self {
+        self.style = style;
+        self
+    }
+
+    pub fn with_style_property(mut self, name: impl Into<String>, value: Value) -> Self {
+        self.style.insert(name.into(), value);
         self
     }
 
@@ -6298,6 +6311,9 @@ fn validate_writer_token_stream_value(value: &Value) -> Result<(), String> {
             object.get("role"),
             &format!("tokens[{index}].role"),
         )?;
+        if let Some(style) = object.get("style") {
+            validate_writer_token_style(style, &format!("tokens[{index}].style"))?;
+        }
         if let Some(output_span) = object.get("outputSpan") {
             serde_json::from_value::<OutputSpan>(output_span.clone()).map_err(|error| {
                 format!("`tokens[{index}].outputSpan` is not a valid output span: {error}")
@@ -6305,6 +6321,23 @@ fn validate_writer_token_stream_value(value: &Value) -> Result<(), String> {
         }
         if !object.contains_key("text") && !object.contains_key("value") {
             return Err(format!("`tokens[{index}]` missing `text` or `value`"));
+        }
+    }
+    Ok(())
+}
+
+fn validate_writer_token_style(value: &Value, field: &str) -> Result<(), String> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| format!("`{field}` {}", json_value_type_name(value)))?;
+    for (name, value) in object {
+        if name.trim().is_empty() {
+            return Err(format!("`{field}` contains an empty style property name"));
+        }
+        if !(value.is_string() || value.is_boolean() || value.is_number()) {
+            return Err(format!(
+                "`{field}.{name}` must be a string, boolean, or number"
+            ));
         }
     }
     Ok(())
@@ -11903,13 +11936,22 @@ mod tests {
         second.artifact = TransformTemplateEncodedArtifact::from_writer_tokens(
             second.artifact.identity.clone(),
             vec![
-                TransformTemplateWriterToken::new("syntax.text").with_text("CEM"),
+                TransformTemplateWriterToken::new("syntax.text")
+                    .with_text("CEM")
+                    .with_role("keyword")
+                    .with_style_property("color", Value::String("accent".to_owned()))
+                    .with_style_property("strong", Value::Bool(true)),
                 TransformTemplateWriterToken::new("syntax.space").with_text(" "),
                 TransformTemplateWriterToken::new("syntax.text").with_text("tokens"),
             ],
         );
         second.artifact.source_map = Some(source_map_stack(40, 3));
         second.artifact.output_spans = vec![output_span(0, 10)];
+        assert_eq!(
+            second.artifact.value["tokens"][0]["style"]["color"],
+            "accent"
+        );
+        assert_eq!(second.artifact.value["tokens"][0]["style"]["strong"], true);
         let context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
             &first.expression.target,
             Some(TransformTemplateOutputProducedKind::Text),
@@ -12085,7 +12127,9 @@ mod tests {
             vec![
                 TransformTemplateWriterToken::new("syntax.name")
                     .with_text("button")
-                    .with_role("element"),
+                    .with_role("element")
+                    .with_style_property("color", Value::String("syntax.element".to_owned()))
+                    .with_style_property("emphasis", Value::Bool(true)),
                 TransformTemplateWriterToken::new("syntax.attribute")
                     .with_value(json!({"name": "type", "value": "button"})),
             ],
@@ -12095,6 +12139,11 @@ mod tests {
             TransformTemplateOutputProducedKind::Tokens
         );
         assert_eq!(token_artifact.value["tokens"][0]["kind"], "syntax.name");
+        assert_eq!(
+            token_artifact.value["tokens"][0]["style"]["color"],
+            "syntax.element"
+        );
+        assert_eq!(token_artifact.value["tokens"][0]["style"]["emphasis"], true);
         token_artifact
             .validate_insertion(
                 &TransformTemplateEncodedArtifactInsertionContext::from_encoded_artifact_identity(
@@ -12296,6 +12345,28 @@ mod tests {
             TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_VALUE_TYPE_CODE
         );
         assert!(token_span_error.message().contains("tokens[0].outputSpan"));
+
+        let invalid_token_style = TransformTemplateEncodedArtifact::new(
+            TransformTemplateEncodedArtifactIdentity::new(
+                TransformTemplateOutputProducedKind::Tokens,
+                target.clone(),
+            ),
+            json!({"tokens": [{"kind": "syntax.text", "text": "x", "style": {"color": {"bad": true}}}]}),
+        );
+        let token_style_error = invalid_token_style
+            .validate_insertion(
+                &TransformTemplateEncodedArtifactInsertionContext::from_encoded_artifact_identity(
+                    &invalid_token_style.identity,
+                ),
+            )
+            .expect_err("invalid token style is rejected");
+        assert_eq!(
+            token_style_error.code(),
+            TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_VALUE_TYPE_CODE
+        );
+        assert!(token_style_error
+            .message()
+            .contains("tokens[0].style.color"));
 
         let byte_identity = TransformTemplateEncodedArtifactIdentity::new(
             TransformTemplateOutputProducedKind::Bytes,

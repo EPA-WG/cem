@@ -225,6 +225,9 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add token-level `outputSpan` support for CEMT token streams, with
           generated output ranges during token-to-text composition and
           source-map policy suppression for `none`.
+    - [x] Add styled writer token metadata for CEMT token streams, including
+          style envelope validation and default token-to-text adapter
+          preservation of plain-text behavior.
   - [ ] Add schema helper APIs for target syntax rules, void/empty element
         policy, raw-text/RCDATA modes, namespace repair, identifier validity,
         field/header policy, fragment/document handling, and charset/final byte
