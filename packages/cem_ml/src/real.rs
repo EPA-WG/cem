@@ -5446,6 +5446,200 @@ mod tests {
     }
 
     #[test]
+    fn render_transform_stage_evaluates_builtin_xml_text_encoder() {
+        let template = TemplateInput {
+            uri: "templates/data-xml.cemt".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {encoding-function
+      @name="xml.text"
+      @category="xml-text"
+      @subject="string"
+      @produces="text"
+      @content-type="application/xml"
+      @schema="https://cem.dev/ns/data/xml/1"
+      @canonical=true}
+  {template @name="main" @visibility="public" |
+    {body |
+      {$ encode($input.title, { contentType: "application/xml", schema: "https://cem.dev/ns/data/xml/1", category: "xml-text", context: "text" }, { encoder: "xml.text" }) }
+    }
+  }
+}"#
+            .to_vec(),
+            identity: Some(FormatIdentity {
+                content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+                schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            root_scope: ScopeConfig::default(),
+        };
+        let context = ctx();
+        let adapter: Arc<dyn TransformTemplateAdapter> = Arc::new(ReadyCemtHtmlExportAdapter);
+        let params = BTreeMap::new();
+        let data_bindings = vec!["input".to_owned()];
+        let mut diagnostics = Vec::new();
+        let compiled = compile_transform_template(
+            TransformTemplateCompileSpec {
+                context: &context,
+                adapter: &adapter,
+                template: &template,
+                template_kind: TransformTemplateKind::CemNative,
+                entrypoint: &TransformTemplateEntrypoint::named("main"),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: TransformTemplateModuleOptions::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            },
+            &mut diagnostics,
+        )
+        .expect("template compiles");
+        let primary_input = TransformTemplateDataArtifact {
+            artifact_id: "input".to_owned(),
+            uri: None,
+            identity: None,
+            value: json!({"title": "Hello <CEM> & \"friends\""}),
+        };
+        let secondary_inputs = BTreeMap::new();
+        let target = FormatIdentity {
+            content_type: Some(crate::schema::registry::XML_CONTENT_TYPE.to_owned()),
+            schema: Some(crate::schema::registry::XML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+
+        let output = render_transform_stage(
+            TransformStageRenderSpec {
+                context: &context,
+                adapter: &adapter,
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: Some(&target),
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+                diagnostic_uri: &template.uri,
+                diagnostic_node: None,
+            },
+            &mut diagnostics,
+        )
+        .expect("template renders");
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        assert_eq!(
+            output.value,
+            Value::String("Hello &lt;CEM&gt; &amp; \"friends\"".to_owned())
+        );
+        assert_eq!(
+            output
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.content_type.as_deref()),
+            Some(crate::schema::registry::XML_CONTENT_TYPE)
+        );
+        assert_eq!(
+            output
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.schema.as_deref()),
+            Some(crate::schema::registry::XML_SCHEMA_URI)
+        );
+    }
+
+    #[test]
+    fn render_transform_stage_rejects_mixed_xml_encode_contexts() {
+        let template = TemplateInput {
+            uri: "templates/data-xml.cemt".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {encoding-function
+      @name="xml.text"
+      @category="xml-text"
+      @subject="string"
+      @produces="text"
+      @content-type="application/xml"
+      @schema="https://cem.dev/ns/data/xml/1"
+      @canonical=true}
+  {encoding-function
+      @name="xml.attribute"
+      @category="xml-attribute-value"
+      @subject="string"
+      @produces="text"
+      @content-type="application/xml"
+      @schema="https://cem.dev/ns/data/xml/1"
+      @canonical=true}
+  {template @name="main" @visibility="public" |
+    {body |
+      {$ encode($input.title, { contentType: "application/xml", schema: "https://cem.dev/ns/data/xml/1", category: "xml-text", context: "text" }, { encoder: "xml.text" }) }
+      {$ encode($input.title, { contentType: "application/xml", schema: "https://cem.dev/ns/data/xml/1", category: "xml-attribute-value", context: "double-quoted-attribute" }, { encoder: "xml.attribute" }) }
+    }
+  }
+}"#
+            .to_vec(),
+            identity: Some(FormatIdentity {
+                content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+                schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            root_scope: ScopeConfig::default(),
+        };
+        let context = ctx();
+        let adapter: Arc<dyn TransformTemplateAdapter> = Arc::new(ReadyCemtHtmlExportAdapter);
+        let params = BTreeMap::new();
+        let data_bindings = vec!["input".to_owned()];
+        let mut diagnostics = Vec::new();
+        let compiled = compile_transform_template(
+            TransformTemplateCompileSpec {
+                context: &context,
+                adapter: &adapter,
+                template: &template,
+                template_kind: TransformTemplateKind::CemNative,
+                entrypoint: &TransformTemplateEntrypoint::named("main"),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: TransformTemplateModuleOptions::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            },
+            &mut diagnostics,
+        )
+        .expect("template compiles");
+        let primary_input = TransformTemplateDataArtifact {
+            artifact_id: "input".to_owned(),
+            uri: None,
+            identity: None,
+            value: json!({"title": "Hello & CEM"}),
+        };
+        let secondary_inputs = BTreeMap::new();
+        let target = FormatIdentity {
+            content_type: Some(crate::schema::registry::XML_CONTENT_TYPE.to_owned()),
+            schema: Some(crate::schema::registry::XML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+
+        let output = render_transform_stage(
+            TransformStageRenderSpec {
+                context: &context,
+                adapter: &adapter,
+                compiled: &compiled,
+                primary_input: &primary_input,
+                secondary_inputs: &secondary_inputs,
+                target: Some(&target),
+                target_scope: &ScopeConfig::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+                diagnostic_uri: &template.uri,
+                diagnostic_node: None,
+            },
+            &mut diagnostics,
+        )
+        .expect("template renders with diagnostics");
+
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic.code
+                == crate::transform_template::TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_CONTEXT_MISMATCH_CODE
+                && diagnostic.message.contains("category")
+        }));
+        assert!(output.value.is_object());
+    }
+
+    #[test]
     fn template_module_contract_rejects_private_or_missing_named_entrypoints() {
         let template = template("main.cem", b"{main}");
         let options = TransformTemplateModuleOptions {
