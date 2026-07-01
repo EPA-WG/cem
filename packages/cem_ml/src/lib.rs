@@ -100,7 +100,10 @@ mod tests {
         // AC-F-V-7: every public type named in AC-F-10 resolves via the crate's
         // public path. Stable identity check — this test catches an accidental
         // rename or unintended visibility change at the layer boundary.
-        use crate::ai_context::{AiContextProjection, AiContextProjectionRequest};
+        use crate::ai_context::{
+            AiContextBudgets, AiContextLossiness, AiContextProfile, AiContextProjection,
+            AiContextProjectionRequest,
+        };
         use crate::ast::BinaryAstEncoder;
         use crate::diagnostics::Diagnostic;
         use crate::events::NormalizedEvent;
@@ -112,6 +115,9 @@ mod tests {
         use crate::tokenizer::SchemaToken;
         fn _accept<T>() {}
         _accept::<Diagnostic>();
+        _accept::<AiContextBudgets>();
+        _accept::<AiContextLossiness>();
+        _accept::<AiContextProfile>();
         _accept::<AiContextProjection>();
         _accept::<AiContextProjectionRequest>();
         _accept::<NormalizedEvent>();

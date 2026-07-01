@@ -307,6 +307,10 @@ history belongs in git history and the feature-specific docs linked below.
         data/instruction mixing, unsupported profile, missing expansion target,
         and budget-driven omission; and task fixtures/evals for retrieval, edit
         precision, and token-budget value.
+    - [x] Add profile/budget request controls, usage and lossiness metadata,
+          source ranges/excerpts, lazy canonical expansion refs, host/tool
+          metadata, and projection diagnostics for unsupported profiles, missing
+          expansion roots, budget omissions, and unsafe data/instruction mixing.
   - [ ] Add encoding category coverage and examples for every content-type
         family listed in the proposal: CEM-ML syntax, CEMT source, XML family,
         HTML, JSON family, YAML, CSV, Markdown, CSS, terminal color text, HTML
