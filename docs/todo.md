@@ -308,6 +308,9 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Make conversion parity comparison mode-aware for
           `diagnostic-equivalent` outputs by comparing normalized diagnostic
           projections without message text or array-order drift.
+    - [x] Add shared conversion parity fixture execution so paired CEMT/native
+          producers run against the same fixture inputs and expected diagnostic
+          projections before drift is reported.
   - [ ] Implement CEMT output safety rules: context-specific categories must not
         be conflated, encoded artifacts must not be silently re-encoded,
         compatible-artifact concatenation must validate target identity and

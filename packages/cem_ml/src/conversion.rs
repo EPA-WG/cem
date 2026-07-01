@@ -504,6 +504,27 @@ pub struct ConversionParityContract<'a> {
 }
 
 #[derive(Debug, Clone)]
+pub struct ConversionParityFixture {
+    pub id: String,
+    pub input: Value,
+    pub expected_diagnostics: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ConversionParityFixtureExecution {
+    pub output: Option<Value>,
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+pub trait ConversionParityFixtureExecutor {
+    fn execute_conversion_parity_fixture(
+        &self,
+        descriptor: &ConversionDescriptor,
+        fixture: &ConversionParityFixture,
+    ) -> ConversionParityFixtureExecution;
+}
+
+#[derive(Debug, Clone)]
 pub struct ConversionOutputSafetyContract<'a> {
     pub descriptor: &'a ConversionDescriptor,
     pub target: TransformTemplateEncodingTarget,
@@ -987,6 +1008,90 @@ pub fn compare_conversion_parity_outputs(
     ))
 }
 
+pub fn evaluate_conversion_parity_fixtures(
+    contract: &ConversionParityContract<'_>,
+    fixtures: &[ConversionParityFixture],
+    executor: &dyn ConversionParityFixtureExecutor,
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+
+    for fixture in fixtures {
+        let cemt_execution = executor.execute_conversion_parity_fixture(contract.cemt, fixture);
+        let native_execution = executor.execute_conversion_parity_fixture(contract.native, fixture);
+
+        if !conversion_diagnostics_equivalent(
+            &cemt_execution.diagnostics,
+            &native_execution.diagnostics,
+        ) {
+            diagnostics.push(conversion_parity_fixture_diagnostic(
+                contract,
+                fixture,
+                "diagnostics",
+                "CEMT and native diagnostic streams differ".to_owned(),
+            ));
+        }
+
+        if !conversion_diagnostics_equivalent(
+            &cemt_execution.diagnostics,
+            &fixture.expected_diagnostics,
+        ) {
+            diagnostics.push(conversion_parity_fixture_diagnostic(
+                contract,
+                fixture,
+                "cemt.diagnostics",
+                "CEMT diagnostics differ from fixture expectations".to_owned(),
+            ));
+        }
+
+        if !conversion_diagnostics_equivalent(
+            &native_execution.diagnostics,
+            &fixture.expected_diagnostics,
+        ) {
+            diagnostics.push(conversion_parity_fixture_diagnostic(
+                contract,
+                fixture,
+                "native.diagnostics",
+                "native diagnostics differ from fixture expectations".to_owned(),
+            ));
+        }
+
+        match (&cemt_execution.output, &native_execution.output) {
+            (Some(cemt_output), Some(native_output)) => {
+                if compare_conversion_parity_outputs(contract, cemt_output, native_output).is_some()
+                {
+                    diagnostics.push(conversion_parity_fixture_diagnostic(
+                        contract,
+                        fixture,
+                        "output",
+                        "CEMT and native outputs differ".to_owned(),
+                    ));
+                }
+            }
+            (None, None) if conversion_parity_fixture_allows_missing_output(fixture) => {}
+            (None, None) => diagnostics.push(conversion_parity_fixture_diagnostic(
+                contract,
+                fixture,
+                "output",
+                "both converters completed without an output value".to_owned(),
+            )),
+            (None, Some(_)) => diagnostics.push(conversion_parity_fixture_diagnostic(
+                contract,
+                fixture,
+                "output",
+                "CEMT converter completed without an output value".to_owned(),
+            )),
+            (Some(_), None) => diagnostics.push(conversion_parity_fixture_diagnostic(
+                contract,
+                fixture,
+                "output",
+                "native converter completed without an output value".to_owned(),
+            )),
+        }
+    }
+
+    diagnostics
+}
+
 fn conversion_parity_outputs_match(
     contract: &ConversionParityContract<'_>,
     cemt_output: &Value,
@@ -1021,6 +1126,42 @@ fn conversion_diagnostic_equivalent_outputs_match(
         }
         _ => cemt_output == native_output,
     }
+}
+
+fn conversion_diagnostics_equivalent(cemt: &[Diagnostic], native: &[Diagnostic]) -> bool {
+    let (Ok(cemt), Ok(native)) = (serde_json::to_value(cemt), serde_json::to_value(native)) else {
+        return false;
+    };
+    conversion_diagnostic_equivalent_outputs_match(&cemt, &native)
+}
+
+fn conversion_parity_fixture_allows_missing_output(fixture: &ConversionParityFixture) -> bool {
+    fixture
+        .expected_diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+}
+
+fn conversion_parity_fixture_diagnostic(
+    contract: &ConversionParityContract<'_>,
+    fixture: &ConversionParityFixture,
+    field: &str,
+    detail: String,
+) -> Diagnostic {
+    let mut diagnostic = conversion_parity_diagnostic(
+        CONVERSION_PARITY_DRIFT_CODE,
+        format!(
+            "CEMT converter `{}` and native converter `{}` produced fixture `{}` drift at `{}` under `{}` parity: {}",
+            contract.cemt.id,
+            contract.native.id,
+            fixture.id,
+            field,
+            conversion_parity_mode_selector(contract.mode),
+            detail
+        ),
+    );
+    diagnostic.node = Some(fixture.id.clone());
+    diagnostic
 }
 
 fn conversion_token_equivalent_outputs_match(
@@ -3153,6 +3294,271 @@ mod tests {
         assert_eq!(drift.code, CONVERSION_PARITY_DRIFT_CODE);
         assert_eq!(drift.severity, Severity::Error);
         assert!(drift.message.contains("diagnostic-equivalent"));
+    }
+
+    #[derive(Default)]
+    struct TestConversionParityFixtureExecutor {
+        outputs: std::collections::BTreeMap<(String, String), ConversionParityFixtureExecution>,
+        calls: std::cell::RefCell<Vec<(String, String, Value)>>,
+    }
+
+    impl TestConversionParityFixtureExecutor {
+        fn insert(
+            &mut self,
+            converter_id: &str,
+            fixture_id: &str,
+            execution: ConversionParityFixtureExecution,
+        ) {
+            self.outputs
+                .insert((converter_id.to_owned(), fixture_id.to_owned()), execution);
+        }
+    }
+
+    impl ConversionParityFixtureExecutor for TestConversionParityFixtureExecutor {
+        fn execute_conversion_parity_fixture(
+            &self,
+            descriptor: &ConversionDescriptor,
+            fixture: &ConversionParityFixture,
+        ) -> ConversionParityFixtureExecution {
+            self.calls.borrow_mut().push((
+                descriptor.id.clone(),
+                fixture.id.clone(),
+                fixture.input.clone(),
+            ));
+            self.outputs
+                .get(&(descriptor.id.clone(), fixture.id.clone()))
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing fixture execution for converter `{}` fixture `{}`",
+                        descriptor.id, fixture.id
+                    )
+                })
+                .clone()
+        }
+    }
+
+    fn conversion_parity_test_diagnostic(
+        code: &str,
+        severity: Severity,
+        line: Option<u32>,
+        message: &str,
+    ) -> Diagnostic {
+        Diagnostic {
+            code: code.to_owned(),
+            severity,
+            line,
+            message: message.to_owned(),
+            ..Diagnostic::default()
+        }
+    }
+
+    #[test]
+    fn parity_fixture_execution_uses_shared_inputs_and_reports_output_drift() {
+        let cemt = cemt_edge_with_output_contract(
+            "fixture-html-cemt",
+            endpoint(HTML_CONTENT_TYPE, HTML_SCHEMA_URI),
+            ConversionOutputContractDescriptor {
+                output_syntax: Some(ConversionOutputSyntax::Html),
+                parity: Some(ConversionParityMode::ByteExact),
+                ..ConversionOutputContractDescriptor::default()
+            },
+        );
+        let native = rust_edge(
+            "fixture-html-rust",
+            "test-dom-projection",
+            endpoint(
+                CEM_DOM_PROJECTION_CONTENT_TYPE,
+                CEM_DOM_PROJECTION_SCHEMA_URI,
+            ),
+            endpoint(HTML_CONTENT_TYPE, HTML_SCHEMA_URI),
+            "HtmlFixtureExportConverter",
+            "serialization",
+            1,
+        );
+        let contract = ConversionParityContract {
+            cemt: &cemt,
+            native: &native,
+            mode: ConversionParityMode::ByteExact,
+        };
+        let fixtures = vec![
+            ConversionParityFixture {
+                id: "matching".to_owned(),
+                input: serde_json::json!({ "case": "matching" }),
+                expected_diagnostics: Vec::new(),
+            },
+            ConversionParityFixture {
+                id: "output-drift".to_owned(),
+                input: serde_json::json!({ "case": "output-drift" }),
+                expected_diagnostics: Vec::new(),
+            },
+        ];
+        let mut executor = TestConversionParityFixtureExecutor::default();
+        executor.insert(
+            "fixture-html-cemt",
+            "matching",
+            ConversionParityFixtureExecution {
+                output: Some(Value::String("<main>ok</main>".to_owned())),
+                diagnostics: Vec::new(),
+            },
+        );
+        executor.insert(
+            "fixture-html-rust",
+            "matching",
+            ConversionParityFixtureExecution {
+                output: Some(Value::String("<main>ok</main>".to_owned())),
+                diagnostics: Vec::new(),
+            },
+        );
+        executor.insert(
+            "fixture-html-cemt",
+            "output-drift",
+            ConversionParityFixtureExecution {
+                output: Some(Value::String("<main>cemt</main>".to_owned())),
+                diagnostics: Vec::new(),
+            },
+        );
+        executor.insert(
+            "fixture-html-rust",
+            "output-drift",
+            ConversionParityFixtureExecution {
+                output: Some(Value::String("<main>native</main>".to_owned())),
+                diagnostics: Vec::new(),
+            },
+        );
+
+        let diagnostics = evaluate_conversion_parity_fixtures(&contract, &fixtures, &executor);
+
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, CONVERSION_PARITY_DRIFT_CODE);
+        assert_eq!(diagnostics[0].severity, Severity::Error);
+        assert_eq!(diagnostics[0].node.as_deref(), Some("output-drift"));
+        assert!(diagnostics[0].message.contains("fixture `output-drift`"));
+        assert!(diagnostics[0].message.contains("byte-exact"));
+        assert!(diagnostics[0].message.contains("output"));
+
+        let calls = executor.calls.borrow();
+        assert_eq!(calls.len(), 4);
+        assert_eq!(calls[0].0, "fixture-html-cemt");
+        assert_eq!(calls[1].0, "fixture-html-rust");
+        assert_eq!(calls[0].1, "matching");
+        assert_eq!(calls[1].1, "matching");
+        assert_eq!(calls[0].2, serde_json::json!({ "case": "matching" }));
+        assert_eq!(calls[1].2, serde_json::json!({ "case": "matching" }));
+        assert_eq!(calls[2].0, "fixture-html-cemt");
+        assert_eq!(calls[3].0, "fixture-html-rust");
+        assert_eq!(calls[2].1, "output-drift");
+        assert_eq!(calls[3].1, "output-drift");
+        assert_eq!(calls[2].2, serde_json::json!({ "case": "output-drift" }));
+        assert_eq!(calls[3].2, serde_json::json!({ "case": "output-drift" }));
+    }
+
+    #[test]
+    fn parity_fixture_execution_compares_expected_diagnostics() {
+        let cemt = cemt_edge_with_output_contract(
+            "fixture-diagnostics-cemt",
+            endpoint(JSON_CONTENT_TYPE, JSON_VALUE_SCHEMA_URI),
+            ConversionOutputContractDescriptor {
+                output_syntax: Some(ConversionOutputSyntax::Json),
+                parity: Some(ConversionParityMode::ByteExact),
+                ..ConversionOutputContractDescriptor::default()
+            },
+        );
+        let native = rust_edge(
+            "fixture-diagnostics-rust",
+            "test-dom-projection",
+            endpoint(
+                CEM_DOM_PROJECTION_CONTENT_TYPE,
+                CEM_DOM_PROJECTION_SCHEMA_URI,
+            ),
+            endpoint(JSON_CONTENT_TYPE, JSON_VALUE_SCHEMA_URI),
+            "DiagnosticFixtureExportConverter",
+            "diagnostics",
+            1,
+        );
+        let contract = ConversionParityContract {
+            cemt: &cemt,
+            native: &native,
+            mode: ConversionParityMode::ByteExact,
+        };
+        let expected = conversion_parity_test_diagnostic(
+            "cem.fixture.warning",
+            Severity::Warning,
+            Some(2),
+            "expected wording",
+        );
+        let fixtures = vec![
+            ConversionParityFixture {
+                id: "diagnostic-equivalent".to_owned(),
+                input: serde_json::json!({ "case": "diagnostic-equivalent" }),
+                expected_diagnostics: vec![expected.clone()],
+            },
+            ConversionParityFixture {
+                id: "diagnostic-drift".to_owned(),
+                input: serde_json::json!({ "case": "diagnostic-drift" }),
+                expected_diagnostics: vec![expected.clone()],
+            },
+        ];
+        let mut executor = TestConversionParityFixtureExecutor::default();
+        for converter_id in ["fixture-diagnostics-cemt", "fixture-diagnostics-rust"] {
+            executor.insert(
+                converter_id,
+                "diagnostic-equivalent",
+                ConversionParityFixtureExecution {
+                    output: Some(serde_json::json!({ "status": "ok" })),
+                    diagnostics: vec![conversion_parity_test_diagnostic(
+                        "cem.fixture.warning",
+                        Severity::Warning,
+                        Some(2),
+                        if converter_id.ends_with("cemt") {
+                            "CEMT wording"
+                        } else {
+                            "native wording"
+                        },
+                    )],
+                },
+            );
+        }
+        executor.insert(
+            "fixture-diagnostics-cemt",
+            "diagnostic-drift",
+            ConversionParityFixtureExecution {
+                output: Some(serde_json::json!({ "status": "ok" })),
+                diagnostics: vec![conversion_parity_test_diagnostic(
+                    "cem.fixture.warning",
+                    Severity::Warning,
+                    Some(2),
+                    "CEMT wording",
+                )],
+            },
+        );
+        executor.insert(
+            "fixture-diagnostics-rust",
+            "diagnostic-drift",
+            ConversionParityFixtureExecution {
+                output: Some(serde_json::json!({ "status": "ok" })),
+                diagnostics: vec![conversion_parity_test_diagnostic(
+                    "cem.fixture.warning",
+                    Severity::Error,
+                    Some(2),
+                    "native wording",
+                )],
+            },
+        );
+
+        let diagnostics = evaluate_conversion_parity_fixtures(&contract, &fixtures, &executor);
+
+        assert_eq!(diagnostics.len(), 2);
+        assert!(diagnostics.iter().all(|diagnostic| {
+            diagnostic.code == CONVERSION_PARITY_DRIFT_CODE
+                && diagnostic.node.as_deref() == Some("diagnostic-drift")
+                && diagnostic.message.contains("diagnostics")
+        }));
+        assert!(diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("diagnostics differ")));
+        assert!(diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("native.diagnostics")));
     }
 
     #[test]
