@@ -643,6 +643,26 @@ const TRANSFORM_TEMPLATE_STANDARD_OUTPUT_FUNCTIONS:
     },
     TransformTemplateStandardOutputFunctionContract {
         kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "cem.text",
+        category: "cem-document",
+        subject: Some("string"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: CEM_ML_CONTENT_TYPE,
+        schema: CEM_ML_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "cemt.text",
+        category: "cemt-module",
+        subject: Some("string"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: CEM_TRANSFORM_CONTENT_TYPE,
+        schema: CEM_TRANSFORM_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
         name: "cem-bin.dom.bytes",
         category: "cem-bin-document",
         subject: Some("bytes"),
@@ -3036,6 +3056,8 @@ impl TransformTemplateEncodeImplementationRegistry {
         registry.register("csv.record", builtin_csv_record_encoder);
         registry.register("css.string", builtin_css_string_encoder);
         registry.register("css.identifier", builtin_css_identifier_encoder);
+        registry.register("cem.text", builtin_cem_text_encoder);
+        registry.register("cemt.text", builtin_cemt_text_encoder);
         registry.register("cem-bin.dom.bytes", builtin_cem_bin_bytes_encoder);
         registry.register("cem-bin.ast.bytes", builtin_cem_bin_bytes_encoder);
         registry.register("cem-bin.events.bytes", builtin_cem_bin_bytes_encoder);
@@ -3501,6 +3523,80 @@ fn validate_builtin_css_encoder_binding(
     Ok(())
 }
 
+fn builtin_cem_text_encoder(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_cem_source_text_encoder_binding(binding, "CEM source")?;
+    let text = subject
+        .as_str()
+        .ok_or_else(|| "cem.text expected string subject".to_owned())?;
+    transform_template_format_cem_source_text(
+        text,
+        &binding.options,
+        binding.identity.formatter_profile.as_deref(),
+    )
+    .map(Value::String)
+}
+
+fn builtin_cemt_text_encoder(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_cem_source_text_encoder_binding(binding, "CEMT source")?;
+    let text = subject
+        .as_str()
+        .ok_or_else(|| "cemt.text expected string subject".to_owned())?;
+    transform_template_format_cemt_source_text(
+        text,
+        &binding.options,
+        binding.identity.formatter_profile.as_deref(),
+    )
+    .map(Value::String)
+}
+
+fn validate_builtin_cem_source_text_encoder_binding(
+    binding: &TransformTemplateEncodeBinding,
+    label: &str,
+) -> Result<(), String> {
+    let Some(expected) = standard_output_function_contract(&binding.function.name) else {
+        return Err(format!(
+            "{label} encoder implementation cannot execute `{}`",
+            binding.function.name
+        ));
+    };
+    if expected.kind != TransformTemplateOutputFunctionKind::Encoding
+        || expected.produces != TransformTemplateOutputProducedKind::Text
+        || expected.subject != Some("string")
+    {
+        return Err(format!(
+            "{label} encoder implementation cannot execute `{}`",
+            binding.function.name
+        ));
+    }
+    if content_type_essence(&binding.identity.target.content_type)
+        != content_type_essence(expected.content_type)
+    {
+        return Err(format!(
+            "{label} encoder `{}` expected content type `{}`, got `{}`",
+            binding.function.name, expected.content_type, binding.identity.target.content_type
+        ));
+    }
+    if binding.identity.target.schema != expected.schema {
+        return Err(format!(
+            "{label} encoder `{}` expected schema `{}`, got `{}`",
+            binding.function.name, expected.schema, binding.identity.target.schema
+        ));
+    }
+    if binding.identity.target.category != expected.category {
+        return Err(format!(
+            "{label} encoder `{}` expected category `{}`, got `{}`",
+            binding.function.name, expected.category, binding.identity.target.category
+        ));
+    }
+    Ok(())
+}
+
 fn builtin_cem_bin_bytes_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
@@ -3590,6 +3686,87 @@ fn transform_template_cem_bin_framing_for_schema(schema: &str) -> Option<&'stati
         CEM_AST_PROJECTION_SCHEMA_URI => Some("cem-bin/ast-v1"),
         CEM_EVENTS_PROJECTION_SCHEMA_URI => Some("cem-bin/events-v1"),
         _ => None,
+    }
+}
+
+pub fn transform_template_format_cem_source_text(
+    value: &str,
+    options: &TransformTemplateEncodeOptions,
+    formatter_profile: Option<&str>,
+) -> Result<String, String> {
+    transform_template_validate_cem_source_text_formatter_options(
+        options,
+        formatter_profile,
+        "CEM",
+        "cem",
+    )?;
+    transform_template_apply_cem_source_line_ending(
+        value.to_owned(),
+        options.line_ending.as_deref(),
+        "CEM",
+    )
+}
+
+pub fn transform_template_format_cemt_source_text(
+    value: &str,
+    options: &TransformTemplateEncodeOptions,
+    formatter_profile: Option<&str>,
+) -> Result<String, String> {
+    transform_template_validate_cem_source_text_formatter_options(
+        options,
+        formatter_profile,
+        "CEMT",
+        "cemt",
+    )?;
+    transform_template_apply_cem_source_line_ending(
+        value.to_owned(),
+        options.line_ending.as_deref(),
+        "CEMT",
+    )
+}
+
+fn transform_template_validate_cem_source_text_formatter_options(
+    options: &TransformTemplateEncodeOptions,
+    formatter_profile: Option<&str>,
+    syntax_name: &str,
+    syntax_prefix: &str,
+) -> Result<(), String> {
+    for selector in [
+        options.formatter.as_deref(),
+        options.formatter_profile.as_deref(),
+        formatter_profile,
+    ]
+    .into_iter()
+    .flatten()
+    {
+        let selector = selector.trim();
+        if matches!(selector, "" | "preserve" | "canonical")
+            || selector == format!("{syntax_prefix}.preserve")
+            || selector == format!("{syntax_prefix}.canonical")
+        {
+            continue;
+        }
+        return Err(format!(
+            "unsupported {syntax_name} source formatter `{selector}`"
+        ));
+    }
+    Ok(())
+}
+
+fn transform_template_apply_cem_source_line_ending(
+    output: String,
+    line_ending: Option<&str>,
+    syntax_name: &str,
+) -> Result<String, String> {
+    match line_ending.map(str::trim).filter(|value| !value.is_empty()) {
+        None | Some("preserve") => Ok(output),
+        Some("lf") | Some("\\n") => Ok(normalize_line_endings_to_lf(&output)),
+        Some("crlf") | Some("\\r\\n") => {
+            Ok(normalize_line_endings_to_lf(&output).replace('\n', "\r\n"))
+        }
+        Some(other) => Err(format!(
+            "unsupported {syntax_name} source formatter line ending `{other}`"
+        )),
     }
 }
 
@@ -8597,6 +8774,37 @@ mod tests {
         }
     }
 
+    fn cem_source_output_function_descriptor(
+        name: &str,
+        category: &str,
+        content_type: &str,
+        schema: &str,
+    ) -> TransformTemplateOutputFunctionDescriptor {
+        TransformTemplateOutputFunctionDescriptor {
+            kind: TransformTemplateOutputFunctionKind::Encoding,
+            owner: name.split_once('.').map(|(owner, _)| owner.to_owned()),
+            name: name.to_owned(),
+            category: category.to_owned(),
+            subject: "string".to_owned(),
+            produces: TransformTemplateOutputProducedKind::Text,
+            content_type: content_type.to_owned(),
+            schema: schema.to_owned(),
+            canonical: true,
+            streamable: true,
+            visibility: TransformTemplateModuleVisibility::Public,
+            implementation: TransformTemplateOutputFunctionImplementation::Cemt,
+            profile: None,
+            extends: None,
+            capability: None,
+            deterministic: true,
+            trusted: false,
+            lossy: false,
+            fallback: None,
+            params: Vec::new(),
+            body_declared: false,
+        }
+    }
+
     fn color_output_function_descriptor(
         name: &str,
         category: &str,
@@ -10838,6 +11046,103 @@ mod tests {
             .encode(&wrong_content_type, &Value::String("unsafe".to_owned()))
             .expect_err("builtin refuses mismatched content type");
         assert!(error.contains("expected content type `text/css`"));
+    }
+
+    #[test]
+    fn builtin_cem_source_text_encoders_preserve_source_with_line_endings() {
+        let mut functions = TransformTemplateOutputFunctionRegistry::new();
+        functions.register(cem_source_output_function_descriptor(
+            "cem.text",
+            "cem-document",
+            CEM_ML_CONTENT_TYPE,
+            CEM_ML_SCHEMA_URI,
+        ));
+        functions.register(cem_source_output_function_descriptor(
+            "cemt.text",
+            "cemt-module",
+            CEM_TRANSFORM_CONTENT_TYPE,
+            CEM_TRANSFORM_SCHEMA_URI,
+        ));
+        let registry = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+
+        let cem_request = TransformTemplateEncodeBindingRequest::new(
+            Value::String("{element @name=\"note\"}\r\n{text | Hello}\r@end".to_owned()),
+            TransformTemplateEncodingTarget::new(
+                format!("{CEM_ML_CONTENT_TYPE}; charset=utf-8"),
+                CEM_ML_SCHEMA_URI,
+                "cem-document",
+            ),
+        )
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some("cem.text".to_owned()),
+            line_ending: Some("lf".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let cem_binding = functions
+            .resolve_encode_binding(&cem_request, &BTreeSet::new())
+            .expect("CEM source text encoder resolves");
+        let cem_encoded = registry
+            .encode(&cem_binding, &cem_request.subject)
+            .expect("CEM source text encoder runs");
+        assert_eq!(
+            cem_encoded,
+            Value::String("{element @name=\"note\"}\n{text | Hello}\n@end".to_owned())
+        );
+        cem_binding
+            .artifact_from_value(cem_encoded)
+            .validate_insertion(
+                &TransformTemplateEncodedArtifactInsertionContext::new(
+                    CEM_ML_CONTENT_TYPE,
+                    CEM_ML_SCHEMA_URI,
+                )
+                .with_category("cem-document")
+                .with_produces(TransformTemplateOutputProducedKind::Text),
+            )
+            .expect("CEM source text artifact carries a compatible identity");
+
+        let cemt_request = TransformTemplateEncodeBindingRequest::new(
+            Value::String("{template @name=\"main\"}\n{body | {$ value }}".to_owned()),
+            TransformTemplateEncodingTarget::new(
+                CEM_TRANSFORM_CONTENT_TYPE,
+                CEM_TRANSFORM_SCHEMA_URI,
+                "cemt-module",
+            ),
+        )
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some("cemt.text".to_owned()),
+            line_ending: Some("crlf".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let cemt_binding = functions
+            .resolve_encode_binding(&cemt_request, &BTreeSet::new())
+            .expect("CEMT source text encoder resolves");
+        let cemt_encoded = registry
+            .encode(&cemt_binding, &cemt_request.subject)
+            .expect("CEMT source text encoder runs");
+        assert_eq!(
+            cemt_encoded,
+            Value::String("{template @name=\"main\"}\r\n{body | {$ value }}".to_owned())
+        );
+
+        let mut wrong_schema = cemt_binding.clone();
+        wrong_schema.identity.target.schema = CEM_ML_SCHEMA_URI.to_owned();
+        let schema_error = registry
+            .encode(
+                &wrong_schema,
+                &Value::String("{template @name=\"main\"}".to_owned()),
+            )
+            .expect_err("CEMT source text encoder refuses mismatched schema");
+        assert!(schema_error.contains(&format!("expected schema `{CEM_TRANSFORM_SCHEMA_URI}`")));
+
+        let mut unsupported_formatter = cem_binding.clone();
+        unsupported_formatter.options.formatter = Some("cem.pretty".to_owned());
+        let formatter_error = registry
+            .encode(
+                &unsupported_formatter,
+                &Value::String("{element @name=\"note\"}".to_owned()),
+            )
+            .expect_err("unsupported CEM source formatter is rejected");
+        assert!(formatter_error.contains("unsupported CEM source formatter `cem.pretty`"));
     }
 
     #[test]
