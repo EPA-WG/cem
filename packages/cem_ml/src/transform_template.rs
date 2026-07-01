@@ -184,6 +184,8 @@ pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_CANONICAL_NONDETERMINISTIC_CODE: &s
     "cem.transform_template.output_function_canonical_nondeterministic";
 pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_SUBJECT_TYPE_INCOMPATIBLE_CODE: &str =
     "cem.transform_template.output_function_subject_type_incompatible";
+pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_PRODUCED_KIND_INCOMPATIBLE_CODE: &str =
+    "cem.transform_template.output_function_produced_kind_incompatible";
 pub const TRANSFORM_TEMPLATE_UNSAFE_RAW_INSERTION_CODE: &str =
     "cem.transform_template.unsafe_raw_insertion";
 pub const TRANSFORM_TEMPLATE_UNSUPPORTED_CHARSET_CODE: &str =
@@ -510,6 +512,12 @@ pub enum TransformTemplateOutputFunctionResolutionError {
         available_subjects: Vec<String>,
         function_names: Vec<String>,
     },
+    ProducedKindIncompatible {
+        function_name: String,
+        produces: TransformTemplateOutputProducedKind,
+        target_syntax: TransformTemplateTargetSyntaxKind,
+        expected: String,
+    },
     UnsafeRawInsertion {
         function_name: String,
         category: String,
@@ -637,6 +645,23 @@ impl TransformTemplateOutputFunctionResolutionError {
                     ..Diagnostic::default()
                 }
             }
+            Self::ProducedKindIncompatible {
+                function_name,
+                produces,
+                target_syntax,
+                expected,
+            } => Diagnostic {
+                uri: uri.map(str::to_owned),
+                code: TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_PRODUCED_KIND_INCOMPATIBLE_CODE
+                    .to_owned(),
+                severity: Severity::Error,
+                message: format!(
+                    "CEMT output function `{function_name}` produces `{}` but `{}` target syntax requires {expected}",
+                    produces.as_str(),
+                    target_syntax.as_str()
+                ),
+                ..Diagnostic::default()
+            },
             Self::UnsafeRawInsertion {
                 function_name,
                 category,
@@ -908,10 +933,7 @@ impl TransformTemplateOutputFunctionRegistry {
             };
             match self.resolve(&query, host_capabilities) {
                 Ok(function) => {
-                    validate_transform_template_output_kind_for_syntax(
-                        function.produces,
-                        &syntax_rules,
-                    )?;
+                    validate_transform_template_output_kind_for_syntax(function, &syntax_rules)?;
                     validate_transform_template_canonical_determinism(function, &request.options)?;
                     validate_transform_template_raw_output_trust(function, &request.options)?;
                     let mut identity = TransformTemplateEncodedArtifactIdentity::from_options(
@@ -984,10 +1006,7 @@ impl TransformTemplateOutputFunctionRegistry {
             };
             match self.resolve(&query, host_capabilities) {
                 Ok(function) => {
-                    validate_transform_template_output_kind_for_syntax(
-                        function.produces,
-                        &syntax_rules,
-                    )?;
+                    validate_transform_template_output_kind_for_syntax(function, &syntax_rules)?;
                     validate_transform_template_canonical_determinism(function, &request.options)?;
                     let mut identity = TransformTemplateEncodedArtifactIdentity::from_options(
                         function.produces,
@@ -2172,28 +2191,36 @@ fn transform_template_content_type_charset(content_type: &str) -> Option<String>
 }
 
 fn validate_transform_template_output_kind_for_syntax(
-    produces: TransformTemplateOutputProducedKind,
+    function: &TransformTemplateOutputFunctionDescriptor,
     rules: &TransformTemplateTargetSyntaxRules,
 ) -> Result<(), TransformTemplateOutputFunctionResolutionError> {
-    match produces {
-        TransformTemplateOutputProducedKind::Bytes | TransformTemplateOutputProducedKind::Chunks
+    match function.produces {
+        TransformTemplateOutputProducedKind::Bytes
+        | TransformTemplateOutputProducedKind::Chunks
             if !rules.writer_boundaries.allows_binary_output =>
         {
-            Err(invalid_target_syntax(format!(
-                "CEMT output function produces `{}` but `{}` target syntax requires text-compatible writer output",
-                produces.as_str(),
-                rules.syntax.as_str()
-            )))
+            Err(
+                TransformTemplateOutputFunctionResolutionError::ProducedKindIncompatible {
+                    function_name: function.name.clone(),
+                    produces: function.produces,
+                    target_syntax: rules.syntax,
+                    expected: "text-compatible writer output".to_owned(),
+                },
+            )
         }
         TransformTemplateOutputProducedKind::Text
         | TransformTemplateOutputProducedKind::Tokens
         | TransformTemplateOutputProducedKind::Diagnostics
             if rules.syntax == TransformTemplateTargetSyntaxKind::Binary =>
         {
-            Err(invalid_target_syntax(format!(
-                "CEMT output function produces `{}` but `binary` target syntax requires bytes or chunks",
-                produces.as_str()
-            )))
+            Err(
+                TransformTemplateOutputFunctionResolutionError::ProducedKindIncompatible {
+                    function_name: function.name.clone(),
+                    produces: function.produces,
+                    target_syntax: rules.syntax,
+                    expected: "bytes or chunks".to_owned(),
+                },
+            )
         }
         _ => Ok(()),
     }
@@ -7328,8 +7355,9 @@ mod tests {
             .expect_err("text output cannot target binary syntax");
         assert_eq!(
             text_error.diagnostic(None).code,
-            TRANSFORM_TEMPLATE_TARGET_SYNTAX_INVALID_CODE
+            TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_PRODUCED_KIND_INCOMPATIBLE_CODE
         );
+        assert!(text_error.diagnostic(None).message.contains("binary.text"));
         assert!(text_error
             .diagnostic(None)
             .message
@@ -7354,8 +7382,9 @@ mod tests {
             .expect_err("bytes output cannot target HTML text syntax");
         assert_eq!(
             bytes_error.diagnostic(None).code,
-            TRANSFORM_TEMPLATE_TARGET_SYNTAX_INVALID_CODE
+            TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_PRODUCED_KIND_INCOMPATIBLE_CODE
         );
+        assert!(bytes_error.diagnostic(None).message.contains("html.bytes"));
         assert!(bytes_error.diagnostic(None).message.contains(
             "produces `bytes` but `html` target syntax requires text-compatible writer output"
         ));
@@ -8067,6 +8096,47 @@ mod tests {
         assert!(diagnostic.message.contains("object"));
         assert!(diagnostic.message.contains("tokens"));
         assert!(diagnostic.message.contains("terminal-color"));
+    }
+
+    #[test]
+    fn color_binding_reports_incompatible_produced_kind() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        let mut bytes_colorizer = color_output_function_descriptor(
+            "terminal.bytes",
+            "terminal-color",
+            "text/plain",
+            "https://cem.dev/ns/data/text/terminal/1",
+            Some("ansi-256"),
+        );
+        bytes_colorizer.produces = TransformTemplateOutputProducedKind::Bytes;
+        registry.register(bytes_colorizer);
+
+        let request = TransformTemplateEncodeBindingRequest::new(
+            json!([{"role": "diagnostic.error", "text": "Broken"}]),
+            TransformTemplateEncodingTarget::new(
+                "text/plain",
+                "https://cem.dev/ns/data/text/terminal/1",
+                "terminal-color",
+            ),
+        )
+        .with_subject_type("tokens")
+        .with_options(TransformTemplateEncodeOptions {
+            colorizer: Some("terminal.bytes".to_owned()),
+            color_profile: Some("ansi-256".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let diagnostic = registry
+            .resolve_color_binding(&request, &BTreeSet::new())
+            .expect_err("bytes output cannot target terminal text syntax")
+            .diagnostic(Some("template.cemt"));
+
+        assert_eq!(
+            diagnostic.code,
+            TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_PRODUCED_KIND_INCOMPATIBLE_CODE
+        );
+        assert!(diagnostic.message.contains("terminal.bytes"));
+        assert!(diagnostic.message.contains("bytes"));
+        assert!(diagnostic.message.contains("text-compatible writer output"));
     }
 
     #[test]

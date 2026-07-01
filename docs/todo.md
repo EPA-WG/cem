@@ -279,6 +279,9 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add incompatible custom subject-type diagnostics for encode and color
           bindings when a matching function exists but accepts different
           semantic subject types.
+    - [x] Add incompatible produced-kind diagnostics for encode and color
+          bindings when a selected output function crosses text/binary writer
+          boundaries.
   - [ ] Add AI-facing context projection support as a task-shaped view over the
         canonical AST/DOM/events/schema/token metadata, not a replacement for
         canonical projections. Cover `ai-context-pack`, `ai-entity-graph`,
