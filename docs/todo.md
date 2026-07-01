@@ -321,8 +321,11 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add proposal-family conversion output-safety examples that validate
           category syntax, target content type/schema, produced kind, and
           insertion context for every listed family.
-  - [ ] Keep content-type-to-content-type conversion planning separate from
+  - [x] Keep content-type-to-content-type conversion planning separate from
         AST-to-schema output production.
+    - [x] Add conversion planning domains with separate content-conversion and
+          schema-output selection/execution APIs, and scope CEMT output-safety
+          contracts to schema output producers.
 
 - Adopt the schema package content registry design as the active CEM-ML
   conversion goal:

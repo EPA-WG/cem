@@ -113,6 +113,12 @@ pub enum ConversionOutputSyntax {
     Opaque,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ConversionPlanningDomain {
+    ContentTypeConversion,
+    SchemaOutputProduction,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConversionParityMode {
     ByteExact,
@@ -147,6 +153,16 @@ pub struct ConversionDescriptor {
     pub implicit: bool,
     pub explicit_only: bool,
     pub cost: u32,
+}
+
+impl ConversionDescriptor {
+    pub fn planning_domain(&self) -> ConversionPlanningDomain {
+        if descriptor_is_schema_output_producer(self) {
+            ConversionPlanningDomain::SchemaOutputProduction
+        } else {
+            ConversionPlanningDomain::ContentTypeConversion
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -407,19 +423,35 @@ impl std::error::Error for ConversionLookupError {}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ConversionLookupOptions {
     pub include_explicit_only: bool,
+    pub planning_domain: Option<ConversionPlanningDomain>,
 }
 
 impl ConversionLookupOptions {
     pub fn implicit() -> Self {
         Self {
             include_explicit_only: false,
+            planning_domain: None,
         }
     }
 
     pub fn explicit() -> Self {
         Self {
             include_explicit_only: true,
+            planning_domain: None,
         }
+    }
+
+    pub fn content_type_conversion() -> Self {
+        Self::implicit().with_planning_domain(ConversionPlanningDomain::ContentTypeConversion)
+    }
+
+    pub fn schema_output_production() -> Self {
+        Self::implicit().with_planning_domain(ConversionPlanningDomain::SchemaOutputProduction)
+    }
+
+    pub fn with_planning_domain(mut self, planning_domain: ConversionPlanningDomain) -> Self {
+        self.planning_domain = Some(planning_domain);
+        self
     }
 }
 
@@ -579,6 +611,34 @@ impl ConversionRegistry {
         )
     }
 
+    pub fn select_content_type_conversion_edge<'a>(
+        &'a self,
+        schema_registry: &SchemaRegistry,
+        source: &FormatIdentity,
+        target: &FormatIdentity,
+    ) -> Result<DirectConversionSelection<'a>, ConversionLookupError> {
+        self.select_direct_edge_with_options(
+            schema_registry,
+            source,
+            target,
+            ConversionLookupOptions::content_type_conversion(),
+        )
+    }
+
+    pub fn select_schema_output_producer<'a>(
+        &'a self,
+        schema_registry: &SchemaRegistry,
+        source: &FormatIdentity,
+        target: &FormatIdentity,
+    ) -> Result<DirectConversionSelection<'a>, ConversionLookupError> {
+        self.select_direct_edge_with_options(
+            schema_registry,
+            source,
+            target,
+            ConversionLookupOptions::schema_output_production(),
+        )
+    }
+
     pub fn select_direct_edge_with_options<'a>(
         &'a self,
         schema_registry: &SchemaRegistry,
@@ -642,6 +702,38 @@ impl ConversionRegistry {
             source,
             target,
             ConversionLookupOptions::default(),
+        )
+    }
+
+    pub fn resolve_content_type_conversion_execution<'a>(
+        &'a self,
+        schema_registry: &SchemaRegistry,
+        template_adapter_registry: &TransformTemplateAdapterRegistry,
+        source: &FormatIdentity,
+        target: &FormatIdentity,
+    ) -> Result<DirectConversionExecution<'a>, ConversionExecutionError> {
+        self.resolve_direct_execution_with_options(
+            schema_registry,
+            template_adapter_registry,
+            source,
+            target,
+            ConversionLookupOptions::content_type_conversion(),
+        )
+    }
+
+    pub fn resolve_schema_output_execution<'a>(
+        &'a self,
+        schema_registry: &SchemaRegistry,
+        template_adapter_registry: &TransformTemplateAdapterRegistry,
+        source: &FormatIdentity,
+        target: &FormatIdentity,
+    ) -> Result<DirectConversionExecution<'a>, ConversionExecutionError> {
+        self.resolve_direct_execution_with_options(
+            schema_registry,
+            template_adapter_registry,
+            source,
+            target,
+            ConversionLookupOptions::schema_output_production(),
         )
     }
 
@@ -725,6 +817,9 @@ impl ConversionRegistry {
             .descriptors_by_id
             .values()
             .filter(|descriptor| descriptor.implementation == ConversionImplementation::Cemt)
+            .filter(|descriptor| {
+                descriptor.planning_domain() == ConversionPlanningDomain::SchemaOutputProduction
+            })
         {
             let (contract, mut descriptor_diagnostics) =
                 conversion_output_safety_contract(descriptor);
@@ -1250,9 +1345,18 @@ fn descriptor_can_plan(
     options: ConversionLookupOptions,
 ) -> bool {
     if options.include_explicit_only {
+        if let Some(planning_domain) = options.planning_domain {
+            return descriptor.planning_domain() == planning_domain;
+        }
         return true;
     }
-    descriptor.implicit && !descriptor.explicit_only
+    if !descriptor.implicit || descriptor.explicit_only {
+        return false;
+    }
+    if let Some(planning_domain) = options.planning_domain {
+        return descriptor.planning_domain() == planning_domain;
+    }
+    true
 }
 
 fn descriptor_rank(descriptor: &ConversionDescriptor) -> (u32, u8) {
@@ -1261,6 +1365,26 @@ fn descriptor_rank(descriptor: &ConversionDescriptor) -> (u32, u8) {
         ConversionImplementation::Rust => 1,
     };
     (descriptor.cost, implementation_rank)
+}
+
+fn descriptor_is_schema_output_producer(descriptor: &ConversionDescriptor) -> bool {
+    let Some(source_schema) = descriptor.from.schema.as_deref() else {
+        return false;
+    };
+    let Some(target_schema) = descriptor.to.schema.as_deref() else {
+        return false;
+    };
+
+    is_canonical_projection_schema(source_schema) && !is_canonical_projection_schema(target_schema)
+}
+
+fn is_canonical_projection_schema(schema: &str) -> bool {
+    matches!(
+        schema,
+        CEM_AST_PROJECTION_SCHEMA_URI
+            | CEM_DOM_PROJECTION_SCHEMA_URI
+            | CEM_EVENTS_PROJECTION_SCHEMA_URI
+    )
 }
 
 pub fn resolve_conversion_identity(
@@ -2695,6 +2819,127 @@ mod tests {
     }
 
     #[test]
+    fn builtin_registry_classifies_conversion_planning_domains() {
+        let registry = ConversionRegistry::with_builtin_converters();
+
+        for (id, expected_domain) in [
+            (
+                "cem-ml-to-dom-projection-rust",
+                ConversionPlanningDomain::ContentTypeConversion,
+            ),
+            (
+                "cem-ml-to-ast-projection-rust",
+                ConversionPlanningDomain::ContentTypeConversion,
+            ),
+            (
+                "cem-ml-to-events-projection-rust",
+                ConversionPlanningDomain::ContentTypeConversion,
+            ),
+            (
+                "html-to-cem-dom-projection-rust",
+                ConversionPlanningDomain::ContentTypeConversion,
+            ),
+            (
+                "xml-to-cem-dom-projection-rust",
+                ConversionPlanningDomain::ContentTypeConversion,
+            ),
+            (
+                "cem-dom-projection-to-json-debug-rust",
+                ConversionPlanningDomain::ContentTypeConversion,
+            ),
+            (
+                "cem-ast-projection-to-json-debug-rust",
+                ConversionPlanningDomain::ContentTypeConversion,
+            ),
+            (
+                "cem-events-projection-to-json-debug-rust",
+                ConversionPlanningDomain::ContentTypeConversion,
+            ),
+            (
+                "cem-dom-projection-to-html-cemt",
+                ConversionPlanningDomain::SchemaOutputProduction,
+            ),
+            (
+                "cem-dom-projection-to-xml-cemt",
+                ConversionPlanningDomain::SchemaOutputProduction,
+            ),
+            (
+                "cem-dom-projection-to-html-rust",
+                ConversionPlanningDomain::SchemaOutputProduction,
+            ),
+            (
+                "cem-dom-projection-to-xml-rust",
+                ConversionPlanningDomain::SchemaOutputProduction,
+            ),
+        ] {
+            let descriptor = registry.converter(id).expect("built-in converter");
+            assert_eq!(descriptor.planning_domain(), expected_domain, "{id} domain");
+        }
+    }
+
+    #[test]
+    fn content_conversion_and_schema_output_lookup_are_separate() {
+        let schemas = SchemaRegistry::with_builtin_schemas();
+        let registry = ConversionRegistry::with_builtin_converters();
+
+        let content_conversion = registry
+            .select_content_type_conversion_edge(
+                &schemas,
+                &identity(HTML_CONTENT_TYPE),
+                &identity(CEM_DOM_PROJECTION_CONTENT_TYPE),
+            )
+            .unwrap();
+        assert_eq!(
+            content_conversion.descriptor.id,
+            "html-to-cem-dom-projection-rust"
+        );
+        assert_eq!(
+            content_conversion.descriptor.planning_domain(),
+            ConversionPlanningDomain::ContentTypeConversion
+        );
+
+        let content_output_attempt = registry
+            .select_content_type_conversion_edge(
+                &schemas,
+                &identity(CEM_DOM_PROJECTION_CONTENT_TYPE),
+                &identity(HTML_CONTENT_TYPE),
+            )
+            .unwrap_err();
+        assert!(matches!(
+            content_output_attempt,
+            ConversionLookupError::NoDirectEdge { .. }
+        ));
+
+        let schema_output = registry
+            .select_schema_output_producer(
+                &schemas,
+                &identity(CEM_DOM_PROJECTION_CONTENT_TYPE),
+                &identity(HTML_CONTENT_TYPE),
+            )
+            .unwrap();
+        assert_eq!(
+            schema_output.descriptor.id,
+            "cem-dom-projection-to-html-cemt"
+        );
+        assert_eq!(
+            schema_output.descriptor.planning_domain(),
+            ConversionPlanningDomain::SchemaOutputProduction
+        );
+
+        let schema_input_attempt = registry
+            .select_schema_output_producer(
+                &schemas,
+                &identity(HTML_CONTENT_TYPE),
+                &identity(CEM_DOM_PROJECTION_CONTENT_TYPE),
+            )
+            .unwrap_err();
+        assert!(matches!(
+            schema_input_attempt,
+            ConversionLookupError::NoDirectEdge { .. }
+        ));
+    }
+
+    #[test]
     fn builtin_execution_resolves_ready_rust_edge() {
         let schemas = SchemaRegistry::with_builtin_schemas();
         let registry = ConversionRegistry::with_builtin_converters();
@@ -2751,6 +2996,51 @@ mod tests {
                 assert_eq!(*template_adapter_id, Some("cem-native-template"));
             }
             other => panic!("expected Rust fallback execution, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn domain_scoped_execution_uses_separate_paths() {
+        let schemas = SchemaRegistry::with_builtin_schemas();
+        let registry = ConversionRegistry::with_builtin_converters();
+        let template_adapters = TransformTemplateAdapterRegistry::with_builtin_adapters();
+
+        let content_execution = registry
+            .resolve_content_type_conversion_execution(
+                &schemas,
+                &template_adapters,
+                &identity(HTML_CONTENT_TYPE),
+                &identity(CEM_DOM_PROJECTION_CONTENT_TYPE),
+            )
+            .unwrap();
+        assert_eq!(
+            content_execution.descriptor.id,
+            "html-to-cem-dom-projection-rust"
+        );
+        assert_eq!(
+            content_execution.execution,
+            ConversionExecution::Rust {
+                rust_symbol: "Html5RecoveryConverter".to_owned()
+            }
+        );
+
+        let schema_output_execution = registry
+            .resolve_schema_output_execution(
+                &schemas,
+                &template_adapters,
+                &identity(CEM_DOM_PROJECTION_CONTENT_TYPE),
+                &identity(HTML_CONTENT_TYPE),
+            )
+            .unwrap();
+        assert_eq!(
+            schema_output_execution.descriptor.id,
+            "cem-dom-projection-to-html-cemt"
+        );
+        match schema_output_execution.execution {
+            ConversionExecution::RustFallback { rust_symbol, .. } => {
+                assert_eq!(rust_symbol, "HtmlExportConverter");
+            }
+            other => panic!("expected schema output Rust fallback, got {other:?}"),
         }
     }
 
