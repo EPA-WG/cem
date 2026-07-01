@@ -188,6 +188,7 @@ pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_PRODUCED_KIND_INCOMPATIBLE_CODE: &s
     "cem.transform_template.output_function_produced_kind_incompatible";
 pub const TRANSFORM_TEMPLATE_UNSAFE_RAW_INSERTION_CODE: &str =
     "cem.transform_template.unsafe_raw_insertion";
+pub const TRANSFORM_TEMPLATE_LOSSY_OUTPUT_CODE: &str = "cem.transform_template.lossy_output";
 pub const TRANSFORM_TEMPLATE_UNSUPPORTED_CHARSET_CODE: &str =
     "cem.transform_template.unsupported_charset";
 pub const TRANSFORM_TEMPLATE_CHARSET_MISMATCH_CODE: &str =
@@ -382,6 +383,8 @@ pub struct TransformTemplateOutputFunctionDescriptor {
     pub deterministic: bool,
     #[serde(default, skip_serializing_if = "is_false")]
     pub trusted: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub lossy: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fallback: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -519,6 +522,11 @@ pub enum TransformTemplateOutputFunctionResolutionError {
         expected: String,
     },
     UnsafeRawInsertion {
+        function_name: String,
+        category: String,
+        content_type: String,
+    },
+    LossyOutput {
         function_name: String,
         category: String,
         content_type: String,
@@ -672,6 +680,19 @@ impl TransformTemplateOutputFunctionResolutionError {
                 severity: Severity::Error,
                 message: format!(
                     "CEMT output function `{function_name}` cannot insert raw `{category}` output for `{content_type}` because it is not declared trusted"
+                ),
+                ..Diagnostic::default()
+            },
+            Self::LossyOutput {
+                function_name,
+                category,
+                content_type,
+            } => Diagnostic {
+                uri: uri.map(str::to_owned),
+                code: TRANSFORM_TEMPLATE_LOSSY_OUTPUT_CODE.to_owned(),
+                severity: Severity::Error,
+                message: format!(
+                    "CEMT output function `{function_name}` is declared lossy for `{category}` output on `{content_type}`; set `allowLossy` to true to bind it"
                 ),
                 ..Diagnostic::default()
             },
@@ -936,6 +957,7 @@ impl TransformTemplateOutputFunctionRegistry {
                     validate_transform_template_output_kind_for_syntax(function, &syntax_rules)?;
                     validate_transform_template_canonical_determinism(function, &request.options)?;
                     validate_transform_template_raw_output_trust(function, &request.options)?;
+                    validate_transform_template_lossy_output_policy(function, &request.options)?;
                     let mut identity = TransformTemplateEncodedArtifactIdentity::from_options(
                         function.produces,
                         request.target.clone(),
@@ -1008,6 +1030,7 @@ impl TransformTemplateOutputFunctionRegistry {
                 Ok(function) => {
                     validate_transform_template_output_kind_for_syntax(function, &syntax_rules)?;
                     validate_transform_template_canonical_determinism(function, &request.options)?;
+                    validate_transform_template_lossy_output_policy(function, &request.options)?;
                     let mut identity = TransformTemplateEncodedArtifactIdentity::from_options(
                         function.produces,
                         request.target.clone(),
@@ -1182,6 +1205,8 @@ pub struct TransformTemplateEncodeOptions {
     pub pretty: bool,
     #[serde(default, skip_serializing_if = "is_false")]
     pub raw: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub allow_lossy: bool,
     #[serde(default)]
     pub mode: TransformTemplateEncodedArtifactMode,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2248,6 +2273,22 @@ fn validate_transform_template_raw_output_trust(
     if options.raw && !function.trusted {
         return Err(
             TransformTemplateOutputFunctionResolutionError::UnsafeRawInsertion {
+                function_name: function.name.clone(),
+                category: function.category.clone(),
+                content_type: function.content_type.clone(),
+            },
+        );
+    }
+    Ok(())
+}
+
+fn validate_transform_template_lossy_output_policy(
+    function: &TransformTemplateOutputFunctionDescriptor,
+    options: &TransformTemplateEncodeOptions,
+) -> Result<(), TransformTemplateOutputFunctionResolutionError> {
+    if function.lossy && !options.allow_lossy {
+        return Err(
+            TransformTemplateOutputFunctionResolutionError::LossyOutput {
                 function_name: function.name.clone(),
                 category: function.category.clone(),
                 content_type: function.content_type.clone(),
@@ -3900,6 +3941,9 @@ fn parse_cemt_encode_options(
     if let Some(value) = optional_object_bool(&fields, &["raw", "rawOutput", "raw-output"])? {
         options.raw = value;
     }
+    if let Some(value) = optional_object_bool(&fields, &["allowLossy", "allow-lossy"])? {
+        options.allow_lossy = value;
+    }
     options.encoder = optional_object_string(&fields, &["encoder"])?;
     options.formatter = optional_object_string(&fields, &["formatter"])?;
     options.colorizer = optional_object_string(&fields, &["colorizer"])?;
@@ -5332,6 +5376,7 @@ impl NativeTemplateModuleLowerer<'_> {
         let streamable = self.parse_bool_decl_attr(&attrs, "streamable");
         let deterministic = self.parse_bool_decl_attr(&attrs, "deterministic");
         let trusted = self.parse_bool_decl_attr(&attrs, "trusted");
+        let lossy = self.parse_bool_decl_attr(&attrs, "lossy");
         let visibility = self.parse_visibility(attr_value(&attrs, "", "visibility").as_deref());
         let capability = optional_trimmed_attr(&attrs, "capability");
         if implementation.requires_capability() && capability.is_none() {
@@ -5390,6 +5435,7 @@ impl NativeTemplateModuleLowerer<'_> {
                 capability,
                 deterministic,
                 trusted,
+                lossy,
                 fallback: optional_trimmed_attr(&attrs, "fallback"),
                 params,
                 body_declared,
@@ -6356,6 +6402,7 @@ mod tests {
             capability: None,
             deterministic: true,
             trusted: false,
+            lossy: false,
             fallback: None,
             params: Vec::new(),
             body_declared: false,
@@ -6385,6 +6432,7 @@ mod tests {
             capability: None,
             deterministic: true,
             trusted: false,
+            lossy: false,
             fallback: None,
             params: Vec::new(),
             body_declared: false,
@@ -6414,6 +6462,7 @@ mod tests {
             capability: None,
             deterministic: true,
             trusted: false,
+            lossy: false,
             fallback: None,
             params: Vec::new(),
             body_declared: false,
@@ -6445,6 +6494,7 @@ mod tests {
             capability: None,
             deterministic: true,
             trusted: false,
+            lossy: false,
             fallback: None,
             params: Vec::new(),
             body_declared: false,
@@ -6867,6 +6917,44 @@ mod tests {
     }
 
     #[test]
+    fn cemt_module_parser_lowers_lossy_output_function_metadata() {
+        let response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "templates/lossy-function.cemt",
+                    r#"{@doc cem-ml 1}
+{module |
+  {encoding-function
+    @name="html.text.plain"
+    @category="html-text"
+    @subject="string"
+    @produces="text"
+    @content-type="text/html"
+    @schema="https://cem.dev/ns/data/html/1"
+    @lossy=true}
+}"#,
+                    Some(FormatIdentity {
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            });
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        let function = response
+            .module_options
+            .output_functions
+            .iter()
+            .find(|function| function.name == "html.text.plain")
+            .expect("lossy output function declaration");
+        assert!(function.lossy);
+    }
+
+    #[test]
     fn cemt_module_parser_reports_output_function_declaration_errors() {
         let response = parse_cem_native_template_module_options(
             TransformTemplateModuleParseRequest {
@@ -7169,6 +7257,61 @@ mod tests {
         assert_eq!(binding.function.name, "html.text.raw");
         assert!(binding.function.trusted);
         assert!(binding.options.raw);
+    }
+
+    #[test]
+    fn encode_binding_rejects_lossy_output_without_opt_in() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        let mut lossy = output_function_descriptor();
+        lossy.name = "html.text.plain".to_owned();
+        lossy.lossy = true;
+        registry.register(lossy.clone());
+
+        let request = TransformTemplateEncodeBindingRequest::new(
+            Value::String("<strong>Plain</strong>".to_owned()),
+            TransformTemplateEncodingTarget::new(HTML_CONTENT_TYPE, HTML_SCHEMA_URI, "html-text"),
+        )
+        .with_subject_type("string")
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some(lossy.name.clone()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let diagnostic = registry
+            .resolve_encode_binding(&request, &BTreeSet::new())
+            .expect_err("lossy output requires explicit opt-in")
+            .diagnostic(Some("template.cemt"));
+
+        assert_eq!(diagnostic.code, TRANSFORM_TEMPLATE_LOSSY_OUTPUT_CODE);
+        assert!(diagnostic.message.contains("html.text.plain"));
+        assert!(diagnostic.message.contains("html-text"));
+        assert!(diagnostic.message.contains("allowLossy"));
+    }
+
+    #[test]
+    fn encode_binding_allows_lossy_output_with_opt_in() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        let mut lossy = output_function_descriptor();
+        lossy.name = "html.text.plain".to_owned();
+        lossy.lossy = true;
+        registry.register(lossy.clone());
+
+        let request = TransformTemplateEncodeBindingRequest::new(
+            Value::String("<strong>Plain</strong>".to_owned()),
+            TransformTemplateEncodingTarget::new(HTML_CONTENT_TYPE, HTML_SCHEMA_URI, "html-text"),
+        )
+        .with_subject_type("string")
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some(lossy.name.clone()),
+            allow_lossy: true,
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let binding = registry
+            .resolve_encode_binding(&request, &BTreeSet::new())
+            .expect("explicit opt-in permits lossy output function");
+
+        assert_eq!(binding.function.name, "html.text.plain");
+        assert!(binding.function.lossy);
+        assert!(binding.options.allow_lossy);
     }
 
     #[test]
@@ -7817,6 +7960,7 @@ mod tests {
             capability: None,
             deterministic: true,
             trusted: false,
+            lossy: false,
             fallback: None,
             params: Vec::new(),
             body_declared: false,
@@ -7864,6 +8008,7 @@ mod tests {
             capability: None,
             deterministic: true,
             trusted: false,
+            lossy: false,
             fallback: None,
             params: Vec::new(),
             body_declared: false,
@@ -7910,6 +8055,7 @@ mod tests {
             capability: None,
             deterministic: true,
             trusted: false,
+            lossy: false,
             fallback: None,
             params: Vec::new(),
             body_declared: false,
@@ -7963,6 +8109,7 @@ mod tests {
             capability: None,
             deterministic: true,
             trusted: false,
+            lossy: false,
             fallback: None,
             params: Vec::new(),
             body_declared: false,
@@ -8137,6 +8284,44 @@ mod tests {
         assert!(diagnostic.message.contains("terminal.bytes"));
         assert!(diagnostic.message.contains("bytes"));
         assert!(diagnostic.message.contains("text-compatible writer output"));
+    }
+
+    #[test]
+    fn color_binding_rejects_lossy_output_without_opt_in() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        let mut lossy_colorizer = color_output_function_descriptor(
+            "terminal.lossy",
+            "terminal-color",
+            "text/plain",
+            "https://cem.dev/ns/data/text/terminal/1",
+            Some("ansi-256"),
+        );
+        lossy_colorizer.lossy = true;
+        registry.register(lossy_colorizer);
+
+        let request = TransformTemplateEncodeBindingRequest::new(
+            json!([{"role": "diagnostic.error", "text": "Broken"}]),
+            TransformTemplateEncodingTarget::new(
+                "text/plain",
+                "https://cem.dev/ns/data/text/terminal/1",
+                "terminal-color",
+            ),
+        )
+        .with_subject_type("tokens")
+        .with_options(TransformTemplateEncodeOptions {
+            colorizer: Some("terminal.lossy".to_owned()),
+            color_profile: Some("ansi-256".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let diagnostic = registry
+            .resolve_color_binding(&request, &BTreeSet::new())
+            .expect_err("lossy colorizer requires explicit opt-in")
+            .diagnostic(Some("template.cemt"));
+
+        assert_eq!(diagnostic.code, TRANSFORM_TEMPLATE_LOSSY_OUTPUT_CODE);
+        assert!(diagnostic.message.contains("terminal.lossy"));
+        assert!(diagnostic.message.contains("terminal-color"));
+        assert!(diagnostic.message.contains("allowLossy"));
     }
 
     #[test]
@@ -8560,6 +8745,7 @@ mod tests {
                     indent: "  ",
                     namespacePolicy: "repair",
                     raw: true,
+                    allowLossy: true,
                     sourceMap: "generated"
                 }
             )"#,
@@ -8586,6 +8772,7 @@ mod tests {
         assert_eq!(parsed.options.indent.as_deref(), Some("  "));
         assert_eq!(parsed.options.namespace_policy.as_deref(), Some("repair"));
         assert!(parsed.options.raw);
+        assert!(parsed.options.allow_lossy);
         assert_eq!(
             parsed.options.source_map_policy,
             TransformTemplateSourceMapPolicy::Generated
