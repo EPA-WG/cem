@@ -172,6 +172,8 @@ pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_AMBIGUOUS_CODE: &str =
     "cem.transform_template.output_function_ambiguous";
 pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_CAPABILITY_MISSING_CODE: &str =
     "cem.transform_template.output_function_capability_missing";
+pub const TRANSFORM_TEMPLATE_TARGET_SYNTAX_INVALID_CODE: &str =
+    "cem.transform_template.target_syntax_invalid";
 pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_IDENTITY_MISMATCH_CODE: &str =
     "cem.transform_template.encoded_artifact_identity_mismatch";
 pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_CONTEXT_MISMATCH_CODE: &str =
@@ -466,6 +468,9 @@ pub enum TransformTemplateOutputFunctionResolutionError {
         function_name: String,
         capability: String,
     },
+    InvalidTargetSyntax {
+        message: String,
+    },
 }
 
 impl TransformTemplateOutputFunctionResolutionError {
@@ -498,6 +503,13 @@ impl TransformTemplateOutputFunctionResolutionError {
                 message: format!(
                     "CEMT output function `{function_name}` requires unavailable capability `{capability}`"
                 ),
+                ..Diagnostic::default()
+            },
+            Self::InvalidTargetSyntax { message } => Diagnostic {
+                uri: uri.map(str::to_owned),
+                code: TRANSFORM_TEMPLATE_TARGET_SYNTAX_INVALID_CODE.to_owned(),
+                severity: Severity::Error,
+                message: message.clone(),
                 ..Diagnostic::default()
             },
         }
@@ -580,6 +592,7 @@ impl TransformTemplateOutputFunctionRegistry {
         host_capabilities: &BTreeSet<String>,
     ) -> Result<TransformTemplateEncodeBinding, TransformTemplateOutputFunctionResolutionError>
     {
+        let syntax_rules = request.syntax_rules()?;
         for subject_type in request.subject_type_candidates() {
             let query = TransformTemplateOutputFunctionQuery {
                 kind: Some(TransformTemplateOutputFunctionKind::Encoding),
@@ -593,6 +606,10 @@ impl TransformTemplateOutputFunctionRegistry {
             };
             match self.resolve(&query, host_capabilities) {
                 Ok(function) => {
+                    validate_transform_template_output_kind_for_syntax(
+                        function.produces,
+                        &syntax_rules,
+                    )?;
                     let mut identity = TransformTemplateEncodedArtifactIdentity::from_options(
                         function.produces,
                         request.target.clone(),
@@ -633,6 +650,15 @@ pub enum TransformTemplateEncodedArtifactMode {
     #[default]
     Document,
     Fragment,
+}
+
+impl TransformTemplateEncodedArtifactMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Document => "document",
+            Self::Fragment => "fragment",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -852,10 +878,7 @@ impl TransformTemplateTargetSyntaxRules {
             syntax,
             options.namespace_policy.as_deref(),
         )?;
-        let text_like = !matches!(
-            syntax,
-            TransformTemplateTargetSyntaxKind::Binary | TransformTemplateTargetSyntaxKind::Opaque
-        );
+        let text_like = transform_template_target_syntax_is_text_like(syntax);
         let element_boundary_policy = match syntax {
             TransformTemplateTargetSyntaxKind::Html => {
                 TransformTemplateElementBoundaryPolicy::HtmlVoidElements
@@ -903,7 +926,7 @@ impl TransformTemplateTargetSyntaxRules {
                     | TransformTemplateTargetSyntaxKind::Text
                     | TransformTemplateTargetSyntaxKind::Markdown
             ),
-            supports_document_mode: text_like,
+            supports_document_mode: syntax != TransformTemplateTargetSyntaxKind::Opaque,
             writer_boundaries: TransformTemplateWriterBoundaryRules {
                 default_charset: transform_template_default_charset(syntax, options),
                 requires_valid_utf8: text_like,
@@ -1094,20 +1117,28 @@ fn transform_template_default_charset(
     syntax: TransformTemplateTargetSyntaxKind,
     options: &TransformTemplateEncodeOptions,
 ) -> Option<String> {
-    options.charset.clone().or_else(|| {
-        matches!(
-            syntax,
-            TransformTemplateTargetSyntaxKind::Html
-                | TransformTemplateTargetSyntaxKind::Xml
-                | TransformTemplateTargetSyntaxKind::Json
-                | TransformTemplateTargetSyntaxKind::Csv
-                | TransformTemplateTargetSyntaxKind::Css
-                | TransformTemplateTargetSyntaxKind::Markdown
-                | TransformTemplateTargetSyntaxKind::Cemt
-                | TransformTemplateTargetSyntaxKind::Text
-        )
-        .then(|| "utf-8".to_owned())
+    transform_template_target_syntax_is_text_like(syntax).then(|| {
+        options
+            .charset
+            .clone()
+            .unwrap_or_else(|| "utf-8".to_owned())
     })
+}
+
+fn transform_template_target_syntax_is_text_like(
+    syntax: TransformTemplateTargetSyntaxKind,
+) -> bool {
+    matches!(
+        syntax,
+        TransformTemplateTargetSyntaxKind::Html
+            | TransformTemplateTargetSyntaxKind::Xml
+            | TransformTemplateTargetSyntaxKind::Json
+            | TransformTemplateTargetSyntaxKind::Csv
+            | TransformTemplateTargetSyntaxKind::Css
+            | TransformTemplateTargetSyntaxKind::Markdown
+            | TransformTemplateTargetSyntaxKind::Cemt
+            | TransformTemplateTargetSyntaxKind::Text
+    )
 }
 
 fn is_cemt_name(value: &str) -> bool {
@@ -1285,6 +1316,76 @@ impl TransformTemplateEncodeBindingRequest {
             .into_iter()
             .map(str::to_owned)
             .collect()
+    }
+
+    pub fn syntax_rules(
+        &self,
+    ) -> Result<TransformTemplateTargetSyntaxRules, TransformTemplateOutputFunctionResolutionError>
+    {
+        let rules = self
+            .target
+            .syntax_rules(&self.options)
+            .map_err(invalid_target_syntax)?;
+
+        if !rules.permits_mode(self.options.mode) {
+            return Err(invalid_target_syntax(format!(
+                "`{}` mode is not supported for `{}` target syntax",
+                self.options.mode.as_str(),
+                rules.syntax.as_str()
+            )));
+        }
+
+        if self
+            .options
+            .charset
+            .as_deref()
+            .map(str::trim)
+            .is_some_and(|charset| !charset.is_empty())
+            && rules.writer_boundaries.default_charset.is_none()
+        {
+            return Err(invalid_target_syntax(format!(
+                "`charset` is not supported for `{}` target syntax",
+                rules.syntax.as_str()
+            )));
+        }
+
+        Ok(rules)
+    }
+}
+
+fn validate_transform_template_output_kind_for_syntax(
+    produces: TransformTemplateOutputProducedKind,
+    rules: &TransformTemplateTargetSyntaxRules,
+) -> Result<(), TransformTemplateOutputFunctionResolutionError> {
+    match produces {
+        TransformTemplateOutputProducedKind::Bytes | TransformTemplateOutputProducedKind::Chunks
+            if !rules.writer_boundaries.allows_binary_output =>
+        {
+            Err(invalid_target_syntax(format!(
+                "CEMT output function produces `{}` but `{}` target syntax requires text-compatible writer output",
+                produces.as_str(),
+                rules.syntax.as_str()
+            )))
+        }
+        TransformTemplateOutputProducedKind::Text
+        | TransformTemplateOutputProducedKind::Tokens
+        | TransformTemplateOutputProducedKind::Diagnostics
+            if rules.syntax == TransformTemplateTargetSyntaxKind::Binary =>
+        {
+            Err(invalid_target_syntax(format!(
+                "CEMT output function produces `{}` but `binary` target syntax requires bytes or chunks",
+                produces.as_str()
+            )))
+        }
+        _ => Ok(()),
+    }
+}
+
+fn invalid_target_syntax(
+    message: impl Into<String>,
+) -> TransformTemplateOutputFunctionResolutionError {
+    TransformTemplateOutputFunctionResolutionError::InvalidTargetSyntax {
+        message: message.into(),
     }
 }
 
@@ -5523,6 +5624,148 @@ mod tests {
             .resolve(&native_query, &capabilities)
             .expect("native function resolves with capability");
         assert_eq!(resolved_native.name, "acme.native.html-text");
+    }
+
+    #[test]
+    fn encode_binding_rejects_invalid_target_syntax_options() {
+        let registry = TransformTemplateOutputFunctionRegistry::new();
+
+        let json_fragment = TransformTemplateEncodeBindingRequest::new(
+            json!({"message": "no fragments"}),
+            TransformTemplateEncodingTarget::new(
+                JSON_CONTENT_TYPE,
+                JSON_VALUE_SCHEMA_URI,
+                "json-value",
+            ),
+        )
+        .with_subject_type("object")
+        .with_options(TransformTemplateEncodeOptions {
+            mode: TransformTemplateEncodedArtifactMode::Fragment,
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let mode_error = registry
+            .resolve_encode_binding(&json_fragment, &BTreeSet::new())
+            .expect_err("JSON fragment mode is rejected before lookup");
+        assert_eq!(
+            mode_error.diagnostic(None).code,
+            TRANSFORM_TEMPLATE_TARGET_SYNTAX_INVALID_CODE
+        );
+        assert!(mode_error
+            .diagnostic(None)
+            .message
+            .contains("`fragment` mode is not supported for `json` target syntax"));
+
+        let json_namespace_policy = TransformTemplateEncodeBindingRequest::new(
+            json!({"message": "no namespaces"}),
+            TransformTemplateEncodingTarget::new(
+                JSON_CONTENT_TYPE,
+                JSON_VALUE_SCHEMA_URI,
+                "json-value",
+            ),
+        )
+        .with_subject_type("object")
+        .with_options(TransformTemplateEncodeOptions {
+            namespace_policy: Some("repair".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let namespace_error = registry
+            .resolve_encode_binding(&json_namespace_policy, &BTreeSet::new())
+            .expect_err("JSON namespace policy is rejected before lookup");
+        assert_eq!(
+            namespace_error.diagnostic(None).code,
+            TRANSFORM_TEMPLATE_TARGET_SYNTAX_INVALID_CODE
+        );
+        assert!(namespace_error
+            .diagnostic(None)
+            .message
+            .contains("namespace policy `repair` is not supported for `json` target syntax"));
+
+        let binary_charset = TransformTemplateEncodeBindingRequest::new(
+            Value::String("bytes".to_owned()),
+            TransformTemplateEncodingTarget::new(
+                "application/octet-stream",
+                "https://example.test/ns/blob/1",
+                "binary",
+            ),
+        )
+        .with_subject_type("string")
+        .with_options(TransformTemplateEncodeOptions {
+            charset: Some("utf-8".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let charset_error = registry
+            .resolve_encode_binding(&binary_charset, &BTreeSet::new())
+            .expect_err("binary charset is rejected before lookup");
+        assert_eq!(
+            charset_error.diagnostic(None).code,
+            TRANSFORM_TEMPLATE_TARGET_SYNTAX_INVALID_CODE
+        );
+        assert!(charset_error
+            .diagnostic(None)
+            .message
+            .contains("`charset` is not supported for `binary` target syntax"));
+    }
+
+    #[test]
+    fn encode_binding_rejects_output_kind_that_crosses_text_binary_boundaries() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+
+        let mut binary_text = output_function_descriptor();
+        binary_text.name = "binary.text".to_owned();
+        binary_text.category = "binary".to_owned();
+        binary_text.content_type = "application/octet-stream".to_owned();
+        binary_text.schema = "https://example.test/ns/blob/1".to_owned();
+        registry.register(binary_text);
+
+        let text_for_binary = TransformTemplateEncodeBindingRequest::new(
+            Value::String("not bytes".to_owned()),
+            TransformTemplateEncodingTarget::new(
+                "application/octet-stream",
+                "https://example.test/ns/blob/1",
+                "binary",
+            ),
+        )
+        .with_subject_type("string")
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some("binary.text".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let text_error = registry
+            .resolve_encode_binding(&text_for_binary, &BTreeSet::new())
+            .expect_err("text output cannot target binary syntax");
+        assert_eq!(
+            text_error.diagnostic(None).code,
+            TRANSFORM_TEMPLATE_TARGET_SYNTAX_INVALID_CODE
+        );
+        assert!(text_error
+            .diagnostic(None)
+            .message
+            .contains("produces `text` but `binary` target syntax requires bytes or chunks"));
+
+        let mut html_bytes = output_function_descriptor();
+        html_bytes.name = "html.bytes".to_owned();
+        html_bytes.produces = TransformTemplateOutputProducedKind::Bytes;
+        registry.register(html_bytes);
+
+        let bytes_for_html = TransformTemplateEncodeBindingRequest::new(
+            Value::String("not html text".to_owned()),
+            TransformTemplateEncodingTarget::new(HTML_CONTENT_TYPE, HTML_SCHEMA_URI, "html-text"),
+        )
+        .with_subject_type("string")
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some("html.bytes".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let bytes_error = registry
+            .resolve_encode_binding(&bytes_for_html, &BTreeSet::new())
+            .expect_err("bytes output cannot target HTML text syntax");
+        assert_eq!(
+            bytes_error.diagnostic(None).code,
+            TRANSFORM_TEMPLATE_TARGET_SYNTAX_INVALID_CODE
+        );
+        assert!(bytes_error.diagnostic(None).message.contains(
+            "produces `bytes` but `html` target syntax requires text-compatible writer output"
+        ));
     }
 
     #[test]

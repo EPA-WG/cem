@@ -190,6 +190,10 @@ history belongs in git history and the feature-specific docs linked below.
           empty elements and namespace repair policies, JSON field names, CSV
           headers, fragment/document mode gates, charset defaults, and final
           newline/binary writer boundaries.
+    - [x] Wire target syntax rules into encode binding resolution so invalid
+          fragment/document mode, namespace policy, charset, and text/binary
+          writer-boundary choices surface as CEMT diagnostics before artifact
+          production.
   - [ ] Define CEMT color output support for terminal ANSI/SGR output and HTML
         color output. Style roles include diagnostics, source gutters and
         highlights, syntax tokens, diff hunks, and status states. Terminal
