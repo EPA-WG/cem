@@ -238,6 +238,10 @@ history belongs in git history and the feature-specific docs linked below.
         token-equivalent, parse-equivalent, and diagnostic-equivalent
         comparison modes, and drift must surface as a parity diagnostic before a
         native fast path is promoted.
+    - [x] Add initial CEMT/native parity contract planning from converter
+          metadata, including diagnostics for missing parity modes, missing
+          paired native converters, and conservative output drift reporting
+          under the declared parity mode.
   - [ ] Implement CEMT output safety rules: context-specific categories must not
         be conflated, encoded artifacts must not be silently re-encoded,
         compatible-artifact concatenation must validate target identity and

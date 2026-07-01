@@ -4,6 +4,7 @@
 //! converter edges. Runtime execution still flows through the existing
 //! lifecycle and transform-template adapters.
 
+use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::FormatIdentity;
 use crate::events::cem::CemEventNormalizer;
 use crate::parser::builder::CemAstBuilder;
@@ -21,7 +22,13 @@ use crate::transform_template::{
     TransformTemplateAdapterCapability, TransformTemplateAdapterLookup,
     TransformTemplateAdapterRegistry,
 };
+use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
+
+pub const CONVERSION_PARITY_NATIVE_PAIR_MISSING_CODE: &str =
+    "cem.converter.parity_native_pair_missing";
+pub const CONVERSION_PARITY_MODE_MISSING_CODE: &str = "cem.converter.parity_mode_missing";
+pub const CONVERSION_PARITY_DRIFT_CODE: &str = "cem.converter.parity_drift";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ConversionImplementation {
@@ -441,6 +448,13 @@ pub struct DirectConversionExecution<'a> {
     pub execution: ConversionExecution,
 }
 
+#[derive(Debug, Clone)]
+pub struct ConversionParityContract<'a> {
+    pub cemt: &'a ConversionDescriptor,
+    pub native: &'a ConversionDescriptor,
+    pub mode: ConversionParityMode,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConversionExecutionError {
     Lookup(ConversionLookupError),
@@ -626,6 +640,94 @@ impl ConversionRegistry {
             descriptor: selection.descriptor,
             execution,
         })
+    }
+
+    pub fn cemt_native_parity_contracts(
+        &self,
+    ) -> (Vec<ConversionParityContract<'_>>, Vec<Diagnostic>) {
+        let mut contracts = Vec::new();
+        let mut diagnostics = Vec::new();
+
+        for cemt in self
+            .descriptors_by_id
+            .values()
+            .filter(|descriptor| descriptor.implementation == ConversionImplementation::Cemt)
+            .filter(|descriptor| descriptor.rust_fallback.is_some())
+        {
+            let Some(mode) = cemt.output_contract.parity else {
+                diagnostics.push(conversion_parity_diagnostic(
+                    CONVERSION_PARITY_MODE_MISSING_CODE,
+                    format!(
+                        "CEMT converter `{}` declares Rust fallback `{}` but no parity mode",
+                        cemt.id,
+                        cemt.rust_fallback
+                            .as_ref()
+                            .map(|fallback| fallback.rust_symbol.as_str())
+                            .unwrap_or("<missing>")
+                    ),
+                ));
+                continue;
+            };
+            let fallback = cemt.rust_fallback.as_ref().expect("filtered CEMT fallback");
+            let native = self.descriptors_by_id.values().find(|descriptor| {
+                descriptor.implementation == ConversionImplementation::Rust
+                    && descriptor.rust_symbol.as_deref() == Some(fallback.rust_symbol.as_str())
+                    && descriptor.from == cemt.from
+                    && descriptor.to == cemt.to
+            });
+            let Some(native) = native else {
+                diagnostics.push(conversion_parity_diagnostic(
+                    CONVERSION_PARITY_NATIVE_PAIR_MISSING_CODE,
+                    format!(
+                        "CEMT converter `{}` declares Rust fallback `{}` but no matching Rust converter has the same source and target identity",
+                        cemt.id, fallback.rust_symbol
+                    ),
+                ));
+                continue;
+            };
+
+            contracts.push(ConversionParityContract { cemt, native, mode });
+        }
+
+        (contracts, diagnostics)
+    }
+}
+
+pub fn compare_conversion_parity_outputs(
+    contract: &ConversionParityContract<'_>,
+    cemt_output: &Value,
+    native_output: &Value,
+) -> Option<Diagnostic> {
+    if cemt_output == native_output {
+        return None;
+    }
+
+    Some(conversion_parity_diagnostic(
+        CONVERSION_PARITY_DRIFT_CODE,
+        format!(
+            "CEMT converter `{}` and native converter `{}` produced different outputs under `{}` parity",
+            contract.cemt.id,
+            contract.native.id,
+            conversion_parity_mode_selector(contract.mode)
+        ),
+    ))
+}
+
+fn conversion_parity_mode_selector(mode: ConversionParityMode) -> &'static str {
+    match mode {
+        ConversionParityMode::ByteExact => "byte-exact",
+        ConversionParityMode::TokenEquivalent => "token-equivalent",
+        ConversionParityMode::ParseEquivalent => "parse-equivalent",
+        ConversionParityMode::DiagnosticEquivalent => "diagnostic-equivalent",
+    }
+}
+
+fn conversion_parity_diagnostic(code: &'static str, message: String) -> Diagnostic {
+    Diagnostic {
+        code: code.to_owned(),
+        severity: Severity::Error,
+        message,
+        ..Diagnostic::default()
     }
 }
 
@@ -1584,6 +1686,135 @@ mod tests {
         assert_eq!(debug.to.content_type, CEM_DOM_JSON_PROJECTION_CONTENT_TYPE);
         assert_eq!(debug.lossiness.as_deref(), Some("debug-view"));
         assert_eq!(debug.cost, 150);
+    }
+
+    #[test]
+    fn builtin_registry_declares_cemt_native_parity_contracts() {
+        let registry = ConversionRegistry::with_builtin_converters();
+        let (contracts, diagnostics) = registry.cemt_native_parity_contracts();
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        assert_eq!(contracts.len(), 2);
+
+        let html = contracts
+            .iter()
+            .find(|contract| contract.cemt.id == "cem-dom-projection-to-html-cemt")
+            .expect("HTML CEMT parity contract");
+        assert_eq!(html.native.id, "cem-dom-projection-to-html-rust");
+        assert_eq!(html.mode, ConversionParityMode::ParseEquivalent);
+
+        let xml = contracts
+            .iter()
+            .find(|contract| contract.cemt.id == "cem-dom-projection-to-xml-cemt")
+            .expect("XML CEMT parity contract");
+        assert_eq!(xml.native.id, "cem-dom-projection-to-xml-rust");
+        assert_eq!(xml.mode, ConversionParityMode::ParseEquivalent);
+    }
+
+    #[test]
+    fn parity_contracts_report_missing_mode_and_native_pair() {
+        let mut registry = ConversionRegistry::new();
+        registry
+            .register(ConversionDescriptor {
+                id: "dom-to-html-cemt-missing-mode".to_owned(),
+                package_id: "test-dom-projection".to_owned(),
+                from: endpoint(
+                    CEM_DOM_PROJECTION_CONTENT_TYPE,
+                    CEM_DOM_PROJECTION_SCHEMA_URI,
+                ),
+                to: endpoint(HTML_CONTENT_TYPE, HTML_SCHEMA_URI),
+                implementation: ConversionImplementation::Cemt,
+                readiness: ConversionReadiness::Ready,
+                template: Some(ConversionTemplateDescriptor {
+                    path: "schema-packages/test/converters/dom-to-html.cemt".to_owned(),
+                    content_type: CEM_TRANSFORM_CONTENT_TYPE.to_owned(),
+                    schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                    entrypoint: Some("main".to_owned()),
+                }),
+                rust_symbol: None,
+                rust_fallback: Some(ConversionRustFallbackDescriptor {
+                    rust_symbol: "MissingModeHtmlConverter".to_owned(),
+                    reason: "test fallback".to_owned(),
+                }),
+                streamable: true,
+                lossiness: Some("serialization".to_owned()),
+                output_contract: ConversionOutputContractDescriptor::default(),
+                implicit: true,
+                explicit_only: false,
+                cost: 1,
+            })
+            .unwrap();
+        registry
+            .register(ConversionDescriptor {
+                id: "dom-to-xml-cemt-missing-native".to_owned(),
+                package_id: "test-dom-projection".to_owned(),
+                from: endpoint(
+                    CEM_DOM_PROJECTION_CONTENT_TYPE,
+                    CEM_DOM_PROJECTION_SCHEMA_URI,
+                ),
+                to: endpoint(XML_CONTENT_TYPE, XML_SCHEMA_URI),
+                implementation: ConversionImplementation::Cemt,
+                readiness: ConversionReadiness::Ready,
+                template: Some(ConversionTemplateDescriptor {
+                    path: "schema-packages/test/converters/dom-to-xml.cemt".to_owned(),
+                    content_type: CEM_TRANSFORM_CONTENT_TYPE.to_owned(),
+                    schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                    entrypoint: Some("main".to_owned()),
+                }),
+                rust_symbol: None,
+                rust_fallback: Some(ConversionRustFallbackDescriptor {
+                    rust_symbol: "MissingNativeXmlConverter".to_owned(),
+                    reason: "test fallback".to_owned(),
+                }),
+                streamable: true,
+                lossiness: Some("serialization".to_owned()),
+                output_contract: ConversionOutputContractDescriptor {
+                    parity: Some(ConversionParityMode::ByteExact),
+                    ..ConversionOutputContractDescriptor::default()
+                },
+                implicit: true,
+                explicit_only: false,
+                cost: 1,
+            })
+            .unwrap();
+
+        let (contracts, diagnostics) = registry.cemt_native_parity_contracts();
+
+        assert!(contracts.is_empty());
+        assert!(diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == CONVERSION_PARITY_MODE_MISSING_CODE));
+        assert!(diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == CONVERSION_PARITY_NATIVE_PAIR_MISSING_CODE));
+    }
+
+    #[test]
+    fn parity_output_comparison_reports_drift() {
+        let registry = ConversionRegistry::with_builtin_converters();
+        let (contracts, diagnostics) = registry.cemt_native_parity_contracts();
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let html = contracts
+            .iter()
+            .find(|contract| contract.cemt.id == "cem-dom-projection-to-html-cemt")
+            .expect("HTML CEMT parity contract");
+
+        assert!(compare_conversion_parity_outputs(
+            html,
+            &Value::String("<main>ok</main>".to_owned()),
+            &Value::String("<main>ok</main>".to_owned()),
+        )
+        .is_none());
+
+        let drift = compare_conversion_parity_outputs(
+            html,
+            &Value::String("<main>cemt</main>".to_owned()),
+            &Value::String("<main>native</main>".to_owned()),
+        )
+        .expect("different outputs produce drift diagnostic");
+        assert_eq!(drift.code, CONVERSION_PARITY_DRIFT_CODE);
+        assert_eq!(drift.severity, Severity::Error);
+        assert!(drift.message.contains("parse-equivalent"));
     }
 
     #[test]
