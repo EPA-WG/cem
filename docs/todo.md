@@ -186,6 +186,9 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Register initial built-in YAML scalar and value encoders for CEMT
           render-time execution, including YAML content-type aliases and
           schema/category mismatch coverage.
+    - [x] Register initial built-in CEM binary projection byte-stream encoders
+          for DOM/AST/events `cem-bin-document` output with explicit binary
+          framing identity validation.
   - [ ] Add shared formatter functions for indentation, line endings, ordering,
         wrapping, YAML scalar style, namespace declaration placement, and
         canonical output profiles.

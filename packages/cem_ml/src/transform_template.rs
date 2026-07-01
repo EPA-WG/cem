@@ -641,6 +641,36 @@ const TRANSFORM_TEMPLATE_STANDARD_OUTPUT_FUNCTIONS:
         schema: CSS_SCHEMA_URI,
         profile: None,
     },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "cem-bin.dom.bytes",
+        category: "cem-bin-document",
+        subject: Some("bytes"),
+        produces: TransformTemplateOutputProducedKind::Bytes,
+        content_type: CEM_DOM_PROJECTION_CONTENT_TYPE,
+        schema: CEM_DOM_PROJECTION_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "cem-bin.ast.bytes",
+        category: "cem-bin-document",
+        subject: Some("bytes"),
+        produces: TransformTemplateOutputProducedKind::Bytes,
+        content_type: CEM_AST_PROJECTION_CONTENT_TYPE,
+        schema: CEM_AST_PROJECTION_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "cem-bin.events.bytes",
+        category: "cem-bin-document",
+        subject: Some("bytes"),
+        produces: TransformTemplateOutputProducedKind::Bytes,
+        content_type: CEM_EVENTS_PROJECTION_CONTENT_TYPE,
+        schema: CEM_EVENTS_PROJECTION_SCHEMA_URI,
+        profile: None,
+    },
 ];
 
 fn standard_output_function_contract(
@@ -1532,6 +1562,8 @@ pub struct TransformTemplateEncodeOptions {
     pub namespace_policy: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub namespace_placement: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub binary_framing: Option<String>,
     #[serde(default)]
     pub source_map_policy: TransformTemplateSourceMapPolicy,
 }
@@ -3004,6 +3036,9 @@ impl TransformTemplateEncodeImplementationRegistry {
         registry.register("csv.record", builtin_csv_record_encoder);
         registry.register("css.string", builtin_css_string_encoder);
         registry.register("css.identifier", builtin_css_identifier_encoder);
+        registry.register("cem-bin.dom.bytes", builtin_cem_bin_bytes_encoder);
+        registry.register("cem-bin.ast.bytes", builtin_cem_bin_bytes_encoder);
+        registry.register("cem-bin.events.bytes", builtin_cem_bin_bytes_encoder);
         registry
     }
 
@@ -3464,6 +3499,98 @@ fn validate_builtin_css_encoder_binding(
         ));
     }
     Ok(())
+}
+
+fn builtin_cem_bin_bytes_encoder(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_cem_bin_bytes_encoder_binding(binding)?;
+    let bytes = transform_template_writer_bytes_from_subject(subject, &binding.function.name)?;
+    serde_json::to_value(TransformTemplateWriterByteStream::new(bytes))
+        .map_err(|error| error.to_string())
+}
+
+fn validate_builtin_cem_bin_bytes_encoder_binding(
+    binding: &TransformTemplateEncodeBinding,
+) -> Result<(), String> {
+    let Some(expected) = standard_output_function_contract(&binding.function.name) else {
+        return Err(format!(
+            "CEM binary encoder implementation cannot execute `{}`",
+            binding.function.name
+        ));
+    };
+    if expected.kind != TransformTemplateOutputFunctionKind::Encoding
+        || expected.produces != TransformTemplateOutputProducedKind::Bytes
+        || expected.category != "cem-bin-document"
+    {
+        return Err(format!(
+            "CEM binary encoder implementation cannot execute `{}`",
+            binding.function.name
+        ));
+    }
+    if content_type_essence(&binding.identity.target.content_type)
+        != content_type_essence(expected.content_type)
+    {
+        return Err(format!(
+            "CEM binary encoder `{}` expected content type `{}`, got `{}`",
+            binding.function.name, expected.content_type, binding.identity.target.content_type
+        ));
+    }
+    if binding.identity.target.schema != expected.schema {
+        return Err(format!(
+            "CEM binary encoder `{}` expected schema `{}`, got `{}`",
+            binding.function.name, expected.schema, binding.identity.target.schema
+        ));
+    }
+    if binding.identity.target.category != expected.category {
+        return Err(format!(
+            "CEM binary encoder `{}` expected category `{}`, got `{}`",
+            binding.function.name, expected.category, binding.identity.target.category
+        ));
+    }
+    let expected_framing = transform_template_cem_bin_framing_for_schema(expected.schema);
+    match (expected_framing, binding.identity.binary_framing.as_deref()) {
+        (Some(expected_framing), Some(actual)) if actual == expected_framing => Ok(()),
+        (Some(expected_framing), Some(actual)) => Err(format!(
+            "CEM binary encoder `{}` expected binary framing `{expected_framing}`, got `{actual}`",
+            binding.function.name
+        )),
+        (Some(expected_framing), None) => Err(format!(
+            "CEM binary encoder `{}` requires binary framing `{expected_framing}`",
+            binding.function.name
+        )),
+        (None, _) => Ok(()),
+    }
+}
+
+fn transform_template_writer_bytes_from_subject(
+    subject: &Value,
+    encoder_name: &str,
+) -> Result<Vec<u8>, String> {
+    let bytes = subject
+        .as_array()
+        .or_else(|| subject.get("bytes").and_then(Value::as_array))
+        .ok_or_else(|| format!("{encoder_name} expected byte array subject"))?;
+    bytes
+        .iter()
+        .enumerate()
+        .map(|(index, value)| {
+            value
+                .as_u64()
+                .and_then(|byte| u8::try_from(byte).ok())
+                .ok_or_else(|| format!("{encoder_name} expected byte value at index `{index}`"))
+        })
+        .collect()
+}
+
+fn transform_template_cem_bin_framing_for_schema(schema: &str) -> Option<&'static str> {
+    match schema {
+        CEM_DOM_PROJECTION_SCHEMA_URI => Some("cem-bin/dom-v1"),
+        CEM_AST_PROJECTION_SCHEMA_URI => Some("cem-bin/ast-v1"),
+        CEM_EVENTS_PROJECTION_SCHEMA_URI => Some("cem-bin/events-v1"),
+        _ => None,
+    }
 }
 
 pub fn transform_template_encode_html_text(value: &str) -> String {
@@ -5100,6 +5227,10 @@ fn append_transform_template_semantic_subject_type_candidates(
         append_transform_template_subject_type_hint(candidates, "tokens");
     }
 
+    if object.get("bytes").is_some_and(Value::is_array) {
+        append_transform_template_subject_type_hint(candidates, "bytes");
+    }
+
     if let Some(events) = object.get("events").and_then(Value::as_array) {
         let has_parse_events = events.iter().any(|event| {
             event.as_object().is_some_and(|event| {
@@ -5684,6 +5815,7 @@ fn parse_cemt_encode_options(
             "namespace-declaration-placement",
         ],
     )?;
+    options.binary_framing = optional_object_string(&fields, &["binaryFraming", "binary-framing"])?;
 
     if let Some(source_map) = optional_object_string(&fields, &["sourceMap", "source-map"])? {
         options.source_map_policy = match source_map.as_str() {
@@ -6041,7 +6173,7 @@ impl TransformTemplateEncodedArtifactIdentity {
             produces,
             target,
             charset: options.charset.clone(),
-            binary_framing: None,
+            binary_framing: options.binary_framing.clone(),
             formatter_profile,
             color_profile: options
                 .color_profile
@@ -8435,6 +8567,36 @@ mod tests {
         }
     }
 
+    fn cem_bin_bytes_output_function_descriptor(
+        name: &str,
+        content_type: &str,
+        schema: &str,
+    ) -> TransformTemplateOutputFunctionDescriptor {
+        TransformTemplateOutputFunctionDescriptor {
+            kind: TransformTemplateOutputFunctionKind::Encoding,
+            owner: Some("cem-bin".to_owned()),
+            name: name.to_owned(),
+            category: "cem-bin-document".to_owned(),
+            subject: "bytes".to_owned(),
+            produces: TransformTemplateOutputProducedKind::Bytes,
+            content_type: content_type.to_owned(),
+            schema: schema.to_owned(),
+            canonical: true,
+            streamable: true,
+            visibility: TransformTemplateModuleVisibility::Public,
+            implementation: TransformTemplateOutputFunctionImplementation::Cemt,
+            profile: None,
+            extends: None,
+            capability: None,
+            deterministic: true,
+            trusted: false,
+            lossy: false,
+            fallback: None,
+            params: Vec::new(),
+            body_declared: false,
+        }
+    }
+
     fn color_output_function_descriptor(
         name: &str,
         category: &str,
@@ -10679,6 +10841,94 @@ mod tests {
     }
 
     #[test]
+    fn builtin_cem_bin_bytes_encoder_emits_byte_stream_with_framing_identity() {
+        let mut functions = TransformTemplateOutputFunctionRegistry::new();
+        functions.register(cem_bin_bytes_output_function_descriptor(
+            "cem-bin.ast.bytes",
+            CEM_AST_PROJECTION_CONTENT_TYPE,
+            CEM_AST_PROJECTION_SCHEMA_URI,
+        ));
+        let request = TransformTemplateEncodeBindingRequest::new(
+            json!({"bytes": [67, 69, 77]}),
+            TransformTemplateEncodingTarget::new(
+                CEM_AST_PROJECTION_CONTENT_TYPE,
+                CEM_AST_PROJECTION_SCHEMA_URI,
+                "cem-bin-document",
+            ),
+        )
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some("cem-bin.ast.bytes".to_owned()),
+            binary_framing: Some("cem-bin/ast-v1".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+
+        let binding = functions
+            .resolve_encode_binding(&request, &BTreeSet::new())
+            .expect("CEM AST binary bytes encoder resolves");
+        assert_eq!(
+            binding.identity.produces,
+            TransformTemplateOutputProducedKind::Bytes
+        );
+        assert_eq!(
+            binding.identity.binary_framing.as_deref(),
+            Some("cem-bin/ast-v1")
+        );
+
+        let registry = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+        let encoded = registry
+            .encode(&binding, &request.subject)
+            .expect("CEM binary bytes encoder runs");
+        assert_eq!(
+            encoded,
+            json!({
+                "encoding": "u8-array",
+                "bytes": [67, 69, 77],
+                "byteLength": 3
+            })
+        );
+
+        let artifact = binding.artifact_from_value(encoded);
+        artifact
+            .validate_insertion(
+                &TransformTemplateEncodedArtifactInsertionContext::new(
+                    CEM_AST_PROJECTION_CONTENT_TYPE,
+                    CEM_AST_PROJECTION_SCHEMA_URI,
+                )
+                .with_category("cem-bin-document")
+                .with_produces(TransformTemplateOutputProducedKind::Bytes)
+                .with_binary_framing("cem-bin/ast-v1"),
+            )
+            .expect("encoded byte stream carries matching binary framing");
+
+        let wrong_framing = TransformTemplateEncodeBindingRequest::new(
+            json!({"bytes": [67, 69, 77]}),
+            TransformTemplateEncodingTarget::new(
+                CEM_AST_PROJECTION_CONTENT_TYPE,
+                CEM_AST_PROJECTION_SCHEMA_URI,
+                "cem-bin-document",
+            ),
+        )
+        .with_subject_type("bytes")
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some("cem-bin.ast.bytes".to_owned()),
+            binary_framing: Some("cem-bin/dom-v1".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let wrong_binding = functions
+            .resolve_encode_binding(&wrong_framing, &BTreeSet::new())
+            .expect("framing mismatch is an implementation identity check");
+        let error = registry
+            .encode(&wrong_binding, &wrong_framing.subject)
+            .expect_err("CEM binary encoder rejects mismatched framing");
+        assert!(error.contains("expected binary framing `cem-bin/ast-v1`"));
+
+        let bad_byte = registry
+            .encode(&binding, &json!({"bytes": [300]}))
+            .expect_err("byte values must fit in u8");
+        assert!(bad_byte.contains("index `0`"));
+    }
+
+    #[test]
     fn encode_binding_resolves_declared_encoder_and_wraps_artifact() {
         let response =
             parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
@@ -11836,6 +12086,7 @@ mod tests {
                     indent: "  ",
                     namespacePolicy: "repair",
                     namespacePlacement: "root",
+                    binaryFraming: "cem-bin/ast-v1",
                     raw: true,
                     allowLossy: true,
                     sourceMap: "generated"
@@ -11873,6 +12124,10 @@ mod tests {
         assert_eq!(parsed.options.indent.as_deref(), Some("  "));
         assert_eq!(parsed.options.namespace_policy.as_deref(), Some("repair"));
         assert_eq!(parsed.options.namespace_placement.as_deref(), Some("root"));
+        assert_eq!(
+            parsed.options.binary_framing.as_deref(),
+            Some("cem-bin/ast-v1")
+        );
         assert!(parsed.options.raw);
         assert!(parsed.options.allow_lossy);
         assert_eq!(
