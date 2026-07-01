@@ -203,6 +203,10 @@ history belongs in git history and the feature-specific docs linked below.
         class-based output, explicit inline-style mode, CSS custom-property
         palettes, accessible contrast policy, non-color cues, escaped text and
         attributes, and fragment-safe output.
+    - [x] Add initial CEMT color output profile descriptors, semantic color
+          roles, terminal capability selectors (`none`, `ansi-16`, `ansi-256`,
+          `truecolor`, `auto`), HTML style modes, non-color fallback policy,
+          reset/escape/fragment-safety validation, and focused tests.
   - [ ] Define subject handling for scalar values, local/qualified names,
         namespace URIs, identifiers, structured values, CEM AST nodes, CEM DOM
         nodes, XML/HTML nodes, token streams, normalized parser/transform

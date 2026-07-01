@@ -745,6 +745,281 @@ pub struct TransformTemplateEncodeOptions {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+pub enum TransformTemplateColorOutputKind {
+    #[default]
+    None,
+    Terminal,
+    Html,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformTemplateTerminalColorCapability {
+    #[default]
+    None,
+    Ansi16,
+    Ansi256,
+    Truecolor,
+    Auto,
+}
+
+impl TransformTemplateTerminalColorCapability {
+    pub fn parse(selector: &str) -> Option<Self> {
+        match selector.trim() {
+            "none" => Some(Self::None),
+            "ansi-16" => Some(Self::Ansi16),
+            "ansi-256" => Some(Self::Ansi256),
+            "truecolor" => Some(Self::Truecolor),
+            "auto" => Some(Self::Auto),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Ansi16 => "ansi-16",
+            Self::Ansi256 => "ansi-256",
+            Self::Truecolor => "truecolor",
+            Self::Auto => "auto",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformTemplateHtmlColorMode {
+    #[default]
+    Classes,
+    InlineStyle,
+    CssCustomProperties,
+}
+
+impl TransformTemplateHtmlColorMode {
+    pub fn parse(selector: &str) -> Option<Self> {
+        match selector.trim() {
+            "classes" | "html.classes" | "class-based" => Some(Self::Classes),
+            "inline-style" | "html.inline-style" => Some(Self::InlineStyle),
+            "css-custom-properties" | "html.css-custom-properties" | "css-vars" => {
+                Some(Self::CssCustomProperties)
+            }
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Classes => "classes",
+            Self::InlineStyle => "inline-style",
+            Self::CssCustomProperties => "css-custom-properties",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformTemplateHtmlContrastPolicy {
+    None,
+    #[default]
+    WcagAa,
+    WcagAaa,
+    Host,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateColorOutputProfile {
+    pub output: TransformTemplateColorOutputKind,
+    #[serde(default)]
+    pub terminal_capability: TransformTemplateTerminalColorCapability,
+    #[serde(default)]
+    pub html_mode: TransformTemplateHtmlColorMode,
+    #[serde(default)]
+    pub contrast_policy: TransformTemplateHtmlContrastPolicy,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub no_color: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub force_color: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub reset_at_artifact_boundaries: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub hyperlinks: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub non_color_cues: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub escape_text: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub escape_attributes: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub fragment_safe: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub roles: Vec<String>,
+}
+
+impl TransformTemplateColorOutputProfile {
+    pub fn plain() -> Self {
+        Self {
+            output: TransformTemplateColorOutputKind::None,
+            terminal_capability: TransformTemplateTerminalColorCapability::None,
+            html_mode: TransformTemplateHtmlColorMode::Classes,
+            contrast_policy: TransformTemplateHtmlContrastPolicy::None,
+            no_color: true,
+            force_color: false,
+            reset_at_artifact_boundaries: false,
+            hyperlinks: false,
+            non_color_cues: true,
+            escape_text: true,
+            escape_attributes: true,
+            fragment_safe: true,
+            roles: transform_template_default_color_roles(),
+        }
+    }
+
+    pub fn terminal(capability: TransformTemplateTerminalColorCapability) -> Self {
+        Self {
+            output: TransformTemplateColorOutputKind::Terminal,
+            terminal_capability: capability,
+            html_mode: TransformTemplateHtmlColorMode::Classes,
+            contrast_policy: TransformTemplateHtmlContrastPolicy::None,
+            no_color: capability == TransformTemplateTerminalColorCapability::None,
+            force_color: false,
+            reset_at_artifact_boundaries: true,
+            hyperlinks: false,
+            non_color_cues: true,
+            escape_text: true,
+            escape_attributes: true,
+            fragment_safe: true,
+            roles: transform_template_default_color_roles(),
+        }
+    }
+
+    pub fn terminal_from_selector(selector: &str) -> Result<Self, String> {
+        TransformTemplateTerminalColorCapability::parse(selector)
+            .map(Self::terminal)
+            .ok_or_else(|| format!("unsupported terminal color profile `{selector}`"))
+    }
+
+    pub fn html(mode: TransformTemplateHtmlColorMode) -> Self {
+        Self {
+            output: TransformTemplateColorOutputKind::Html,
+            terminal_capability: TransformTemplateTerminalColorCapability::None,
+            html_mode: mode,
+            contrast_policy: TransformTemplateHtmlContrastPolicy::WcagAa,
+            no_color: false,
+            force_color: false,
+            reset_at_artifact_boundaries: false,
+            hyperlinks: false,
+            non_color_cues: true,
+            escape_text: true,
+            escape_attributes: true,
+            fragment_safe: true,
+            roles: transform_template_default_color_roles(),
+        }
+    }
+
+    pub fn html_from_selector(selector: &str) -> Result<Self, String> {
+        TransformTemplateHtmlColorMode::parse(selector)
+            .map(Self::html)
+            .ok_or_else(|| format!("unsupported HTML color profile `{selector}`"))
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.no_color && self.force_color {
+            return Err(
+                "color profile cannot set both no-color and forced-color policy".to_owned(),
+            );
+        }
+        for role in &self.roles {
+            if !transform_template_is_color_role(role) {
+                return Err(format!("unsupported color role `{role}`"));
+            }
+        }
+        if self.output != TransformTemplateColorOutputKind::None && self.roles.is_empty() {
+            return Err("color profile must declare at least one semantic role".to_owned());
+        }
+
+        match self.output {
+            TransformTemplateColorOutputKind::None => Ok(()),
+            TransformTemplateColorOutputKind::Terminal => {
+                if !self.reset_at_artifact_boundaries {
+                    return Err(
+                        "terminal color profiles must reset styles at artifact boundaries"
+                            .to_owned(),
+                    );
+                }
+                if !self.non_color_cues {
+                    return Err(
+                        "terminal color profiles must keep non-color fallback cues".to_owned()
+                    );
+                }
+                Ok(())
+            }
+            TransformTemplateColorOutputKind::Html => {
+                if self.terminal_capability != TransformTemplateTerminalColorCapability::None {
+                    return Err(
+                        "HTML color profiles cannot declare terminal color capabilities".to_owned(),
+                    );
+                }
+                if self.contrast_policy == TransformTemplateHtmlContrastPolicy::None {
+                    return Err(
+                        "HTML color profiles must declare an accessible contrast policy".to_owned(),
+                    );
+                }
+                if !self.non_color_cues {
+                    return Err("HTML color profiles must keep non-color fallback cues".to_owned());
+                }
+                if !self.escape_text || !self.escape_attributes {
+                    return Err(
+                        "HTML color profiles must escape text and attribute content".to_owned()
+                    );
+                }
+                if !self.fragment_safe {
+                    return Err("HTML color profiles must be fragment-safe".to_owned());
+                }
+                Ok(())
+            }
+        }
+    }
+
+    pub fn supports_role(&self, role: &str) -> bool {
+        self.roles.iter().any(|candidate| candidate == role)
+    }
+}
+
+pub const TRANSFORM_TEMPLATE_COLOR_ROLES: &[&str] = &[
+    "diagnostic.error",
+    "diagnostic.warning",
+    "diagnostic.info",
+    "diagnostic.hint",
+    "source.gutter",
+    "source.highlight",
+    "syntax.token",
+    "syntax.keyword",
+    "syntax.string",
+    "syntax.comment",
+    "diff.added",
+    "diff.removed",
+    "diff.changed",
+    "diff.context",
+    "status.success",
+    "status.warning",
+    "status.error",
+    "status.info",
+];
+
+pub fn transform_template_default_color_roles() -> Vec<String> {
+    TRANSFORM_TEMPLATE_COLOR_ROLES
+        .iter()
+        .map(|role| (*role).to_owned())
+        .collect()
+}
+
+pub fn transform_template_is_color_role(role: &str) -> bool {
+    TRANSFORM_TEMPLATE_COLOR_ROLES.contains(&role)
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum TransformTemplateTargetSyntaxKind {
     Html,
     Xml,
@@ -6219,6 +6494,105 @@ mod tests {
 
         assert_eq!(binding.function.name, "terminal.tokens");
         assert_eq!(binding.subject_type, "tokens");
+    }
+
+    #[test]
+    fn color_output_profiles_validate_terminal_capabilities_and_roles() {
+        let profile = TransformTemplateColorOutputProfile::terminal_from_selector("ansi-256")
+            .expect("ansi-256 terminal profile resolves");
+
+        assert_eq!(profile.output, TransformTemplateColorOutputKind::Terminal);
+        assert_eq!(
+            profile.terminal_capability,
+            TransformTemplateTerminalColorCapability::Ansi256
+        );
+        assert!(profile.reset_at_artifact_boundaries);
+        assert!(profile.non_color_cues);
+        assert!(profile.supports_role("diagnostic.error"));
+        assert!(profile.supports_role("syntax.token"));
+        profile.validate().expect("terminal profile is valid");
+
+        let none_profile = TransformTemplateColorOutputProfile::terminal_from_selector("none")
+            .expect("none terminal profile resolves");
+        assert!(none_profile.no_color);
+        none_profile
+            .validate()
+            .expect("plain terminal fallback profile is valid");
+
+        let selector_error =
+            TransformTemplateColorOutputProfile::terminal_from_selector("ansi-1024")
+                .expect_err("unknown terminal profile is rejected");
+        assert!(selector_error.contains("unsupported terminal color profile"));
+
+        let mut missing_reset = profile.clone();
+        missing_reset.reset_at_artifact_boundaries = false;
+        let reset_error = missing_reset
+            .validate()
+            .expect_err("terminal profile must reset");
+        assert!(reset_error.contains("reset styles at artifact boundaries"));
+
+        let mut bad_role = profile.clone();
+        bad_role.roles.push("custom.rainbow".to_owned());
+        let role_error = bad_role
+            .validate()
+            .expect_err("unknown semantic role is rejected");
+        assert!(role_error.contains("unsupported color role `custom.rainbow`"));
+    }
+
+    #[test]
+    fn color_output_profiles_validate_html_safety_contract() {
+        let profile =
+            TransformTemplateColorOutputProfile::html_from_selector("css-custom-properties")
+                .expect("CSS custom-property HTML profile resolves");
+
+        assert_eq!(profile.output, TransformTemplateColorOutputKind::Html);
+        assert_eq!(
+            profile.html_mode,
+            TransformTemplateHtmlColorMode::CssCustomProperties
+        );
+        assert_eq!(
+            profile.contrast_policy,
+            TransformTemplateHtmlContrastPolicy::WcagAa
+        );
+        assert!(profile.escape_text);
+        assert!(profile.escape_attributes);
+        assert!(profile.fragment_safe);
+        assert!(profile.non_color_cues);
+        assert!(profile.supports_role("diff.added"));
+        profile.validate().expect("HTML profile is valid");
+
+        let inline = TransformTemplateColorOutputProfile::html_from_selector("inline-style")
+            .expect("inline HTML profile resolves");
+        assert_eq!(
+            inline.html_mode,
+            TransformTemplateHtmlColorMode::InlineStyle
+        );
+        inline.validate().expect("inline profile is valid");
+
+        let selector_error = TransformTemplateColorOutputProfile::html_from_selector("table")
+            .expect_err("unknown HTML color profile is rejected");
+        assert!(selector_error.contains("unsupported HTML color profile"));
+
+        let mut unsafe_html = profile.clone();
+        unsafe_html.escape_attributes = false;
+        let escape_error = unsafe_html
+            .validate()
+            .expect_err("HTML profile must escape attributes");
+        assert!(escape_error.contains("escape text and attribute content"));
+
+        let mut inaccessible_html = profile.clone();
+        inaccessible_html.contrast_policy = TransformTemplateHtmlContrastPolicy::None;
+        let contrast_error = inaccessible_html
+            .validate()
+            .expect_err("HTML profile must keep contrast policy");
+        assert!(contrast_error.contains("accessible contrast policy"));
+
+        let mut color_only_html = profile.clone();
+        color_only_html.non_color_cues = false;
+        let cue_error = color_only_html
+            .validate()
+            .expect_err("HTML profile must keep non-color cues");
+        assert!(cue_error.contains("non-color fallback cues"));
     }
 
     #[test]
