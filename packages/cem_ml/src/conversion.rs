@@ -20,7 +20,12 @@ use crate::source::{BytesSource, SourceId};
 use crate::tokenizer::cem::CemTokenizer;
 use crate::transform_template::{
     TransformTemplateAdapterCapability, TransformTemplateAdapterLookup,
-    TransformTemplateAdapterRegistry,
+    TransformTemplateAdapterRegistry, TransformTemplateColorOutputProfile,
+    TransformTemplateEncodeOptions, TransformTemplateEncodedArtifactInsertionContext,
+    TransformTemplateEncodedArtifactMode, TransformTemplateEncodingTarget,
+    TransformTemplateHtmlColorMode, TransformTemplateOutputProducedKind,
+    TransformTemplateSourceMapPolicy, TransformTemplateTargetSyntaxKind,
+    TransformTemplateTargetSyntaxRules, TransformTemplateTerminalColorCapability,
 };
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -29,6 +34,13 @@ pub const CONVERSION_PARITY_NATIVE_PAIR_MISSING_CODE: &str =
     "cem.converter.parity_native_pair_missing";
 pub const CONVERSION_PARITY_MODE_MISSING_CODE: &str = "cem.converter.parity_mode_missing";
 pub const CONVERSION_PARITY_DRIFT_CODE: &str = "cem.converter.parity_drift";
+pub const CONVERSION_OUTPUT_SYNTAX_MISSING_CODE: &str = "cem.converter.output_syntax_missing";
+pub const CONVERSION_OUTPUT_CATEGORY_MISSING_CODE: &str = "cem.converter.output_category_missing";
+pub const CONVERSION_OUTPUT_UNSUPPORTED_CATEGORY_CODE: &str =
+    "cem.converter.output_unsupported_category";
+pub const CONVERSION_OUTPUT_CONTEXT_MISMATCH_CODE: &str = "cem.converter.output_context_mismatch";
+pub const CONVERSION_OUTPUT_COLOR_PROFILE_UNSAFE_CODE: &str =
+    "cem.converter.output_color_profile_unsafe";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ConversionImplementation {
@@ -455,6 +467,17 @@ pub struct ConversionParityContract<'a> {
     pub mode: ConversionParityMode,
 }
 
+#[derive(Debug, Clone)]
+pub struct ConversionOutputSafetyContract<'a> {
+    pub descriptor: &'a ConversionDescriptor,
+    pub target: TransformTemplateEncodingTarget,
+    pub options: TransformTemplateEncodeOptions,
+    pub syntax_rules: TransformTemplateTargetSyntaxRules,
+    pub insertion_context: TransformTemplateEncodedArtifactInsertionContext,
+    pub produces: TransformTemplateOutputProducedKind,
+    pub color_output_profile: Option<TransformTemplateColorOutputProfile>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConversionExecutionError {
     Lookup(ConversionLookupError),
@@ -691,6 +714,158 @@ impl ConversionRegistry {
 
         (contracts, diagnostics)
     }
+
+    pub fn cemt_output_safety_contracts(
+        &self,
+    ) -> (Vec<ConversionOutputSafetyContract<'_>>, Vec<Diagnostic>) {
+        let mut contracts = Vec::new();
+        let mut diagnostics = Vec::new();
+
+        for descriptor in self
+            .descriptors_by_id
+            .values()
+            .filter(|descriptor| descriptor.implementation == ConversionImplementation::Cemt)
+        {
+            let (contract, mut descriptor_diagnostics) =
+                conversion_output_safety_contract(descriptor);
+            diagnostics.append(&mut descriptor_diagnostics);
+            if let Some(contract) = contract {
+                contracts.push(contract);
+            }
+        }
+
+        (contracts, diagnostics)
+    }
+}
+
+pub fn conversion_output_safety_contract(
+    descriptor: &ConversionDescriptor,
+) -> (Option<ConversionOutputSafetyContract<'_>>, Vec<Diagnostic>) {
+    let mut diagnostics = Vec::new();
+    let output_contract = &descriptor.output_contract;
+
+    let Some(output_syntax) = output_contract.output_syntax else {
+        diagnostics.push(conversion_output_safety_diagnostic(
+            CONVERSION_OUTPUT_SYNTAX_MISSING_CODE,
+            format!(
+                "converter `{}` must declare output syntax for encoded artifact safety",
+                descriptor.id
+            ),
+        ));
+        return (None, diagnostics);
+    };
+
+    let Some(category) = output_contract
+        .encoding_category
+        .as_deref()
+        .map(str::trim)
+        .filter(|category| !category.is_empty())
+    else {
+        diagnostics.push(conversion_output_safety_diagnostic(
+            CONVERSION_OUTPUT_CATEGORY_MISSING_CODE,
+            format!(
+                "converter `{}` must declare an encoding category",
+                descriptor.id
+            ),
+        ));
+        return (None, diagnostics);
+    };
+
+    let expected_syntax = conversion_template_syntax_kind(output_syntax);
+    let Some(category_syntax) = conversion_encoding_category_syntax(category) else {
+        diagnostics.push(conversion_output_safety_diagnostic(
+            CONVERSION_OUTPUT_UNSUPPORTED_CATEGORY_CODE,
+            format!(
+                "converter `{}` declares unsupported encoding category `{}`",
+                descriptor.id, category
+            ),
+        ));
+        return (None, diagnostics);
+    };
+
+    if category_syntax != expected_syntax {
+        diagnostics.push(conversion_output_safety_diagnostic(
+            CONVERSION_OUTPUT_CONTEXT_MISMATCH_CODE,
+            format!(
+                "converter `{}` output syntax `{}` cannot use `{}` encoding category",
+                descriptor.id,
+                conversion_output_syntax_selector(output_syntax),
+                category
+            ),
+        ));
+    }
+
+    let Some(target_schema) = descriptor.to.schema.as_deref() else {
+        diagnostics.push(conversion_output_safety_diagnostic(
+            CONVERSION_OUTPUT_CONTEXT_MISMATCH_CODE,
+            format!(
+                "converter `{}` output safety requires an explicit target schema",
+                descriptor.id
+            ),
+        ));
+        return (None, diagnostics);
+    };
+
+    let target = TransformTemplateEncodingTarget::new(
+        descriptor.to.content_type.clone(),
+        target_schema.to_owned(),
+        category.to_owned(),
+    );
+    let options = conversion_output_safety_options(output_contract, category);
+    let syntax_rules = match target.syntax_rules(&options) {
+        Ok(rules) => rules,
+        Err(error) => {
+            diagnostics.push(conversion_output_safety_diagnostic(
+                CONVERSION_OUTPUT_CONTEXT_MISMATCH_CODE,
+                format!(
+                    "converter `{}` output target cannot be encoded safely: {}",
+                    descriptor.id, error
+                ),
+            ));
+            return (None, diagnostics);
+        }
+    };
+
+    if syntax_rules.syntax != expected_syntax {
+        diagnostics.push(conversion_output_safety_diagnostic(
+            CONVERSION_OUTPUT_CONTEXT_MISMATCH_CODE,
+            format!(
+                "converter `{}` output syntax `{}` does not match target content type `{}` and schema `{}` resolved as `{}`",
+                descriptor.id,
+                conversion_output_syntax_selector(output_syntax),
+                descriptor.to.content_type,
+                target_schema,
+                syntax_rules.syntax.as_str()
+            ),
+        ));
+    }
+
+    let color_output_profile =
+        conversion_output_color_profile(descriptor, output_contract, expected_syntax, category)
+            .map_err(|diagnostic| diagnostics.push(diagnostic))
+            .ok()
+            .flatten();
+
+    if !diagnostics.is_empty() {
+        return (None, diagnostics);
+    }
+
+    let produces = conversion_output_produced_kind(expected_syntax);
+    let insertion_context =
+        conversion_output_insertion_context(&target, output_contract, &options, produces);
+
+    (
+        Some(ConversionOutputSafetyContract {
+            descriptor,
+            target,
+            options,
+            syntax_rules,
+            insertion_context,
+            produces,
+            color_output_profile,
+        }),
+        diagnostics,
+    )
 }
 
 pub fn compare_conversion_parity_outputs(
@@ -723,6 +898,237 @@ fn conversion_parity_mode_selector(mode: ConversionParityMode) -> &'static str {
 }
 
 fn conversion_parity_diagnostic(code: &'static str, message: String) -> Diagnostic {
+    Diagnostic {
+        code: code.to_owned(),
+        severity: Severity::Error,
+        message,
+        ..Diagnostic::default()
+    }
+}
+
+fn conversion_output_safety_options(
+    output_contract: &ConversionOutputContractDescriptor,
+    category: &str,
+) -> TransformTemplateEncodeOptions {
+    TransformTemplateEncodeOptions {
+        canonical: output_contract
+            .formatter_profile
+            .as_deref()
+            .is_some_and(|profile| profile == "canonical"),
+        formatter_profile: output_contract.formatter_profile.clone(),
+        color_profile: output_contract.color_profile.clone(),
+        mode: conversion_output_artifact_mode(category),
+        source_map_policy: TransformTemplateSourceMapPolicy::Generated,
+        ..TransformTemplateEncodeOptions::default()
+    }
+}
+
+fn conversion_output_artifact_mode(category: &str) -> TransformTemplateEncodedArtifactMode {
+    if category.ends_with("-fragment") {
+        TransformTemplateEncodedArtifactMode::Fragment
+    } else {
+        TransformTemplateEncodedArtifactMode::Document
+    }
+}
+
+fn conversion_output_insertion_context(
+    target: &TransformTemplateEncodingTarget,
+    output_contract: &ConversionOutputContractDescriptor,
+    options: &TransformTemplateEncodeOptions,
+    produces: TransformTemplateOutputProducedKind,
+) -> TransformTemplateEncodedArtifactInsertionContext {
+    let mut context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+        target,
+        Some(produces),
+    );
+    context.formatter_profile = output_contract.formatter_profile.clone();
+    context.color_profile = output_contract.color_profile.clone();
+    context.mode = Some(options.mode);
+    context.canonical = Some(options.canonical);
+    context
+}
+
+fn conversion_output_color_profile(
+    descriptor: &ConversionDescriptor,
+    output_contract: &ConversionOutputContractDescriptor,
+    expected_syntax: TransformTemplateTargetSyntaxKind,
+    category: &str,
+) -> Result<Option<TransformTemplateColorOutputProfile>, Diagnostic> {
+    let Some(selector) = output_contract
+        .color_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|selector| !selector.is_empty())
+    else {
+        return Ok(None);
+    };
+
+    if matches!(selector, "none" | "plain") {
+        let profile = TransformTemplateColorOutputProfile::plain();
+        return profile.validate().map(|_| Some(profile)).map_err(|error| {
+            conversion_output_safety_diagnostic(
+                CONVERSION_OUTPUT_COLOR_PROFILE_UNSAFE_CODE,
+                format!(
+                    "converter `{}` has unsafe color profile `{}`: {}",
+                    descriptor.id, selector, error
+                ),
+            )
+        });
+    }
+
+    if TransformTemplateHtmlColorMode::parse(selector).is_some() {
+        if expected_syntax != TransformTemplateTargetSyntaxKind::Html {
+            return Err(conversion_output_safety_diagnostic(
+                CONVERSION_OUTPUT_CONTEXT_MISMATCH_CODE,
+                format!(
+                    "converter `{}` HTML color profile `{}` cannot be used for `{}` output",
+                    descriptor.id,
+                    selector,
+                    expected_syntax.as_str()
+                ),
+            ));
+        }
+        let profile =
+            TransformTemplateColorOutputProfile::html_from_selector(selector).map_err(|error| {
+                conversion_output_safety_diagnostic(
+                    CONVERSION_OUTPUT_COLOR_PROFILE_UNSAFE_CODE,
+                    format!(
+                        "converter `{}` has unsafe HTML color profile `{}`: {}",
+                        descriptor.id, selector, error
+                    ),
+                )
+            })?;
+        return profile.validate().map(|_| Some(profile)).map_err(|error| {
+            conversion_output_safety_diagnostic(
+                CONVERSION_OUTPUT_COLOR_PROFILE_UNSAFE_CODE,
+                format!(
+                    "converter `{}` has unsafe HTML color profile `{}`: {}",
+                    descriptor.id, selector, error
+                ),
+            )
+        });
+    }
+
+    if TransformTemplateTerminalColorCapability::parse(selector).is_some() {
+        if expected_syntax != TransformTemplateTargetSyntaxKind::Text
+            || !category.starts_with("terminal-")
+        {
+            return Err(conversion_output_safety_diagnostic(
+                CONVERSION_OUTPUT_CONTEXT_MISMATCH_CODE,
+                format!(
+                    "converter `{}` terminal color profile `{}` requires a terminal text encoding category",
+                    descriptor.id, selector
+                ),
+            ));
+        }
+        let profile = TransformTemplateColorOutputProfile::terminal_from_selector(selector)
+            .map_err(|error| {
+                conversion_output_safety_diagnostic(
+                    CONVERSION_OUTPUT_COLOR_PROFILE_UNSAFE_CODE,
+                    format!(
+                        "converter `{}` has unsafe terminal color profile `{}`: {}",
+                        descriptor.id, selector, error
+                    ),
+                )
+            })?;
+        return profile.validate().map(|_| Some(profile)).map_err(|error| {
+            conversion_output_safety_diagnostic(
+                CONVERSION_OUTPUT_COLOR_PROFILE_UNSAFE_CODE,
+                format!(
+                    "converter `{}` has unsafe terminal color profile `{}`: {}",
+                    descriptor.id, selector, error
+                ),
+            )
+        });
+    }
+
+    Err(conversion_output_safety_diagnostic(
+        CONVERSION_OUTPUT_COLOR_PROFILE_UNSAFE_CODE,
+        format!(
+            "converter `{}` declares unknown color profile `{}`",
+            descriptor.id, selector
+        ),
+    ))
+}
+
+fn conversion_encoding_category_syntax(
+    category: &str,
+) -> Option<TransformTemplateTargetSyntaxKind> {
+    let category = category.trim();
+    if category.starts_with("cem-bin-") {
+        Some(TransformTemplateTargetSyntaxKind::Binary)
+    } else if category.starts_with("html-") {
+        Some(TransformTemplateTargetSyntaxKind::Html)
+    } else if category.starts_with("xml-") {
+        Some(TransformTemplateTargetSyntaxKind::Xml)
+    } else if category.starts_with("json-") || category.starts_with("ai-") {
+        Some(TransformTemplateTargetSyntaxKind::Json)
+    } else if category.starts_with("yaml-") {
+        Some(TransformTemplateTargetSyntaxKind::Opaque)
+    } else if category.starts_with("csv-") {
+        Some(TransformTemplateTargetSyntaxKind::Csv)
+    } else if category.starts_with("markdown-") {
+        Some(TransformTemplateTargetSyntaxKind::Markdown)
+    } else if category.starts_with("css-") {
+        Some(TransformTemplateTargetSyntaxKind::Css)
+    } else if category.starts_with("terminal-")
+        || category == "text"
+        || category.starts_with("text-")
+    {
+        Some(TransformTemplateTargetSyntaxKind::Text)
+    } else if category.starts_with("cemt-")
+        || category.starts_with("cem-")
+        || category.starts_with("cem-ql-")
+        || category.starts_with("rnc-")
+    {
+        Some(TransformTemplateTargetSyntaxKind::Cemt)
+    } else {
+        None
+    }
+}
+
+fn conversion_template_syntax_kind(
+    output_syntax: ConversionOutputSyntax,
+) -> TransformTemplateTargetSyntaxKind {
+    match output_syntax {
+        ConversionOutputSyntax::Html => TransformTemplateTargetSyntaxKind::Html,
+        ConversionOutputSyntax::Xml => TransformTemplateTargetSyntaxKind::Xml,
+        ConversionOutputSyntax::Json => TransformTemplateTargetSyntaxKind::Json,
+        ConversionOutputSyntax::Csv => TransformTemplateTargetSyntaxKind::Csv,
+        ConversionOutputSyntax::Css => TransformTemplateTargetSyntaxKind::Css,
+        ConversionOutputSyntax::Markdown => TransformTemplateTargetSyntaxKind::Markdown,
+        ConversionOutputSyntax::Cemt => TransformTemplateTargetSyntaxKind::Cemt,
+        ConversionOutputSyntax::Text => TransformTemplateTargetSyntaxKind::Text,
+        ConversionOutputSyntax::Binary => TransformTemplateTargetSyntaxKind::Binary,
+        ConversionOutputSyntax::Opaque => TransformTemplateTargetSyntaxKind::Opaque,
+    }
+}
+
+fn conversion_output_produced_kind(
+    syntax: TransformTemplateTargetSyntaxKind,
+) -> TransformTemplateOutputProducedKind {
+    match syntax {
+        TransformTemplateTargetSyntaxKind::Binary => TransformTemplateOutputProducedKind::Bytes,
+        _ => TransformTemplateOutputProducedKind::Text,
+    }
+}
+
+fn conversion_output_syntax_selector(output_syntax: ConversionOutputSyntax) -> &'static str {
+    match output_syntax {
+        ConversionOutputSyntax::Html => "html",
+        ConversionOutputSyntax::Xml => "xml",
+        ConversionOutputSyntax::Json => "json",
+        ConversionOutputSyntax::Csv => "csv",
+        ConversionOutputSyntax::Css => "css",
+        ConversionOutputSyntax::Markdown => "markdown",
+        ConversionOutputSyntax::Cemt => "cemt",
+        ConversionOutputSyntax::Text => "text",
+        ConversionOutputSyntax::Binary => "binary",
+        ConversionOutputSyntax::Opaque => "opaque",
+    }
+}
+
+fn conversion_output_safety_diagnostic(code: &'static str, message: String) -> Diagnostic {
     Diagnostic {
         code: code.to_owned(),
         severity: Severity::Error,
@@ -1448,7 +1854,10 @@ mod tests {
     };
     use crate::transform_template::{
         TransformTemplateAdapter, TransformTemplateAdapterCapability,
-        TransformTemplateAdapterRegistry,
+        TransformTemplateAdapterRegistry, TransformTemplateColorOutputKind,
+        TransformTemplateEncodedArtifact, TransformTemplateEncodedArtifactIdentity,
+        TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_CONTEXT_MISMATCH_CODE,
+        TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_DOUBLE_ENCODING_CODE,
     };
 
     fn identity(content_type: &str) -> FormatIdentity {
@@ -1475,6 +1884,38 @@ mod tests {
             content_types: vec![content_type],
             namespaces: Vec::new(),
             uses: Vec::new(),
+        }
+    }
+
+    fn cemt_edge_with_output_contract(
+        id: &str,
+        to: ConversionEndpoint,
+        output_contract: ConversionOutputContractDescriptor,
+    ) -> ConversionDescriptor {
+        ConversionDescriptor {
+            id: id.to_owned(),
+            package_id: "test-dom-projection".to_owned(),
+            from: endpoint(
+                CEM_DOM_PROJECTION_CONTENT_TYPE,
+                CEM_DOM_PROJECTION_SCHEMA_URI,
+            ),
+            to,
+            implementation: ConversionImplementation::Cemt,
+            readiness: ConversionReadiness::Ready,
+            template: Some(ConversionTemplateDescriptor {
+                path: "schema-packages/test/converters/dom-to-target.cemt".to_owned(),
+                content_type: CEM_TRANSFORM_CONTENT_TYPE.to_owned(),
+                schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                entrypoint: Some("main".to_owned()),
+            }),
+            rust_symbol: None,
+            rust_fallback: None,
+            streamable: true,
+            lossiness: Some("serialization".to_owned()),
+            output_contract,
+            implicit: true,
+            explicit_only: false,
+            cost: 1,
         }
     }
 
@@ -1815,6 +2256,196 @@ mod tests {
         assert_eq!(drift.code, CONVERSION_PARITY_DRIFT_CODE);
         assert_eq!(drift.severity, Severity::Error);
         assert!(drift.message.contains("parse-equivalent"));
+    }
+
+    #[test]
+    fn builtin_registry_declares_cemt_output_safety_contracts() {
+        let registry = ConversionRegistry::with_builtin_converters();
+        let (contracts, diagnostics) = registry.cemt_output_safety_contracts();
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        assert_eq!(contracts.len(), 2);
+
+        let html = contracts
+            .iter()
+            .find(|contract| contract.descriptor.id == "cem-dom-projection-to-html-cemt")
+            .expect("HTML output safety contract");
+        assert_eq!(html.target.content_type, HTML_CONTENT_TYPE);
+        assert_eq!(html.target.schema, HTML_SCHEMA_URI);
+        assert_eq!(html.target.category, "html-document");
+        assert_eq!(
+            html.syntax_rules.syntax,
+            TransformTemplateTargetSyntaxKind::Html
+        );
+        assert_eq!(html.produces, TransformTemplateOutputProducedKind::Text);
+        assert_eq!(
+            html.insertion_context.category.as_deref(),
+            Some("html-document")
+        );
+        assert_eq!(
+            html.insertion_context.formatter_profile.as_deref(),
+            Some("canonical")
+        );
+        assert_eq!(
+            html.insertion_context.color_profile.as_deref(),
+            Some("classes")
+        );
+        assert_eq!(
+            html.insertion_context.mode,
+            Some(TransformTemplateEncodedArtifactMode::Document)
+        );
+        assert_eq!(html.insertion_context.canonical, Some(true));
+        assert_eq!(
+            html.options.source_map_policy,
+            TransformTemplateSourceMapPolicy::Generated
+        );
+        assert!(html.options.charset.is_none());
+        assert_eq!(
+            html.syntax_rules
+                .writer_boundaries
+                .default_charset
+                .as_deref(),
+            Some("utf-8")
+        );
+        let color = html
+            .color_output_profile
+            .as_ref()
+            .expect("HTML color profile");
+        assert_eq!(color.output, TransformTemplateColorOutputKind::Html);
+        assert!(color.supports_role("diagnostic.error"));
+        color.validate().expect("HTML color profile is safe");
+
+        let xml = contracts
+            .iter()
+            .find(|contract| contract.descriptor.id == "cem-dom-projection-to-xml-cemt")
+            .expect("XML output safety contract");
+        assert_eq!(xml.target.category, "xml-document");
+        assert_eq!(
+            xml.syntax_rules.syntax,
+            TransformTemplateTargetSyntaxKind::Xml
+        );
+        assert_eq!(xml.insertion_context.color_profile, None);
+        assert_eq!(
+            xml.syntax_rules
+                .writer_boundaries
+                .default_charset
+                .as_deref(),
+            Some("utf-8")
+        );
+    }
+
+    #[test]
+    fn output_safety_contracts_report_missing_and_unsupported_metadata() {
+        let mut registry = ConversionRegistry::new();
+        registry
+            .register(cemt_edge_with_output_contract(
+                "missing-output-metadata",
+                endpoint(HTML_CONTENT_TYPE, HTML_SCHEMA_URI),
+                ConversionOutputContractDescriptor::default(),
+            ))
+            .unwrap();
+        registry
+            .register(cemt_edge_with_output_contract(
+                "unknown-category",
+                endpoint(HTML_CONTENT_TYPE, HTML_SCHEMA_URI),
+                ConversionOutputContractDescriptor {
+                    output_syntax: Some(ConversionOutputSyntax::Html),
+                    encoding_category: Some("unknown-context".to_owned()),
+                    ..ConversionOutputContractDescriptor::default()
+                },
+            ))
+            .unwrap();
+
+        let (contracts, diagnostics) = registry.cemt_output_safety_contracts();
+
+        assert!(contracts.is_empty());
+        assert!(diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == CONVERSION_OUTPUT_SYNTAX_MISSING_CODE));
+        assert!(diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == CONVERSION_OUTPUT_UNSUPPORTED_CATEGORY_CODE));
+    }
+
+    #[test]
+    fn output_safety_contracts_report_category_target_and_color_mismatches() {
+        let mut registry = ConversionRegistry::new();
+        registry
+            .register(cemt_edge_with_output_contract(
+                "html-syntax-with-xml-category",
+                endpoint(HTML_CONTENT_TYPE, HTML_SCHEMA_URI),
+                ConversionOutputContractDescriptor {
+                    output_syntax: Some(ConversionOutputSyntax::Html),
+                    encoding_category: Some("xml-text".to_owned()),
+                    ..ConversionOutputContractDescriptor::default()
+                },
+            ))
+            .unwrap();
+        registry
+            .register(cemt_edge_with_output_contract(
+                "xml-with-html-color",
+                endpoint(XML_CONTENT_TYPE, XML_SCHEMA_URI),
+                ConversionOutputContractDescriptor {
+                    output_syntax: Some(ConversionOutputSyntax::Xml),
+                    encoding_category: Some("xml-document".to_owned()),
+                    color_profile: Some("classes".to_owned()),
+                    ..ConversionOutputContractDescriptor::default()
+                },
+            ))
+            .unwrap();
+
+        let (contracts, diagnostics) = registry.cemt_output_safety_contracts();
+
+        assert!(contracts.is_empty());
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == CONVERSION_OUTPUT_CONTEXT_MISMATCH_CODE
+                && diagnostic.message.contains("xml-text")
+        }));
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == CONVERSION_OUTPUT_CONTEXT_MISMATCH_CODE
+                && diagnostic.message.contains("HTML color profile")
+        }));
+    }
+
+    #[test]
+    fn output_safety_contract_context_drives_encoded_artifact_guard() {
+        let registry = ConversionRegistry::with_builtin_converters();
+        let (contracts, diagnostics) = registry.cemt_output_safety_contracts();
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let html = contracts
+            .iter()
+            .find(|contract| contract.descriptor.id == "cem-dom-projection-to-html-cemt")
+            .expect("HTML output safety contract");
+
+        let mut identity =
+            TransformTemplateEncodedArtifactIdentity::new(html.produces, html.target.clone());
+        identity.formatter_profile = html.insertion_context.formatter_profile.clone();
+        identity.color_profile = html.insertion_context.color_profile.clone();
+        identity.mode = TransformTemplateEncodedArtifactMode::Document;
+        identity.canonical = true;
+        let artifact =
+            TransformTemplateEncodedArtifact::new(identity, Value::String("<main></main>".into()));
+
+        artifact
+            .validate_insertion(&html.insertion_context)
+            .expect("matching conversion safety context accepts artifact");
+        let double_encoding = artifact
+            .validate_as_encode_input()
+            .expect_err("encoded artifacts cannot be encoded again");
+        assert_eq!(
+            double_encoding.code(),
+            TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_DOUBLE_ENCODING_CODE
+        );
+
+        let mut wrong_category = html.insertion_context.clone();
+        wrong_category.category = Some("html-text".to_owned());
+        let mismatch = artifact
+            .validate_insertion(&wrong_category)
+            .expect_err("category mismatch is rejected");
+        assert_eq!(
+            mismatch.code(),
+            TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_CONTEXT_MISMATCH_CODE
+        );
     }
 
     #[test]

@@ -250,6 +250,10 @@ history belongs in git history and the feature-specific docs linked below.
         output must reset styles at artifact boundaries, HTML color output must
         escape text/attribute content before styling, and source maps must be
         produced as part of the encoding result.
+    - [x] Add conversion-level CEMT output safety contracts that lower package
+          converter metadata into encoded-artifact insertion contexts, syntax
+          rules, final-writer charset defaults, generated source-map policy, and
+          safe color profile metadata.
   - [ ] Add diagnostics for unknown encoder, unsupported category, unsafe raw
         insertion, context mismatch, unsupported charset, charset mismatch,
         double encoding, unknown formatter, unsupported terminal color
@@ -258,6 +262,9 @@ history belongs in git history and the feature-specific docs linked below.
         fallback, non-determinism in a canonical profile, incompatible custom
         subject type, incompatible produced kind, lossy output, incompatible
         artifact insertion, and CEMT/native parity mismatch.
+    - [x] Add initial converter output-safety diagnostics for missing output
+          syntax/category, unsupported encoding category, category/target
+          context mismatch, and unsafe color profile metadata.
   - [ ] Add AI-facing context projection support as a task-shaped view over the
         canonical AST/DOM/events/schema/token metadata, not a replacement for
         canonical projections. Cover `ai-context-pack`, `ai-entity-graph`,
