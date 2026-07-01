@@ -20,6 +20,7 @@ use crate::source::{BytesSource, SourceId};
 use crate::tokenizer::cem::CemTokenizer;
 use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
+use crate::tokenizer::{SchemaTokenKind, SchemaTokenizer};
 use crate::transform_template::{
     TransformTemplateAdapterCapability, TransformTemplateAdapterLookup,
     TransformTemplateAdapterRegistry, TransformTemplateColorOutputProfile,
@@ -995,9 +996,34 @@ fn conversion_parity_outputs_match(
         ConversionParityMode::ParseEquivalent => {
             conversion_parse_equivalent_outputs_match(contract, cemt_output, native_output)
         }
-        ConversionParityMode::ByteExact
-        | ConversionParityMode::TokenEquivalent
-        | ConversionParityMode::DiagnosticEquivalent => cemt_output == native_output,
+        ConversionParityMode::TokenEquivalent => {
+            conversion_token_equivalent_outputs_match(contract, cemt_output, native_output)
+        }
+        ConversionParityMode::ByteExact | ConversionParityMode::DiagnosticEquivalent => {
+            cemt_output == native_output
+        }
+    }
+}
+
+fn conversion_token_equivalent_outputs_match(
+    contract: &ConversionParityContract<'_>,
+    cemt_output: &Value,
+    native_output: &Value,
+) -> bool {
+    let Some(output_syntax) = contract.cemt.output_contract.output_syntax else {
+        return cemt_output == native_output;
+    };
+    let (Some(cemt_output), Some(native_output)) = (cemt_output.as_str(), native_output.as_str())
+    else {
+        return cemt_output == native_output;
+    };
+
+    match (
+        conversion_token_projection(output_syntax, cemt_output),
+        conversion_token_projection(output_syntax, native_output),
+    ) {
+        (Some(cemt), Some(native)) => cemt == native,
+        _ => cemt_output == native_output,
     }
 }
 
@@ -1021,6 +1047,83 @@ fn conversion_parse_equivalent_outputs_match(
         (Some(cemt), Some(native)) => cemt == native,
         _ => cemt_output == native_output,
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ConversionTokenProjectionEvent {
+    NodeStart { name: String },
+    NodeEnd { name: Option<String> },
+    Attribute { name: String, value: Option<String> },
+    Text(String),
+    Comment(String),
+    ProcessingInstruction { target: String, data: String },
+    ExpressionNode(String),
+    AnonymousScopeStart,
+    Directive { name: String, data: String },
+    RichContent(String),
+    Error(String),
+}
+
+fn conversion_token_projection(
+    output_syntax: ConversionOutputSyntax,
+    output: &str,
+) -> Option<Vec<ConversionTokenProjectionEvent>> {
+    let source = BytesSource::new(SourceId(1), output.as_bytes().to_vec());
+    match output_syntax {
+        ConversionOutputSyntax::Html => Some(conversion_collect_token_projection(
+            HtmlTokenizer::from_source(source),
+        )),
+        ConversionOutputSyntax::Xml => Some(conversion_collect_token_projection(
+            XmlTokenizer::from_source(source),
+        )),
+        _ => None,
+    }
+}
+
+fn conversion_collect_token_projection(
+    mut tokenizer: impl SchemaTokenizer,
+) -> Vec<ConversionTokenProjectionEvent> {
+    let mut projection = Vec::new();
+    while let Some(token) = tokenizer.next_token() {
+        match token.kind {
+            SchemaTokenKind::NodeStart { name } => {
+                projection.push(ConversionTokenProjectionEvent::NodeStart { name });
+            }
+            SchemaTokenKind::NodeEnd { name } => {
+                projection.push(ConversionTokenProjectionEvent::NodeEnd { name });
+            }
+            SchemaTokenKind::Attribute { name, value, .. } => {
+                projection.push(ConversionTokenProjectionEvent::Attribute { name, value });
+            }
+            SchemaTokenKind::Text(data) => {
+                projection.push(ConversionTokenProjectionEvent::Text(data));
+            }
+            SchemaTokenKind::Trivia(_) => {}
+            SchemaTokenKind::Comment(data) => {
+                projection.push(ConversionTokenProjectionEvent::Comment(data));
+            }
+            SchemaTokenKind::ProcessingInstruction { target, data } => {
+                projection
+                    .push(ConversionTokenProjectionEvent::ProcessingInstruction { target, data });
+            }
+            SchemaTokenKind::ExpressionNode(data) => {
+                projection.push(ConversionTokenProjectionEvent::ExpressionNode(data));
+            }
+            SchemaTokenKind::AnonymousScopeStart => {
+                projection.push(ConversionTokenProjectionEvent::AnonymousScopeStart);
+            }
+            SchemaTokenKind::Directive { name, data } => {
+                projection.push(ConversionTokenProjectionEvent::Directive { name, data });
+            }
+            SchemaTokenKind::RichContent { data } => {
+                projection.push(ConversionTokenProjectionEvent::RichContent(data));
+            }
+            SchemaTokenKind::Error { code } => {
+                projection.push(ConversionTokenProjectionEvent::Error(code));
+            }
+        }
+    }
+    projection
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2705,6 +2808,89 @@ mod tests {
         assert_eq!(drift.code, CONVERSION_PARITY_DRIFT_CODE);
         assert_eq!(drift.severity, Severity::Error);
         assert!(drift.message.contains("parse-equivalent"));
+    }
+
+    #[test]
+    fn token_equivalent_parity_compares_token_projection() {
+        let html_cemt = cemt_edge_with_output_contract(
+            "dom-to-html-token-cemt",
+            endpoint(HTML_CONTENT_TYPE, HTML_SCHEMA_URI),
+            ConversionOutputContractDescriptor {
+                output_syntax: Some(ConversionOutputSyntax::Html),
+                parity: Some(ConversionParityMode::TokenEquivalent),
+                ..ConversionOutputContractDescriptor::default()
+            },
+        );
+        let html_native = rust_edge(
+            "dom-to-html-token-rust",
+            "test-dom-projection",
+            endpoint(
+                CEM_DOM_PROJECTION_CONTENT_TYPE,
+                CEM_DOM_PROJECTION_SCHEMA_URI,
+            ),
+            endpoint(HTML_CONTENT_TYPE, HTML_SCHEMA_URI),
+            "HtmlTokenExportConverter",
+            "serialization",
+            1,
+        );
+        let html_contract = ConversionParityContract {
+            cemt: &html_cemt,
+            native: &html_native,
+            mode: ConversionParityMode::TokenEquivalent,
+        };
+
+        assert!(compare_conversion_parity_outputs(
+            &html_contract,
+            &Value::String(r#"<main><p id="x">ok</p></main>"#.to_owned()),
+            &Value::String(r#"<main><p id="x">ok</p></main>"#.to_owned()),
+        )
+        .is_none());
+
+        let attr_order_drift = compare_conversion_parity_outputs(
+            &html_contract,
+            &Value::String(r#"<main><p id="x" class="lead">ok</p></main>"#.to_owned()),
+            &Value::String(r#"<main><p class="lead" id="x">ok</p></main>"#.to_owned()),
+        )
+        .expect("token-equivalent parity preserves token order");
+        assert_eq!(attr_order_drift.code, CONVERSION_PARITY_DRIFT_CODE);
+        assert_eq!(attr_order_drift.severity, Severity::Error);
+        assert!(attr_order_drift.message.contains("token-equivalent"));
+
+        let xml_cemt = cemt_edge_with_output_contract(
+            "dom-to-xml-token-cemt",
+            endpoint(XML_CONTENT_TYPE, XML_SCHEMA_URI),
+            ConversionOutputContractDescriptor {
+                output_syntax: Some(ConversionOutputSyntax::Xml),
+                parity: Some(ConversionParityMode::TokenEquivalent),
+                ..ConversionOutputContractDescriptor::default()
+            },
+        );
+        let xml_native = rust_edge(
+            "dom-to-xml-token-rust",
+            "test-dom-projection",
+            endpoint(
+                CEM_DOM_PROJECTION_CONTENT_TYPE,
+                CEM_DOM_PROJECTION_SCHEMA_URI,
+            ),
+            endpoint(XML_CONTENT_TYPE, XML_SCHEMA_URI),
+            "XmlTokenExportConverter",
+            "serialization",
+            1,
+        );
+        let xml_contract = ConversionParityContract {
+            cemt: &xml_cemt,
+            native: &xml_native,
+            mode: ConversionParityMode::TokenEquivalent,
+        };
+
+        let cdata_drift = compare_conversion_parity_outputs(
+            &xml_contract,
+            &Value::String(r#"<root><p><![CDATA[Hi <all>]]></p></root>"#.to_owned()),
+            &Value::String(r#"<root><p>Hi &lt;all&gt;</p></root>"#.to_owned()),
+        )
+        .expect("token-equivalent parity preserves token kind");
+        assert_eq!(cdata_drift.code, CONVERSION_PARITY_DRIFT_CODE);
+        assert!(cdata_drift.message.contains("token-equivalent"));
     }
 
     #[test]

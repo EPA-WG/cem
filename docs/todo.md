@@ -302,6 +302,9 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Make conversion parity comparison mode-aware for HTML/XML
           `parse-equivalent` outputs by comparing structural projections
           instead of byte-identical serialization.
+    - [x] Make conversion parity comparison mode-aware for HTML/XML
+          `token-equivalent` outputs by comparing tokenizer projections
+          without source ranges or trivia.
   - [ ] Implement CEMT output safety rules: context-specific categories must not
         be conflated, encoded artifacts must not be silently re-encoded,
         compatible-artifact concatenation must validate target identity and
