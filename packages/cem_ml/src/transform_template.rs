@@ -582,11 +582,13 @@ impl TransformTemplateOutputFunctionRegistry {
                         request.target.clone(),
                         &request.options,
                     );
-                    identity.canonical = request.options.canonical || function.canonical;
+                    identity.canonical = !request.options.pretty
+                        && (request.options.canonical || function.canonical);
                     return Ok(TransformTemplateEncodeBinding {
                         function: function.clone(),
                         subject_type,
                         identity,
+                        options: request.options.clone(),
                     });
                 }
                 Err(TransformTemplateOutputFunctionResolutionError::Unknown) => {
@@ -843,6 +845,8 @@ pub struct TransformTemplateEncodeBinding {
     pub function: TransformTemplateOutputFunctionDescriptor,
     pub subject_type: String,
     pub identity: TransformTemplateEncodedArtifactIdentity,
+    #[serde(default)]
+    pub options: TransformTemplateEncodeOptions,
 }
 
 impl TransformTemplateEncodeBinding {
@@ -1006,8 +1010,10 @@ fn builtin_json_string_encoder(
     let text = subject
         .as_str()
         .ok_or_else(|| "json.string expected string subject".to_owned())?;
-    Ok(Value::String(transform_template_encode_json_value(
+    Ok(Value::String(transform_template_format_json_value(
         &Value::String(text.to_owned()),
+        &binding.options,
+        binding.identity.formatter_profile.as_deref(),
     )?))
 }
 
@@ -1016,8 +1022,10 @@ fn builtin_json_value_encoder(
     subject: &Value,
 ) -> Result<Value, String> {
     validate_builtin_json_encoder_binding(binding, "json.value", "json-value")?;
-    Ok(Value::String(transform_template_encode_json_value(
+    Ok(Value::String(transform_template_format_json_value(
         subject,
+        &binding.options,
+        binding.identity.formatter_profile.as_deref(),
     )?))
 }
 
@@ -1026,8 +1034,10 @@ fn builtin_json_document_encoder(
     subject: &Value,
 ) -> Result<Value, String> {
     validate_builtin_json_encoder_binding(binding, "json.document", "json-document")?;
-    Ok(Value::String(transform_template_encode_json_value(
+    Ok(Value::String(transform_template_format_json_value(
         subject,
+        &binding.options,
+        binding.identity.formatter_profile.as_deref(),
     )?))
 }
 
@@ -1145,6 +1155,72 @@ pub fn transform_template_encode_html_attribute(value: &str) -> String {
 
 pub fn transform_template_encode_json_value(value: &Value) -> Result<String, String> {
     serde_json::to_string(value).map_err(|error| error.to_string())
+}
+
+pub fn transform_template_format_json_value(
+    value: &Value,
+    options: &TransformTemplateEncodeOptions,
+    formatter_profile: Option<&str>,
+) -> Result<String, String> {
+    let pretty = transform_template_json_formatter_is_pretty(options, formatter_profile)?;
+    let output = if pretty {
+        transform_template_pretty_json_value(value, options.indent.as_deref())?
+    } else {
+        transform_template_encode_json_value(value)?
+    };
+    transform_template_apply_json_line_ending(output, options.line_ending.as_deref())
+}
+
+fn transform_template_json_formatter_is_pretty(
+    options: &TransformTemplateEncodeOptions,
+    formatter_profile: Option<&str>,
+) -> Result<bool, String> {
+    let mut pretty = options.pretty;
+    for selector in [
+        options.formatter.as_deref(),
+        options.formatter_profile.as_deref(),
+        formatter_profile,
+    ]
+    .into_iter()
+    .flatten()
+    {
+        match selector.trim() {
+            "" => {}
+            "pretty" | "json.pretty" => pretty = true,
+            "canonical" | "json.canonical" => pretty = false,
+            other => return Err(format!("unsupported JSON formatter `{other}`")),
+        }
+    }
+    Ok(pretty)
+}
+
+fn transform_template_pretty_json_value(
+    value: &Value,
+    indent: Option<&str>,
+) -> Result<String, String> {
+    let indent = indent.unwrap_or("  ");
+    if !indent.chars().all(|ch| ch == ' ' || ch == '\t') {
+        return Err("JSON formatter indent may contain only spaces or tabs".to_owned());
+    }
+
+    let mut output = Vec::new();
+    let formatter = serde_json::ser::PrettyFormatter::with_indent(indent.as_bytes());
+    let mut serializer = serde_json::Serializer::with_formatter(&mut output, formatter);
+    value
+        .serialize(&mut serializer)
+        .map_err(|error| error.to_string())?;
+    String::from_utf8(output).map_err(|error| error.to_string())
+}
+
+fn transform_template_apply_json_line_ending(
+    output: String,
+    line_ending: Option<&str>,
+) -> Result<String, String> {
+    match line_ending.map(str::trim).filter(|value| !value.is_empty()) {
+        None | Some("lf") | Some("\\n") => Ok(output),
+        Some("crlf") | Some("\\r\\n") => Ok(output.replace('\n', "\r\n")),
+        Some(other) => Err(format!("unsupported JSON formatter line ending `{other}`")),
+    }
 }
 
 pub fn transform_template_encode_xml_text(value: &str) -> String {
@@ -2011,6 +2087,8 @@ impl TransformTemplateEncodedArtifactIdentity {
             formatter_profile: options
                 .formatter_profile
                 .clone()
+                .or_else(|| options.formatter.clone())
+                .or_else(|| options.pretty.then(|| "pretty".to_owned()))
                 .or_else(|| options.profile.clone()),
             color_profile: options
                 .color_profile
@@ -3906,6 +3984,7 @@ mod tests {
             function: output_function_descriptor(),
             subject_type: "string".to_owned(),
             identity: artifact.identity.clone(),
+            options: TransformTemplateEncodeOptions::default(),
         };
 
         TransformTemplateEvaluatedEncodeExpression {
@@ -4416,6 +4495,7 @@ mod tests {
             function: output_function_descriptor(),
             subject_type: "string".to_owned(),
             identity: text_identity,
+            options: TransformTemplateEncodeOptions::default(),
         };
 
         let text = registry
@@ -4444,6 +4524,7 @@ mod tests {
                 )
                 .with_context("double-quoted-attribute"),
             ),
+            options: TransformTemplateEncodeOptions::default(),
         };
 
         let attribute = registry
@@ -4479,6 +4560,7 @@ mod tests {
                     "json-string",
                 ),
             ),
+            options: TransformTemplateEncodeOptions::default(),
         };
         let encoded_string = registry
             .encode(&string_binding, &Value::String("Hello\n\"CEM\"".to_owned()))
@@ -4499,6 +4581,7 @@ mod tests {
                     "json-value",
                 ),
             ),
+            options: TransformTemplateEncodeOptions::default(),
         };
         let encoded_value = registry
             .encode(&value_binding, &json!({"count": 2, "ok": true}))
@@ -4519,6 +4602,7 @@ mod tests {
                     "json-document",
                 ),
             ),
+            options: TransformTemplateEncodeOptions::default(),
         };
         let encoded_document = registry
             .encode(&document_binding, &json!(["a", 1, null]))
@@ -4537,6 +4621,47 @@ mod tests {
     }
 
     #[test]
+    fn builtin_json_encoder_applies_pretty_formatter_options() {
+        let registry = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+        let options = TransformTemplateEncodeOptions {
+            pretty: true,
+            formatter_profile: Some("json.pretty".to_owned()),
+            indent: Some("\t".to_owned()),
+            line_ending: Some("crlf".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        };
+        let binding = TransformTemplateEncodeBinding {
+            function: json_output_function_descriptor("json.value", "json-value", "json"),
+            subject_type: "array".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::from_options(
+                TransformTemplateOutputProducedKind::Text,
+                TransformTemplateEncodingTarget::new(
+                    JSON_CONTENT_TYPE,
+                    JSON_VALUE_SCHEMA_URI,
+                    "json-value",
+                ),
+                &options,
+            ),
+            options,
+        };
+
+        let encoded = registry
+            .encode(&binding, &json!(["a", {"ok": true}]))
+            .expect("json pretty formatter runs");
+        assert_eq!(
+            encoded,
+            Value::String("[\r\n\t\"a\",\r\n\t{\r\n\t\t\"ok\": true\r\n\t}\r\n]".to_owned())
+        );
+
+        let mut unsupported = binding.clone();
+        unsupported.options.formatter = Some("json.unknown".to_owned());
+        let error = registry
+            .encode(&unsupported, &json!(["a"]))
+            .expect_err("unsupported formatter is rejected");
+        assert!(error.contains("unsupported JSON formatter `json.unknown`"));
+    }
+
+    #[test]
     fn builtin_xml_encode_implementations_escape_contexts_and_reject_wrong_identity() {
         let registry = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
         let text_binding = TransformTemplateEncodeBinding {
@@ -4547,6 +4672,7 @@ mod tests {
                 TransformTemplateEncodingTarget::new(XML_CONTENT_TYPE, XML_SCHEMA_URI, "xml-text")
                     .with_context("text"),
             ),
+            options: TransformTemplateEncodeOptions::default(),
         };
         let encoded_text = registry
             .encode(
@@ -4575,6 +4701,7 @@ mod tests {
                 )
                 .with_context("double-quoted-attribute"),
             ),
+            options: TransformTemplateEncodeOptions::default(),
         };
         let encoded_attribute = registry
             .encode(
