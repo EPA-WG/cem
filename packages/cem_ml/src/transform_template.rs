@@ -604,6 +604,23 @@ fn output_function_matches(
             .is_none_or(|profile| function.profile.as_deref() == Some(profile))
 }
 
+fn output_function_matches_alias(
+    function: &TransformTemplateOutputFunctionDescriptor,
+    query: &TransformTemplateOutputFunctionQuery,
+) -> bool {
+    let Some(name) = query.name.as_deref() else {
+        return false;
+    };
+    function.extends.as_deref() == Some(name)
+        && output_function_matches(
+            function,
+            &TransformTemplateOutputFunctionQuery {
+                name: Some(function.name.clone()),
+                ..query.clone()
+            },
+        )
+}
+
 impl TransformTemplateOutputFunctionQuery {
     pub fn for_identity(
         kind: TransformTemplateOutputFunctionKind,
@@ -984,6 +1001,25 @@ impl TransformTemplateOutputFunctionRegistry {
         &self.functions
     }
 
+    fn matching_functions<'a>(
+        &'a self,
+        query: &TransformTemplateOutputFunctionQuery,
+    ) -> Vec<&'a TransformTemplateOutputFunctionDescriptor> {
+        let exact_matches = self
+            .functions
+            .iter()
+            .filter(|function| output_function_matches(function, query))
+            .collect::<Vec<_>>();
+        if !exact_matches.is_empty() || query.name.is_none() {
+            return exact_matches;
+        }
+
+        self.functions
+            .iter()
+            .filter(|function| output_function_matches_alias(function, query))
+            .collect()
+    }
+
     pub fn resolve<'a>(
         &'a self,
         query: &TransformTemplateOutputFunctionQuery,
@@ -992,11 +1028,7 @@ impl TransformTemplateOutputFunctionRegistry {
         &'a TransformTemplateOutputFunctionDescriptor,
         TransformTemplateOutputFunctionResolutionError,
     > {
-        let matches = self
-            .functions
-            .iter()
-            .filter(|function| output_function_matches(function, query))
-            .collect::<Vec<_>>();
+        let matches = self.matching_functions(query);
 
         let function = match matches.as_slice() {
             [] => {
@@ -1250,11 +1282,7 @@ impl TransformTemplateOutputFunctionRegistry {
     ) -> Option<TransformTemplateOutputFunctionResolutionError> {
         let mut subjectless_query = query.clone();
         subjectless_query.subject = None;
-        let matches = self
-            .functions
-            .iter()
-            .filter(|function| output_function_matches(function, &subjectless_query))
-            .collect::<Vec<_>>();
+        let matches = self.matching_functions(&subjectless_query);
         if matches.is_empty() {
             return None;
         }
@@ -7643,6 +7671,62 @@ mod tests {
             .resolve(&native_query, &capabilities)
             .expect("native function resolves with capability");
         assert_eq!(resolved_native.name, "acme.native.html-text");
+    }
+
+    #[test]
+    fn output_function_registry_resolves_extends_alias_when_exact_name_is_absent() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        let mut alias = output_function_descriptor();
+        alias.owner = Some("acme".to_owned());
+        alias.name = "acme.html-text".to_owned();
+        alias.extends = Some("html.text".to_owned());
+        registry.register(alias);
+
+        let request = TransformTemplateEncodeBindingRequest::new(
+            Value::String("Hello".to_owned()),
+            TransformTemplateEncodingTarget::new(HTML_CONTENT_TYPE, HTML_SCHEMA_URI, "html-text"),
+        )
+        .with_subject_type("string")
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some("html.text".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+
+        let binding = registry
+            .resolve_encode_binding(&request, &BTreeSet::new())
+            .expect("standard encoder name resolves through explicit alias");
+        assert_eq!(binding.function.owner.as_deref(), Some("acme"));
+        assert_eq!(binding.function.name, "acme.html-text");
+        assert_eq!(binding.function.extends.as_deref(), Some("html.text"));
+    }
+
+    #[test]
+    fn output_function_registry_prefers_exact_name_over_extends_alias() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        let exact = output_function_descriptor();
+        let mut alias = exact.clone();
+        alias.owner = Some("acme".to_owned());
+        alias.name = "acme.html-text".to_owned();
+        alias.extends = Some("html.text".to_owned());
+        registry.register(alias);
+        registry.register(exact);
+
+        let query = TransformTemplateOutputFunctionQuery {
+            name: Some("html.text".to_owned()),
+            ..TransformTemplateOutputFunctionQuery::for_identity(
+                TransformTemplateOutputFunctionKind::Encoding,
+                HTML_CONTENT_TYPE,
+                HTML_SCHEMA_URI,
+                "html-text",
+                "string",
+            )
+        };
+
+        let resolved = registry
+            .resolve(&query, &BTreeSet::new())
+            .expect("exact standard name wins over alias");
+        assert_eq!(resolved.name, "html.text");
+        assert_eq!(resolved.extends, None);
     }
 
     #[test]

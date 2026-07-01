@@ -156,6 +156,8 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add declaration diagnostics for unqualified custom output-function
           names and standard built-in function shadowing without explicit
           `extends` alias metadata.
+    - [x] Resolve `extends` aliases as fallback output-function names while
+          preserving exact-name precedence for standard functions.
   - [ ] Add shared encoder functions for context-specific escaping and binary
         framing across CEM, CEMT, XML, HTML, JSON, YAML, CSV, Markdown, CSS,
         CEM-QL, RELAX NG compact syntax, AI context projection, and CEM binary
