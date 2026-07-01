@@ -331,6 +331,9 @@ history belongs in git history and the feature-specific docs linked below.
           oracle executor.
     - [x] Add `cem_ml_cli:validate-converter-parity` and include converter
           parity verification in the `cem_ml_cli:e2e` Nx target.
+    - [x] Switch `cem-ml fixture parity` from Rust-only oracle comparison to a
+          parity-local executable CEMT adapter plus native Rust oracle
+          comparison for packaged DOM-projection converters.
   - [ ] Implement CEMT output safety rules: context-specific categories must not
         be conflated, encoded artifacts must not be silently re-encoded,
         compatible-artifact concatenation must validate target identity and

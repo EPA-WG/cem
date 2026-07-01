@@ -10681,7 +10681,13 @@ pub fn run_fixture_parity(args: cli::FixtureParityArgs, s: &mut Streams<'_>) -> 
         .package_root
         .unwrap_or_else(default_cem_ml_package_root);
     let registry = cem_ml::conversion::ConversionRegistry::with_builtin_converters();
-    let executor = cem_ml::conversion::RustDomProjectionParityFixtureExecutor;
+    let mut template_adapters =
+        cem_ml::transform_template::TransformTemplateAdapterRegistry::with_builtin_adapters();
+    template_adapters.register(DomProjectionParityCemtAdapter);
+    let executor = cem_ml::conversion::CemtTemplateParityFixtureExecutor::new(
+        &package_root,
+        &template_adapters,
+    );
     let diagnostics = cem_ml::conversion::evaluate_declared_conversion_parity_contracts(
         &registry,
         &package_root,
@@ -10715,6 +10721,362 @@ pub fn run_fixture_parity(args: cli::FixtureParityArgs, s: &mut Streams<'_>) -> 
 
 fn default_cem_ml_package_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../cem_ml")
+}
+
+#[derive(Clone)]
+struct DomProjectionParityCemtAdapter;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DomProjectionParityOutput {
+    Html,
+    Xml,
+}
+
+impl cem_ml::transform_template::TransformTemplateAdapter for DomProjectionParityCemtAdapter {
+    fn id(&self) -> &'static str {
+        "dom-projection-parity-cemt"
+    }
+
+    fn kind(&self) -> eng::TransformTemplateKind {
+        eng::TransformTemplateKind::CemNative
+    }
+
+    fn capability(&self) -> cem_ml::transform_template::TransformTemplateAdapterCapability {
+        cem_ml::transform_template::TransformTemplateAdapterCapability::Executable
+    }
+
+    fn matches_template(&self, identity: &eng::FormatIdentity) -> bool {
+        identity
+            .content_type
+            .as_deref()
+            .is_some_and(|content_type| {
+                content_type
+                    .split(';')
+                    .next()
+                    .unwrap_or(content_type)
+                    .trim()
+                    == cem_ml::schema::registry::CEM_TRANSFORM_CONTENT_TYPE
+            })
+            || identity
+                .schema
+                .as_deref()
+                .is_some_and(|schema| schema == cem_ml::schema::registry::CEM_TRANSFORM_SCHEMA_URI)
+    }
+
+    fn compile(
+        &self,
+        request: cem_ml::transform_template::TransformTemplateCompileRequest<'_>,
+    ) -> cem_ml::transform_template::TransformTemplateAdapterResult<
+        cem_ml::transform_template::TransformTemplateCompileResponse,
+    > {
+        let template = std::str::from_utf8(&request.template.bytes).map_err(|error| {
+            cem_ml::transform_template::TransformTemplateAdapterError::failed(
+                self.id(),
+                cem_ml::transform_template::TransformTemplateAdapterExecutionPhase::Compile,
+                error.to_string(),
+            )
+        })?;
+        if !template.contains(r#"template @name="emit-node""#)
+            || !template.contains(r#"cem:for-each @select="$input.children""#)
+        {
+            return Err(
+                cem_ml::transform_template::TransformTemplateAdapterError::failed(
+                    self.id(),
+                    cem_ml::transform_template::TransformTemplateAdapterExecutionPhase::Compile,
+                    "template is not a supported DOM projection converter",
+                ),
+            );
+        }
+        let output = if template.contains(r#"node.kind = "cdata""#) {
+            "xml"
+        } else if template.contains(r#"node.kind = "raw-text""#) {
+            "html"
+        } else {
+            return Err(
+                cem_ml::transform_template::TransformTemplateAdapterError::failed(
+                    self.id(),
+                    cem_ml::transform_template::TransformTemplateAdapterExecutionPhase::Compile,
+                    "DOM projection converter output kind is not recognized",
+                ),
+            );
+        };
+
+        Ok(
+            cem_ml::transform_template::TransformTemplateCompileResponse {
+                artifact: cem_ml::transform_template::TransformTemplateCompiledArtifact::new(
+                    self.id(),
+                    self.kind(),
+                    request.template.uri.clone(),
+                    request.template.identity.clone(),
+                    request.entrypoint.clone(),
+                    serde_json::json!({ "domProjectionParityOutput": output }),
+                ),
+                diagnostics: Vec::new(),
+            },
+        )
+    }
+
+    fn render(
+        &self,
+        request: cem_ml::transform_template::TransformTemplateRenderRequest<'_>,
+    ) -> cem_ml::transform_template::TransformTemplateAdapterResult<
+        cem_ml::transform_template::TransformTemplateRenderResponse,
+    > {
+        let output = dom_projection_parity_output(&request).map_err(|message| {
+            cem_ml::transform_template::TransformTemplateAdapterError::failed(
+                self.id(),
+                cem_ml::transform_template::TransformTemplateAdapterExecutionPhase::Render,
+                message,
+            )
+        })?;
+        let rendered = render_dom_projection_parity_document(&request.primary_input.value, output)
+            .map_err(|message| {
+                cem_ml::transform_template::TransformTemplateAdapterError::failed(
+                    self.id(),
+                    cem_ml::transform_template::TransformTemplateAdapterExecutionPhase::Render,
+                    message,
+                )
+            })?;
+
+        Ok(
+            cem_ml::transform_template::TransformTemplateRenderResponse {
+                output: cem_ml::transform_template::TransformTemplateOutputArtifact {
+                    uri: None,
+                    identity: request.target.cloned(),
+                    value: serde_json::Value::String(rendered),
+                    source_map: None,
+                    output_spans: Vec::new(),
+                },
+                diagnostics: Vec::new(),
+            },
+        )
+    }
+}
+
+fn dom_projection_parity_output(
+    request: &cem_ml::transform_template::TransformTemplateRenderRequest<'_>,
+) -> Result<DomProjectionParityOutput, String> {
+    if let Some(content_type) = request
+        .target
+        .and_then(|target| target.content_type.as_deref())
+    {
+        let essence = content_type
+            .split(';')
+            .next()
+            .unwrap_or(content_type)
+            .trim();
+        if essence == cem_ml::schema::registry::HTML_CONTENT_TYPE {
+            return Ok(DomProjectionParityOutput::Html);
+        }
+        if essence == cem_ml::schema::registry::XML_CONTENT_TYPE {
+            return Ok(DomProjectionParityOutput::Xml);
+        }
+    }
+
+    match request
+        .compiled
+        .opaque
+        .get("domProjectionParityOutput")
+        .and_then(serde_json::Value::as_str)
+    {
+        Some("html") => Ok(DomProjectionParityOutput::Html),
+        Some("xml") => Ok(DomProjectionParityOutput::Xml),
+        _ => Err("DOM projection converter target output kind is not recognized".to_owned()),
+    }
+}
+
+fn render_dom_projection_parity_document(
+    input: &serde_json::Value,
+    output: DomProjectionParityOutput,
+) -> Result<String, String> {
+    let children = input
+        .get("children")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| "DOM projection input must contain a children array".to_owned())?;
+    let mut rendered = String::new();
+    for child in children {
+        render_dom_projection_parity_node(child, output, &mut rendered)?;
+    }
+    Ok(rendered)
+}
+
+fn render_dom_projection_parity_node(
+    node: &serde_json::Value,
+    output: DomProjectionParityOutput,
+    rendered: &mut String,
+) -> Result<(), String> {
+    match node
+        .get("kind")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default()
+    {
+        "element" => render_dom_projection_parity_element(node, output, rendered),
+        "text" => {
+            escape_dom_projection_text(rendered, dom_projection_data(node));
+            Ok(())
+        }
+        "whitespace" => {
+            rendered.push_str(dom_projection_data(node));
+            Ok(())
+        }
+        "comment" => {
+            rendered.push_str("<!--");
+            rendered.push_str(dom_projection_data(node));
+            rendered.push_str("-->");
+            Ok(())
+        }
+        "cdata" if output == DomProjectionParityOutput::Xml => {
+            rendered.push_str("<![CDATA[");
+            rendered.push_str(dom_projection_data(node));
+            rendered.push_str("]]>");
+            Ok(())
+        }
+        "processing-instruction" if output == DomProjectionParityOutput::Xml => {
+            let target = node
+                .get("name")
+                .or_else(|| node.get("target"))
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default();
+            rendered.push_str("<?");
+            rendered.push_str(target);
+            let data = dom_projection_data(node);
+            if !data.is_empty() {
+                rendered.push(' ');
+                rendered.push_str(data);
+            }
+            rendered.push_str("?>");
+            Ok(())
+        }
+        "raw-text" if output == DomProjectionParityOutput::Html => {
+            rendered.push_str(dom_projection_data(node));
+            Ok(())
+        }
+        _ => Ok(()),
+    }
+}
+
+fn render_dom_projection_parity_element(
+    node: &serde_json::Value,
+    output: DomProjectionParityOutput,
+    rendered: &mut String,
+) -> Result<(), String> {
+    let name = dom_projection_name(node)?;
+    if name.local.starts_with('@') {
+        return Ok(());
+    }
+    rendered.push('<');
+    push_dom_projection_name(rendered, &name);
+    if let Some(attributes) = node.get("attributes").and_then(serde_json::Value::as_array) {
+        for attribute in attributes {
+            render_dom_projection_parity_attribute(attribute, output, rendered)?;
+        }
+    }
+    rendered.push('>');
+    if let Some(children) = node.get("children").and_then(serde_json::Value::as_array) {
+        for child in children {
+            render_dom_projection_parity_node(child, output, rendered)?;
+        }
+    }
+    rendered.push_str("</");
+    push_dom_projection_name(rendered, &name);
+    rendered.push('>');
+    Ok(())
+}
+
+fn render_dom_projection_parity_attribute(
+    attribute: &serde_json::Value,
+    output: DomProjectionParityOutput,
+    rendered: &mut String,
+) -> Result<(), String> {
+    let name = dom_projection_name(attribute)?;
+    rendered.push(' ');
+    push_dom_projection_name(rendered, &name);
+    match (output, attribute.get("value")) {
+        (DomProjectionParityOutput::Html, Some(serde_json::Value::Null) | None) => Ok(()),
+        (_, value) => {
+            rendered.push_str("=\"");
+            if let Some(value) = value.and_then(serde_json::Value::as_str) {
+                match output {
+                    DomProjectionParityOutput::Html => {
+                        escape_dom_projection_html_attribute(rendered, value);
+                    }
+                    DomProjectionParityOutput::Xml => {
+                        escape_dom_projection_xml_attribute(rendered, value);
+                    }
+                }
+            }
+            rendered.push('"');
+            Ok(())
+        }
+    }
+}
+
+#[derive(Debug)]
+struct DomProjectionName<'a> {
+    namespace: &'a str,
+    local: &'a str,
+}
+
+fn dom_projection_name(node: &serde_json::Value) -> Result<DomProjectionName<'_>, String> {
+    let local = node
+        .get("name")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| "DOM projection node is missing a name".to_owned())?;
+    let namespace = node
+        .get("namespace")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    Ok(DomProjectionName { namespace, local })
+}
+
+fn push_dom_projection_name(rendered: &mut String, name: &DomProjectionName<'_>) {
+    if !name.namespace.is_empty() {
+        rendered.push_str(name.namespace);
+        rendered.push(':');
+    }
+    rendered.push_str(name.local);
+}
+
+fn dom_projection_data(node: &serde_json::Value) -> &str {
+    node.get("data")
+        .or_else(|| node.get("value"))
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default()
+}
+
+fn escape_dom_projection_text(rendered: &mut String, data: &str) {
+    for c in data.chars() {
+        match c {
+            '&' => rendered.push_str("&amp;"),
+            '<' => rendered.push_str("&lt;"),
+            '>' => rendered.push_str("&gt;"),
+            _ => rendered.push(c),
+        }
+    }
+}
+
+fn escape_dom_projection_html_attribute(rendered: &mut String, data: &str) {
+    for c in data.chars() {
+        match c {
+            '&' => rendered.push_str("&amp;"),
+            '"' => rendered.push_str("&quot;"),
+            '<' => rendered.push_str("&lt;"),
+            _ => rendered.push(c),
+        }
+    }
+}
+
+fn escape_dom_projection_xml_attribute(rendered: &mut String, data: &str) {
+    for c in data.chars() {
+        match c {
+            '&' => rendered.push_str("&amp;"),
+            '"' => rendered.push_str("&quot;"),
+            '\'' => rendered.push_str("&apos;"),
+            '<' => rendered.push_str("&lt;"),
+            '>' => rendered.push_str("&gt;"),
+            _ => rendered.push(c),
+        }
+    }
 }
 
 pub fn run_version(s: &mut Streams<'_>) -> Outcome {
