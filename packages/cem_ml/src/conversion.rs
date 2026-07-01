@@ -5,11 +5,14 @@
 //! lifecycle and transform-template adapters.
 
 use crate::diagnostics::{Diagnostic, Severity};
-use crate::engine::FormatIdentity;
+use crate::engine::{
+    FormatIdentity, TemplateInput, TransformExecutionPolicy, TransformTemplateEntrypoint,
+};
 use crate::events::cem::CemEventNormalizer;
 use crate::parser::builder::CemAstBuilder;
 use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
+use crate::run_config::ScopeConfig;
 use crate::schema::package_loader::{load_builtin_schema_package, BuiltinSchemaPackage};
 use crate::schema::registry::{
     content_type_essence, SchemaContentTypeRole, SchemaDescriptor, SchemaRegistry,
@@ -24,9 +27,11 @@ use crate::tokenizer::{SchemaTokenKind, SchemaTokenizer};
 use crate::transform_template::{
     TransformTemplateAdapterCapability, TransformTemplateAdapterLookup,
     TransformTemplateAdapterRegistry, TransformTemplateColorOutputProfile,
-    TransformTemplateEncodeOptions, TransformTemplateEncodedArtifactInsertionContext,
-    TransformTemplateEncodedArtifactMode, TransformTemplateEncodingTarget,
-    TransformTemplateHtmlColorMode, TransformTemplateOutputProducedKind,
+    TransformTemplateCompileRequest, TransformTemplateDataArtifact, TransformTemplateEncodeOptions,
+    TransformTemplateEncodedArtifactInsertionContext, TransformTemplateEncodedArtifactMode,
+    TransformTemplateEncodingTarget, TransformTemplateHtmlColorMode,
+    TransformTemplateModuleOptions, TransformTemplateModulePreflight,
+    TransformTemplateOutputProducedKind, TransformTemplateRenderRequest,
     TransformTemplateSourceMapPolicy, TransformTemplateTargetSyntaxKind,
     TransformTemplateTargetSyntaxRules, TransformTemplateTerminalColorCapability,
 };
@@ -578,6 +583,44 @@ impl ConversionParityFixtureExecutor for RustDomProjectionParityFixtureExecutor 
     }
 }
 
+#[derive(Debug)]
+pub struct CemtTemplateParityFixtureExecutor<'a> {
+    package_root: PathBuf,
+    template_adapter_registry: &'a TransformTemplateAdapterRegistry,
+}
+
+impl<'a> CemtTemplateParityFixtureExecutor<'a> {
+    pub fn new(
+        package_root: impl AsRef<Path>,
+        template_adapter_registry: &'a TransformTemplateAdapterRegistry,
+    ) -> Self {
+        Self {
+            package_root: package_root.as_ref().to_path_buf(),
+            template_adapter_registry,
+        }
+    }
+}
+
+impl ConversionParityFixtureExecutor for CemtTemplateParityFixtureExecutor<'_> {
+    fn execute_conversion_parity_fixture(
+        &self,
+        descriptor: &ConversionDescriptor,
+        fixture: &ConversionParityFixture,
+    ) -> ConversionParityFixtureExecution {
+        match descriptor.implementation {
+            ConversionImplementation::Cemt => execute_cemt_template_parity_fixture(
+                descriptor,
+                fixture,
+                &self.package_root,
+                self.template_adapter_registry,
+            ),
+            ConversionImplementation::Rust => {
+                execute_rust_dom_projection_parity_fixture(descriptor, fixture)
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ConversionOutputSafetyContract<'a> {
     pub descriptor: &'a ConversionDescriptor,
@@ -1098,6 +1141,177 @@ pub fn conversion_parity_fixture_from_bytes(
         input: conversion_parity_fixture_input_value(descriptor, bytes),
         expected_diagnostics: Vec::new(),
         expected_diagnostic_codes: descriptor.expected_diagnostic_codes.clone(),
+    }
+}
+
+fn execute_cemt_template_parity_fixture(
+    descriptor: &ConversionDescriptor,
+    fixture: &ConversionParityFixture,
+    package_root: &Path,
+    template_adapter_registry: &TransformTemplateAdapterRegistry,
+) -> ConversionParityFixtureExecution {
+    let Some(template) = descriptor.template.as_ref() else {
+        return conversion_parity_fixture_execution_error(
+            descriptor,
+            fixture,
+            "CEMT converter has no template descriptor".to_owned(),
+        );
+    };
+
+    let template_identity = conversion_template_identity(template);
+    let adapter = match template_adapter_registry.select_adapter(&template_identity) {
+        TransformTemplateAdapterLookup::Matched(adapter) => adapter,
+        TransformTemplateAdapterLookup::Ambiguous(adapter_ids) => {
+            return conversion_parity_fixture_execution_error(
+                descriptor,
+                fixture,
+                format!(
+                    "template identity matched multiple adapters: {}",
+                    adapter_ids.join(", ")
+                ),
+            );
+        }
+        TransformTemplateAdapterLookup::Unsupported => {
+            return conversion_parity_fixture_execution_error(
+                descriptor,
+                fixture,
+                format!(
+                    "no template adapter supports content type `{}`",
+                    template.content_type
+                ),
+            );
+        }
+    };
+
+    if adapter.capability() != TransformTemplateAdapterCapability::Executable {
+        return conversion_parity_fixture_execution_error(
+            descriptor,
+            fixture,
+            format!("template adapter `{}` is selector-only", adapter.id()),
+        );
+    }
+
+    let template_path = conversion_parity_fixture_path(package_root, &template.path);
+    let template_bytes = match std::fs::read(&template_path) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            return conversion_parity_fixture_execution_error(
+                descriptor,
+                fixture,
+                format!(
+                    "template `{}` could not be read: {}",
+                    template_path.display(),
+                    error
+                ),
+            );
+        }
+    };
+
+    let template_input = TemplateInput {
+        uri: template_path.to_string_lossy().into_owned(),
+        bytes: template_bytes,
+        identity: Some(template_identity),
+        root_scope: ScopeConfig::default(),
+    };
+    let entrypoint = template
+        .entrypoint
+        .as_deref()
+        .map(TransformTemplateEntrypoint::named)
+        .unwrap_or_else(TransformTemplateEntrypoint::implicit);
+    let params = BTreeMap::new();
+    let data_bindings = vec!["input".to_owned()];
+    let execution_policy = TransformExecutionPolicy::default();
+
+    let compile_response = match adapter.compile(TransformTemplateCompileRequest {
+        template: &template_input,
+        entrypoint: &entrypoint,
+        params: &params,
+        data_bindings: &data_bindings,
+        module_options: TransformTemplateModuleOptions::default(),
+        module_preflight: TransformTemplateModulePreflight::default(),
+        execution_policy,
+    }) {
+        Ok(response) => response,
+        Err(error) => {
+            return conversion_parity_fixture_execution_error(
+                descriptor,
+                fixture,
+                error.to_string(),
+            );
+        }
+    };
+    let mut diagnostics = compile_response.diagnostics;
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return ConversionParityFixtureExecution {
+            output: None,
+            diagnostics,
+        };
+    }
+
+    let input = match conversion_dom_projection_fixture_json_output(fixture) {
+        Ok(input) => input,
+        Err(message) => {
+            return conversion_parity_fixture_execution_error(descriptor, fixture, message);
+        }
+    };
+    let primary_input = TransformTemplateDataArtifact {
+        artifact_id: "input".to_owned(),
+        uri: None,
+        identity: Some(FormatIdentity {
+            content_type: Some(descriptor.from.content_type.clone()),
+            schema: descriptor.from.schema.clone(),
+            ..FormatIdentity::default()
+        }),
+        value: input,
+    };
+    let secondary_inputs = BTreeMap::new();
+    let target = FormatIdentity {
+        content_type: Some(descriptor.to.content_type.clone()),
+        schema: descriptor.to.schema.clone(),
+        ..FormatIdentity::default()
+    };
+
+    let render_response = match adapter.render(TransformTemplateRenderRequest {
+        compiled: &compile_response.artifact,
+        primary_input: &primary_input,
+        secondary_inputs: &secondary_inputs,
+        target: Some(&target),
+        target_scope: &ScopeConfig::default(),
+        execution_policy,
+    }) {
+        Ok(response) => response,
+        Err(error) => {
+            return conversion_parity_fixture_execution_error(
+                descriptor,
+                fixture,
+                error.to_string(),
+            );
+        }
+    };
+    diagnostics.extend(render_response.diagnostics);
+    let output = if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        None
+    } else {
+        Some(render_response.output.value)
+    };
+
+    ConversionParityFixtureExecution {
+        output,
+        diagnostics,
+    }
+}
+
+fn conversion_template_identity(template: &ConversionTemplateDescriptor) -> FormatIdentity {
+    FormatIdentity {
+        content_type: Some(template.content_type.clone()),
+        schema: template.schema.clone(),
+        ..FormatIdentity::default()
     }
 }
 
@@ -3407,7 +3621,10 @@ mod tests {
     use crate::transform_template::{
         TransformTemplateAdapter, TransformTemplateAdapterCapability,
         TransformTemplateAdapterRegistry, TransformTemplateColorOutputKind,
-        TransformTemplateEncodedArtifact, TransformTemplateEncodedArtifactIdentity,
+        TransformTemplateCompileRequest, TransformTemplateCompileResponse,
+        TransformTemplateCompiledArtifact, TransformTemplateEncodedArtifact,
+        TransformTemplateEncodedArtifactIdentity, TransformTemplateOutputArtifact,
+        TransformTemplateRenderRequest, TransformTemplateRenderResponse,
         TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_CONTEXT_MISMATCH_CODE,
         TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_DOUBLE_ENCODING_CODE,
     };
@@ -3939,8 +4156,91 @@ mod tests {
         );
     }
 
+    #[derive(Clone)]
+    struct ParityFixtureCemtAdapter;
+
+    impl TransformTemplateAdapter for ParityFixtureCemtAdapter {
+        fn id(&self) -> &'static str {
+            "parity-fixture-cemt-test"
+        }
+
+        fn kind(&self) -> TransformTemplateKind {
+            TransformTemplateKind::CemNative
+        }
+
+        fn capability(&self) -> TransformTemplateAdapterCapability {
+            TransformTemplateAdapterCapability::Executable
+        }
+
+        fn matches_template(&self, identity: &FormatIdentity) -> bool {
+            identity
+                .content_type
+                .as_deref()
+                .is_some_and(|content_type| content_type == CEM_TRANSFORM_CONTENT_TYPE)
+        }
+
+        fn compile(
+            &self,
+            request: TransformTemplateCompileRequest<'_>,
+        ) -> crate::transform_template::TransformTemplateAdapterResult<
+            TransformTemplateCompileResponse,
+        > {
+            assert_eq!(request.entrypoint.name.as_deref(), Some("main"));
+            assert_eq!(request.data_bindings, ["input".to_owned()]);
+            Ok(TransformTemplateCompileResponse {
+                artifact: TransformTemplateCompiledArtifact::new(
+                    self.id(),
+                    self.kind(),
+                    request.template.uri.clone(),
+                    request.template.identity.clone(),
+                    request.entrypoint.clone(),
+                    Value::Null,
+                ),
+                diagnostics: Vec::new(),
+            })
+        }
+
+        fn render(
+            &self,
+            request: TransformTemplateRenderRequest<'_>,
+        ) -> crate::transform_template::TransformTemplateAdapterResult<
+            TransformTemplateRenderResponse,
+        > {
+            let children = request
+                .primary_input
+                .value
+                .get("children")
+                .and_then(Value::as_array)
+                .expect("DOM JSON children");
+            assert!(children.iter().any(|child| {
+                child.get("kind").and_then(Value::as_str) == Some("element")
+                    && child.get("name").and_then(Value::as_str) == Some("article")
+            }));
+            assert_eq!(
+                request
+                    .target
+                    .and_then(|target| target.content_type.as_deref()),
+                Some(HTML_CONTENT_TYPE)
+            );
+
+            Ok(TransformTemplateRenderResponse {
+                output: TransformTemplateOutputArtifact {
+                    uri: None,
+                    identity: request.target.cloned(),
+                    value: Value::String(
+                        "<article id=\"welcome\"><h1>Welcome</h1><p>This is a minimal CEM-ML document.</p></article>"
+                            .to_owned(),
+                    ),
+                    source_map: None,
+                    output_spans: Vec::new(),
+                },
+                diagnostics: Vec::new(),
+            })
+        }
+    }
+
     #[test]
-    fn rust_dom_projection_parity_executor_checks_declared_contract_fixture() {
+    fn cemt_template_parity_executor_checks_declared_contract_fixture() {
         let registry = ConversionRegistry::with_builtin_converters();
         let (contracts, diagnostics) = registry.cemt_native_parity_contracts();
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
@@ -3951,14 +4251,37 @@ mod tests {
         let fixtures =
             load_conversion_parity_fixtures(html_contract.cemt, env!("CARGO_MANIFEST_DIR"))
                 .expect("declared parity fixture loads from package path");
+        let mut template_adapters = TransformTemplateAdapterRegistry::new();
+        template_adapters.register(ParityFixtureCemtAdapter);
+        let executor =
+            CemtTemplateParityFixtureExecutor::new(env!("CARGO_MANIFEST_DIR"), &template_adapters);
 
-        let diagnostics = evaluate_conversion_parity_fixtures(
-            html_contract,
-            &fixtures,
-            &RustDomProjectionParityFixtureExecutor,
-        );
+        let diagnostics = evaluate_conversion_parity_fixtures(html_contract, &fixtures, &executor);
 
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn cemt_template_parity_executor_reports_selector_only_adapter() {
+        let registry = ConversionRegistry::with_builtin_converters();
+        let cemt_html = registry
+            .converter("cem-dom-projection-to-html-cemt")
+            .expect("HTML CEMT converter");
+        let fixtures = load_conversion_parity_fixtures(cemt_html, env!("CARGO_MANIFEST_DIR"))
+            .expect("declared parity fixture loads from package path");
+        let template_adapters = TransformTemplateAdapterRegistry::with_builtin_adapters();
+        let executor =
+            CemtTemplateParityFixtureExecutor::new(env!("CARGO_MANIFEST_DIR"), &template_adapters);
+
+        let execution = executor.execute_conversion_parity_fixture(cemt_html, &fixtures[0]);
+
+        assert!(execution.output.is_none());
+        assert_eq!(execution.diagnostics.len(), 1);
+        assert_eq!(
+            execution.diagnostics[0].code,
+            CONVERSION_PARITY_FIXTURE_EXECUTION_CODE
+        );
+        assert!(execution.diagnostics[0].message.contains("selector-only"));
     }
 
     #[test]

@@ -320,6 +320,9 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add Rust DOM-projection parity fixture execution that decodes
           declared binary fixtures and renders HTML/XML oracle outputs for
           CEMT/native comparison.
+    - [x] Add CEMT template-backed parity fixture execution that invokes
+          executable template adapters for CEMT descriptors while keeping Rust
+          DOM execution as the native side.
   - [ ] Implement CEMT output safety rules: context-specific categories must not
         be conflated, encoded artifacts must not be silently re-encoded,
         compatible-artifact concatenation must validate target identity and
