@@ -1505,6 +1505,8 @@ pub struct TransformTemplateEncodeOptions {
     pub indent: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub namespace_policy: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub namespace_placement: Option<String>,
     #[serde(default)]
     pub source_map_policy: TransformTemplateSourceMapPolicy,
 }
@@ -1850,6 +1852,17 @@ pub enum TransformTemplateNamespaceRepairPolicy {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+pub enum TransformTemplateNamespaceDeclarationPlacement {
+    #[default]
+    None,
+    Preserve,
+    Root,
+    Local,
+    Canonical,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum TransformTemplateIdentifierPolicy {
     CemtName,
     HtmlName,
@@ -1896,6 +1909,7 @@ pub struct TransformTemplateTargetSyntaxRules {
     pub syntax: TransformTemplateTargetSyntaxKind,
     pub element_boundary_policy: TransformTemplateElementBoundaryPolicy,
     pub namespace_repair_policy: TransformTemplateNamespaceRepairPolicy,
+    pub namespace_declaration_placement: TransformTemplateNamespaceDeclarationPlacement,
     pub identifier_policy: TransformTemplateIdentifierPolicy,
     pub field_header_policy: TransformTemplateFieldHeaderPolicy,
     pub supports_fragment_mode: bool,
@@ -1920,6 +1934,11 @@ impl TransformTemplateTargetSyntaxRules {
         let namespace_repair_policy = transform_template_namespace_repair_policy(
             syntax,
             options.namespace_policy.as_deref(),
+        )?;
+        let namespace_declaration_placement = transform_template_namespace_declaration_placement(
+            syntax,
+            namespace_repair_policy,
+            options.namespace_placement.as_deref(),
         )?;
         let text_like = transform_template_target_syntax_is_text_like(syntax);
         let element_boundary_policy = match syntax {
@@ -1959,6 +1978,7 @@ impl TransformTemplateTargetSyntaxRules {
             syntax,
             element_boundary_policy,
             namespace_repair_policy,
+            namespace_declaration_placement,
             identifier_policy,
             field_header_policy,
             supports_fragment_mode: matches!(
@@ -2176,6 +2196,58 @@ fn transform_template_namespace_repair_policy(
         "canonical" => Ok(TransformTemplateNamespaceRepairPolicy::Canonical),
         "none" => Ok(TransformTemplateNamespaceRepairPolicy::None),
         other => Err(format!("unsupported namespace policy `{other}`")),
+    }
+}
+
+fn transform_template_namespace_declaration_placement(
+    syntax: TransformTemplateTargetSyntaxKind,
+    namespace_policy: TransformTemplateNamespaceRepairPolicy,
+    namespace_placement: Option<&str>,
+) -> Result<TransformTemplateNamespaceDeclarationPlacement, String> {
+    let supports_namespaces = matches!(
+        syntax,
+        TransformTemplateTargetSyntaxKind::Html
+            | TransformTemplateTargetSyntaxKind::Xml
+            | TransformTemplateTargetSyntaxKind::Cemt
+    );
+    let Some(placement) = namespace_placement
+        .map(str::trim)
+        .filter(|placement| !placement.is_empty())
+    else {
+        return Ok(if supports_namespaces {
+            match namespace_policy {
+                TransformTemplateNamespaceRepairPolicy::Canonical => {
+                    TransformTemplateNamespaceDeclarationPlacement::Canonical
+                }
+                TransformTemplateNamespaceRepairPolicy::None => {
+                    TransformTemplateNamespaceDeclarationPlacement::None
+                }
+                TransformTemplateNamespaceRepairPolicy::Preserve
+                | TransformTemplateNamespaceRepairPolicy::Repair => {
+                    TransformTemplateNamespaceDeclarationPlacement::Preserve
+                }
+            }
+        } else {
+            TransformTemplateNamespaceDeclarationPlacement::None
+        });
+    };
+
+    if !supports_namespaces {
+        return Err(format!(
+            "namespace declaration placement `{placement}` is not supported for `{}` target syntax",
+            syntax.as_str()
+        ));
+    }
+
+    match placement {
+        "preserve" => Ok(TransformTemplateNamespaceDeclarationPlacement::Preserve),
+        "root" | "document-root" => Ok(TransformTemplateNamespaceDeclarationPlacement::Root),
+        "local" | "nearest" => Ok(TransformTemplateNamespaceDeclarationPlacement::Local),
+        "canonical" => Ok(TransformTemplateNamespaceDeclarationPlacement::Canonical),
+        "none" => Ok(TransformTemplateNamespaceDeclarationPlacement::None),
+        other => Err(format!(
+            "unsupported namespace declaration placement `{other}`"
+        )),
     }
 }
 
@@ -4078,8 +4150,27 @@ fn transform_template_validate_xml_formatter_options(
         .map(str::trim)
         .filter(|value| !value.is_empty())
     {
-        None | Some("preserve") | Some("repair") | Some("canonical") => Ok(()),
-        Some(other) => Err(format!("unsupported XML namespace policy `{other}`")),
+        None | Some("preserve") | Some("repair") | Some("canonical") => {}
+        Some(other) => return Err(format!("unsupported XML namespace policy `{other}`")),
+    }
+
+    match options
+        .namespace_placement
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        None
+        | Some("preserve")
+        | Some("root")
+        | Some("document-root")
+        | Some("local")
+        | Some("nearest")
+        | Some("canonical")
+        | Some("none") => Ok(()),
+        Some(other) => Err(format!(
+            "unsupported XML namespace declaration placement `{other}`"
+        )),
     }
 }
 
@@ -5316,6 +5407,15 @@ fn parse_cemt_encode_options(
     options.indent = optional_object_string_preserve(&fields, &["indent"])?;
     options.namespace_policy =
         optional_object_string(&fields, &["namespacePolicy", "namespace-policy"])?;
+    options.namespace_placement = optional_object_string(
+        &fields,
+        &[
+            "namespacePlacement",
+            "namespace-placement",
+            "namespaceDeclarationPlacement",
+            "namespace-declaration-placement",
+        ],
+    )?;
 
     if let Some(source_map) = optional_object_string(&fields, &["sourceMap", "source-map"])? {
         options.source_map_policy = match source_map.as_str() {
@@ -9756,6 +9856,7 @@ mod tests {
             indent: Some("\t".to_owned()),
             line_ending: Some("crlf".to_owned()),
             namespace_policy: Some("repair".to_owned()),
+            namespace_placement: Some("root".to_owned()),
             ..TransformTemplateEncodeOptions::default()
         };
         let binding = TransformTemplateEncodeBinding {
@@ -9797,6 +9898,18 @@ mod tests {
             )
             .expect_err("unsupported XML namespace policy is rejected");
         assert!(error.contains("unsupported XML namespace policy `hoist`"));
+
+        let mut unsupported_namespace_placement = binding.clone();
+        unsupported_namespace_placement.options.namespace_placement = Some("floating".to_owned());
+        let placement_error = registry
+            .encode(
+                &unsupported_namespace_placement,
+                &Value::String("unsafe".to_owned()),
+            )
+            .expect_err("unsupported XML namespace placement is rejected");
+        assert!(
+            placement_error.contains("unsupported XML namespace declaration placement `floating`")
+        );
     }
 
     #[test]
@@ -10932,6 +11045,7 @@ mod tests {
             TransformTemplateEncodingTarget::new(XML_CONTENT_TYPE, XML_SCHEMA_URI, "xml-text");
         let options = TransformTemplateEncodeOptions {
             namespace_policy: Some("canonical".to_owned()),
+            namespace_placement: Some("root".to_owned()),
             ..TransformTemplateEncodeOptions::default()
         };
 
@@ -10948,10 +11062,25 @@ mod tests {
             rules.namespace_repair_policy,
             TransformTemplateNamespaceRepairPolicy::Canonical
         );
+        assert_eq!(
+            rules.namespace_declaration_placement,
+            TransformTemplateNamespaceDeclarationPlacement::Root
+        );
         assert!(rules.permits_mode(TransformTemplateEncodedArtifactMode::Fragment));
         assert!(rules.is_valid_identifier("svg:path"));
         assert!(!rules.is_valid_identifier("1bad"));
         assert_eq!(rules.raw_text_mode_for_element("script"), None);
+
+        let canonical_rules = target
+            .syntax_rules(&TransformTemplateEncodeOptions {
+                namespace_policy: Some("canonical".to_owned()),
+                ..TransformTemplateEncodeOptions::default()
+            })
+            .expect("canonical XML syntax rules resolve");
+        assert_eq!(
+            canonical_rules.namespace_declaration_placement,
+            TransformTemplateNamespaceDeclarationPlacement::Canonical
+        );
     }
 
     #[test]
@@ -10985,6 +11114,15 @@ mod tests {
             })
             .expect_err("JSON rejects namespace policy");
         assert!(json_namespace_error.contains("not supported for `json` target syntax"));
+
+        let json_namespace_placement_error = json_target
+            .syntax_rules(&TransformTemplateEncodeOptions {
+                namespace_placement: Some("root".to_owned()),
+                ..TransformTemplateEncodeOptions::default()
+            })
+            .expect_err("JSON rejects namespace declaration placement");
+        assert!(json_namespace_placement_error
+            .contains("namespace declaration placement `root` is not supported for `json`"));
 
         let yaml_rules = TransformTemplateEncodingTarget::new(
             "text/yaml; charset=utf-8",
@@ -11076,6 +11214,7 @@ mod tests {
                     wrapColumn: "72",
                     indent: "  ",
                     namespacePolicy: "repair",
+                    namespacePlacement: "root",
                     raw: true,
                     allowLossy: true,
                     sourceMap: "generated"
@@ -11112,6 +11251,7 @@ mod tests {
         assert_eq!(parsed.options.wrap_column.as_deref(), Some("72"));
         assert_eq!(parsed.options.indent.as_deref(), Some("  "));
         assert_eq!(parsed.options.namespace_policy.as_deref(), Some("repair"));
+        assert_eq!(parsed.options.namespace_placement.as_deref(), Some("root"));
         assert!(parsed.options.raw);
         assert!(parsed.options.allow_lossy);
         assert_eq!(

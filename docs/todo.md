@@ -201,6 +201,9 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add initial Markdown text wrapping controls for CEMT formatter
           options, including wrap-column parsing, LF/CRLF output, and invalid
           selector diagnostics.
+    - [x] Add namespace declaration placement controls for XML/CEMT formatter
+          options and target syntax rules, including canonical defaults and
+          non-namespace target diagnostics.
   - [ ] Add writer primitives and CEMT bindings for syntax tokens, styled token
         streams, byte streams, sealed binary chunks, source-map span emission,
         and source-map preservation/generated/none policies.
