@@ -999,9 +999,27 @@ fn conversion_parity_outputs_match(
         ConversionParityMode::TokenEquivalent => {
             conversion_token_equivalent_outputs_match(contract, cemt_output, native_output)
         }
-        ConversionParityMode::ByteExact | ConversionParityMode::DiagnosticEquivalent => {
-            cemt_output == native_output
+        ConversionParityMode::DiagnosticEquivalent => {
+            conversion_diagnostic_equivalent_outputs_match(cemt_output, native_output)
         }
+        ConversionParityMode::ByteExact => cemt_output == native_output,
+    }
+}
+
+fn conversion_diagnostic_equivalent_outputs_match(
+    cemt_output: &Value,
+    native_output: &Value,
+) -> bool {
+    match (
+        conversion_diagnostic_projection(cemt_output),
+        conversion_diagnostic_projection(native_output),
+    ) {
+        (Some(mut cemt), Some(mut native)) => {
+            cemt.sort_by_key(conversion_diagnostic_projection_sort_key);
+            native.sort_by_key(conversion_diagnostic_projection_sort_key);
+            cemt == native
+        }
+        _ => cemt_output == native_output,
     }
 }
 
@@ -1047,6 +1065,126 @@ fn conversion_parse_equivalent_outputs_match(
         (Some(cemt), Some(native)) => cemt == native,
         _ => cemt_output == native_output,
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ConversionDiagnosticProjectionEvent {
+    code: String,
+    severity: String,
+    uri: Option<String>,
+    line: Option<u64>,
+    column: Option<u64>,
+    byte_offset: Option<u64>,
+    node: Option<String>,
+    source_map: Option<String>,
+}
+
+fn conversion_diagnostic_projection(
+    output: &Value,
+) -> Option<Vec<ConversionDiagnosticProjectionEvent>> {
+    let diagnostics = match output {
+        Value::Array(diagnostics) => diagnostics.as_slice(),
+        Value::Object(object) if object.contains_key("code") && object.contains_key("severity") => {
+            std::slice::from_ref(output)
+        }
+        Value::Object(object) => object.get("diagnostics")?.as_array()?.as_slice(),
+        _ => return None,
+    };
+
+    diagnostics
+        .iter()
+        .map(conversion_diagnostic_projection_event)
+        .collect()
+}
+
+fn conversion_diagnostic_projection_event(
+    diagnostic: &Value,
+) -> Option<ConversionDiagnosticProjectionEvent> {
+    let object = diagnostic.as_object()?;
+    let code = conversion_required_string_field(object, "code")?;
+    let severity = conversion_required_string_field(object, "severity")?.to_ascii_lowercase();
+    let uri = conversion_optional_string_field(object, "uri")?;
+    let line = conversion_optional_u64_field(object, "line")?;
+    let column = conversion_optional_u64_field(object, "column")?;
+    let byte_offset = conversion_optional_u64_field(object, "byteOffset")?;
+    let node = conversion_optional_string_field(object, "node")?;
+    let source_map = match object.get("sourceMap") {
+        Some(Value::Null) | None => None,
+        Some(source_map) => Some(conversion_canonical_json_string(source_map)?),
+    };
+
+    Some(ConversionDiagnosticProjectionEvent {
+        code,
+        severity,
+        uri,
+        line,
+        column,
+        byte_offset,
+        node,
+        source_map,
+    })
+}
+
+fn conversion_required_string_field(
+    object: &serde_json::Map<String, Value>,
+    field: &str,
+) -> Option<String> {
+    match object.get(field) {
+        Some(Value::String(value)) => Some(value.clone()),
+        _ => None,
+    }
+}
+
+fn conversion_optional_string_field(
+    object: &serde_json::Map<String, Value>,
+    field: &str,
+) -> Option<Option<String>> {
+    match object.get(field) {
+        Some(Value::String(value)) => Some(Some(value.clone())),
+        Some(Value::Null) | None => Some(None),
+        _ => None,
+    }
+}
+
+fn conversion_optional_u64_field(
+    object: &serde_json::Map<String, Value>,
+    field: &str,
+) -> Option<Option<u64>> {
+    match object.get(field) {
+        Some(Value::Number(value)) => value.as_u64().map(Some),
+        Some(Value::Null) | None => Some(None),
+        _ => None,
+    }
+}
+
+fn conversion_canonical_json_string(value: &Value) -> Option<String> {
+    serde_json::to_string(&conversion_canonical_json_value(value)).ok()
+}
+
+fn conversion_canonical_json_value(value: &Value) -> Value {
+    match value {
+        Value::Array(values) => {
+            Value::Array(values.iter().map(conversion_canonical_json_value).collect())
+        }
+        Value::Object(object) => {
+            let mut canonical = serde_json::Map::new();
+            let mut keys: Vec<_> = object.keys().collect();
+            keys.sort();
+            for key in keys {
+                if let Some(value) = object.get(key) {
+                    canonical.insert(key.clone(), conversion_canonical_json_value(value));
+                }
+            }
+            Value::Object(canonical)
+        }
+        _ => value.clone(),
+    }
+}
+
+fn conversion_diagnostic_projection_sort_key(
+    diagnostic: &ConversionDiagnosticProjectionEvent,
+) -> String {
+    format!("{diagnostic:?}")
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2891,6 +3029,130 @@ mod tests {
         .expect("token-equivalent parity preserves token kind");
         assert_eq!(cdata_drift.code, CONVERSION_PARITY_DRIFT_CODE);
         assert!(cdata_drift.message.contains("token-equivalent"));
+    }
+
+    #[test]
+    fn diagnostic_equivalent_parity_compares_diagnostic_projection() {
+        let cemt = cemt_edge_with_output_contract(
+            "dom-diagnostics-cemt",
+            endpoint(JSON_CONTENT_TYPE, JSON_VALUE_SCHEMA_URI),
+            ConversionOutputContractDescriptor {
+                output_syntax: Some(ConversionOutputSyntax::Json),
+                parity: Some(ConversionParityMode::DiagnosticEquivalent),
+                ..ConversionOutputContractDescriptor::default()
+            },
+        );
+        let native = rust_edge(
+            "dom-diagnostics-rust",
+            "test-dom-projection",
+            endpoint(
+                CEM_DOM_PROJECTION_CONTENT_TYPE,
+                CEM_DOM_PROJECTION_SCHEMA_URI,
+            ),
+            endpoint(JSON_CONTENT_TYPE, JSON_VALUE_SCHEMA_URI),
+            "DiagnosticExportConverter",
+            "diagnostics",
+            1,
+        );
+        let contract = ConversionParityContract {
+            cemt: &cemt,
+            native: &native,
+            mode: ConversionParityMode::DiagnosticEquivalent,
+        };
+
+        let cemt_output = serde_json::json!({
+            "diagnostics": [
+                {
+                    "code": "cem.test.alpha",
+                    "severity": "warning",
+                    "message": "CEMT warning wording",
+                    "uri": "file:///input.cem",
+                    "line": 2,
+                    "column": 5,
+                    "byteOffset": 17,
+                    "node": "node-1",
+                    "sourceMap": {
+                        "segments": [
+                            {
+                                "uri": "file:///input.cem",
+                                "line": 2,
+                                "column": 5
+                            }
+                        ]
+                    }
+                },
+                {
+                    "code": "cem.test.beta",
+                    "severity": "error",
+                    "message": "CEMT error wording"
+                }
+            ]
+        });
+        let native_output = serde_json::json!([
+            {
+                "code": "cem.test.beta",
+                "severity": "error",
+                "message": "Native error wording"
+            },
+            {
+                "code": "cem.test.alpha",
+                "severity": "warning",
+                "message": "Native warning wording",
+                "uri": "file:///input.cem",
+                "line": 2,
+                "column": 5,
+                "byteOffset": 17,
+                "node": "node-1",
+                "sourceMap": {
+                    "segments": [
+                        {
+                            "column": 5,
+                            "line": 2,
+                            "uri": "file:///input.cem"
+                        }
+                    ]
+                }
+            }
+        ]);
+
+        assert!(
+            compare_conversion_parity_outputs(&contract, &cemt_output, &native_output).is_none()
+        );
+
+        let native_location_drift = serde_json::json!({
+            "diagnostics": [
+                {
+                    "code": "cem.test.alpha",
+                    "severity": "warning",
+                    "message": "Native warning wording",
+                    "uri": "file:///input.cem",
+                    "line": 3,
+                    "column": 5,
+                    "byteOffset": 17,
+                    "node": "node-1",
+                    "sourceMap": {
+                        "segments": [
+                            {
+                                "uri": "file:///input.cem",
+                                "line": 2,
+                                "column": 5
+                            }
+                        ]
+                    }
+                },
+                {
+                    "code": "cem.test.beta",
+                    "severity": "error",
+                    "message": "Native error wording"
+                }
+            ]
+        });
+        let drift =
+            compare_conversion_parity_outputs(&contract, &cemt_output, &native_location_drift)
+                .expect("diagnostic location drift is reported");
+        assert_eq!(drift.code, CONVERSION_PARITY_DRIFT_CODE);
+        assert_eq!(drift.severity, Severity::Error);
+        assert!(drift.message.contains("diagnostic-equivalent"));
     }
 
     #[test]
