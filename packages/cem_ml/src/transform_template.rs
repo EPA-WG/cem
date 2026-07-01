@@ -189,6 +189,8 @@ pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_PRODUCED_KIND_INCOMPATIBLE_CODE: &s
 pub const TRANSFORM_TEMPLATE_UNSAFE_RAW_INSERTION_CODE: &str =
     "cem.transform_template.unsafe_raw_insertion";
 pub const TRANSFORM_TEMPLATE_LOSSY_OUTPUT_CODE: &str = "cem.transform_template.lossy_output";
+pub const TRANSFORM_TEMPLATE_CEMT_NATIVE_PARITY_MISMATCH_CODE: &str =
+    "cem.transform_template.cemt_native_parity_mismatch";
 pub const TRANSFORM_TEMPLATE_UNSUPPORTED_CHARSET_CODE: &str =
     "cem.transform_template.unsupported_charset";
 pub const TRANSFORM_TEMPLATE_CHARSET_MISMATCH_CODE: &str =
@@ -3003,6 +3005,168 @@ impl TransformTemplateEncodeEvaluationResponse {
     ) -> TransformTemplateEncodedArtifactCompositionResponse {
         compose_transform_template_encoded_text_artifacts(&self.encoded, context, uri)
     }
+}
+
+pub fn validate_transform_template_cemt_native_encode_parity(
+    cemt: &TransformTemplateEncodeEvaluationResponse,
+    native: &TransformTemplateEncodeEvaluationResponse,
+    uri: Option<&str>,
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let cemt_diagnostic_codes = transform_template_diagnostic_codes(&cemt.diagnostics);
+    let native_diagnostic_codes = transform_template_diagnostic_codes(&native.diagnostics);
+    if cemt_diagnostic_codes != native_diagnostic_codes {
+        diagnostics.push(transform_template_cemt_native_parity_diagnostic(
+            uri,
+            "diagnostics.codes",
+            &cemt_diagnostic_codes,
+            &native_diagnostic_codes,
+            None,
+        ));
+    }
+
+    if cemt.encoded.len() != native.encoded.len() {
+        diagnostics.push(transform_template_cemt_native_parity_diagnostic(
+            uri,
+            "encoded.length",
+            &cemt.encoded.len(),
+            &native.encoded.len(),
+            None,
+        ));
+    }
+
+    for index in 0..cemt.encoded.len().min(native.encoded.len()) {
+        let cemt_evaluated = &cemt.encoded[index];
+        let native_evaluated = &native.encoded[index];
+        let node = transform_template_cemt_native_parity_node(
+            Some(cemt_evaluated),
+            Some(native_evaluated),
+        );
+        validate_transform_template_cemt_native_artifact_parity_field(
+            &mut diagnostics,
+            uri,
+            index,
+            "identity",
+            &cemt_evaluated.artifact.identity,
+            &native_evaluated.artifact.identity,
+            node.clone(),
+        );
+        validate_transform_template_cemt_native_artifact_parity_field(
+            &mut diagnostics,
+            uri,
+            index,
+            "value",
+            &cemt_evaluated.artifact.value,
+            &native_evaluated.artifact.value,
+            node.clone(),
+        );
+        validate_transform_template_cemt_native_artifact_parity_field(
+            &mut diagnostics,
+            uri,
+            index,
+            "sourceMap",
+            &cemt_evaluated.artifact.source_map,
+            &native_evaluated.artifact.source_map,
+            node.clone(),
+        );
+        validate_transform_template_cemt_native_artifact_parity_field(
+            &mut diagnostics,
+            uri,
+            index,
+            "outputSpans",
+            &cemt_evaluated.artifact.output_spans,
+            &native_evaluated.artifact.output_spans,
+            node.clone(),
+        );
+        validate_transform_template_cemt_native_artifact_parity_field(
+            &mut diagnostics,
+            uri,
+            index,
+            "encoded",
+            &cemt_evaluated.artifact.encoded,
+            &native_evaluated.artifact.encoded,
+            node,
+        );
+    }
+
+    diagnostics
+}
+
+fn validate_transform_template_cemt_native_artifact_parity_field<T>(
+    diagnostics: &mut Vec<Diagnostic>,
+    uri: Option<&str>,
+    index: usize,
+    field: &str,
+    cemt: &T,
+    native: &T,
+    node: Option<String>,
+) where
+    T: fmt::Debug + PartialEq,
+{
+    if cemt != native {
+        diagnostics.push(transform_template_cemt_native_parity_diagnostic(
+            uri,
+            &format!("encoded[{index}].{field}"),
+            cemt,
+            native,
+            node,
+        ));
+    }
+}
+
+fn transform_template_cemt_native_parity_diagnostic<T>(
+    uri: Option<&str>,
+    field: &str,
+    cemt: &T,
+    native: &T,
+    node: Option<String>,
+) -> Diagnostic
+where
+    T: fmt::Debug,
+{
+    Diagnostic {
+        uri: uri.map(str::to_owned),
+        code: TRANSFORM_TEMPLATE_CEMT_NATIVE_PARITY_MISMATCH_CODE.to_owned(),
+        severity: Severity::Error,
+        message: format!(
+            "CEMT/native parity mismatch at `{field}`: CEMT produced {}; native produced {}",
+            transform_template_parity_summary(cemt),
+            transform_template_parity_summary(native)
+        ),
+        node,
+        ..Diagnostic::default()
+    }
+}
+
+fn transform_template_cemt_native_parity_node(
+    cemt: Option<&TransformTemplateEvaluatedEncodeExpression>,
+    native: Option<&TransformTemplateEvaluatedEncodeExpression>,
+) -> Option<String> {
+    cemt.and_then(|evaluated| evaluated.expression.owner.clone())
+        .or_else(|| native.and_then(|evaluated| evaluated.expression.owner.clone()))
+        .or_else(|| cemt.map(|evaluated| evaluated.expression.expression.clone()))
+        .or_else(|| native.map(|evaluated| evaluated.expression.expression.clone()))
+}
+
+fn transform_template_diagnostic_codes(diagnostics: &[Diagnostic]) -> Vec<String> {
+    diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.code.clone())
+        .collect()
+}
+
+fn transform_template_parity_summary<T>(value: &T) -> String
+where
+    T: fmt::Debug,
+{
+    const LIMIT: usize = 240;
+    let summary = format!("{value:?}");
+    if summary.chars().count() <= LIMIT {
+        return summary;
+    }
+    let mut truncated = summary.chars().take(LIMIT).collect::<String>();
+    truncated.push_str("...");
+    truncated
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -9073,6 +9237,55 @@ mod tests {
             .diagnostics
             .iter()
             .any(|diag| diag.code == TRANSFORM_TEMPLATE_OUTPUT_ENCODER_UNKNOWN_CODE));
+    }
+
+    #[test]
+    fn cemt_native_encode_parity_accepts_matching_responses() {
+        let response = TransformTemplateEncodeEvaluationResponse {
+            encoded: vec![evaluated_html_text("body", "Hello &amp; CEM")],
+            diagnostics: Vec::new(),
+        };
+
+        let diagnostics = validate_transform_template_cemt_native_encode_parity(
+            &response,
+            &response,
+            Some("templates/runtime-encoding.cemt"),
+        );
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn cemt_native_encode_parity_reports_drift() {
+        let cemt = TransformTemplateEncodeEvaluationResponse {
+            encoded: vec![evaluated_html_text("body", "Hello &amp; CEM")],
+            diagnostics: vec![Diagnostic {
+                code: "cem.transform_template.example_warning".to_owned(),
+                message: "CEMT warning".to_owned(),
+                ..Diagnostic::default()
+            }],
+        };
+        let mut native = cemt.clone();
+        native.encoded[0].artifact.value = Value::String("Hello & CEM".to_owned());
+        native.diagnostics[0].code = "cem.transform_template.native_warning".to_owned();
+
+        let diagnostics = validate_transform_template_cemt_native_encode_parity(
+            &cemt,
+            &native,
+            Some("templates/runtime-encoding.cemt"),
+        );
+
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_CEMT_NATIVE_PARITY_MISMATCH_CODE
+                && diagnostic.message.contains("diagnostics.codes")
+        }));
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_CEMT_NATIVE_PARITY_MISMATCH_CODE
+                && diagnostic.node.as_deref() == Some("body")
+                && diagnostic.message.contains("encoded[0].value")
+                && diagnostic.message.contains("Hello &amp; CEM")
+                && diagnostic.message.contains("Hello & CEM")
+        }));
     }
 
     #[test]
