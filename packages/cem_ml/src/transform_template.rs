@@ -1618,6 +1618,126 @@ pub fn transform_template_encode_subject_type_candidates(subject: &Value) -> Vec
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateWriterToken {
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<Value>,
+}
+
+impl TransformTemplateWriterToken {
+    pub fn new(kind: impl Into<String>) -> Self {
+        Self {
+            kind: kind.into(),
+            text: None,
+            role: None,
+            value: None,
+        }
+    }
+
+    pub fn with_text(mut self, text: impl Into<String>) -> Self {
+        self.text = Some(text.into());
+        self
+    }
+
+    pub fn with_role(mut self, role: impl Into<String>) -> Self {
+        self.role = Some(role.into());
+        self
+    }
+
+    pub fn with_value(mut self, value: Value) -> Self {
+        self.value = Some(value);
+        self
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateWriterTokenStream {
+    pub tokens: Vec<TransformTemplateWriterToken>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateWriterByteStream {
+    pub encoding: String,
+    pub bytes: Vec<u8>,
+    pub byte_length: usize,
+}
+
+impl TransformTemplateWriterByteStream {
+    pub fn new(bytes: Vec<u8>) -> Self {
+        Self {
+            byte_length: bytes.len(),
+            encoding: "u8-array".to_owned(),
+            bytes,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateWriterChunk {
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bytes: Vec<u8>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub sealed: bool,
+}
+
+impl TransformTemplateWriterChunk {
+    pub fn text(kind: impl Into<String>, text: impl Into<String>) -> Self {
+        Self {
+            kind: kind.into(),
+            id: None,
+            text: Some(text.into()),
+            bytes: Vec::new(),
+            sealed: false,
+        }
+    }
+
+    pub fn bytes(kind: impl Into<String>, bytes: Vec<u8>) -> Self {
+        Self {
+            kind: kind.into(),
+            id: None,
+            text: None,
+            bytes,
+            sealed: false,
+        }
+    }
+
+    pub fn with_id(mut self, id: impl Into<String>) -> Self {
+        self.id = Some(id.into());
+        self
+    }
+
+    pub fn sealed(mut self) -> Self {
+        self.sealed = true;
+        self
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateWriterChunkStream {
+    pub chunks: Vec<TransformTemplateWriterChunk>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateWriterDiagnostics {
+    pub diagnostics: Vec<Diagnostic>,
+}
+
 fn resolve_encode_subject_expression(
     expression: &str,
     value_bindings: &BTreeMap<String, Value>,
@@ -2204,6 +2324,54 @@ impl TransformTemplateEncodedArtifact {
         }
     }
 
+    pub fn from_writer_tokens(
+        mut identity: TransformTemplateEncodedArtifactIdentity,
+        tokens: Vec<TransformTemplateWriterToken>,
+    ) -> Self {
+        identity.produces = TransformTemplateOutputProducedKind::Tokens;
+        Self::new(
+            identity,
+            serde_json::to_value(TransformTemplateWriterTokenStream { tokens })
+                .expect("writer token stream serializes"),
+        )
+    }
+
+    pub fn from_writer_bytes(
+        mut identity: TransformTemplateEncodedArtifactIdentity,
+        bytes: Vec<u8>,
+    ) -> Self {
+        identity.produces = TransformTemplateOutputProducedKind::Bytes;
+        Self::new(
+            identity,
+            serde_json::to_value(TransformTemplateWriterByteStream::new(bytes))
+                .expect("writer byte stream serializes"),
+        )
+    }
+
+    pub fn from_writer_chunks(
+        mut identity: TransformTemplateEncodedArtifactIdentity,
+        chunks: Vec<TransformTemplateWriterChunk>,
+    ) -> Self {
+        identity.produces = TransformTemplateOutputProducedKind::Chunks;
+        Self::new(
+            identity,
+            serde_json::to_value(TransformTemplateWriterChunkStream { chunks })
+                .expect("writer chunk stream serializes"),
+        )
+    }
+
+    pub fn from_writer_diagnostics(
+        mut identity: TransformTemplateEncodedArtifactIdentity,
+        diagnostics: Vec<Diagnostic>,
+    ) -> Self {
+        identity.produces = TransformTemplateOutputProducedKind::Diagnostics;
+        Self::new(
+            identity,
+            serde_json::to_value(TransformTemplateWriterDiagnostics { diagnostics })
+                .expect("writer diagnostics serialize"),
+        )
+    }
+
     pub fn validate_insertion(
         &self,
         context: &TransformTemplateEncodedArtifactInsertionContext,
@@ -2218,6 +2386,8 @@ impl TransformTemplateEncodedArtifact {
                 );
             }
         }
+
+        validate_encoded_artifact_value_shape(self.identity.produces, &self.value)?;
 
         if !context.content_type.trim().is_empty()
             && content_type_essence(&self.identity.target.content_type)
@@ -2416,6 +2586,10 @@ pub enum TransformTemplateEncodedArtifactError {
         expected: TransformTemplateOutputProducedKind,
         actual: TransformTemplateOutputProducedKind,
     },
+    ValueShapeMismatch {
+        expected: String,
+        actual: String,
+    },
     DoubleEncoding {
         content_type: String,
         schema: String,
@@ -2436,6 +2610,7 @@ impl TransformTemplateEncodedArtifactError {
             Self::ProducedKindMismatch { .. } => {
                 TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_PRODUCED_KIND_MISMATCH_CODE
             }
+            Self::ValueShapeMismatch { .. } => TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_VALUE_TYPE_CODE,
             Self::DoubleEncoding { .. } => TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_DOUBLE_ENCODING_CODE,
         }
     }
@@ -2469,6 +2644,9 @@ impl TransformTemplateEncodedArtifactError {
             Self::ProducedKindMismatch { expected, actual } => format!(
                 "encoded artifact produced kind `{actual:?}` is incompatible with insertion target `{expected:?}`"
             ),
+            Self::ValueShapeMismatch { expected, actual } => format!(
+                "encoded artifact value shape expected {expected}, got {actual}"
+            ),
             Self::DoubleEncoding {
                 content_type,
                 schema,
@@ -2485,6 +2663,201 @@ impl TransformTemplateEncodedArtifactError {
             }
         }
     }
+}
+
+fn validate_encoded_artifact_value_shape(
+    produces: TransformTemplateOutputProducedKind,
+    value: &Value,
+) -> Result<(), TransformTemplateEncodedArtifactError> {
+    let result = match produces {
+        TransformTemplateOutputProducedKind::Text => {
+            if value.is_string() {
+                Ok(())
+            } else {
+                Err(format!("{}", json_value_type_name(value)))
+            }
+        }
+        TransformTemplateOutputProducedKind::Bytes => validate_writer_byte_stream_value(value),
+        TransformTemplateOutputProducedKind::Tokens => validate_writer_token_stream_value(value),
+        TransformTemplateOutputProducedKind::Chunks => validate_writer_chunk_stream_value(value),
+        TransformTemplateOutputProducedKind::Diagnostics => {
+            validate_writer_diagnostics_value(value)
+        }
+    };
+
+    result.map_err(
+        |actual| TransformTemplateEncodedArtifactError::ValueShapeMismatch {
+            expected: transform_template_produced_value_shape(produces).to_owned(),
+            actual,
+        },
+    )
+}
+
+fn transform_template_produced_value_shape(
+    produces: TransformTemplateOutputProducedKind,
+) -> &'static str {
+    match produces {
+        TransformTemplateOutputProducedKind::Text => "string",
+        TransformTemplateOutputProducedKind::Bytes => {
+            "object with `encoding: \"u8-array\"`, `bytes`, and `byteLength`"
+        }
+        TransformTemplateOutputProducedKind::Tokens => "object with `tokens` array",
+        TransformTemplateOutputProducedKind::Chunks => "object with `chunks` array",
+        TransformTemplateOutputProducedKind::Diagnostics => "object with `diagnostics` array",
+    }
+}
+
+fn validate_writer_token_stream_value(value: &Value) -> Result<(), String> {
+    let tokens = required_writer_array_field(value, "tokens")?;
+    for (index, token) in tokens.iter().enumerate() {
+        let object = token
+            .as_object()
+            .ok_or_else(|| format!("`tokens[{index}]` {}", json_value_type_name(token)))?;
+        let kind = object
+            .get("kind")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+        if kind.is_none() {
+            return Err(format!(
+                "`tokens[{index}].kind` missing or not a non-empty string"
+            ));
+        }
+        validate_optional_writer_string_field(
+            object.get("text"),
+            &format!("tokens[{index}].text"),
+        )?;
+        validate_optional_writer_string_field(
+            object.get("role"),
+            &format!("tokens[{index}].role"),
+        )?;
+        if !object.contains_key("text") && !object.contains_key("value") {
+            return Err(format!("`tokens[{index}]` missing `text` or `value`"));
+        }
+    }
+    Ok(())
+}
+
+fn validate_writer_byte_stream_value(value: &Value) -> Result<(), String> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| format!("{}", json_value_type_name(value)))?;
+    let encoding = object
+        .get("encoding")
+        .and_then(Value::as_str)
+        .unwrap_or("u8-array");
+    if encoding != "u8-array" {
+        return Err(format!("unsupported byte stream encoding `{encoding}`"));
+    }
+    let bytes = required_writer_array_field(value, "bytes")?;
+    validate_writer_byte_array(bytes, "bytes")?;
+    match object.get("byteLength") {
+        None => Ok(()),
+        Some(length) if length.as_u64() == Some(bytes.len() as u64) => Ok(()),
+        Some(length) => Err(format!(
+            "`byteLength` {} does not match byte count `{}`",
+            json_value_type_name(length),
+            bytes.len()
+        )),
+    }
+}
+
+fn validate_writer_chunk_stream_value(value: &Value) -> Result<(), String> {
+    let chunks = required_writer_array_field(value, "chunks")?;
+    for (index, chunk) in chunks.iter().enumerate() {
+        let object = chunk
+            .as_object()
+            .ok_or_else(|| format!("`chunks[{index}]` {}", json_value_type_name(chunk)))?;
+        let kind = object
+            .get("kind")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+        if kind.is_none() {
+            return Err(format!(
+                "`chunks[{index}].kind` missing or not a non-empty string"
+            ));
+        }
+        validate_optional_writer_string_field(object.get("id"), &format!("chunks[{index}].id"))?;
+        validate_optional_writer_string_field(
+            object.get("text"),
+            &format!("chunks[{index}].text"),
+        )?;
+        if let Some(bytes) = object.get("bytes") {
+            let bytes = bytes.as_array().ok_or_else(|| {
+                format!("`chunks[{index}].bytes` {}", json_value_type_name(bytes))
+            })?;
+            validate_writer_byte_array(bytes, &format!("chunks[{index}].bytes"))?;
+        }
+        if let Some(sealed) = object.get("sealed") {
+            if !sealed.is_boolean() {
+                return Err(format!(
+                    "`chunks[{index}].sealed` {}",
+                    json_value_type_name(sealed)
+                ));
+            }
+        }
+        if !object.contains_key("text") && !object.contains_key("bytes") {
+            return Err(format!("`chunks[{index}]` missing `text` or `bytes`"));
+        }
+    }
+    Ok(())
+}
+
+fn validate_writer_diagnostics_value(value: &Value) -> Result<(), String> {
+    let diagnostics = required_writer_array_field(value, "diagnostics")?;
+    for (index, diagnostic) in diagnostics.iter().enumerate() {
+        let object = diagnostic.as_object().ok_or_else(|| {
+            format!(
+                "`diagnostics[{index}]` {}",
+                json_value_type_name(diagnostic)
+            )
+        })?;
+        for field in ["code", "message"] {
+            let value = object
+                .get(field)
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty());
+            if value.is_none() {
+                return Err(format!(
+                    "`diagnostics[{index}].{field}` missing or not a non-empty string"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn required_writer_array_field<'a>(
+    value: &'a Value,
+    field: &str,
+) -> Result<&'a Vec<Value>, String> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| format!("{}", json_value_type_name(value)))?;
+    object
+        .get(field)
+        .and_then(Value::as_array)
+        .ok_or_else(|| format!("missing `{field}` array"))
+}
+
+fn validate_writer_byte_array(bytes: &[Value], field: &str) -> Result<(), String> {
+    for (index, byte) in bytes.iter().enumerate() {
+        if !byte.as_u64().is_some_and(|value| value <= 255) {
+            return Err(format!("`{field}[{index}]` {}", json_value_type_name(byte)));
+        }
+    }
+    Ok(())
+}
+
+fn validate_optional_writer_string_field(value: Option<&Value>, field: &str) -> Result<(), String> {
+    if let Some(value) = value {
+        if !value.is_string() {
+            return Err(format!("`{field}` {}", json_value_type_name(value)));
+        }
+    }
+    Ok(())
 }
 
 fn default_true() -> bool {
@@ -5391,6 +5764,183 @@ mod tests {
                 && diagnostic.node.as_deref() == Some("body")
                 && diagnostic.message.contains("object")
         }));
+    }
+
+    #[test]
+    fn writer_artifacts_construct_typed_token_byte_chunk_and_diagnostic_values() {
+        let target = TransformTemplateEncodingTarget::new(
+            JSON_CONTENT_TYPE,
+            JSON_VALUE_SCHEMA_URI,
+            "writer-stream",
+        );
+        let token_artifact = TransformTemplateEncodedArtifact::from_writer_tokens(
+            TransformTemplateEncodedArtifactIdentity::new(
+                TransformTemplateOutputProducedKind::Text,
+                target.clone(),
+            ),
+            vec![
+                TransformTemplateWriterToken::new("syntax.name")
+                    .with_text("button")
+                    .with_role("element"),
+                TransformTemplateWriterToken::new("syntax.attribute")
+                    .with_value(json!({"name": "type", "value": "button"})),
+            ],
+        );
+        assert_eq!(
+            token_artifact.identity.produces,
+            TransformTemplateOutputProducedKind::Tokens
+        );
+        assert_eq!(token_artifact.value["tokens"][0]["kind"], "syntax.name");
+        token_artifact
+            .validate_insertion(
+                &TransformTemplateEncodedArtifactInsertionContext::from_encoded_artifact_identity(
+                    &token_artifact.identity,
+                ),
+            )
+            .expect("token stream value shape is valid");
+
+        let byte_artifact = TransformTemplateEncodedArtifact::from_writer_bytes(
+            TransformTemplateEncodedArtifactIdentity::new(
+                TransformTemplateOutputProducedKind::Text,
+                target.clone(),
+            ),
+            vec![0, 127, 255],
+        );
+        assert_eq!(
+            byte_artifact.identity.produces,
+            TransformTemplateOutputProducedKind::Bytes
+        );
+        assert_eq!(byte_artifact.value["encoding"], "u8-array");
+        assert_eq!(byte_artifact.value["byteLength"], 3);
+        byte_artifact
+            .validate_insertion(
+                &TransformTemplateEncodedArtifactInsertionContext::from_encoded_artifact_identity(
+                    &byte_artifact.identity,
+                ),
+            )
+            .expect("byte stream value shape is valid");
+
+        let chunk_artifact = TransformTemplateEncodedArtifact::from_writer_chunks(
+            TransformTemplateEncodedArtifactIdentity::new(
+                TransformTemplateOutputProducedKind::Text,
+                target.clone(),
+            ),
+            vec![
+                TransformTemplateWriterChunk::text("header", "<doc>").with_id("c1"),
+                TransformTemplateWriterChunk::bytes("payload", vec![1, 2, 3]).sealed(),
+            ],
+        );
+        assert_eq!(
+            chunk_artifact.identity.produces,
+            TransformTemplateOutputProducedKind::Chunks
+        );
+        assert_eq!(chunk_artifact.value["chunks"][1]["sealed"], true);
+        chunk_artifact
+            .validate_insertion(
+                &TransformTemplateEncodedArtifactInsertionContext::from_encoded_artifact_identity(
+                    &chunk_artifact.identity,
+                ),
+            )
+            .expect("chunk stream value shape is valid");
+
+        let diagnostic_artifact = TransformTemplateEncodedArtifact::from_writer_diagnostics(
+            TransformTemplateEncodedArtifactIdentity::new(
+                TransformTemplateOutputProducedKind::Text,
+                target,
+            ),
+            vec![Diagnostic {
+                code: "cem.writer.example".to_owned(),
+                severity: Severity::Warning,
+                message: "writer warning".to_owned(),
+                ..Diagnostic::default()
+            }],
+        );
+        assert_eq!(
+            diagnostic_artifact.identity.produces,
+            TransformTemplateOutputProducedKind::Diagnostics
+        );
+        assert_eq!(
+            diagnostic_artifact.value["diagnostics"][0]["code"],
+            "cem.writer.example"
+        );
+        diagnostic_artifact
+            .validate_insertion(
+                &TransformTemplateEncodedArtifactInsertionContext::from_encoded_artifact_identity(
+                    &diagnostic_artifact.identity,
+                ),
+            )
+            .expect("diagnostic stream value shape is valid");
+    }
+
+    #[test]
+    fn writer_artifact_value_shape_validation_rejects_invalid_envelopes() {
+        let target = TransformTemplateEncodingTarget::new(
+            JSON_CONTENT_TYPE,
+            JSON_VALUE_SCHEMA_URI,
+            "writer-stream",
+        );
+        let token_identity = TransformTemplateEncodedArtifactIdentity::new(
+            TransformTemplateOutputProducedKind::Tokens,
+            target.clone(),
+        );
+        let invalid_tokens = TransformTemplateEncodedArtifact::new(
+            token_identity,
+            json!({"tokens": [{"text": "x"}]}),
+        );
+        let token_error = invalid_tokens
+            .validate_insertion(
+                &TransformTemplateEncodedArtifactInsertionContext::from_encoded_artifact_identity(
+                    &invalid_tokens.identity,
+                ),
+            )
+            .expect_err("token without kind is rejected");
+        assert_eq!(
+            token_error.code(),
+            TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_VALUE_TYPE_CODE
+        );
+        assert!(token_error.message().contains("tokens[0].kind"));
+
+        let byte_identity = TransformTemplateEncodedArtifactIdentity::new(
+            TransformTemplateOutputProducedKind::Bytes,
+            target.clone(),
+        );
+        let invalid_bytes = TransformTemplateEncodedArtifact::new(
+            byte_identity,
+            json!({"encoding": "u8-array", "bytes": [0, 256], "byteLength": 2}),
+        );
+        let byte_error = invalid_bytes
+            .validate_insertion(
+                &TransformTemplateEncodedArtifactInsertionContext::from_encoded_artifact_identity(
+                    &invalid_bytes.identity,
+                ),
+            )
+            .expect_err("out-of-range byte is rejected");
+        assert_eq!(
+            byte_error.code(),
+            TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_VALUE_TYPE_CODE
+        );
+        assert!(byte_error.message().contains("bytes[1]"));
+
+        let chunk_identity = TransformTemplateEncodedArtifactIdentity::new(
+            TransformTemplateOutputProducedKind::Chunks,
+            target,
+        );
+        let invalid_chunks = TransformTemplateEncodedArtifact::new(
+            chunk_identity,
+            json!({"chunks": [{"kind": "empty"}]}),
+        );
+        let chunk_error = invalid_chunks
+            .validate_insertion(
+                &TransformTemplateEncodedArtifactInsertionContext::from_encoded_artifact_identity(
+                    &invalid_chunks.identity,
+                ),
+            )
+            .expect_err("chunk without payload is rejected");
+        assert_eq!(
+            chunk_error.code(),
+            TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_VALUE_TYPE_CODE
+        );
+        assert!(chunk_error.message().contains("chunks[0]"));
     }
 
     #[test]
