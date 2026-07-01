@@ -317,9 +317,17 @@ Cons:
   and examples.
 
 Recommended review direction: Option D. CEMT is the primary output producer,
-including encoding and formatting. Native producers exist for performance and
-clarity, but are paired with CEMT implementations and cross-checked. Each
-supported schema package should eventually declare:
+including transformation, syntax/context encoding, formatting, terminal/HTML
+color output, source-map span creation, final artifact identity,
+content-type-specific encoders, formatters, colorizers, writer primitives, and
+small transformation helpers. Encoding here means target syntax/context work,
+such as escaping, quoting, scalar style selection, namespace repair, and binary
+chunk framing. It is separate from byte character encoding such as UTF-8 and
+transport content encoding such as gzip.
+
+Native producers exist for performance, bootstrap, binary framing, and clarity,
+but are paired with CEMT implementations and cross-checked. Each supported
+schema package should eventually declare:
 
 - output source identity: CEM AST projection content type and schema URL;
 - destination identity: owned content type and schema URL;
@@ -335,7 +343,7 @@ supported schema package should eventually declare:
 
 CEMT output templates should use standard encoding, formatting, and color output
 function surfaces rather than hand-written escaping or host-side color filters.
-The primary proposed call is:
+The primary call is:
 
 ```text
 encode(subject, target, options?) -> encoded-artifact
@@ -344,8 +352,17 @@ encode(subject, target, options?) -> encoded-artifact
 `subject` is unencoded typed data, `target` identifies destination content type,
 schema URL, and encoding category, and the result carries output identity so it
 cannot be silently double-encoded or inserted into the wrong context. Formatting
-and terminal/HTML color helpers belong to the same CEMT stack. The full
-proposal, including encoding and color categories by content type family, is in
+and terminal/HTML color helpers belong to the same CEMT stack.
+
+This is a schema-owned serializer contract, not hidden content-type conversion.
+For example, `CEM AST -> text/html` is output production for the HTML package,
+while `text/html -> normalized HTML model -> application/xhtml+xml` is a
+content-type conversion pipeline that may parse, normalize, validate, and
+change semantic models. Both use registry identities, but the runtime exposes
+separate planning domains for content conversion and schema output production.
+The canonical CEMT output contract is maintained in
+[`cem-transform/v1/README.md`](cem-transform/v1/README.md). The temporary
+proposal remains as an implementation backlog and worked-example source in
 [`../docs/cemt-encoding-proposal.tmp.md`](../docs/cemt-encoding-proposal.tmp.md).
 
 # list of embedded schema

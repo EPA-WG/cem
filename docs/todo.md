@@ -73,13 +73,16 @@ history belongs in git history and the feature-specific docs linked below.
       [`../packages/cem_ml/schema-packages/README.md`](../packages/cem_ml/schema-packages/README.md)
       and the encoding proposal in
       [`../packages/cem_ml/docs/cemt-encoding-proposal.tmp.md`](../packages/cem_ml/docs/cemt-encoding-proposal.tmp.md).
-  - [ ] Promote the CEMT encoding proposal into canonical docs: CEMT owns
+  - [x] Promote the CEMT encoding proposal into canonical docs: CEMT owns
         output production for schema-owned exports, including transformation,
         encoding, formatting, terminal/HTML color output, source-map span
         creation, final artifact identity, content-type-specific encoders,
         formatters, colorizers, writer primitives, and small transformation
         helpers. Clarify that encoding means syntax/context encoding, separate
         from byte character encoding and transport content encoding.
+    - [x] Promote the CEMT output producer contract into the schema package
+          docs, make the transform package README canonical, and retain the
+          temporary proposal as backlog and worked examples.
   - [ ] Define the CEMT `encode(subject, target, options?)` function and
         expression binding. `target` must carry `contentType`, `schema`,
         `category`, and optional context. `options` must cover canonical,

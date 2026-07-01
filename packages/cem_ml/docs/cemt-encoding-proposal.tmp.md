@@ -1,9 +1,11 @@
 # CEMT Encoding Proposal
 
-Status: proposal for review
+Status: promoted for the core CEMT output producer contract; remaining content
+is temporary implementation backlog and worked examples.
 
-This note defines the proposed CEMT encoding capability before it is promoted
-into the CEMT schema and runtime. The canonical documentation entry points are:
+This note records the detailed CEMT encoding design, worked examples, and
+promotion backlog. The canonical documentation entry points for the active
+CEMT output producer contract are:
 
 - [`../schema-packages/cem-transform/v1/README.md`](../schema-packages/cem-transform/v1/README.md)
 - [`../schema-packages/README.md`](../schema-packages/README.md)

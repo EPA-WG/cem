@@ -24,14 +24,40 @@ planning.
 
 ## Output Producer And Encoding Contract
 
-CEMT is the primary output producer for schema-owned exports. Content-type
-specific encoders, formatters, terminal/HTML color output helpers, writer
-primitives, and output transformation helpers belong to the CEMT stack. Native
-output producers exist for performance, bootstrap, and clarity, but they should
-be paired with CEMT implementations and cross-checked with shared fixtures.
+CEMT is the primary output producer for schema-owned exports. Output production
+includes transformation, syntax/context encoding, formatting, terminal/HTML
+color output, source-map span creation, final artifact identity,
+content-type-specific encoders, formatters, colorizers, writer primitives, and
+small transformation helpers. These capabilities are part of the CEMT stack,
+not an external post-processing layer.
+
+Encoding in this contract means syntax/context encoding: JSON string escaping,
+XML attribute escaping, HTML text-state escaping, CSV field quoting, CSS
+identifier escaping, YAML scalar style selection, CEM binary chunk framing, and
+similar target-context operations. It is separate from byte character encoding
+such as UTF-8 or UTF-16, and separate from transport content encoding such as
+gzip.
+
+The schema-owned output pipeline is:
+
+```text
+typed subject
+  -> schema-owned CEMT output producer
+    -> content-type-specific encode / format / color helpers
+      -> encoded text, bytes, token stream, or chunk stream
+        -> destination content type and schema
+```
+
+Native output producers exist for performance, bootstrap, binary framing, and
+clarity where a syntax profile is not yet expressible in CEMT. They are paired
+fallback or fast-path implementations, not replacements for the CEMT contract.
+Every native producer should have a matching CEMT producer or a planned CEMT
+producer, and shared fixtures must cross-check native output against CEMT
+output. Differences must be explicit diagnostics or documented
+lossiness/canonicalization choices.
 
 CEMT serializers need context-aware encoding rather than ad hoc string
-concatenation. The planned standard encoding function is:
+concatenation. The standard encoding function surface is:
 
 ```text
 encode(subject, target, options?) -> encoded-artifact
@@ -50,8 +76,31 @@ content type, schema URL, category, output kind (`text`, `bytes`, `tokens`, or
 reject encoded artifacts whose identity or category is incompatible with the
 surrounding output context.
 
+The CEMT output stack provides:
+
+- encoder functions for context-specific escaping and binary framing;
+- formatter functions for indentation, line endings, ordering, wrapping,
+  scalar style, namespace declaration placement, and canonical output;
+- color functions for semantic style roles, terminal ANSI/SGR output, HTML
+  color output, no-color fallbacks, and accessibility-aware palettes;
+- writer primitives for tokens, byte streams, sealed chunks, and source-map
+  spans;
+- schema helpers for target syntax rules, void/empty element policy, raw-text
+  modes, namespace repair, identifier validity, and field/header policy;
+- diagnostics for unsupported category, unsafe raw output, context mismatch,
+  charset mismatch, unsupported color capability, lossy output, and
+  native/CEMT parity mismatch.
+
+CEMT output production is not a hidden content-type-to-content-type conversion
+mechanism. A serializer edge writes a typed CEM subject to a destination syntax
+and content identity, such as `CEM AST -> text/html`. A conversion pipeline may
+parse, normalize, validate, and change semantic models between content
+identities, such as `text/html -> normalized HTML model ->
+application/xhtml+xml`. Both use registry identities, but callers select them
+through separate planning domains.
+
 Schema packages may declare named encoding, formatting, and color output
-functions in CEMT modules. Proposed encoding declaration shape:
+functions in CEMT modules. Example encoding declaration shape:
 
 ```cem
 {encoding-function
@@ -74,7 +123,8 @@ structurally in the v1 schema: `encoding-function`, `format-function`, and
 kind, content type, schema, and category metadata. The design intent is
 CEMT-first output producer edges with shared writer primitives and paired native
 producer hooks while the encoder, formatter, and terminal/HTML color output
-surface matures. The working proposal lives in
+surface matures. The temporary proposal remains as an implementation backlog and
+worked-example source in
 [`../../../docs/cemt-encoding-proposal.tmp.md`](../../../docs/cemt-encoding-proposal.tmp.md).
 
 ## Validation Examples
