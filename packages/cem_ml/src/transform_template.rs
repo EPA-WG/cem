@@ -599,6 +599,26 @@ const TRANSFORM_TEMPLATE_STANDARD_OUTPUT_FUNCTIONS:
         schema: CSV_SCHEMA_URI,
         profile: None,
     },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "css.string",
+        category: "css-string",
+        subject: Some("string"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: CSS_CONTENT_TYPE,
+        schema: CSS_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "css.identifier",
+        category: "css-identifier",
+        subject: Some("string"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: CSS_CONTENT_TYPE,
+        schema: CSS_SCHEMA_URI,
+        profile: None,
+    },
 ];
 
 fn standard_output_function_contract(
@@ -2799,6 +2819,8 @@ impl TransformTemplateEncodeImplementationRegistry {
         registry.register("markdown.inline-code", builtin_markdown_inline_code_encoder);
         registry.register("csv.field", builtin_csv_field_encoder);
         registry.register("csv.record", builtin_csv_record_encoder);
+        registry.register("css.string", builtin_css_string_encoder);
+        registry.register("css.identifier", builtin_css_identifier_encoder);
         registry
     }
 
@@ -3133,6 +3155,62 @@ fn validate_builtin_csv_encoder_binding(
     Ok(())
 }
 
+fn builtin_css_string_encoder(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_css_encoder_binding(binding, "css.string", "css-string")?;
+    let text = subject
+        .as_str()
+        .ok_or_else(|| "css.string expected string subject".to_owned())?;
+    Ok(Value::String(transform_template_encode_css_string(text)))
+}
+
+fn builtin_css_identifier_encoder(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_css_encoder_binding(binding, "css.identifier", "css-identifier")?;
+    let text = subject
+        .as_str()
+        .ok_or_else(|| "css.identifier expected string subject".to_owned())?;
+    Ok(Value::String(transform_template_encode_css_identifier(
+        text,
+    )))
+}
+
+fn validate_builtin_css_encoder_binding(
+    binding: &TransformTemplateEncodeBinding,
+    expected_name: &str,
+    expected_category: &str,
+) -> Result<(), String> {
+    if binding.function.name != expected_name {
+        return Err(format!(
+            "CSS encoder implementation `{expected_name}` cannot execute `{}`",
+            binding.function.name
+        ));
+    }
+    if content_type_essence(&binding.identity.target.content_type) != CSS_CONTENT_TYPE {
+        return Err(format!(
+            "CSS encoder `{expected_name}` expected content type `{CSS_CONTENT_TYPE}`, got `{}`",
+            binding.identity.target.content_type
+        ));
+    }
+    if binding.identity.target.schema != CSS_SCHEMA_URI {
+        return Err(format!(
+            "CSS encoder `{expected_name}` expected schema `{CSS_SCHEMA_URI}`, got `{}`",
+            binding.identity.target.schema
+        ));
+    }
+    if binding.identity.target.category != expected_category {
+        return Err(format!(
+            "CSS encoder `{expected_name}` expected category `{expected_category}`, got `{}`",
+            binding.identity.target.category
+        ));
+    }
+    Ok(())
+}
+
 pub fn transform_template_encode_html_text(value: &str) -> String {
     let mut output = String::new();
     for ch in value.chars() {
@@ -3238,6 +3316,53 @@ fn transform_template_csv_value_to_field(value: &Value) -> Result<String, String
         Value::Array(_) | Value::Object(_) => transform_template_encode_json_value(value)?,
     };
     Ok(transform_template_encode_csv_field(&text))
+}
+
+pub fn transform_template_encode_css_string(value: &str) -> String {
+    let mut output = String::with_capacity(value.len() + 2);
+    output.push('"');
+    for ch in value.chars() {
+        match ch {
+            '\\' => output.push_str("\\\\"),
+            '"' => output.push_str("\\\""),
+            '\n' => output.push_str("\\A "),
+            '\r' => output.push_str("\\D "),
+            '\t' => output.push_str("\\9 "),
+            ch if ch.is_control() => push_css_hex_escape(&mut output, ch),
+            _ => output.push(ch),
+        }
+    }
+    output.push('"');
+    output
+}
+
+pub fn transform_template_encode_css_identifier(value: &str) -> String {
+    if is_css_identifier(value) {
+        return value.to_owned();
+    }
+    if value.is_empty() {
+        return "\\0 ".to_owned();
+    }
+
+    let mut output = String::new();
+    for (index, ch) in value.chars().enumerate() {
+        let valid = if index == 0 {
+            ch.is_ascii_alphabetic() || ch == '_' || ch == '-'
+        } else {
+            ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')
+        };
+        if valid {
+            output.push(ch);
+        } else {
+            push_css_hex_escape(&mut output, ch);
+        }
+    }
+    output
+}
+
+fn push_css_hex_escape(output: &mut String, ch: char) {
+    output.push('\\');
+    output.push_str(&format!("{:X} ", ch as u32));
 }
 
 pub fn transform_template_encode_json_value(value: &Value) -> Result<String, String> {
@@ -7274,6 +7399,36 @@ mod tests {
         }
     }
 
+    fn css_output_function_descriptor(
+        name: &str,
+        category: &str,
+        subject: &str,
+    ) -> TransformTemplateOutputFunctionDescriptor {
+        TransformTemplateOutputFunctionDescriptor {
+            kind: TransformTemplateOutputFunctionKind::Encoding,
+            owner: Some("css".to_owned()),
+            name: name.to_owned(),
+            category: category.to_owned(),
+            subject: subject.to_owned(),
+            produces: TransformTemplateOutputProducedKind::Text,
+            content_type: CSS_CONTENT_TYPE.to_owned(),
+            schema: CSS_SCHEMA_URI.to_owned(),
+            canonical: true,
+            streamable: true,
+            visibility: TransformTemplateModuleVisibility::Private,
+            implementation: TransformTemplateOutputFunctionImplementation::Cemt,
+            profile: None,
+            extends: None,
+            capability: None,
+            deterministic: true,
+            trusted: false,
+            lossy: false,
+            fallback: None,
+            params: Vec::new(),
+            body_declared: false,
+        }
+    }
+
     fn color_output_function_descriptor(
         name: &str,
         category: &str,
@@ -8938,6 +9093,67 @@ mod tests {
             .encode(&wrong_category, &Value::String("unsafe".to_owned()))
             .expect_err("builtin refuses mismatched category");
         assert!(error.contains("expected category `csv-field`"));
+    }
+
+    #[test]
+    fn builtin_css_encode_implementations_escape_strings_and_identifiers() {
+        let registry = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+        let string_binding = TransformTemplateEncodeBinding {
+            function: css_output_function_descriptor("css.string", "css-string", "string"),
+            subject_type: "string".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::new(
+                TransformTemplateOutputProducedKind::Text,
+                TransformTemplateEncodingTarget::new(
+                    CSS_CONTENT_TYPE,
+                    CSS_SCHEMA_URI,
+                    "css-string",
+                )
+                .with_context("string"),
+            ),
+            options: TransformTemplateEncodeOptions::default(),
+        };
+        let encoded_string = registry
+            .encode(
+                &string_binding,
+                &Value::String("Tom \"CEM\"\npath\\end\t".to_owned()),
+            )
+            .expect("css string encoder runs");
+        assert_eq!(
+            encoded_string,
+            Value::String("\"Tom \\\"CEM\\\"\\A path\\\\end\\9 \"".to_owned())
+        );
+
+        let identifier_binding = TransformTemplateEncodeBinding {
+            function: css_output_function_descriptor("css.identifier", "css-identifier", "string"),
+            subject_type: "string".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::new(
+                TransformTemplateOutputProducedKind::Text,
+                TransformTemplateEncodingTarget::new(
+                    CSS_CONTENT_TYPE,
+                    CSS_SCHEMA_URI,
+                    "css-identifier",
+                )
+                .with_context("identifier"),
+            ),
+            options: TransformTemplateEncodeOptions::default(),
+        };
+        let encoded_identifier = registry
+            .encode(
+                &identifier_binding,
+                &Value::String("12 brand#color".to_owned()),
+            )
+            .expect("css identifier encoder runs");
+        assert_eq!(
+            encoded_identifier,
+            Value::String("\\31 2\\20 brand\\23 color".to_owned())
+        );
+
+        let mut wrong_content_type = string_binding.clone();
+        wrong_content_type.identity.target.content_type = "text/plain".to_owned();
+        let error = registry
+            .encode(&wrong_content_type, &Value::String("unsafe".to_owned()))
+            .expect_err("builtin refuses mismatched content type");
+        assert!(error.contains("expected content type `text/css`"));
     }
 
     #[test]
