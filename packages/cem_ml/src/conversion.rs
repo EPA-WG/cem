@@ -3958,7 +3958,8 @@ mod tests {
     use super::*;
     use crate::engine::TransformTemplateKind;
     use crate::schema::registry::{
-        NamespaceClaim, SchemaContentType, SchemaDescriptor, CEM_AST_JSON_PROJECTION_CONTENT_TYPE,
+        NamespaceClaim, SchemaContentType, SchemaDescriptor, AI_CONTEXT_JSON_CONTENT_TYPE,
+        AI_CONTEXT_SCHEMA_URI, CEM_AST_JSON_PROJECTION_CONTENT_TYPE,
         CEM_AST_PROJECTION_CONTENT_TYPE, CEM_AST_PROJECTION_SCHEMA_URI,
         CEM_DOM_JSON_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_CONTENT_TYPE,
         CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE, CEM_EVENTS_PROJECTION_CONTENT_TYPE,
@@ -5531,8 +5532,8 @@ mod tests {
             },
             FamilyCase {
                 family: "AI context projections",
-                content_type: "application/vnd.cem.ai-context+json",
-                schema: "https://cem.dev/ns/ai-context/1",
+                content_type: AI_CONTEXT_JSON_CONTENT_TYPE,
+                schema: AI_CONTEXT_SCHEMA_URI,
                 category: "ai-context-pack",
                 output_syntax: ConversionOutputSyntax::Json,
                 expected_syntax: TransformTemplateTargetSyntaxKind::Json,

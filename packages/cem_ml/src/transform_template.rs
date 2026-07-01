@@ -17,8 +17,8 @@ use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
 use crate::run_config::ScopeConfig;
 use crate::schema::registry::{
-    CEM_AST_PROJECTION_CONTENT_TYPE, CEM_AST_PROJECTION_SCHEMA_URI,
-    CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
+    AI_CONTEXT_JSON_CONTENT_TYPE, AI_CONTEXT_SCHEMA_URI, CEM_AST_PROJECTION_CONTENT_TYPE,
+    CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
     CEM_EVENTS_PROJECTION_CONTENT_TYPE, CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE,
     CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI,
     CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI,
@@ -679,6 +679,56 @@ const TRANSFORM_TEMPLATE_STANDARD_OUTPUT_FUNCTIONS:
         produces: TransformTemplateOutputProducedKind::Text,
         content_type: RELAX_NG_COMPACT_CONTENT_TYPE,
         schema: RELAX_NG_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "ai.context-pack",
+        category: "ai-context-pack",
+        subject: Some("object"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: AI_CONTEXT_JSON_CONTENT_TYPE,
+        schema: AI_CONTEXT_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "ai.entity-graph",
+        category: "ai-entity-graph",
+        subject: Some("object"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: AI_CONTEXT_JSON_CONTENT_TYPE,
+        schema: AI_CONTEXT_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "ai.semantic-tokens",
+        category: "ai-semantic-tokens",
+        subject: Some("object"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: AI_CONTEXT_JSON_CONTENT_TYPE,
+        schema: AI_CONTEXT_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "ai.context-fragment",
+        category: "ai-context-fragment",
+        subject: Some("object"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: AI_CONTEXT_JSON_CONTENT_TYPE,
+        schema: AI_CONTEXT_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "ai.embedding-record",
+        category: "ai-embedding-record",
+        subject: Some("object"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: AI_CONTEXT_JSON_CONTENT_TYPE,
+        schema: AI_CONTEXT_SCHEMA_URI,
         profile: None,
     },
     TransformTemplateStandardOutputFunctionContract {
@@ -3080,6 +3130,11 @@ impl TransformTemplateEncodeImplementationRegistry {
         registry.register("cemt.text", builtin_cemt_text_encoder);
         registry.register("cem-ql.text", builtin_cem_ql_text_encoder);
         registry.register("rnc.text", builtin_rnc_text_encoder);
+        registry.register("ai.context-pack", builtin_ai_context_projection_encoder);
+        registry.register("ai.entity-graph", builtin_ai_context_projection_encoder);
+        registry.register("ai.semantic-tokens", builtin_ai_context_projection_encoder);
+        registry.register("ai.context-fragment", builtin_ai_context_projection_encoder);
+        registry.register("ai.embedding-record", builtin_ai_context_projection_encoder);
         registry.register("cem-bin.dom.bytes", builtin_cem_bin_bytes_encoder);
         registry.register("cem-bin.ast.bytes", builtin_cem_bin_bytes_encoder);
         registry.register("cem-bin.events.bytes", builtin_cem_bin_bytes_encoder);
@@ -3662,6 +3717,91 @@ fn builtin_source_text_content_type_matches(
     match function_name {
         "cem-ql.text" => matches!(actual.as_str(), CEM_QL_CONTENT_TYPE | "text/cem-ql"),
         _ => actual == content_type_essence(expected_content_type),
+    }
+}
+
+fn builtin_ai_context_projection_encoder(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_ai_context_projection_encoder_binding(binding)?;
+    let projection = subject
+        .as_object()
+        .ok_or_else(|| format!("{} expected object subject", binding.function.name))?;
+    if let Some(kind) = projection.get("kind").and_then(Value::as_str) {
+        let expected_kind =
+            transform_template_ai_context_kind_for_category(&binding.identity.target.category)
+                .ok_or_else(|| {
+                    format!(
+                        "AI context encoder `{}` expected AI context category, got `{}`",
+                        binding.function.name, binding.identity.target.category
+                    )
+                })?;
+        if kind != expected_kind {
+            return Err(format!(
+                "AI context encoder `{}` expected projection kind `{expected_kind}`, got `{kind}`",
+                binding.function.name
+            ));
+        }
+    }
+    transform_template_format_json_value(
+        subject,
+        &binding.options,
+        binding.identity.formatter_profile.as_deref(),
+    )
+    .map(Value::String)
+}
+
+fn validate_builtin_ai_context_projection_encoder_binding(
+    binding: &TransformTemplateEncodeBinding,
+) -> Result<(), String> {
+    let Some(expected) = standard_output_function_contract(&binding.function.name) else {
+        return Err(format!(
+            "AI context encoder implementation cannot execute `{}`",
+            binding.function.name
+        ));
+    };
+    if expected.kind != TransformTemplateOutputFunctionKind::Encoding
+        || expected.produces != TransformTemplateOutputProducedKind::Text
+        || expected.subject != Some("object")
+        || !expected.category.starts_with("ai-")
+    {
+        return Err(format!(
+            "AI context encoder implementation cannot execute `{}`",
+            binding.function.name
+        ));
+    }
+    if content_type_essence(&binding.identity.target.content_type)
+        != content_type_essence(AI_CONTEXT_JSON_CONTENT_TYPE)
+    {
+        return Err(format!(
+            "AI context encoder `{}` expected content type `{AI_CONTEXT_JSON_CONTENT_TYPE}`, got `{}`",
+            binding.function.name, binding.identity.target.content_type
+        ));
+    }
+    if binding.identity.target.schema != AI_CONTEXT_SCHEMA_URI {
+        return Err(format!(
+            "AI context encoder `{}` expected schema `{AI_CONTEXT_SCHEMA_URI}`, got `{}`",
+            binding.function.name, binding.identity.target.schema
+        ));
+    }
+    if binding.identity.target.category != expected.category {
+        return Err(format!(
+            "AI context encoder `{}` expected category `{}`, got `{}`",
+            binding.function.name, expected.category, binding.identity.target.category
+        ));
+    }
+    Ok(())
+}
+
+fn transform_template_ai_context_kind_for_category(category: &str) -> Option<&'static str> {
+    match category {
+        "ai-context-pack" => Some("context-pack"),
+        "ai-entity-graph" => Some("entity-graph"),
+        "ai-semantic-tokens" => Some("semantic-tokens"),
+        "ai-context-fragment" => Some("context-fragment"),
+        "ai-embedding-record" => Some("embedding-record"),
+        _ => None,
     }
 }
 
@@ -8909,6 +9049,42 @@ mod tests {
         }
     }
 
+    fn ai_context_output_function_descriptor(
+        name: &str,
+        category: &str,
+    ) -> TransformTemplateOutputFunctionDescriptor {
+        TransformTemplateOutputFunctionDescriptor {
+            kind: TransformTemplateOutputFunctionKind::Encoding,
+            owner: Some("ai".to_owned()),
+            name: name.to_owned(),
+            category: category.to_owned(),
+            subject: "object".to_owned(),
+            produces: TransformTemplateOutputProducedKind::Text,
+            content_type: AI_CONTEXT_JSON_CONTENT_TYPE.to_owned(),
+            schema: AI_CONTEXT_SCHEMA_URI.to_owned(),
+            canonical: true,
+            streamable: true,
+            visibility: TransformTemplateModuleVisibility::Public,
+            implementation: TransformTemplateOutputFunctionImplementation::Cemt,
+            profile: None,
+            extends: None,
+            capability: None,
+            deterministic: true,
+            trusted: false,
+            lossy: false,
+            fallback: None,
+            params: Vec::new(),
+            body_declared: false,
+        }
+    }
+
+    fn cem_document(source: &str) -> CemDocument {
+        let bytes = BytesSource::new(SourceId(1), source.as_bytes().to_vec());
+        let tokenizer = CemTokenizer::from_source(bytes);
+        let normalizer = CemEventNormalizer::new(tokenizer);
+        CemAstBuilder::new(normalizer).build()
+    }
+
     fn color_output_function_descriptor(
         name: &str,
         category: &str,
@@ -11340,6 +11516,155 @@ mod tests {
             )
             .expect_err("unsupported CEM-QL source formatter is rejected");
         assert!(formatter_error.contains("unsupported CEM-QL source formatter `cem-ql.pretty`"));
+    }
+
+    #[test]
+    fn builtin_ai_context_projection_encoders_emit_json_for_all_categories() {
+        use crate::ai_context::{
+            project_cem_document_for_ai, AiContextProjectionKind, AiContextProjectionRequest,
+        };
+
+        let cases = [
+            (
+                "ai.context-pack",
+                "ai-context-pack",
+                AiContextProjectionKind::ContextPack,
+                "context-pack",
+            ),
+            (
+                "ai.entity-graph",
+                "ai-entity-graph",
+                AiContextProjectionKind::EntityGraph,
+                "entity-graph",
+            ),
+            (
+                "ai.semantic-tokens",
+                "ai-semantic-tokens",
+                AiContextProjectionKind::SemanticTokens,
+                "semantic-tokens",
+            ),
+            (
+                "ai.context-fragment",
+                "ai-context-fragment",
+                AiContextProjectionKind::ContextFragment,
+                "context-fragment",
+            ),
+            (
+                "ai.embedding-record",
+                "ai-embedding-record",
+                AiContextProjectionKind::EmbeddingRecord,
+                "embedding-record",
+            ),
+        ];
+
+        let mut functions = TransformTemplateOutputFunctionRegistry::new();
+        for (name, category, _, _) in cases {
+            functions.register(ai_context_output_function_descriptor(name, category));
+        }
+
+        let document =
+            cem_document("{article @id=guide | {heading | AI context} {p | Use stable refs.}}");
+        let registry = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+
+        for (index, (name, category, kind, expected_kind)) in cases.into_iter().enumerate() {
+            let projection = project_cem_document_for_ai(
+                &document,
+                AiContextProjectionRequest {
+                    kind,
+                    profile: Some("summary".to_owned()),
+                    include_source_excerpts: true,
+                    ..AiContextProjectionRequest::default()
+                },
+            );
+            let subject = serde_json::to_value(projection).expect("projection serializes");
+            let options = if index == 0 {
+                TransformTemplateEncodeOptions {
+                    pretty: true,
+                    line_ending: Some("crlf".to_owned()),
+                    encoder: Some(name.to_owned()),
+                    ..TransformTemplateEncodeOptions::default()
+                }
+            } else {
+                TransformTemplateEncodeOptions {
+                    encoder: Some(name.to_owned()),
+                    ..TransformTemplateEncodeOptions::default()
+                }
+            };
+            let request = TransformTemplateEncodeBindingRequest::new(
+                subject,
+                TransformTemplateEncodingTarget::new(
+                    AI_CONTEXT_JSON_CONTENT_TYPE,
+                    AI_CONTEXT_SCHEMA_URI,
+                    category,
+                ),
+            )
+            .with_options(options);
+
+            let binding = functions
+                .resolve_encode_binding(&request, &BTreeSet::new())
+                .expect("AI context encoder resolves");
+            assert_eq!(binding.subject_type, "object");
+
+            let encoded = registry
+                .encode(&binding, &request.subject)
+                .expect("AI context encoder runs");
+            let text = encoded.as_str().expect("AI context encoder emits text");
+            let parsed: Value = serde_json::from_str(text).expect("encoded AI context is JSON");
+            assert_eq!(
+                parsed.get("kind").and_then(Value::as_str),
+                Some(expected_kind)
+            );
+            assert_eq!(
+                parsed
+                    .pointer("/metadata/canonicalProjection")
+                    .and_then(Value::as_str),
+                Some("cem-ast")
+            );
+            if index == 0 {
+                assert!(text.contains("\r\n"));
+            }
+
+            binding
+                .artifact_from_value(encoded)
+                .validate_insertion(
+                    &TransformTemplateEncodedArtifactInsertionContext::new(
+                        AI_CONTEXT_JSON_CONTENT_TYPE,
+                        AI_CONTEXT_SCHEMA_URI,
+                    )
+                    .with_category(category)
+                    .with_produces(TransformTemplateOutputProducedKind::Text),
+                )
+                .expect("AI context artifact carries compatible identity");
+        }
+
+        let wrong_kind_projection = project_cem_document_for_ai(
+            &document,
+            AiContextProjectionRequest {
+                kind: AiContextProjectionKind::EmbeddingRecord,
+                ..AiContextProjectionRequest::default()
+            },
+        );
+        let wrong_kind_subject =
+            serde_json::to_value(wrong_kind_projection).expect("projection serializes");
+        let wrong_kind_request = TransformTemplateEncodeBindingRequest::new(
+            wrong_kind_subject,
+            TransformTemplateEncodingTarget::new(
+                AI_CONTEXT_JSON_CONTENT_TYPE,
+                AI_CONTEXT_SCHEMA_URI,
+                "ai-context-pack",
+            ),
+        )
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some("ai.context-pack".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let wrong_kind_binding = functions
+            .resolve_encode_binding(&wrong_kind_request, &BTreeSet::new())
+            .expect("mismatched projection kind resolves before implementation validation");
+        let error = registry
+            .encode(&wrong_kind_binding, &wrong_kind_request.subject)
+            .expect_err("AI context encoder rejects mismatched projection kind");
+        assert!(error.contains("expected projection kind `context-pack`"));
     }
 
     #[test]

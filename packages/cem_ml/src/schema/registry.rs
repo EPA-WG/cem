@@ -42,6 +42,7 @@ pub const XSLT_NAMESPACE_URI: &str = "http://www.w3.org/1999/XSL/Transform";
 pub const CEM_DOM_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/dom/1";
 pub const CEM_AST_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/ast/1";
 pub const CEM_EVENTS_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/events/1";
+pub const AI_CONTEXT_SCHEMA_URI: &str = "https://cem.dev/ns/ai-context/1";
 
 pub const CEM_ML_CONTENT_TYPE: &str = "application/cem";
 pub const CEM_SCHEMA_CONTENT_TYPE: &str = "application/vnd.cem.schema+cem";
@@ -70,6 +71,7 @@ pub const CEM_AST_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.ast+cem-b
 pub const CEM_AST_JSON_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.ast+json";
 pub const CEM_EVENTS_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.events+cem-bin";
 pub const CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.events+json";
+pub const AI_CONTEXT_JSON_CONTENT_TYPE: &str = "application/vnd.cem.ai-context+json";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SchemaContentTypeRole {

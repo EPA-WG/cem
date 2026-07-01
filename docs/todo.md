@@ -193,6 +193,10 @@ history belongs in git history and the feature-specific docs linked below.
           encoders for `cem-ql-module` and `rnc-document` output, including
           authoring alias handling, source identity validation, and
           line-ending normalization.
+    - [x] Register initial built-in AI context projection JSON encoders for
+          `ai-context-pack`, `ai-entity-graph`, `ai-semantic-tokens`,
+          `ai-context-fragment`, and `ai-embedding-record` output, including
+          projection-kind identity validation and JSON formatter integration.
     - [x] Register initial built-in CEM binary projection byte-stream encoders
           for DOM/AST/events `cem-bin-document` output with explicit binary
           framing identity validation.
@@ -405,6 +409,8 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add initial AST-backed AI context projection records with stable
           canonical refs, source maps, data/instruction boundaries, and view
           filtering for all five AI projection kinds.
+    - [x] Expose AST-backed AI context projection values through standard CEMT
+          JSON encoders for all five AI projection output categories.
   - [x] Define AI context profile controls and safety: budgets for nodes,
         tokens, characters, depth, diagnostics, and source excerpts; stable IDs
         and source ranges; `summary`, `navigation`, `refactor`,
