@@ -73,6 +73,8 @@ pub enum FixtureCmd {
     Validate(FixtureValidateArgs),
     #[command(about = "Round-trip fixtures through parser-backed projections")]
     Roundtrip(FixtureRoundtripArgs),
+    #[command(about = "Evaluate declared CEMT/native converter parity fixtures")]
+    Parity(FixtureParityArgs),
 }
 
 #[derive(Subcommand, Debug)]
@@ -731,6 +733,24 @@ pub struct FixtureRoundtripArgs {
     pub context: ContextOptions,
     #[command(flatten)]
     pub run: RunOptions,
+    #[command(flatten)]
+    pub report: ReportOptions,
+}
+
+#[derive(Args, Debug)]
+pub struct FixtureParityArgs {
+    #[arg(
+        long = "package-root",
+        value_name = "DIR",
+        help = "Root used to resolve schema-package converter parity fixtures"
+    )]
+    pub package_root: Option<PathBuf>,
+
+    #[arg(long, value_enum, default_value_t = FailLevel::Validate)]
+    pub fail_level: FailLevel,
+
+    #[command(flatten)]
+    pub context: ContextOptions,
     #[command(flatten)]
     pub report: ReportOptions,
 }

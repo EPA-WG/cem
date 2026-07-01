@@ -326,6 +326,9 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add registry-level declared converter parity evaluation that discovers
           contracts, loads package fixtures, and runs every fixture through the
           supplied CEMT/native executor.
+    - [x] Add `cem-ml fixture parity` as a CLI/CI-facing command for declared
+          converter parity fixture verification using the current Rust DOM
+          oracle executor.
   - [ ] Implement CEMT output safety rules: context-specific categories must not
         be conflated, encoded artifacts must not be silently re-encoded,
         compatible-artifact concatenation must validate target identity and

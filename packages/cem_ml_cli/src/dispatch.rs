@@ -9366,6 +9366,7 @@ pub const REPORT_BASENAME_ROUNDTRIP: &str = "cem-ml.roundtrip.report";
 pub const REPORT_BASENAME_BENCH: &str = "cem-ml.bench.report";
 pub const REPORT_BASENAME_CONVERT: &str = "cem-ml.convert.report";
 pub const REPORT_BASENAME_TRANSFORM: &str = "cem-ml.transform.report";
+pub const REPORT_BASENAME_PARITY: &str = "cem-ml.parity.report";
 
 fn resolve_report_target(p: &Path, basename: &str, ext: &str) -> std::path::PathBuf {
     if p.extension().is_some() {
@@ -10672,6 +10673,48 @@ pub fn run_fixture_roundtrip<E: CemMlEngine + ?Sized>(
         }
         Err(e) => handle_engine_error(e, s),
     }
+}
+
+pub fn run_fixture_parity(args: cli::FixtureParityArgs, s: &mut Streams<'_>) -> Outcome {
+    let engine_context = self::context(&args.context);
+    let package_root = args
+        .package_root
+        .unwrap_or_else(default_cem_ml_package_root);
+    let registry = cem_ml::conversion::ConversionRegistry::with_builtin_converters();
+    let executor = cem_ml::conversion::RustDomProjectionParityFixtureExecutor;
+    let diagnostics = cem_ml::conversion::evaluate_declared_conversion_parity_contracts(
+        &registry,
+        &package_root,
+        &executor,
+    );
+    let report = cem_ml::report::Report::deterministic(
+        vec![package_root.to_string_lossy().into_owned()],
+        diagnostics,
+        report_options_snapshot(args.fail_level, &args.context),
+    );
+
+    if let Err(e) = write_report_files(
+        &engine_context,
+        &report,
+        &args.report,
+        REPORT_BASENAME_PARITY,
+    ) {
+        let _ = writeln!(s.stderr, "cem-ml: report write failure: {e}");
+        return Outcome::code(EXIT_IO);
+    }
+    if !s.quiet {
+        let json = serde_json::to_string_pretty(&report).unwrap_or_default();
+        let _ = writeln!(s.stdout, "{json}");
+    }
+    if fail_for_summary(args.fail_level, &report) {
+        Outcome::code(EXIT_HARD_FAILURE)
+    } else {
+        Outcome::ok()
+    }
+}
+
+fn default_cem_ml_package_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../cem_ml")
 }
 
 pub fn run_version(s: &mut Streams<'_>) -> Outcome {
@@ -19427,6 +19470,46 @@ start =
     }
 
     #[test]
+    fn fixture_parity_runs_declared_converter_parity() {
+        let (outcome, stdout, stderr) = run(&FakeEngine, &["fixture", "parity"]);
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert_eq!(v["diagnostics"], serde_json::json!([]));
+        assert!(v["inputs"][0]
+            .as_str()
+            .is_some_and(|input| input.ends_with("../cem_ml")));
+    }
+
+    #[test]
+    fn fixture_parity_reports_missing_package_root() {
+        let missing_root =
+            std::env::temp_dir().join("cem-ml-cli-tests/missing-parity-package-root");
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "fixture",
+                "parity",
+                "--package-root",
+                missing_root.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["summary"]["errorCount"], 2);
+        assert!(v["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|diagnostic| {
+                diagnostic["code"] == "cem.converter.parity_fixture_load"
+                    && diagnostic["node"] == "basic-dom"
+            }));
+    }
+
+    #[test]
     fn fixture_inputs_infer_format_from_extension() {
         let inputs = collect_fixture_inputs(
             &[
@@ -21601,6 +21684,7 @@ pub fn dispatch<E: CemMlEngine + ?Sized>(
         cli::Command::Bench(a) => run_bench(engine, a, s),
         cli::Command::Fixture(cli::FixtureCmd::Validate(a)) => run_fixture_validate(engine, a, s),
         cli::Command::Fixture(cli::FixtureCmd::Roundtrip(a)) => run_fixture_roundtrip(engine, a, s),
+        cli::Command::Fixture(cli::FixtureCmd::Parity(a)) => run_fixture_parity(a, s),
         cli::Command::Version => run_version(s),
         cli::Command::Transform(a) => run_transform(engine, a, s),
         cli::Command::Schema(cli::SchemaCmd::Emit) => run_reserved("schema emit", s),
