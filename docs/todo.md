@@ -189,6 +189,10 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Register initial built-in CEM/CEMT source text encoders for
           `cem-document` and `cemt-module` output, including source identity
           validation and line-ending normalization.
+    - [x] Register initial built-in CEM-QL and RELAX NG compact source text
+          encoders for `cem-ql-module` and `rnc-document` output, including
+          authoring alias handling, source identity validation, and
+          line-ending normalization.
     - [x] Register initial built-in CEM binary projection byte-stream encoders
           for DOM/AST/events `cem-bin-document` output with explicit binary
           framing identity validation.

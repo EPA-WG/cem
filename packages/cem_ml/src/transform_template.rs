@@ -663,6 +663,26 @@ const TRANSFORM_TEMPLATE_STANDARD_OUTPUT_FUNCTIONS:
     },
     TransformTemplateStandardOutputFunctionContract {
         kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "cem-ql.text",
+        category: "cem-ql-module",
+        subject: Some("string"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: CEM_QL_CONTENT_TYPE,
+        schema: CEM_QL_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "rnc.text",
+        category: "rnc-document",
+        subject: Some("string"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: RELAX_NG_COMPACT_CONTENT_TYPE,
+        schema: RELAX_NG_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
         name: "cem-bin.dom.bytes",
         category: "cem-bin-document",
         subject: Some("bytes"),
@@ -3058,6 +3078,8 @@ impl TransformTemplateEncodeImplementationRegistry {
         registry.register("css.identifier", builtin_css_identifier_encoder);
         registry.register("cem.text", builtin_cem_text_encoder);
         registry.register("cemt.text", builtin_cemt_text_encoder);
+        registry.register("cem-ql.text", builtin_cem_ql_text_encoder);
+        registry.register("rnc.text", builtin_rnc_text_encoder);
         registry.register("cem-bin.dom.bytes", builtin_cem_bin_bytes_encoder);
         registry.register("cem-bin.ast.bytes", builtin_cem_bin_bytes_encoder);
         registry.register("cem-bin.events.bytes", builtin_cem_bin_bytes_encoder);
@@ -3527,7 +3549,7 @@ fn builtin_cem_text_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
 ) -> Result<Value, String> {
-    validate_builtin_cem_source_text_encoder_binding(binding, "CEM source")?;
+    validate_builtin_source_text_encoder_binding(binding, "CEM source")?;
     let text = subject
         .as_str()
         .ok_or_else(|| "cem.text expected string subject".to_owned())?;
@@ -3543,7 +3565,7 @@ fn builtin_cemt_text_encoder(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
 ) -> Result<Value, String> {
-    validate_builtin_cem_source_text_encoder_binding(binding, "CEMT source")?;
+    validate_builtin_source_text_encoder_binding(binding, "CEMT source")?;
     let text = subject
         .as_str()
         .ok_or_else(|| "cemt.text expected string subject".to_owned())?;
@@ -3555,7 +3577,39 @@ fn builtin_cemt_text_encoder(
     .map(Value::String)
 }
 
-fn validate_builtin_cem_source_text_encoder_binding(
+fn builtin_cem_ql_text_encoder(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_source_text_encoder_binding(binding, "CEM-QL source")?;
+    let text = subject
+        .as_str()
+        .ok_or_else(|| "cem-ql.text expected string subject".to_owned())?;
+    transform_template_format_cem_ql_source_text(
+        text,
+        &binding.options,
+        binding.identity.formatter_profile.as_deref(),
+    )
+    .map(Value::String)
+}
+
+fn builtin_rnc_text_encoder(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_source_text_encoder_binding(binding, "RNC source")?;
+    let text = subject
+        .as_str()
+        .ok_or_else(|| "rnc.text expected string subject".to_owned())?;
+    transform_template_format_rnc_source_text(
+        text,
+        &binding.options,
+        binding.identity.formatter_profile.as_deref(),
+    )
+    .map(Value::String)
+}
+
+fn validate_builtin_source_text_encoder_binding(
     binding: &TransformTemplateEncodeBinding,
     label: &str,
 ) -> Result<(), String> {
@@ -3574,9 +3628,11 @@ fn validate_builtin_cem_source_text_encoder_binding(
             binding.function.name
         ));
     }
-    if content_type_essence(&binding.identity.target.content_type)
-        != content_type_essence(expected.content_type)
-    {
+    if !builtin_source_text_content_type_matches(
+        expected.name,
+        expected.content_type,
+        &binding.identity.target.content_type,
+    ) {
         return Err(format!(
             "{label} encoder `{}` expected content type `{}`, got `{}`",
             binding.function.name, expected.content_type, binding.identity.target.content_type
@@ -3595,6 +3651,18 @@ fn validate_builtin_cem_source_text_encoder_binding(
         ));
     }
     Ok(())
+}
+
+fn builtin_source_text_content_type_matches(
+    function_name: &str,
+    expected_content_type: &str,
+    actual_content_type: &str,
+) -> bool {
+    let actual = content_type_essence(actual_content_type);
+    match function_name {
+        "cem-ql.text" => matches!(actual.as_str(), CEM_QL_CONTENT_TYPE | "text/cem-ql"),
+        _ => actual == content_type_essence(expected_content_type),
+    }
 }
 
 fn builtin_cem_bin_bytes_encoder(
@@ -3694,13 +3762,13 @@ pub fn transform_template_format_cem_source_text(
     options: &TransformTemplateEncodeOptions,
     formatter_profile: Option<&str>,
 ) -> Result<String, String> {
-    transform_template_validate_cem_source_text_formatter_options(
+    transform_template_validate_source_text_formatter_options(
         options,
         formatter_profile,
         "CEM",
         "cem",
     )?;
-    transform_template_apply_cem_source_line_ending(
+    transform_template_apply_source_text_line_ending(
         value.to_owned(),
         options.line_ending.as_deref(),
         "CEM",
@@ -3712,20 +3780,56 @@ pub fn transform_template_format_cemt_source_text(
     options: &TransformTemplateEncodeOptions,
     formatter_profile: Option<&str>,
 ) -> Result<String, String> {
-    transform_template_validate_cem_source_text_formatter_options(
+    transform_template_validate_source_text_formatter_options(
         options,
         formatter_profile,
         "CEMT",
         "cemt",
     )?;
-    transform_template_apply_cem_source_line_ending(
+    transform_template_apply_source_text_line_ending(
         value.to_owned(),
         options.line_ending.as_deref(),
         "CEMT",
     )
 }
 
-fn transform_template_validate_cem_source_text_formatter_options(
+pub fn transform_template_format_cem_ql_source_text(
+    value: &str,
+    options: &TransformTemplateEncodeOptions,
+    formatter_profile: Option<&str>,
+) -> Result<String, String> {
+    transform_template_validate_source_text_formatter_options(
+        options,
+        formatter_profile,
+        "CEM-QL",
+        "cem-ql",
+    )?;
+    transform_template_apply_source_text_line_ending(
+        value.to_owned(),
+        options.line_ending.as_deref(),
+        "CEM-QL",
+    )
+}
+
+pub fn transform_template_format_rnc_source_text(
+    value: &str,
+    options: &TransformTemplateEncodeOptions,
+    formatter_profile: Option<&str>,
+) -> Result<String, String> {
+    transform_template_validate_source_text_formatter_options(
+        options,
+        formatter_profile,
+        "RNC",
+        "rnc",
+    )?;
+    transform_template_apply_source_text_line_ending(
+        value.to_owned(),
+        options.line_ending.as_deref(),
+        "RNC",
+    )
+}
+
+fn transform_template_validate_source_text_formatter_options(
     options: &TransformTemplateEncodeOptions,
     formatter_profile: Option<&str>,
     syntax_name: &str,
@@ -3753,7 +3857,7 @@ fn transform_template_validate_cem_source_text_formatter_options(
     Ok(())
 }
 
-fn transform_template_apply_cem_source_line_ending(
+fn transform_template_apply_source_text_line_ending(
     output: String,
     line_ending: Option<&str>,
     syntax_name: &str,
@@ -8774,7 +8878,7 @@ mod tests {
         }
     }
 
-    fn cem_source_output_function_descriptor(
+    fn source_text_output_function_descriptor(
         name: &str,
         category: &str,
         content_type: &str,
@@ -11051,13 +11155,13 @@ mod tests {
     #[test]
     fn builtin_cem_source_text_encoders_preserve_source_with_line_endings() {
         let mut functions = TransformTemplateOutputFunctionRegistry::new();
-        functions.register(cem_source_output_function_descriptor(
+        functions.register(source_text_output_function_descriptor(
             "cem.text",
             "cem-document",
             CEM_ML_CONTENT_TYPE,
             CEM_ML_SCHEMA_URI,
         ));
-        functions.register(cem_source_output_function_descriptor(
+        functions.register(source_text_output_function_descriptor(
             "cemt.text",
             "cemt-module",
             CEM_TRANSFORM_CONTENT_TYPE,
@@ -11143,6 +11247,99 @@ mod tests {
             )
             .expect_err("unsupported CEM source formatter is rejected");
         assert!(formatter_error.contains("unsupported CEM source formatter `cem.pretty`"));
+    }
+
+    #[test]
+    fn builtin_cem_ql_and_rnc_source_text_encoders_preserve_source_with_line_endings() {
+        let mut functions = TransformTemplateOutputFunctionRegistry::new();
+        functions.register(source_text_output_function_descriptor(
+            "cem-ql.text",
+            "cem-ql-module",
+            "text/cem-ql",
+            CEM_QL_SCHEMA_URI,
+        ));
+        functions.register(source_text_output_function_descriptor(
+            "rnc.text",
+            "rnc-document",
+            RELAX_NG_COMPACT_CONTENT_TYPE,
+            RELAX_NG_SCHEMA_URI,
+        ));
+        let registry = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+
+        let ql_request = TransformTemplateEncodeBindingRequest::new(
+            Value::String("module demo\r\nlet $root := /cem:document\r\n$root".to_owned()),
+            TransformTemplateEncodingTarget::new("text/cem-ql", CEM_QL_SCHEMA_URI, "cem-ql-module"),
+        )
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some("cem-ql.text".to_owned()),
+            line_ending: Some("lf".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let ql_binding = functions
+            .resolve_encode_binding(&ql_request, &BTreeSet::new())
+            .expect("CEM-QL source text encoder resolves with authoring alias");
+        let ql_encoded = registry
+            .encode(&ql_binding, &ql_request.subject)
+            .expect("CEM-QL source text encoder runs");
+        assert_eq!(
+            ql_encoded,
+            Value::String("module demo\nlet $root := /cem:document\n$root".to_owned())
+        );
+        ql_binding
+            .artifact_from_value(ql_encoded)
+            .validate_insertion(
+                &TransformTemplateEncodedArtifactInsertionContext::new(
+                    "text/cem-ql",
+                    CEM_QL_SCHEMA_URI,
+                )
+                .with_category("cem-ql-module")
+                .with_produces(TransformTemplateOutputProducedKind::Text),
+            )
+            .expect("CEM-QL source text artifact carries a compatible identity");
+
+        let rnc_request = TransformTemplateEncodeBindingRequest::new(
+            Value::String("namespace cem = \"https://cem.dev/ns/cem-ml/1\"\nstart = element cem:document { text }".to_owned()),
+            TransformTemplateEncodingTarget::new(
+                RELAX_NG_COMPACT_CONTENT_TYPE,
+                RELAX_NG_SCHEMA_URI,
+                "rnc-document",
+            ),
+        )
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some("rnc.text".to_owned()),
+            line_ending: Some("crlf".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let rnc_binding = functions
+            .resolve_encode_binding(&rnc_request, &BTreeSet::new())
+            .expect("RNC source text encoder resolves");
+        let rnc_encoded = registry
+            .encode(&rnc_binding, &rnc_request.subject)
+            .expect("RNC source text encoder runs");
+        assert_eq!(
+            rnc_encoded,
+            Value::String(
+                "namespace cem = \"https://cem.dev/ns/cem-ml/1\"\r\nstart = element cem:document { text }"
+                    .to_owned()
+            )
+        );
+
+        let mut wrong_category = rnc_binding.clone();
+        wrong_category.identity.target.category = "rnc-pattern".to_owned();
+        let category_error = registry
+            .encode(&wrong_category, &Value::String("start = text".to_owned()))
+            .expect_err("RNC source text encoder refuses mismatched category");
+        assert!(category_error.contains("expected category `rnc-document`"));
+
+        let mut unsupported_formatter = ql_binding.clone();
+        unsupported_formatter.options.formatter = Some("cem-ql.pretty".to_owned());
+        let formatter_error = registry
+            .encode(
+                &unsupported_formatter,
+                &Value::String("module demo".to_owned()),
+            )
+            .expect_err("unsupported CEM-QL source formatter is rejected");
+        assert!(formatter_error.contains("unsupported CEM-QL source formatter `cem-ql.pretty`"));
     }
 
     #[test]
