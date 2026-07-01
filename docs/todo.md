@@ -192,6 +192,9 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add initial XML formatter controls for CEMT render-time encoders,
           including LF/CRLF/preserve line endings, namespace-policy validation
           hooks, formatter profile identity, and profile mismatch diagnostics.
+    - [x] Add initial YAML formatter controls for CEMT render-time encoders,
+          including canonical/pretty flow formatting, LF/CRLF/preserve line
+          endings, YAML scalar quote style, and profile mismatch diagnostics.
   - [ ] Add writer primitives and CEMT bindings for syntax tokens, styled token
         streams, byte streams, sealed binary chunks, source-map span emission,
         and source-map preservation/generated/none policies.

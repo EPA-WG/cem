@@ -3013,7 +3013,11 @@ fn builtin_yaml_scalar_encoder(
     let text = subject
         .as_str()
         .ok_or_else(|| "yaml.scalar expected string subject".to_owned())?;
-    Ok(Value::String(transform_template_encode_yaml_scalar(text)))
+    Ok(Value::String(transform_template_format_yaml_scalar(
+        text,
+        &binding.options,
+        binding.identity.formatter_profile.as_deref(),
+    )?))
 }
 
 fn builtin_yaml_value_encoder(
@@ -3021,7 +3025,12 @@ fn builtin_yaml_value_encoder(
     subject: &Value,
 ) -> Result<Value, String> {
     validate_builtin_yaml_encoder_binding(binding, "yaml.value", "yaml-value")?;
-    transform_template_encode_yaml_value(subject).map(Value::String)
+    transform_template_format_yaml_value(
+        subject,
+        &binding.options,
+        binding.identity.formatter_profile.as_deref(),
+    )
+    .map(Value::String)
 }
 
 fn validate_builtin_yaml_encoder_binding(
@@ -3479,6 +3488,233 @@ pub fn transform_template_encode_yaml_value(value: &Value) -> Result<String, Str
         Value::Bool(value) => Ok(value.to_string()),
         Value::Number(value) => Ok(value.to_string()),
         Value::Array(_) | Value::Object(_) => transform_template_encode_json_value(value),
+    }
+}
+
+pub fn transform_template_format_yaml_scalar(
+    value: &str,
+    options: &TransformTemplateEncodeOptions,
+    formatter_profile: Option<&str>,
+) -> Result<String, String> {
+    transform_template_yaml_formatter_is_pretty(options, formatter_profile)?;
+    let output = match transform_template_yaml_scalar_style(options)? {
+        TransformTemplateYamlScalarStyle::DoubleQuoted => {
+            transform_template_encode_yaml_scalar(value)
+        }
+        TransformTemplateYamlScalarStyle::SingleQuoted => {
+            transform_template_encode_yaml_single_quoted_scalar(value)?
+        }
+        TransformTemplateYamlScalarStyle::Plain => {
+            transform_template_encode_yaml_plain_scalar(value)?
+        }
+    };
+    transform_template_apply_yaml_line_ending(output, options.line_ending.as_deref())
+}
+
+pub fn transform_template_format_yaml_value(
+    value: &Value,
+    options: &TransformTemplateEncodeOptions,
+    formatter_profile: Option<&str>,
+) -> Result<String, String> {
+    let pretty = transform_template_yaml_formatter_is_pretty(options, formatter_profile)?;
+    transform_template_yaml_scalar_style(options)?;
+
+    let output = match value {
+        Value::String(value) => {
+            return transform_template_format_yaml_scalar(value, options, formatter_profile);
+        }
+        Value::Null => "null".to_owned(),
+        Value::Bool(value) => value.to_string(),
+        Value::Number(value) => value.to_string(),
+        Value::Array(_) | Value::Object(_) if pretty => {
+            transform_template_pretty_json_value(value, options.indent.as_deref())?
+        }
+        Value::Array(_) | Value::Object(_) => transform_template_encode_json_value(value)?,
+    };
+    transform_template_apply_yaml_line_ending(output, options.line_ending.as_deref())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TransformTemplateYamlScalarStyle {
+    DoubleQuoted,
+    SingleQuoted,
+    Plain,
+}
+
+fn transform_template_yaml_formatter_is_pretty(
+    options: &TransformTemplateEncodeOptions,
+    formatter_profile: Option<&str>,
+) -> Result<bool, String> {
+    let mut pretty = options.pretty;
+    for selector in [
+        options.formatter.as_deref(),
+        options.formatter_profile.as_deref(),
+        formatter_profile,
+    ]
+    .into_iter()
+    .flatten()
+    {
+        match selector.trim() {
+            "" => {}
+            "pretty" | "yaml.pretty" => pretty = true,
+            "canonical" | "yaml.canonical" | "flow" | "yaml.flow" => pretty = false,
+            other => return Err(format!("unsupported YAML formatter `{other}`")),
+        }
+    }
+
+    if pretty {
+        let indent = options.indent.as_deref().unwrap_or("  ");
+        if !indent.chars().all(|ch| ch == ' ' || ch == '\t') {
+            return Err("YAML formatter indent may contain only spaces or tabs".to_owned());
+        }
+    }
+
+    Ok(pretty)
+}
+
+fn transform_template_yaml_scalar_style(
+    options: &TransformTemplateEncodeOptions,
+) -> Result<TransformTemplateYamlScalarStyle, String> {
+    match options
+        .quote_policy
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        None | Some("double") | Some("double-quoted") | Some("canonical") => {
+            Ok(TransformTemplateYamlScalarStyle::DoubleQuoted)
+        }
+        Some("single") | Some("single-quoted") => {
+            Ok(TransformTemplateYamlScalarStyle::SingleQuoted)
+        }
+        Some("plain") => Ok(TransformTemplateYamlScalarStyle::Plain),
+        Some(other) => Err(format!("unsupported YAML quote policy `{other}`")),
+    }
+}
+
+fn transform_template_encode_yaml_single_quoted_scalar(value: &str) -> Result<String, String> {
+    if value.chars().any(char::is_control) {
+        return Err(
+            "single-quoted YAML scalar cannot contain control characters; use double-quoted style"
+                .to_owned(),
+        );
+    }
+
+    let mut output = String::with_capacity(value.len() + 2);
+    output.push('\'');
+    for ch in value.chars() {
+        if ch == '\'' {
+            output.push_str("''");
+        } else {
+            output.push(ch);
+        }
+    }
+    output.push('\'');
+    Ok(output)
+}
+
+fn transform_template_encode_yaml_plain_scalar(value: &str) -> Result<String, String> {
+    if transform_template_yaml_plain_scalar_is_safe(value) {
+        Ok(value.to_owned())
+    } else {
+        Err(
+            "YAML string cannot be emitted as a plain YAML scalar without changing syntax or type"
+                .to_owned(),
+        )
+    }
+}
+
+fn transform_template_yaml_plain_scalar_is_safe(value: &str) -> bool {
+    if value.is_empty()
+        || value.trim() != value
+        || value.chars().any(char::is_control)
+        || transform_template_yaml_plain_scalar_would_change_type(value)
+    {
+        return false;
+    }
+
+    let mut chars = value.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    if matches!(
+        first,
+        '-' | '?'
+            | ':'
+            | ','
+            | '['
+            | ']'
+            | '{'
+            | '}'
+            | '#'
+            | '&'
+            | '*'
+            | '!'
+            | '|'
+            | '>'
+            | '\''
+            | '"'
+            | '%'
+            | '@'
+            | '`'
+    ) {
+        return false;
+    }
+
+    !value.chars().any(|ch| {
+        matches!(
+            ch,
+            ':' | '#'
+                | '['
+                | ']'
+                | '{'
+                | '}'
+                | ','
+                | '&'
+                | '*'
+                | '!'
+                | '|'
+                | '>'
+                | '\''
+                | '"'
+                | '%'
+                | '@'
+                | '`'
+        )
+    })
+}
+
+fn transform_template_yaml_plain_scalar_would_change_type(value: &str) -> bool {
+    let normalized = value.trim().to_ascii_lowercase();
+    matches!(
+        normalized.as_str(),
+        "null"
+            | "~"
+            | "true"
+            | "false"
+            | "yes"
+            | "no"
+            | "on"
+            | "off"
+            | ".nan"
+            | ".inf"
+            | "+.inf"
+            | "-.inf"
+    ) || value.parse::<i64>().is_ok()
+        || value.parse::<f64>().is_ok()
+}
+
+fn transform_template_apply_yaml_line_ending(
+    output: String,
+    line_ending: Option<&str>,
+) -> Result<String, String> {
+    match line_ending.map(str::trim).filter(|value| !value.is_empty()) {
+        None | Some("preserve") => Ok(output),
+        Some("lf") | Some("\\n") => Ok(normalize_line_endings_to_lf(&output)),
+        Some("crlf") | Some("\\r\\n") => {
+            Ok(normalize_line_endings_to_lf(&output).replace('\n', "\r\n"))
+        }
+        Some(other) => Err(format!("unsupported YAML formatter line ending `{other}`")),
     }
 }
 
@@ -9054,6 +9290,106 @@ mod tests {
             .encode(&wrong_category, &Value::String("unsafe".to_owned()))
             .expect_err("builtin refuses mismatched category");
         assert!(error.contains("expected category `yaml-scalar`"));
+    }
+
+    #[test]
+    fn builtin_yaml_encoder_applies_formatter_controls() {
+        let registry = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+        let scalar_options = TransformTemplateEncodeOptions {
+            formatter_profile: Some("yaml.canonical".to_owned()),
+            quote_policy: Some("single".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        };
+        let scalar_binding = TransformTemplateEncodeBinding {
+            function: yaml_output_function_descriptor("yaml.scalar", "yaml-scalar", "string"),
+            subject_type: "string".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::from_options(
+                TransformTemplateOutputProducedKind::Text,
+                TransformTemplateEncodingTarget::new(
+                    YAML_CONTENT_TYPE,
+                    YAML_SCHEMA_URI,
+                    "yaml-scalar",
+                ),
+                &scalar_options,
+            ),
+            options: scalar_options,
+        };
+
+        let encoded_scalar = registry
+            .encode(&scalar_binding, &Value::String("CEM's token".to_owned()))
+            .expect("yaml scalar formatter runs");
+        assert_eq!(encoded_scalar, Value::String("'CEM''s token'".to_owned()));
+
+        let value_options = TransformTemplateEncodeOptions {
+            pretty: true,
+            formatter_profile: Some("yaml.pretty".to_owned()),
+            indent: Some("\t".to_owned()),
+            line_ending: Some("crlf".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        };
+        let value_binding = TransformTemplateEncodeBinding {
+            function: yaml_output_function_descriptor("yaml.value", "yaml-value", "json"),
+            subject_type: "object".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::from_options(
+                TransformTemplateOutputProducedKind::Text,
+                TransformTemplateEncodingTarget::new(
+                    YAML_CONTENT_TYPE,
+                    YAML_SCHEMA_URI,
+                    "yaml-value",
+                ),
+                &value_options,
+            ),
+            options: value_options,
+        };
+        let encoded_value = registry
+            .encode(&value_binding, &json!({"items": ["a", true]}))
+            .expect("yaml pretty formatter runs");
+        assert_eq!(
+            encoded_value,
+            Value::String("{\r\n\t\"items\": [\r\n\t\t\"a\",\r\n\t\ttrue\r\n\t]\r\n}".to_owned())
+        );
+
+        let plain_options = TransformTemplateEncodeOptions {
+            quote_policy: Some("plain".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        };
+        let plain_binding = TransformTemplateEncodeBinding {
+            function: yaml_output_function_descriptor("yaml.scalar", "yaml-scalar", "string"),
+            subject_type: "string".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::from_options(
+                TransformTemplateOutputProducedKind::Text,
+                TransformTemplateEncodingTarget::new(
+                    YAML_CONTENT_TYPE,
+                    YAML_SCHEMA_URI,
+                    "yaml-scalar",
+                ),
+                &plain_options,
+            ),
+            options: plain_options,
+        };
+        let encoded_plain = registry
+            .encode(&plain_binding, &Value::String("cem-token".to_owned()))
+            .expect("yaml plain scalar formatter runs");
+        assert_eq!(encoded_plain, Value::String("cem-token".to_owned()));
+
+        let plain_error = registry
+            .encode(&plain_binding, &Value::String("bad: value".to_owned()))
+            .expect_err("unsafe YAML plain scalar is rejected");
+        assert!(plain_error.contains("cannot be emitted as a plain YAML scalar"));
+
+        let mut unsupported = plain_binding.clone();
+        unsupported.options.formatter = Some("yaml.unknown".to_owned());
+        let error = registry
+            .encode(&unsupported, &Value::String("safe".to_owned()))
+            .expect_err("unsupported YAML formatter is rejected");
+        assert!(error.contains("unsupported YAML formatter `yaml.unknown`"));
+
+        let mut unsupported_identity = plain_binding.clone();
+        unsupported_identity.identity.formatter_profile = Some("yaml.unknown".to_owned());
+        let identity_error = registry
+            .encode(&unsupported_identity, &Value::String("safe".to_owned()))
+            .expect_err("unsupported YAML formatter identity is rejected");
+        assert!(identity_error.contains("unsupported YAML formatter `yaml.unknown`"));
     }
 
     #[test]
