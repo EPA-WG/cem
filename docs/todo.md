@@ -284,6 +284,9 @@ history belongs in git history and the feature-specific docs linked below.
           boundaries.
     - [x] Add lossy-output diagnostics so functions declared `lossy` require an
           explicit `allowLossy` encode/color binding opt-in.
+    - [x] Add specific color diagnostics for unsupported terminal capabilities
+          and inaccessible HTML palettes while preserving generic color-profile
+          validation for target-agnostic selectors.
   - [ ] Add AI-facing context projection support as a task-shaped view over the
         canonical AST/DOM/events/schema/token metadata, not a replacement for
         canonical projections. Cover `ai-context-pack`, `ai-entity-graph`,

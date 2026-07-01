@@ -197,6 +197,10 @@ pub const TRANSFORM_TEMPLATE_TARGET_SYNTAX_INVALID_CODE: &str =
     "cem.transform_template.target_syntax_invalid";
 pub const TRANSFORM_TEMPLATE_COLOR_PROFILE_INVALID_CODE: &str =
     "cem.transform_template.color_profile_invalid";
+pub const TRANSFORM_TEMPLATE_TERMINAL_COLOR_CAPABILITY_UNSUPPORTED_CODE: &str =
+    "cem.transform_template.terminal_color_capability_unsupported";
+pub const TRANSFORM_TEMPLATE_HTML_PALETTE_INACCESSIBLE_CODE: &str =
+    "cem.transform_template.html_palette_inaccessible";
 pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_IDENTITY_MISMATCH_CODE: &str =
     "cem.transform_template.encoded_artifact_identity_mismatch";
 pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_CONTEXT_MISMATCH_CODE: &str =
@@ -545,6 +549,12 @@ pub enum TransformTemplateOutputFunctionResolutionError {
     InvalidColorProfile {
         message: String,
     },
+    UnsupportedTerminalColorCapability {
+        selector: String,
+    },
+    InaccessibleHtmlPalette {
+        selector: String,
+    },
 }
 
 impl TransformTemplateOutputFunctionResolutionError {
@@ -730,6 +740,24 @@ impl TransformTemplateOutputFunctionResolutionError {
                 code: TRANSFORM_TEMPLATE_COLOR_PROFILE_INVALID_CODE.to_owned(),
                 severity: Severity::Error,
                 message: message.clone(),
+                ..Diagnostic::default()
+            },
+            Self::UnsupportedTerminalColorCapability { selector } => Diagnostic {
+                uri: uri.map(str::to_owned),
+                code: TRANSFORM_TEMPLATE_TERMINAL_COLOR_CAPABILITY_UNSUPPORTED_CODE.to_owned(),
+                severity: Severity::Error,
+                message: format!(
+                    "unsupported terminal color capability `{selector}`; supported capabilities are none, ansi-16, ansi-256, truecolor, and auto"
+                ),
+                ..Diagnostic::default()
+            },
+            Self::InaccessibleHtmlPalette { selector } => Diagnostic {
+                uri: uri.map(str::to_owned),
+                code: TRANSFORM_TEMPLATE_HTML_PALETTE_INACCESSIBLE_CODE.to_owned(),
+                severity: Severity::Error,
+                message: format!(
+                    "HTML color palette `{selector}` is inaccessible or unavailable for this target"
+                ),
                 ..Diagnostic::default()
             },
         }
@@ -2314,6 +2342,22 @@ fn invalid_color_profile(
     }
 }
 
+fn unsupported_terminal_color_capability(
+    selector: impl Into<String>,
+) -> TransformTemplateOutputFunctionResolutionError {
+    TransformTemplateOutputFunctionResolutionError::UnsupportedTerminalColorCapability {
+        selector: selector.into(),
+    }
+}
+
+fn inaccessible_html_palette(
+    selector: impl Into<String>,
+) -> TransformTemplateOutputFunctionResolutionError {
+    TransformTemplateOutputFunctionResolutionError::InaccessibleHtmlPalette {
+        selector: selector.into(),
+    }
+}
+
 const TRANSFORM_TEMPLATE_TERMINAL_TEXT_SCHEMA_URI: &str = "https://cem.dev/ns/data/text/terminal/1";
 
 fn transform_template_color_profile_selector(
@@ -2339,11 +2383,11 @@ fn transform_template_color_output_profile_for_target(
         Some(selector) => match target_output {
             Some(TransformTemplateColorOutputKind::Terminal) => {
                 TransformTemplateColorOutputProfile::terminal_from_selector(&selector)
-                    .map_err(invalid_color_profile)?
+                    .map_err(|_| unsupported_terminal_color_capability(selector.clone()))?
             }
             Some(TransformTemplateColorOutputKind::Html) => {
                 TransformTemplateColorOutputProfile::html_from_selector(&selector)
-                    .map_err(invalid_color_profile)?
+                    .map_err(|_| inaccessible_html_palette(selector.clone()))?
             }
             Some(TransformTemplateColorOutputKind::None) | None => {
                 TransformTemplateColorOutputProfile::terminal_from_selector(&selector)
@@ -8383,12 +8427,12 @@ mod tests {
             .expect_err("invalid terminal profile is rejected before lookup");
         assert_eq!(
             terminal_error.diagnostic(None).code,
-            TRANSFORM_TEMPLATE_COLOR_PROFILE_INVALID_CODE
+            TRANSFORM_TEMPLATE_TERMINAL_COLOR_CAPABILITY_UNSUPPORTED_CODE
         );
         assert!(terminal_error
             .diagnostic(None)
             .message
-            .contains("unsupported terminal color profile `ansi-1024`"));
+            .contains("unsupported terminal color capability `ansi-1024`"));
 
         let html_request = TransformTemplateEncodeBindingRequest::new(
             json!([{"role": "syntax.token", "text": "let"}]),
@@ -8405,12 +8449,38 @@ mod tests {
             .expect_err("terminal no-color profile is rejected for HTML targets");
         assert_eq!(
             html_error.diagnostic(None).code,
-            TRANSFORM_TEMPLATE_COLOR_PROFILE_INVALID_CODE
+            TRANSFORM_TEMPLATE_HTML_PALETTE_INACCESSIBLE_CODE
         );
         assert!(html_error
             .diagnostic(None)
             .message
-            .contains("unsupported HTML color profile `none`"));
+            .contains("HTML color palette `none`"));
+
+        let opaque_request = TransformTemplateEncodeBindingRequest::new(
+            json!([{"role": "syntax.token", "text": "let"}]),
+            TransformTemplateEncodingTarget::new(
+                "text/plain",
+                "https://example.test/ns/text/1",
+                "custom-color",
+            ),
+        )
+        .with_subject_type("tokens")
+        .with_options(TransformTemplateEncodeOptions {
+            colorizer: Some("missing.opaque".to_owned()),
+            color_profile: Some("rainbow".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let opaque_error = registry
+            .resolve_color_binding(&opaque_request, &BTreeSet::new())
+            .expect_err("unknown generic color profile is rejected before lookup");
+        assert_eq!(
+            opaque_error.diagnostic(None).code,
+            TRANSFORM_TEMPLATE_COLOR_PROFILE_INVALID_CODE
+        );
+        assert!(opaque_error
+            .diagnostic(None)
+            .message
+            .contains("unsupported color profile `rainbow`"));
     }
 
     #[test]
