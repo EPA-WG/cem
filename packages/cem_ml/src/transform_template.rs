@@ -174,6 +174,8 @@ pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_CONTEXT_MISMATCH_CODE: &str =
     "cem.transform_template.encoded_artifact_context_mismatch";
 pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_PRODUCED_KIND_MISMATCH_CODE: &str =
     "cem.transform_template.encoded_artifact_produced_kind_mismatch";
+pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_WRITER_ADAPTER_MISSING_CODE: &str =
+    "cem.transform_template.encoded_artifact_writer_adapter_missing";
 pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_DOUBLE_ENCODING_CODE: &str =
     "cem.transform_template.encoded_artifact_double_encoding";
 pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_VALUE_TYPE_CODE: &str =
@@ -282,6 +284,16 @@ impl TransformTemplateOutputProducedKind {
             "chunks" => Some(Self::Chunks),
             "diagnostics" => Some(Self::Diagnostics),
             _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Text => "text",
+            Self::Bytes => "bytes",
+            Self::Tokens => "tokens",
+            Self::Chunks => "chunks",
+            Self::Diagnostics => "diagnostics",
         }
     }
 }
@@ -1408,8 +1420,27 @@ pub fn compose_transform_template_encoded_text_artifacts(
     let mut byte_offset = 0u64;
     let mut text_context = context.clone();
     text_context.produces = Some(TransformTemplateOutputProducedKind::Text);
+    let mut writer_boundary_context = text_context.clone();
+    writer_boundary_context.produces = None;
 
     for evaluated in encoded {
+        if evaluated.artifact.identity.produces != TransformTemplateOutputProducedKind::Text {
+            match evaluated
+                .artifact
+                .validate_insertion(&writer_boundary_context)
+            {
+                Ok(()) => diagnostics.push(diagnostic_for_evaluated_encode_writer_adapter_missing(
+                    evaluated,
+                    TransformTemplateOutputProducedKind::Text,
+                    uri,
+                )),
+                Err(error) => {
+                    diagnostics.push(diagnostic_for_evaluated_encode_error(error, evaluated, uri))
+                }
+            }
+            continue;
+        }
+
         if let Err(error) = evaluated.artifact.validate_insertion(&text_context) {
             diagnostics.push(diagnostic_for_evaluated_encode_error(error, evaluated, uri));
             continue;
@@ -1504,6 +1535,27 @@ fn diagnostic_for_evaluated_encode_value_type(
         message: format!(
             "encoded text artifact expected string value, got {}",
             json_value_type_name(&evaluated.artifact.value)
+        ),
+        ..Diagnostic::default()
+    };
+    attach_evaluated_encode_node(&mut diagnostic, evaluated);
+    diagnostic
+}
+
+fn diagnostic_for_evaluated_encode_writer_adapter_missing(
+    evaluated: &TransformTemplateEvaluatedEncodeExpression,
+    expected: TransformTemplateOutputProducedKind,
+    uri: Option<&str>,
+) -> Diagnostic {
+    let actual = evaluated.artifact.identity.produces;
+    let mut diagnostic = Diagnostic {
+        uri: uri.map(str::to_owned),
+        code: TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_WRITER_ADAPTER_MISSING_CODE.to_owned(),
+        severity: Severity::Error,
+        message: format!(
+            "encoded artifact produced `{}` requires a writer adapter before insertion into `{}` output",
+            actual.as_str(),
+            expected.as_str()
         ),
         ..Diagnostic::default()
     };
@@ -5764,6 +5816,69 @@ mod tests {
                 && diagnostic.node.as_deref() == Some("body")
                 && diagnostic.message.contains("object")
         }));
+    }
+
+    #[test]
+    fn encoded_text_artifact_composition_reports_writer_adapter_boundary_for_non_text_artifacts() {
+        let base = evaluated_html_text("body", "CEM");
+        let context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+            &base.expression.target,
+            Some(TransformTemplateOutputProducedKind::Text),
+        );
+
+        let cases = [
+            (
+                "tokens",
+                TransformTemplateEncodedArtifact::from_writer_tokens(
+                    base.artifact.identity.clone(),
+                    vec![TransformTemplateWriterToken::new("syntax.text").with_text("CEM")],
+                ),
+            ),
+            (
+                "bytes",
+                TransformTemplateEncodedArtifact::from_writer_bytes(
+                    base.artifact.identity.clone(),
+                    b"CEM".to_vec(),
+                ),
+            ),
+            (
+                "chunks",
+                TransformTemplateEncodedArtifact::from_writer_chunks(
+                    base.artifact.identity.clone(),
+                    vec![TransformTemplateWriterChunk::text("text", "CEM")],
+                ),
+            ),
+            (
+                "diagnostics",
+                TransformTemplateEncodedArtifact::from_writer_diagnostics(
+                    base.artifact.identity.clone(),
+                    vec![Diagnostic {
+                        code: "cem.writer.example".to_owned(),
+                        message: "writer diagnostic".to_owned(),
+                        ..Diagnostic::default()
+                    }],
+                ),
+            ),
+        ];
+
+        for (kind, artifact) in cases {
+            let mut evaluated = base.clone();
+            evaluated.artifact = artifact;
+
+            let response = compose_transform_template_encoded_text_artifacts(
+                &[evaluated],
+                &context,
+                Some("templates/runtime-encoding.cemt"),
+            );
+
+            assert!(response.artifact.is_none());
+            assert!(response.diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_WRITER_ADAPTER_MISSING_CODE
+                    && diagnostic.node.as_deref() == Some("body")
+                    && diagnostic.message.contains(kind)
+                    && diagnostic.message.contains("writer adapter")
+            }));
+        }
     }
 
     #[test]

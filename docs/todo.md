@@ -173,6 +173,8 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add initial writer value envelopes and validation for CEMT token,
           byte, chunk, and diagnostics artifacts, plus constructors that mark
           the produced kind before insertion validation.
+    - [x] Add render text-boundary diagnostics for valid non-text writer
+          artifacts that require a writer adapter before final insertion.
   - [ ] Add schema helper APIs for target syntax rules, void/empty element
         policy, raw-text/RCDATA modes, namespace repair, identifier validity,
         field/header policy, fragment/document handling, and charset/final byte
