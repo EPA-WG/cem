@@ -313,11 +313,14 @@ history belongs in git history and the feature-specific docs linked below.
           expansion roots, budget omissions, and unsafe data/instruction mixing.
     - [x] Add task eval fixtures and metrics for retrieval recall/precision,
           edit-target source-map precision, and useful records per token budget.
-  - [ ] Add encoding category coverage and examples for every content-type
+  - [x] Add encoding category coverage and examples for every content-type
         family listed in the proposal: CEM-ML syntax, CEMT source, XML family,
         HTML, JSON family, YAML, CSV, Markdown, CSS, terminal color text, HTML
         color output, CEM-QL, RELAX NG compact syntax, AI context projections,
         and CEM binary projections.
+    - [x] Add proposal-family conversion output-safety examples that validate
+          category syntax, target content type/schema, produced kind, and
+          insertion context for every listed family.
   - [ ] Keep content-type-to-content-type conversion planning separate from
         AST-to-schema output production.
 

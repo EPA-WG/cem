@@ -17,12 +17,16 @@ use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
 use crate::run_config::ScopeConfig;
 use crate::schema::registry::{
-    CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
+    CEM_AST_PROJECTION_CONTENT_TYPE, CEM_AST_PROJECTION_SCHEMA_URI,
+    CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
+    CEM_EVENTS_PROJECTION_CONTENT_TYPE, CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE,
+    CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI,
     CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI,
     CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
     JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE,
-    MATHML_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI,
-    XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI,
+    MATHML_SCHEMA_URI, RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI, SVG_CONTENT_TYPE,
+    SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
+    XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI,
 };
 use crate::source::{ByteRange, BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
@@ -1853,17 +1857,37 @@ fn transform_template_target_syntax_kind(
         (JSON_CONTENT_TYPE, _) | (_, JSON_VALUE_SCHEMA_URI) => {
             TransformTemplateTargetSyntaxKind::Json
         }
+        (content_type, _) if content_type.ends_with("+json") => {
+            TransformTemplateTargetSyntaxKind::Json
+        }
         (CSV_CONTENT_TYPE, _) | (_, CSV_SCHEMA_URI) => TransformTemplateTargetSyntaxKind::Csv,
         (CSS_CONTENT_TYPE, _) | (_, CSS_SCHEMA_URI) => TransformTemplateTargetSyntaxKind::Css,
         (MARKDOWN_CONTENT_TYPE, _) | (_, MARKDOWN_SCHEMA_URI) => {
             TransformTemplateTargetSyntaxKind::Markdown
         }
+        (CEM_QL_CONTENT_TYPE | RELAX_NG_COMPACT_CONTENT_TYPE, _)
+        | (_, CEM_QL_SCHEMA_URI | RELAX_NG_SCHEMA_URI) => TransformTemplateTargetSyntaxKind::Text,
         (
             CEM_ML_CONTENT_TYPE | CEM_NATIVE_TEMPLATE_CONTENT_TYPE | CEM_TRANSFORM_CONTENT_TYPE,
             _,
         )
         | (_, CEM_ML_SCHEMA_URI | CEM_NATIVE_TEMPLATE_SCHEMA_URI | CEM_TRANSFORM_SCHEMA_URI) => {
             TransformTemplateTargetSyntaxKind::Cemt
+        }
+        (
+            CEM_DOM_PROJECTION_CONTENT_TYPE
+            | CEM_AST_PROJECTION_CONTENT_TYPE
+            | CEM_EVENTS_PROJECTION_CONTENT_TYPE,
+            _,
+        )
+        | (
+            _,
+            CEM_DOM_PROJECTION_SCHEMA_URI
+            | CEM_AST_PROJECTION_SCHEMA_URI
+            | CEM_EVENTS_PROJECTION_SCHEMA_URI,
+        ) => TransformTemplateTargetSyntaxKind::Binary,
+        (content_type, _) if content_type.ends_with("+cem-bin") => {
+            TransformTemplateTargetSyntaxKind::Binary
         }
         (content_type, _) if content_type.starts_with("text/") => {
             TransformTemplateTargetSyntaxKind::Text

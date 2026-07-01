@@ -1072,15 +1072,13 @@ fn conversion_encoding_category_syntax(
     } else if category.starts_with("css-") {
         Some(TransformTemplateTargetSyntaxKind::Css)
     } else if category.starts_with("terminal-")
+        || category.starts_with("cem-ql-")
+        || category.starts_with("rnc-")
         || category == "text"
         || category.starts_with("text-")
     {
         Some(TransformTemplateTargetSyntaxKind::Text)
-    } else if category.starts_with("cemt-")
-        || category.starts_with("cem-")
-        || category.starts_with("cem-ql-")
-        || category.starts_with("rnc-")
-    {
+    } else if category.starts_with("cemt-") || category.starts_with("cem-") {
         Some(TransformTemplateTargetSyntaxKind::Cemt)
     } else {
         None
@@ -1846,11 +1844,15 @@ mod tests {
     use crate::engine::TransformTemplateKind;
     use crate::schema::registry::{
         NamespaceClaim, SchemaContentType, SchemaDescriptor, CEM_AST_JSON_PROJECTION_CONTENT_TYPE,
-        CEM_AST_PROJECTION_CONTENT_TYPE, CEM_DOM_JSON_PROJECTION_CONTENT_TYPE,
-        CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE,
-        CEM_EVENTS_PROJECTION_CONTENT_TYPE, CEM_ML_CONTENT_TYPE, CEM_TRANSFORM_CONTENT_TYPE,
-        CEM_TRANSFORM_SCHEMA_URI, HTML_CONTENT_TYPE, JSON_CONTENT_TYPE, JSON_VALUE_SCHEMA_URI,
-        XML_CONTENT_TYPE,
+        CEM_AST_PROJECTION_CONTENT_TYPE, CEM_AST_PROJECTION_SCHEMA_URI,
+        CEM_DOM_JSON_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_CONTENT_TYPE,
+        CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE, CEM_EVENTS_PROJECTION_CONTENT_TYPE,
+        CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI,
+        CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI,
+        CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE, JSON_CONTENT_TYPE,
+        JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI,
+        RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI, XML_CONTENT_TYPE, YAML_CONTENT_TYPE,
+        YAML_SCHEMA_URI,
     };
     use crate::transform_template::{
         TransformTemplateAdapter, TransformTemplateAdapterCapability,
@@ -2332,6 +2334,189 @@ mod tests {
                 .as_deref(),
             Some("utf-8")
         );
+    }
+
+    #[test]
+    fn encoding_category_examples_cover_proposal_content_type_families() {
+        struct FamilyCase {
+            family: &'static str,
+            content_type: &'static str,
+            schema: &'static str,
+            category: &'static str,
+            output_syntax: ConversionOutputSyntax,
+            expected_syntax: TransformTemplateTargetSyntaxKind,
+            expected_produces: TransformTemplateOutputProducedKind,
+        }
+
+        let cases = [
+            FamilyCase {
+                family: "CEM-ML syntax",
+                content_type: CEM_ML_CONTENT_TYPE,
+                schema: CEM_ML_SCHEMA_URI,
+                category: "cem-document",
+                output_syntax: ConversionOutputSyntax::Cemt,
+                expected_syntax: TransformTemplateTargetSyntaxKind::Cemt,
+                expected_produces: TransformTemplateOutputProducedKind::Text,
+            },
+            FamilyCase {
+                family: "CEMT source",
+                content_type: CEM_TRANSFORM_CONTENT_TYPE,
+                schema: CEM_TRANSFORM_SCHEMA_URI,
+                category: "cemt-module",
+                output_syntax: ConversionOutputSyntax::Cemt,
+                expected_syntax: TransformTemplateTargetSyntaxKind::Cemt,
+                expected_produces: TransformTemplateOutputProducedKind::Text,
+            },
+            FamilyCase {
+                family: "XML family",
+                content_type: XML_CONTENT_TYPE,
+                schema: XML_SCHEMA_URI,
+                category: "xml-document",
+                output_syntax: ConversionOutputSyntax::Xml,
+                expected_syntax: TransformTemplateTargetSyntaxKind::Xml,
+                expected_produces: TransformTemplateOutputProducedKind::Text,
+            },
+            FamilyCase {
+                family: "HTML",
+                content_type: HTML_CONTENT_TYPE,
+                schema: HTML_SCHEMA_URI,
+                category: "html-fragment",
+                output_syntax: ConversionOutputSyntax::Html,
+                expected_syntax: TransformTemplateTargetSyntaxKind::Html,
+                expected_produces: TransformTemplateOutputProducedKind::Text,
+            },
+            FamilyCase {
+                family: "JSON family",
+                content_type: JSON_CONTENT_TYPE,
+                schema: JSON_VALUE_SCHEMA_URI,
+                category: "json-document",
+                output_syntax: ConversionOutputSyntax::Json,
+                expected_syntax: TransformTemplateTargetSyntaxKind::Json,
+                expected_produces: TransformTemplateOutputProducedKind::Text,
+            },
+            FamilyCase {
+                family: "YAML",
+                content_type: YAML_CONTENT_TYPE,
+                schema: YAML_SCHEMA_URI,
+                category: "yaml-document",
+                output_syntax: ConversionOutputSyntax::Opaque,
+                expected_syntax: TransformTemplateTargetSyntaxKind::Opaque,
+                expected_produces: TransformTemplateOutputProducedKind::Text,
+            },
+            FamilyCase {
+                family: "CSV",
+                content_type: CSV_CONTENT_TYPE,
+                schema: CSV_SCHEMA_URI,
+                category: "csv-record",
+                output_syntax: ConversionOutputSyntax::Csv,
+                expected_syntax: TransformTemplateTargetSyntaxKind::Csv,
+                expected_produces: TransformTemplateOutputProducedKind::Text,
+            },
+            FamilyCase {
+                family: "Markdown",
+                content_type: MARKDOWN_CONTENT_TYPE,
+                schema: MARKDOWN_SCHEMA_URI,
+                category: "markdown-document",
+                output_syntax: ConversionOutputSyntax::Markdown,
+                expected_syntax: TransformTemplateTargetSyntaxKind::Markdown,
+                expected_produces: TransformTemplateOutputProducedKind::Text,
+            },
+            FamilyCase {
+                family: "CSS",
+                content_type: CSS_CONTENT_TYPE,
+                schema: CSS_SCHEMA_URI,
+                category: "css-stylesheet",
+                output_syntax: ConversionOutputSyntax::Css,
+                expected_syntax: TransformTemplateTargetSyntaxKind::Css,
+                expected_produces: TransformTemplateOutputProducedKind::Text,
+            },
+            FamilyCase {
+                family: "Terminal color text",
+                content_type: "text/plain",
+                schema: "https://cem.dev/ns/data/text/1",
+                category: "terminal-color",
+                output_syntax: ConversionOutputSyntax::Text,
+                expected_syntax: TransformTemplateTargetSyntaxKind::Text,
+                expected_produces: TransformTemplateOutputProducedKind::Text,
+            },
+            FamilyCase {
+                family: "HTML color output",
+                content_type: HTML_CONTENT_TYPE,
+                schema: HTML_SCHEMA_URI,
+                category: "html-color-fragment",
+                output_syntax: ConversionOutputSyntax::Html,
+                expected_syntax: TransformTemplateTargetSyntaxKind::Html,
+                expected_produces: TransformTemplateOutputProducedKind::Text,
+            },
+            FamilyCase {
+                family: "CEM-QL",
+                content_type: CEM_QL_CONTENT_TYPE,
+                schema: CEM_QL_SCHEMA_URI,
+                category: "cem-ql-module",
+                output_syntax: ConversionOutputSyntax::Text,
+                expected_syntax: TransformTemplateTargetSyntaxKind::Text,
+                expected_produces: TransformTemplateOutputProducedKind::Text,
+            },
+            FamilyCase {
+                family: "RELAX NG compact",
+                content_type: RELAX_NG_COMPACT_CONTENT_TYPE,
+                schema: RELAX_NG_SCHEMA_URI,
+                category: "rnc-document",
+                output_syntax: ConversionOutputSyntax::Text,
+                expected_syntax: TransformTemplateTargetSyntaxKind::Text,
+                expected_produces: TransformTemplateOutputProducedKind::Text,
+            },
+            FamilyCase {
+                family: "AI context projections",
+                content_type: "application/vnd.cem.ai-context+json",
+                schema: "https://cem.dev/ns/ai-context/1",
+                category: "ai-context-pack",
+                output_syntax: ConversionOutputSyntax::Json,
+                expected_syntax: TransformTemplateTargetSyntaxKind::Json,
+                expected_produces: TransformTemplateOutputProducedKind::Text,
+            },
+            FamilyCase {
+                family: "CEM binary projections",
+                content_type: CEM_AST_PROJECTION_CONTENT_TYPE,
+                schema: CEM_AST_PROJECTION_SCHEMA_URI,
+                category: "cem-bin-document",
+                output_syntax: ConversionOutputSyntax::Binary,
+                expected_syntax: TransformTemplateTargetSyntaxKind::Binary,
+                expected_produces: TransformTemplateOutputProducedKind::Bytes,
+            },
+        ];
+
+        for (index, case) in cases.iter().enumerate() {
+            let descriptor = cemt_edge_with_output_contract(
+                &format!("proposal-family-{index}"),
+                endpoint(case.content_type, case.schema),
+                ConversionOutputContractDescriptor {
+                    output_syntax: Some(case.output_syntax),
+                    encoding_category: Some(case.category.to_owned()),
+                    ..ConversionOutputContractDescriptor::default()
+                },
+            );
+
+            let (contract, diagnostics) = conversion_output_safety_contract(&descriptor);
+
+            assert!(diagnostics.is_empty(), "{}: {diagnostics:?}", case.family);
+            assert_eq!(
+                conversion_encoding_category_syntax(case.category),
+                Some(case.expected_syntax),
+                "{}",
+                case.family
+            );
+            let contract = contract.unwrap_or_else(|| panic!("{}: missing contract", case.family));
+            assert_eq!(contract.target.content_type, case.content_type);
+            assert_eq!(contract.target.schema, case.schema);
+            assert_eq!(contract.target.category, case.category);
+            assert_eq!(contract.syntax_rules.syntax, case.expected_syntax);
+            assert_eq!(contract.produces, case.expected_produces);
+            assert_eq!(
+                contract.insertion_context.category.as_deref(),
+                Some(case.category)
+            );
+        }
     }
 
     #[test]
