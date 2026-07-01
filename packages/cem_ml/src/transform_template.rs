@@ -997,8 +997,8 @@ impl TransformTemplateOutputFunctionRegistry {
                         request.target.clone(),
                         &request.options,
                     );
-                    identity.canonical = !request.options.pretty
-                        && (request.options.canonical || function.canonical);
+                    identity.canonical =
+                        transform_template_encode_options_are_canonical(function, &request.options);
                     return Ok(TransformTemplateEncodeBinding {
                         function: function.clone(),
                         subject_type: subject_type.clone(),
@@ -1075,8 +1075,8 @@ impl TransformTemplateOutputFunctionRegistry {
                     );
                     identity.color_capability =
                         transform_template_color_capability_selector(&color_profile);
-                    identity.canonical = !request.options.pretty
-                        && (request.options.canonical || function.canonical);
+                    identity.canonical =
+                        transform_template_encode_options_are_canonical(function, &request.options);
                     return Ok(TransformTemplateColorBinding {
                         function: function.clone(),
                         subject_type: subject_type.clone(),
@@ -2309,8 +2309,8 @@ fn validate_transform_template_canonical_determinism(
     function: &TransformTemplateOutputFunctionDescriptor,
     options: &TransformTemplateEncodeOptions,
 ) -> Result<(), TransformTemplateOutputFunctionResolutionError> {
-    let canonical = !options.pretty && (options.canonical || function.canonical);
-    if canonical && !function.deterministic {
+    if transform_template_encode_options_are_canonical(function, options) && !function.deterministic
+    {
         return Err(
             TransformTemplateOutputFunctionResolutionError::NonDeterministicCanonical {
                 function_name: function.name.clone(),
@@ -2350,6 +2350,26 @@ fn validate_transform_template_lossy_output_policy(
         );
     }
     Ok(())
+}
+
+fn transform_template_encode_options_are_canonical(
+    function: &TransformTemplateOutputFunctionDescriptor,
+    options: &TransformTemplateEncodeOptions,
+) -> bool {
+    !options.preserve && !options.pretty && (options.canonical || function.canonical)
+}
+
+fn transform_template_encode_options_formatter_profile(
+    options: &TransformTemplateEncodeOptions,
+) -> Option<String> {
+    options
+        .formatter_profile
+        .clone()
+        .or_else(|| options.formatter.clone())
+        .or_else(|| options.preserve.then(|| "preserve".to_owned()))
+        .or_else(|| options.pretty.then(|| "pretty".to_owned()))
+        .or_else(|| options.canonical.then(|| "canonical".to_owned()))
+        .or_else(|| options.profile.clone())
 }
 
 fn invalid_target_syntax(
@@ -4185,7 +4205,8 @@ fn parse_cemt_encode_options(
     options.color_profile = optional_object_string(&fields, &["colorProfile", "color-profile"])?;
     options.charset = optional_object_string(&fields, &["charset"])?;
     options.line_ending = optional_object_string(&fields, &["lineEnding", "line-ending"])?;
-    options.quote_policy = optional_object_string(&fields, &["quote", "quotePolicy"])?;
+    options.quote_policy =
+        optional_object_string(&fields, &["quote", "quotePolicy", "quote-policy"])?;
     options.indent = optional_object_string_preserve(&fields, &["indent"])?;
     options.namespace_policy =
         optional_object_string(&fields, &["namespacePolicy", "namespace-policy"])?;
@@ -4545,19 +4566,14 @@ impl TransformTemplateEncodedArtifactIdentity {
             target,
             charset: options.charset.clone(),
             binary_framing: None,
-            formatter_profile: options
-                .formatter_profile
-                .clone()
-                .or_else(|| options.formatter.clone())
-                .or_else(|| options.pretty.then(|| "pretty".to_owned()))
-                .or_else(|| options.profile.clone()),
+            formatter_profile: transform_template_encode_options_formatter_profile(options),
             color_profile: options
                 .color_profile
                 .clone()
                 .or_else(|| options.profile.clone()),
             color_capability: None,
             mode: options.mode,
-            canonical: options.canonical,
+            canonical: !options.preserve && !options.pretty && options.canonical,
             source_map_policy: options.source_map_policy,
         }
     }
@@ -8128,6 +8144,53 @@ mod tests {
     }
 
     #[test]
+    fn encode_binding_preserve_mode_records_non_canonical_identity() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        registry.register(output_function_descriptor());
+        let request = TransformTemplateEncodeBindingRequest::new(
+            Value::String("Hello & CEM".to_owned()),
+            TransformTemplateEncodingTarget::new(HTML_CONTENT_TYPE, HTML_SCHEMA_URI, "html-text")
+                .with_context("text"),
+        )
+        .with_subject_type("string")
+        .with_options(TransformTemplateEncodeOptions {
+            preserve: true,
+            encoder: Some("html.text".to_owned()),
+            source_map_policy: TransformTemplateSourceMapPolicy::Preserve,
+            ..TransformTemplateEncodeOptions::default()
+        });
+
+        let binding = registry
+            .resolve_encode_binding(&request, &BTreeSet::new())
+            .expect("preserve-mode encoder resolves");
+
+        assert_eq!(
+            binding.identity.formatter_profile.as_deref(),
+            Some("preserve")
+        );
+        assert!(!binding.identity.canonical);
+        assert_eq!(
+            binding.identity.source_map_policy,
+            TransformTemplateSourceMapPolicy::Preserve
+        );
+        let artifact = binding.artifact_from_value(Value::String("Hello &amp; CEM".to_owned()));
+        artifact
+            .validate_insertion(&TransformTemplateEncodedArtifactInsertionContext {
+                produces: Some(TransformTemplateOutputProducedKind::Text),
+                content_type: HTML_CONTENT_TYPE.to_owned(),
+                schema: HTML_SCHEMA_URI.to_owned(),
+                category: Some("html-text".to_owned()),
+                context: Some("text".to_owned()),
+                formatter_profile: Some("preserve".to_owned()),
+                color_profile: None,
+                color_capability: None,
+                mode: Some(TransformTemplateEncodedArtifactMode::Document),
+                canonical: Some(false),
+            })
+            .expect("preserve identity is compatible with preserve insertion context");
+    }
+
+    #[test]
     fn encode_binding_resolves_explicit_custom_encoder() {
         let response =
             parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
@@ -8996,10 +9059,14 @@ mod tests {
                 {
                     mode: "fragment",
                     encoder: "html.text",
+                    formatter: "html.pretty",
+                    colorizer: "html.classes",
                     profile: "html-pretty",
+                    formatterProfile: "html.formatter-profile",
+                    colorProfile: "classes",
                     charset: "utf-8",
                     lineEnding: "lf",
-                    quote: "double",
+                    quotePolicy: "double",
                     indent: "  ",
                     namespacePolicy: "repair",
                     raw: true,
@@ -9023,7 +9090,14 @@ mod tests {
             TransformTemplateEncodedArtifactMode::Fragment
         );
         assert_eq!(parsed.options.encoder.as_deref(), Some("html.text"));
+        assert_eq!(parsed.options.formatter.as_deref(), Some("html.pretty"));
+        assert_eq!(parsed.options.colorizer.as_deref(), Some("html.classes"));
         assert_eq!(parsed.options.profile.as_deref(), Some("html-pretty"));
+        assert_eq!(
+            parsed.options.formatter_profile.as_deref(),
+            Some("html.formatter-profile")
+        );
+        assert_eq!(parsed.options.color_profile.as_deref(), Some("classes"));
         assert_eq!(parsed.options.charset.as_deref(), Some("utf-8"));
         assert_eq!(parsed.options.line_ending.as_deref(), Some("lf"));
         assert_eq!(parsed.options.quote_policy.as_deref(), Some("double"));
@@ -9035,6 +9109,69 @@ mod tests {
             parsed.options.source_map_policy,
             TransformTemplateSourceMapPolicy::Generated
         );
+    }
+
+    #[test]
+    fn parse_encode_expression_supports_all_option_mode_selectors() {
+        for (mode, expected) in [
+            (
+                "canonical",
+                (
+                    true,
+                    false,
+                    false,
+                    TransformTemplateEncodedArtifactMode::Document,
+                ),
+            ),
+            (
+                "preserve",
+                (
+                    false,
+                    true,
+                    false,
+                    TransformTemplateEncodedArtifactMode::Document,
+                ),
+            ),
+            (
+                "pretty",
+                (
+                    false,
+                    false,
+                    true,
+                    TransformTemplateEncodedArtifactMode::Document,
+                ),
+            ),
+            (
+                "fragment",
+                (
+                    false,
+                    false,
+                    false,
+                    TransformTemplateEncodedArtifactMode::Fragment,
+                ),
+            ),
+            (
+                "document",
+                (
+                    false,
+                    false,
+                    false,
+                    TransformTemplateEncodedArtifactMode::Document,
+                ),
+            ),
+        ] {
+            let expression = format!(
+                r#"encode($node.data, {{ contentType: "text/html", schema: "https://cem.dev/ns/data/html/1", category: "html-text" }}, {{ mode: "{mode}" }})"#
+            );
+            let parsed = parse_transform_template_encode_expression(&expression, None)
+                .expect("parse should succeed")
+                .expect("encode expression");
+
+            assert_eq!(parsed.options.canonical, expected.0, "{mode} canonical");
+            assert_eq!(parsed.options.preserve, expected.1, "{mode} preserve");
+            assert_eq!(parsed.options.pretty, expected.2, "{mode} pretty");
+            assert_eq!(parsed.options.mode, expected.3, "{mode} artifact mode");
+        }
     }
 
     #[test]

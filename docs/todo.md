@@ -83,7 +83,7 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Promote the CEMT output producer contract into the schema package
           docs, make the transform package README canonical, and retain the
           temporary proposal as backlog and worked examples.
-  - [ ] Define the CEMT `encode(subject, target, options?)` function and
+  - [x] Define the CEMT `encode(subject, target, options?)` function and
         expression binding. `target` must carry `contentType`, `schema`,
         `category`, and optional context. `options` must cover canonical,
         preserve, pretty, and fragment modes; explicit `encoder`, `formatter`,
@@ -108,6 +108,10 @@ history belongs in git history and the feature-specific docs linked below.
           implementation registry, render value bindings from primary/secondary
           inputs, compiled output-function resolution, evaluated artifact
           composition, and text output replacement.
+    - [x] Complete option-surface lowering for canonical, preserve, pretty, and
+          fragment modes; explicit encoder, formatter, colorizer, and profile
+          selectors; charset, line ending, quote, indent, namespace, and
+          source-map policies; and preserve-mode encoded artifact identity.
   - [ ] Define encoded artifact identity and insertion rules. Results are not
         plain strings: they carry produced kind (`text`, `bytes`, `tokens`,
         `chunks`, or `diagnostics`), target content type, schema URL, encoding
