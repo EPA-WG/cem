@@ -44,6 +44,7 @@ pub const CONVERSION_PARITY_NATIVE_PAIR_MISSING_CODE: &str =
 pub const CONVERSION_PARITY_MODE_MISSING_CODE: &str = "cem.converter.parity_mode_missing";
 pub const CONVERSION_PARITY_DRIFT_CODE: &str = "cem.converter.parity_drift";
 pub const CONVERSION_PARITY_FIXTURE_EXECUTION_CODE: &str = "cem.converter.parity_fixture_execution";
+pub const CONVERSION_PARITY_FIXTURE_LOAD_CODE: &str = "cem.converter.parity_fixture_load";
 pub const CONVERSION_OUTPUT_SYNTAX_MISSING_CODE: &str = "cem.converter.output_syntax_missing";
 pub const CONVERSION_OUTPUT_CATEGORY_MISSING_CODE: &str = "cem.converter.output_category_missing";
 pub const CONVERSION_OUTPUT_UNSUPPORTED_CATEGORY_CODE: &str =
@@ -2036,6 +2037,28 @@ pub fn evaluate_conversion_parity_fixtures(
     diagnostics
 }
 
+pub fn evaluate_declared_conversion_parity_contracts(
+    registry: &ConversionRegistry,
+    package_root: impl AsRef<Path>,
+    executor: &dyn ConversionParityFixtureExecutor,
+) -> Vec<Diagnostic> {
+    let package_root = package_root.as_ref();
+    let (contracts, mut diagnostics) = registry.cemt_native_parity_contracts();
+
+    for contract in contracts {
+        match load_conversion_parity_fixtures(contract.cemt, package_root) {
+            Ok(fixtures) => {
+                diagnostics.extend(evaluate_conversion_parity_fixtures(
+                    &contract, &fixtures, executor,
+                ));
+            }
+            Err(error) => diagnostics.push(conversion_parity_fixture_load_diagnostic(error)),
+        }
+    }
+
+    diagnostics
+}
+
 fn conversion_parity_outputs_match(
     contract: &ConversionParityContract<'_>,
     cemt_output: &Value,
@@ -2164,6 +2187,21 @@ fn conversion_parity_fixture_diagnostic(
     );
     diagnostic.node = Some(fixture.id.clone());
     diagnostic
+}
+
+fn conversion_parity_fixture_load_diagnostic(
+    error: ConversionParityFixtureLoadError,
+) -> Diagnostic {
+    let node = match &error {
+        ConversionParityFixtureLoadError::Read { fixture_id, .. } => Some(fixture_id.clone()),
+    };
+    Diagnostic {
+        code: CONVERSION_PARITY_FIXTURE_LOAD_CODE.to_owned(),
+        severity: Severity::Error,
+        message: error.to_string(),
+        node,
+        ..Diagnostic::default()
+    }
 }
 
 fn conversion_token_equivalent_outputs_match(
@@ -4206,6 +4244,10 @@ mod tests {
         ) -> crate::transform_template::TransformTemplateAdapterResult<
             TransformTemplateRenderResponse,
         > {
+            let target_content_type = request
+                .target
+                .and_then(|target| target.content_type.as_deref())
+                .expect("target content type");
             let children = request
                 .primary_input
                 .value
@@ -4216,12 +4258,10 @@ mod tests {
                 child.get("kind").and_then(Value::as_str) == Some("element")
                     && child.get("name").and_then(Value::as_str) == Some("article")
             }));
-            assert_eq!(
-                request
-                    .target
-                    .and_then(|target| target.content_type.as_deref()),
-                Some(HTML_CONTENT_TYPE)
-            );
+            assert!(matches!(
+                target_content_type,
+                HTML_CONTENT_TYPE | XML_CONTENT_TYPE
+            ));
 
             Ok(TransformTemplateRenderResponse {
                 output: TransformTemplateOutputArtifact {
@@ -4259,6 +4299,44 @@ mod tests {
         let diagnostics = evaluate_conversion_parity_fixtures(html_contract, &fixtures, &executor);
 
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn declared_conversion_parity_contract_evaluator_runs_all_declared_fixtures() {
+        let registry = ConversionRegistry::with_builtin_converters();
+        let mut template_adapters = TransformTemplateAdapterRegistry::new();
+        template_adapters.register(ParityFixtureCemtAdapter);
+        let executor =
+            CemtTemplateParityFixtureExecutor::new(env!("CARGO_MANIFEST_DIR"), &template_adapters);
+
+        let diagnostics = evaluate_declared_conversion_parity_contracts(
+            &registry,
+            env!("CARGO_MANIFEST_DIR"),
+            &executor,
+        );
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn declared_conversion_parity_contract_evaluator_reports_fixture_load_errors() {
+        let registry = ConversionRegistry::with_builtin_converters();
+        let missing_root =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("missing-parity-fixture-root");
+
+        let diagnostics = evaluate_declared_conversion_parity_contracts(
+            &registry,
+            missing_root,
+            &RustDomProjectionParityFixtureExecutor,
+        );
+
+        assert_eq!(diagnostics.len(), 2);
+        assert!(diagnostics.iter().all(|diagnostic| {
+            diagnostic.code == CONVERSION_PARITY_FIXTURE_LOAD_CODE
+                && diagnostic.severity == Severity::Error
+                && diagnostic.node.as_deref() == Some("basic-dom")
+                && diagnostic.message.contains("could not read")
+        }));
     }
 
     #[test]

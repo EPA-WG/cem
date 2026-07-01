@@ -323,6 +323,9 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add CEMT template-backed parity fixture execution that invokes
           executable template adapters for CEMT descriptors while keeping Rust
           DOM execution as the native side.
+    - [x] Add registry-level declared converter parity evaluation that discovers
+          contracts, loads package fixtures, and runs every fixture through the
+          supplied CEMT/native executor.
   - [ ] Implement CEMT output safety rules: context-specific categories must not
         be conflated, encoded artifacts must not be silently re-encoded,
         compatible-artifact concatenation must validate target identity and
