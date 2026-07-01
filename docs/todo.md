@@ -329,6 +329,8 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add `cem-ml fixture parity` as a CLI/CI-facing command for declared
           converter parity fixture verification using the current Rust DOM
           oracle executor.
+    - [x] Add `cem_ml_cli:validate-converter-parity` and include converter
+          parity verification in the `cem_ml_cli:e2e` Nx target.
   - [ ] Implement CEMT output safety rules: context-specific categories must not
         be conflated, encoded artifacts must not be silently re-encoded,
         compatible-artifact concatenation must validate target identity and
