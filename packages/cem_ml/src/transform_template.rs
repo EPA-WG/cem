@@ -579,6 +579,26 @@ const TRANSFORM_TEMPLATE_STANDARD_OUTPUT_FUNCTIONS:
         schema: MARKDOWN_SCHEMA_URI,
         profile: None,
     },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "csv.field",
+        category: "csv-field",
+        subject: Some("string"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: CSV_CONTENT_TYPE,
+        schema: CSV_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "csv.record",
+        category: "csv-record",
+        subject: Some("array"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: CSV_CONTENT_TYPE,
+        schema: CSV_SCHEMA_URI,
+        profile: None,
+    },
 ];
 
 fn standard_output_function_contract(
@@ -2777,6 +2797,8 @@ impl TransformTemplateEncodeImplementationRegistry {
         registry.register("xml.attribute", builtin_xml_attribute_encoder);
         registry.register("markdown.text", builtin_markdown_text_encoder);
         registry.register("markdown.inline-code", builtin_markdown_inline_code_encoder);
+        registry.register("csv.field", builtin_csv_field_encoder);
+        registry.register("csv.record", builtin_csv_record_encoder);
         registry
     }
 
@@ -3057,6 +3079,60 @@ fn validate_builtin_markdown_encoder_binding(
     Ok(())
 }
 
+fn builtin_csv_field_encoder(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_csv_encoder_binding(binding, "csv.field", "csv-field")?;
+    let text = subject
+        .as_str()
+        .ok_or_else(|| "csv.field expected string subject".to_owned())?;
+    Ok(Value::String(transform_template_encode_csv_field(text)))
+}
+
+fn builtin_csv_record_encoder(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_csv_encoder_binding(binding, "csv.record", "csv-record")?;
+    let fields = subject
+        .as_array()
+        .ok_or_else(|| "csv.record expected array subject".to_owned())?;
+    transform_template_encode_csv_record(fields).map(Value::String)
+}
+
+fn validate_builtin_csv_encoder_binding(
+    binding: &TransformTemplateEncodeBinding,
+    expected_name: &str,
+    expected_category: &str,
+) -> Result<(), String> {
+    if binding.function.name != expected_name {
+        return Err(format!(
+            "CSV encoder implementation `{expected_name}` cannot execute `{}`",
+            binding.function.name
+        ));
+    }
+    if content_type_essence(&binding.identity.target.content_type) != CSV_CONTENT_TYPE {
+        return Err(format!(
+            "CSV encoder `{expected_name}` expected content type `{CSV_CONTENT_TYPE}`, got `{}`",
+            binding.identity.target.content_type
+        ));
+    }
+    if binding.identity.target.schema != CSV_SCHEMA_URI {
+        return Err(format!(
+            "CSV encoder `{expected_name}` expected schema `{CSV_SCHEMA_URI}`, got `{}`",
+            binding.identity.target.schema
+        ));
+    }
+    if binding.identity.target.category != expected_category {
+        return Err(format!(
+            "CSV encoder `{expected_name}` expected category `{expected_category}`, got `{}`",
+            binding.identity.target.category
+        ));
+    }
+    Ok(())
+}
+
 pub fn transform_template_encode_html_text(value: &str) -> String {
     let mut output = String::new();
     for ch in value.chars() {
@@ -3121,6 +3197,47 @@ pub fn transform_template_encode_markdown_inline_code(value: &str) -> String {
     } else {
         format!("{fence}{value}{fence}")
     }
+}
+
+pub fn transform_template_encode_csv_field(value: &str) -> String {
+    let requires_quotes = value
+        .chars()
+        .any(|ch| matches!(ch, ',' | '"' | '\r' | '\n'))
+        || value.starts_with(' ')
+        || value.ends_with(' ');
+    if !requires_quotes {
+        return value.to_owned();
+    }
+
+    let mut output = String::with_capacity(value.len() + 2);
+    output.push('"');
+    for ch in value.chars() {
+        if ch == '"' {
+            output.push('"');
+        }
+        output.push(ch);
+    }
+    output.push('"');
+    output
+}
+
+pub fn transform_template_encode_csv_record(fields: &[Value]) -> Result<String, String> {
+    fields
+        .iter()
+        .map(transform_template_csv_value_to_field)
+        .collect::<Result<Vec<_>, _>>()
+        .map(|fields| fields.join(","))
+}
+
+fn transform_template_csv_value_to_field(value: &Value) -> Result<String, String> {
+    let text = match value {
+        Value::Null => String::new(),
+        Value::Bool(value) => value.to_string(),
+        Value::Number(value) => value.to_string(),
+        Value::String(value) => value.clone(),
+        Value::Array(_) | Value::Object(_) => transform_template_encode_json_value(value)?,
+    };
+    Ok(transform_template_encode_csv_field(&text))
 }
 
 pub fn transform_template_encode_json_value(value: &Value) -> Result<String, String> {
@@ -7127,6 +7244,36 @@ mod tests {
         }
     }
 
+    fn csv_output_function_descriptor(
+        name: &str,
+        category: &str,
+        subject: &str,
+    ) -> TransformTemplateOutputFunctionDescriptor {
+        TransformTemplateOutputFunctionDescriptor {
+            kind: TransformTemplateOutputFunctionKind::Encoding,
+            owner: Some("csv".to_owned()),
+            name: name.to_owned(),
+            category: category.to_owned(),
+            subject: subject.to_owned(),
+            produces: TransformTemplateOutputProducedKind::Text,
+            content_type: CSV_CONTENT_TYPE.to_owned(),
+            schema: CSV_SCHEMA_URI.to_owned(),
+            canonical: true,
+            streamable: true,
+            visibility: TransformTemplateModuleVisibility::Private,
+            implementation: TransformTemplateOutputFunctionImplementation::Cemt,
+            profile: None,
+            extends: None,
+            capability: None,
+            deterministic: true,
+            trusted: false,
+            lossy: false,
+            fallback: None,
+            params: Vec::new(),
+            body_declared: false,
+        }
+    }
+
     fn color_output_function_descriptor(
         name: &str,
         category: &str,
@@ -8731,6 +8878,66 @@ mod tests {
             .encode(&wrong_schema, &Value::String("unsafe".to_owned()))
             .expect_err("builtin refuses mismatched schema");
         assert!(error.contains("expected schema `https://cem.dev/ns/data/markdown/1`"));
+    }
+
+    #[test]
+    fn builtin_csv_encode_implementations_quote_fields_and_records() {
+        let registry = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+        let field_binding = TransformTemplateEncodeBinding {
+            function: csv_output_function_descriptor("csv.field", "csv-field", "string"),
+            subject_type: "string".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::new(
+                TransformTemplateOutputProducedKind::Text,
+                TransformTemplateEncodingTarget::new(CSV_CONTENT_TYPE, CSV_SCHEMA_URI, "csv-field")
+                    .with_context("field"),
+            ),
+            options: TransformTemplateEncodeOptions::default(),
+        };
+        let encoded_field = registry
+            .encode(
+                &field_binding,
+                &Value::String("Hello, \"CEM\"\nNext".to_owned()),
+            )
+            .expect("csv field encoder runs");
+        assert_eq!(
+            encoded_field,
+            Value::String("\"Hello, \"\"CEM\"\"\nNext\"".to_owned())
+        );
+
+        let record_binding = TransformTemplateEncodeBinding {
+            function: csv_output_function_descriptor("csv.record", "csv-record", "array"),
+            subject_type: "array".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::new(
+                TransformTemplateOutputProducedKind::Text,
+                TransformTemplateEncodingTarget::new(
+                    CSV_CONTENT_TYPE,
+                    CSV_SCHEMA_URI,
+                    "csv-record",
+                )
+                .with_context("record"),
+            ),
+            options: TransformTemplateEncodeOptions::default(),
+        };
+        let encoded_record = registry
+            .encode(
+                &record_binding,
+                &json!(["plain", "needs,quote", "He said \"yes\"", 42, true, null, {"x": 1}]),
+            )
+            .expect("csv record encoder runs");
+        assert_eq!(
+            encoded_record,
+            Value::String(
+                "plain,\"needs,quote\",\"He said \"\"yes\"\"\",42,true,,\"{\"\"x\"\":1}\""
+                    .to_owned()
+            )
+        );
+
+        let mut wrong_category = field_binding.clone();
+        wrong_category.identity.target.category = "csv-record".to_owned();
+        let error = registry
+            .encode(&wrong_category, &Value::String("unsafe".to_owned()))
+            .expect_err("builtin refuses mismatched category");
+        assert!(error.contains("expected category `csv-field`"));
     }
 
     #[test]
