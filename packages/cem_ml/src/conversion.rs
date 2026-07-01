@@ -18,6 +18,8 @@ use crate::schema::registry::{
 };
 use crate::source::{BytesSource, SourceId};
 use crate::tokenizer::cem::CemTokenizer;
+use crate::tokenizer::html::HtmlTokenizer;
+use crate::tokenizer::xml::XmlTokenizer;
 use crate::transform_template::{
     TransformTemplateAdapterCapability, TransformTemplateAdapterLookup,
     TransformTemplateAdapterRegistry, TransformTemplateColorOutputProfile,
@@ -969,7 +971,7 @@ pub fn compare_conversion_parity_outputs(
     cemt_output: &Value,
     native_output: &Value,
 ) -> Option<Diagnostic> {
-    if cemt_output == native_output {
+    if conversion_parity_outputs_match(contract, cemt_output, native_output) {
         return None;
     }
 
@@ -982,6 +984,212 @@ pub fn compare_conversion_parity_outputs(
             conversion_parity_mode_selector(contract.mode)
         ),
     ))
+}
+
+fn conversion_parity_outputs_match(
+    contract: &ConversionParityContract<'_>,
+    cemt_output: &Value,
+    native_output: &Value,
+) -> bool {
+    match contract.mode {
+        ConversionParityMode::ParseEquivalent => {
+            conversion_parse_equivalent_outputs_match(contract, cemt_output, native_output)
+        }
+        ConversionParityMode::ByteExact
+        | ConversionParityMode::TokenEquivalent
+        | ConversionParityMode::DiagnosticEquivalent => cemt_output == native_output,
+    }
+}
+
+fn conversion_parse_equivalent_outputs_match(
+    contract: &ConversionParityContract<'_>,
+    cemt_output: &Value,
+    native_output: &Value,
+) -> bool {
+    let Some(output_syntax) = contract.cemt.output_contract.output_syntax else {
+        return cemt_output == native_output;
+    };
+    let (Some(cemt_output), Some(native_output)) = (cemt_output.as_str(), native_output.as_str())
+    else {
+        return cemt_output == native_output;
+    };
+
+    match (
+        conversion_parse_projection(output_syntax, cemt_output),
+        conversion_parse_projection(output_syntax, native_output),
+    ) {
+        (Some(cemt), Some(native)) => cemt == native,
+        _ => cemt_output == native_output,
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ConversionParseProjectionEvent {
+    Open {
+        name: String,
+        attributes: Vec<(String, Option<String>)>,
+    },
+    Close(String),
+    Text(String),
+    Comment(String),
+    ProcessingInstruction {
+        target: String,
+        data: String,
+    },
+}
+
+fn conversion_parse_projection(
+    output_syntax: ConversionOutputSyntax,
+    output: &str,
+) -> Option<Vec<ConversionParseProjectionEvent>> {
+    let source = BytesSource::new(SourceId(1), output.as_bytes().to_vec());
+    let document = match output_syntax {
+        ConversionOutputSyntax::Html => {
+            CemAstBuilder::new(CemEventNormalizer::new(HtmlTokenizer::from_source(source))).build()
+        }
+        ConversionOutputSyntax::Xml => {
+            CemAstBuilder::new(CemEventNormalizer::new(XmlTokenizer::from_source(source))).build()
+        }
+        _ => return None,
+    };
+    if document
+        .diagnostics
+        .iter()
+        .any(|diagnostic| matches!(diagnostic.severity, Severity::Error | Severity::Fatal))
+    {
+        return None;
+    }
+
+    let mut projection = Vec::new();
+    if let Some(CemAstNode::Document { root_children, .. }) = document.root() {
+        for child in root_children {
+            append_conversion_parse_projection_event(&document, *child, &mut projection);
+        }
+    }
+    Some(projection)
+}
+
+fn append_conversion_parse_projection_event(
+    document: &CemDocument,
+    node_id: AstNodeId,
+    projection: &mut Vec<ConversionParseProjectionEvent>,
+) {
+    let Some(node) = document.get(node_id) else {
+        return;
+    };
+    match node {
+        CemAstNode::Element {
+            expanded_name,
+            attributes,
+            children,
+            ..
+        } => {
+            let name = conversion_expanded_name_selector(expanded_name);
+            let mut projected_attributes = attributes
+                .iter()
+                .filter_map(|attribute_id| match document.get(*attribute_id) {
+                    Some(CemAstNode::Attribute {
+                        expanded_name,
+                        value,
+                        ..
+                    }) => Some((
+                        conversion_expanded_name_selector(expanded_name),
+                        value
+                            .as_deref()
+                            .map(conversion_normalize_character_references),
+                    )),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            projected_attributes.sort();
+            projection.push(ConversionParseProjectionEvent::Open {
+                name: name.clone(),
+                attributes: projected_attributes,
+            });
+            for child in children {
+                append_conversion_parse_projection_event(document, *child, projection);
+            }
+            projection.push(ConversionParseProjectionEvent::Close(name));
+        }
+        CemAstNode::Text { data, .. }
+        | CemAstNode::Cdata { data, .. }
+        | CemAstNode::RawText { data, .. } => {
+            let data = conversion_normalize_character_references(data);
+            if !data.trim().is_empty() {
+                projection.push(ConversionParseProjectionEvent::Text(data));
+            }
+        }
+        CemAstNode::Comment { data, .. } => {
+            projection.push(ConversionParseProjectionEvent::Comment(data.clone()));
+        }
+        CemAstNode::ProcessingInstruction { target, data, .. } => {
+            projection.push(ConversionParseProjectionEvent::ProcessingInstruction {
+                target: target.clone(),
+                data: data.clone(),
+            });
+        }
+        CemAstNode::Document { .. }
+        | CemAstNode::Whitespace { .. }
+        | CemAstNode::Attribute { .. }
+        | CemAstNode::Error { .. } => {}
+    }
+}
+
+fn conversion_normalize_character_references(value: &str) -> String {
+    let mut output = String::with_capacity(value.len());
+    let mut rest = value;
+
+    while let Some(ampersand) = rest.find('&') {
+        output.push_str(&rest[..ampersand]);
+        let after_ampersand = &rest[ampersand + '&'.len_utf8()..];
+        if let Some(semicolon) = after_ampersand.find(';') {
+            let reference = &after_ampersand[..semicolon];
+            if let Some(ch) = conversion_character_reference(reference) {
+                output.push(ch);
+                rest = &after_ampersand[semicolon + ';'.len_utf8()..];
+                continue;
+            }
+        }
+        output.push('&');
+        rest = after_ampersand;
+    }
+
+    output.push_str(rest);
+    output
+}
+
+fn conversion_character_reference(reference: &str) -> Option<char> {
+    match reference {
+        "amp" => Some('&'),
+        "lt" => Some('<'),
+        "gt" => Some('>'),
+        "quot" => Some('"'),
+        "apos" => Some('\''),
+        "nbsp" => Some('\u{a0}'),
+        _ => {
+            let codepoint = reference
+                .strip_prefix("#x")
+                .or_else(|| reference.strip_prefix("#X"))
+                .and_then(|hex| u32::from_str_radix(hex, 16).ok())
+                .or_else(|| {
+                    reference
+                        .strip_prefix('#')
+                        .and_then(|decimal| decimal.parse::<u32>().ok())
+                })?;
+            char::from_u32(codepoint)
+        }
+    }
+}
+
+fn conversion_expanded_name_selector(expanded_name: &crate::parser::ExpandedName) -> String {
+    if expanded_name.namespace_uri.is_empty() {
+        expanded_name.local_name.clone()
+    } else {
+        format!(
+            "{}:{}",
+            expanded_name.namespace_uri, expanded_name.local_name
+        )
+    }
 }
 
 fn conversion_parity_mode_selector(mode: ConversionParityMode) -> &'static str {
@@ -2459,11 +2667,32 @@ mod tests {
             .iter()
             .find(|contract| contract.cemt.id == "cem-dom-projection-to-html-cemt")
             .expect("HTML CEMT parity contract");
+        let xml = contracts
+            .iter()
+            .find(|contract| contract.cemt.id == "cem-dom-projection-to-xml-cemt")
+            .expect("XML CEMT parity contract");
 
         assert!(compare_conversion_parity_outputs(
             html,
             &Value::String("<main>ok</main>".to_owned()),
             &Value::String("<main>ok</main>".to_owned()),
+        )
+        .is_none());
+        assert!(compare_conversion_parity_outputs(
+            html,
+            &Value::String(r#"<main><p id="x" class="lead">ok</p></main>"#.to_owned()),
+            &Value::String(
+                r#"<main>
+  <p class="lead" id="x">ok</p>
+</main>"#
+                    .to_owned()
+            ),
+        )
+        .is_none());
+        assert!(compare_conversion_parity_outputs(
+            xml,
+            &Value::String(r#"<root><p><![CDATA[Hi <all>]]></p></root>"#.to_owned()),
+            &Value::String(r#"<root><p>Hi &lt;all&gt;</p></root>"#.to_owned()),
         )
         .is_none());
 
