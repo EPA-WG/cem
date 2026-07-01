@@ -5005,7 +5005,8 @@ mod tests {
       @produces="text"
       @content-type="text/html"
       @schema="https://cem.dev/ns/data/html/1"
-      @canonical=true |
+      @canonical=true
+      @deterministic=true |
       {param @name="subject" @type="string" @required=true}
   }
   {template @name="main" @visibility="public" |
@@ -5069,7 +5070,8 @@ mod tests {
       @produces="text"
       @content-type="text/html"
       @schema="https://cem.dev/ns/data/html/1"
-      @canonical=true |
+      @canonical=true
+      @deterministic=true |
       {param @name="subject" @type="string" @required=true}
   }
   {template @name="main" @visibility="public" |
@@ -5170,7 +5172,8 @@ mod tests {
       @produces="tokens"
       @content-type="text/html"
       @schema="https://cem.dev/ns/data/html/1"
-      @canonical=true}
+      @canonical=true
+      @deterministic=true}
   {template @name="main" @visibility="public" |
     {body |
       {$ encode($input.title, { contentType: "text/html", schema: "https://cem.dev/ns/data/html/1", category: "html-token-stream", context: "text" }, { mode: "fragment", encoder: "html.tokens" }) }
@@ -5278,7 +5281,8 @@ mod tests {
       @produces="text"
       @content-type="text/html"
       @schema="https://cem.dev/ns/data/html/1"
-      @canonical=true}
+      @canonical=true
+      @deterministic=true}
   {encoding-function
       @name="html.attribute"
       @category="html-attribute"
@@ -5286,7 +5290,8 @@ mod tests {
       @produces="text"
       @content-type="text/html"
       @schema="https://cem.dev/ns/data/html/1"
-      @canonical=true}
+      @canonical=true
+      @deterministic=true}
   {template @name="main" @visibility="public" |
     {body |
       {$ encode($input.title, { contentType: "text/html", schema: "https://cem.dev/ns/data/html/1", category: "html-text", context: "text" }, { mode: "fragment", encoder: "html.text" }) }
@@ -5373,7 +5378,8 @@ mod tests {
       @produces="text"
       @content-type="application/json"
       @schema="https://cem.dev/ns/data/json/1"
-      @canonical=true}
+      @canonical=true
+      @deterministic=true}
   {template @name="main" @visibility="public" |
     {body |
       {$ encode($input.items, { contentType: "application/json", schema: "https://cem.dev/ns/data/json/1", category: "json-document" }, { encoder: "json.document" }) }
@@ -5472,7 +5478,8 @@ mod tests {
       @produces="text"
       @content-type="application/json"
       @schema="https://cem.dev/ns/data/json/1"
-      @canonical=true}
+      @canonical=true
+      @deterministic=true}
   {encoding-function
       @name="json.string"
       @category="json-string"
@@ -5480,7 +5487,8 @@ mod tests {
       @produces="text"
       @content-type="application/json"
       @schema="https://cem.dev/ns/data/json/1"
-      @canonical=true}
+      @canonical=true
+      @deterministic=true}
   {template @name="main" @visibility="public" |
     {body |
       {$ encode($input.items, { contentType: "application/json", schema: "https://cem.dev/ns/data/json/1", category: "json-document" }, { encoder: "json.document" }) }
@@ -5567,7 +5575,8 @@ mod tests {
       @produces="text"
       @content-type="application/json"
       @schema="https://cem.dev/ns/data/json/1"
-      @canonical=true}
+      @canonical=true
+      @deterministic=true}
   {template @name="main" @visibility="public" |
     {body |
       {$ encode($input.items, { contentType: "application/json", schema: "https://cem.dev/ns/data/json/1", category: "json-document" }, { encoder: "json.document", pretty: true, indent: "    ", lineEnding: "lf", formatterProfile: "json.pretty" }) }
@@ -5652,7 +5661,8 @@ mod tests {
       @produces="text"
       @content-type="application/json"
       @schema="https://cem.dev/ns/data/json/1"
-      @canonical=true}
+      @canonical=true
+      @deterministic=true}
   {template @name="main" @visibility="public" |
     {body |
       {$ encode($input.first, { contentType: "application/json", schema: "https://cem.dev/ns/data/json/1", category: "json-string" }, { encoder: "json.string", formatterProfile: "json.pretty" }) }
@@ -5739,7 +5749,8 @@ mod tests {
       @produces="text"
       @content-type="application/xml"
       @schema="https://cem.dev/ns/data/xml/1"
-      @canonical=true}
+      @canonical=true
+      @deterministic=true}
   {template @name="main" @visibility="public" |
     {body |
       {$ encode($input.title, { contentType: "application/xml", schema: "https://cem.dev/ns/data/xml/1", category: "xml-text", context: "text" }, { encoder: "xml.text" }) }
@@ -5838,7 +5849,8 @@ mod tests {
       @produces="text"
       @content-type="application/xml"
       @schema="https://cem.dev/ns/data/xml/1"
-      @canonical=true}
+      @canonical=true
+      @deterministic=true}
   {template @name="main" @visibility="public" |
     {body |
       {$ encode($input.title, { contentType: "application/xml", schema: "https://cem.dev/ns/data/xml/1", category: "xml-text", context: "text" }, { encoder: "xml.text", pretty: true, formatterProfile: "xml.pretty", lineEnding: "crlf", namespacePolicy: "repair", indent: "  " }) }
@@ -5923,7 +5935,8 @@ mod tests {
       @produces="text"
       @content-type="application/xml"
       @schema="https://cem.dev/ns/data/xml/1"
-      @canonical=true}
+      @canonical=true
+      @deterministic=true}
   {template @name="main" @visibility="public" |
     {body |
       {$ encode($input.first, { contentType: "application/xml", schema: "https://cem.dev/ns/data/xml/1", category: "xml-text", context: "text" }, { encoder: "xml.text", formatterProfile: "xml.pretty" }) }
@@ -6010,7 +6023,8 @@ mod tests {
       @produces="text"
       @content-type="application/xml"
       @schema="https://cem.dev/ns/data/xml/1"
-      @canonical=true}
+      @canonical=true
+      @deterministic=true}
   {encoding-function
       @name="xml.attribute"
       @category="xml-attribute-value"
@@ -6018,7 +6032,8 @@ mod tests {
       @produces="text"
       @content-type="application/xml"
       @schema="https://cem.dev/ns/data/xml/1"
-      @canonical=true}
+      @canonical=true
+      @deterministic=true}
   {template @name="main" @visibility="public" |
     {body |
       {$ encode($input.title, { contentType: "application/xml", schema: "https://cem.dev/ns/data/xml/1", category: "xml-text", context: "text" }, { encoder: "xml.text" }) }

@@ -11,6 +11,7 @@
         @content-type="text/html"
         @schema="https://cem.dev/ns/data/html/1"
         @canonical=true
+        @deterministic=true
         @streamable=true |
         {param @name="subject" @type="string" @required=true}
         {param @name="mode" @type="string" @default="canonical"}

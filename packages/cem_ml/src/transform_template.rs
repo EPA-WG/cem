@@ -168,10 +168,20 @@ pub const TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE: &str =
     "cem.transform_template.declaration_invalid";
 pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_UNKNOWN_CODE: &str =
     "cem.transform_template.output_function_unknown";
+pub const TRANSFORM_TEMPLATE_OUTPUT_ENCODER_UNKNOWN_CODE: &str =
+    "cem.transform_template.output_encoder_unknown";
+pub const TRANSFORM_TEMPLATE_OUTPUT_FORMATTER_UNKNOWN_CODE: &str =
+    "cem.transform_template.output_formatter_unknown";
+pub const TRANSFORM_TEMPLATE_OUTPUT_COLORIZER_UNKNOWN_CODE: &str =
+    "cem.transform_template.output_colorizer_unknown";
 pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_AMBIGUOUS_CODE: &str =
     "cem.transform_template.output_function_ambiguous";
 pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_CAPABILITY_MISSING_CODE: &str =
     "cem.transform_template.output_function_capability_missing";
+pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_FALLBACK_UNAVAILABLE_CODE: &str =
+    "cem.transform_template.output_function_fallback_unavailable";
+pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_CANONICAL_NONDETERMINISTIC_CODE: &str =
+    "cem.transform_template.output_function_canonical_nondeterministic";
 pub const TRANSFORM_TEMPLATE_TARGET_SYNTAX_INVALID_CODE: &str =
     "cem.transform_template.target_syntax_invalid";
 pub const TRANSFORM_TEMPLATE_COLOR_PROFILE_INVALID_CODE: &str =
@@ -462,13 +472,25 @@ impl TransformTemplateOutputFunctionQuery {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TransformTemplateOutputFunctionResolutionError {
-    Unknown,
+    Unknown {
+        kind: Option<TransformTemplateOutputFunctionKind>,
+        name: Option<String>,
+        category: Option<String>,
+        subject: Option<String>,
+    },
     Ambiguous {
         function_names: Vec<String>,
     },
     MissingCapability {
         function_name: String,
         capability: String,
+    },
+    FallbackUnavailable {
+        function_name: String,
+        fallback_name: String,
+    },
+    NonDeterministicCanonical {
+        function_name: String,
     },
     InvalidTargetSyntax {
         message: String,
@@ -479,13 +501,32 @@ pub enum TransformTemplateOutputFunctionResolutionError {
 }
 
 impl TransformTemplateOutputFunctionResolutionError {
+    fn unknown_for_query(query: &TransformTemplateOutputFunctionQuery) -> Self {
+        Self::Unknown {
+            kind: query.kind,
+            name: query.name.clone(),
+            category: query.category.clone(),
+            subject: query.subject.clone(),
+        }
+    }
+
     pub fn diagnostic(&self, uri: Option<&str>) -> Diagnostic {
         match self {
-            Self::Unknown => Diagnostic {
+            Self::Unknown {
+                kind,
+                name,
+                category,
+                subject,
+            } => Diagnostic {
                 uri: uri.map(str::to_owned),
-                code: TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_UNKNOWN_CODE.to_owned(),
+                code: transform_template_unknown_output_function_code(*kind).to_owned(),
                 severity: Severity::Error,
-                message: "no CEMT output function matched the requested identity".to_owned(),
+                message: transform_template_unknown_output_function_message(
+                    *kind,
+                    name.as_deref(),
+                    category.as_deref(),
+                    subject.as_deref(),
+                ),
                 ..Diagnostic::default()
             },
             Self::Ambiguous { function_names } => Diagnostic {
@@ -510,6 +551,27 @@ impl TransformTemplateOutputFunctionResolutionError {
                 ),
                 ..Diagnostic::default()
             },
+            Self::FallbackUnavailable {
+                function_name,
+                fallback_name,
+            } => Diagnostic {
+                uri: uri.map(str::to_owned),
+                code: TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_FALLBACK_UNAVAILABLE_CODE.to_owned(),
+                severity: Severity::Error,
+                message: format!(
+                    "CEMT output function `{function_name}` fallback `{fallback_name}` is unavailable"
+                ),
+                ..Diagnostic::default()
+            },
+            Self::NonDeterministicCanonical { function_name } => Diagnostic {
+                uri: uri.map(str::to_owned),
+                code: TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_CANONICAL_NONDETERMINISTIC_CODE.to_owned(),
+                severity: Severity::Error,
+                message: format!(
+                    "CEMT output function `{function_name}` cannot produce canonical output because it is not declared deterministic"
+                ),
+                ..Diagnostic::default()
+            },
             Self::InvalidTargetSyntax { message } => Diagnostic {
                 uri: uri.map(str::to_owned),
                 code: TRANSFORM_TEMPLATE_TARGET_SYNTAX_INVALID_CODE.to_owned(),
@@ -526,6 +588,51 @@ impl TransformTemplateOutputFunctionResolutionError {
             },
         }
     }
+}
+
+fn transform_template_unknown_output_function_code(
+    kind: Option<TransformTemplateOutputFunctionKind>,
+) -> &'static str {
+    match kind {
+        Some(TransformTemplateOutputFunctionKind::Encoding) => {
+            TRANSFORM_TEMPLATE_OUTPUT_ENCODER_UNKNOWN_CODE
+        }
+        Some(TransformTemplateOutputFunctionKind::Format) => {
+            TRANSFORM_TEMPLATE_OUTPUT_FORMATTER_UNKNOWN_CODE
+        }
+        Some(TransformTemplateOutputFunctionKind::Color) => {
+            TRANSFORM_TEMPLATE_OUTPUT_COLORIZER_UNKNOWN_CODE
+        }
+        None => TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_UNKNOWN_CODE,
+    }
+}
+
+fn transform_template_unknown_output_function_message(
+    kind: Option<TransformTemplateOutputFunctionKind>,
+    name: Option<&str>,
+    category: Option<&str>,
+    subject: Option<&str>,
+) -> String {
+    let label = match kind {
+        Some(TransformTemplateOutputFunctionKind::Encoding) => "encoder",
+        Some(TransformTemplateOutputFunctionKind::Format) => "formatter",
+        Some(TransformTemplateOutputFunctionKind::Color) => "colorizer",
+        None => "output function",
+    };
+    let mut message = format!("no CEMT {label} matched the requested identity");
+    if let Some(name) = name.map(str::trim).filter(|name| !name.is_empty()) {
+        message.push_str(&format!(" `{name}`"));
+    }
+    if let Some(category) = category
+        .map(str::trim)
+        .filter(|category| !category.is_empty())
+    {
+        message.push_str(&format!(" for category `{category}`"));
+    }
+    if let Some(subject) = subject.map(str::trim).filter(|subject| !subject.is_empty()) {
+        message.push_str(&format!(" and subject `{subject}`"));
+    }
+    message
 }
 
 #[derive(Debug, Clone, Default)]
@@ -567,7 +674,11 @@ impl TransformTemplateOutputFunctionRegistry {
             .collect::<Vec<_>>();
 
         let function = match matches.as_slice() {
-            [] => return Err(TransformTemplateOutputFunctionResolutionError::Unknown),
+            [] => {
+                return Err(
+                    TransformTemplateOutputFunctionResolutionError::unknown_for_query(query),
+                )
+            }
             [function] => *function,
             many => {
                 return Err(TransformTemplateOutputFunctionResolutionError::Ambiguous {
@@ -576,26 +687,87 @@ impl TransformTemplateOutputFunctionRegistry {
             }
         };
 
+        self.resolve_function_capability(function, query, host_capabilities)
+    }
+
+    fn resolve_function_capability<'a>(
+        &'a self,
+        function: &'a TransformTemplateOutputFunctionDescriptor,
+        query: &TransformTemplateOutputFunctionQuery,
+        host_capabilities: &BTreeSet<String>,
+    ) -> Result<
+        &'a TransformTemplateOutputFunctionDescriptor,
+        TransformTemplateOutputFunctionResolutionError,
+    > {
         if function.implementation.requires_capability() {
             let Some(capability) = function.capability.as_deref() else {
-                return Err(
-                    TransformTemplateOutputFunctionResolutionError::MissingCapability {
-                        function_name: function.name.clone(),
-                        capability: "<missing>".to_owned(),
-                    },
+                return self.resolve_output_function_fallback_or_capability_error(
+                    function,
+                    query,
+                    host_capabilities,
+                    "<missing>",
                 );
             };
             if !host_capabilities.contains(capability) {
-                return Err(
-                    TransformTemplateOutputFunctionResolutionError::MissingCapability {
-                        function_name: function.name.clone(),
-                        capability: capability.to_owned(),
-                    },
+                return self.resolve_output_function_fallback_or_capability_error(
+                    function,
+                    query,
+                    host_capabilities,
+                    capability,
                 );
             }
         }
 
         Ok(function)
+    }
+
+    fn resolve_output_function_fallback_or_capability_error<'a>(
+        &'a self,
+        function: &'a TransformTemplateOutputFunctionDescriptor,
+        query: &TransformTemplateOutputFunctionQuery,
+        host_capabilities: &BTreeSet<String>,
+        capability: &str,
+    ) -> Result<
+        &'a TransformTemplateOutputFunctionDescriptor,
+        TransformTemplateOutputFunctionResolutionError,
+    > {
+        let Some(fallback_name) = function
+            .fallback
+            .as_deref()
+            .map(str::trim)
+            .filter(|fallback| !fallback.is_empty())
+        else {
+            return Err(
+                TransformTemplateOutputFunctionResolutionError::MissingCapability {
+                    function_name: function.name.clone(),
+                    capability: capability.to_owned(),
+                },
+            );
+        };
+
+        if fallback_name == function.name {
+            return Err(
+                TransformTemplateOutputFunctionResolutionError::FallbackUnavailable {
+                    function_name: function.name.clone(),
+                    fallback_name: fallback_name.to_owned(),
+                },
+            );
+        }
+
+        let fallback_query = TransformTemplateOutputFunctionQuery {
+            name: Some(fallback_name.to_owned()),
+            ..query.clone()
+        };
+        self.resolve(&fallback_query, host_capabilities)
+            .map_err(|error| match error {
+                TransformTemplateOutputFunctionResolutionError::Unknown { .. } => {
+                    TransformTemplateOutputFunctionResolutionError::FallbackUnavailable {
+                        function_name: function.name.clone(),
+                        fallback_name: fallback_name.to_owned(),
+                    }
+                }
+                other => other,
+            })
     }
 
     pub fn resolve_encode_binding(
@@ -622,6 +794,7 @@ impl TransformTemplateOutputFunctionRegistry {
                         function.produces,
                         &syntax_rules,
                     )?;
+                    validate_transform_template_canonical_determinism(function, &request.options)?;
                     let mut identity = TransformTemplateEncodedArtifactIdentity::from_options(
                         function.produces,
                         request.target.clone(),
@@ -636,14 +809,19 @@ impl TransformTemplateOutputFunctionRegistry {
                         options: request.options.clone(),
                     });
                 }
-                Err(TransformTemplateOutputFunctionResolutionError::Unknown) => {
+                Err(TransformTemplateOutputFunctionResolutionError::Unknown { .. }) => {
                     continue;
                 }
                 Err(error) => return Err(error),
             }
         }
 
-        Err(TransformTemplateOutputFunctionResolutionError::Unknown)
+        Err(TransformTemplateOutputFunctionResolutionError::Unknown {
+            kind: Some(TransformTemplateOutputFunctionKind::Encoding),
+            name: request.options.encoder.clone(),
+            category: Some(request.target.category.clone()),
+            subject: request.subject_type.as_ref().cloned(),
+        })
     }
 
     pub fn resolve_color_binding(
@@ -675,6 +853,7 @@ impl TransformTemplateOutputFunctionRegistry {
                         function.produces,
                         &syntax_rules,
                     )?;
+                    validate_transform_template_canonical_determinism(function, &request.options)?;
                     let mut identity = TransformTemplateEncodedArtifactIdentity::from_options(
                         function.produces,
                         request.target.clone(),
@@ -695,14 +874,19 @@ impl TransformTemplateOutputFunctionRegistry {
                         color_profile,
                     });
                 }
-                Err(TransformTemplateOutputFunctionResolutionError::Unknown) => {
+                Err(TransformTemplateOutputFunctionResolutionError::Unknown { .. }) => {
                     continue;
                 }
                 Err(error) => return Err(error),
             }
         }
 
-        Err(TransformTemplateOutputFunctionResolutionError::Unknown)
+        Err(TransformTemplateOutputFunctionResolutionError::Unknown {
+            kind: Some(TransformTemplateOutputFunctionKind::Color),
+            name: request.options.colorizer.clone(),
+            category: Some(request.target.category.clone()),
+            subject: request.subject_type.as_ref().cloned(),
+        })
     }
 }
 
@@ -1736,6 +1920,21 @@ fn validate_transform_template_output_kind_for_syntax(
         }
         _ => Ok(()),
     }
+}
+
+fn validate_transform_template_canonical_determinism(
+    function: &TransformTemplateOutputFunctionDescriptor,
+    options: &TransformTemplateEncodeOptions,
+) -> Result<(), TransformTemplateOutputFunctionResolutionError> {
+    let canonical = !options.pretty && (options.canonical || function.canonical);
+    if canonical && !function.deterministic {
+        return Err(
+            TransformTemplateOutputFunctionResolutionError::NonDeterministicCanonical {
+                function_name: function.name.clone(),
+            },
+        );
+    }
+    Ok(())
 }
 
 fn invalid_target_syntax(
@@ -6413,6 +6612,149 @@ mod tests {
     }
 
     #[test]
+    fn output_function_unknown_diagnostics_are_kind_specific() {
+        let registry = TransformTemplateOutputFunctionRegistry::new();
+
+        for (kind, expected_code, expected_label) in [
+            (
+                TransformTemplateOutputFunctionKind::Encoding,
+                TRANSFORM_TEMPLATE_OUTPUT_ENCODER_UNKNOWN_CODE,
+                "encoder",
+            ),
+            (
+                TransformTemplateOutputFunctionKind::Format,
+                TRANSFORM_TEMPLATE_OUTPUT_FORMATTER_UNKNOWN_CODE,
+                "formatter",
+            ),
+            (
+                TransformTemplateOutputFunctionKind::Color,
+                TRANSFORM_TEMPLATE_OUTPUT_COLORIZER_UNKNOWN_CODE,
+                "colorizer",
+            ),
+        ] {
+            let query = TransformTemplateOutputFunctionQuery {
+                name: Some("acme.missing".to_owned()),
+                ..TransformTemplateOutputFunctionQuery::for_identity(
+                    kind,
+                    HTML_CONTENT_TYPE,
+                    HTML_SCHEMA_URI,
+                    "html-text",
+                    "string",
+                )
+            };
+            let diagnostic = registry
+                .resolve(&query, &BTreeSet::new())
+                .expect_err("missing output function reports unknown")
+                .diagnostic(Some("template.cemt"));
+
+            assert_eq!(diagnostic.code, expected_code);
+            assert!(diagnostic.message.contains(expected_label));
+            assert!(diagnostic.message.contains("acme.missing"));
+            assert!(diagnostic.message.contains("html-text"));
+        }
+    }
+
+    #[test]
+    fn output_function_registry_uses_declared_fallback_when_capability_is_missing() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        let mut fallback = output_function_descriptor();
+        fallback.name = "html.text.fallback".to_owned();
+        fallback.deterministic = true;
+        registry.register(fallback.clone());
+
+        let mut native = fallback.clone();
+        native.name = "html.text.native".to_owned();
+        native.implementation = TransformTemplateOutputFunctionImplementation::Native;
+        native.capability = Some("host.html.NativeTextEncoder".to_owned());
+        native.fallback = Some(fallback.name.clone());
+        registry.register(native.clone());
+
+        let query = TransformTemplateOutputFunctionQuery {
+            name: Some(native.name.clone()),
+            ..TransformTemplateOutputFunctionQuery::for_identity(
+                TransformTemplateOutputFunctionKind::Encoding,
+                HTML_CONTENT_TYPE,
+                HTML_SCHEMA_URI,
+                "html-text",
+                "string",
+            )
+        };
+        let resolved = registry
+            .resolve(&query, &BTreeSet::new())
+            .expect("missing native capability falls back to CEMT function");
+        assert_eq!(resolved.name, "html.text.fallback");
+
+        let mut capabilities = BTreeSet::new();
+        capabilities.insert("host.html.NativeTextEncoder".to_owned());
+        let resolved_native = registry
+            .resolve(&query, &capabilities)
+            .expect("native capability selects native function");
+        assert_eq!(resolved_native.name, "html.text.native");
+    }
+
+    #[test]
+    fn output_function_registry_reports_unavailable_fallback() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        let mut native = output_function_descriptor();
+        native.name = "html.text.native".to_owned();
+        native.implementation = TransformTemplateOutputFunctionImplementation::Native;
+        native.capability = Some("host.html.NativeTextEncoder".to_owned());
+        native.fallback = Some("html.text.missing".to_owned());
+        registry.register(native.clone());
+
+        let query = TransformTemplateOutputFunctionQuery {
+            name: Some(native.name.clone()),
+            ..TransformTemplateOutputFunctionQuery::for_identity(
+                TransformTemplateOutputFunctionKind::Encoding,
+                HTML_CONTENT_TYPE,
+                HTML_SCHEMA_URI,
+                "html-text",
+                "string",
+            )
+        };
+        let diagnostic = registry
+            .resolve(&query, &BTreeSet::new())
+            .expect_err("missing fallback is reported")
+            .diagnostic(None);
+
+        assert_eq!(
+            diagnostic.code,
+            TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_FALLBACK_UNAVAILABLE_CODE
+        );
+        assert!(diagnostic.message.contains("html.text.native"));
+        assert!(diagnostic.message.contains("html.text.missing"));
+    }
+
+    #[test]
+    fn encode_binding_rejects_nondeterministic_canonical_function() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        let mut unstable = output_function_descriptor();
+        unstable.name = "html.text.unstable".to_owned();
+        unstable.deterministic = false;
+        registry.register(unstable.clone());
+
+        let request = TransformTemplateEncodeBindingRequest::new(
+            Value::String("Hello".to_owned()),
+            TransformTemplateEncodingTarget::new(HTML_CONTENT_TYPE, HTML_SCHEMA_URI, "html-text"),
+        )
+        .with_subject_type("string")
+        .with_options(TransformTemplateEncodeOptions {
+            encoder: Some(unstable.name.clone()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let diagnostic = registry
+            .resolve_encode_binding(&request, &BTreeSet::new())
+            .expect_err("canonical function must be deterministic")
+            .diagnostic(None);
+
+        assert_eq!(
+            diagnostic.code,
+            TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_CANONICAL_NONDETERMINISTIC_CODE
+        );
+        assert!(diagnostic.message.contains("html.text.unstable"));
+    }
+
+    #[test]
     fn encode_binding_rejects_invalid_target_syntax_options() {
         let registry = TransformTemplateOutputFunctionRegistry::new();
 
@@ -7704,7 +8046,8 @@ mod tests {
       @produces="text"
       @content-type="text/html"
       @schema="https://cem.dev/ns/data/html/1"
-      @canonical=true |
+      @canonical=true
+      @deterministic=true |
       {param @name="subject" @type="string" @required=true}
   }
   {template @name="main" @visibility="public" |
@@ -7837,7 +8180,7 @@ mod tests {
         assert!(evaluated
             .diagnostics
             .iter()
-            .any(|diag| diag.code == TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_UNKNOWN_CODE));
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_OUTPUT_ENCODER_UNKNOWN_CODE));
     }
 
     #[test]

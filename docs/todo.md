@@ -265,6 +265,9 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add initial converter output-safety diagnostics for missing output
           syntax/category, unsupported encoding category, category/target
           context mismatch, and unsafe color profile metadata.
+    - [x] Add output-function diagnostics for kind-specific unknown
+          encoder/formatter/colorizer lookup, unavailable custom fallback, and
+          non-deterministic functions selected for canonical output.
   - [ ] Add AI-facing context projection support as a task-shaped view over the
         canonical AST/DOM/events/schema/token metadata, not a replacement for
         canonical projections. Cover `ai-context-pack`, `ai-entity-graph`,
