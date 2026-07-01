@@ -196,6 +196,8 @@ pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_CONTEXT_MISMATCH_CODE: &str =
     "cem.transform_template.encoded_artifact_context_mismatch";
 pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_PRODUCED_KIND_MISMATCH_CODE: &str =
     "cem.transform_template.encoded_artifact_produced_kind_mismatch";
+pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_INSERTION_INCOMPATIBLE_CODE: &str =
+    "cem.transform_template.encoded_artifact_insertion_incompatible";
 pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_WRITER_ADAPTER_MISSING_CODE: &str =
     "cem.transform_template.encoded_artifact_writer_adapter_missing";
 pub const TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_DOUBLE_ENCODING_CODE: &str =
@@ -2735,9 +2737,9 @@ pub fn validate_transform_template_encoded_insertions(
     let mut diagnostics = Vec::new();
     for evaluated in encoded {
         if let Err(error) = evaluated.artifact.validate_insertion(context) {
-            let mut diagnostic = error.diagnostic(uri);
-            attach_evaluated_encode_node(&mut diagnostic, evaluated);
-            diagnostics.push(diagnostic);
+            diagnostics.extend(diagnostics_for_evaluated_encode_error(
+                error, evaluated, uri,
+            ));
         }
     }
     diagnostics
@@ -2767,14 +2769,16 @@ pub fn compose_transform_template_encoded_text_artifacts(
             uri,
         ) {
             Ok(artifact) => artifact,
-            Err(diagnostic) => {
-                diagnostics.push(diagnostic);
+            Err(mut artifact_diagnostics) => {
+                diagnostics.append(&mut artifact_diagnostics);
                 continue;
             }
         };
 
         if let Err(error) = artifact.validate_insertion(&text_context) {
-            diagnostics.push(diagnostic_for_evaluated_encode_error(error, evaluated, uri));
+            diagnostics.extend(diagnostics_for_evaluated_encode_error(
+                error, evaluated, uri,
+            ));
             continue;
         }
 
@@ -2785,7 +2789,9 @@ pub fn compose_transform_template_encoded_text_artifacts(
 
         if let Some(composition_context) = &composition_context {
             if let Err(error) = artifact.validate_insertion(composition_context) {
-                diagnostics.push(diagnostic_for_evaluated_encode_error(error, evaluated, uri));
+                diagnostics.extend(diagnostics_for_evaluated_encode_error(
+                    error, evaluated, uri,
+                ));
                 continue;
             }
         } else {
@@ -2843,7 +2849,7 @@ fn text_composition_artifact_for_evaluated_encode(
     evaluated: &TransformTemplateEvaluatedEncodeExpression,
     writer_boundary_context: &TransformTemplateEncodedArtifactInsertionContext,
     uri: Option<&str>,
-) -> Result<TransformTemplateEncodedArtifact, Diagnostic> {
+) -> Result<TransformTemplateEncodedArtifact, Vec<Diagnostic>> {
     match evaluated.artifact.identity.produces {
         TransformTemplateOutputProducedKind::Text => Ok(evaluated.artifact.clone()),
         TransformTemplateOutputProducedKind::Tokens => {
@@ -2851,11 +2857,15 @@ fn text_composition_artifact_for_evaluated_encode(
                 .artifact
                 .validate_insertion(writer_boundary_context)
             {
-                return Err(diagnostic_for_evaluated_encode_error(error, evaluated, uri));
+                return Err(diagnostics_for_evaluated_encode_error(
+                    error, evaluated, uri,
+                ));
             }
             transform_template_writer_token_artifact_to_text(&evaluated.artifact).map_err(
                 |message| {
-                    diagnostic_for_evaluated_encode_writer_adapter_failed(evaluated, message, uri)
+                    vec![diagnostic_for_evaluated_encode_writer_adapter_failed(
+                        evaluated, message, uri,
+                    )]
                 },
             )
         }
@@ -2864,12 +2874,16 @@ fn text_composition_artifact_for_evaluated_encode(
                 .artifact
                 .validate_insertion(writer_boundary_context)
             {
-                Ok(()) => Err(diagnostic_for_evaluated_encode_writer_adapter_missing(
-                    evaluated,
-                    TransformTemplateOutputProducedKind::Text,
-                    uri,
+                Ok(()) => Err(vec![
+                    diagnostic_for_evaluated_encode_writer_adapter_missing(
+                        evaluated,
+                        TransformTemplateOutputProducedKind::Text,
+                        uri,
+                    ),
+                ]),
+                Err(error) => Err(diagnostics_for_evaluated_encode_error(
+                    error, evaluated, uri,
                 )),
-                Err(error) => Err(diagnostic_for_evaluated_encode_error(error, evaluated, uri)),
             }
         }
     }
@@ -2930,14 +2944,20 @@ fn shift_output_span(span: &OutputSpan, offset: u64) -> OutputSpan {
     shifted
 }
 
-fn diagnostic_for_evaluated_encode_error(
+fn diagnostics_for_evaluated_encode_error(
     error: TransformTemplateEncodedArtifactError,
     evaluated: &TransformTemplateEvaluatedEncodeExpression,
     uri: Option<&str>,
-) -> Diagnostic {
+) -> Vec<Diagnostic> {
     let mut diagnostic = error.diagnostic(uri);
     attach_evaluated_encode_node(&mut diagnostic, evaluated);
-    diagnostic
+    if !error.is_incompatible_insertion() {
+        return vec![diagnostic];
+    }
+
+    let mut insertion_diagnostic = error.incompatible_insertion_diagnostic(uri);
+    attach_evaluated_encode_node(&mut insertion_diagnostic, evaluated);
+    vec![diagnostic, insertion_diagnostic]
 }
 
 fn diagnostic_for_evaluated_encode_value_type(
@@ -4391,6 +4411,23 @@ impl TransformTemplateEncodedArtifactError {
             message: self.message(),
             ..Diagnostic::default()
         }
+    }
+
+    pub fn incompatible_insertion_diagnostic(&self, uri: Option<&str>) -> Diagnostic {
+        Diagnostic {
+            uri: uri.map(str::to_owned),
+            code: TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_INSERTION_INCOMPATIBLE_CODE.to_owned(),
+            severity: Severity::Error,
+            message: format!(
+                "encoded artifact insertion is incompatible: {}",
+                self.message()
+            ),
+            ..Diagnostic::default()
+        }
+    }
+
+    fn is_incompatible_insertion(&self) -> bool {
+        !matches!(self, Self::DoubleEncoding { .. })
     }
 
     fn message(&self) -> String {
@@ -8315,6 +8352,11 @@ mod tests {
             diagnostic.code == TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_CONTEXT_MISMATCH_CODE
                 && diagnostic.node.as_deref() == Some("main")
         }));
+        assert!(insertion_diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_INSERTION_INCOMPATIBLE_CODE
+                && diagnostic.node.as_deref() == Some("main")
+                && diagnostic.message.contains("context")
+        }));
     }
 
     #[test]
@@ -8431,6 +8473,11 @@ mod tests {
             diagnostic.code == TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_CONTEXT_MISMATCH_CODE
                 && diagnostic.node.as_deref() == Some("body")
         }));
+        assert!(response.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_INSERTION_INCOMPATIBLE_CODE
+                && diagnostic.node.as_deref() == Some("body")
+                && diagnostic.message.contains("context")
+        }));
     }
 
     #[test]
@@ -8453,6 +8500,11 @@ mod tests {
         assert!(response.artifact.is_none());
         assert!(response.diagnostics.iter().any(|diagnostic| {
             diagnostic.code == TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_CONTEXT_MISMATCH_CODE
+                && diagnostic.node.as_deref() == Some("body")
+                && diagnostic.message.contains("category")
+        }));
+        assert!(response.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_INSERTION_INCOMPATIBLE_CODE
                 && diagnostic.node.as_deref() == Some("body")
                 && diagnostic.message.contains("category")
         }));
@@ -8916,6 +8968,12 @@ mod tests {
         assert_eq!(
             context_error.diagnostic(Some("template.cemt")).code,
             TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_CONTEXT_MISMATCH_CODE
+        );
+        assert_eq!(
+            context_error
+                .incompatible_insertion_diagnostic(Some("template.cemt"))
+                .code,
+            TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_INSERTION_INCOMPATIBLE_CODE
         );
 
         let double_encoding = artifact
