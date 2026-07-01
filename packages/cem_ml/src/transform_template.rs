@@ -170,6 +170,10 @@ pub const TRANSFORM_TEMPLATE_DECLARATION_DUPLICATE_CODE: &str =
     "cem.transform_template.declaration_duplicate";
 pub const TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE: &str =
     "cem.transform_template.declaration_invalid";
+pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_NAME_UNQUALIFIED_CODE: &str =
+    "cem.transform_template.output_function_name_unqualified";
+pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_STANDARD_SHADOW_CODE: &str =
+    "cem.transform_template.output_function_standard_shadow";
 pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_UNKNOWN_CODE: &str =
     "cem.transform_template.output_function_unknown";
 pub const TRANSFORM_TEMPLATE_OUTPUT_ENCODER_UNKNOWN_CODE: &str =
@@ -440,6 +444,130 @@ struct TransformTemplateOutputFunctionKey {
     category: String,
     subject: String,
     profile: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct TransformTemplateStandardOutputFunctionContract {
+    kind: TransformTemplateOutputFunctionKind,
+    name: &'static str,
+    category: &'static str,
+    subject: Option<&'static str>,
+    produces: TransformTemplateOutputProducedKind,
+    content_type: &'static str,
+    schema: &'static str,
+    profile: Option<&'static str>,
+}
+
+impl TransformTemplateStandardOutputFunctionContract {
+    fn matches_descriptor(self, function: &TransformTemplateOutputFunctionDescriptor) -> bool {
+        function.kind == self.kind
+            && function.name == self.name
+            && function.category == self.category
+            && self
+                .subject
+                .is_none_or(|subject| function.subject == subject)
+            && function.produces == self.produces
+            && content_type_essence(&function.content_type)
+                == content_type_essence(self.content_type)
+            && function.schema == self.schema
+            && function.profile.as_deref() == self.profile
+    }
+
+    fn expected_contract(self) -> String {
+        let subject = self.subject.unwrap_or("any JSON-compatible subject");
+        format!(
+            "{} `{}` for category `{}`, subject `{}`, content type `{}`, and schema `{}`",
+            transform_template_output_function_label(Some(self.kind)),
+            self.name,
+            self.category,
+            subject,
+            self.content_type,
+            self.schema
+        )
+    }
+}
+
+const TRANSFORM_TEMPLATE_STANDARD_OUTPUT_FUNCTIONS:
+    &[TransformTemplateStandardOutputFunctionContract] = &[
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "html.text",
+        category: "html-text",
+        subject: Some("string"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: HTML_CONTENT_TYPE,
+        schema: HTML_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "html.attribute",
+        category: "html-attribute",
+        subject: Some("string"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: HTML_CONTENT_TYPE,
+        schema: HTML_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "json.string",
+        category: "json-string",
+        subject: Some("string"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: JSON_CONTENT_TYPE,
+        schema: JSON_VALUE_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "json.value",
+        category: "json-value",
+        subject: Some("json"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: JSON_CONTENT_TYPE,
+        schema: JSON_VALUE_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "json.document",
+        category: "json-document",
+        subject: None,
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: JSON_CONTENT_TYPE,
+        schema: JSON_VALUE_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "xml.text",
+        category: "xml-text",
+        subject: Some("string"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: XML_CONTENT_TYPE,
+        schema: XML_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "xml.attribute",
+        category: "xml-attribute-value",
+        subject: Some("string"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: XML_CONTENT_TYPE,
+        schema: XML_SCHEMA_URI,
+        profile: None,
+    },
+];
+
+fn standard_output_function_contract(
+    name: &str,
+) -> Option<TransformTemplateStandardOutputFunctionContract> {
+    TRANSFORM_TEMPLATE_STANDARD_OUTPUT_FUNCTIONS
+        .iter()
+        .copied()
+        .find(|function| function.name == name)
 }
 
 fn output_function_matches(
@@ -5807,6 +5935,28 @@ impl NativeTemplateModuleLowerer<'_> {
 
         let mut output_functions = BTreeSet::new();
         for function in self.options.output_functions.clone() {
+            if !output_function_name_is_package_qualified(&function.name) {
+                self.push_diag(
+                    TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_NAME_UNQUALIFIED_CODE,
+                    format!(
+                        "CEMT output function `{}` must use a package-qualified name such as `package.function`",
+                        function.name
+                    ),
+                );
+            }
+            if let Some(standard) = standard_output_function_contract(&function.name) {
+                if !standard.matches_descriptor(&function) {
+                    self.push_diag(
+                        TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_STANDARD_SHADOW_CODE,
+                        format!(
+                            "CEMT output function `{}` shadows the standard {}; use a package-qualified custom name and `@extends=\"{}\"` to define an explicit alias",
+                            function.name,
+                            standard.expected_contract(),
+                            standard.name
+                        ),
+                    );
+                }
+            }
             if !output_functions.insert(function.key()) {
                 self.push_diag(
                     TRANSFORM_TEMPLATE_DECLARATION_DUPLICATE_CODE,
@@ -6094,6 +6244,11 @@ fn output_function_owner(name: &str) -> Option<String> {
         .map(|(owner, _)| owner.trim())
         .filter(|owner| !owner.is_empty())
         .map(str::to_owned)
+}
+
+fn output_function_name_is_package_qualified(name: &str) -> bool {
+    name.split_once('.')
+        .is_some_and(|(owner, local)| !owner.trim().is_empty() && !local.trim().is_empty())
 }
 
 fn import_identity_from_attrs(
@@ -7367,6 +7522,60 @@ mod tests {
                     .contains("must declare `@required=true` or a literal `@default`")),
             "{messages:?}"
         );
+    }
+
+    #[test]
+    fn cemt_module_parser_validates_custom_output_function_names_and_standard_shadowing() {
+        let response = parse_cem_native_template_module_options(
+            TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "templates/custom-function-name-contracts.cemt",
+                    r#"{@doc cem-ml 1}
+{module |
+  {encoding-function @name="text" @category="html-text" @subject="string" @produces="text" @content-type="text/html" @schema="https://cem.dev/ns/data/html/1" @canonical=true @streamable=true |
+    {param @name="subject" @type="string" @required=true}
+  }
+  {encoding-function @name="html.text" @category="html-raw" @subject="string" @produces="text" @content-type="text/html" @schema="https://cem.dev/ns/data/html/1" @canonical=true @streamable=true |
+    {param @name="subject" @type="string" @required=true}
+  }
+  {encoding-function @name="acme.html-text" @category="html-text" @subject="string" @produces="text" @content-type="text/html" @schema="https://cem.dev/ns/data/html/1" @canonical=true @streamable=true @extends="html.text" |
+    {param @name="subject" @type="string" @required=true}
+  }
+}"#,
+                    Some(FormatIdentity {
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            },
+        );
+
+        assert!(response
+            .module_options
+            .output_functions
+            .iter()
+            .any(|function| function.name == "acme.html-text"
+                && function.extends.as_deref() == Some("html.text")));
+        assert_eq!(
+            response
+                .diagnostics
+                .iter()
+                .filter(|diag| diag.code == TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_NAME_UNQUALIFIED_CODE)
+                .count(),
+            1
+        );
+        assert_eq!(
+            response
+                .diagnostics
+                .iter()
+                .filter(|diag| diag.code == TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_STANDARD_SHADOW_CODE)
+                .count(),
+            1
+        );
+        assert!(response.diagnostics.iter().any(|diag| {
+            diag.code == TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_STANDARD_SHADOW_CODE
+                && diag.message.contains("@extends=\"html.text\"")
+        }));
     }
 
     #[test]
