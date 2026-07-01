@@ -17,8 +17,12 @@ use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
 use crate::run_config::ScopeConfig;
 use crate::schema::registry::{
-    CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI,
-    JSON_CONTENT_TYPE, JSON_VALUE_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_SCHEMA_URI,
+    CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
+    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI,
+    CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
+    JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE,
+    MATHML_SCHEMA_URI, SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI,
+    XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI,
 };
 use crate::source::{ByteRange, BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
@@ -667,6 +671,13 @@ impl TransformTemplateEncodingTarget {
             ..FormatIdentity::default()
         }
     }
+
+    pub fn syntax_rules(
+        &self,
+        options: &TransformTemplateEncodeOptions,
+    ) -> Result<TransformTemplateTargetSyntaxRules, String> {
+        TransformTemplateTargetSyntaxRules::for_target(self, options)
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -704,6 +715,432 @@ pub struct TransformTemplateEncodeOptions {
     pub namespace_policy: Option<String>,
     #[serde(default)]
     pub source_map_policy: TransformTemplateSourceMapPolicy,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformTemplateTargetSyntaxKind {
+    Html,
+    Xml,
+    Json,
+    Csv,
+    Css,
+    Markdown,
+    Cemt,
+    Text,
+    Binary,
+    #[default]
+    Opaque,
+}
+
+impl TransformTemplateTargetSyntaxKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Html => "html",
+            Self::Xml => "xml",
+            Self::Json => "json",
+            Self::Csv => "csv",
+            Self::Css => "css",
+            Self::Markdown => "markdown",
+            Self::Cemt => "cemt",
+            Self::Text => "text",
+            Self::Binary => "binary",
+            Self::Opaque => "opaque",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformTemplateElementBoundaryPolicy {
+    #[default]
+    NotApplicable,
+    ExplicitClose,
+    HtmlVoidElements,
+    XmlEmptyElements,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformTemplateRawTextMode {
+    #[default]
+    RawText,
+    Rcdata,
+    ScriptData,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformTemplateNamespaceRepairPolicy {
+    #[default]
+    None,
+    Preserve,
+    Repair,
+    Canonical,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformTemplateIdentifierPolicy {
+    CemtName,
+    HtmlName,
+    XmlName,
+    JsonField,
+    CsvHeader,
+    CssIdentifier,
+    #[default]
+    Opaque,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformTemplateFieldHeaderPolicy {
+    #[default]
+    None,
+    JsonObjectFields,
+    CsvHeaders,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformTemplateFinalNewlinePolicy {
+    #[default]
+    Preserve,
+    Optional,
+    Required,
+    Forbidden,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateWriterBoundaryRules {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_charset: Option<String>,
+    pub requires_valid_utf8: bool,
+    pub allows_binary_output: bool,
+    pub final_newline: TransformTemplateFinalNewlinePolicy,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateTargetSyntaxRules {
+    pub syntax: TransformTemplateTargetSyntaxKind,
+    pub element_boundary_policy: TransformTemplateElementBoundaryPolicy,
+    pub namespace_repair_policy: TransformTemplateNamespaceRepairPolicy,
+    pub identifier_policy: TransformTemplateIdentifierPolicy,
+    pub field_header_policy: TransformTemplateFieldHeaderPolicy,
+    pub supports_fragment_mode: bool,
+    pub supports_document_mode: bool,
+    pub writer_boundaries: TransformTemplateWriterBoundaryRules,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub void_elements: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub raw_text_elements: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rcdata_elements: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub script_data_elements: Vec<String>,
+}
+
+impl TransformTemplateTargetSyntaxRules {
+    pub fn for_target(
+        target: &TransformTemplateEncodingTarget,
+        options: &TransformTemplateEncodeOptions,
+    ) -> Result<Self, String> {
+        let syntax = transform_template_target_syntax_kind(target);
+        let namespace_repair_policy = transform_template_namespace_repair_policy(
+            syntax,
+            options.namespace_policy.as_deref(),
+        )?;
+        let text_like = !matches!(
+            syntax,
+            TransformTemplateTargetSyntaxKind::Binary | TransformTemplateTargetSyntaxKind::Opaque
+        );
+        let element_boundary_policy = match syntax {
+            TransformTemplateTargetSyntaxKind::Html => {
+                TransformTemplateElementBoundaryPolicy::HtmlVoidElements
+            }
+            TransformTemplateTargetSyntaxKind::Xml => {
+                TransformTemplateElementBoundaryPolicy::XmlEmptyElements
+            }
+            TransformTemplateTargetSyntaxKind::Cemt => {
+                TransformTemplateElementBoundaryPolicy::ExplicitClose
+            }
+            _ => TransformTemplateElementBoundaryPolicy::NotApplicable,
+        };
+        let identifier_policy = match syntax {
+            TransformTemplateTargetSyntaxKind::Html => TransformTemplateIdentifierPolicy::HtmlName,
+            TransformTemplateTargetSyntaxKind::Xml => TransformTemplateIdentifierPolicy::XmlName,
+            TransformTemplateTargetSyntaxKind::Json => TransformTemplateIdentifierPolicy::JsonField,
+            TransformTemplateTargetSyntaxKind::Csv => TransformTemplateIdentifierPolicy::CsvHeader,
+            TransformTemplateTargetSyntaxKind::Css => {
+                TransformTemplateIdentifierPolicy::CssIdentifier
+            }
+            TransformTemplateTargetSyntaxKind::Cemt => TransformTemplateIdentifierPolicy::CemtName,
+            _ => TransformTemplateIdentifierPolicy::Opaque,
+        };
+        let field_header_policy = match syntax {
+            TransformTemplateTargetSyntaxKind::Json => {
+                TransformTemplateFieldHeaderPolicy::JsonObjectFields
+            }
+            TransformTemplateTargetSyntaxKind::Csv => {
+                TransformTemplateFieldHeaderPolicy::CsvHeaders
+            }
+            _ => TransformTemplateFieldHeaderPolicy::None,
+        };
+
+        Ok(Self {
+            syntax,
+            element_boundary_policy,
+            namespace_repair_policy,
+            identifier_policy,
+            field_header_policy,
+            supports_fragment_mode: matches!(
+                syntax,
+                TransformTemplateTargetSyntaxKind::Html
+                    | TransformTemplateTargetSyntaxKind::Xml
+                    | TransformTemplateTargetSyntaxKind::Cemt
+                    | TransformTemplateTargetSyntaxKind::Text
+                    | TransformTemplateTargetSyntaxKind::Markdown
+            ),
+            supports_document_mode: text_like,
+            writer_boundaries: TransformTemplateWriterBoundaryRules {
+                default_charset: transform_template_default_charset(syntax, options),
+                requires_valid_utf8: text_like,
+                allows_binary_output: syntax == TransformTemplateTargetSyntaxKind::Binary,
+                final_newline: match syntax {
+                    TransformTemplateTargetSyntaxKind::Csv => {
+                        TransformTemplateFinalNewlinePolicy::Optional
+                    }
+                    _ => TransformTemplateFinalNewlinePolicy::Preserve,
+                },
+            },
+            void_elements: if syntax == TransformTemplateTargetSyntaxKind::Html {
+                HTML_VOID_ELEMENTS
+                    .iter()
+                    .map(|name| (*name).to_owned())
+                    .collect()
+            } else {
+                Vec::new()
+            },
+            raw_text_elements: if syntax == TransformTemplateTargetSyntaxKind::Html {
+                HTML_RAW_TEXT_ELEMENTS
+                    .iter()
+                    .map(|name| (*name).to_owned())
+                    .collect()
+            } else {
+                Vec::new()
+            },
+            rcdata_elements: if syntax == TransformTemplateTargetSyntaxKind::Html {
+                HTML_RCDATA_ELEMENTS
+                    .iter()
+                    .map(|name| (*name).to_owned())
+                    .collect()
+            } else {
+                Vec::new()
+            },
+            script_data_elements: if syntax == TransformTemplateTargetSyntaxKind::Html {
+                HTML_SCRIPT_DATA_ELEMENTS
+                    .iter()
+                    .map(|name| (*name).to_owned())
+                    .collect()
+            } else {
+                Vec::new()
+            },
+        })
+    }
+
+    pub fn permits_mode(&self, mode: TransformTemplateEncodedArtifactMode) -> bool {
+        match mode {
+            TransformTemplateEncodedArtifactMode::Document => self.supports_document_mode,
+            TransformTemplateEncodedArtifactMode::Fragment => self.supports_fragment_mode,
+        }
+    }
+
+    pub fn is_void_element(&self, local_name: &str) -> bool {
+        self.syntax == TransformTemplateTargetSyntaxKind::Html
+            && self
+                .void_elements
+                .iter()
+                .any(|name| name.eq_ignore_ascii_case(local_name))
+    }
+
+    pub fn raw_text_mode_for_element(
+        &self,
+        local_name: &str,
+    ) -> Option<TransformTemplateRawTextMode> {
+        if self.syntax != TransformTemplateTargetSyntaxKind::Html {
+            return None;
+        }
+        if self
+            .script_data_elements
+            .iter()
+            .any(|name| name.eq_ignore_ascii_case(local_name))
+        {
+            return Some(TransformTemplateRawTextMode::ScriptData);
+        }
+        if self
+            .rcdata_elements
+            .iter()
+            .any(|name| name.eq_ignore_ascii_case(local_name))
+        {
+            return Some(TransformTemplateRawTextMode::Rcdata);
+        }
+        self.raw_text_elements
+            .iter()
+            .any(|name| name.eq_ignore_ascii_case(local_name))
+            .then_some(TransformTemplateRawTextMode::RawText)
+    }
+
+    pub fn is_valid_identifier(&self, value: &str) -> bool {
+        match self.identifier_policy {
+            TransformTemplateIdentifierPolicy::CemtName => is_cemt_name(value),
+            TransformTemplateIdentifierPolicy::HtmlName => is_html_name(value),
+            TransformTemplateIdentifierPolicy::XmlName => is_xml_name(value),
+            TransformTemplateIdentifierPolicy::JsonField => is_json_field_name(value),
+            TransformTemplateIdentifierPolicy::CsvHeader => is_csv_header_name(value),
+            TransformTemplateIdentifierPolicy::CssIdentifier => is_css_identifier(value),
+            TransformTemplateIdentifierPolicy::Opaque => false,
+        }
+    }
+}
+
+const HTML_VOID_ELEMENTS: &[&str] = &[
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source",
+    "track", "wbr",
+];
+const HTML_RAW_TEXT_ELEMENTS: &[&str] = &["style", "iframe", "noembed", "noframes", "xmp"];
+const HTML_RCDATA_ELEMENTS: &[&str] = &["title", "textarea"];
+const HTML_SCRIPT_DATA_ELEMENTS: &[&str] = &["script"];
+
+fn transform_template_target_syntax_kind(
+    target: &TransformTemplateEncodingTarget,
+) -> TransformTemplateTargetSyntaxKind {
+    let content_type = content_type_essence(&target.content_type);
+    let schema = target.schema.trim();
+    match (content_type.as_str(), schema) {
+        (HTML_CONTENT_TYPE, _) | (_, HTML_SCHEMA_URI) => TransformTemplateTargetSyntaxKind::Html,
+        (
+            XML_CONTENT_TYPE | XHTML_CONTENT_TYPE | SVG_CONTENT_TYPE | MATHML_CONTENT_TYPE
+            | XSLT_CONTENT_TYPE,
+            _,
+        )
+        | (
+            _,
+            XML_SCHEMA_URI | XHTML_SCHEMA_URI | SVG_SCHEMA_URI | MATHML_SCHEMA_URI
+            | XSLT_SCHEMA_URI,
+        ) => TransformTemplateTargetSyntaxKind::Xml,
+        (JSON_CONTENT_TYPE, _) | (_, JSON_VALUE_SCHEMA_URI) => {
+            TransformTemplateTargetSyntaxKind::Json
+        }
+        (CSV_CONTENT_TYPE, _) | (_, CSV_SCHEMA_URI) => TransformTemplateTargetSyntaxKind::Csv,
+        (CSS_CONTENT_TYPE, _) | (_, CSS_SCHEMA_URI) => TransformTemplateTargetSyntaxKind::Css,
+        (MARKDOWN_CONTENT_TYPE, _) | (_, MARKDOWN_SCHEMA_URI) => {
+            TransformTemplateTargetSyntaxKind::Markdown
+        }
+        (
+            CEM_ML_CONTENT_TYPE | CEM_NATIVE_TEMPLATE_CONTENT_TYPE | CEM_TRANSFORM_CONTENT_TYPE,
+            _,
+        )
+        | (_, CEM_ML_SCHEMA_URI | CEM_NATIVE_TEMPLATE_SCHEMA_URI | CEM_TRANSFORM_SCHEMA_URI) => {
+            TransformTemplateTargetSyntaxKind::Cemt
+        }
+        (content_type, _) if content_type.starts_with("text/") => {
+            TransformTemplateTargetSyntaxKind::Text
+        }
+        ("application/octet-stream", _) => TransformTemplateTargetSyntaxKind::Binary,
+        _ => TransformTemplateTargetSyntaxKind::Opaque,
+    }
+}
+
+fn transform_template_namespace_repair_policy(
+    syntax: TransformTemplateTargetSyntaxKind,
+    namespace_policy: Option<&str>,
+) -> Result<TransformTemplateNamespaceRepairPolicy, String> {
+    let supports_namespaces = matches!(
+        syntax,
+        TransformTemplateTargetSyntaxKind::Html
+            | TransformTemplateTargetSyntaxKind::Xml
+            | TransformTemplateTargetSyntaxKind::Cemt
+    );
+    let Some(policy) = namespace_policy
+        .map(str::trim)
+        .filter(|policy| !policy.is_empty())
+    else {
+        return Ok(if supports_namespaces {
+            TransformTemplateNamespaceRepairPolicy::Preserve
+        } else {
+            TransformTemplateNamespaceRepairPolicy::None
+        });
+    };
+
+    if !supports_namespaces {
+        return Err(format!(
+            "namespace policy `{policy}` is not supported for `{}` target syntax",
+            syntax.as_str()
+        ));
+    }
+
+    match policy {
+        "preserve" => Ok(TransformTemplateNamespaceRepairPolicy::Preserve),
+        "repair" => Ok(TransformTemplateNamespaceRepairPolicy::Repair),
+        "canonical" => Ok(TransformTemplateNamespaceRepairPolicy::Canonical),
+        "none" => Ok(TransformTemplateNamespaceRepairPolicy::None),
+        other => Err(format!("unsupported namespace policy `{other}`")),
+    }
+}
+
+fn transform_template_default_charset(
+    syntax: TransformTemplateTargetSyntaxKind,
+    options: &TransformTemplateEncodeOptions,
+) -> Option<String> {
+    options.charset.clone().or_else(|| {
+        matches!(
+            syntax,
+            TransformTemplateTargetSyntaxKind::Html
+                | TransformTemplateTargetSyntaxKind::Xml
+                | TransformTemplateTargetSyntaxKind::Json
+                | TransformTemplateTargetSyntaxKind::Csv
+                | TransformTemplateTargetSyntaxKind::Css
+                | TransformTemplateTargetSyntaxKind::Markdown
+                | TransformTemplateTargetSyntaxKind::Cemt
+                | TransformTemplateTargetSyntaxKind::Text
+        )
+        .then(|| "utf-8".to_owned())
+    })
+}
+
+fn is_cemt_name(value: &str) -> bool {
+    let mut chars = value.chars();
+    matches!(chars.next(), Some(ch) if ch.is_alphabetic() || ch == '_')
+        && chars.all(|ch| ch.is_alphanumeric() || matches!(ch, '_' | '-' | ':'))
+}
+
+fn is_html_name(value: &str) -> bool {
+    !value.is_empty()
+        && value
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | ':'))
+}
+
+fn is_xml_name(value: &str) -> bool {
+    let mut chars = value.chars();
+    matches!(chars.next(), Some(ch) if ch.is_alphabetic() || matches!(ch, '_' | ':'))
+        && chars.all(|ch| ch.is_alphanumeric() || matches!(ch, '_' | '-' | '.' | ':'))
+}
+
+fn is_json_field_name(value: &str) -> bool {
+    !value.is_empty() && !value.chars().any(char::is_control)
+}
+
+fn is_csv_header_name(value: &str) -> bool {
+    !value.is_empty() && !value.chars().any(|ch| matches!(ch, '\r' | '\n' | '\0'))
+}
+
+fn is_css_identifier(value: &str) -> bool {
+    let mut chars = value.chars();
+    matches!(chars.next(), Some(ch) if ch.is_ascii_alphabetic() || ch == '_' || ch == '-')
+        && chars.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -5551,6 +5988,168 @@ mod tests {
             transform_template_encode_subject_type_candidates(&json!({"a": 1})),
             vec!["object", "json"]
         );
+    }
+
+    #[test]
+    fn target_syntax_rules_describe_html_writer_boundaries() {
+        let target = TransformTemplateEncodingTarget::new(
+            "text/html; charset=utf-8",
+            HTML_SCHEMA_URI,
+            "html-text",
+        );
+        let options = TransformTemplateEncodeOptions {
+            mode: TransformTemplateEncodedArtifactMode::Fragment,
+            charset: Some("windows-1252".to_owned()),
+            namespace_policy: Some("repair".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        };
+
+        let rules = target
+            .syntax_rules(&options)
+            .expect("HTML syntax rules resolve");
+
+        assert_eq!(rules.syntax, TransformTemplateTargetSyntaxKind::Html);
+        assert_eq!(
+            rules.element_boundary_policy,
+            TransformTemplateElementBoundaryPolicy::HtmlVoidElements
+        );
+        assert_eq!(
+            rules.namespace_repair_policy,
+            TransformTemplateNamespaceRepairPolicy::Repair
+        );
+        assert_eq!(
+            rules.writer_boundaries.default_charset.as_deref(),
+            Some("windows-1252")
+        );
+        assert!(rules.writer_boundaries.requires_valid_utf8);
+        assert!(rules.permits_mode(TransformTemplateEncodedArtifactMode::Fragment));
+        assert!(rules.permits_mode(TransformTemplateEncodedArtifactMode::Document));
+        assert!(rules.is_void_element("BR"));
+        assert!(!rules.is_void_element("div"));
+        assert_eq!(
+            rules.raw_text_mode_for_element("style"),
+            Some(TransformTemplateRawTextMode::RawText)
+        );
+        assert_eq!(
+            rules.raw_text_mode_for_element("title"),
+            Some(TransformTemplateRawTextMode::Rcdata)
+        );
+        assert_eq!(
+            rules.raw_text_mode_for_element("script"),
+            Some(TransformTemplateRawTextMode::ScriptData)
+        );
+        assert!(rules.is_valid_identifier("custom-element"));
+        assert!(!rules.is_valid_identifier("bad name"));
+    }
+
+    #[test]
+    fn target_syntax_rules_describe_xml_namespaces_and_empty_elements() {
+        let target =
+            TransformTemplateEncodingTarget::new(XML_CONTENT_TYPE, XML_SCHEMA_URI, "xml-text");
+        let options = TransformTemplateEncodeOptions {
+            namespace_policy: Some("canonical".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        };
+
+        let rules = target
+            .syntax_rules(&options)
+            .expect("XML syntax rules resolve");
+
+        assert_eq!(rules.syntax, TransformTemplateTargetSyntaxKind::Xml);
+        assert_eq!(
+            rules.element_boundary_policy,
+            TransformTemplateElementBoundaryPolicy::XmlEmptyElements
+        );
+        assert_eq!(
+            rules.namespace_repair_policy,
+            TransformTemplateNamespaceRepairPolicy::Canonical
+        );
+        assert!(rules.permits_mode(TransformTemplateEncodedArtifactMode::Fragment));
+        assert!(rules.is_valid_identifier("svg:path"));
+        assert!(!rules.is_valid_identifier("1bad"));
+        assert_eq!(rules.raw_text_mode_for_element("script"), None);
+    }
+
+    #[test]
+    fn target_syntax_rules_gate_json_csv_and_unknown_targets() {
+        let json_target = TransformTemplateEncodingTarget::new(
+            "application/json",
+            JSON_VALUE_SCHEMA_URI,
+            "json-value",
+        );
+        let json_rules = json_target
+            .syntax_rules(&TransformTemplateEncodeOptions::default())
+            .expect("JSON syntax rules resolve");
+        assert_eq!(json_rules.syntax, TransformTemplateTargetSyntaxKind::Json);
+        assert_eq!(
+            json_rules.field_header_policy,
+            TransformTemplateFieldHeaderPolicy::JsonObjectFields
+        );
+        assert_eq!(
+            json_rules.namespace_repair_policy,
+            TransformTemplateNamespaceRepairPolicy::None
+        );
+        assert!(!json_rules.permits_mode(TransformTemplateEncodedArtifactMode::Fragment));
+        assert!(json_rules.permits_mode(TransformTemplateEncodedArtifactMode::Document));
+        assert!(json_rules.is_valid_identifier("field with spaces"));
+        assert!(!json_rules.is_valid_identifier("field\nbreak"));
+
+        let json_namespace_error = json_target
+            .syntax_rules(&TransformTemplateEncodeOptions {
+                namespace_policy: Some("repair".to_owned()),
+                ..TransformTemplateEncodeOptions::default()
+            })
+            .expect_err("JSON rejects namespace policy");
+        assert!(json_namespace_error.contains("not supported for `json` target syntax"));
+
+        let csv_rules = TransformTemplateEncodingTarget::new(
+            "text/csv; charset=utf-8",
+            CSV_SCHEMA_URI,
+            "csv-record",
+        )
+        .syntax_rules(&TransformTemplateEncodeOptions::default())
+        .expect("CSV syntax rules resolve");
+        assert_eq!(csv_rules.syntax, TransformTemplateTargetSyntaxKind::Csv);
+        assert_eq!(
+            csv_rules.field_header_policy,
+            TransformTemplateFieldHeaderPolicy::CsvHeaders
+        );
+        assert_eq!(
+            csv_rules.writer_boundaries.final_newline,
+            TransformTemplateFinalNewlinePolicy::Optional
+        );
+        assert!(csv_rules.is_valid_identifier("Column A"));
+        assert!(!csv_rules.is_valid_identifier("Column\nA"));
+
+        let binary_rules = TransformTemplateEncodingTarget::new(
+            "application/octet-stream",
+            "https://example.test/ns/blob/1",
+            "binary",
+        )
+        .syntax_rules(&TransformTemplateEncodeOptions::default())
+        .expect("binary syntax rules resolve");
+        assert_eq!(
+            binary_rules.syntax,
+            TransformTemplateTargetSyntaxKind::Binary
+        );
+        assert!(!binary_rules.writer_boundaries.requires_valid_utf8);
+        assert!(binary_rules.writer_boundaries.allows_binary_output);
+        assert!(binary_rules.writer_boundaries.default_charset.is_none());
+
+        let opaque_rules = TransformTemplateEncodingTarget::new(
+            "application/x-custom",
+            "https://example.test/ns/opaque/1",
+            "opaque",
+        )
+        .syntax_rules(&TransformTemplateEncodeOptions::default())
+        .expect("opaque syntax rules resolve");
+        assert_eq!(
+            opaque_rules.syntax,
+            TransformTemplateTargetSyntaxKind::Opaque
+        );
+        assert!(!opaque_rules.permits_mode(TransformTemplateEncodedArtifactMode::Document));
+        assert!(!opaque_rules.is_valid_identifier("field"));
+        assert!(opaque_rules.writer_boundaries.default_charset.is_none());
     }
 
     #[test]

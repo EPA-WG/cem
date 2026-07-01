@@ -185,6 +185,11 @@ history belongs in git history and the feature-specific docs linked below.
         policy, raw-text/RCDATA modes, namespace repair, identifier validity,
         field/header policy, fragment/document handling, and charset/final byte
         writer boundaries.
+    - [x] Add initial `TransformTemplateTargetSyntaxRules` helpers for CEMT
+          encode targets, covering HTML void/raw-text/RCDATA elements, XML
+          empty elements and namespace repair policies, JSON field names, CSV
+          headers, fragment/document mode gates, charset defaults, and final
+          newline/binary writer boundaries.
   - [ ] Define CEMT color output support for terminal ANSI/SGR output and HTML
         color output. Style roles include diagnostics, source gutters and
         highlights, syntax tokens, diff hunks, and status states. Terminal
