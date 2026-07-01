@@ -18,7 +18,7 @@ use crate::parser::{AstNodeId, CemAstNode};
 use crate::run_config::ScopeConfig;
 use crate::schema::registry::{
     CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI,
-    XSLT_SCHEMA_URI,
+    JSON_CONTENT_TYPE, JSON_VALUE_SCHEMA_URI, XSLT_SCHEMA_URI,
 };
 use crate::source::{ByteRange, BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
@@ -908,6 +908,9 @@ impl TransformTemplateEncodeImplementationRegistry {
         let mut registry = Self::new();
         registry.register("html.text", builtin_html_text_encoder);
         registry.register("html.attribute", builtin_html_attribute_encoder);
+        registry.register("json.string", builtin_json_string_encoder);
+        registry.register("json.value", builtin_json_value_encoder);
+        registry.register("json.document", builtin_json_document_encoder);
         registry
     }
 
@@ -993,6 +996,71 @@ fn validate_builtin_html_encoder_binding(
     Ok(())
 }
 
+fn builtin_json_string_encoder(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_json_encoder_binding(binding, "json.string", "json-string")?;
+    let text = subject
+        .as_str()
+        .ok_or_else(|| "json.string expected string subject".to_owned())?;
+    Ok(Value::String(transform_template_encode_json_value(
+        &Value::String(text.to_owned()),
+    )?))
+}
+
+fn builtin_json_value_encoder(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_json_encoder_binding(binding, "json.value", "json-value")?;
+    Ok(Value::String(transform_template_encode_json_value(
+        subject,
+    )?))
+}
+
+fn builtin_json_document_encoder(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_json_encoder_binding(binding, "json.document", "json-document")?;
+    Ok(Value::String(transform_template_encode_json_value(
+        subject,
+    )?))
+}
+
+fn validate_builtin_json_encoder_binding(
+    binding: &TransformTemplateEncodeBinding,
+    expected_name: &str,
+    expected_category: &str,
+) -> Result<(), String> {
+    if binding.function.name != expected_name {
+        return Err(format!(
+            "JSON encoder implementation `{expected_name}` cannot execute `{}`",
+            binding.function.name
+        ));
+    }
+    if content_type_essence(&binding.identity.target.content_type) != JSON_CONTENT_TYPE {
+        return Err(format!(
+            "JSON encoder `{expected_name}` expected content type `{JSON_CONTENT_TYPE}`, got `{}`",
+            binding.identity.target.content_type
+        ));
+    }
+    if binding.identity.target.schema != JSON_VALUE_SCHEMA_URI {
+        return Err(format!(
+            "JSON encoder `{expected_name}` expected schema `{JSON_VALUE_SCHEMA_URI}`, got `{}`",
+            binding.identity.target.schema
+        ));
+    }
+    if binding.identity.target.category != expected_category {
+        return Err(format!(
+            "JSON encoder `{expected_name}` expected category `{expected_category}`, got `{}`",
+            binding.identity.target.category
+        ));
+    }
+    Ok(())
+}
+
 pub fn transform_template_encode_html_text(value: &str) -> String {
     let mut output = String::new();
     for ch in value.chars() {
@@ -1017,6 +1085,10 @@ pub fn transform_template_encode_html_attribute(value: &str) -> String {
         }
     }
     output
+}
+
+pub fn transform_template_encode_json_value(value: &Value) -> Result<String, String> {
+    serde_json::to_string(value).map_err(|error| error.to_string())
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -3668,6 +3740,35 @@ mod tests {
         }
     }
 
+    fn json_output_function_descriptor(
+        name: &str,
+        category: &str,
+        subject: &str,
+    ) -> TransformTemplateOutputFunctionDescriptor {
+        TransformTemplateOutputFunctionDescriptor {
+            kind: TransformTemplateOutputFunctionKind::Encoding,
+            owner: Some("json".to_owned()),
+            name: name.to_owned(),
+            category: category.to_owned(),
+            subject: subject.to_owned(),
+            produces: TransformTemplateOutputProducedKind::Text,
+            content_type: JSON_CONTENT_TYPE.to_owned(),
+            schema: JSON_VALUE_SCHEMA_URI.to_owned(),
+            canonical: true,
+            streamable: true,
+            visibility: TransformTemplateModuleVisibility::Private,
+            implementation: TransformTemplateOutputFunctionImplementation::Cemt,
+            profile: None,
+            extends: None,
+            capability: None,
+            deterministic: true,
+            trusted: false,
+            fallback: None,
+            params: Vec::new(),
+            body_declared: false,
+        }
+    }
+
     fn evaluated_html_text(owner: &str, value: &str) -> TransformTemplateEvaluatedEncodeExpression {
         let mut artifact = encoded_html_text_artifact();
         artifact.value = Value::String(value.to_owned());
@@ -4249,6 +4350,77 @@ mod tests {
             .encode(&wrong_category, &Value::String("unsafe".to_owned()))
             .expect_err("builtin refuses mismatched category");
         assert!(error.contains("expected category `html-text`"));
+    }
+
+    #[test]
+    fn builtin_json_encode_implementations_emit_json_text_and_reject_wrong_identity() {
+        let registry = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+        let string_binding = TransformTemplateEncodeBinding {
+            function: json_output_function_descriptor("json.string", "json-string", "string"),
+            subject_type: "string".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::new(
+                TransformTemplateOutputProducedKind::Text,
+                TransformTemplateEncodingTarget::new(
+                    JSON_CONTENT_TYPE,
+                    JSON_VALUE_SCHEMA_URI,
+                    "json-string",
+                ),
+            ),
+        };
+        let encoded_string = registry
+            .encode(&string_binding, &Value::String("Hello\n\"CEM\"".to_owned()))
+            .expect("json string encoder runs");
+        assert_eq!(
+            encoded_string,
+            Value::String(r#""Hello\n\"CEM\"""#.to_owned())
+        );
+
+        let value_binding = TransformTemplateEncodeBinding {
+            function: json_output_function_descriptor("json.value", "json-value", "json"),
+            subject_type: "object".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::new(
+                TransformTemplateOutputProducedKind::Text,
+                TransformTemplateEncodingTarget::new(
+                    JSON_CONTENT_TYPE,
+                    JSON_VALUE_SCHEMA_URI,
+                    "json-value",
+                ),
+            ),
+        };
+        let encoded_value = registry
+            .encode(&value_binding, &json!({"count": 2, "ok": true}))
+            .expect("json value encoder runs");
+        assert_eq!(
+            encoded_value,
+            Value::String(r#"{"count":2,"ok":true}"#.to_owned())
+        );
+
+        let document_binding = TransformTemplateEncodeBinding {
+            function: json_output_function_descriptor("json.document", "json-document", "json"),
+            subject_type: "array".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::new(
+                TransformTemplateOutputProducedKind::Text,
+                TransformTemplateEncodingTarget::new(
+                    JSON_CONTENT_TYPE,
+                    JSON_VALUE_SCHEMA_URI,
+                    "json-document",
+                ),
+            ),
+        };
+        let encoded_document = registry
+            .encode(&document_binding, &json!(["a", 1, null]))
+            .expect("json document encoder runs");
+        assert_eq!(
+            encoded_document,
+            Value::String(r#"["a",1,null]"#.to_owned())
+        );
+
+        let mut wrong_content_type = string_binding.clone();
+        wrong_content_type.identity.target.content_type = "text/plain".to_owned();
+        let error = registry
+            .encode(&wrong_content_type, &Value::String("unsafe".to_owned()))
+            .expect_err("builtin refuses mismatched content type");
+        assert!(error.contains("expected content type `application/json`"));
     }
 
     #[test]
