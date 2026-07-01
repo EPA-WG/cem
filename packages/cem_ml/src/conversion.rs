@@ -104,6 +104,7 @@ pub enum ConversionOutputSyntax {
     Html,
     Xml,
     Json,
+    Yaml,
     Csv,
     Css,
     Markdown,
@@ -1159,7 +1160,7 @@ fn conversion_encoding_category_syntax(
     } else if category.starts_with("json-") || category.starts_with("ai-") {
         Some(TransformTemplateTargetSyntaxKind::Json)
     } else if category.starts_with("yaml-") {
-        Some(TransformTemplateTargetSyntaxKind::Opaque)
+        Some(TransformTemplateTargetSyntaxKind::Yaml)
     } else if category.starts_with("csv-") {
         Some(TransformTemplateTargetSyntaxKind::Csv)
     } else if category.starts_with("markdown-") {
@@ -1187,6 +1188,7 @@ fn conversion_template_syntax_kind(
         ConversionOutputSyntax::Html => TransformTemplateTargetSyntaxKind::Html,
         ConversionOutputSyntax::Xml => TransformTemplateTargetSyntaxKind::Xml,
         ConversionOutputSyntax::Json => TransformTemplateTargetSyntaxKind::Json,
+        ConversionOutputSyntax::Yaml => TransformTemplateTargetSyntaxKind::Yaml,
         ConversionOutputSyntax::Csv => TransformTemplateTargetSyntaxKind::Csv,
         ConversionOutputSyntax::Css => TransformTemplateTargetSyntaxKind::Css,
         ConversionOutputSyntax::Markdown => TransformTemplateTargetSyntaxKind::Markdown,
@@ -1211,6 +1213,7 @@ fn conversion_output_syntax_selector(output_syntax: ConversionOutputSyntax) -> &
         ConversionOutputSyntax::Html => "html",
         ConversionOutputSyntax::Xml => "xml",
         ConversionOutputSyntax::Json => "json",
+        ConversionOutputSyntax::Yaml => "yaml",
         ConversionOutputSyntax::Csv => "csv",
         ConversionOutputSyntax::Css => "css",
         ConversionOutputSyntax::Markdown => "markdown",
@@ -1748,6 +1751,7 @@ fn parse_manifest_output_syntax(
         "html" => Ok(ConversionOutputSyntax::Html),
         "xml" => Ok(ConversionOutputSyntax::Xml),
         "json" => Ok(ConversionOutputSyntax::Json),
+        "yaml" => Ok(ConversionOutputSyntax::Yaml),
         "csv" => Ok(ConversionOutputSyntax::Csv),
         "css" => Ok(ConversionOutputSyntax::Css),
         "markdown" => Ok(ConversionOutputSyntax::Markdown),
@@ -2523,8 +2527,8 @@ mod tests {
                 content_type: YAML_CONTENT_TYPE,
                 schema: YAML_SCHEMA_URI,
                 category: "yaml-document",
-                output_syntax: ConversionOutputSyntax::Opaque,
-                expected_syntax: TransformTemplateTargetSyntaxKind::Opaque,
+                output_syntax: ConversionOutputSyntax::Yaml,
+                expected_syntax: TransformTemplateTargetSyntaxKind::Yaml,
                 expected_produces: TransformTemplateOutputProducedKind::Text,
             },
             FamilyCase {

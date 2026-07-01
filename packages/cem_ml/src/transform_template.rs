@@ -26,7 +26,7 @@ use crate::schema::registry::{
     JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE,
     MATHML_SCHEMA_URI, RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI, SVG_CONTENT_TYPE,
     SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
-    XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI,
+    XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::source::{ByteRange, BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
@@ -537,6 +537,26 @@ const TRANSFORM_TEMPLATE_STANDARD_OUTPUT_FUNCTIONS:
         produces: TransformTemplateOutputProducedKind::Text,
         content_type: JSON_CONTENT_TYPE,
         schema: JSON_VALUE_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "yaml.scalar",
+        category: "yaml-scalar",
+        subject: Some("string"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: YAML_CONTENT_TYPE,
+        schema: YAML_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Encoding,
+        name: "yaml.value",
+        category: "yaml-value",
+        subject: None,
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: YAML_CONTENT_TYPE,
+        schema: YAML_SCHEMA_URI,
         profile: None,
     },
     TransformTemplateStandardOutputFunctionContract {
@@ -1766,6 +1786,7 @@ pub enum TransformTemplateTargetSyntaxKind {
     Html,
     Xml,
     Json,
+    Yaml,
     Csv,
     Css,
     Markdown,
@@ -1782,6 +1803,7 @@ impl TransformTemplateTargetSyntaxKind {
             Self::Html => "html",
             Self::Xml => "xml",
             Self::Json => "json",
+            Self::Yaml => "yaml",
             Self::Csv => "csv",
             Self::Css => "css",
             Self::Markdown => "markdown",
@@ -1942,6 +1964,7 @@ impl TransformTemplateTargetSyntaxRules {
                     | TransformTemplateTargetSyntaxKind::Cemt
                     | TransformTemplateTargetSyntaxKind::Text
                     | TransformTemplateTargetSyntaxKind::Markdown
+                    | TransformTemplateTargetSyntaxKind::Yaml
             ),
             supports_document_mode: syntax != TransformTemplateTargetSyntaxKind::Opaque,
             writer_boundaries: TransformTemplateWriterBoundaryRules {
@@ -2076,6 +2099,8 @@ fn transform_template_target_syntax_kind(
         (content_type, _) if content_type.ends_with("+json") => {
             TransformTemplateTargetSyntaxKind::Json
         }
+        (YAML_CONTENT_TYPE | "text/yaml" | "application/x-yaml" | "text/x-yaml", _)
+        | (_, YAML_SCHEMA_URI) => TransformTemplateTargetSyntaxKind::Yaml,
         (CSV_CONTENT_TYPE, _) | (_, CSV_SCHEMA_URI) => TransformTemplateTargetSyntaxKind::Csv,
         (CSS_CONTENT_TYPE, _) | (_, CSS_SCHEMA_URI) => TransformTemplateTargetSyntaxKind::Css,
         (MARKDOWN_CONTENT_TYPE, _) | (_, MARKDOWN_SCHEMA_URI) => {
@@ -2170,6 +2195,7 @@ fn transform_template_target_syntax_is_text_like(
         TransformTemplateTargetSyntaxKind::Html
             | TransformTemplateTargetSyntaxKind::Xml
             | TransformTemplateTargetSyntaxKind::Json
+            | TransformTemplateTargetSyntaxKind::Yaml
             | TransformTemplateTargetSyntaxKind::Csv
             | TransformTemplateTargetSyntaxKind::Css
             | TransformTemplateTargetSyntaxKind::Markdown
@@ -2813,6 +2839,8 @@ impl TransformTemplateEncodeImplementationRegistry {
         registry.register("json.string", builtin_json_string_encoder);
         registry.register("json.value", builtin_json_value_encoder);
         registry.register("json.document", builtin_json_document_encoder);
+        registry.register("yaml.scalar", builtin_yaml_scalar_encoder);
+        registry.register("yaml.value", builtin_yaml_value_encoder);
         registry.register("xml.text", builtin_xml_text_encoder);
         registry.register("xml.attribute", builtin_xml_attribute_encoder);
         registry.register("markdown.text", builtin_markdown_text_encoder);
@@ -2975,6 +3003,64 @@ fn validate_builtin_json_encoder_binding(
         ));
     }
     Ok(())
+}
+
+fn builtin_yaml_scalar_encoder(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_yaml_encoder_binding(binding, "yaml.scalar", "yaml-scalar")?;
+    let text = subject
+        .as_str()
+        .ok_or_else(|| "yaml.scalar expected string subject".to_owned())?;
+    Ok(Value::String(transform_template_encode_yaml_scalar(text)))
+}
+
+fn builtin_yaml_value_encoder(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_yaml_encoder_binding(binding, "yaml.value", "yaml-value")?;
+    transform_template_encode_yaml_value(subject).map(Value::String)
+}
+
+fn validate_builtin_yaml_encoder_binding(
+    binding: &TransformTemplateEncodeBinding,
+    expected_name: &str,
+    expected_category: &str,
+) -> Result<(), String> {
+    if binding.function.name != expected_name {
+        return Err(format!(
+            "YAML encoder implementation `{expected_name}` cannot execute `{}`",
+            binding.function.name
+        ));
+    }
+    if !yaml_content_type_is_supported(&binding.identity.target.content_type) {
+        return Err(format!(
+            "YAML encoder `{expected_name}` expected YAML content type, got `{}`",
+            binding.identity.target.content_type
+        ));
+    }
+    if binding.identity.target.schema != YAML_SCHEMA_URI {
+        return Err(format!(
+            "YAML encoder `{expected_name}` expected schema `{YAML_SCHEMA_URI}`, got `{}`",
+            binding.identity.target.schema
+        ));
+    }
+    if binding.identity.target.category != expected_category {
+        return Err(format!(
+            "YAML encoder `{expected_name}` expected category `{expected_category}`, got `{}`",
+            binding.identity.target.category
+        ));
+    }
+    Ok(())
+}
+
+fn yaml_content_type_is_supported(content_type: &str) -> bool {
+    matches!(
+        content_type_essence(content_type).as_str(),
+        YAML_CONTENT_TYPE | "text/yaml" | "application/x-yaml" | "text/x-yaml"
+    )
 }
 
 fn builtin_xml_text_encoder(
@@ -3363,6 +3449,48 @@ pub fn transform_template_encode_css_identifier(value: &str) -> String {
 fn push_css_hex_escape(output: &mut String, ch: char) {
     output.push('\\');
     output.push_str(&format!("{:X} ", ch as u32));
+}
+
+pub fn transform_template_encode_yaml_scalar(value: &str) -> String {
+    let mut output = String::with_capacity(value.len() + 2);
+    output.push('"');
+    for ch in value.chars() {
+        match ch {
+            '\\' => output.push_str("\\\\"),
+            '"' => output.push_str("\\\""),
+            '\0' => output.push_str("\\0"),
+            '\x08' => output.push_str("\\b"),
+            '\t' => output.push_str("\\t"),
+            '\n' => output.push_str("\\n"),
+            '\x0c' => output.push_str("\\f"),
+            '\r' => output.push_str("\\r"),
+            ch if ch.is_control() => push_yaml_hex_escape(&mut output, ch),
+            _ => output.push(ch),
+        }
+    }
+    output.push('"');
+    output
+}
+
+pub fn transform_template_encode_yaml_value(value: &Value) -> Result<String, String> {
+    match value {
+        Value::String(value) => Ok(transform_template_encode_yaml_scalar(value)),
+        Value::Null => Ok("null".to_owned()),
+        Value::Bool(value) => Ok(value.to_string()),
+        Value::Number(value) => Ok(value.to_string()),
+        Value::Array(_) | Value::Object(_) => transform_template_encode_json_value(value),
+    }
+}
+
+fn push_yaml_hex_escape(output: &mut String, ch: char) {
+    let code = ch as u32;
+    if code <= 0xff {
+        output.push_str(&format!("\\x{code:02X}"));
+    } else if code <= 0xffff {
+        output.push_str(&format!("\\u{code:04X}"));
+    } else {
+        output.push_str(&format!("\\U{code:08X}"));
+    }
 }
 
 pub fn transform_template_encode_json_value(value: &Value) -> Result<String, String> {
@@ -7309,6 +7437,36 @@ mod tests {
         }
     }
 
+    fn yaml_output_function_descriptor(
+        name: &str,
+        category: &str,
+        subject: &str,
+    ) -> TransformTemplateOutputFunctionDescriptor {
+        TransformTemplateOutputFunctionDescriptor {
+            kind: TransformTemplateOutputFunctionKind::Encoding,
+            owner: Some("yaml".to_owned()),
+            name: name.to_owned(),
+            category: category.to_owned(),
+            subject: subject.to_owned(),
+            produces: TransformTemplateOutputProducedKind::Text,
+            content_type: YAML_CONTENT_TYPE.to_owned(),
+            schema: YAML_SCHEMA_URI.to_owned(),
+            canonical: true,
+            streamable: true,
+            visibility: TransformTemplateModuleVisibility::Private,
+            implementation: TransformTemplateOutputFunctionImplementation::Cemt,
+            profile: None,
+            extends: None,
+            capability: None,
+            deterministic: true,
+            trusted: false,
+            lossy: false,
+            fallback: None,
+            params: Vec::new(),
+            body_declared: false,
+        }
+    }
+
     fn xml_output_function_descriptor(
         name: &str,
         category: &str,
@@ -8843,6 +9001,62 @@ mod tests {
     }
 
     #[test]
+    fn builtin_yaml_encode_implementations_emit_scalars_and_values() {
+        let registry = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+        let scalar_binding = TransformTemplateEncodeBinding {
+            function: yaml_output_function_descriptor("yaml.scalar", "yaml-scalar", "string"),
+            subject_type: "string".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::new(
+                TransformTemplateOutputProducedKind::Text,
+                TransformTemplateEncodingTarget::new(
+                    "text/yaml; charset=utf-8",
+                    YAML_SCHEMA_URI,
+                    "yaml-scalar",
+                ),
+            ),
+            options: TransformTemplateEncodeOptions::default(),
+        };
+        let encoded_scalar = registry
+            .encode(
+                &scalar_binding,
+                &Value::String("Line 1\n\"CEM\" \\ token".to_owned()),
+            )
+            .expect("yaml scalar encoder runs");
+        assert_eq!(
+            encoded_scalar,
+            Value::String(r#""Line 1\n\"CEM\" \\ token""#.to_owned())
+        );
+
+        let value_binding = TransformTemplateEncodeBinding {
+            function: yaml_output_function_descriptor("yaml.value", "yaml-value", "json"),
+            subject_type: "object".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::new(
+                TransformTemplateOutputProducedKind::Text,
+                TransformTemplateEncodingTarget::new(
+                    YAML_CONTENT_TYPE,
+                    YAML_SCHEMA_URI,
+                    "yaml-value",
+                ),
+            ),
+            options: TransformTemplateEncodeOptions::default(),
+        };
+        let encoded_value = registry
+            .encode(&value_binding, &json!({"title": "CEM", "ok": true}))
+            .expect("yaml value encoder runs");
+        assert_eq!(
+            encoded_value,
+            Value::String(r#"{"ok":true,"title":"CEM"}"#.to_owned())
+        );
+
+        let mut wrong_category = scalar_binding.clone();
+        wrong_category.identity.target.category = "yaml-value".to_owned();
+        let error = registry
+            .encode(&wrong_category, &Value::String("unsafe".to_owned()))
+            .expect_err("builtin refuses mismatched category");
+        assert!(error.contains("expected category `yaml-scalar`"));
+    }
+
+    #[test]
     fn builtin_xml_encode_implementations_escape_contexts_and_reject_wrong_identity() {
         let registry = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
         let text_binding = TransformTemplateEncodeBinding {
@@ -10076,6 +10290,20 @@ mod tests {
             })
             .expect_err("JSON rejects namespace policy");
         assert!(json_namespace_error.contains("not supported for `json` target syntax"));
+
+        let yaml_rules = TransformTemplateEncodingTarget::new(
+            "text/yaml; charset=utf-8",
+            YAML_SCHEMA_URI,
+            "yaml-value",
+        )
+        .syntax_rules(&TransformTemplateEncodeOptions::default())
+        .expect("YAML syntax rules resolve");
+        assert_eq!(yaml_rules.syntax, TransformTemplateTargetSyntaxKind::Yaml);
+        assert_eq!(
+            yaml_rules.writer_boundaries.default_charset.as_deref(),
+            Some("utf-8")
+        );
+        assert!(yaml_rules.permits_mode(TransformTemplateEncodedArtifactMode::Fragment));
 
         let csv_rules = TransformTemplateEncodingTarget::new(
             "text/csv; charset=utf-8",

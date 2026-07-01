@@ -180,6 +180,9 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Register initial built-in CSS string and identifier encoders for
           CEMT render-time execution, including CSS output identity and
           content-type/category mismatch coverage.
+    - [x] Register initial built-in YAML scalar and value encoders for CEMT
+          render-time execution, including YAML content-type aliases and
+          schema/category mismatch coverage.
   - [ ] Add shared formatter functions for indentation, line endings, ordering,
         wrapping, YAML scalar style, namespace declaration placement, and
         canonical output profiles.
