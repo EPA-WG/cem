@@ -1619,12 +1619,15 @@ fn conversion_descriptor_from_manifest_node(
     let (rust_symbol, rust_fallback) = match implementation {
         ConversionImplementation::Cemt => (
             None,
-            rust_symbol.map(|rust_symbol| ConversionRustFallbackDescriptor {
-                rust_symbol,
-                reason: optional_manifest_attr(&attrs, "fallback-reason")
-                    .unwrap_or_default()
-                    .to_owned(),
-            }),
+            rust_symbol
+                .map(|rust_symbol| {
+                    let reason = required_manifest_attr(&attrs, Some(&id), "fallback-reason")?;
+                    Ok(ConversionRustFallbackDescriptor {
+                        rust_symbol,
+                        reason: reason.to_owned(),
+                    })
+                })
+                .transpose()?,
         ),
         ConversionImplementation::Rust => (
             Some(
@@ -2049,6 +2052,17 @@ mod tests {
         }
     }
 
+    fn package_source(manifest_source: &'static str) -> BuiltinSchemaPackage {
+        BuiltinSchemaPackage {
+            descriptor: descriptor(
+                CEM_DOM_PROJECTION_SCHEMA_URI,
+                SchemaContentType::primary(CEM_DOM_PROJECTION_CONTENT_TYPE),
+            ),
+            manifest_source,
+            schema_source: "",
+        }
+    }
+
     #[test]
     fn builtin_registry_selects_direct_edge_from_content_type_identity() {
         let schemas = SchemaRegistry::with_builtin_schemas();
@@ -2257,6 +2271,82 @@ mod tests {
         assert_eq!(debug.to.content_type, CEM_DOM_JSON_PROJECTION_CONTENT_TYPE);
         assert_eq!(debug.lossiness.as_deref(), Some("debug-view"));
         assert_eq!(debug.cost, 150);
+    }
+
+    #[test]
+    fn package_manifest_requires_cemt_fallback_reason() {
+        let package = package_source(
+            r#"@doc cem-ml 1
+{package @id="test-dom-projection" @version="1.0.0" |
+    {schema @uri="https://cem.dev/ns/projection/dom/1" @source="schema/cem-dom-projection.cem"}
+    {content-type @value="application/vnd.cem.dom+cem-bin" @primary=true}
+    {converter
+        @id="dom-to-html-cemt"
+        @implementation="cemt"
+        @template="converters/dom-to-html.cemt"
+        @template-content-type="application/vnd.cem.transform+cem"
+        @template-schema="https://cem.dev/ns/transform/cem/1"
+        @template-entrypoint="main"
+        @rust-symbol="HtmlExportConverter"
+        @output-syntax="html"
+        @encoding-category="html-document"
+        @parity="parse-equivalent" |
+        {from @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
+        {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+    }
+}"#,
+        );
+
+        let error = conversion_descriptors_from_schema_package(&package)
+            .expect_err("CEMT fallback reason is required when rust-symbol is declared");
+
+        assert_eq!(
+            error,
+            ConversionManifestError::MissingAttribute {
+                converter_id: Some("dom-to-html-cemt".to_owned()),
+                attribute: "fallback-reason",
+            }
+        );
+    }
+
+    #[test]
+    fn package_manifest_accepts_yaml_output_syntax() {
+        let package = package_source(
+            r#"@doc cem-ml 1
+{package @id="test-dom-projection" @version="1.0.0" |
+    {schema @uri="https://cem.dev/ns/projection/dom/1" @source="schema/cem-dom-projection.cem"}
+    {content-type @value="application/vnd.cem.dom+cem-bin" @primary=true}
+    {converter
+        @id="dom-to-yaml-cemt"
+        @implementation="cemt"
+        @template="converters/dom-to-yaml.cemt"
+        @template-content-type="application/vnd.cem.transform+cem"
+        @template-schema="https://cem.dev/ns/transform/cem/1"
+        @template-entrypoint="main"
+        @output-syntax="yaml"
+        @encoding-category="yaml-document"
+        @parity="parse-equivalent" |
+        {from @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
+        {to @content-type="application/yaml" @schema="https://cem.dev/ns/data/yaml/1"}
+    }
+}"#,
+        );
+
+        let descriptors =
+            conversion_descriptors_from_schema_package(&package).expect("yaml output syntax loads");
+        let descriptor = descriptors
+            .iter()
+            .find(|descriptor| descriptor.id == "dom-to-yaml-cemt")
+            .expect("yaml converter descriptor");
+
+        assert_eq!(
+            descriptor.output_contract.output_syntax,
+            Some(ConversionOutputSyntax::Yaml)
+        );
+        assert_eq!(
+            descriptor.output_contract.encoding_category.as_deref(),
+            Some("yaml-document")
+        );
     }
 
     #[test]

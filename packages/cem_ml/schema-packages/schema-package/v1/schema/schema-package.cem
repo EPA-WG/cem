@@ -43,7 +43,7 @@
         {attribute @name="rust-symbol" @type="schema:identifier"}
         {attribute @name="streamable" @type="schema:boolean"}
         {attribute @name="lossiness" @type="schema:identifier"}
-        {attribute @name="output-syntax" @type="schema:identifier" @values="html xml json csv css markdown cemt text binary opaque"}
+        {attribute @name="output-syntax" @type="schema:identifier" @values="html xml json yaml csv css markdown cemt text binary opaque"}
         {attribute @name="encoding-category" @type="schema:identifier"}
         {attribute @name="formatter-profile" @type="schema:identifier"}
         {attribute @name="color-profile" @type="schema:identifier"}
@@ -70,6 +70,7 @@
         {constraint @kind="converter-output-contract" @target="converter" @policy="output-syntax and parity, when present, must use declared values; encoding-category, formatter-profile, and color-profile describe the produced artifact identity"}
         {constraint @kind="converter-endpoint-schema-content-type-match" @target="from to" @policy="when endpoint schema is known, content-type must be registered by that schema"}
         {constraint @kind="planned-cemt-rust-fallback" @target="converter" @policy="planned CEMT converters may declare rust-symbol as fallback hook"}
+        {constraint @kind="cemt-native-fallback-reason" @target="converter" @policy="CEMT converters that declare rust-symbol fallback hooks must also declare fallback-reason"}
         {constraint @kind="schema-source-metadata-consistency" @target="package schema content-type namespace" @policy="when package source is local, package schema URI, content type claims, and namespace URI claims must match the referenced schema source"}
     }
 
@@ -87,6 +88,7 @@
         {diagnostic @code="cem.schema_package.converter_template_content_type_mismatch" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_template_schema_mismatch" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_rust_symbol_missing" @severity="error"}
+        {diagnostic @code="cem.schema_package.converter_fallback_reason_missing" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_readiness_unknown" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_output_syntax_unknown" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_parity_unknown" @severity="error"}

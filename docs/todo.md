@@ -285,6 +285,9 @@ history belongs in git history and the feature-specific docs linked below.
           manifests and runtime descriptors: `output-syntax`,
           `encoding-category`, `formatter-profile`, `color-profile`, and
           `parity`, with validation and DOM projection CEMT metadata examples.
+    - [x] Require CEMT converters that declare native fallback symbols to also
+          declare `fallback-reason`, and align schema-package `output-syntax`
+          validation with runtime YAML support.
   - [ ] Pair every native output producer with a CEMT implementation. Native
         producers are allowed for performance and clarity, but must be
         cross-checked against the schema-owned CEMT producer with shared

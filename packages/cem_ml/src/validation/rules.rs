@@ -1254,6 +1254,22 @@ fn validate_cemt_converter_contract(
             ));
         }
     }
+
+    if has_manifest_attr(doc, node, "rust-symbol")
+        && attr_value(doc, node, "fallback-reason")
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .is_none()
+    {
+        out.push(diag_at(
+            "cem.schema_package.converter_fallback_reason_missing",
+            Severity::Error,
+            format!(
+                "CEMT converter `{converter_id}` with a native fallback must declare `fallback-reason`"
+            ),
+            node,
+        ));
+    }
 }
 
 fn validate_rust_converter_contract(
@@ -1409,6 +1425,7 @@ fn validate_schema_package_output_syntax(
         "html"
             | "xml"
             | "json"
+            | "yaml"
             | "csv"
             | "css"
             | "markdown"
@@ -2209,6 +2226,7 @@ mod tests {
                     @implementation="cemt"
                     @template-content-type="text/cem-ml"
                     @template-schema="https://cem.dev/ns/schema/1"
+                    @rust-symbol="DemoHtmlFallback"
                     @streamable=maybe
                     @output-syntax="pdf"
                     @parity="mostly-equal"
@@ -2228,6 +2246,7 @@ mod tests {
             "cem.schema_package.converter_template_missing",
             "cem.schema_package.converter_template_content_type_mismatch",
             "cem.schema_package.converter_template_schema_mismatch",
+            "cem.schema_package.converter_fallback_reason_missing",
             "cem.schema_package.converter_endpoint_duplicate",
             "cem.schema_package.converter_endpoint_missing",
             "cem.schema_package.converter_boolean_invalid",
