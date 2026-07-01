@@ -178,6 +178,9 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add the first default writer adapter: CEMT token streams with text
           payloads can compose into text output while preserving artifact
           identity, source maps, and output spans.
+    - [x] Add token-level `outputSpan` support for CEMT token streams, with
+          generated output ranges during token-to-text composition and
+          source-map policy suppression for `none`.
   - [ ] Add schema helper APIs for target syntax rules, void/empty element
         policy, raw-text/RCDATA modes, namespace repair, identifier validity,
         field/header policy, fragment/document handling, and charset/final byte

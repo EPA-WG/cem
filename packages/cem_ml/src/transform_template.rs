@@ -1545,22 +1545,44 @@ fn transform_template_writer_token_artifact_to_text(
         serde_json::from_value(artifact.value.clone())
             .map_err(|error| format!("token stream envelope is invalid: {error}"))?;
     let mut text = String::new();
+    let mut token_output_spans = Vec::new();
+    let mut has_token_output_spans = false;
     for (index, token) in token_stream.tokens.iter().enumerate() {
         let Some(token_text) = token.text.as_deref() else {
             return Err(format!(
                 "`tokens[{index}]` has no text for the default token-to-text writer adapter"
             ));
         };
+        if let Some(output_span) = &token.output_span {
+            has_token_output_spans = true;
+            let mut generated_span = output_span.clone();
+            generated_span.output_range =
+                ByteRange::new(text.len() as u64, token_text.len() as u32);
+            token_output_spans.push(generated_span);
+        }
         text.push_str(token_text);
     }
 
     let mut identity = artifact.identity.clone();
     identity.produces = TransformTemplateOutputProducedKind::Text;
+    let (source_map, output_spans) = match artifact.identity.source_map_policy {
+        TransformTemplateSourceMapPolicy::None => (None, Vec::new()),
+        TransformTemplateSourceMapPolicy::Generated
+        | TransformTemplateSourceMapPolicy::Preserve => {
+            let output_spans = if has_token_output_spans {
+                token_output_spans
+            } else {
+                artifact.output_spans.clone()
+            };
+            (artifact.source_map.clone(), output_spans)
+        }
+    };
+
     Ok(TransformTemplateEncodedArtifact {
         identity,
         value: Value::String(text),
-        source_map: artifact.source_map.clone(),
-        output_spans: artifact.output_spans.clone(),
+        source_map,
+        output_spans,
         encoded: true,
     })
 }
@@ -1756,6 +1778,8 @@ pub struct TransformTemplateWriterToken {
     pub role: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub value: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_span: Option<OutputSpan>,
 }
 
 impl TransformTemplateWriterToken {
@@ -1765,6 +1789,7 @@ impl TransformTemplateWriterToken {
             text: None,
             role: None,
             value: None,
+            output_span: None,
         }
     }
 
@@ -1780,6 +1805,11 @@ impl TransformTemplateWriterToken {
 
     pub fn with_value(mut self, value: Value) -> Self {
         self.value = Some(value);
+        self
+    }
+
+    pub fn with_output_span(mut self, output_span: OutputSpan) -> Self {
+        self.output_span = Some(output_span);
         self
     }
 }
@@ -2859,6 +2889,11 @@ fn validate_writer_token_stream_value(value: &Value) -> Result<(), String> {
             object.get("role"),
             &format!("tokens[{index}].role"),
         )?;
+        if let Some(output_span) = object.get("outputSpan") {
+            serde_json::from_value::<OutputSpan>(output_span.clone()).map_err(|error| {
+                format!("`tokens[{index}].outputSpan` is not a valid output span: {error}")
+            })?;
+        }
         if !object.contains_key("text") && !object.contains_key("value") {
             return Err(format!("`tokens[{index}]` missing `text` or `value`"));
         }
@@ -5936,6 +5971,83 @@ mod tests {
     }
 
     #[test]
+    fn encoded_text_artifact_composition_generates_output_spans_from_token_spans() {
+        let first = evaluated_html_text("title", "Hello ");
+        let mut second = evaluated_html_text("body", "ignored");
+        let first_token_span = output_span(30, 3);
+        let second_token_span = output_span(40, 1);
+        second.artifact = TransformTemplateEncodedArtifact::from_writer_tokens(
+            second.artifact.identity.clone(),
+            vec![
+                TransformTemplateWriterToken::new("syntax.text")
+                    .with_text("CEM")
+                    .with_output_span(first_token_span.clone()),
+                TransformTemplateWriterToken::new("syntax.punctuation")
+                    .with_text("!")
+                    .with_output_span(second_token_span.clone()),
+            ],
+        );
+        second.artifact.output_spans = vec![output_span(999, 99)];
+        let context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+            &first.expression.target,
+            Some(TransformTemplateOutputProducedKind::Text),
+        );
+
+        let response = compose_transform_template_encoded_text_artifacts(
+            &[first, second],
+            &context,
+            Some("templates/runtime-encoding.cemt"),
+        );
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        let artifact = response.artifact.expect("token stream composes to text");
+        assert_eq!(artifact.value, Value::String("Hello CEM!".to_owned()));
+        assert_eq!(artifact.output_spans.len(), 3);
+        assert_eq!(artifact.output_spans[1].output_range, ByteRange::new(6, 3));
+        assert_eq!(artifact.output_spans[1].origin, first_token_span.origin);
+        assert_eq!(artifact.output_spans[2].output_range, ByteRange::new(9, 1));
+        assert_eq!(artifact.output_spans[2].origin, second_token_span.origin);
+    }
+
+    #[test]
+    fn encoded_text_artifact_composition_suppresses_token_spans_for_none_source_map_policy() {
+        let mut evaluated = evaluated_html_text("body", "ignored");
+        let mut identity = evaluated.artifact.identity.clone();
+        identity.source_map_policy = TransformTemplateSourceMapPolicy::None;
+        evaluated.artifact = TransformTemplateEncodedArtifact::from_writer_tokens(
+            identity,
+            vec![TransformTemplateWriterToken::new("syntax.text")
+                .with_text("CEM")
+                .with_output_span(output_span(30, 3))],
+        );
+        evaluated.artifact.source_map = Some(source_map_stack(40, 3));
+        let context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+            &evaluated.expression.target,
+            Some(TransformTemplateOutputProducedKind::Text),
+        );
+
+        let response = compose_transform_template_encoded_text_artifacts(
+            &[evaluated],
+            &context,
+            Some("templates/runtime-encoding.cemt"),
+        );
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        let artifact = response.artifact.expect("token stream composes to text");
+        assert_eq!(artifact.value, Value::String("CEM".to_owned()));
+        assert!(artifact.source_map.is_none());
+        assert!(artifact.output_spans.is_empty());
+    }
+
+    #[test]
     fn encoded_text_artifact_composition_reports_writer_adapter_boundary_for_non_token_artifacts() {
         let base = evaluated_html_text("body", "CEM");
         let context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
@@ -6124,6 +6236,26 @@ mod tests {
             TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_VALUE_TYPE_CODE
         );
         assert!(token_error.message().contains("tokens[0].kind"));
+
+        let invalid_token_span = TransformTemplateEncodedArtifact::new(
+            TransformTemplateEncodedArtifactIdentity::new(
+                TransformTemplateOutputProducedKind::Tokens,
+                target.clone(),
+            ),
+            json!({"tokens": [{"kind": "syntax.text", "text": "x", "outputSpan": "bad"}]}),
+        );
+        let token_span_error = invalid_token_span
+            .validate_insertion(
+                &TransformTemplateEncodedArtifactInsertionContext::from_encoded_artifact_identity(
+                    &invalid_token_span.identity,
+                ),
+            )
+            .expect_err("invalid token output span is rejected");
+        assert_eq!(
+            token_span_error.code(),
+            TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_VALUE_TYPE_CODE
+        );
+        assert!(token_span_error.message().contains("tokens[0].outputSpan"));
 
         let byte_identity = TransformTemplateEncodedArtifactIdentity::new(
             TransformTemplateOutputProducedKind::Bytes,
