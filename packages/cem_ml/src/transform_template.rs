@@ -5755,7 +5755,9 @@ fn text_composition_artifact_for_evaluated_encode(
     uri: Option<&str>,
 ) -> Result<TransformTemplateEncodedArtifact, Vec<Diagnostic>> {
     match evaluated.artifact.identity.produces {
-        TransformTemplateOutputProducedKind::Text => Ok(evaluated.artifact.clone()),
+        TransformTemplateOutputProducedKind::Text => Ok(
+            transform_template_apply_artifact_source_map_policy(evaluated.artifact.clone()),
+        ),
         TransformTemplateOutputProducedKind::Tokens => {
             if let Err(error) = evaluated
                 .artifact
@@ -5808,6 +5810,16 @@ fn text_composition_artifact_for_evaluated_encode(
             }
         }
     }
+}
+
+fn transform_template_apply_artifact_source_map_policy(
+    mut artifact: TransformTemplateEncodedArtifact,
+) -> TransformTemplateEncodedArtifact {
+    if artifact.identity.source_map_policy == TransformTemplateSourceMapPolicy::None {
+        artifact.source_map = None;
+        artifact.output_spans.clear();
+    }
+    artifact
 }
 
 fn transform_template_writer_token_artifact_to_text(
@@ -14297,6 +14309,36 @@ mod tests {
         assert_eq!(artifact.output_spans.len(), 2);
         assert_eq!(artifact.output_spans[0].output_range, ByteRange::new(0, 6));
         assert_eq!(artifact.output_spans[1].output_range, ByteRange::new(6, 9));
+    }
+
+    #[test]
+    fn encoded_text_artifact_composition_suppresses_text_spans_for_none_source_map_policy() {
+        let mut evaluated = evaluated_html_text("body", "Hello");
+        evaluated.artifact.identity.source_map_policy = TransformTemplateSourceMapPolicy::None;
+        let context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+            &evaluated.expression.target,
+            Some(TransformTemplateOutputProducedKind::Text),
+        );
+
+        let response = compose_transform_template_encoded_text_artifacts(
+            &[evaluated],
+            &context,
+            Some("templates/runtime-encoding.cemt"),
+        );
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        let artifact = response.artifact.expect("composed artifact");
+        assert_eq!(artifact.value, Value::String("Hello".to_owned()));
+        assert_eq!(
+            artifact.identity.source_map_policy,
+            TransformTemplateSourceMapPolicy::None
+        );
+        assert!(artifact.source_map.is_none());
+        assert!(artifact.output_spans.is_empty());
     }
 
     #[test]

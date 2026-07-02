@@ -161,7 +161,7 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Enforce output-function visibility during registry and encode/color
           binding resolution so private owner-qualified custom functions only
           resolve for matching owner-scoped requests.
-  - [ ] Add shared encoder functions for context-specific escaping and binary
+  - [x] Add shared encoder functions for context-specific escaping and binary
         framing across CEM, CEMT, XML, HTML, JSON, YAML, CSV, Markdown, CSS,
         CEM-QL, RELAX NG compact syntax, AI context projection, and CEM binary
         projection output categories.
@@ -231,7 +231,7 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add canonical formatter profile identities for standard JSON, XML,
           YAML, and Markdown formatter aliases while preserving custom profile
           selectors.
-  - [ ] Add writer primitives and CEMT bindings for syntax tokens, styled token
+  - [x] Add writer primitives and CEMT bindings for syntax tokens, styled token
         streams, byte streams, sealed binary chunks, source-map span emission,
         and source-map preservation/generated/none policies.
     - [x] Add the initial encoded text-artifact composition primitive: validate
@@ -255,6 +255,9 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add a default text-chunk writer adapter for CEMT chunk streams,
           preserving source maps/output spans for text chunks and rejecting
           byte-bearing chunks with adapter-failed diagnostics.
+    - [x] Apply source-map `none` policy suppression to direct text artifact
+          composition so text, token, and chunk writer paths enforce the same
+          source-map/output-span boundary behavior.
   - [ ] Add schema helper APIs for target syntax rules, void/empty element
         policy, raw-text/RCDATA modes, namespace repair, identifier validity,
         field/header policy, fragment/document handling, and charset/final byte
