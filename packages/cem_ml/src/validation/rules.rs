@@ -1185,6 +1185,7 @@ fn validate_schema_package_converter(
         validate_schema_package_bool_attr(doc, node, converter_id, attr_name, out);
     }
     validate_schema_package_readiness(doc, node, converter_id, out);
+    validate_schema_package_lossiness(doc, node, converter_id, out);
     validate_schema_package_output_syntax(doc, node, converter_id, out);
     validate_schema_package_parity(doc, node, converter_id, out);
     validate_schema_package_cost(doc, node, converter_id, out);
@@ -1407,6 +1408,29 @@ fn validate_schema_package_readiness(
         "cem.schema_package.converter_readiness_unknown",
         Severity::Error,
         format!("converter `{converter_id}` has unknown readiness `{readiness}`"),
+        node,
+    ));
+}
+
+fn validate_schema_package_lossiness(
+    doc: &crate::parser::document::CemDocument,
+    node: &CemAstNode,
+    converter_id: &str,
+    out: &mut Vec<Diagnostic>,
+) {
+    let Some(lossiness) = attr_value(doc, node, "lossiness").map(str::trim) else {
+        return;
+    };
+    if matches!(
+        lossiness,
+        "lossless" | "serialization" | "syntax-normalized" | "debug-view" | "recovery"
+    ) {
+        return;
+    }
+    out.push(diag_at(
+        "cem.schema_package.converter_lossiness_unknown",
+        Severity::Error,
+        format!("converter `{converter_id}` has unknown lossiness `{lossiness}`"),
         node,
     ));
 }
@@ -2228,6 +2252,7 @@ mod tests {
                     @template-schema="https://cem.dev/ns/schema/1"
                     @rust-symbol="DemoHtmlFallback"
                     @streamable=maybe
+                    @lossiness="hand-wave"
                     @output-syntax="pdf"
                     @parity="mostly-equal"
                     @readiness=later
@@ -2251,6 +2276,7 @@ mod tests {
             "cem.schema_package.converter_endpoint_missing",
             "cem.schema_package.converter_boolean_invalid",
             "cem.schema_package.converter_readiness_unknown",
+            "cem.schema_package.converter_lossiness_unknown",
             "cem.schema_package.converter_output_syntax_unknown",
             "cem.schema_package.converter_parity_unknown",
             "cem.schema_package.converter_cost_invalid",

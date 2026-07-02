@@ -43,7 +43,7 @@
         {attribute @name="template-entrypoint" @type="schema:identifier"}
         {attribute @name="rust-symbol" @type="schema:identifier"}
         {attribute @name="streamable" @type="schema:boolean"}
-        {attribute @name="lossiness" @type="schema:identifier"}
+        {attribute @name="lossiness" @type="schema:identifier" @values="lossless serialization syntax-normalized debug-view recovery"}
         {attribute @name="output-syntax" @type="schema:identifier" @values="html xml json yaml csv css markdown cemt text binary opaque"}
         {attribute @name="encoding-category" @type="schema:identifier"}
         {attribute @name="formatter-profile" @type="schema:identifier"}
@@ -92,6 +92,7 @@
         {diagnostic @code="cem.schema_package.converter_rust_symbol_missing" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_fallback_reason_missing" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_readiness_unknown" @severity="error"}
+        {diagnostic @code="cem.schema_package.converter_lossiness_unknown" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_output_syntax_unknown" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_parity_unknown" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_boolean_invalid" @severity="error"}

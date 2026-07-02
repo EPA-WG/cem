@@ -311,7 +311,7 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add collection-level `attributes`/`attribute-list` and
           `slots`/`slot-list` subject candidates so collection encoders do not
           have to overload single attribute/slot subject types.
-  - [ ] Extend schema package metadata so each supported schema can declare
+  - [x] Extend schema package metadata so each supported schema can declare
         source identity, output syntax, destination content type and schema,
         CEMT serializer template, template content type/schema, entrypoint,
         streamability, lossiness, readiness, encoding category, formatter
@@ -324,6 +324,9 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Require CEMT converters that declare native fallback symbols to also
           declare `fallback-reason`, and align schema-package `output-syntax`
           validation with runtime YAML support.
+    - [x] Validate converter `lossiness` selectors against the schema-owned
+          vocabulary (`lossless`, `serialization`, `syntax-normalized`,
+          `debug-view`, and `recovery`) so package metadata cannot drift.
   - [ ] Pair every native output producer with a CEMT implementation. Native
         producers are allowed for performance and clarity, but must be
         cross-checked against the schema-owned CEMT producer with shared
