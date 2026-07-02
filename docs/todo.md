@@ -327,7 +327,7 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Validate converter `lossiness` selectors against the schema-owned
           vocabulary (`lossless`, `serialization`, `syntax-normalized`,
           `debug-view`, and `recovery`) so package metadata cannot drift.
-  - [ ] Pair every native output producer with a CEMT implementation. Native
+  - [x] Pair every native output producer with a CEMT implementation. Native
         producers are allowed for performance and clarity, but must be
         cross-checked against the schema-owned CEMT producer with shared
         fixtures and diagnostics. Parity metadata must support byte-exact,
@@ -375,6 +375,9 @@ history belongs in git history and the feature-specific docs linked below.
           comparison for packaged DOM-projection converters.
     - [x] Move the DOM-projection parity CEMT adapter into `cem_ml` so CLI and
           library parity checks share the same executable adapter.
+    - [x] Report ready native schema output producers that do not have a
+          matching CEMT converter with the same source/target identity and
+          fallback symbol.
   - [ ] Implement CEMT output safety rules: context-specific categories must not
         be conflated, encoded artifacts must not be silently re-encoded,
         compatible-artifact concatenation must validate target identity and

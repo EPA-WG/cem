@@ -47,6 +47,7 @@ use std::path::{Path, PathBuf};
 
 pub const CONVERSION_PARITY_NATIVE_PAIR_MISSING_CODE: &str =
     "cem.converter.parity_native_pair_missing";
+pub const CONVERSION_PARITY_CEMT_PAIR_MISSING_CODE: &str = "cem.converter.parity_cemt_pair_missing";
 pub const CONVERSION_PARITY_MODE_MISSING_CODE: &str = "cem.converter.parity_mode_missing";
 pub const CONVERSION_PARITY_DRIFT_CODE: &str = "cem.converter.parity_drift";
 pub const CONVERSION_PARITY_FIXTURE_EXECUTION_CODE: &str = "cem.converter.parity_fixture_execution";
@@ -1238,6 +1239,39 @@ impl ConversionRegistry {
             };
 
             contracts.push(ConversionParityContract { cemt, native, mode });
+        }
+
+        for native in self
+            .descriptors_by_id
+            .values()
+            .filter(|descriptor| descriptor.implementation == ConversionImplementation::Rust)
+            .filter(|descriptor| descriptor.readiness == ConversionReadiness::Ready)
+            .filter(|descriptor| {
+                descriptor.planning_domain() == ConversionPlanningDomain::SchemaOutputProduction
+            })
+        {
+            let Some(native_symbol) = native.rust_symbol.as_deref() else {
+                continue;
+            };
+            let has_cemt_pair = self.descriptors_by_id.values().any(|descriptor| {
+                descriptor.implementation == ConversionImplementation::Cemt
+                    && descriptor.from == native.from
+                    && descriptor.to == native.to
+                    && descriptor
+                        .rust_fallback
+                        .as_ref()
+                        .map(|fallback| fallback.rust_symbol.as_str())
+                        == Some(native_symbol)
+            });
+            if !has_cemt_pair {
+                diagnostics.push(conversion_parity_diagnostic(
+                    CONVERSION_PARITY_CEMT_PAIR_MISSING_CODE,
+                    format!(
+                        "Rust converter `{}` has no matching CEMT converter with the same source and target identity and fallback symbol `{native_symbol}`",
+                        native.id
+                    ),
+                ));
+            }
         }
 
         (contracts, diagnostics)
@@ -4689,6 +4723,49 @@ mod tests {
         assert!(diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code == CONVERSION_PARITY_NATIVE_PAIR_MISSING_CODE));
+    }
+
+    #[test]
+    fn parity_contracts_report_native_schema_output_without_cemt_pair() {
+        let mut registry = ConversionRegistry::new();
+        registry
+            .register(rust_edge(
+                "dom-to-html-rust-orphan",
+                "test-dom-projection",
+                endpoint(
+                    CEM_DOM_PROJECTION_CONTENT_TYPE,
+                    CEM_DOM_PROJECTION_SCHEMA_URI,
+                ),
+                endpoint(HTML_CONTENT_TYPE, HTML_SCHEMA_URI),
+                "OrphanHtmlExportConverter",
+                "serialization",
+                1,
+            ))
+            .unwrap();
+        registry
+            .register(rust_edge(
+                "html-to-xml-rust-content-conversion",
+                "test-html",
+                endpoint(HTML_CONTENT_TYPE, HTML_SCHEMA_URI),
+                endpoint(XML_CONTENT_TYPE, XML_SCHEMA_URI),
+                "HtmlToXmlContentConverter",
+                "serialization",
+                1,
+            ))
+            .unwrap();
+
+        let (contracts, diagnostics) = registry.cemt_native_parity_contracts();
+
+        assert!(contracts.is_empty());
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(
+            diagnostics[0].code,
+            CONVERSION_PARITY_CEMT_PAIR_MISSING_CODE
+        );
+        assert!(diagnostics[0].message.contains("dom-to-html-rust-orphan"));
+        assert!(!diagnostics[0]
+            .message
+            .contains("html-to-xml-rust-content-conversion"));
     }
 
     #[test]
