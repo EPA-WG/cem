@@ -530,6 +530,13 @@ pub struct ConvertArgs {
     )]
     pub to_schema: Option<String>,
 
+    #[arg(
+        long = "output-color-type",
+        value_name = "TYPE",
+        help = "Color rendering profile for output presentation; examples: terminal, ansi-256, truecolor, html, html-css-vars, none"
+    )]
+    pub output_color_type: Option<String>,
+
     #[arg(long, value_name = "FILE")]
     pub out: Option<PathBuf>,
 
@@ -637,6 +644,13 @@ pub struct TransformArgs {
         help = "Target schema URI or file"
     )]
     pub to_schema: Option<String>,
+
+    #[arg(
+        long = "output-color-type",
+        value_name = "TYPE",
+        help = "Color rendering profile for output presentation; examples: terminal, ansi-256, truecolor, html, html-css-vars, none"
+    )]
+    pub output_color_type: Option<String>,
 
     #[arg(long, value_name = "FILE", help = "Write target document to file")]
     pub out: Option<PathBuf>,
@@ -882,6 +896,24 @@ mod tests {
     }
 
     #[test]
+    fn convert_output_color_type_parses() {
+        let cli = try_parse(&[
+            "convert",
+            "input.yml",
+            "--to-content-type",
+            "application/json",
+            "--output-color-type",
+            "html-css-vars",
+        ])
+        .unwrap();
+
+        let Command::Convert(args) = cli.command else {
+            panic!("expected convert command");
+        };
+        assert_eq!(args.output_color_type.as_deref(), Some("html-css-vars"));
+    }
+
+    #[test]
     fn convert_document_to_document_example_parses() {
         let cli = try_parse(&[
             "convert",
@@ -946,6 +978,24 @@ mod tests {
         assert_eq!(args.to_content_type.as_deref(), Some("text/html"));
         assert_eq!(args.to_schema.as_deref(), Some("html.rng"));
         assert_eq!(args.out, Some(PathBuf::from("view.html")));
+    }
+
+    #[test]
+    fn transform_output_color_type_parses() {
+        let cli = try_parse(&[
+            "transform",
+            "data.cem",
+            "--template",
+            "view.cemt",
+            "--output-color-type",
+            "html-css-vars",
+        ])
+        .unwrap();
+
+        let Command::Transform(args) = cli.command else {
+            panic!("expected transform command");
+        };
+        assert_eq!(args.output_color_type.as_deref(), Some("html-css-vars"));
     }
 
     #[test]

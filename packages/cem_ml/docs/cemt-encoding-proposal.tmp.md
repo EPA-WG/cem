@@ -419,6 +419,14 @@ Useful AI-facing categories include:
 - `ai-embedding-record`: normalized chunks and relationships for vector or graph
   indexes, with stable IDs back to AST/DOM/event projection nodes.
 
+AI context is exposed through encoding functions, not a separate generic
+formatter family. The projection step applies task profiles and budgets to
+produce a task-shaped AI projection object. The encoder receives that object,
+validates that its projection kind matches the requested category, and serializes
+it as an encoded JSON text artifact. Existing JSON formatter controls such as
+`pretty`, `lineEnding`, and ordering options still apply through `encode`
+options.
+
 AI context encoders should support:
 
 - budgets for nodes, tokens, characters, depth, diagnostics, and source excerpts;
@@ -433,19 +441,32 @@ AI context encoders should support:
 Example declaration:
 
 ```cemt
-{format-function
+{encoding-function
     @name="ai.context-pack"
     @category="ai-context-pack"
-    @subject="CemAstNode"
-    @produces="tokens"
+    @subject="object"
+    @produces="text"
     @content-type="application/vnd.cem.ai-context+json"
     @schema="https://cem.dev/ns/projection/ai-context/1"
-    @canonical=false
+    @canonical=true
     @streamable=true |
-    {param @name="subject" @type="CemAstNode" @required=true}
-    {param @name="profile" @type="string" @default="summary"}
-    {param @name="budget" @type="object" @required=false}
+    {param @name="subject" @type="object" @required=true}
 }
+```
+
+Example use:
+
+```cemt
+{$ encode($projection,
+  {
+    contentType: "application/vnd.cem.ai-context+json",
+    schema: "https://cem.dev/ns/projection/ai-context/1",
+    category: "ai-context-pack"
+  },
+  {
+    encoder: "ai.context-pack",
+    pretty: true
+  }) }
 ```
 
 An AI-facing profile can be faster and more efficient for consumers when it
@@ -596,6 +617,45 @@ text/html -> normalized HTML model -> application/xhtml+xml
 Both use registry identities, but conversion may parse, normalize, validate, and
 change semantic models before encoding.
 
+## AST Output Artifacts And Mixed Content
+
+The AST is a semantic intermediate, not a single output content type. A
+serializer or exporter may expose the same AST through JSON, YAML, XML, CEM,
+binary, AI-context, or other registered artifact formats. Each emitted artifact
+must carry its own identity:
+
+- `artifactId` or route name;
+- destination URI when the artifact is written to a file;
+- `contentType` and `schema`;
+- encoder, formatter, and color/profile selection;
+- source-map and canonical AST references;
+- lossiness and inclusion policy when the artifact omits or derives content.
+
+Mixed-content exports are therefore modeled as an artifact collection, not as a
+global content-type switch. For example, an XHTML input can produce:
+
+- `page.html` as `text/html`, with style content inlined, linked, or omitted
+  according to export settings;
+- `page.css` as `text/css`, whose serializer receives a collection of CSS
+  subtrees extracted from the canonical AST;
+- optional `page.ast.json`, `page.ast.yaml`, or `page.ast.xml` debug/projection
+  artifacts for tools and AI consumers.
+
+When settings choose extracted styles, the HTML artifact should contain only the
+HTML tree plus the link/reference needed for the CSS artifact. When settings
+choose inline styles, the HTML artifact may include HTML plus CSS subtrees in
+the appropriate insertion context. In both cases the CSS artifact remains its
+own output with its own `contentType`; `output-color-type` can only change
+presentation of the written artifact and must not change the target content
+type.
+
+AI-facing AST projections follow the same rule. An AI context pack may be
+encoded as JSON, YAML, XML, CEM text, binary records, or another registered
+format, but the profile must state which artifact routes are canonical,
+lossless, lossy, expandable, or budget-truncated. Compact semantic-token or
+entity-graph artifacts are optimized views over the AST; they do not replace
+canonical AST/DOM/event projections.
+
 ## Promotion Checklist
 
 - Add CEMT schema vocabulary for `encoding-function` and `format-function`
@@ -618,6 +678,9 @@ change semantic models before encoding.
   budgets, source ranges, expansion refs, and lossiness metadata.
 - Add diagnostics for unsafe AI data/instruction mixing, unsupported AI context
   profile, missing expansion target, and budget-driven omission.
+- Add multi-artifact export metadata for AST projections, including per-artifact
+  content type/schema, route/destination, extracted subtree selectors, and
+  inclusion policy for mixed outputs such as XHTML plus CSS.
 - Add examples for CEM, XML, HTML, terminal color text, HTML color output, JSON,
   CSV, CSS, AI context projection output, and CEM binary projection output.
 - Add parity tests comparing CEMT producers with native paired producers.

@@ -512,6 +512,46 @@ const TRANSFORM_TEMPLATE_STANDARD_OUTPUT_FUNCTIONS:
         profile: None,
     },
     TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Color,
+        name: "html.classes",
+        category: "html-color",
+        subject: Some("tokens"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: HTML_CONTENT_TYPE,
+        schema: HTML_SCHEMA_URI,
+        profile: Some("classes"),
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Color,
+        name: "html.inline-style",
+        category: "html-color",
+        subject: Some("tokens"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: HTML_CONTENT_TYPE,
+        schema: HTML_SCHEMA_URI,
+        profile: Some("inline-style"),
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Color,
+        name: "html.css-vars",
+        category: "html-color",
+        subject: Some("tokens"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: HTML_CONTENT_TYPE,
+        schema: HTML_SCHEMA_URI,
+        profile: Some("css-custom-properties"),
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Color,
+        name: "html.css-custom-properties",
+        category: "html-color",
+        subject: Some("tokens"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: HTML_CONTENT_TYPE,
+        schema: HTML_SCHEMA_URI,
+        profile: Some("css-custom-properties"),
+    },
+    TransformTemplateStandardOutputFunctionContract {
         kind: TransformTemplateOutputFunctionKind::Encoding,
         name: "json.string",
         category: "json-string",
@@ -540,6 +580,56 @@ const TRANSFORM_TEMPLATE_STANDARD_OUTPUT_FUNCTIONS:
         content_type: JSON_CONTENT_TYPE,
         schema: JSON_VALUE_SCHEMA_URI,
         profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Color,
+        name: "terminal.none",
+        category: "terminal-color",
+        subject: Some("tokens"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: "text/plain",
+        schema: TRANSFORM_TEMPLATE_TERMINAL_TEXT_SCHEMA_URI,
+        profile: Some("none"),
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Color,
+        name: "terminal.ansi16",
+        category: "terminal-color",
+        subject: Some("tokens"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: "text/plain",
+        schema: TRANSFORM_TEMPLATE_TERMINAL_TEXT_SCHEMA_URI,
+        profile: Some("ansi-16"),
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Color,
+        name: "terminal.ansi256",
+        category: "terminal-color",
+        subject: Some("tokens"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: "text/plain",
+        schema: TRANSFORM_TEMPLATE_TERMINAL_TEXT_SCHEMA_URI,
+        profile: Some("ansi-256"),
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Color,
+        name: "terminal.truecolor",
+        category: "terminal-color",
+        subject: Some("tokens"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: "text/plain",
+        schema: TRANSFORM_TEMPLATE_TERMINAL_TEXT_SCHEMA_URI,
+        profile: Some("truecolor"),
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Color,
+        name: "terminal.auto",
+        category: "terminal-color",
+        subject: Some("tokens"),
+        produces: TransformTemplateOutputProducedKind::Text,
+        content_type: "text/plain",
+        schema: TRANSFORM_TEMPLATE_TERMINAL_TEXT_SCHEMA_URI,
+        profile: Some("auto"),
     },
     TransformTemplateStandardOutputFunctionContract {
         kind: TransformTemplateOutputFunctionKind::Encoding,
@@ -2062,20 +2152,31 @@ impl TransformTemplateColorOutputProfile {
 
 pub const TRANSFORM_TEMPLATE_COLOR_ROLES: &[&str] = &[
     "diagnostic.error",
+    "diagnostic.fatal",
     "diagnostic.warning",
     "diagnostic.info",
     "diagnostic.hint",
+    "source.line-number",
     "source.gutter",
     "source.highlight",
+    "source.secondary-highlight",
     "syntax.token",
     "syntax.keyword",
+    "syntax.name",
+    "syntax.attribute",
     "syntax.string",
+    "syntax.number",
     "syntax.comment",
+    "syntax.raw",
     "diff.added",
+    "diff.add",
     "diff.removed",
+    "diff.remove",
     "diff.changed",
     "diff.context",
     "status.success",
+    "status.pending",
+    "status.muted",
     "status.warning",
     "status.error",
     "status.info",
@@ -2830,6 +2931,20 @@ impl TransformTemplateEncodeBindingRequest {
             self.color_profile_selector().as_deref(),
         )
     }
+
+    pub fn requires_color_binding(&self) -> bool {
+        if self
+            .options
+            .colorizer
+            .as_deref()
+            .map(str::trim)
+            .is_some_and(|selector| !selector.is_empty())
+        {
+            return true;
+        }
+
+        transform_template_target_is_explicit_color_output(&self.target)
+    }
 }
 
 fn validate_transform_template_charset_request(
@@ -3098,6 +3213,105 @@ fn inaccessible_html_palette(
 
 const TRANSFORM_TEMPLATE_TERMINAL_TEXT_SCHEMA_URI: &str = "https://cem.dev/ns/data/text/terminal/1";
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateOutputColorSelection {
+    pub output_color_type: String,
+    pub target: TransformTemplateEncodingTarget,
+    pub colorizer: String,
+    pub color_profile: String,
+}
+
+impl TransformTemplateOutputColorSelection {
+    pub fn format_identity(&self) -> FormatIdentity {
+        self.target.format_identity()
+    }
+
+    pub fn apply_to_request(&self, request: &mut TransformTemplateEncodeBindingRequest) {
+        request.target = self.target.clone();
+        request.options.colorizer = Some(self.colorizer.clone());
+        request.options.color_profile = Some(self.color_profile.clone());
+    }
+}
+
+pub fn parse_transform_template_output_color_type(
+    selector: &str,
+) -> Result<TransformTemplateOutputColorSelection, String> {
+    let selector = selector.trim();
+    if selector.is_empty() {
+        return Err("output color type is empty".to_owned());
+    }
+    let normalized = selector.trim().to_ascii_lowercase().replace('_', "-");
+    match normalized.as_str() {
+        "none" | "plain" | "terminal-none" | "terminal.none" => Ok(
+            transform_template_terminal_output_color_selection("none", "terminal.none"),
+        ),
+        "terminal" | "terminal-auto" | "terminal.auto" | "auto" | "ansi-auto" => Ok(
+            transform_template_terminal_output_color_selection("auto", "terminal.auto"),
+        ),
+        "ansi16" | "ansi-16" | "terminal-ansi16" | "terminal-ansi-16"
+        | "terminal.ansi16" => Ok(transform_template_terminal_output_color_selection(
+            "ansi-16",
+            "terminal.ansi16",
+        )),
+        "ansi256" | "ansi-256" | "terminal-ansi256" | "terminal-ansi-256"
+        | "terminal.ansi256" => Ok(transform_template_terminal_output_color_selection(
+            "ansi-256",
+            "terminal.ansi256",
+        )),
+        "truecolor" | "terminal-truecolor" | "terminal.truecolor" => Ok(
+            transform_template_terminal_output_color_selection("truecolor", "terminal.truecolor"),
+        ),
+        "html" | "html-css-vars" | "html.css-vars" | "css-vars"
+        | "css-custom-properties" | "html-css-custom-properties"
+        | "html.css-custom-properties" => Ok(transform_template_html_output_color_selection(
+            "css-custom-properties",
+            "html.css-vars",
+        )),
+        "html-classes" | "html.classes" | "classes" | "class-based" => Ok(
+            transform_template_html_output_color_selection("classes", "html.classes"),
+        ),
+        "html-inline-style" | "html.inline-style" | "inline-style" => Ok(
+            transform_template_html_output_color_selection("inline-style", "html.inline-style"),
+        ),
+        _ => Err(format!(
+            "unsupported output color type `{selector}`; supported values include terminal, ansi-16, ansi-256, truecolor, auto, none, html, html-classes, html-inline-style, and html-css-vars"
+        )),
+    }
+}
+
+fn transform_template_terminal_output_color_selection(
+    color_profile: &str,
+    colorizer: &str,
+) -> TransformTemplateOutputColorSelection {
+    TransformTemplateOutputColorSelection {
+        output_color_type: color_profile.to_owned(),
+        target: TransformTemplateEncodingTarget::new(
+            "text/plain",
+            TRANSFORM_TEMPLATE_TERMINAL_TEXT_SCHEMA_URI,
+            "terminal-color",
+        ),
+        colorizer: colorizer.to_owned(),
+        color_profile: color_profile.to_owned(),
+    }
+}
+
+fn transform_template_html_output_color_selection(
+    color_profile: &str,
+    colorizer: &str,
+) -> TransformTemplateOutputColorSelection {
+    TransformTemplateOutputColorSelection {
+        output_color_type: color_profile.to_owned(),
+        target: TransformTemplateEncodingTarget::new(
+            HTML_CONTENT_TYPE,
+            HTML_SCHEMA_URI,
+            "html-color",
+        ),
+        colorizer: colorizer.to_owned(),
+        color_profile: color_profile.to_owned(),
+    }
+}
+
 fn transform_template_color_profile_selector(
     options: &TransformTemplateEncodeOptions,
 ) -> Option<String> {
@@ -3177,6 +3391,18 @@ fn transform_template_color_output_kind_for_target(
     None
 }
 
+fn transform_template_target_is_explicit_color_output(
+    target: &TransformTemplateEncodingTarget,
+) -> bool {
+    let category = target.category.trim();
+    let schema = target.schema.trim();
+    category == "terminal-color"
+        || category == "html-color"
+        || category.starts_with("html-color-")
+        || category.ends_with("-html-color")
+        || schema == TRANSFORM_TEMPLATE_TERMINAL_TEXT_SCHEMA_URI
+}
+
 fn transform_template_canonical_color_profile_selector(
     profile: &TransformTemplateColorOutputProfile,
 ) -> String {
@@ -3214,6 +3440,15 @@ pub struct TransformTemplateColorBinding {
 impl TransformTemplateColorBinding {
     pub fn artifact_from_value(&self, value: Value) -> TransformTemplateEncodedArtifact {
         TransformTemplateEncodedArtifact::new(self.identity.clone(), value)
+    }
+
+    pub fn into_encode_binding(self) -> TransformTemplateEncodeBinding {
+        TransformTemplateEncodeBinding {
+            function: self.function,
+            subject_type: self.subject_type,
+            identity: self.identity,
+            options: self.options,
+        }
     }
 }
 
@@ -3290,9 +3525,18 @@ impl TransformTemplateEncodeImplementationRegistry {
         let mut registry = Self::new();
         registry.register("html.text", builtin_html_text_encoder);
         registry.register("html.attribute", builtin_html_attribute_encoder);
+        registry.register("html.classes", builtin_html_colorizer);
+        registry.register("html.inline-style", builtin_html_colorizer);
+        registry.register("html.css-vars", builtin_html_colorizer);
+        registry.register("html.css-custom-properties", builtin_html_colorizer);
         registry.register("json.string", builtin_json_string_encoder);
         registry.register("json.value", builtin_json_value_encoder);
         registry.register("json.document", builtin_json_document_encoder);
+        registry.register("terminal.none", builtin_terminal_colorizer);
+        registry.register("terminal.ansi16", builtin_terminal_colorizer);
+        registry.register("terminal.ansi256", builtin_terminal_colorizer);
+        registry.register("terminal.truecolor", builtin_terminal_colorizer);
+        registry.register("terminal.auto", builtin_terminal_colorizer);
         registry.register("yaml.scalar", builtin_yaml_scalar_encoder);
         registry.register("yaml.value", builtin_yaml_value_encoder);
         registry.register("xml.text", builtin_xml_text_encoder);
@@ -3410,6 +3654,390 @@ fn validate_builtin_html_encoder_binding(
         ));
     }
     Ok(())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TransformTemplateColorToken {
+    role: String,
+    text: String,
+    href: Option<String>,
+}
+
+fn builtin_terminal_colorizer(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_colorizer_binding(binding, "terminal.", "terminal-color")?;
+    let profile = transform_template_binding_color_profile(binding)?;
+    if profile.output != TransformTemplateColorOutputKind::Terminal {
+        return Err(format!(
+            "terminal colorizer `{}` expected terminal color profile, got `{:?}`",
+            binding.function.name, profile.output
+        ));
+    }
+
+    let tokens = transform_template_color_tokens_from_subject(subject)?;
+    let mut output = String::new();
+    for token in tokens {
+        output.push_str(&transform_template_render_terminal_color_token(
+            &token, &profile,
+        ));
+    }
+    if !output.is_empty()
+        && profile.terminal_capability != TransformTemplateTerminalColorCapability::None
+        && profile.reset_at_artifact_boundaries
+    {
+        output.push_str("\u{1b}[0m");
+    }
+    Ok(Value::String(output))
+}
+
+fn builtin_html_colorizer(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_colorizer_binding(binding, "html.", "html-color")?;
+    let profile = transform_template_binding_color_profile(binding)?;
+    if profile.output != TransformTemplateColorOutputKind::Html {
+        return Err(format!(
+            "HTML colorizer `{}` expected HTML color profile, got `{:?}`",
+            binding.function.name, profile.output
+        ));
+    }
+
+    let tokens = transform_template_color_tokens_from_subject(subject)?;
+    let output = tokens
+        .iter()
+        .map(|token| transform_template_render_html_color_token(token, &profile))
+        .collect::<String>();
+    Ok(Value::String(output))
+}
+
+fn validate_builtin_colorizer_binding(
+    binding: &TransformTemplateEncodeBinding,
+    expected_name_prefix: &str,
+    expected_category: &str,
+) -> Result<(), String> {
+    if binding.function.kind != TransformTemplateOutputFunctionKind::Color {
+        return Err(format!(
+            "colorizer implementation `{}` cannot execute non-color function `{:?}`",
+            binding.function.name, binding.function.kind
+        ));
+    }
+    if !binding.function.name.starts_with(expected_name_prefix) {
+        return Err(format!(
+            "colorizer implementation `{expected_name_prefix}*` cannot execute `{}`",
+            binding.function.name
+        ));
+    }
+    let category = binding.identity.target.category.trim();
+    if category != expected_category && !category.starts_with(&format!("{expected_category}-")) {
+        return Err(format!(
+            "colorizer `{}` expected category `{expected_category}`, got `{}`",
+            binding.function.name, binding.identity.target.category
+        ));
+    }
+    if binding.identity.produces != TransformTemplateOutputProducedKind::Text {
+        return Err(format!(
+            "colorizer `{}` expected text output, got `{:?}`",
+            binding.function.name, binding.identity.produces
+        ));
+    }
+    Ok(())
+}
+
+fn transform_template_binding_color_profile(
+    binding: &TransformTemplateEncodeBinding,
+) -> Result<TransformTemplateColorOutputProfile, String> {
+    transform_template_color_output_profile_for_target(
+        &binding.identity.target,
+        binding
+            .identity
+            .color_profile
+            .as_deref()
+            .or_else(|| binding.options.color_profile.as_deref())
+            .or_else(|| binding.options.profile.as_deref()),
+    )
+    .map_err(|error| error.diagnostic(None).message)
+}
+
+fn transform_template_color_tokens_from_subject(
+    subject: &Value,
+) -> Result<Vec<TransformTemplateColorToken>, String> {
+    match subject {
+        Value::Array(items) => items
+            .iter()
+            .enumerate()
+            .map(|(index, value)| transform_template_color_token_from_value(value, index))
+            .collect(),
+        Value::Object(fields) => {
+            if let Some(tokens) = fields.get("tokens") {
+                return transform_template_color_tokens_from_subject(tokens);
+            }
+            transform_template_color_token_from_value(subject, 0).map(|token| vec![token])
+        }
+        Value::String(text) => Ok(vec![TransformTemplateColorToken {
+            role: "syntax.token".to_owned(),
+            text: text.clone(),
+            href: None,
+        }]),
+        _ => Err("colorizer expected token array, token object, or string subject".to_owned()),
+    }
+}
+
+fn transform_template_array_looks_like_color_tokens(items: &[Value]) -> bool {
+    !items.is_empty()
+        && items.iter().all(|item| match item {
+            Value::String(_) => true,
+            Value::Object(fields) => {
+                fields.get("text").is_some_and(Value::is_string)
+                    || fields.get("value").is_some_and(Value::is_string)
+                    || fields.get("label").is_some_and(Value::is_string)
+                    || fields.get("role").is_some_and(Value::is_string)
+                    || fields.get("kind").is_some_and(Value::is_string)
+            }
+            _ => false,
+        })
+}
+
+fn transform_template_color_token_from_value(
+    value: &Value,
+    index: usize,
+) -> Result<TransformTemplateColorToken, String> {
+    match value {
+        Value::String(text) => Ok(TransformTemplateColorToken {
+            role: "syntax.token".to_owned(),
+            text: text.clone(),
+            href: None,
+        }),
+        Value::Object(fields) => {
+            let text = fields
+                .get("text")
+                .or_else(|| fields.get("value"))
+                .or_else(|| fields.get("label"))
+                .and_then(Value::as_str)
+                .ok_or_else(|| format!("color token at index `{index}` is missing string `text`"))?
+                .to_owned();
+            let role = fields
+                .get("role")
+                .or_else(|| fields.get("kind"))
+                .and_then(Value::as_str)
+                .map(transform_template_canonical_color_role)
+                .unwrap_or_else(|| "syntax.token".to_owned());
+            let href = fields
+                .get("href")
+                .or_else(|| fields.get("uri"))
+                .and_then(Value::as_str)
+                .map(str::to_owned);
+
+            Ok(TransformTemplateColorToken { role, text, href })
+        }
+        _ => Err(format!(
+            "color token at index `{index}` must be an object or string"
+        )),
+    }
+}
+
+fn transform_template_canonical_color_role(role: &str) -> String {
+    match role.trim() {
+        "diagnostic.fatal" => "diagnostic.error",
+        "diff.add" => "diff.added",
+        "diff.remove" => "diff.removed",
+        "status.muted" => "source.gutter",
+        other if transform_template_is_color_role(other) => other,
+        _ => "syntax.token",
+    }
+    .to_owned()
+}
+
+fn transform_template_render_terminal_color_token(
+    token: &TransformTemplateColorToken,
+    profile: &TransformTemplateColorOutputProfile,
+) -> String {
+    if profile.no_color || !profile.supports_role(&token.role) {
+        return token.text.clone();
+    }
+
+    let Some(sgr) =
+        transform_template_terminal_sgr_for_role(&token.role, profile.terminal_capability)
+    else {
+        return token.text.clone();
+    };
+
+    let styled = format!("\u{1b}[{sgr}m{}\u{1b}[0m", token.text);
+    if profile.hyperlinks {
+        if let Some(href) = token.href.as_deref() {
+            return transform_template_terminal_hyperlink(href, &styled);
+        }
+    }
+    styled
+}
+
+fn transform_template_terminal_hyperlink(href: &str, text: &str) -> String {
+    let href = href
+        .chars()
+        .filter(|ch| !ch.is_control())
+        .collect::<String>();
+    format!("\u{1b}]8;;{href}\u{1b}\\{text}\u{1b}]8;;\u{1b}\\")
+}
+
+fn transform_template_terminal_sgr_for_role(
+    role: &str,
+    capability: TransformTemplateTerminalColorCapability,
+) -> Option<&'static str> {
+    match capability {
+        TransformTemplateTerminalColorCapability::None => None,
+        TransformTemplateTerminalColorCapability::Ansi16 => match role {
+            "diagnostic.error" | "status.error" | "diff.removed" => Some("1;31"),
+            "diagnostic.warning" | "status.warning" | "diff.changed" => Some("1;33"),
+            "diagnostic.info" | "status.info" => Some("1;36"),
+            "diagnostic.hint" | "source.gutter" => Some("2;37"),
+            "source.line-number" => Some("2;36"),
+            "source.highlight" | "source.secondary-highlight" => Some("7"),
+            "syntax.keyword" => Some("1;35"),
+            "syntax.name" | "syntax.attribute" => Some("36"),
+            "syntax.string" | "status.success" | "diff.added" => Some("32"),
+            "syntax.number" => Some("33"),
+            "syntax.comment" => Some("2;32"),
+            "syntax.raw" => Some("37"),
+            _ => None,
+        },
+        TransformTemplateTerminalColorCapability::Ansi256
+        | TransformTemplateTerminalColorCapability::Auto => match role {
+            "diagnostic.error" | "status.error" | "diff.removed" => Some("1;38;5;196"),
+            "diagnostic.warning" | "status.warning" | "diff.changed" => Some("1;38;5;214"),
+            "diagnostic.info" | "status.info" => Some("38;5;39"),
+            "diagnostic.hint" | "source.gutter" => Some("2;38;5;244"),
+            "source.line-number" => Some("2;38;5;75"),
+            "source.highlight" | "source.secondary-highlight" => Some("7;38;5;33"),
+            "syntax.keyword" => Some("1;38;5;141"),
+            "syntax.name" | "syntax.attribute" => Some("38;5;81"),
+            "syntax.string" | "status.success" | "diff.added" => Some("38;5;76"),
+            "syntax.number" => Some("38;5;220"),
+            "syntax.comment" => Some("2;38;5;108"),
+            "syntax.raw" => Some("38;5;250"),
+            _ => None,
+        },
+        TransformTemplateTerminalColorCapability::Truecolor => match role {
+            "diagnostic.error" | "status.error" | "diff.removed" => Some("1;38;2;220;38;38"),
+            "diagnostic.warning" | "status.warning" | "diff.changed" => Some("1;38;2;178;104;24"),
+            "diagnostic.info" | "status.info" => Some("38;2;0;110;170"),
+            "diagnostic.hint" | "source.gutter" => Some("2;38;2;96;105;120"),
+            "source.line-number" => Some("2;38;2;64;128;180"),
+            "source.highlight" | "source.secondary-highlight" => Some("7;38;2;30;90;180"),
+            "syntax.keyword" => Some("1;38;2;128;88;190"),
+            "syntax.name" | "syntax.attribute" => Some("38;2;0;130;145"),
+            "syntax.string" | "status.success" | "diff.added" => Some("38;2;0;130;80"),
+            "syntax.number" => Some("38;2;154;103;0"),
+            "syntax.comment" => Some("2;38;2;84;130;84"),
+            "syntax.raw" => Some("38;2;92;100;112"),
+            _ => None,
+        },
+    }
+}
+
+fn transform_template_render_html_color_token(
+    token: &TransformTemplateColorToken,
+    profile: &TransformTemplateColorOutputProfile,
+) -> String {
+    let role = transform_template_encode_html_attribute(&token.role);
+    let class_role = transform_template_color_role_class(&token.role);
+    let text = transform_template_encode_html_text(&token.text);
+    let span = match profile.html_mode {
+        TransformTemplateHtmlColorMode::Classes => {
+            format!(
+                r#"<span class="cem-color cem-color-{class_role}" data-role="{role}">{text}</span>"#
+            )
+        }
+        TransformTemplateHtmlColorMode::InlineStyle => {
+            let style = transform_template_html_inline_style_for_role(&token.role);
+            format!(r#"<span class="cem-color" data-role="{role}" style="{style}">{text}</span>"#)
+        }
+        TransformTemplateHtmlColorMode::CssCustomProperties => {
+            let style = transform_template_html_css_var_style_for_role(&token.role, &class_role);
+            format!(
+                r#"<span class="cem-color cem-color-{class_role}" data-role="{role}" style="{style}">{text}</span>"#
+            )
+        }
+    };
+
+    if let Some(href) = token.href.as_deref() {
+        let href = transform_template_encode_html_attribute(href);
+        format!(r#"<a class="cem-color-link" href="{href}">{span}</a>"#)
+    } else {
+        span
+    }
+}
+
+fn transform_template_color_role_class(role: &str) -> String {
+    let mut class_name = String::new();
+    for ch in role.chars() {
+        if ch.is_ascii_alphanumeric() {
+            class_name.push(ch.to_ascii_lowercase());
+        } else if matches!(ch, '.' | '_' | '-') {
+            class_name.push('-');
+        }
+    }
+    if class_name.is_empty() {
+        "syntax-token".to_owned()
+    } else {
+        class_name
+    }
+}
+
+fn transform_template_html_inline_style_for_role(role: &str) -> String {
+    let color = transform_template_html_color_for_role(role);
+    match role {
+        "source.highlight" | "source.secondary-highlight" => {
+            "background-color: #dbeafe; color: #1e3a8a".to_owned()
+        }
+        "diagnostic.error" | "diagnostic.warning" | "syntax.keyword" => {
+            format!("color: {color}; font-weight: 600")
+        }
+        "diagnostic.hint" | "source.gutter" | "syntax.comment" => {
+            format!("color: {color}; font-style: italic")
+        }
+        "diff.added" => format!("color: {color}; font-weight: 600"),
+        "diff.removed" => format!("color: {color}; text-decoration: line-through"),
+        _ => format!("color: {color}"),
+    }
+}
+
+fn transform_template_html_css_var_style_for_role(role: &str, class_role: &str) -> String {
+    let fallback = transform_template_html_color_for_role(role);
+    match role {
+        "source.highlight" | "source.secondary-highlight" => format!(
+            "background-color: var(--cem-color-{class_role}-background, #dbeafe); color: var(--cem-color-{class_role}, #1e3a8a)"
+        ),
+        "diagnostic.error" | "diagnostic.warning" | "syntax.keyword" | "diff.added" => format!(
+            "color: var(--cem-color-{class_role}, {fallback}); font-weight: 600"
+        ),
+        "diagnostic.hint" | "source.gutter" | "syntax.comment" => format!(
+            "color: var(--cem-color-{class_role}, {fallback}); font-style: italic"
+        ),
+        "diff.removed" => format!(
+            "color: var(--cem-color-{class_role}, {fallback}); text-decoration: line-through"
+        ),
+        _ => format!("color: var(--cem-color-{class_role}, {fallback})"),
+    }
+}
+
+fn transform_template_html_color_for_role(role: &str) -> &'static str {
+    match role {
+        "diagnostic.error" | "status.error" | "diff.removed" => "#b42318",
+        "diagnostic.warning" | "status.warning" | "diff.changed" => "#a15c00",
+        "diagnostic.info" | "status.info" => "#0969da",
+        "diagnostic.hint" | "source.gutter" => "#667085",
+        "source.line-number" => "#3b6ea8",
+        "source.highlight" | "source.secondary-highlight" => "#1e3a8a",
+        "syntax.keyword" => "#7a4cc2",
+        "syntax.name" | "syntax.attribute" => "#087990",
+        "syntax.string" | "status.success" | "diff.added" => "#067647",
+        "syntax.number" => "#8a5a00",
+        "syntax.comment" => "#4e7f4e",
+        "syntax.raw" => "#475467",
+        _ => "#344054",
+    }
 }
 
 fn builtin_json_string_encoder(
@@ -5480,6 +6108,7 @@ pub struct TransformTemplateEncodeEvaluationContext<'a> {
     pub registry: &'a TransformTemplateOutputFunctionRegistry,
     pub value_bindings: &'a BTreeMap<String, Value>,
     pub host_capabilities: &'a BTreeSet<String>,
+    pub output_color_type: Option<&'a str>,
     pub uri: Option<&'a str>,
 }
 
@@ -6097,15 +6726,47 @@ where
             continue;
         };
 
-        let request = expression.binding_request(subject.clone());
-        let binding = match context
-            .registry
-            .resolve_encode_binding(&request, context.host_capabilities)
-        {
-            Ok(binding) => binding,
-            Err(error) => {
-                diagnostics.push(error.diagnostic(context.uri));
-                continue;
+        let mut request = expression.binding_request(subject.clone());
+        let apply_output_color_type = request.requires_color_binding();
+        if apply_output_color_type {
+            if let Some(output_color_type) = context.output_color_type {
+                match parse_transform_template_output_color_type(output_color_type) {
+                    Ok(selection) => selection.apply_to_request(&mut request),
+                    Err(message) => {
+                        diagnostics.push(Diagnostic {
+                            uri: context.uri.map(str::to_owned),
+                            code: TRANSFORM_TEMPLATE_COLOR_PROFILE_INVALID_CODE.to_owned(),
+                            severity: Severity::Error,
+                            message,
+                            ..Diagnostic::default()
+                        });
+                        continue;
+                    }
+                }
+            }
+        }
+
+        let binding = if request.requires_color_binding() {
+            match context
+                .registry
+                .resolve_color_binding(&request, context.host_capabilities)
+            {
+                Ok(binding) => binding.into_encode_binding(),
+                Err(error) => {
+                    diagnostics.push(error.diagnostic(context.uri));
+                    continue;
+                }
+            }
+        } else {
+            match context
+                .registry
+                .resolve_encode_binding(&request, context.host_capabilities)
+            {
+                Ok(binding) => binding,
+                Err(error) => {
+                    diagnostics.push(error.diagnostic(context.uri));
+                    continue;
+                }
             }
         };
 
@@ -6117,7 +6778,7 @@ where
                     code: TRANSFORM_TEMPLATE_ENCODE_IMPLEMENTATION_FAILED_CODE.to_owned(),
                     severity: Severity::Error,
                     message: format!(
-                        "CEMT encoder `{}` failed for expression `{}`: {message}",
+                        "CEMT output function `{}` failed for expression `{}`: {message}",
                         binding.function.name, expression.expression
                     ),
                     ..Diagnostic::default()
@@ -6307,6 +6968,13 @@ fn append_transform_template_semantic_subject_type_candidates(
     candidates: &mut Vec<String>,
     subject: &Value,
 ) {
+    if let Some(items) = subject.as_array() {
+        if transform_template_array_looks_like_color_tokens(items) {
+            append_transform_template_subject_type_hint(candidates, "tokens");
+        }
+        return;
+    }
+
     let Some(object) = subject.as_object() else {
         return;
     };
@@ -13544,6 +14212,89 @@ mod tests {
     }
 
     #[test]
+    fn builtin_colorizers_emit_terminal_and_html_text() {
+        let mut functions = TransformTemplateOutputFunctionRegistry::new();
+        functions.register(color_output_function_descriptor(
+            "terminal.ansi256",
+            "terminal-color",
+            "text/plain",
+            "https://cem.dev/ns/data/text/terminal/1",
+            Some("ansi-256"),
+        ));
+        functions.register(color_output_function_descriptor(
+            "html.css-vars",
+            "html-color-fragment",
+            HTML_CONTENT_TYPE,
+            HTML_SCHEMA_URI,
+            Some("css-custom-properties"),
+        ));
+        let implementations =
+            TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+        let tokens = json!([
+            {"role": "diagnostic.error", "text": "Broken"},
+            {"role": "syntax.string", "text": "\"ok\""}
+        ]);
+
+        let terminal_request = TransformTemplateEncodeBindingRequest::new(
+            tokens.clone(),
+            TransformTemplateEncodingTarget::new(
+                "text/plain",
+                "https://cem.dev/ns/data/text/terminal/1",
+                "terminal-color",
+            ),
+        )
+        .with_subject_type("tokens")
+        .with_options(TransformTemplateEncodeOptions {
+            colorizer: Some("terminal.ansi256".to_owned()),
+            color_profile: Some("ansi-256".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let terminal_binding = functions
+            .resolve_color_binding(&terminal_request, &BTreeSet::new())
+            .expect("terminal color binding resolves")
+            .into_encode_binding();
+        let terminal = implementations
+            .encode(&terminal_binding, &terminal_request.subject)
+            .expect("terminal colorizer runs");
+        assert_eq!(
+            terminal,
+            Value::String(
+                "\u{1b}[1;38;5;196mBroken\u{1b}[0m\u{1b}[38;5;76m\"ok\"\u{1b}[0m\u{1b}[0m"
+                    .to_owned()
+            )
+        );
+
+        let html_request = TransformTemplateEncodeBindingRequest::new(
+            tokens,
+            TransformTemplateEncodingTarget::new(
+                HTML_CONTENT_TYPE,
+                HTML_SCHEMA_URI,
+                "html-color-fragment",
+            ),
+        )
+        .with_subject_type("tokens")
+        .with_options(TransformTemplateEncodeOptions {
+            colorizer: Some("html.css-vars".to_owned()),
+            color_profile: Some("css-custom-properties".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let html_binding = functions
+            .resolve_color_binding(&html_request, &BTreeSet::new())
+            .expect("HTML color binding resolves")
+            .into_encode_binding();
+        let html = implementations
+            .encode(&html_binding, &html_request.subject)
+            .expect("HTML colorizer runs");
+        assert_eq!(
+            html,
+            Value::String(
+                r#"<span class="cem-color cem-color-diagnostic-error" data-role="diagnostic.error" style="color: var(--cem-color-diagnostic-error, #b42318); font-weight: 600">Broken</span><span class="cem-color cem-color-syntax-string" data-role="syntax.string" style="color: var(--cem-color-syntax-string, #067647)">"ok"</span>"#
+                    .to_owned()
+            )
+        );
+    }
+
+    #[test]
     fn color_binding_rejects_unsupported_profiles_before_lookup() {
         let registry = TransformTemplateOutputFunctionRegistry::new();
         let terminal_request = TransformTemplateEncodeBindingRequest::new(
@@ -14328,6 +15079,7 @@ mod tests {
                 registry: &registry,
                 value_bindings: &values,
                 host_capabilities: &BTreeSet::new(),
+                output_color_type: None,
                 uri: Some("templates/runtime-encoding.cemt"),
             },
             |binding, subject| {
@@ -14379,6 +15131,179 @@ mod tests {
     }
 
     #[test]
+    fn evaluate_encode_expressions_runs_colorizer_bindings() {
+        let response = parse_cem_native_template_module_options(
+            TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "templates/runtime-color.cemt",
+                    r#"{@doc cem-ml 1}
+{module |
+  {color-function
+      @name="terminal.ansi256"
+      @category="terminal-color"
+      @subject="tokens"
+      @produces="text"
+      @content-type="text/plain"
+      @schema="https://cem.dev/ns/data/text/terminal/1"
+      @profile="ansi-256"
+      @canonical=false
+      @streamable=true |
+      {param @name="subject" @type="array" @required=true}
+  }
+  {template @name="main" @visibility="public" |
+    {body |
+      {$ encode($node.tokens, { contentType: "text/plain", schema: "https://cem.dev/ns/data/text/terminal/1", category: "terminal-color" }, { colorizer: "terminal.ansi256", colorProfile: "ansi-256" }) }
+    }
+  }
+}"#,
+                    Some(FormatIdentity {
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            },
+        );
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        let registry =
+            TransformTemplateOutputFunctionRegistry::from_module_options(&response.module_options);
+        let implementations =
+            TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+        let mut values = BTreeMap::new();
+        values.insert(
+            "node".to_owned(),
+            json!({"tokens": [{"role": "diagnostic.error", "text": "Broken"}]}),
+        );
+
+        let evaluated = evaluate_transform_template_encode_expressions(
+            &response.module_options.encode_expressions,
+            TransformTemplateEncodeEvaluationContext {
+                registry: &registry,
+                value_bindings: &values,
+                host_capabilities: implementations.host_capabilities(),
+                output_color_type: None,
+                uri: Some("templates/runtime-color.cemt"),
+            },
+            |binding, subject| implementations.encode(binding, subject),
+        );
+
+        assert!(
+            evaluated.diagnostics.is_empty(),
+            "{:?}",
+            evaluated.diagnostics
+        );
+        assert_eq!(evaluated.encoded.len(), 1);
+        let evaluated = &evaluated.encoded[0];
+        assert_eq!(
+            evaluated.binding.function.kind,
+            TransformTemplateOutputFunctionKind::Color
+        );
+        assert_eq!(
+            evaluated.artifact.identity.color_profile.as_deref(),
+            Some("ansi-256")
+        );
+        assert_eq!(
+            evaluated.artifact.value,
+            Value::String("\u{1b}[1;38;5;196mBroken\u{1b}[0m\u{1b}[0m".to_owned())
+        );
+    }
+
+    #[test]
+    fn output_color_type_overrides_color_encode_target() {
+        let response = parse_cem_native_template_module_options(
+            TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "templates/runtime-output-color.cemt",
+                    r#"{@doc cem-ml 1}
+{module |
+  {color-function
+      @name="terminal.ansi256"
+      @category="terminal-color"
+      @subject="tokens"
+      @produces="text"
+      @content-type="text/plain"
+      @schema="https://cem.dev/ns/data/text/terminal/1"
+      @profile="ansi-256"
+      @canonical=false
+      @streamable=true |
+      {param @name="subject" @type="array" @required=true}
+  }
+  {color-function
+      @name="html.css-vars"
+      @category="html-color"
+      @subject="tokens"
+      @produces="text"
+      @content-type="text/html"
+      @schema="https://cem.dev/ns/data/html/1"
+      @profile="css-custom-properties"
+      @canonical=false
+      @streamable=true |
+      {param @name="subject" @type="array" @required=true}
+  }
+  {template @name="main" @visibility="public" |
+    {body |
+      {$ encode($node.tokens, { contentType: "text/plain", schema: "https://cem.dev/ns/data/text/terminal/1", category: "terminal-color" }) }
+    }
+  }
+}"#,
+                    Some(FormatIdentity {
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            },
+        );
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        let registry =
+            TransformTemplateOutputFunctionRegistry::from_module_options(&response.module_options);
+        let implementations =
+            TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+        let mut values = BTreeMap::new();
+        values.insert(
+            "node".to_owned(),
+            json!({"tokens": [{"role": "diagnostic.error", "text": "Broken"}]}),
+        );
+
+        let evaluated = evaluate_transform_template_encode_expressions(
+            &response.module_options.encode_expressions,
+            TransformTemplateEncodeEvaluationContext {
+                registry: &registry,
+                value_bindings: &values,
+                host_capabilities: implementations.host_capabilities(),
+                output_color_type: Some("html"),
+                uri: Some("templates/runtime-output-color.cemt"),
+            },
+            |binding, subject| implementations.encode(binding, subject),
+        );
+
+        assert!(
+            evaluated.diagnostics.is_empty(),
+            "{:?}",
+            evaluated.diagnostics
+        );
+        assert_eq!(evaluated.encoded.len(), 1);
+        let evaluated = &evaluated.encoded[0];
+        assert_eq!(evaluated.binding.function.name, "html.css-vars");
+        assert_eq!(evaluated.artifact.identity.target.content_type, "text/html");
+        assert_eq!(
+            evaluated.artifact.identity.color_profile.as_deref(),
+            Some("css-custom-properties")
+        );
+        assert!(evaluated
+            .artifact
+            .value
+            .as_str()
+            .is_some_and(|value| value.contains("<span")));
+    }
+
+    #[test]
     fn evaluate_encode_expressions_reports_unresolved_subject() {
         let expression = parse_transform_template_encode_expression(
             r#"encode($node.missing, { contentType: "text/html", schema: "https://cem.dev/ns/data/html/1", category: "html-text" })"#,
@@ -14396,6 +15321,7 @@ mod tests {
                 registry: &registry,
                 value_bindings: &values,
                 host_capabilities: &BTreeSet::new(),
+                output_color_type: None,
                 uri: Some("templates/runtime-encoding.cemt"),
             },
             |_, _| Ok(Value::Null),
@@ -14425,6 +15351,7 @@ mod tests {
                 registry: &registry,
                 value_bindings: &values,
                 host_capabilities: &BTreeSet::new(),
+                output_color_type: None,
                 uri: Some("templates/runtime-encoding.cemt"),
             },
             |_, _| Ok(Value::Null),

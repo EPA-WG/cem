@@ -52,6 +52,7 @@ pub struct Streams<'a> {
     pub stdout: &'a mut dyn Write,
     pub stderr: &'a mut dyn Write,
     pub quiet: bool,
+    pub no_color: bool,
 }
 
 enum CliRequestError {
@@ -911,6 +912,7 @@ fn input_scope_defaults(c: &cli::ContextOptions) -> ScopeConfig {
         module_map: c.module_map.clone(),
         base_uri: c.base_uri.clone(),
         policy: c.scope_policy.clone(),
+        output_color_type: None,
         version_pins: context_key_values(&c.version_pins),
         budgets: context_key_values(&c.scope_budgets),
     }
@@ -925,6 +927,7 @@ fn output_scope_defaults(args: &cli::ConvertArgs) -> ScopeConfig {
         module_map: args.context.module_map.clone(),
         base_uri: args.context.base_uri.clone(),
         policy: args.context.scope_policy.clone(),
+        output_color_type: None,
         version_pins: context_key_values(&args.context.version_pins),
         budgets: context_key_values(&args.context.scope_budgets),
     }
@@ -991,6 +994,58 @@ fn convert_target_scope(args: &cli::ConvertArgs) -> ScopeConfig {
     output_scope_defaults(args)
 }
 
+fn validate_convert_output_color_type(args: &cli::ConvertArgs) -> Result<(), CliRequestError> {
+    let Some(output_color_type) = args
+        .output_color_type
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Ok(());
+    };
+
+    cem_ml::transform_template::parse_transform_template_output_color_type(output_color_type)
+        .map_err(|error| {
+            CliRequestError::Usage(format!(
+                "invalid convert --output-color-type `{output_color_type}`: {error}"
+            ))
+        })?;
+
+    Ok(())
+}
+
+fn validate_transform_output_color_type(args: &cli::TransformArgs) -> Result<(), CliRequestError> {
+    let Some(output_color_type) = args
+        .output_color_type
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Ok(());
+    };
+
+    cem_ml::transform_template::parse_transform_template_output_color_type(output_color_type)
+        .map_err(|error| {
+            CliRequestError::Usage(format!(
+                "invalid transform --output-color-type `{output_color_type}`: {error}"
+            ))
+        })?;
+
+    Ok(())
+}
+
+fn diagnostics_have_hard_violation(diagnostics: &[cem_ml::diagnostics::Diagnostic]) -> bool {
+    diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+}
+
+fn convert_response_has_blocking_primary_failure(response: &eng::ConvertResponse) -> bool {
+    response.primary_bytes.is_none()
+        && response.primary.is_null()
+        && diagnostics_have_hard_violation(&response.diagnostics)
+}
+
 fn transform_data_scope(args: &cli::TransformArgs, data: &Path) -> ScopeConfig {
     ScopeConfig {
         default_content_type: args
@@ -1013,12 +1068,15 @@ fn transform_template_scope(args: &cli::TransformArgs, template: &Path) -> Scope
     }
 }
 
-fn transform_target_scope(args: &cli::TransformArgs) -> ScopeConfig {
-    ScopeConfig {
+fn transform_target_scope(args: &cli::TransformArgs) -> Result<ScopeConfig, CliRequestError> {
+    let scope = ScopeConfig {
         default_content_type: args.to_content_type.clone(),
         schema: args.to_schema.clone(),
         ..ScopeConfig::default()
-    }
+    };
+
+    validate_transform_output_color_type(args)?;
+    Ok(scope)
 }
 
 fn transform_template_entrypoint(value: Option<&str>) -> eng::TransformTemplateEntrypoint {
@@ -1127,7 +1185,7 @@ fn transform_request_from_args(
     validate_transform_template_module_surface(template_kind, &template_entrypoint, &params)?;
     let execution_policy =
         transform_execution_policy_for(template_kind, &template_entrypoint, &params);
-    let target_scope = transform_target_scope(args);
+    let target_scope = transform_target_scope(args)?;
     Ok(eng::TransformRequest {
         data,
         template,
@@ -2541,9 +2599,28 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
                             &mut report_scheduler_trace,
                             &resp.scheduler_trace,
                         );
-                        if let Err(e) =
-                            write_convert_primary(&engine_context, &resp, args.out.as_deref(), s)
-                        {
+                        if convert_response_has_blocking_primary_failure(&resp) {
+                            write_diagnostics(&resp.diagnostics, s);
+                            if let Err(e) = write_convert_report_if_requested(
+                                &engine_context,
+                                args,
+                                &report_inputs,
+                                &report_diagnostics,
+                                &report_scheduler_trace,
+                            ) {
+                                let _ =
+                                    writeln!(s.stderr, "cem-ml: convert report write failure: {e}");
+                                return Outcome::code(EXIT_IO);
+                            }
+                            return Outcome::code(EXIT_HARD_FAILURE);
+                        }
+                        if let Err(e) = write_convert_primary(
+                            &engine_context,
+                            &resp,
+                            args.out.as_deref(),
+                            args.output_color_type.as_deref(),
+                            s,
+                        ) {
                             let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                             return Outcome::code(EXIT_IO);
                         }
@@ -2592,9 +2669,27 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
                 report_inputs.push(input_uri);
                 report_diagnostics.extend(resp.diagnostics.clone());
                 append_convert_scheduler_trace(&mut report_scheduler_trace, &resp.scheduler_trace);
-                if let Err(e) =
-                    write_convert_primary(&engine_context, &resp, Some(destination.as_path()), s)
-                {
+                if convert_response_has_blocking_primary_failure(&resp) {
+                    write_diagnostics(&resp.diagnostics, s);
+                    if let Err(e) = write_convert_report_if_requested(
+                        &engine_context,
+                        args,
+                        &report_inputs,
+                        &report_diagnostics,
+                        &report_scheduler_trace,
+                    ) {
+                        let _ = writeln!(s.stderr, "cem-ml: convert report write failure: {e}");
+                        return Outcome::code(EXIT_IO);
+                    }
+                    return Outcome::code(EXIT_HARD_FAILURE);
+                }
+                if let Err(e) = write_convert_primary(
+                    &engine_context,
+                    &resp,
+                    Some(destination.as_path()),
+                    args.output_color_type.as_deref(),
+                    s,
+                ) {
                     let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                     return Outcome::code(EXIT_IO);
                 }
@@ -2667,13 +2762,15 @@ fn write_convert_primary(
     context: &eng::EngineContext,
     response: &eng::ConvertResponse,
     out: Option<&Path>,
+    output_color_type: Option<&str>,
     s: &mut Streams<'_>,
 ) -> io::Result<()> {
-    write_primary_with_bytes(
+    write_primary_with_bytes_with_console_color(
         context,
         &response.primary,
         response.primary_bytes.as_ref(),
         out,
+        output_color_type,
         s,
     )
 }
@@ -2684,18 +2781,25 @@ fn write_primary(
     out: Option<&Path>,
     s: &mut Streams<'_>,
 ) -> io::Result<()> {
-    write_primary_with_bytes(context, primary, None, out, s)
+    write_primary_with_bytes_with_console_color(context, primary, None, out, None, s)
 }
 
-fn write_primary_with_bytes(
+fn write_primary_with_bytes_with_console_color(
     context: &eng::EngineContext,
     primary: &serde_json::Value,
     primary_bytes: Option<&eng::PrimaryBytes>,
     out: Option<&Path>,
+    output_color_type: Option<&str>,
     s: &mut Streams<'_>,
 ) -> io::Result<()> {
     if let Some(primary_bytes) = primary_bytes {
-        return write_raw_primary_bytes(context, &primary_bytes.bytes, out, s);
+        return write_primary_bytes_with_console_color(
+            context,
+            primary_bytes,
+            out,
+            output_color_type,
+            s,
+        );
     }
 
     if let Some(bytes) = binary_projection_primary_bytes(primary)? {
@@ -2714,10 +2818,174 @@ fn write_primary_with_bytes(
             )?;
         }
         None => {
+            let serialized = if s.no_color {
+                serialized
+            } else {
+                colorize_json_for_console(&serialized, output_color_type)
+            };
             writeln!(s.stdout, "{serialized}")?;
         }
     }
     Ok(())
+}
+
+fn write_primary_bytes_with_console_color(
+    context: &eng::EngineContext,
+    primary_bytes: &eng::PrimaryBytes,
+    out: Option<&Path>,
+    output_color_type: Option<&str>,
+    s: &mut Streams<'_>,
+) -> io::Result<()> {
+    match out {
+        Some(_) => write_raw_primary_bytes(context, &primary_bytes.bytes, out, s),
+        None => {
+            if s.no_color || !output_color_type_is_terminal_color(output_color_type) {
+                return write_raw_primary_bytes(context, &primary_bytes.bytes, out, s);
+            }
+            let Some(syntax) = primary_bytes_text_syntax(primary_bytes) else {
+                return write_raw_primary_bytes(context, &primary_bytes.bytes, out, s);
+            };
+            let Ok(body) = std::str::from_utf8(&primary_bytes.bytes) else {
+                return write_raw_primary_bytes(context, &primary_bytes.bytes, out, s);
+            };
+            let body = match syntax {
+                ConsoleTextSyntax::Json => colorize_json_for_console(body, output_color_type),
+                ConsoleTextSyntax::Yaml => colorize_yaml_for_console(body),
+            };
+            s.stdout.write_all(body.as_bytes())?;
+            s.stdout.flush()
+        }
+    }
+}
+
+fn primary_bytes_text_syntax(primary_bytes: &eng::PrimaryBytes) -> Option<ConsoleTextSyntax> {
+    let content_type = cli_content_type_essence(&primary_bytes.content_type);
+    match content_type.as_str() {
+        "application/json" | "text/json" => Some(ConsoleTextSyntax::Json),
+        "application/yaml" | "application/x-yaml" | "text/yaml" | "text/x-yaml" => {
+            Some(ConsoleTextSyntax::Yaml)
+        }
+        _ => None,
+    }
+}
+
+fn colorize_json_for_console(serialized: &str, output_color_type: Option<&str>) -> String {
+    let Some(output_color_type) = output_color_type
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return serialized.to_owned();
+    };
+    let Ok(selection) =
+        cem_ml::transform_template::parse_transform_template_output_color_type(output_color_type)
+    else {
+        return serialized.to_owned();
+    };
+    if selection.target.category != "terminal-color" || selection.output_color_type == "none" {
+        return serialized.to_owned();
+    }
+    terminal_colorize_json(serialized)
+}
+
+fn terminal_colorize_json(serialized: &str) -> String {
+    const RESET: &str = "\x1b[0m";
+    const KEY: &str = "\x1b[38;5;75m";
+    const STRING: &str = "\x1b[38;5;76m";
+    const NUMBER: &str = "\x1b[38;5;141m";
+    const LITERAL: &str = "\x1b[38;5;214m";
+    const PUNCT: &str = "\x1b[38;5;244m";
+
+    let mut out = String::with_capacity(serialized.len() + serialized.len() / 8);
+    let bytes = serialized.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'"' => {
+                let end = json_string_token_end(bytes, index);
+                let color = if json_string_token_is_key(bytes, end) {
+                    KEY
+                } else {
+                    STRING
+                };
+                out.push_str(color);
+                out.push_str(&serialized[index..end]);
+                out.push_str(RESET);
+                index = end;
+            }
+            b'-' | b'0'..=b'9' => {
+                let end = json_number_token_end(bytes, index);
+                out.push_str(NUMBER);
+                out.push_str(&serialized[index..end]);
+                out.push_str(RESET);
+                index = end;
+            }
+            b't' if bytes[index..].starts_with(b"true") => {
+                out.push_str(LITERAL);
+                out.push_str("true");
+                out.push_str(RESET);
+                index += 4;
+            }
+            b'f' if bytes[index..].starts_with(b"false") => {
+                out.push_str(LITERAL);
+                out.push_str("false");
+                out.push_str(RESET);
+                index += 5;
+            }
+            b'n' if bytes[index..].starts_with(b"null") => {
+                out.push_str(LITERAL);
+                out.push_str("null");
+                out.push_str(RESET);
+                index += 4;
+            }
+            b'{' | b'}' | b'[' | b']' | b':' | b',' => {
+                out.push_str(PUNCT);
+                out.push(bytes[index] as char);
+                out.push_str(RESET);
+                index += 1;
+            }
+            _ => {
+                out.push(bytes[index] as char);
+                index += 1;
+            }
+        }
+    }
+    out
+}
+
+fn json_string_token_end(bytes: &[u8], start: usize) -> usize {
+    let mut index = start + 1;
+    let mut escaped = false;
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if escaped {
+            escaped = false;
+        } else if byte == b'\\' {
+            escaped = true;
+        } else if byte == b'"' {
+            return index + 1;
+        }
+        index += 1;
+    }
+    bytes.len()
+}
+
+fn json_string_token_is_key(bytes: &[u8], token_end: usize) -> bool {
+    let mut index = token_end;
+    while index < bytes.len() && bytes[index].is_ascii_whitespace() {
+        index += 1;
+    }
+    index < bytes.len() && bytes[index] == b':'
+}
+
+fn json_number_token_end(bytes: &[u8], start: usize) -> usize {
+    let mut index = start + 1;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'0'..=b'9' | b'.' | b'e' | b'E' | b'+' | b'-' => index += 1,
+            _ => break,
+        }
+    }
+    index
 }
 
 fn write_raw_primary_bytes(
@@ -2742,10 +3010,17 @@ fn write_raw_primary_bytes(
     Ok(())
 }
 
+#[derive(Clone, Copy)]
+enum ConsoleTextSyntax {
+    Json,
+    Yaml,
+}
+
 fn write_document_primary(
     context: &eng::EngineContext,
     primary: &serde_json::Value,
     out: Option<&Path>,
+    output_color_type: Option<&str>,
     s: &mut Streams<'_>,
 ) -> io::Result<()> {
     let bytes;
@@ -2770,11 +3045,201 @@ fn write_document_primary(
             body,
         )?,
         None => {
-            s.stdout.write_all(body)?;
+            if let Some(colored) = colorize_document_body_for_console(body, output_color_type, s) {
+                s.stdout.write_all(colored.as_bytes())?;
+            } else {
+                s.stdout.write_all(body)?;
+            }
             s.stdout.flush()?;
         }
     }
     Ok(())
+}
+
+fn colorize_document_body_for_console(
+    body: &[u8],
+    output_color_type: Option<&str>,
+    s: &Streams<'_>,
+) -> Option<String> {
+    if s.no_color || !output_color_type_is_terminal_color(output_color_type) {
+        return None;
+    }
+
+    let text = std::str::from_utf8(body).ok()?;
+    let value = serde_json::from_str::<serde_json::Value>(text).ok()?;
+    let serialized = serde_json::to_string_pretty(&value).ok()?;
+    Some(colorize_json_for_console(&serialized, output_color_type))
+}
+
+fn colorize_yaml_for_console(serialized: &str) -> String {
+    const RESET: &str = "\x1b[0m";
+    const KEY: &str = "\x1b[38;5;75m";
+    const STRING: &str = "\x1b[38;5;76m";
+    const NUMBER: &str = "\x1b[38;5;141m";
+    const LITERAL: &str = "\x1b[38;5;214m";
+    const PUNCT: &str = "\x1b[38;5;244m";
+
+    let mut out = String::with_capacity(serialized.len() + serialized.len() / 8);
+    for line in serialized.lines() {
+        colorize_yaml_line_for_console(line, &mut out, KEY, STRING, NUMBER, LITERAL, PUNCT, RESET);
+        out.push('\n');
+    }
+    if !serialized.ends_with('\n') {
+        out.pop();
+    }
+    out
+}
+
+fn colorize_yaml_line_for_console(
+    line: &str,
+    out: &mut String,
+    key_color: &str,
+    string_color: &str,
+    number_color: &str,
+    literal_color: &str,
+    punct_color: &str,
+    reset: &str,
+) {
+    let trimmed = line.trim_start();
+    let indent_len = line.len() - trimmed.len();
+    out.push_str(&line[..indent_len]);
+
+    if trimmed == "---" || trimmed == "..." {
+        out.push_str(punct_color);
+        out.push_str(trimmed);
+        out.push_str(reset);
+        return;
+    }
+
+    if let Some(rest) = trimmed.strip_prefix("- ") {
+        out.push_str(punct_color);
+        out.push('-');
+        out.push_str(reset);
+        out.push(' ');
+        if yaml_plain_mapping_colon(rest).is_some() {
+            colorize_yaml_line_for_console(
+                rest,
+                out,
+                key_color,
+                string_color,
+                number_color,
+                literal_color,
+                punct_color,
+                reset,
+            );
+            return;
+        }
+        colorize_yaml_value_for_console(
+            rest,
+            out,
+            string_color,
+            number_color,
+            literal_color,
+            reset,
+        );
+        return;
+    }
+
+    if trimmed == "-" {
+        out.push_str(punct_color);
+        out.push('-');
+        out.push_str(reset);
+        return;
+    }
+
+    if let Some(colon) = yaml_plain_mapping_colon(trimmed) {
+        let (key, rest) = trimmed.split_at(colon);
+        out.push_str(key_color);
+        out.push_str(key);
+        out.push_str(reset);
+        out.push_str(punct_color);
+        out.push(':');
+        out.push_str(reset);
+        let rest = &rest[1..];
+        let leading = rest.len() - rest.trim_start().len();
+        out.push_str(&rest[..leading]);
+        colorize_yaml_value_for_console(
+            rest.trim_start(),
+            out,
+            string_color,
+            number_color,
+            literal_color,
+            reset,
+        );
+        return;
+    }
+
+    colorize_yaml_value_for_console(
+        trimmed,
+        out,
+        string_color,
+        number_color,
+        literal_color,
+        reset,
+    );
+}
+
+fn yaml_plain_mapping_colon(line: &str) -> Option<usize> {
+    let bytes = line.as_bytes();
+    let mut index = 0;
+    let mut quote = None;
+    let mut escaped = false;
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' && active_quote == b'"' {
+                escaped = true;
+            } else if byte == active_quote {
+                quote = None;
+            }
+        } else if byte == b'\'' || byte == b'"' {
+            quote = Some(byte);
+        } else if byte == b':' {
+            return Some(index);
+        }
+        index += 1;
+    }
+    None
+}
+
+fn colorize_yaml_value_for_console(
+    value: &str,
+    out: &mut String,
+    string_color: &str,
+    number_color: &str,
+    literal_color: &str,
+    reset: &str,
+) {
+    if value.is_empty() {
+        return;
+    }
+    let color = if matches!(value, "true" | "false" | "null" | "~") {
+        literal_color
+    } else if value.parse::<f64>().is_ok() {
+        number_color
+    } else {
+        string_color
+    };
+    out.push_str(color);
+    out.push_str(value);
+    out.push_str(reset);
+}
+
+fn output_color_type_is_terminal_color(output_color_type: Option<&str>) -> bool {
+    let Some(output_color_type) = output_color_type
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return false;
+    };
+    let Ok(selection) =
+        cem_ml::transform_template::parse_transform_template_output_color_type(output_color_type)
+    else {
+        return false;
+    };
+    selection.target.category == "terminal-color" && selection.output_color_type != "none"
 }
 
 fn binary_projection_primary_bytes(primary: &serde_json::Value) -> io::Result<Option<Vec<u8>>> {
@@ -10127,6 +10592,9 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
     args: cli::ConvertArgs,
     s: &mut Streams<'_>,
 ) -> Outcome {
+    if let Err(err) = validate_convert_output_color_type(&args) {
+        return handle_cli_request_error(err, s);
+    }
     let input_defaults = input_scope_defaults(&args.context);
     let output_defaults = output_scope_defaults(&args);
     let config = match run_config_for_context(
@@ -10166,19 +10634,41 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
         Err(err) => return handle_cli_request_error(err, s),
     };
     let input_uri = input.uri.clone();
+    let target = convert_target_identity_with_config(&args, &config);
+    let target_scope = convert_target_scope_with_config(&args, &config);
+    let out = convert_output_destination(&args, &config);
     let req = eng::ConvertRequest {
         input,
         to_format: to_engine_layer_format(args.to_format),
         preserve_source_offsets: args.preserve_source_offsets,
         context: engine_context.clone(),
-        target: convert_target_identity_with_config(&args, &config),
-        target_scope: convert_target_scope_with_config(&args, &config),
+        target,
+        target_scope,
         scheduler_scope_id: 0,
     };
     match engine.convert(req) {
         Ok(resp) => {
-            let out = convert_output_destination(&args, &config);
-            if let Err(e) = write_convert_primary(&engine_context, &resp, out.as_deref(), s) {
+            if convert_response_has_blocking_primary_failure(&resp) {
+                write_diagnostics(&resp.diagnostics, s);
+                if let Err(e) = write_convert_report_if_requested(
+                    &engine_context,
+                    &args,
+                    &[input_uri],
+                    &resp.diagnostics,
+                    &resp.scheduler_trace,
+                ) {
+                    let _ = writeln!(s.stderr, "cem-ml: convert report write failure: {e}");
+                    return Outcome::code(EXIT_IO);
+                }
+                return Outcome::code(EXIT_HARD_FAILURE);
+            }
+            if let Err(e) = write_convert_primary(
+                &engine_context,
+                &resp,
+                out.as_deref(),
+                args.output_color_type.as_deref(),
+                s,
+            ) {
                 let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
@@ -10202,11 +10692,12 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
 fn write_transform_graph_artifacts(
     context: &eng::EngineContext,
     artifacts: &[eng::TransformGraphArtifact],
+    output_color_type: Option<&str>,
     s: &mut Streams<'_>,
 ) -> io::Result<()> {
     for artifact in artifacts {
         let out = artifact.destination.as_deref().map(Path::new);
-        write_document_primary(context, &artifact.primary, out, s)?;
+        write_document_primary(context, &artifact.primary, out, output_color_type, s)?;
         write_transform_graph_source_map_sidecar(context, artifact)?;
     }
     Ok(())
@@ -10334,7 +10825,12 @@ fn run_transform_graph<E: CemMlEngine + ?Sized>(
             {
                 return Outcome::code(EXIT_HARD_FAILURE);
             }
-            if let Err(e) = write_transform_graph_artifacts(&engine_context, &resp.artifacts, s) {
+            if let Err(e) = write_transform_graph_artifacts(
+                &engine_context,
+                &resp.artifacts,
+                args.output_color_type.as_deref(),
+                s,
+            ) {
                 let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
@@ -10349,6 +10845,9 @@ pub fn run_transform<E: CemMlEngine + ?Sized>(
     args: cli::TransformArgs,
     s: &mut Streams<'_>,
 ) -> Outcome {
+    if let Err(err) = validate_transform_output_color_type(&args) {
+        return handle_cli_request_error(err, s);
+    }
     if args.config.is_some() {
         return run_transform_graph(engine, &args, s);
     }
@@ -10391,9 +10890,13 @@ pub fn run_transform<E: CemMlEngine + ?Sized>(
             {
                 return Outcome::code(EXIT_HARD_FAILURE);
             }
-            if let Err(e) =
-                write_document_primary(&engine_context, &resp.primary, args.out.as_deref(), s)
-            {
+            if let Err(e) = write_document_primary(
+                &engine_context,
+                &resp.primary,
+                args.out.as_deref(),
+                args.output_color_type.as_deref(),
+                s,
+            ) {
                 let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
@@ -10749,6 +11252,57 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::{Arc, Mutex};
 
+    fn yaml_documents_to_json_value(documents: Vec<yaml_rust2::Yaml>) -> serde_json::Value {
+        let mut values = documents
+            .into_iter()
+            .map(yaml_to_json_value)
+            .collect::<Vec<_>>();
+        if values.len() == 1 {
+            values.remove(0)
+        } else {
+            serde_json::Value::Array(values)
+        }
+    }
+
+    fn yaml_to_json_value(value: yaml_rust2::Yaml) -> serde_json::Value {
+        match value {
+            yaml_rust2::Yaml::Real(raw) => raw
+                .replace('_', "")
+                .parse::<f64>()
+                .ok()
+                .and_then(serde_json::Number::from_f64)
+                .map(serde_json::Value::Number)
+                .unwrap_or(serde_json::Value::String(raw)),
+            yaml_rust2::Yaml::Integer(value) => serde_json::Value::Number(value.into()),
+            yaml_rust2::Yaml::String(value) => serde_json::Value::String(value),
+            yaml_rust2::Yaml::Boolean(value) => serde_json::Value::Bool(value),
+            yaml_rust2::Yaml::Array(values) => {
+                serde_json::Value::Array(values.into_iter().map(yaml_to_json_value).collect())
+            }
+            yaml_rust2::Yaml::Hash(entries) => {
+                let mut out = serde_json::Map::new();
+                for (key, value) in entries {
+                    out.insert(yaml_key_to_json_key(key), yaml_to_json_value(value));
+                }
+                serde_json::Value::Object(out)
+            }
+            yaml_rust2::Yaml::Alias(_) | yaml_rust2::Yaml::Null | yaml_rust2::Yaml::BadValue => {
+                serde_json::Value::Null
+            }
+        }
+    }
+
+    fn yaml_key_to_json_key(key: yaml_rust2::Yaml) -> String {
+        match key {
+            yaml_rust2::Yaml::String(value) => value,
+            yaml_rust2::Yaml::Integer(value) => value.to_string(),
+            yaml_rust2::Yaml::Real(value) => value,
+            yaml_rust2::Yaml::Boolean(value) => value.to_string(),
+            yaml_rust2::Yaml::Null => "null".to_owned(),
+            other => serde_json::to_string(&yaml_to_json_value(other)).unwrap_or_default(),
+        }
+    }
+
     fn test_source_map(len: u32) -> cem_ml::source_map::SourceMapStack {
         cem_ml::source_map::SourceMapStack {
             frames: vec![cem_ml::source_map::SourceMapFrame {
@@ -10867,11 +11421,13 @@ mod tests {
         let mut stdout = Cursor::new(Vec::new());
         let mut stderr = Cursor::new(Vec::new());
         let quiet = parsed.quiet;
+        let no_color = parsed.no_color;
         let outcome = {
             let mut s = Streams {
                 stdout: &mut stdout,
                 stderr: &mut stderr,
                 quiet,
+                no_color,
             };
             dispatch(engine, parsed, &mut s)
         };
@@ -10896,6 +11452,27 @@ mod tests {
         let p = dir.join(name);
         std::fs::write(&p, body).unwrap();
         p
+    }
+
+    fn strip_ansi_codes(input: &str) -> String {
+        let mut out = String::with_capacity(input.len());
+        let bytes = input.as_bytes();
+        let mut index = 0;
+        while index < bytes.len() {
+            if bytes[index] == 0x1b && bytes.get(index + 1) == Some(&b'[') {
+                index += 2;
+                while index < bytes.len() && !(0x40..=0x7e).contains(&bytes[index]) {
+                    index += 1;
+                }
+                if index < bytes.len() {
+                    index += 1;
+                }
+                continue;
+            }
+            out.push(bytes[index] as char);
+            index += 1;
+        }
+        out
     }
 
     fn test_cem_document(input: &str) -> cem_ml::parser::document::CemDocument {
@@ -11795,6 +12372,66 @@ mod tests {
     }
 
     #[test]
+    fn transform_document_writer_colors_json_stdout_after_transform() {
+        let mut stdout = Cursor::new(Vec::new());
+        let mut stderr = Cursor::new(Vec::new());
+        let mut streams = Streams {
+            stdout: &mut stdout,
+            stderr: &mut stderr,
+            quiet: false,
+            no_color: false,
+        };
+
+        write_document_primary(
+            &eng::EngineContext::default(),
+            &serde_json::json!({
+                "kind": "document",
+                "content": r#"{"enabled":true,"retries":3}"#,
+            }),
+            None,
+            Some("ansi-256"),
+            &mut streams,
+        )
+        .unwrap();
+
+        let written = String::from_utf8(stdout.into_inner()).unwrap();
+        assert!(written.contains("\x1b["));
+        let v: serde_json::Value = serde_json::from_str(&strip_ansi_codes(&written)).unwrap();
+        assert_eq!(v["enabled"], true);
+        assert_eq!(v["retries"], 3);
+    }
+
+    #[test]
+    fn transform_document_writer_html_profile_keeps_json_stdout_plain() {
+        let mut stdout = Cursor::new(Vec::new());
+        let mut stderr = Cursor::new(Vec::new());
+        let mut streams = Streams {
+            stdout: &mut stdout,
+            stderr: &mut stderr,
+            quiet: false,
+            no_color: false,
+        };
+
+        write_document_primary(
+            &eng::EngineContext::default(),
+            &serde_json::json!({
+                "kind": "document",
+                "content": r#"{"enabled":true,"retries":3}"#,
+            }),
+            None,
+            Some("html-css-vars"),
+            &mut streams,
+        )
+        .unwrap();
+
+        let written = String::from_utf8(stdout.into_inner()).unwrap();
+        assert!(!written.contains("\x1b["));
+        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(v["enabled"], true);
+        assert_eq!(v["retries"], 3);
+    }
+
+    #[test]
     fn transform_graph_artifact_writer_emits_source_map_sidecars() {
         let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-graph-source-map-sidecar");
         let _ = std::fs::remove_dir_all(&root);
@@ -11821,10 +12458,16 @@ mod tests {
             stdout: &mut stdout,
             stderr: &mut stderr,
             quiet: false,
+            no_color: false,
         };
 
-        write_transform_graph_artifacts(&eng::EngineContext::default(), &artifacts, &mut streams)
-            .unwrap();
+        write_transform_graph_artifacts(
+            &eng::EngineContext::default(),
+            &artifacts,
+            None,
+            &mut streams,
+        )
+        .unwrap();
 
         assert!(out.exists());
         assert_eq!(std::fs::read_to_string(&out).unwrap(), "<main></main>");
@@ -11874,10 +12517,16 @@ mod tests {
             stdout: &mut stdout,
             stderr: &mut stderr,
             quiet: false,
+            no_color: false,
         };
 
-        write_transform_graph_artifacts(&eng::EngineContext::default(), &artifacts, &mut streams)
-            .unwrap();
+        write_transform_graph_artifacts(
+            &eng::EngineContext::default(),
+            &artifacts,
+            None,
+            &mut streams,
+        )
+        .unwrap();
 
         assert!(out.exists());
         let collection: serde_json::Value =
@@ -12744,6 +13393,100 @@ mod tests {
             adapter.id(),
             cem_ml_transform_cem_ql::CEM_QL_TEMPLATE_ADAPTER_ID
         );
+    }
+
+    #[test]
+    fn transform_request_helper_output_color_type_does_not_infer_target_identity() {
+        let data = write_fixture("transform-helper-color-data.cem", "{p | Source}");
+        let template = write_fixture(
+            "transform-helper-color-view.cemt",
+            r#"{transform @to-content-type="text/html" | {template | {p Hello}}}"#,
+        );
+        let parsed = parse_cli(&[
+            "transform",
+            data.to_str().unwrap(),
+            "--data-content-type",
+            "text/cem-ml",
+            "--template",
+            template.to_str().unwrap(),
+            "--output-color-type",
+            "html-css-vars",
+            "--out",
+            "view.html",
+        ]);
+        let cli::Command::Transform(args) = parsed.command else {
+            panic!("expected transform command");
+        };
+        let context = context(&cli::ContextOptions::default());
+
+        let request = match transform_request_from_args(&context, &args) {
+            Ok(request) => request,
+            Err(_) => panic!("transform request helper should accept presentation color type"),
+        };
+
+        assert!(request.target.is_none());
+        assert_eq!(request.target_scope.output_color_type.as_deref(), None);
+    }
+
+    #[test]
+    fn transform_request_helper_output_color_type_preserves_target_identity() {
+        let data = write_fixture("transform-helper-color-conflict-data.cem", "{p | Source}");
+        let template = write_fixture(
+            "transform-helper-color-conflict-view.cemt",
+            r#"{transform @to-content-type="text/html" | {template | {p Hello}}}"#,
+        );
+        let parsed = parse_cli(&[
+            "transform",
+            data.to_str().unwrap(),
+            "--data-content-type",
+            "text/cem-ml",
+            "--template",
+            template.to_str().unwrap(),
+            "--output-color-type",
+            "terminal",
+            "--to-content-type",
+            "text/html",
+        ]);
+        let cli::Command::Transform(args) = parsed.command else {
+            panic!("expected transform command");
+        };
+        let context = context(&cli::ContextOptions::default());
+
+        let request = match transform_request_from_args(&context, &args) {
+            Ok(request) => request,
+            Err(_) => panic!("transform request helper should preserve explicit target identity"),
+        };
+
+        assert_eq!(
+            request
+                .target
+                .as_ref()
+                .and_then(|identity| identity.content_type.as_deref()),
+            Some("text/html")
+        );
+        assert_eq!(
+            request.target_scope.default_content_type.as_deref(),
+            Some("text/html")
+        );
+        assert_eq!(request.target_scope.output_color_type.as_deref(), None);
+    }
+
+    #[test]
+    fn transform_config_rejects_invalid_output_color_type_before_graph_execution() {
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "transform",
+                "--config",
+                "missing-transform-config.json",
+                "--output-color-type",
+                "painted",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_USAGE_OR_RESERVED);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("invalid transform --output-color-type `painted`"));
     }
 
     #[test]
@@ -13952,6 +14695,263 @@ owner:
         assert!(diagnostics
             .iter()
             .any(|diag| diag["code"] == "cem.yaml.unsafe_tag"));
+    }
+
+    #[test]
+    fn convert_yaml_to_json_with_terminal_color_outputs_json_value() {
+        let p = write_fixture(
+            "convert-yaml-to-json.yml",
+            r#"service:
+  name: catalog
+  enabled: true
+  retries: 3
+  tags:
+    - api
+    - public
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                p.to_str().unwrap(),
+                "--content-type",
+                "application/yaml",
+                "--schema",
+                cem_ml::schema::registry::YAML_SCHEMA_URI,
+                "--to-content-type",
+                "application/json",
+                "--to-schema",
+                cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI,
+                "--output-color-type",
+                "ansi-256",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty());
+        assert!(stdout.contains("\x1b["));
+        let v: serde_json::Value = serde_json::from_str(&strip_ansi_codes(&stdout)).unwrap();
+        assert_eq!(v["service"]["name"], "catalog");
+        assert_eq!(v["service"]["enabled"], true);
+        assert_eq!(v["service"]["retries"], 3);
+        assert_eq!(v["service"]["tags"][1], "public");
+    }
+
+    #[test]
+    fn convert_yaml_to_json_respects_global_no_color() {
+        let p = write_fixture("convert-yaml-to-json-no-color.yml", "enabled: true\n");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "--no-color",
+                "convert",
+                p.to_str().unwrap(),
+                "--content-type",
+                "application/yaml",
+                "--schema",
+                cem_ml::schema::registry::YAML_SCHEMA_URI,
+                "--to-content-type",
+                "application/json",
+                "--to-schema",
+                cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI,
+                "--output-color-type",
+                "ansi-256",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(!stdout.contains("\x1b["));
+        let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+        assert_eq!(v["enabled"], true);
+    }
+
+    #[test]
+    fn convert_yaml_to_json_file_output_is_plain_json() {
+        let p = write_fixture(
+            "convert-yaml-to-json-file.yml",
+            r#"enabled: true
+retries: 3
+"#,
+        );
+        let out_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-yaml-to-json.json");
+        let _ = std::fs::remove_file(&out_path);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                p.to_str().unwrap(),
+                "--content-type",
+                "application/yaml",
+                "--schema",
+                cem_ml::schema::registry::YAML_SCHEMA_URI,
+                "--to-content-type",
+                "application/json",
+                "--to-schema",
+                cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI,
+                "--output-color-type",
+                "ansi-256",
+                "--out",
+                out_path.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        assert!(!written.contains("\x1b["));
+        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
+        assert_eq!(v["enabled"], true);
+        assert_eq!(v["retries"], 3);
+    }
+
+    #[test]
+    fn convert_output_color_type_accepts_html_profiles_without_changing_json_target() {
+        let p = write_fixture("convert-html-color-accepted.yml", "enabled: true\n");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                p.to_str().unwrap(),
+                "--content-type",
+                "application/yaml",
+                "--schema",
+                cem_ml::schema::registry::YAML_SCHEMA_URI,
+                "--to-content-type",
+                "application/json",
+                "--to-schema",
+                cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI,
+                "--output-color-type",
+                "html",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty());
+        assert!(!stdout.contains("\x1b["));
+        let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+        assert_eq!(v["enabled"], true);
+    }
+
+    #[test]
+    fn convert_json_to_yaml_with_terminal_color_outputs_yaml_value() {
+        let p = write_fixture(
+            "convert-json-to-yaml.json",
+            r#"{
+  "service": {
+    "name": "catalog",
+    "enabled": true,
+    "retries": 3,
+    "tags": ["api", "public"]
+  }
+}
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                p.to_str().unwrap(),
+                "--content-type",
+                "application/json",
+                "--to-content-type",
+                "application/yaml",
+                "--output-color-type",
+                "ansi-256",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty());
+        assert!(stdout.contains("\x1b["));
+        let documents = yaml_rust2::YamlLoader::load_from_str(&strip_ansi_codes(&stdout)).unwrap();
+        let v = yaml_documents_to_json_value(documents);
+        assert_eq!(v["service"]["name"], "catalog");
+        assert_eq!(v["service"]["enabled"], true);
+        assert_eq!(v["service"]["retries"], 3);
+        assert_eq!(v["service"]["tags"][1], "public");
+    }
+
+    #[test]
+    fn convert_json_to_yaml_respects_global_no_color() {
+        let p = write_fixture("convert-json-to-yaml-no-color.json", r#"{"enabled":true}"#);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "--no-color",
+                "convert",
+                p.to_str().unwrap(),
+                "--content-type",
+                "application/json",
+                "--to-content-type",
+                "application/yaml",
+                "--output-color-type",
+                "ansi-256",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty());
+        assert!(!stdout.contains("\x1b["));
+        let documents = yaml_rust2::YamlLoader::load_from_str(&stdout).unwrap();
+        let v = yaml_documents_to_json_value(documents);
+        assert_eq!(v["enabled"], true);
+    }
+
+    #[test]
+    fn convert_json_to_yaml_file_output_is_plain_yaml() {
+        let p = write_fixture(
+            "convert-json-to-yaml-file.json",
+            r#"{"enabled":true,"retries":3}"#,
+        );
+        let out_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-json-to-yaml.yaml");
+        let _ = std::fs::remove_file(&out_path);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                p.to_str().unwrap(),
+                "--content-type",
+                "application/json",
+                "--to-content-type",
+                "application/yaml",
+                "--output-color-type",
+                "ansi-256",
+                "--out",
+                out_path.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        let written = std::fs::read_to_string(&out_path).unwrap();
+        assert!(!written.contains("\x1b["));
+        let documents = yaml_rust2::YamlLoader::load_from_str(&written).unwrap();
+        let v = yaml_documents_to_json_value(documents);
+        assert_eq!(v["enabled"], true);
+        assert_eq!(v["retries"], 3);
+    }
+
+    #[test]
+    fn convert_json_to_yaml_reports_json_parse_errors_without_cem_fallback() {
+        let p = write_fixture("convert-json-to-yaml-invalid.json", r#"{"enabled": true,}"#);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                p.to_str().unwrap(),
+                "--content-type",
+                "application/json",
+                "--to-content-type",
+                "application/yaml",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("cem.json.parse_error"));
+        assert!(!stderr.contains("cem.lifecycle.adapter_unsupported"));
+        assert!(!stderr.contains("cem.tokenizer.bare_brace_text"));
     }
 
     #[test]
@@ -17952,6 +18952,7 @@ start =
             stdout: &mut stdout,
             stderr: &mut stderr,
             quiet: false,
+            no_color: false,
         };
 
         write_primary(
@@ -17976,6 +18977,7 @@ start =
             stdout: &mut stdout,
             stderr: &mut stderr,
             quiet: false,
+            no_color: false,
         };
         let response = eng::ConvertResponse {
             primary: serde_json::json!({"kind": "not-binary-envelope"}),
@@ -17995,6 +18997,7 @@ start =
             &eng::EngineContext::default(),
             &response,
             None,
+            None,
             &mut streams,
         )
         .unwrap();
@@ -18010,6 +19013,7 @@ start =
             stdout: &mut stdout,
             stderr: &mut stderr,
             quiet: false,
+            no_color: false,
         };
 
         write_primary(
@@ -18273,6 +19277,96 @@ start =
         let second_written = std::fs::read_to_string(&second_out).unwrap();
         let second_json: serde_json::Value = serde_json::from_str(&second_written).unwrap();
         assert_eq!(second_json["content"], "{p Second}\n");
+    }
+
+    #[test]
+    fn convert_config_fanout_uses_generic_data_conversion_per_output_identity() {
+        let yaml_input = write_fixture(
+            "convert-config-generic-source.yml",
+            r#"service:
+  name: catalog
+  enabled: true
+"#,
+        );
+        let json_input = write_fixture(
+            "convert-config-generic-source.json",
+            r#"{"tokens":["base","accent"],"enabled":true}"#,
+        );
+        let json_out =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-config-generic-output.json");
+        let yaml_out =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-config-generic-output.yml");
+        let config_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-config-generic-fanout.json");
+        let _ = std::fs::remove_file(&json_out);
+        let _ = std::fs::remove_file(&yaml_out);
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [
+                    {
+                        "uri": yaml_input.display().to_string(),
+                        "rootScope": {
+                            "defaultContentType": "application/yaml",
+                            "schema": cem_ml::schema::registry::YAML_SCHEMA_URI
+                        }
+                    },
+                    {
+                        "uri": json_input.display().to_string(),
+                        "rootScope": {
+                            "defaultContentType": "application/json",
+                            "schema": cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI
+                        }
+                    }
+                ],
+                "outputs": [
+                    {
+                        "inputRef": yaml_input.display().to_string(),
+                        "destination": json_out.display().to_string(),
+                        "rootScope": {
+                            "defaultContentType": "application/json",
+                            "schema": cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI
+                        }
+                    },
+                    {
+                        "inputRef": json_input.display().to_string(),
+                        "destination": yaml_out.display().to_string(),
+                        "rootScope": {
+                            "defaultContentType": "application/yaml",
+                            "schema": cem_ml::schema::registry::YAML_SCHEMA_URI
+                        }
+                    }
+                ]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--config",
+                config_path.to_str().unwrap(),
+                "--output-color-type",
+                "ansi-256",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        let written_json = std::fs::read_to_string(&json_out).unwrap();
+        assert!(!written_json.contains("\x1b["));
+        let json: serde_json::Value = serde_json::from_str(&written_json).unwrap();
+        assert_eq!(json["service"]["name"], "catalog");
+        assert_eq!(json["service"]["enabled"], true);
+
+        let written_yaml = std::fs::read_to_string(&yaml_out).unwrap();
+        assert!(!written_yaml.contains("\x1b["));
+        let documents = yaml_rust2::YamlLoader::load_from_str(&written_yaml).unwrap();
+        let yaml = yaml_documents_to_json_value(documents);
+        assert_eq!(yaml["tokens"][0], "base");
+        assert_eq!(yaml["enabled"], true);
     }
 
     #[test]
@@ -20041,6 +21135,8 @@ start =
                 "application/cem+xml",
                 "--to-schema",
                 "https://cem.dev/ns/core/1",
+                "--output-color-type",
+                "html-css-vars",
                 "--base-uri",
                 "file:///tmp/",
                 p.to_str().unwrap(),

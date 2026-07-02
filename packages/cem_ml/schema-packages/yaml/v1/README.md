@@ -56,3 +56,16 @@ cargo run -p cem-ml-cli -- validate \
   --schema https://cem.dev/ns/data/yaml/1 \
   packages/cem_ml/schema-packages/yaml/v1/examples/basic-document.yaml
 ```
+
+Convert the checked-in `.yml` stream sample to JSON with ANSI color on stdout
+from a built CLI binary:
+
+```bash
+dist/target/debug/cem-ml convert \
+  packages/cem_ml/schema-packages/yaml/v1/examples/nested-stream.yml \
+  --content-type application/yaml \
+  --schema https://cem.dev/ns/data/yaml/1 \
+  --to-content-type application/json \
+  --to-schema https://cem.dev/ns/data/json/1 \
+  --output-color-type ansi-256
+```

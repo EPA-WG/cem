@@ -5,7 +5,10 @@
 //! that `cem-ml-cli` calls through. This is the production engine that
 //! replaces `NotImplementedEngine` in `cem-ml-cli/src/main.rs`.
 
-use crate::conversion::{ConversionExecution, ConversionRustFallbackDescriptor};
+use crate::conversion::{
+    ConversionExecution, ConversionRustFallbackDescriptor, GenericDataTextConversionOutcome,
+    GenericDataTextDocument,
+};
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::*;
 use crate::events::cem::CemEventNormalizer;
@@ -2654,6 +2657,22 @@ fn content_hash(bytes: &[u8]) -> String {
     format!("cem-bin/1+blake3:{}", blake3::hash(bytes).to_hex())
 }
 
+fn text_content_hash(bytes: &[u8]) -> String {
+    format!("cem-text/1+blake3:{}", blake3::hash(bytes).to_hex())
+}
+
+fn primary_bytes_from_text_document(document: &GenericDataTextDocument) -> PrimaryBytes {
+    let bytes = document.content.as_bytes().to_vec();
+    PrimaryBytes {
+        content_type: document.content_type.clone(),
+        schema: Some(document.schema.clone()),
+        format_version: "cem-text/1".to_owned(),
+        hash_scheme: "cem-text/1+blake3".to_owned(),
+        hash: text_content_hash(&bytes),
+        bytes,
+    }
+}
+
 fn primary_bytes_from_binary_artifact(
     artifact: &projection::BinaryProjectionArtifact,
 ) -> PrimaryBytes {
@@ -2677,6 +2696,95 @@ fn primary_bytes_from_binary_artifact(
         hash: artifact.hash.clone(),
         bytes,
     }
+}
+
+fn maybe_convert_generic_data_text(
+    request: &ConvertRequest,
+    started_at: Instant,
+) -> Option<ConvertResponse> {
+    let source = request
+        .input
+        .identity
+        .clone()
+        .unwrap_or_else(|| request.input.root_scope.format_identity());
+    let target = request
+        .target
+        .clone()
+        .or_else(|| request.target_scope.format_identity_option())?;
+
+    let outcome = crate::conversion::convert_generic_data_text(
+        &request.context.schema_registry,
+        &source,
+        &target,
+        Some(&request.input.uri),
+        &request.input.bytes,
+    );
+
+    let mut diagnostics = Vec::new();
+    diagnostics.extend(root_scope_metadata_diagnostics(
+        &request.input.uri,
+        &request.input.root_scope,
+        "input",
+    ));
+    diagnostics.extend(root_scope_metadata_diagnostics(
+        &request.input.uri,
+        &request.target_scope,
+        "output",
+    ));
+
+    match outcome {
+        GenericDataTextConversionOutcome::Unsupported => None,
+        GenericDataTextConversionOutcome::Converted {
+            document,
+            diagnostics: mut conversion_diagnostics,
+        } => {
+            diagnostics.append(&mut conversion_diagnostics);
+            append_convert_time_budget_diagnostics(&mut diagnostics, request, started_at);
+            let primary_bytes = primary_bytes_from_text_document(&document);
+            let hash = primary_bytes.hash.clone();
+            Some(ConvertResponse {
+                primary: json!({
+                    "kind": "document",
+                    "contentType": document.content_type,
+                    "schema": document.schema,
+                    "hash": hash,
+                }),
+                primary_bytes: Some(primary_bytes),
+                diagnostics,
+                scheduler_trace: crate::report::SchedulerTraceReport::default(),
+            })
+        }
+        GenericDataTextConversionOutcome::Failed {
+            diagnostics: mut conversion_diagnostics,
+        } => {
+            diagnostics.append(&mut conversion_diagnostics);
+            append_convert_time_budget_diagnostics(&mut diagnostics, request, started_at);
+            Some(ConvertResponse {
+                primary: Value::Null,
+                primary_bytes: None,
+                diagnostics,
+                scheduler_trace: crate::report::SchedulerTraceReport::default(),
+            })
+        }
+    }
+}
+
+fn append_convert_time_budget_diagnostics(
+    diagnostics: &mut Vec<Diagnostic>,
+    request: &ConvertRequest,
+    started_at: Instant,
+) {
+    let elapsed_ns = started_at.elapsed().as_nanos();
+    diagnostics.extend(time_budget_diagnostics(
+        &request.input.root_scope,
+        &["convertms", "converttimebudgetms"],
+        elapsed_ns,
+    ));
+    diagnostics.extend(time_budget_diagnostics(
+        &request.target_scope,
+        &["convertms", "converttimebudgetms"],
+        elapsed_ns,
+    ));
 }
 
 fn template_module_diagnostic(
@@ -2757,6 +2865,7 @@ fn apply_render_encode_expressions(
                 .context
                 .transform_template_encode_registry
                 .host_capabilities(),
+            output_color_type: None,
             uri: Some(spec.diagnostic_uri),
         },
         |binding, subject| {
@@ -3455,6 +3564,9 @@ impl CemMlEngine for RealCemMlEngine {
 
     fn convert(&self, request: ConvertRequest) -> EngineResult<ConvertResponse> {
         let started_at = Instant::now();
+        if let Some(response) = maybe_convert_generic_data_text(&request, started_at) {
+            return Ok(response);
+        }
         let trace = crate::scheduler::SchedulerTrace::new();
         let (policy, mut diagnostics) = scheduler_policy_for_convert(&request);
         let pool =

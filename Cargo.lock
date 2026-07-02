@@ -127,6 +127,7 @@ dependencies = [
  "tree-sitter",
  "tree-sitter-cem",
  "wasm-bindgen",
+ "yaml-rust2",
 ]
 
 [[package]]

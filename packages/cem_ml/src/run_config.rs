@@ -66,6 +66,8 @@ pub struct ScopeConfig {
     pub default_content_type: Option<String>,
     #[serde(default)]
     pub schema: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_color_type: Option<String>,
     #[serde(default)]
     pub version_pins: BTreeMap<String, String>,
     #[serde(default)]

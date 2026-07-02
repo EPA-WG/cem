@@ -133,6 +133,7 @@ impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
                 module.uri.as_str(),
             ));
         }
+        diagnostics.retain(|diagnostic| !is_cemt_encode_compile_diagnostic(diagnostic));
         let module_diagnostics = modules
             .iter()
             .map(|module| module.artifact.diagnostics.len())
@@ -731,6 +732,11 @@ fn fill_diagnostic_uri(diagnostics: &mut [Diagnostic], uri: &str) {
             diagnostic.uri = Some(uri.to_owned());
         }
     }
+}
+
+fn is_cemt_encode_compile_diagnostic(diagnostic: &Diagnostic) -> bool {
+    diagnostic.code == "cem.ql.render.compile_failed"
+        && diagnostic.message.contains("template expression `encode(")
 }
 
 fn clear_template_artifact_diagnostics(artifact: &mut TemplateArtifact) {
@@ -1797,6 +1803,52 @@ mod tests {
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code == "cem.ql.render.compile_failed"));
+    }
+
+    #[test]
+    fn adapter_suppresses_cemt_encode_metadata_compile_diagnostics() {
+        let adapter = CemQlTransformTemplateAdapter;
+        let identity = FormatIdentity {
+            schema: Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+        let template = TemplateInput {
+            uri: "color.cemt".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {template @name="main" @visibility="public" |
+    {body |
+      {$ encode([{"role": "diagnostic.error", "text": "Broken"}], { contentType: "text/plain", schema: "https://cem.dev/ns/data/text/terminal/1", category: "terminal-color" }, { colorizer: "terminal.ansi256", colorProfile: "ansi-256" }) }
+    }
+  }
+}"#
+            .to_vec(),
+            identity: Some(identity),
+            root_scope: ScopeConfig::default(),
+        };
+        let params = BTreeMap::new();
+        let data_bindings = vec!["input".to_owned()];
+
+        let compiled = adapter
+            .compile(TransformTemplateCompileRequest {
+                template: &template,
+                entrypoint: &TransformTemplateEntrypoint::named("main"),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: Default::default(),
+                module_preflight: Default::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            })
+            .expect("template should compile");
+
+        assert!(
+            !compiled
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "cem.ql.render.compile_failed"),
+            "{:?}",
+            compiled.diagnostics
+        );
     }
 
     #[test]

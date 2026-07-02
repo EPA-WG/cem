@@ -45,3 +45,17 @@ cargo run -p cem-ml-cli -- validate \
   --schema https://cem.dev/ns/data/json/1 \
   packages/cem_ml/schema-packages/json/v1/examples/basic-object.json
 ```
+
+Convert the checked-in nested JSON sample to YAML with ANSI color on stdout
+from a built CLI binary. The color profile decorates terminal presentation only;
+the target content remains `application/yaml`.
+
+```bash
+dist/target/debug/cem-ml convert \
+  packages/cem_ml/schema-packages/json/v1/examples/nested-data.json \
+  --content-type application/json \
+  --schema https://cem.dev/ns/data/json/1 \
+  --to-content-type application/yaml \
+  --to-schema https://cem.dev/ns/data/yaml/1 \
+  --output-color-type ansi-256
+```
