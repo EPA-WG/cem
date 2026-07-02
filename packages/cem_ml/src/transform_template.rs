@@ -1929,9 +1929,30 @@ impl TransformTemplateColorOutputProfile {
     }
 
     pub fn terminal_from_selector(selector: &str) -> Result<Self, String> {
-        TransformTemplateTerminalColorCapability::parse(selector)
-            .map(Self::terminal)
-            .ok_or_else(|| format!("unsupported terminal color profile `{selector}`"))
+        let selector = selector.trim();
+        let mut parts = selector.split('+');
+        let Some(capability_selector) = parts.next().filter(|part| !part.trim().is_empty()) else {
+            return Err("unsupported terminal color profile ``".to_owned());
+        };
+        let Some(capability) = TransformTemplateTerminalColorCapability::parse(capability_selector)
+        else {
+            return Err(format!("unsupported terminal color profile `{selector}`"));
+        };
+        let mut profile = Self::terminal(capability);
+        for modifier in parts {
+            match modifier.trim() {
+                "hyperlinks" | "links" => profile.hyperlinks = true,
+                "" => {
+                    return Err(format!("unsupported terminal color profile `{selector}`"));
+                }
+                other => {
+                    return Err(format!(
+                        "unsupported terminal color profile modifier `{other}`"
+                    ));
+                }
+            }
+        }
+        Ok(profile)
     }
 
     pub fn html(mode: TransformTemplateHtmlColorMode) -> Self {
@@ -1985,6 +2006,14 @@ impl TransformTemplateColorOutputProfile {
                 if !self.non_color_cues {
                     return Err(
                         "terminal color profiles must keep non-color fallback cues".to_owned()
+                    );
+                }
+                if self.hyperlinks
+                    && self.terminal_capability == TransformTemplateTerminalColorCapability::None
+                {
+                    return Err(
+                        "terminal color profiles can enable hyperlinks only when terminal capability allows them"
+                            .to_owned(),
                     );
                 }
                 Ok(())
@@ -3144,7 +3173,11 @@ fn transform_template_canonical_color_profile_selector(
     match profile.output {
         TransformTemplateColorOutputKind::None => "none".to_owned(),
         TransformTemplateColorOutputKind::Terminal => {
-            profile.terminal_capability.as_str().to_owned()
+            let mut selector = profile.terminal_capability.as_str().to_owned();
+            if profile.hyperlinks {
+                selector.push_str("+hyperlinks");
+            }
+            selector
         }
         TransformTemplateColorOutputKind::Html => profile.html_mode.as_str().to_owned(),
     }
@@ -13248,6 +13281,51 @@ mod tests {
     }
 
     #[test]
+    fn color_binding_resolves_terminal_profile_with_hyperlinks() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        registry.register(color_output_function_descriptor(
+            "terminal.ansi256.links",
+            "terminal-color",
+            "text/plain",
+            "https://cem.dev/ns/data/text/terminal/1",
+            Some("ansi-256+hyperlinks"),
+        ));
+        let request = TransformTemplateEncodeBindingRequest::new(
+            json!([{"role": "source.line-number", "text": "12", "href": "file:///tmp/example.cem"}]),
+            TransformTemplateEncodingTarget::new(
+                "text/plain",
+                "https://cem.dev/ns/data/text/terminal/1",
+                "terminal-color",
+            ),
+        )
+        .with_subject_type("tokens")
+        .with_options(TransformTemplateEncodeOptions {
+            colorizer: Some("terminal.ansi256.links".to_owned()),
+            color_profile: Some("ansi-256+hyperlinks".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+
+        let binding = registry
+            .resolve_color_binding(&request, &BTreeSet::new())
+            .expect("terminal colorizer with hyperlinks resolves");
+
+        assert_eq!(binding.function.name, "terminal.ansi256.links");
+        assert_eq!(
+            binding.color_profile.terminal_capability,
+            TransformTemplateTerminalColorCapability::Ansi256
+        );
+        assert!(binding.color_profile.hyperlinks);
+        assert_eq!(
+            binding.identity.color_profile.as_deref(),
+            Some("ansi-256+hyperlinks")
+        );
+        assert_eq!(
+            binding.identity.color_capability.as_deref(),
+            Some("ansi-256")
+        );
+    }
+
+    #[test]
     fn color_binding_reports_incompatible_custom_subject_type() {
         let mut registry = TransformTemplateOutputFunctionRegistry::new();
         registry.register(color_output_function_descriptor(
@@ -13496,12 +13574,36 @@ mod tests {
         assert!(profile.supports_role("syntax.token"));
         profile.validate().expect("terminal profile is valid");
 
+        let linked_profile =
+            TransformTemplateColorOutputProfile::terminal_from_selector("ansi-256+hyperlinks")
+                .expect("ansi-256 terminal hyperlink profile resolves");
+        assert_eq!(
+            linked_profile.terminal_capability,
+            TransformTemplateTerminalColorCapability::Ansi256
+        );
+        assert!(linked_profile.hyperlinks);
+        linked_profile
+            .validate()
+            .expect("terminal hyperlink profile is valid");
+
         let none_profile = TransformTemplateColorOutputProfile::terminal_from_selector("none")
             .expect("none terminal profile resolves");
         assert!(none_profile.no_color);
         none_profile
             .validate()
             .expect("plain terminal fallback profile is valid");
+
+        let mut unsupported_links =
+            TransformTemplateColorOutputProfile::terminal_from_selector("none+hyperlinks")
+                .expect("none terminal hyperlink selector parses");
+        let link_error = unsupported_links
+            .validate()
+            .expect_err("terminal hyperlinks require a capable terminal");
+        assert!(link_error.contains("only when terminal capability allows them"));
+        unsupported_links.hyperlinks = false;
+        unsupported_links
+            .validate()
+            .expect("plain terminal profile is valid once hyperlinks are disabled");
 
         let selector_error =
             TransformTemplateColorOutputProfile::terminal_from_selector("ansi-1024")

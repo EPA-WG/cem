@@ -274,7 +274,7 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add explicit JSON field-name and CSV header-name target syntax
           helpers so field/header policy checks are available without relying
           on the generic identifier helper.
-  - [ ] Define CEMT color output support for terminal ANSI/SGR output and HTML
+  - [x] Define CEMT color output support for terminal ANSI/SGR output and HTML
         color output. Style roles include diagnostics, source gutters and
         highlights, syntax tokens, diff hunks, and status states. Terminal
         profiles must support `none`, `ansi-16`, `ansi-256`, `truecolor`, and
@@ -291,6 +291,9 @@ history belongs in git history and the feature-specific docs linked below.
           binding resolution, including terminal/HTML target inference,
           canonical profile identity, terminal color capability identity, and
           early diagnostics for unsupported profile selectors.
+    - [x] Add explicit terminal hyperlink profile selectors with validation so
+          hyperlinks resolve only for terminal capabilities that allow them
+          while preserving the underlying color capability identity.
   - [ ] Define subject handling for scalar values, local/qualified names,
         namespace URIs, identifiers, structured values, CEM AST nodes, CEM DOM
         nodes, XML/HTML nodes, token streams, normalized parser/transform
