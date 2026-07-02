@@ -2357,6 +2357,20 @@ impl TransformTemplateTargetSyntaxRules {
             TransformTemplateIdentifierPolicy::Opaque => false,
         }
     }
+
+    pub fn is_valid_field_name(&self, value: &str) -> bool {
+        match self.field_header_policy {
+            TransformTemplateFieldHeaderPolicy::JsonObjectFields => is_json_field_name(value),
+            _ => false,
+        }
+    }
+
+    pub fn is_valid_header_name(&self, value: &str) -> bool {
+        match self.field_header_policy {
+            TransformTemplateFieldHeaderPolicy::CsvHeaders => is_csv_header_name(value),
+            _ => false,
+        }
+    }
 }
 
 const HTML_VOID_ELEMENTS: &[&str] = &[
@@ -13779,6 +13793,9 @@ mod tests {
         assert!(json_rules.permits_mode(TransformTemplateEncodedArtifactMode::Document));
         assert!(json_rules.is_valid_identifier("field with spaces"));
         assert!(!json_rules.is_valid_identifier("field\nbreak"));
+        assert!(json_rules.is_valid_field_name("field with spaces"));
+        assert!(!json_rules.is_valid_field_name("field\nbreak"));
+        assert!(!json_rules.is_valid_header_name("field"));
 
         let json_namespace_error = json_target
             .syntax_rules(&TransformTemplateEncodeOptions {
@@ -13829,6 +13846,9 @@ mod tests {
         );
         assert!(csv_rules.is_valid_identifier("Column A"));
         assert!(!csv_rules.is_valid_identifier("Column\nA"));
+        assert!(csv_rules.is_valid_header_name("Column A"));
+        assert!(!csv_rules.is_valid_header_name("Column\nA"));
+        assert!(!csv_rules.is_valid_field_name("Column A"));
 
         let binary_rules = TransformTemplateEncodingTarget::new(
             "application/octet-stream",

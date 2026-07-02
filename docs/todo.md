@@ -258,7 +258,7 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Apply source-map `none` policy suppression to direct text artifact
           composition so text, token, and chunk writer paths enforce the same
           source-map/output-span boundary behavior.
-  - [ ] Add schema helper APIs for target syntax rules, void/empty element
+  - [x] Add schema helper APIs for target syntax rules, void/empty element
         policy, raw-text/RCDATA modes, namespace repair, identifier validity,
         field/header policy, fragment/document handling, and charset/final byte
         writer boundaries.
@@ -271,6 +271,9 @@ history belongs in git history and the feature-specific docs linked below.
           fragment/document mode, namespace policy, charset, and text/binary
           writer-boundary choices surface as CEMT diagnostics before artifact
           production.
+    - [x] Add explicit JSON field-name and CSV header-name target syntax
+          helpers so field/header policy checks are available without relying
+          on the generic identifier helper.
   - [ ] Define CEMT color output support for terminal ANSI/SGR output and HTML
         color output. Style roles include diagnostics, source gutters and
         highlights, syntax tokens, diff hunks, and status states. Terminal
