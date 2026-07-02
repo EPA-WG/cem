@@ -3018,6 +3018,7 @@ fn conversion_output_insertion_context(
     context.color_profile = output_contract.color_profile.clone();
     context.mode = Some(options.mode);
     context.canonical = Some(options.canonical);
+    context.source_map_policy = Some(options.source_map_policy);
     context
 }
 
@@ -5441,6 +5442,10 @@ mod tests {
         assert_eq!(
             html.options.source_map_policy,
             TransformTemplateSourceMapPolicy::Generated
+        );
+        assert_eq!(
+            html.insertion_context.source_map_policy,
+            Some(TransformTemplateSourceMapPolicy::Generated)
         );
         assert!(html.options.charset.is_none());
         assert_eq!(

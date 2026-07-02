@@ -378,7 +378,7 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Report ready native schema output producers that do not have a
           matching CEMT converter with the same source/target identity and
           fallback symbol.
-  - [ ] Implement CEMT output safety rules: context-specific categories must not
+  - [x] Implement CEMT output safety rules: context-specific categories must not
         be conflated, encoded artifacts must not be silently re-encoded,
         compatible-artifact concatenation must validate target identity and
         category, character encoding must be selected at the final byte-writer
@@ -390,6 +390,9 @@ history belongs in git history and the feature-specific docs linked below.
           converter metadata into encoded-artifact insertion contexts, syntax
           rules, final-writer charset defaults, generated source-map policy, and
           safe color profile metadata.
+    - [x] Enforce encoded-artifact source-map policy compatibility at insertion
+          boundaries so generated-source-map output contexts cannot silently
+          accept artifacts produced under a different source-map policy.
   - [ ] Add diagnostics for unknown encoder, unsupported category, unsafe raw
         insertion, context mismatch, unsupported charset, charset mismatch,
         double encoding, unknown formatter, unsupported terminal color

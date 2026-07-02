@@ -1667,6 +1667,16 @@ pub enum TransformTemplateSourceMapPolicy {
     None,
 }
 
+impl TransformTemplateSourceMapPolicy {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Preserve => "preserve",
+            Self::Generated => "generated",
+            Self::None => "none",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum TransformTemplateEncodedArtifactMode {
@@ -7459,6 +7469,16 @@ impl TransformTemplateEncodedArtifact {
             }
         }
 
+        if let Some(expected) = context.source_map_policy {
+            if self.identity.source_map_policy != expected {
+                return Err(TransformTemplateEncodedArtifactError::ContextMismatch {
+                    field: "sourceMapPolicy".to_owned(),
+                    expected: expected.as_str().to_owned(),
+                    actual: self.identity.source_map_policy.as_str().to_owned(),
+                });
+            }
+        }
+
         Ok(())
     }
 
@@ -7509,6 +7529,8 @@ pub struct TransformTemplateEncodedArtifactInsertionContext {
     pub mode: Option<TransformTemplateEncodedArtifactMode>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub canonical: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_map_policy: Option<TransformTemplateSourceMapPolicy>,
 }
 
 impl TransformTemplateEncodedArtifactInsertionContext {
@@ -7557,6 +7579,7 @@ impl TransformTemplateEncodedArtifactInsertionContext {
             binary_framing: identity.binary_framing.clone(),
             mode: Some(identity.mode),
             canonical: Some(identity.canonical),
+            source_map_policy: Some(identity.source_map_policy),
         }
     }
 
@@ -12868,6 +12891,7 @@ mod tests {
                 binary_framing: None,
                 mode: Some(TransformTemplateEncodedArtifactMode::Fragment),
                 canonical: Some(true),
+                source_map_policy: Some(TransformTemplateSourceMapPolicy::Generated),
             })
             .expect("encoded artifact is compatible with requested target");
     }
@@ -12916,6 +12940,7 @@ mod tests {
                 binary_framing: None,
                 mode: Some(TransformTemplateEncodedArtifactMode::Document),
                 canonical: Some(false),
+                source_map_policy: Some(TransformTemplateSourceMapPolicy::Preserve),
             })
             .expect("preserve identity is compatible with preserve insertion context");
     }
@@ -13304,6 +13329,7 @@ mod tests {
                 binary_framing: None,
                 mode: Some(TransformTemplateEncodedArtifactMode::Document),
                 canonical: Some(false),
+                source_map_policy: Some(TransformTemplateSourceMapPolicy::Generated),
             })
             .expect("colored artifact identity is compatible");
     }
@@ -15156,6 +15182,7 @@ mod tests {
             binary_framing: None,
             mode: Some(TransformTemplateEncodedArtifactMode::Fragment),
             canonical: Some(true),
+            source_map_policy: Some(TransformTemplateSourceMapPolicy::Generated),
         };
 
         artifact
@@ -15197,6 +15224,7 @@ mod tests {
                 binary_framing: None,
                 mode: None,
                 canonical: None,
+                source_map_policy: None,
             })
             .expect_err("category/context mismatch is rejected");
 
@@ -15222,6 +15250,20 @@ mod tests {
             double_encoding.code(),
             TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_DOUBLE_ENCODING_CODE
         );
+
+        let mut source_map_context =
+            TransformTemplateEncodedArtifactInsertionContext::from_encoded_artifact_identity(
+                &artifact.identity,
+            );
+        source_map_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::None);
+        let source_map_error = artifact
+            .validate_insertion(&source_map_context)
+            .expect_err("source map policy mismatch is rejected");
+        assert_eq!(
+            source_map_error.code(),
+            TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_CONTEXT_MISMATCH_CODE
+        );
+        assert!(source_map_error.message().contains("sourceMapPolicy"));
     }
 
     #[test]
@@ -15240,6 +15282,7 @@ mod tests {
                 binary_framing: None,
                 mode: None,
                 canonical: None,
+                source_map_policy: None,
             })
             .expect_err("content type mismatch is rejected");
         assert_eq!(
@@ -15260,6 +15303,7 @@ mod tests {
                 binary_framing: None,
                 mode: None,
                 canonical: None,
+                source_map_policy: None,
             })
             .expect_err("produced kind mismatch is rejected");
         assert_eq!(
