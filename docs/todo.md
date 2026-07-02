@@ -563,7 +563,7 @@ Implement schema packages for these content families:
 - [x] XSLT/XSL legacy/custom-element compatibility.
 - [x] HTML.
 - [x] CSS/scoped style content.
-# [] custom schema creation instructions
+- [x] Add custom schema package creation instructions.
 # [] believes schema + registry
 stop for sync up with author
 ## Current Verification Commands

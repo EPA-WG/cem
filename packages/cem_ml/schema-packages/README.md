@@ -158,6 +158,81 @@ The relationship is layered validation, not broad inheritance:
 Schema dependencies should be resolved by schema URL and content type, not by
 filesystem path. Filesystem layout is a distribution detail for local packages.
 
+## Creating A Custom Schema Package
+
+Use this checklist when adding a project-local or future external schema
+package. Built-in packages use the same contract, but are embedded into the
+runtime catalog by Rust code after validation.
+
+1. Create a versioned package folder:
+
+```text
+schema-packages/{package-id}/v1/
+  package.cem
+  schema/{package-id}.cem
+  examples/
+  converters/
+```
+
+2. Author `schema/{package-id}.cem` as a schema-definition document. It should
+   declare the schema URI, version, owned namespaces, content model,
+   constraints, diagnostics, and any `{uses}` dependencies on other schemas.
+   Schema dependencies must be referenced by schema URI, not by filesystem path.
+
+3. Author `package.cem` against
+   `https://cem.dev/ns/schema-package/1`. The manifest must declare the package
+   id/version, the schema URI and package-relative source file, owned content
+   types, and namespace claims. Prefer a single `@primary=true` content type and
+   mark compatibility spellings with `@alias=true`.
+
+```cem
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="note" @version="1.0.0" |
+    {schema
+        @uri="https://example.test/ns/note/1"
+        @source="schema/note.cem"
+    }
+
+    {content-type @value="application/vnd.example.note+cem" @primary=true}
+    {namespace @prefix="note" @uri="https://example.test/ns/note/1"}
+}
+```
+
+4. Keep manifest metadata consistent with the schema source. Local validation
+   checks that the manifest schema URI, content-type claims, and namespace
+   claims match the referenced `schema/*.cem` source.
+
+5. Add converter metadata only when the package owns a real conversion edge.
+   CEMT converters must declare template path, template content type/schema,
+   target entrypoint when needed, output syntax/category metadata for
+   serializers, and parity fixtures when paired with a native fallback. Rust
+   converters must declare `rust-symbol`; CEMT converters that name a Rust
+   fallback must also declare `fallback-reason`.
+
+6. Add examples that cover the smallest valid instance, the common production
+   shape, and at least one invalid contract. Link those examples from the
+   package README and keep expected diagnostics explicit.
+
+7. Validate the manifest directly:
+
+```bash
+cargo run -p cem-ml-cli -- validate \
+  --content-type application/vnd.cem.schema-package+cem \
+  --schema https://cem.dev/ns/schema-package/1 \
+  schema-packages/{package-id}/v1/package.cem
+```
+
+8. Validate the package folder against source consistency rules. Built-in
+   packages are covered by the CLI integration test; local packages should run
+   the same validator before they are added to a runtime catalog.
+
+Custom packages are not automatically trusted by the built-in runtime. A host
+must explicitly load or embed the package descriptor before its content types,
+namespaces, converters, or schema rules participate in registry resolution.
+
 ## Direct References
 
 Reusable schema relationships are declared inside schema documents with
