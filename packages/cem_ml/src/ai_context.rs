@@ -1358,6 +1358,58 @@ mod tests {
     }
 
     #[test]
+    fn projection_kinds_remain_canonical_ast_views() {
+        let document = parse("{article @id=guide | {heading | AI context} {p | Stable refs}}");
+        let element_id = document
+            .iter()
+            .find_map(|node| match node {
+                CemAstNode::Element {
+                    node_id,
+                    expanded_name,
+                    ..
+                } if expanded_name.local_name == "article" => Some(*node_id),
+                _ => None,
+            })
+            .expect("article node id");
+
+        for (kind, root) in [
+            (AiContextProjectionKind::ContextPack, None),
+            (AiContextProjectionKind::EntityGraph, None),
+            (AiContextProjectionKind::SemanticTokens, None),
+            (AiContextProjectionKind::ContextFragment, Some(element_id)),
+            (AiContextProjectionKind::EmbeddingRecord, None),
+        ] {
+            let projection = project_cem_document_for_ai(
+                &document,
+                AiContextProjectionRequest {
+                    kind,
+                    root,
+                    ..AiContextProjectionRequest::default()
+                },
+            );
+
+            assert_eq!(projection.kind, kind);
+            assert_eq!(projection.metadata.canonical_projection, "cem-ast");
+            assert_eq!(projection.metadata.record_count, projection.records.len());
+            assert!(!projection.records.is_empty(), "{kind:?} has records");
+            assert!(projection
+                .metadata
+                .expansion_refs
+                .iter()
+                .any(|reference| reference.canonical_projection == "cem-ast"
+                    && reference.label == "root"));
+            assert!(projection.records.iter().all(|record| {
+                record.canonical_ref.starts_with("cem-ast://node/")
+                    && record.expansion_ref.canonical_projection == "cem-ast"
+                    && record.expansion_ref.canonical_ref == record.canonical_ref
+                    && record.expansion_ref.label == "record"
+                    && record.source_map.is_some()
+                    && record.facets.contains(&kind.as_str().to_owned())
+            }));
+        }
+    }
+
+    #[test]
     fn profile_controls_apply_budget_lossiness_and_metadata() {
         let document = parse("{button | Save}{p | More}");
 

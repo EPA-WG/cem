@@ -431,7 +431,7 @@ history belongs in git history and the feature-specific docs linked below.
           fields.
     - [x] Assert ambiguous output-function resolution surfaces the stable
           renderer-facing diagnostic code and conflicting function names.
-  - [ ] Add AI-facing context projection support as a task-shaped view over the
+  - [x] Add AI-facing context projection support as a task-shaped view over the
         canonical AST/DOM/events/schema/token metadata, not a replacement for
         canonical projections. Cover `ai-context-pack`, `ai-entity-graph`,
         `ai-semantic-tokens`, `ai-context-fragment`, and
@@ -441,6 +441,9 @@ history belongs in git history and the feature-specific docs linked below.
           filtering for all five AI projection kinds.
     - [x] Expose AST-backed AI context projection values through standard CEMT
           JSON encoders for all five AI projection output categories.
+    - [x] Assert all five AI projection kinds remain canonical AST views with
+          `cem-ast` expansion refs, record-level source maps, and
+          projection-specific facets.
   - [x] Define AI context profile controls and safety: budgets for nodes,
         tokens, characters, depth, diagnostics, and source excerpts; stable IDs
         and source ranges; `summary`, `navigation`, `refactor`,
