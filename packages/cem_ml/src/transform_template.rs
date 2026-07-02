@@ -10465,9 +10465,18 @@ mod tests {
             .resolve(&query, &BTreeSet::new())
             .expect_err("two matching encoders should be ambiguous");
         assert!(matches!(
-            ambiguous,
+            &ambiguous,
             TransformTemplateOutputFunctionResolutionError::Ambiguous { .. }
         ));
+        let ambiguous_diagnostic = ambiguous.diagnostic(Some("template.cemt"));
+        assert_eq!(
+            ambiguous_diagnostic.code,
+            TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_AMBIGUOUS_CODE
+        );
+        assert!(ambiguous_diagnostic.message.contains("html.text"));
+        assert!(ambiguous_diagnostic
+            .message
+            .contains("acme.native.html-text"));
 
         let native_query = TransformTemplateOutputFunctionQuery {
             name: Some(native.name.clone()),

@@ -393,7 +393,7 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Enforce encoded-artifact source-map policy compatibility at insertion
           boundaries so generated-source-map output contexts cannot silently
           accept artifacts produced under a different source-map policy.
-  - [ ] Add diagnostics for unknown encoder, unsupported category, unsafe raw
+  - [x] Add diagnostics for unknown encoder, unsupported category, unsafe raw
         insertion, context mismatch, unsupported charset, charset mismatch,
         double encoding, unknown formatter, unsupported terminal color
         capability, inaccessible HTML palette, ambiguous custom function
@@ -429,6 +429,8 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add CEMT/native encode parity mismatch diagnostics for drift in
           diagnostic codes and encoded artifact identity/value/source-map/span
           fields.
+    - [x] Assert ambiguous output-function resolution surfaces the stable
+          renderer-facing diagnostic code and conflicting function names.
   - [ ] Add AI-facing context projection support as a task-shaped view over the
         canonical AST/DOM/events/schema/token metadata, not a replacement for
         canonical projections. Cover `ai-context-pack`, `ai-entity-graph`,
