@@ -294,7 +294,7 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Add explicit terminal hyperlink profile selectors with validation so
           hyperlinks resolve only for terminal capabilities that allow them
           while preserving the underlying color capability identity.
-  - [ ] Define subject handling for scalar values, local/qualified names,
+  - [x] Define subject handling for scalar values, local/qualified names,
         namespace URIs, identifiers, structured values, CEM AST nodes, CEM DOM
         nodes, XML/HTML nodes, token streams, normalized parser/transform
         events, sealed binary chunks, attributes/slots, and fragments. Raw
@@ -308,6 +308,9 @@ history belongs in git history and the feature-specific docs linked below.
           envelopes, including `raw-html`/`raw-xml` candidates and subject-type
           incompatibility when callers try to bind raw functions from plain
           values.
+    - [x] Add collection-level `attributes`/`attribute-list` and
+          `slots`/`slot-list` subject candidates so collection encoders do not
+          have to overload single attribute/slot subject types.
   - [ ] Extend schema package metadata so each supported schema can declare
         source identity, output syntax, destination content type and schema,
         CEMT serializer template, template content type/schema, entrypoint,

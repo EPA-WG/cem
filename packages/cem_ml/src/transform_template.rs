@@ -6205,6 +6205,20 @@ fn append_transform_template_subject_type_hint(candidates: &mut Vec<String>, val
             append_transform_template_subject_type_candidate(candidates, "fragment");
             append_transform_template_subject_type_candidate(candidates, "document-fragment");
         }
+        "attribute" | "attribute-node" => {
+            append_transform_template_subject_type_candidate(candidates, "attribute");
+        }
+        "attributes" | "attribute-list" | "attribute-map" => {
+            append_transform_template_subject_type_candidate(candidates, "attributes");
+            append_transform_template_subject_type_candidate(candidates, "attribute-list");
+        }
+        "slot" | "slot-node" => {
+            append_transform_template_subject_type_candidate(candidates, "slot");
+        }
+        "slots" | "slot-list" | "slot-map" => {
+            append_transform_template_subject_type_candidate(candidates, "slots");
+            append_transform_template_subject_type_candidate(candidates, "slot-list");
+        }
         "raw" => append_transform_template_subject_type_candidate(candidates, "raw"),
         "raw-syntax" => {
             append_transform_template_subject_type_candidate(candidates, "raw-syntax");
@@ -6424,12 +6438,26 @@ fn append_transform_template_semantic_subject_type_candidates(
     }
 
     if object
+        .get("attributes")
+        .is_some_and(|value| value.is_array() || value.is_object())
+    {
+        append_transform_template_subject_type_hint(candidates, "attributes");
+    }
+
+    if object
         .get("slotName")
         .or_else(|| object.get("slot-name"))
         .or_else(|| object.get("slot"))
         .is_some()
     {
         append_transform_template_subject_type_hint(candidates, "slot");
+    }
+
+    if object
+        .get("slots")
+        .is_some_and(|value| value.is_array() || value.is_object())
+    {
+        append_transform_template_subject_type_hint(candidates, "slots");
     }
 }
 
@@ -13769,6 +13797,30 @@ mod tests {
             })),
             vec![
                 "raw".to_owned(),
+                "map".to_owned(),
+                "object".to_owned(),
+                "json".to_owned()
+            ]
+        );
+        assert_eq!(
+            transform_template_encode_subject_type_candidates(&json!({
+                "attributes": [{"name": "id", "value": "main"}]
+            })),
+            vec![
+                "attributes".to_owned(),
+                "attribute-list".to_owned(),
+                "map".to_owned(),
+                "object".to_owned(),
+                "json".to_owned()
+            ]
+        );
+        assert_eq!(
+            transform_template_encode_subject_type_candidates(&json!({
+                "slots": {"default": [{"kind": "text", "value": "Hello"}]}
+            })),
+            vec![
+                "slots".to_owned(),
+                "slot-list".to_owned(),
                 "map".to_owned(),
                 "object".to_owned(),
                 "json".to_owned()
