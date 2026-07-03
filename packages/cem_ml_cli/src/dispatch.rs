@@ -3131,6 +3131,9 @@ fn serialize_structured_document_value(
     if format_identity_is_yaml(identity) {
         return serialize_json_value_as_yaml(value);
     }
+    if format_identity_is_xml(identity) {
+        return serialize_json_value_as_xml(value);
+    }
     serde_json::to_vec_pretty(value).map_err(invalid_structured_document)
 }
 
@@ -3181,6 +3184,21 @@ fn format_identity_is_yaml(identity: Option<&eng::FormatIdentity>) -> bool {
     format_identity_text_syntax(identity) == Some(ConsoleTextSyntax::Yaml)
 }
 
+fn format_identity_is_xml(identity: Option<&eng::FormatIdentity>) -> bool {
+    let Some(identity) = identity else {
+        return false;
+    };
+    if identity
+        .content_type
+        .as_deref()
+        .map(cli_content_type_essence)
+        .is_some_and(|content_type| matches!(content_type.as_str(), "application/xml" | "text/xml"))
+    {
+        return true;
+    }
+    identity.schema.as_deref().map(str::trim) == Some(cem_ml::schema::registry::XML_SCHEMA_URI)
+}
+
 fn format_identity_text_syntax(
     identity: Option<&eng::FormatIdentity>,
 ) -> Option<ConsoleTextSyntax> {
@@ -3196,6 +3214,116 @@ fn format_identity_text_syntax(
         Some(cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI) => Some(ConsoleTextSyntax::Json),
         Some(cem_ml::schema::registry::YAML_SCHEMA_URI) => Some(ConsoleTextSyntax::Yaml),
         _ => None,
+    }
+}
+
+fn serialize_json_value_as_xml(value: &serde_json::Value) -> io::Result<Vec<u8>> {
+    let root = structured_xml_root_name(value);
+    let mut out = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    write_structured_xml_value(&mut out, &root, value, 0);
+    out.push('\n');
+    Ok(out.into_bytes())
+}
+
+fn structured_xml_root_name(value: &serde_json::Value) -> String {
+    value
+        .get("kind")
+        .and_then(serde_json::Value::as_str)
+        .map(xml_element_name)
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| "value".to_owned())
+}
+
+fn write_structured_xml_value(
+    out: &mut String,
+    name: &str,
+    value: &serde_json::Value,
+    depth: usize,
+) {
+    let name = xml_element_name(name);
+    let indent = "  ".repeat(depth);
+    match value {
+        serde_json::Value::Object(fields) => {
+            out.push_str(&indent);
+            out.push('<');
+            out.push_str(&name);
+            out.push_str(">\n");
+            for (key, child) in fields {
+                write_structured_xml_value(out, key, child, depth + 1);
+            }
+            out.push_str(&indent);
+            out.push_str("</");
+            out.push_str(&name);
+            out.push_str(">\n");
+        }
+        serde_json::Value::Array(values) => {
+            out.push_str(&indent);
+            out.push('<');
+            out.push_str(&name);
+            out.push_str(">\n");
+            for child in values {
+                write_structured_xml_value(out, "item", child, depth + 1);
+            }
+            out.push_str(&indent);
+            out.push_str("</");
+            out.push_str(&name);
+            out.push_str(">\n");
+        }
+        serde_json::Value::Null => {
+            out.push_str(&indent);
+            out.push('<');
+            out.push_str(&name);
+            out.push_str("/>\n");
+        }
+        serde_json::Value::Bool(value) => {
+            write_structured_xml_text(out, &indent, &name, if *value { "true" } else { "false" });
+        }
+        serde_json::Value::Number(value) => {
+            write_structured_xml_text(out, &indent, &name, &value.to_string());
+        }
+        serde_json::Value::String(value) => {
+            write_structured_xml_text(out, &indent, &name, value);
+        }
+    }
+}
+
+fn write_structured_xml_text(out: &mut String, indent: &str, name: &str, value: &str) {
+    out.push_str(indent);
+    out.push('<');
+    out.push_str(name);
+    out.push('>');
+    push_xml_escaped_text(out, value);
+    out.push_str("</");
+    out.push_str(name);
+    out.push_str(">\n");
+}
+
+fn push_xml_escaped_text(out: &mut String, value: &str) {
+    for ch in value.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&apos;"),
+            _ => out.push(ch),
+        }
+    }
+}
+
+fn xml_element_name(value: &str) -> String {
+    let mut out = String::with_capacity(value.len().max(1));
+    for (index, ch) in value.chars().enumerate() {
+        let valid = ch == '_' || ch == '-' || ch.is_ascii_alphanumeric();
+        if index == 0 && !(ch == '_' || ch.is_ascii_alphabetic()) {
+            out.push('_');
+        }
+        out.push(if valid { ch } else { '-' });
+    }
+    if out.is_empty() {
+        "_".to_owned()
+    } else {
+        out
     }
 }
 
@@ -11658,6 +11786,19 @@ mod tests {
         }
     }
 
+    fn assert_well_formed_xml(source: &str) {
+        let mut reader = quick_xml::Reader::from_str(source);
+        let mut buf = Vec::new();
+        loop {
+            match reader.read_event_into(&mut buf) {
+                Ok(quick_xml::events::Event::Eof) => break,
+                Ok(_) => {}
+                Err(error) => panic!("expected well-formed XML: {error}: {source}"),
+            }
+            buf.clear();
+        }
+    }
+
     fn test_source_map(len: u32) -> cem_ml::source_map::SourceMapStack {
         cem_ml::source_map::SourceMapStack {
             frames: vec![cem_ml::source_map::SourceMapFrame {
@@ -13047,6 +13188,82 @@ mod tests {
         );
         assert_eq!(item["tokens"]["color"], "blue");
         assert_eq!(item["tokens"]["enabled"], true);
+    }
+
+    #[test]
+    fn transform_graph_artifact_writer_uses_collection_identities_for_xml_outputs() {
+        let root =
+            std::env::temp_dir().join("cem-ml-cli-tests/transform-graph-collection-xml-identity");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let out = root.join("out/collection.xml");
+        let item_out = root.join("out/theme.xml");
+        let artifacts = vec![eng::TransformGraphArtifact {
+            export_id: "joined".to_owned(),
+            input: "collection".to_owned(),
+            destination: Some(out.display().to_string()),
+            identity: Some(eng::FormatIdentity {
+                content_type: Some(cem_ml::schema::registry::XML_CONTENT_TYPE.to_owned()),
+                schema: Some(cem_ml::schema::registry::XML_SCHEMA_URI.to_owned()),
+                ..eng::FormatIdentity::default()
+            }),
+            primary: serde_json::json!({
+                "kind": "collection",
+                "items": [{
+                    "input": "css",
+                    "artifactId": "theme",
+                    "destination": item_out.display().to_string(),
+                    "identity": {
+                        "contentType": cem_ml::schema::registry::XML_CONTENT_TYPE,
+                        "schema": cem_ml::schema::registry::XML_SCHEMA_URI
+                    },
+                    "primary": {
+                        "tokens": {
+                            "color": "blue & green",
+                            "enabled": true
+                        }
+                    },
+                    "bindings": {
+                        "stem": "theme"
+                    }
+                }],
+            }),
+            source_map: None,
+            output_spans: Vec::new(),
+        }];
+        let mut stdout = Cursor::new(Vec::new());
+        let mut stderr = Cursor::new(Vec::new());
+        let mut streams = Streams {
+            stdout: &mut stdout,
+            stderr: &mut stderr,
+            quiet: false,
+            no_color: false,
+        };
+
+        write_transform_graph_artifacts(
+            &eng::EngineContext::default(),
+            &artifacts,
+            Some("ansi-256"),
+            &mut streams,
+        )
+        .unwrap();
+
+        assert!(stdout.into_inner().is_empty());
+        let manifest_text = std::fs::read_to_string(&out).unwrap();
+        assert_well_formed_xml(&manifest_text);
+        assert!(manifest_text.starts_with("<?xml"));
+        assert!(manifest_text.contains("<collection>"));
+        assert!(manifest_text.contains("<items>"));
+        assert!(manifest_text.contains("<artifactId>theme</artifactId>"));
+        assert!(manifest_text.contains("<contentType>application/xml</contentType>"));
+
+        let item_text = std::fs::read_to_string(&item_out).unwrap();
+        assert_well_formed_xml(&item_text);
+        assert!(item_text.starts_with("<?xml"));
+        assert!(item_text.contains("<value>"));
+        assert!(item_text.contains("<tokens>"));
+        assert!(item_text.contains("<color>blue &amp; green</color>"));
+        assert!(item_text.contains("<enabled>true</enabled>"));
     }
 
     #[test]
