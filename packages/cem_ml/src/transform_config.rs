@@ -7,8 +7,8 @@
 
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::{
-    classify_transform_template_identity, FormatIdentity, TransformTemplateKind,
-    TRANSFORM_TEMPLATE_UNSUPPORTED_CODE,
+    classify_transform_template_identity, FormatIdentity, TransformGraphStylePolicy,
+    TransformTemplateKind, TRANSFORM_TEMPLATE_UNSUPPORTED_CODE,
 };
 use crate::events::cem::CemEventNormalizer;
 use crate::parser::builder::CemAstBuilder;
@@ -88,7 +88,14 @@ pub const TRANSFORM_CONFIG_SCHEMA_ELEMENTS: &[TransformConfigElementSchema] = &[
     TransformConfigElementSchema {
         local_name: "export",
         required_attributes: &["out"],
-        optional_attributes: &["id", "content-type", "contentType", "schema"],
+        optional_attributes: &[
+            "id",
+            "content-type",
+            "contentType",
+            "schema",
+            "style-policy",
+            "stylePolicy",
+        ],
         child_elements: &[],
     },
 ];
@@ -139,6 +146,8 @@ pub struct TransformGraphNode {
     pub rewrite_mode: Option<TransformGraphImportMapRewriteMode>,
     #[serde(default)]
     pub missing_policy: Option<TransformGraphImportMapMissingPolicy>,
+    #[serde(default)]
+    pub style_policy: Option<TransformGraphStylePolicy>,
     #[serde(default)]
     pub with: BTreeMap<String, String>,
 }
@@ -422,6 +431,22 @@ impl GraphLowerer<'_> {
         } else {
             None
         };
+        let style_policy = if kind == TransformGraphNodeKind::Export {
+            match parse_export_style_policy(
+                attr_value(&attrs, "", "style-policy")
+                    .or_else(|| attr_value(&attrs, "", "stylePolicy"))
+                    .as_deref(),
+                &id,
+            ) {
+                Ok(policy) => policy,
+                Err((code, message)) => {
+                    self.push_diag(code, message);
+                    None
+                }
+            }
+        } else {
+            None
+        };
         let params = if kind == TransformGraphNodeKind::Transform {
             self.collect_transform_params(ast_id, &id)
         } else {
@@ -453,6 +478,7 @@ impl GraphLowerer<'_> {
                 .or_else(|| attr_value(&attrs, "", "targetMap")),
             rewrite_mode,
             missing_policy,
+            style_policy,
             with: with_refs(&attrs),
         };
         if kind == TransformGraphNodeKind::Transform {
@@ -961,6 +987,27 @@ fn parse_importmap_missing_policy(
     }
 }
 
+fn parse_export_style_policy(
+    value: Option<&str>,
+    node_id: &str,
+) -> Result<Option<TransformGraphStylePolicy>, (&'static str, String)> {
+    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(None);
+    };
+    match value {
+        "auto" => Ok(Some(TransformGraphStylePolicy::Auto)),
+        "inline" => Ok(Some(TransformGraphStylePolicy::Inline)),
+        "link" => Ok(Some(TransformGraphStylePolicy::Link)),
+        "omit" => Ok(Some(TransformGraphStylePolicy::Omit)),
+        other => Err((
+            "cem.transform_config.export_style_policy_unsupported",
+            format!(
+                "export node `{node_id}` uses unsupported `@style-policy` `{other}`; use `auto`, `inline`, `link`, or `omit`"
+            ),
+        )),
+    }
+}
+
 fn content_type_essence(content_type: &str) -> String {
     content_type
         .split(';')
@@ -1036,6 +1083,12 @@ mod tests {
         assert!(transform.child_elements.contains(&"export"));
         assert_eq!(param.required_attributes, &["name", "value"]);
         assert!(param.child_elements.is_empty());
+        let export = TRANSFORM_CONFIG_SCHEMA_ELEMENTS
+            .iter()
+            .find(|element| element.local_name == "export")
+            .expect("export schema");
+        assert!(export.optional_attributes.contains(&"style-policy"));
+        assert!(export.optional_attributes.contains(&"stylePolicy"));
     }
 
     #[test]
@@ -1374,6 +1427,59 @@ mod tests {
             join.with.get("customers").map(String::as_str),
             Some("customers")
         );
+    }
+
+    #[test]
+    fn parses_export_style_policy_aliases() {
+        let response = parse(
+            r#"{@doc cem-ml 1}
+{run |
+  {import @id=book @src="book.cem" |
+    {export @id=html @out="out/book.html" @content-type="text/html" @style-policy="inline"}
+    {export @id=alt @out="out/alt.html" @content-type="text/html" @stylePolicy="omit"}
+  }
+}"#,
+        );
+
+        assert_eq!(
+            response
+                .graph
+                .nodes
+                .iter()
+                .find(|node| node.id == "html")
+                .and_then(|node| node.style_policy),
+            Some(TransformGraphStylePolicy::Inline)
+        );
+        assert_eq!(
+            response
+                .graph
+                .nodes
+                .iter()
+                .find(|node| node.id == "alt")
+                .and_then(|node| node.style_policy),
+            Some(TransformGraphStylePolicy::Omit)
+        );
+        assert!(!has_diag(
+            &response,
+            "cem.transform_config.export_style_policy_unsupported"
+        ));
+    }
+
+    #[test]
+    fn rejects_unknown_export_style_policy() {
+        let response = parse(
+            r#"{@doc cem-ml 1}
+{run |
+  {import @id=book @src="book.cem" |
+    {export @id=html @out="out/book.html" @content-type="text/html" @style-policy="external"}
+  }
+}"#,
+        );
+
+        assert!(has_diag(
+            &response,
+            "cem.transform_config.export_style_policy_unsupported"
+        ));
     }
 
     #[test]

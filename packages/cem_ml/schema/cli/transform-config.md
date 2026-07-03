@@ -23,7 +23,7 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 | `transform` | `src` | `id`, `input`, `with:*`, `entrypoint`, `template-content-type`, `templateContentType`, `template-schema`, `templateSchema` | `param`, `join`, `transform`, `rewrite-importmap`, `export` |
 | `rewrite-importmap` | `target-map` | `id`, `input`, `source-map`, `sourceMap`, `targetMap`, `mode`, `missing` | `export` |
 | `param` | `name`, `value` | none | none |
-| `export` | `out` | `id`, `content-type`, `contentType`, `schema` | none |
+| `export` | `out` | `id`, `content-type`, `contentType`, `schema`, `style-policy`, `stylePolicy` | none |
 
 ## Graph Semantics
 
@@ -54,6 +54,11 @@ Namespace URI: `https://cem.dev/ns/cli/transform-config/1`
 - `rewrite-importmap @missing` supports `error` by default, plus `ignore` and
   `insert`.
 - `export` creates a sink node from `@out`.
+- `export @style-policy` controls HTML style handling for mixed HTML/CSS
+  exports. `auto` keeps inline styles unless a sibling CSS export for the same
+  graph artifact exists, then links it; `inline` keeps inline `<style>` blocks;
+  `link` requires a sibling CSS export and replaces inline styles with a
+  stylesheet link; `omit` removes inline styles without adding a link.
 - Nested operation nodes create parent graph edges.
 - `@input` creates an explicit primary input edge to an existing graph node.
 - `@with:*` creates named side-input edges to existing graph nodes.

@@ -452,6 +452,8 @@ fn graph_config_projects_inline_style_export_to_css_and_links_html() {
     let graph = root.join("graph.cem");
     let report_path = root.join("report.json");
     let html_out = root.join("out/page.html");
+    let inline_out = root.join("out/page-inline.html");
+    let omit_out = root.join("out/page-omit.html");
     let css_out = root.join("out/page.css");
     write(&data, r#"{article @id="asset"}"#);
     write(
@@ -464,6 +466,8 @@ fn graph_config_projects_inline_style_export_to_css_and_links_html() {
   {import @id=asset @src="asset.cem" @content-type="text/cem-ml" |
     {transform @id=page @src="page.xsl" @template-content-type="application/xslt+xml" |
       {export @id=htmlOut @out="out/page.html" @content-type="text/html"}
+      {export @id=inlineOut @out="out/page-inline.html" @content-type="text/html" @style-policy="inline"}
+      {export @id=omitOut @out="out/page-omit.html" @content-type="text/html" @style-policy="omit"}
       {export @id=cssOut @out="out/page.css" @content-type="text/css" @schema="https://cem.dev/ns/data/css/1"}
     }
   }
@@ -491,13 +495,26 @@ fn graph_config_projects_inline_style_export_to_css_and_links_html() {
         html.contains(r#"<main class="card"><h1>Asset</h1></main>"#),
         "{html}"
     );
+    let inline = fs::read_to_string(&inline_out).expect("read inline html export");
+    assert!(
+        inline.contains("<style>.card { color: red; }</style>"),
+        "{inline}"
+    );
+    assert!(!inline.contains(r#"rel="stylesheet""#), "{inline}");
+    let omitted = fs::read_to_string(&omit_out).expect("read omitted html export");
+    assert!(!omitted.contains("<style>"), "{omitted}");
+    assert!(!omitted.contains(r#"rel="stylesheet""#), "{omitted}");
+    assert!(
+        omitted.contains(r#"<main class="card"><h1>Asset</h1></main>"#),
+        "{omitted}"
+    );
     assert_eq!(
         fs::read_to_string(&css_out).expect("read css export"),
         ".card { color: red; }\n"
     );
     let report = report(&report_path);
     assert_eq!(report["summary"]["hardViolationCount"], 0);
-    assert_eq!(report["reportAst"]["transformGraph"]["exportCount"], 2);
+    assert_eq!(report["reportAst"]["transformGraph"]["exportCount"], 4);
     assert!(report["reportAst"]["transformGraph"]["exports"]
         .as_array()
         .expect("exports array")

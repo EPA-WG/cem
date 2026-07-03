@@ -2452,6 +2452,7 @@ fn transform_graph_request_from_config(
                         destination: Some(destination),
                         target,
                         target_scope,
+                        style_policy: node.style_policy.unwrap_or_default(),
                         scheduler_scope_id: next_scope_id,
                     });
                     next_scope_id += 1;

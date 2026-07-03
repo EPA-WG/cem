@@ -1481,7 +1481,7 @@ fn transform_graph_export_primary(
     artifact: &TransformTemplateDataArtifact,
     metadata: &TransformOutputMetadata,
     target: Option<&FormatIdentity>,
-    stylesheet_href: Option<&str>,
+    style_projection: TransformGraphHtmlStyleProjection,
 ) -> (Value, Option<SourceMapStack>, Vec<OutputSpan>) {
     if transform_graph_target_is_css(target) {
         if let Some(raw_content) = transform_graph_artifact_raw_content(artifact, Some(metadata)) {
@@ -1499,22 +1499,23 @@ fn transform_graph_export_primary(
     }
 
     if transform_graph_target_is_html(target) {
-        if let Some(stylesheet_href) = stylesheet_href {
-            if let Some(raw_content) =
-                transform_graph_artifact_raw_content(artifact, Some(metadata))
-            {
-                if let Some(html) =
-                    html_with_extracted_stylesheet_link(&raw_content, stylesheet_href, target)
-                {
-                    return (
-                        json!({
-                            "kind": "html",
-                            "content": html,
-                        }),
-                        None,
-                        Vec::new(),
-                    );
+        if let Some(raw_content) = transform_graph_artifact_raw_content(artifact, Some(metadata)) {
+            let html = match style_projection {
+                TransformGraphHtmlStyleProjection::Inline => None,
+                TransformGraphHtmlStyleProjection::Link(stylesheet_href) => {
+                    html_with_extracted_stylesheet_link(&raw_content, &stylesheet_href, target)
                 }
+                TransformGraphHtmlStyleProjection::Omit => html_without_inline_styles(&raw_content),
+            };
+            if let Some(html) = html {
+                return (
+                    json!({
+                        "kind": "html",
+                        "content": html,
+                    }),
+                    None,
+                    Vec::new(),
+                );
             }
         }
     }
@@ -1574,20 +1575,30 @@ fn html_with_extracted_stylesheet_link(
     href: &str,
     target: Option<&FormatIdentity>,
 ) -> Option<String> {
+    project_inline_style_blocks(raw, Some(stylesheet_link_tag(href, target)))
+}
+
+fn html_without_inline_styles(raw: &str) -> Option<String> {
+    project_inline_style_blocks(raw, None)
+}
+
+fn project_inline_style_blocks(raw: &str, replacement: Option<String>) -> Option<String> {
     let blocks = inline_style_blocks(raw);
     if blocks.is_empty() {
         return None;
     }
 
-    let link = stylesheet_link_tag(href, target);
-    let mut html = String::with_capacity(raw.len() + link.len());
+    let replacement_len = replacement.as_ref().map(String::len).unwrap_or_default();
+    let mut html = String::with_capacity(raw.len() + replacement_len);
     let mut cursor = 0;
     let mut inserted = false;
     for block in blocks {
         html.push_str(&raw[cursor..block.tag_start]);
         if !inserted {
-            html.push_str(&link);
-            inserted = true;
+            if let Some(replacement) = replacement.as_deref() {
+                html.push_str(replacement);
+                inserted = true;
+            }
         }
         cursor = block.tag_end;
     }
@@ -1683,9 +1694,6 @@ fn transform_graph_stylesheet_href_for_export(
     export: &TransformGraphExport,
     exports: &[TransformGraphExport],
 ) -> Option<String> {
-    if !transform_graph_target_is_html(export.target.as_ref()) {
-        return None;
-    }
     exports
         .iter()
         .filter(|candidate| candidate.id != export.id && candidate.input == export.input)
@@ -1694,6 +1702,32 @@ fn transform_graph_stylesheet_href_for_export(
         .map(|css_destination| {
             transform_graph_stylesheet_href(export.destination.as_deref(), css_destination)
         })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum TransformGraphHtmlStyleProjection {
+    Inline,
+    Link(String),
+    Omit,
+}
+
+fn transform_graph_html_style_projection_for_export(
+    export: &TransformGraphExport,
+    exports: &[TransformGraphExport],
+) -> TransformGraphHtmlStyleProjection {
+    match export.style_policy {
+        TransformGraphStylePolicy::Inline => TransformGraphHtmlStyleProjection::Inline,
+        TransformGraphStylePolicy::Omit => TransformGraphHtmlStyleProjection::Omit,
+        TransformGraphStylePolicy::Link | TransformGraphStylePolicy::Auto => {
+            if let Some(stylesheet_href) =
+                transform_graph_stylesheet_href_for_export(export, exports)
+            {
+                TransformGraphHtmlStyleProjection::Link(stylesheet_href)
+            } else {
+                TransformGraphHtmlStyleProjection::Inline
+            }
+        }
+    }
 }
 
 fn find_ascii_case_insensitive(haystack: &str, needle: &str, from: usize) -> Option<usize> {
@@ -4611,13 +4645,13 @@ impl CemMlEngine for RealCemMlEngine {
                         .cloned()
                         .unwrap_or_default();
                     let identity = export.target.clone().or_else(|| artifact.identity.clone());
-                    let stylesheet_href =
-                        transform_graph_stylesheet_href_for_export(export, &request.exports);
+                    let style_projection =
+                        transform_graph_html_style_projection_for_export(export, &request.exports);
                     let (primary, source_map, output_spans) = transform_graph_export_primary(
                         artifact,
                         &metadata,
                         identity.as_ref(),
-                        stylesheet_href.as_deref(),
+                        style_projection,
                     );
                     exported.push(TransformGraphArtifact {
                         export_id: export.id.clone(),
@@ -5015,8 +5049,12 @@ mod tests {
             ..FormatIdentity::default()
         };
 
-        let (primary, source_map, output_spans) =
-            transform_graph_export_primary(&artifact, &metadata, Some(&target), None);
+        let (primary, source_map, output_spans) = transform_graph_export_primary(
+            &artifact,
+            &metadata,
+            Some(&target),
+            TransformGraphHtmlStyleProjection::Inline,
+        );
 
         assert_eq!(primary["kind"], "document");
         assert_eq!(
@@ -5058,13 +5096,59 @@ mod tests {
             &artifact,
             &metadata,
             Some(&target),
-            Some("assets/page.css?mode=screen&theme=\"dark\""),
+            TransformGraphHtmlStyleProjection::Link(
+                "assets/page.css?mode=screen&theme=\"dark\"".to_owned(),
+            ),
         );
 
         assert_eq!(primary["kind"], "html");
         assert_eq!(
             primary["content"],
             r#"<html><head><link rel="stylesheet" href="assets/page.css?mode=screen&amp;theme=&quot;dark&quot;"></head><body>Hi</body></html>"#
+        );
+        assert!(source_map.is_none());
+        assert!(output_spans.is_empty());
+    }
+
+    #[test]
+    fn transform_graph_export_omits_inline_styles_without_link() {
+        let raw =
+            r#"<html><head><style>.card { color: red; }</style></head><body>Hi</body></html>"#;
+        let artifact = TransformTemplateDataArtifact {
+            artifact_id: "page".to_owned(),
+            uri: Some("page.html".to_owned()),
+            identity: Some(FormatIdentity {
+                content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+                schema: Some(HTML_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            value: json!({
+                "kind": "html",
+                "content": raw,
+            }),
+        };
+        let metadata = TransformOutputMetadata {
+            source_map: None,
+            output_spans: Vec::new(),
+            raw_content: Some(raw.to_owned()),
+        };
+        let target = FormatIdentity {
+            content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+            schema: Some(HTML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+
+        let (primary, source_map, output_spans) = transform_graph_export_primary(
+            &artifact,
+            &metadata,
+            Some(&target),
+            TransformGraphHtmlStyleProjection::Omit,
+        );
+
+        assert_eq!(primary["kind"], "html");
+        assert_eq!(
+            primary["content"],
+            r#"<html><head></head><body>Hi</body></html>"#
         );
         assert!(source_map.is_none());
         assert!(output_spans.is_empty());

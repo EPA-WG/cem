@@ -4,6 +4,10 @@ use crate::interpreter::OutputSpan;
 use crate::report::{Report, SchedulerTraceReport};
 use crate::resolver::ResolverRegistry;
 use crate::run_config::{SchedulerConfig, ScopeConfig};
+use crate::schema::registry::{
+    CSS_CONTENT_TYPE, CSS_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, XHTML_CONTENT_TYPE,
+    XHTML_SCHEMA_URI,
+};
 use crate::schema::SchemaRegistry;
 use crate::source_map::SourceMapStack;
 use crate::transform_template::{
@@ -368,6 +372,9 @@ pub fn validate_transform_graph_runtime_contract(
     for export in &request.exports {
         validate_graph_id("export", &export.id, &mut ids, &mut diagnostics);
     }
+    for export in &request.exports {
+        validate_transform_graph_export_style_policy(export, &request.exports, &mut diagnostics);
+    }
 
     for stage in &request.stages {
         validate_artifact_ref(
@@ -447,6 +454,72 @@ fn content_type_essence(content_type: &str) -> String {
         .unwrap_or(content_type)
         .trim()
         .to_ascii_lowercase()
+}
+
+fn validate_transform_graph_export_style_policy(
+    export: &TransformGraphExport,
+    exports: &[TransformGraphExport],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if export.style_policy != TransformGraphStylePolicy::Link
+        || !transform_graph_export_target_is_html(export)
+    {
+        return;
+    }
+
+    let has_css_destination = exports.iter().any(|candidate| {
+        candidate.id != export.id
+            && candidate.input == export.input
+            && candidate.destination.is_some()
+            && transform_graph_export_target_is_css(candidate)
+    });
+    if !has_css_destination {
+        diagnostics.push(transform_runtime_diagnostic(
+            export.destination.as_deref(),
+            "cem.transform_runtime.stylesheet_export_missing",
+            format!(
+                "export `{}` uses `@style-policy=link` but no sibling CSS export with a destination targets input `{}`",
+                export.id, export.input
+            ),
+        ));
+    }
+}
+
+fn transform_graph_export_target_is_html(export: &TransformGraphExport) -> bool {
+    export
+        .target
+        .as_ref()
+        .map(format_identity_is_html)
+        .unwrap_or_else(|| format_identity_is_html(&export.target_scope.format_identity()))
+}
+
+fn transform_graph_export_target_is_css(export: &TransformGraphExport) -> bool {
+    export
+        .target
+        .as_ref()
+        .map(format_identity_is_css)
+        .unwrap_or_else(|| format_identity_is_css(&export.target_scope.format_identity()))
+}
+
+fn format_identity_is_html(identity: &FormatIdentity) -> bool {
+    identity
+        .content_type
+        .as_deref()
+        .map(content_type_essence)
+        .is_some_and(|essence| matches!(essence.as_str(), HTML_CONTENT_TYPE | XHTML_CONTENT_TYPE))
+        || matches!(
+            identity.schema.as_deref(),
+            Some(HTML_SCHEMA_URI) | Some(XHTML_SCHEMA_URI)
+        )
+}
+
+fn format_identity_is_css(identity: &FormatIdentity) -> bool {
+    identity
+        .content_type
+        .as_deref()
+        .map(content_type_essence)
+        .is_some_and(|essence| essence == CSS_CONTENT_TYPE)
+        || identity.schema.as_deref() == Some(CSS_SCHEMA_URI)
 }
 
 fn transform_template_identity_error(message: impl Into<String>) -> TransformTemplateIdentityError {
@@ -799,7 +872,18 @@ pub struct TransformGraphExport {
     pub destination: Option<String>,
     pub target: Option<FormatIdentity>,
     pub target_scope: ScopeConfig,
+    pub style_policy: TransformGraphStylePolicy,
     pub scheduler_scope_id: u32,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TransformGraphStylePolicy {
+    #[default]
+    Auto,
+    Inline,
+    Link,
+    Omit,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1368,6 +1452,7 @@ mod tests {
                     destination: Some("dist/report.html".to_owned()),
                     target: None,
                     target_scope: ScopeConfig::default(),
+                    style_policy: TransformGraphStylePolicy::default(),
                     scheduler_scope_id: 4,
                 },
                 TransformGraphExport {
@@ -1376,6 +1461,7 @@ mod tests {
                     destination: Some("dist/report.html".to_owned()),
                     target: None,
                     target_scope: ScopeConfig::default(),
+                    style_policy: TransformGraphStylePolicy::default(),
                     scheduler_scope_id: 5,
                 },
             ],
@@ -1397,6 +1483,43 @@ mod tests {
         assert!(has_diagnostic(
             &diagnostics,
             "cem.transform_runtime.duplicate_destination"
+        ));
+    }
+
+    #[test]
+    fn transform_graph_runtime_contract_rejects_link_style_policy_without_css_export() {
+        let target_scope = ScopeConfig {
+            default_content_type: Some("text/html".to_owned()),
+            ..ScopeConfig::default()
+        };
+        let request = TransformGraphRequest {
+            imports: vec![TransformGraphImport {
+                id: "page".to_owned(),
+                input: engine_input("page.html", "text/html"),
+                scheduler_scope_id: 1,
+            }],
+            joins: Vec::new(),
+            stages: Vec::new(),
+            importmap_rewrites: Vec::new(),
+            exports: vec![TransformGraphExport {
+                id: "html".to_owned(),
+                input: "page".to_owned(),
+                destination: Some("dist/page.html".to_owned()),
+                target: target_scope.format_identity_option(),
+                target_scope,
+                style_policy: TransformGraphStylePolicy::Link,
+                scheduler_scope_id: 2,
+            }],
+            edges: Vec::new(),
+            preserve_source_offsets: true,
+            context: EngineContext::default(),
+            execution_policy: TransformExecutionPolicy::default(),
+        };
+
+        let diagnostics = validate_transform_graph_runtime_contract(&request);
+        assert!(has_diagnostic(
+            &diagnostics,
+            "cem.transform_runtime.stylesheet_export_missing"
         ));
     }
 
@@ -1527,6 +1650,7 @@ mod tests {
                 destination: Some("dist/report.html".to_owned()),
                 target: target_scope.format_identity_option(),
                 target_scope,
+                style_policy: TransformGraphStylePolicy::default(),
                 scheduler_scope_id: 6,
             }],
             edges: vec![
