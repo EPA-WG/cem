@@ -443,3 +443,65 @@ fn graph_config_executes_mixed_cem_native_and_xslt_stage_policies() {
     assert_eq!(report["summary"]["hardViolationCount"], 0);
     assert_eq!(report["reportAst"]["transformGraph"]["exportCount"], 2);
 }
+
+#[test]
+fn graph_config_projects_inline_style_export_to_css_without_changing_html() {
+    let root = fixture_root("graph-inline-style-css-export");
+    let data = root.join("asset.cem");
+    let template = root.join("page.xsl");
+    let graph = root.join("graph.cem");
+    let report_path = root.join("report.json");
+    let html_out = root.join("out/page.html");
+    let css_out = root.join("out/page.css");
+    write(&data, r#"{article @id="asset"}"#);
+    write(
+        &template,
+        r#"<xsl:stylesheet version="1.0"><xsl:template match="/"><html><head><style>.card { color: red; }</style></head><body><main class="card"><h1>Asset</h1></main></body></html></xsl:template></xsl:stylesheet>"#,
+    );
+    write(
+        &graph,
+        r#"{run |
+  {import @id=asset @src="asset.cem" @content-type="text/cem-ml" |
+    {transform @id=page @src="page.xsl" @template-content-type="application/xslt+xml" |
+      {export @id=htmlOut @out="out/page.html" @content-type="text/html"}
+      {export @id=cssOut @out="out/page.css" @content-type="text/css" @schema="https://cem.dev/ns/data/css/1"}
+    }
+  }
+}"#,
+    );
+
+    let output = cem_ml(&[
+        "transform",
+        "--config",
+        graph.to_str().expect("graph path is utf-8"),
+        "--report-json",
+        report_path.to_str().expect("report path is utf-8"),
+    ]);
+
+    assert_eq!(output.status.code(), Some(EXIT_OK));
+    assert!(stdout(&output).is_empty(), "{}", stdout(&output));
+    assert!(stderr(&output).trim().is_empty(), "{}", stderr(&output));
+    let html = fs::read_to_string(&html_out).expect("read html export");
+    assert!(
+        html.contains("<style>.card { color: red; }</style>"),
+        "{html}"
+    );
+    assert!(
+        html.contains(r#"<main class="card"><h1>Asset</h1></main>"#),
+        "{html}"
+    );
+    assert_eq!(
+        fs::read_to_string(&css_out).expect("read css export"),
+        ".card { color: red; }\n"
+    );
+    let report = report(&report_path);
+    assert_eq!(report["summary"]["hardViolationCount"], 0);
+    assert_eq!(report["reportAst"]["transformGraph"]["exportCount"], 2);
+    assert!(report["reportAst"]["transformGraph"]["exports"]
+        .as_array()
+        .expect("exports array")
+        .iter()
+        .any(|export| export["exportId"] == "cssOut"
+            && export["contentType"] == "text/css"
+            && export["destination"] == css_out.display().to_string()));
+}

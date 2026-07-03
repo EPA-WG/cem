@@ -32,7 +32,8 @@ use crate::schema::package_consistency::validate_schema_package_source_consisten
 use crate::schema::registry::{
     content_type_essence, CEM_DOM_JSON_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_CONTENT_TYPE,
     CEM_DOM_PROJECTION_SCHEMA_URI, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
-    HTML_CONTENT_TYPE, HTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
+    CSS_CONTENT_TYPE, CSS_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, XML_CONTENT_TYPE,
+    XML_SCHEMA_URI,
 };
 use crate::schema::vocab::CompiledSchema;
 use crate::source::{BytesSource, SourceId};
@@ -1474,6 +1475,84 @@ fn transform_graph_artifact_raw_content(
                 .map(str::to_owned),
             _ => None,
         })
+}
+
+fn transform_graph_export_primary(
+    artifact: &TransformTemplateDataArtifact,
+    metadata: &TransformOutputMetadata,
+    target: Option<&FormatIdentity>,
+) -> (Value, Option<SourceMapStack>, Vec<OutputSpan>) {
+    if transform_graph_target_is_css(target) {
+        if let Some(raw_content) = transform_graph_artifact_raw_content(artifact, Some(metadata)) {
+            if let Some(css) = extract_inline_style_css(&raw_content) {
+                return (
+                    json!({
+                        "kind": "document",
+                        "content": css,
+                    }),
+                    None,
+                    Vec::new(),
+                );
+            }
+        }
+    }
+
+    (
+        artifact.value.clone(),
+        metadata.source_map.clone(),
+        metadata.output_spans.clone(),
+    )
+}
+
+fn transform_graph_target_is_css(target: Option<&FormatIdentity>) -> bool {
+    let Some(target) = target else {
+        return false;
+    };
+    target
+        .content_type
+        .as_deref()
+        .map(content_type_essence)
+        .is_some_and(|essence| essence == CSS_CONTENT_TYPE)
+        || target.schema.as_deref() == Some(CSS_SCHEMA_URI)
+}
+
+fn extract_inline_style_css(raw: &str) -> Option<String> {
+    let mut cursor = 0;
+    let mut blocks = Vec::new();
+    while let Some(start) = find_ascii_case_insensitive(raw, "<style", cursor) {
+        let Some(open_end_offset) = raw[start..].find('>') else {
+            break;
+        };
+        let content_start = start + open_end_offset + 1;
+        let Some(close) = find_ascii_case_insensitive(raw, "</style>", content_start) else {
+            break;
+        };
+        let css = raw[content_start..close].trim();
+        if !css.is_empty() {
+            blocks.push(css.to_owned());
+        }
+        cursor = close + "</style>".len();
+    }
+
+    if blocks.is_empty() {
+        None
+    } else {
+        Some(format!("{}\n", blocks.join("\n\n")))
+    }
+}
+
+fn find_ascii_case_insensitive(haystack: &str, needle: &str, from: usize) -> Option<usize> {
+    let haystack = haystack.as_bytes();
+    let needle = needle.as_bytes();
+    if needle.is_empty()
+        || from > haystack.len()
+        || needle.len() > haystack.len().saturating_sub(from)
+    {
+        return None;
+    }
+
+    (from..=haystack.len() - needle.len())
+        .find(|index| haystack[*index..*index + needle.len()].eq_ignore_ascii_case(needle))
 }
 
 fn importmap_rewrite_diagnostic(
@@ -4376,14 +4455,17 @@ impl CemMlEngine for RealCemMlEngine {
                         .get(&export.input)
                         .cloned()
                         .unwrap_or_default();
+                    let identity = export.target.clone().or_else(|| artifact.identity.clone());
+                    let (primary, source_map, output_spans) =
+                        transform_graph_export_primary(artifact, &metadata, identity.as_ref());
                     exported.push(TransformGraphArtifact {
                         export_id: export.id.clone(),
                         input: export.input.clone(),
                         destination: export.destination.clone(),
-                        identity: export.target.clone().or_else(|| artifact.identity.clone()),
-                        primary: artifact.value.clone(),
-                        source_map: metadata.source_map,
-                        output_spans: metadata.output_spans,
+                        identity,
+                        primary,
+                        source_map,
+                        output_spans,
                     });
                 }
             });
@@ -4741,6 +4823,47 @@ mod tests {
             resolver_registry,
             ..ctx()
         }
+    }
+
+    #[test]
+    fn transform_graph_export_projects_inline_styles_to_css_document() {
+        let raw = "<HTML><head><STYLE>.card { color: red; }</STYLE><style media=\"screen\">
+.grid { display: grid; }
+</style></head><body>Hi</body></HTML>";
+        let artifact = TransformTemplateDataArtifact {
+            artifact_id: "page".to_owned(),
+            uri: Some("page.html".to_owned()),
+            identity: Some(FormatIdentity {
+                content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+                schema: Some(HTML_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            value: json!({
+                "kind": "html",
+                "content": raw,
+            }),
+        };
+        let metadata = TransformOutputMetadata {
+            source_map: None,
+            output_spans: Vec::new(),
+            raw_content: Some(raw.to_owned()),
+        };
+        let target = FormatIdentity {
+            content_type: Some("text/css; charset=utf-8".to_owned()),
+            schema: Some(CSS_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+
+        let (primary, source_map, output_spans) =
+            transform_graph_export_primary(&artifact, &metadata, Some(&target));
+
+        assert_eq!(primary["kind"], "document");
+        assert_eq!(
+            primary["content"],
+            ".card { color: red; }\n\n.grid { display: grid; }\n"
+        );
+        assert!(source_map.is_none());
+        assert!(output_spans.is_empty());
     }
 
     fn ready_cemt_html_export_context(
