@@ -1509,18 +1509,29 @@ fn transform_graph_export_primary(
             let html = match style_projection {
                 TransformGraphHtmlStyleProjection::Inline => None,
                 TransformGraphHtmlStyleProjection::Link(stylesheet_href) => {
-                    html_with_extracted_stylesheet_link(&raw_content, &stylesheet_href, target)
+                    html_with_extracted_stylesheet_link(
+                        &raw_content,
+                        &stylesheet_href,
+                        target,
+                        &metadata.output_spans,
+                    )
                 }
-                TransformGraphHtmlStyleProjection::Omit => html_without_inline_styles(&raw_content),
+                TransformGraphHtmlStyleProjection::Omit => {
+                    html_without_inline_styles(&raw_content, &metadata.output_spans)
+                }
             };
             if let Some(html) = html {
+                let source_map = metadata
+                    .source_map
+                    .clone()
+                    .filter(|_| !html.output_spans.is_empty());
                 return (
                     json!({
                         "kind": "html",
-                        "content": html,
+                        "content": html.content,
                     }),
-                    None,
-                    Vec::new(),
+                    source_map,
+                    html.output_spans,
                 );
             }
         }
@@ -1641,19 +1652,37 @@ fn rebase_output_spans(
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+struct ProjectedHtmlDocument {
+    content: String,
+    output_spans: Vec<OutputSpan>,
+}
+
 fn html_with_extracted_stylesheet_link(
     raw: &str,
     href: &str,
     target: Option<&FormatIdentity>,
-) -> Option<String> {
-    project_inline_style_blocks(raw, Some(stylesheet_link_tag(href, target)))
+    source_output_spans: &[OutputSpan],
+) -> Option<ProjectedHtmlDocument> {
+    project_inline_style_blocks(
+        raw,
+        Some(stylesheet_link_tag(href, target)),
+        source_output_spans,
+    )
 }
 
-fn html_without_inline_styles(raw: &str) -> Option<String> {
-    project_inline_style_blocks(raw, None)
+fn html_without_inline_styles(
+    raw: &str,
+    source_output_spans: &[OutputSpan],
+) -> Option<ProjectedHtmlDocument> {
+    project_inline_style_blocks(raw, None, source_output_spans)
 }
 
-fn project_inline_style_blocks(raw: &str, replacement: Option<String>) -> Option<String> {
+fn project_inline_style_blocks(
+    raw: &str,
+    replacement: Option<String>,
+    source_output_spans: &[OutputSpan],
+) -> Option<ProjectedHtmlDocument> {
     let blocks = inline_style_blocks(raw);
     if blocks.is_empty() {
         return None;
@@ -1661,10 +1690,19 @@ fn project_inline_style_blocks(raw: &str, replacement: Option<String>) -> Option
 
     let replacement_len = replacement.as_ref().map(String::len).unwrap_or_default();
     let mut html = String::with_capacity(raw.len() + replacement_len);
+    let mut output_spans = Vec::new();
     let mut cursor = 0;
     let mut inserted = false;
     for block in blocks {
+        let output_start = html.len();
         html.push_str(&raw[cursor..block.tag_start]);
+        rebase_output_spans(
+            source_output_spans,
+            cursor,
+            block.tag_start,
+            output_start,
+            &mut output_spans,
+        );
         if !inserted {
             if let Some(replacement) = replacement.as_deref() {
                 html.push_str(replacement);
@@ -1673,8 +1711,19 @@ fn project_inline_style_blocks(raw: &str, replacement: Option<String>) -> Option
         }
         cursor = block.tag_end;
     }
+    let output_start = html.len();
     html.push_str(&raw[cursor..]);
-    Some(html)
+    rebase_output_spans(
+        source_output_spans,
+        cursor,
+        raw.len(),
+        output_start,
+        &mut output_spans,
+    );
+    Some(ProjectedHtmlDocument {
+        content: html,
+        output_spans,
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -5258,6 +5307,126 @@ mod tests {
         );
         assert!(source_map.is_none());
         assert!(output_spans.is_empty());
+    }
+
+    #[test]
+    fn transform_graph_export_rebases_linked_html_style_spans() {
+        let raw = "<html><head><style>.card { color: red; }</style></head><body>Hi</body></html>";
+        let before = "<html><head>";
+        let after = "</head><body>Hi</body></html>";
+        let replacement = r#"<link rel="stylesheet" href="page.css">"#;
+        let after_start = raw.find(after).unwrap();
+        let source_map = test_source_map_stack(0, raw.len() as u32);
+        let artifact = TransformTemplateDataArtifact {
+            artifact_id: "page".to_owned(),
+            uri: Some("page.html".to_owned()),
+            identity: Some(FormatIdentity {
+                content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+                schema: Some(HTML_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            value: json!({
+                "kind": "html",
+                "content": raw,
+            }),
+        };
+        let before_span = test_output_span(0, before.len(), 100);
+        let style_span =
+            test_output_span(before.len(), raw.len() - before.len() - after.len(), 200);
+        let after_span = test_output_span(after_start, after.len(), 300);
+        let metadata = TransformOutputMetadata {
+            source_map: Some(source_map.clone()),
+            output_spans: vec![before_span.clone(), style_span, after_span.clone()],
+            raw_content: Some(raw.to_owned()),
+        };
+        let target = FormatIdentity {
+            content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+            schema: Some(HTML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+
+        let (primary, exported_source_map, output_spans) = transform_graph_export_primary(
+            &artifact,
+            &metadata,
+            Some(&target),
+            TransformGraphHtmlStyleProjection::Link("page.css".to_owned()),
+        );
+
+        assert_eq!(primary["kind"], "html");
+        assert_eq!(primary["content"], format!("{before}{replacement}{after}"));
+        assert_eq!(exported_source_map, Some(source_map));
+        assert_eq!(output_spans.len(), 2);
+        assert_eq!(
+            output_spans[0].output_range,
+            ByteRange::new(0, before.len() as u32)
+        );
+        assert_eq!(output_spans[0].origin, before_span.origin);
+        assert_eq!(
+            output_spans[1].output_range,
+            ByteRange::new(
+                (before.len() + replacement.len()) as u64,
+                after.len() as u32
+            )
+        );
+        assert_eq!(output_spans[1].origin, after_span.origin);
+    }
+
+    #[test]
+    fn transform_graph_export_rebases_omitted_html_style_spans() {
+        let raw = "<html><head><style>.card { color: red; }</style></head><body>Hi</body></html>";
+        let before = "<html><head>";
+        let after = "</head><body>Hi</body></html>";
+        let after_start = raw.find(after).unwrap();
+        let source_map = test_source_map_stack(0, raw.len() as u32);
+        let artifact = TransformTemplateDataArtifact {
+            artifact_id: "page".to_owned(),
+            uri: Some("page.html".to_owned()),
+            identity: Some(FormatIdentity {
+                content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+                schema: Some(HTML_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            value: json!({
+                "kind": "html",
+                "content": raw,
+            }),
+        };
+        let before_span = test_output_span(0, before.len(), 100);
+        let style_span =
+            test_output_span(before.len(), raw.len() - before.len() - after.len(), 200);
+        let after_span = test_output_span(after_start, after.len(), 300);
+        let metadata = TransformOutputMetadata {
+            source_map: Some(source_map.clone()),
+            output_spans: vec![before_span.clone(), style_span, after_span.clone()],
+            raw_content: Some(raw.to_owned()),
+        };
+        let target = FormatIdentity {
+            content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+            schema: Some(HTML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+
+        let (primary, exported_source_map, output_spans) = transform_graph_export_primary(
+            &artifact,
+            &metadata,
+            Some(&target),
+            TransformGraphHtmlStyleProjection::Omit,
+        );
+
+        assert_eq!(primary["kind"], "html");
+        assert_eq!(primary["content"], format!("{before}{after}"));
+        assert_eq!(exported_source_map, Some(source_map));
+        assert_eq!(output_spans.len(), 2);
+        assert_eq!(
+            output_spans[0].output_range,
+            ByteRange::new(0, before.len() as u32)
+        );
+        assert_eq!(output_spans[0].origin, before_span.origin);
+        assert_eq!(
+            output_spans[1].output_range,
+            ByteRange::new(before.len() as u64, after.len() as u32)
+        );
+        assert_eq!(output_spans[1].origin, after_span.origin);
     }
 
     #[test]

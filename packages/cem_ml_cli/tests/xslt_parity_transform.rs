@@ -455,6 +455,8 @@ fn graph_config_projects_inline_style_export_to_css_and_links_html() {
     let inline_out = root.join("out/page-inline.html");
     let omit_out = root.join("out/page-omit.html");
     let css_out = root.join("out/page.css");
+    let html_map = root.join("out/page.html.map");
+    let omit_map = root.join("out/page-omit.html.map");
     let css_map = root.join("out/page.css.map");
     write(&data, r#"{article @id="asset"}"#);
     write(
@@ -516,9 +518,34 @@ fn graph_config_projects_inline_style_export_to_css_and_links_html() {
     let report = report(&report_path);
     assert_eq!(report["summary"]["hardViolationCount"], 0);
     assert_eq!(report["reportAst"]["transformGraph"]["exportCount"], 4);
-    let css_export = report["reportAst"]["transformGraph"]["exports"]
+    let exports = report["reportAst"]["transformGraph"]["exports"]
         .as_array()
-        .expect("exports array")
+        .expect("exports array");
+    let html_export = exports
+        .iter()
+        .find(|export| {
+            export["exportId"] == "htmlOut"
+                && export["contentType"] == "text/html"
+                && export["destination"] == html_out.display().to_string()
+        })
+        .expect("htmlOut export report");
+    assert_eq!(html_export["hasSourceMap"], true);
+    assert!(html_export["outputSpanCount"].as_u64().unwrap() > 0);
+    assert_eq!(html_export["sourceMapRef"], html_map.display().to_string());
+    assert!(html_map.exists());
+    let omit_export = exports
+        .iter()
+        .find(|export| {
+            export["exportId"] == "omitOut"
+                && export["contentType"] == "text/html"
+                && export["destination"] == omit_out.display().to_string()
+        })
+        .expect("omitOut export report");
+    assert_eq!(omit_export["hasSourceMap"], true);
+    assert!(omit_export["outputSpanCount"].as_u64().unwrap() > 0);
+    assert_eq!(omit_export["sourceMapRef"], omit_map.display().to_string());
+    assert!(omit_map.exists());
+    let css_export = exports
         .iter()
         .find(|export| {
             export["exportId"] == "cssOut"
