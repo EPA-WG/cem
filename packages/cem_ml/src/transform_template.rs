@@ -260,6 +260,7 @@ pub enum TransformTemplateModuleDependencyKind {
 pub enum TransformTemplateModuleVisibility {
     #[default]
     Private,
+    Package,
     Public,
 }
 
@@ -8929,7 +8930,8 @@ impl NativeTemplateModuleLowerer<'_> {
             self.push_missing_attr("param", "name");
             return None;
         };
-        let visibility = self.parse_visibility(attr_value(&attrs, "", "visibility").as_deref());
+        let visibility =
+            self.parse_visibility(attr_value(&attrs, "", "visibility").as_deref(), false);
         let value_type = self.parse_param_type(attr_value(&attrs, "", "type").as_deref());
         let nullable = parse_bool_attr(attr_value(&attrs, "", "nullable").as_deref())
             .unwrap_or_else(|message| {
@@ -8969,7 +8971,8 @@ impl NativeTemplateModuleLowerer<'_> {
             self.push_missing_attr("template", "name");
             return;
         };
-        let visibility = self.parse_visibility(attr_value(&attrs, "", "visibility").as_deref());
+        let visibility =
+            self.parse_visibility(attr_value(&attrs, "", "visibility").as_deref(), false);
         self.options
             .entrypoints
             .push(TransformTemplateModuleEntrypointDeclaration {
@@ -9074,7 +9077,8 @@ impl NativeTemplateModuleLowerer<'_> {
         let deterministic = self.parse_bool_decl_attr(&attrs, "deterministic");
         let trusted = self.parse_bool_decl_attr(&attrs, "trusted");
         let lossy = self.parse_bool_decl_attr(&attrs, "lossy");
-        let visibility = self.parse_visibility(attr_value(&attrs, "", "visibility").as_deref());
+        let visibility =
+            self.parse_visibility(attr_value(&attrs, "", "visibility").as_deref(), true);
         let capability = optional_trimmed_attr(&attrs, "capability");
         if implementation.requires_capability() && capability.is_none() {
             self.push_diag(
@@ -9281,14 +9285,27 @@ impl NativeTemplateModuleLowerer<'_> {
         }
     }
 
-    fn parse_visibility(&mut self, value: Option<&str>) -> TransformTemplateModuleVisibility {
+    fn parse_visibility(
+        &mut self,
+        value: Option<&str>,
+        allow_package: bool,
+    ) -> TransformTemplateModuleVisibility {
         match value.map(str::trim).filter(|value| !value.is_empty()) {
             None | Some("private") => TransformTemplateModuleVisibility::Private,
+            Some("package") if allow_package => TransformTemplateModuleVisibility::Package,
             Some("public") => TransformTemplateModuleVisibility::Public,
             Some(other) => {
                 self.push_diag(
                     TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE,
-                    format!("unsupported template declaration visibility `{other}`; use `private` or `public`"),
+                    if allow_package {
+                        format!(
+                            "unsupported template declaration visibility `{other}`; use `private`, `package`, or `public`"
+                        )
+                    } else {
+                        format!(
+                            "unsupported template declaration visibility `{other}`; use `private` or `public`"
+                        )
+                    },
                 );
                 TransformTemplateModuleVisibility::Private
             }
@@ -10950,6 +10967,51 @@ mod tests {
     }
 
     #[test]
+    fn cemt_module_parser_lowers_package_output_function_visibility() {
+        let response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "templates/package-visible-function.cemt",
+                    r#"{@doc cem-ml 1}
+{module |
+  {encoding-function
+    @name="acme.html-package"
+    @visibility="package"
+    @category="html-text"
+    @subject="string"
+    @produces="text"
+    @content-type="text/html"
+    @schema="https://cem.dev/ns/data/html/1"
+    @canonical=true
+    @streamable=true |
+    {param @name="subject" @type="string" @required=true}
+  }
+}"#,
+                    Some(FormatIdentity {
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            });
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        let function = response
+            .module_options
+            .output_functions
+            .iter()
+            .find(|function| function.name == "acme.html-package")
+            .expect("package-visible output function declaration");
+        assert_eq!(
+            function.visibility,
+            TransformTemplateModuleVisibility::Package
+        );
+    }
+
+    #[test]
     fn cemt_module_parser_reports_output_function_declaration_errors() {
         let response = parse_cem_native_template_module_options(
             TransformTemplateModuleParseRequest {
@@ -11207,6 +11269,11 @@ mod tests {
         private.visibility = TransformTemplateModuleVisibility::Private;
         registry.register(private.clone());
 
+        let mut package = private.clone();
+        package.name = "acme.html-package".to_owned();
+        package.visibility = TransformTemplateModuleVisibility::Package;
+        registry.register(package.clone());
+
         let mut public = private.clone();
         public.name = "acme.html-public".to_owned();
         public.visibility = TransformTemplateModuleVisibility::Public;
@@ -11245,6 +11312,30 @@ mod tests {
             .resolve(&owner_query, &BTreeSet::new())
             .expect("matching owner can resolve private custom function");
         assert_eq!(resolved_private.name, private.name);
+
+        let package_query = TransformTemplateOutputFunctionQuery {
+            name: Some(package.name.clone()),
+            ..TransformTemplateOutputFunctionQuery::for_identity(
+                TransformTemplateOutputFunctionKind::Encoding,
+                HTML_CONTENT_TYPE,
+                HTML_SCHEMA_URI,
+                "html-text",
+                "string",
+            )
+        };
+        assert!(matches!(
+            registry.resolve(&package_query, &BTreeSet::new()),
+            Err(TransformTemplateOutputFunctionResolutionError::Unknown { .. })
+        ));
+
+        let package_owner_query = TransformTemplateOutputFunctionQuery {
+            owner: Some("acme".to_owned()),
+            ..package_query
+        };
+        let resolved_package = registry
+            .resolve(&package_owner_query, &BTreeSet::new())
+            .expect("matching owner can resolve package-visible custom function");
+        assert_eq!(resolved_package.name, package.name);
 
         let public_query = TransformTemplateOutputFunctionQuery {
             name: Some(public.name.clone()),

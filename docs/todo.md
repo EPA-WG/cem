@@ -161,6 +161,9 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Enforce output-function visibility during registry and encode/color
           binding resolution so private owner-qualified custom functions only
           resolve for matching owner-scoped requests.
+    - [x] Add `package` visibility for CEMT output-function declarations and
+          resolve package-visible custom functions only for matching
+          owner-scoped requests.
   - [x] Add shared encoder functions for context-specific escaping and binary
         framing across CEM, CEMT, XML, HTML, JSON, YAML, CSV, Markdown, CSS,
         CEM-QL, RELAX NG compact syntax, AI context projection, and CEM binary

@@ -48,7 +48,7 @@
         {attribute @name="nullable" @base="template:nullable"}
         {attribute @name="required" @base="template:required"}
         {attribute @name="type" @base="template:type"}
-        {attribute @name="visibility" @base="template:visibility"}
+        {attribute @name="visibility" @base="template:visibility" @values="private package public"}
         {attribute @name="template" @base="template:template"}
         {attribute @name="from" @base="template:from"}
         {attribute @name="with:*" @base="template:with:*"}
