@@ -515,10 +515,13 @@ fn graph_config_projects_inline_style_export_to_css_and_links_html() {
         fs::read_to_string(&css_out).expect("read css export"),
         ".card { color: red; }\n"
     );
-    let report = report(&report_path);
-    assert_eq!(report["summary"]["hardViolationCount"], 0);
-    assert_eq!(report["reportAst"]["transformGraph"]["exportCount"], 4);
-    let exports = report["reportAst"]["transformGraph"]["exports"]
+    let graph_report = report(&report_path);
+    assert_eq!(graph_report["summary"]["hardViolationCount"], 0);
+    assert_eq!(
+        graph_report["reportAst"]["transformGraph"]["exportCount"],
+        4
+    );
+    let exports = graph_report["reportAst"]["transformGraph"]["exports"]
         .as_array()
         .expect("exports array");
     let html_export = exports
@@ -533,6 +536,10 @@ fn graph_config_projects_inline_style_export_to_css_and_links_html() {
     assert!(html_export["outputSpanCount"].as_u64().unwrap() > 0);
     assert_eq!(html_export["sourceMapRef"], html_map.display().to_string());
     assert!(html_map.exists());
+    assert!(!report(&html_map)["outputSpans"]
+        .as_array()
+        .unwrap()
+        .is_empty());
     let omit_export = exports
         .iter()
         .find(|export| {
@@ -545,6 +552,10 @@ fn graph_config_projects_inline_style_export_to_css_and_links_html() {
     assert!(omit_export["outputSpanCount"].as_u64().unwrap() > 0);
     assert_eq!(omit_export["sourceMapRef"], omit_map.display().to_string());
     assert!(omit_map.exists());
+    assert!(!report(&omit_map)["outputSpans"]
+        .as_array()
+        .unwrap()
+        .is_empty());
     let css_export = exports
         .iter()
         .find(|export| {
@@ -558,4 +569,8 @@ fn graph_config_projects_inline_style_export_to_css_and_links_html() {
     assert!(css_export["outputSpanCount"].as_u64().unwrap() > 0);
     assert_eq!(css_export["sourceMapRef"], css_map.display().to_string());
     assert!(css_map.exists());
+    assert!(!report(&css_map)["outputSpans"]
+        .as_array()
+        .unwrap()
+        .is_empty());
 }

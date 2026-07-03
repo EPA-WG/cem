@@ -10326,6 +10326,21 @@ fn transform_graph_output_span_count(artifact: &eng::TransformGraphArtifact) -> 
         .unwrap_or(0)
 }
 
+fn transform_graph_artifact_output_spans_value(
+    artifact: &eng::TransformGraphArtifact,
+) -> serde_json::Value {
+    if artifact.source_map.is_some() || !artifact.output_spans.is_empty() {
+        return serde_json::to_value(&artifact.output_spans)
+            .unwrap_or_else(|_| serde_json::json!([]));
+    }
+    artifact
+        .primary
+        .get("outputSpans")
+        .filter(|value| value.as_array().is_some())
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!([]))
+}
+
 fn transform_graph_collection_source_map_value(
     primary: &serde_json::Value,
 ) -> Option<serde_json::Value> {
@@ -11133,8 +11148,15 @@ fn write_transform_source_map_sidecar(
     else {
         return Ok(());
     };
-    let sidecar =
-        transform_graph_source_map_sidecar_payload(&source_map, "primary", input, &destination);
+    let output_spans =
+        serde_json::to_value(&response.output_spans).unwrap_or_else(|_| serde_json::json!([]));
+    let sidecar = transform_graph_source_map_sidecar_payload(
+        &source_map,
+        "primary",
+        input,
+        &destination,
+        output_spans,
+    );
     let bytes = serde_json::to_vec_pretty(&sidecar)?;
     write_destination(
         context,
@@ -11164,6 +11186,7 @@ fn write_transform_graph_source_map_sidecar(
         artifact.export_id.as_str(),
         artifact.input.as_str(),
         destination,
+        transform_graph_artifact_output_spans_value(artifact),
     );
     let bytes = serde_json::to_vec_pretty(&sidecar)?;
     write_destination(
@@ -11246,6 +11269,12 @@ fn transform_graph_collection_item_source_map_sidecar_payload(
             "destination".to_owned(),
             serde_json::Value::String(destination.to_owned()),
         );
+        fields.insert(
+            "outputSpans".to_owned(),
+            item.get("outputSpans")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!([])),
+        );
     }
     sidecar
 }
@@ -11255,6 +11284,7 @@ fn transform_graph_source_map_sidecar_payload(
     export_id: &str,
     input: &str,
     destination: &str,
+    output_spans: serde_json::Value,
 ) -> serde_json::Value {
     let mut sidecar = source_map.clone();
     if let serde_json::Value::Object(fields) = &mut sidecar {
@@ -11270,6 +11300,7 @@ fn transform_graph_source_map_sidecar_payload(
             "destination".to_owned(),
             serde_json::Value::String(destination.to_owned()),
         );
+        fields.insert("outputSpans".to_owned(), output_spans);
     }
     sidecar
 }
@@ -12131,6 +12162,7 @@ mod tests {
         assert_eq!(source_map["exportId"], "primary");
         assert_eq!(source_map["input"], data.display().to_string());
         assert_eq!(source_map["destination"], out.display().to_string());
+        assert!(!source_map["outputSpans"].as_array().unwrap().is_empty());
     }
 
     #[test]
@@ -12999,6 +13031,8 @@ mod tests {
         assert_eq!(source_map["exportId"], "main");
         assert_eq!(source_map["input"], "html");
         assert_eq!(source_map["destination"], out.display().to_string());
+        assert_eq!(source_map["outputSpans"].as_array().unwrap().len(), 1);
+        assert_eq!(source_map["outputSpans"][0]["outputRange"]["len"], 13);
         assert!(stdout.into_inner().is_empty());
     }
 
@@ -13090,6 +13124,11 @@ mod tests {
             "https://cem.dev/ns/data/html/1"
         );
         assert!(sidecar["items"][0]["sourceMap"]["frames"].is_array());
+        assert_eq!(sidecar["outputSpans"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            sidecar["items"][0]["outputSpans"].as_array().unwrap().len(),
+            1
+        );
         assert!(item_out.exists());
         assert_eq!(std::fs::read_to_string(&item_out).unwrap(), "<main></main>");
         let item_sidecar: serde_json::Value = serde_json::from_str(
@@ -13106,6 +13145,7 @@ mod tests {
             item_sidecar["collectionDestination"],
             out.display().to_string()
         );
+        assert_eq!(item_sidecar["outputSpans"].as_array().unwrap().len(), 1);
         assert!(stdout.into_inner().is_empty());
     }
 
