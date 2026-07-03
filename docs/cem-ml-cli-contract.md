@@ -839,10 +839,19 @@ Transform graph export report entries keep:
 
 When a single transform response or export artifact advertises a source map and has a concrete destination,
 `sourceMapRef` is the sidecar reference for that output, currently `{destination}.map`. The CLI writes the source-map
-JSON payload to that sidecar through the output resolver. For graph exports, the CLI also adds `exportId`, `input`, and
-`destination` metadata to object-shaped source-map payloads. Collection export sidecars use a collection-shaped
-source-map payload with per-item `sourceMap` and `outputSpans` entries instead of flattening multiple provenance stacks
-into one. Stdout outputs omit `sourceMapRef` because they do not have a stable adjacent file path.
+JSON payload to that sidecar through the output resolver. Object-shaped sidecars include:
+
+- `frames`: the origin-first source-map stack;
+- `outputSpans`: output byte ranges paired with their origin stacks;
+- `exportId`;
+- `input`;
+- `destination`;
+- graph collection item sidecars also include `artifactId`, optional `uri`, and `collectionDestination`.
+
+For graph exports, the CLI adds `exportId`, `input`, `destination`, and `outputSpans` metadata to object-shaped
+source-map payloads. Collection export sidecars use a collection-shaped source-map payload with per-item `sourceMap` and
+`outputSpans` entries instead of flattening multiple provenance stacks into one. Stdout outputs omit `sourceMapRef`
+because they do not have a stable adjacent file path.
 Collection primary JSON outputs are a stable public projection with `kind`, `mode`, `count`, `bindings`, and `items[]`
 entries containing `input`, `artifactId`, `uri`, `identity`, `primary`, and `bindings`. Per-item `sourceMap` and
 `outputSpans` are intentionally omitted from the primary output and remain in sidecar/report surfaces.

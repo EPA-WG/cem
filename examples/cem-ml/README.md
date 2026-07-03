@@ -20,3 +20,8 @@ Fixture pairs:
 | `profile.cem` | `../semantic/profile.html` |
 | `assets-list.cem` | `../semantic/assets-list.html` |
 | `message-thread.cem` | `../semantic/message-thread.html` |
+
+Additional transform-graph samples:
+
+- `transform-graph/source-map-sidecar/` shows a graph export that writes HTML/CSS outputs plus `.map` sidecars with
+  `outputSpans`.

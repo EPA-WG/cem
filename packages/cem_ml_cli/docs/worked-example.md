@@ -86,11 +86,29 @@ Every `OutputSpan` in `TransformOutput.output_spans` walks back through
 `packages/cem_ml/tests/end_to_end.rs::every_output_span_traces_to_source_or_to_a_transform_frame`
 exercises this for every canonical fixture.
 
-## CLI Commands (Once Parser-Enabled)
+## Graph Sidecar Sample
 
-The CLI surface is wired today but the production engine returns
-`EngineError::NotImplemented` until the parser-enabled milestone in
-`cem-ml-cli-plan.md` Phase 11. The intended flow:
+The transform-graph sample at
+`examples/cem-ml/transform-graph/source-map-sidecar/` writes an HTML
+export, an extracted CSS export, and `.map` sidecars with `outputSpans`.
+
+```bash
+dist/target/debug/cem-ml transform \
+  --config examples/cem-ml/transform-graph/source-map-sidecar/graph.cem \
+  --report-json /tmp/cem-ml-source-map-sidecar/report.json
+
+node -e "const fs = require('node:fs'); for (const f of ['page.html.map','page.css.map']) { const m = JSON.parse(fs.readFileSync('/tmp/cem-ml-source-map-sidecar/' + f, 'utf8')); console.log(f + ': ' + m.outputSpans.length + ' output spans'); }"
+```
+
+The HTML sidecar maps copied output ranges back to the source; generated
+bytes such as the inserted stylesheet link are intentionally unmapped.
+The CSS sidecar maps the extracted stylesheet content after rebasing it
+from the inline `<style>` block into the standalone CSS output.
+
+## CLI Commands
+
+The CLI surface is wired to the parser-enabled Rust engine for the current
+Tier A flows:
 
 ```bash
 # Inspect the parsed AST as JSON.
@@ -106,10 +124,10 @@ cem-ml convert examples/cem-ml/login.cem --to-format dom-json
 cem-ml fixture validate
 ```
 
-Until the engine boundary is wired to the real Rust pipeline, the
-authoritative round-trip path is the library helper above. The feature
-tests in `packages/cem_ml_cli/src/dispatch.rs` exercise the same boundary
-via the feature-gated `FakeEngine`.
+The library helper above remains the smallest in-process round-trip path.
+CLI feature and integration tests exercise the same parser, validation,
+conversion, transform, report, and sidecar boundaries through
+`packages/cem_ml_cli/src/dispatch.rs` and `packages/cem_ml_cli/tests/`.
 
 ## Re-Running the Snapshot
 

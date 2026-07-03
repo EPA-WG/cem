@@ -1,0 +1,8 @@
+{run |
+  {import @id=asset @src="asset.cem" @content-type="text/cem-ml" |
+    {transform @id=page @src="page.xsl" @template-content-type="application/xslt+xml" |
+      {export @id=htmlOut @out="/tmp/cem-ml-source-map-sidecar/page.html" @content-type="text/html"}
+      {export @id=cssOut @out="/tmp/cem-ml-source-map-sidecar/page.css" @content-type="text/css" @schema="https://cem.dev/ns/data/css/1"}
+    }
+  }
+}
