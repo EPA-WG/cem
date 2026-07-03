@@ -1297,6 +1297,12 @@ struct TransformGraphImportMatch {
     bindings: BTreeMap<String, String>,
 }
 
+#[derive(Debug, Clone)]
+struct TransformGraphArtifactOutputRoute {
+    destination: String,
+    target: Option<eng::FormatIdentity>,
+}
+
 type TransformGraphJoinGroup = (
     String,
     Vec<(String, TransformGraphArtifactVariant)>,
@@ -2117,6 +2123,7 @@ fn transform_graph_request_from_config(
     let mut exports = Vec::new();
     let mut edges = Vec::new();
     let mut variants: BTreeMap<String, Vec<TransformGraphArtifactVariant>> = BTreeMap::new();
+    let mut output_routes: BTreeMap<String, TransformGraphArtifactOutputRoute> = BTreeMap::new();
     let mut next_scope_id = 0u32;
     for node in &graph.nodes {
         match node.kind {
@@ -2211,10 +2218,15 @@ fn transform_graph_request_from_config(
                     };
                     let join_inputs = input_variants
                         .iter()
-                        .map(|(input_name, variant)| eng::TransformGraphJoinInput {
-                            input_name: input_name.clone(),
-                            artifact_id: variant.id.clone(),
-                            bindings: variant.bindings.clone(),
+                        .map(|(input_name, variant)| {
+                            let output_route = output_routes.get(&variant.id);
+                            eng::TransformGraphJoinInput {
+                                input_name: input_name.clone(),
+                                artifact_id: variant.id.clone(),
+                                bindings: variant.bindings.clone(),
+                                destination: output_route.map(|route| route.destination.clone()),
+                                target: output_route.and_then(|route| route.target.clone()),
+                            }
                         })
                         .collect::<Vec<_>>();
                     joins.push(eng::TransformGraphJoin {
@@ -2425,10 +2437,18 @@ fn transform_graph_request_from_config(
                         &path,
                     );
                     let target = target_scope.format_identity_option();
+                    let destination = path.display().to_string();
+                    output_routes.insert(
+                        input_variant.id.clone(),
+                        TransformGraphArtifactOutputRoute {
+                            destination: destination.clone(),
+                            target: target.clone(),
+                        },
+                    );
                     exports.push(eng::TransformGraphExport {
                         id: export_id.clone(),
                         input: input_variant.id.clone(),
-                        destination: Some(path.display().to_string()),
+                        destination: Some(destination),
                         target,
                         target_scope,
                         scheduler_scope_id: next_scope_id,
@@ -10739,11 +10759,21 @@ fn write_transform_graph_artifacts(
     output_color_type: Option<&str>,
     s: &mut Streams<'_>,
 ) -> io::Result<()> {
+    let top_level_destinations = artifacts
+        .iter()
+        .filter_map(|artifact| artifact.destination.clone())
+        .collect::<BTreeSet<_>>();
     for artifact in artifacts {
         let out = artifact.destination.as_deref().map(Path::new);
         write_document_primary(context, &artifact.primary, out, output_color_type, s)?;
         write_transform_graph_source_map_sidecar(context, artifact)?;
-        write_transform_graph_collection_item_artifacts(context, artifact, output_color_type, s)?;
+        write_transform_graph_collection_item_artifacts(
+            context,
+            artifact,
+            output_color_type,
+            &top_level_destinations,
+            s,
+        )?;
     }
     Ok(())
 }
@@ -10752,6 +10782,7 @@ fn write_transform_graph_collection_item_artifacts(
     context: &eng::EngineContext,
     artifact: &eng::TransformGraphArtifact,
     output_color_type: Option<&str>,
+    top_level_destinations: &BTreeSet<String>,
     s: &mut Streams<'_>,
 ) -> io::Result<()> {
     if artifact
@@ -10774,7 +10805,7 @@ fn write_transform_graph_collection_item_artifacts(
         let Some(destination) = transform_graph_collection_item_destination(item) else {
             continue;
         };
-        if artifact.destination.as_deref() == Some(destination) {
+        if top_level_destinations.contains(destination) {
             continue;
         }
         let Some(primary) = item.get("primary").filter(|primary| !primary.is_null()) else {

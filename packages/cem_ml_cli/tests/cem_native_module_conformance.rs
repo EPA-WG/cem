@@ -404,6 +404,117 @@ fn graph_config_covers_join_collection_report_and_sidecar() {
 }
 
 #[test]
+fn graph_config_routes_exported_items_into_join_collection() {
+    let root = fixture_root("graph-collection-item-destinations");
+    let graph = root.join("graph.cem");
+    let report_path = root.join("report.json");
+    let manifest = root.join("out/book.json");
+    write(&root.join("chapters/ch02.cem"), r#"{section @id="two"}"#);
+    write(&root.join("chapters/ch01.cem"), r#"{section @id="one"}"#);
+    write(&root.join("chapter.cem"), r#"{article | Chapter}"#);
+    write(
+        &graph,
+        r#"{run |
+  {import @id=chapter @src="chapters/*.cem" @content-type="text/cem-ml" |
+    {transform @id=page @src="chapter.cem" @template-content-type="text/cem-ml" |
+      {export @id=html @out="out/{stem}.html" @content-type="text/html"}
+      {join @id=book @mode="collect" |
+        {export @id=manifest @out="out/book.json" @content-type="application/json"}
+      }
+    }
+  }
+}"#,
+    );
+
+    let output = cem_ml(&[
+        "transform",
+        "--config",
+        graph.to_str().expect("graph path is utf-8"),
+        "--report-json",
+        report_path.to_str().expect("report path is utf-8"),
+    ]);
+
+    assert_eq!(output.status.code(), Some(EXIT_OK));
+    assert!(stdout(&output).is_empty(), "{}", stdout(&output));
+    assert!(stderr(&output).trim().is_empty(), "{}", stderr(&output));
+
+    let ch01 = root.join("out/ch01.html");
+    let ch02 = root.join("out/ch02.html");
+    assert_eq!(
+        fs::read_to_string(&ch01).expect("read ch01 html"),
+        "<article>Chapter</article>"
+    );
+    assert_eq!(
+        fs::read_to_string(&ch02).expect("read ch02 html"),
+        "<article>Chapter</article>"
+    );
+
+    let collection: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&manifest).expect("read collection export"))
+            .expect("parse collection export");
+    assert_eq!(collection["kind"], "collection");
+    assert_eq!(collection["count"], 2);
+    assert_eq!(collection["items"][0]["artifactId"], "page:0");
+    assert_eq!(
+        collection["items"][0]["destination"],
+        ch01.display().to_string()
+    );
+    assert_eq!(
+        collection["items"][0]["identity"]["contentType"],
+        "text/html"
+    );
+    assert_eq!(collection["items"][1]["artifactId"], "page:1");
+    assert_eq!(
+        collection["items"][1]["destination"],
+        ch02.display().to_string()
+    );
+    assert_eq!(
+        collection["items"][1]["identity"]["contentType"],
+        "text/html"
+    );
+
+    let page_sidecar: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(format!("{}.map", ch01.display())).expect("read page sidecar"),
+    )
+    .expect("parse page sidecar");
+    assert_eq!(page_sidecar["exportId"], "html:0");
+    assert_eq!(page_sidecar["destination"], ch01.display().to_string());
+    assert!(page_sidecar["collectionDestination"].is_null());
+
+    let manifest_sidecar: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(format!("{}.map", manifest.display())).expect("read manifest sidecar"),
+    )
+    .expect("parse manifest sidecar");
+    assert_eq!(manifest_sidecar["exportId"], "manifest");
+    assert_eq!(
+        manifest_sidecar["items"][0]["destination"],
+        ch01.display().to_string()
+    );
+    assert_eq!(
+        manifest_sidecar["items"][0]["identity"]["contentType"],
+        "text/html"
+    );
+
+    let report = report(&report_path);
+    assert_eq!(report["summary"]["hardViolationCount"], 0);
+    let exports = report["reportAst"]["transformGraph"]["exports"]
+        .as_array()
+        .expect("transform graph exports");
+    let manifest_export = exports
+        .iter()
+        .find(|export| export["exportId"] == "manifest")
+        .expect("manifest export");
+    assert_eq!(
+        manifest_export["collectionItems"][0]["destination"],
+        ch01.display().to_string()
+    );
+    assert_eq!(
+        manifest_export["collectionItems"][0]["contentType"],
+        "text/html"
+    );
+}
+
+#[test]
 fn direct_cli_reports_import_cycles_depth_limits_and_recursion_limits() {
     let root = fixture_root("preflight-limits");
     let data = root.join("source.cem");

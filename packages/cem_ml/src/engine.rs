@@ -741,6 +741,8 @@ pub struct TransformGraphJoinInput {
     pub input_name: String,
     pub artifact_id: String,
     pub bindings: BTreeMap<String, String>,
+    pub destination: Option<String>,
+    pub target: Option<FormatIdentity>,
 }
 
 #[derive(Debug, Clone)]
@@ -1478,11 +1480,15 @@ mod tests {
                         input_name: "primary".to_owned(),
                         artifact_id: "book".to_owned(),
                         bindings: BTreeMap::from([("stem".to_owned(), "book".to_owned())]),
+                        destination: None,
+                        target: None,
                     },
                     TransformGraphJoinInput {
                         input_name: "stats".to_owned(),
                         artifact_id: "stats".to_owned(),
                         bindings: BTreeMap::from([("stem".to_owned(), "stats".to_owned())]),
+                        destination: None,
+                        target: None,
                     },
                 ],
                 bindings: BTreeMap::from([("count".to_owned(), "2".to_owned())]),
