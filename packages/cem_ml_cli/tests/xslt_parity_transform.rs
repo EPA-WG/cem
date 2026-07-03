@@ -455,6 +455,7 @@ fn graph_config_projects_inline_style_export_to_css_and_links_html() {
     let inline_out = root.join("out/page-inline.html");
     let omit_out = root.join("out/page-omit.html");
     let css_out = root.join("out/page.css");
+    let css_map = root.join("out/page.css.map");
     write(&data, r#"{article @id="asset"}"#);
     write(
         &template,
@@ -515,11 +516,19 @@ fn graph_config_projects_inline_style_export_to_css_and_links_html() {
     let report = report(&report_path);
     assert_eq!(report["summary"]["hardViolationCount"], 0);
     assert_eq!(report["reportAst"]["transformGraph"]["exportCount"], 4);
-    assert!(report["reportAst"]["transformGraph"]["exports"]
+    let css_export = report["reportAst"]["transformGraph"]["exports"]
         .as_array()
         .expect("exports array")
         .iter()
-        .any(|export| export["exportId"] == "cssOut"
-            && export["contentType"] == "text/css"
-            && export["destination"] == css_out.display().to_string()));
+        .find(|export| {
+            export["exportId"] == "cssOut"
+                && export["contentType"] == "text/css"
+                && export["destination"] == css_out.display().to_string()
+        })
+        .expect("cssOut export report");
+    assert_eq!(css_export["schema"], "https://cem.dev/ns/data/css/1");
+    assert_eq!(css_export["hasSourceMap"], true);
+    assert!(css_export["outputSpanCount"].as_u64().unwrap() > 0);
+    assert_eq!(css_export["sourceMapRef"], css_map.display().to_string());
+    assert!(css_map.exists());
 }

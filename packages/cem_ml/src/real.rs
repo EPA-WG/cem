@@ -36,7 +36,7 @@ use crate::schema::registry::{
     XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
 };
 use crate::schema::vocab::CompiledSchema;
-use crate::source::{BytesSource, SourceId};
+use crate::source::{ByteRange, BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
 use crate::tokenizer::cem::CemTokenizer;
 use crate::tokenizer::html::HtmlTokenizer;
@@ -1485,14 +1485,20 @@ fn transform_graph_export_primary(
 ) -> (Value, Option<SourceMapStack>, Vec<OutputSpan>) {
     if transform_graph_target_is_css(target) {
         if let Some(raw_content) = transform_graph_artifact_raw_content(artifact, Some(metadata)) {
-            if let Some(css) = extract_inline_style_css(&raw_content) {
+            if let Some(css) =
+                extract_inline_style_css_document(&raw_content, &metadata.output_spans)
+            {
+                let source_map = metadata
+                    .source_map
+                    .clone()
+                    .filter(|_| !css.output_spans.is_empty());
                 return (
                     json!({
                         "kind": "document",
-                        "content": css,
+                        "content": css.content,
                     }),
-                    None,
-                    Vec::new(),
+                    source_map,
+                    css.output_spans,
                 );
             }
         }
@@ -1554,19 +1560,84 @@ fn transform_graph_target_is_html(target: Option<&FormatIdentity>) -> bool {
         )
 }
 
-fn extract_inline_style_css(raw: &str) -> Option<String> {
+#[derive(Debug, Clone, PartialEq)]
+struct ExtractedInlineCssDocument {
+    content: String,
+    output_spans: Vec<OutputSpan>,
+}
+
+fn extract_inline_style_css_document(
+    raw: &str,
+    source_output_spans: &[OutputSpan],
+) -> Option<ExtractedInlineCssDocument> {
     let blocks = inline_style_blocks(raw)
         .into_iter()
-        .filter_map(|block| {
-            let css = raw[block.content_start..block.content_end].trim();
-            (!css.is_empty()).then(|| css.to_owned())
-        })
+        .filter_map(|block| trimmed_inline_style_content_range(raw, block))
         .collect::<Vec<_>>();
 
     if blocks.is_empty() {
         None
     } else {
-        Some(format!("{}\n", blocks.join("\n\n")))
+        let mut content = String::new();
+        let mut output_spans = Vec::new();
+        for (index, (source_start, source_end)) in blocks.into_iter().enumerate() {
+            if index > 0 {
+                content.push_str("\n\n");
+            }
+            let output_start = content.len();
+            content.push_str(&raw[source_start..source_end]);
+            rebase_output_spans(
+                source_output_spans,
+                source_start,
+                source_end,
+                output_start,
+                &mut output_spans,
+            );
+        }
+        content.push('\n');
+        Some(ExtractedInlineCssDocument {
+            content,
+            output_spans,
+        })
+    }
+}
+
+fn trimmed_inline_style_content_range(
+    raw: &str,
+    block: InlineStyleBlock,
+) -> Option<(usize, usize)> {
+    let content = &raw[block.content_start..block.content_end];
+    let css = content.trim();
+    if css.is_empty() {
+        return None;
+    }
+    let leading = content.find(css).unwrap_or_default();
+    let start = block.content_start + leading;
+    Some((start, start + css.len()))
+}
+
+fn rebase_output_spans(
+    source_output_spans: &[OutputSpan],
+    source_start: usize,
+    source_end: usize,
+    output_start: usize,
+    rebased: &mut Vec<OutputSpan>,
+) {
+    for span in source_output_spans {
+        let span_start = span.output_range.start as usize;
+        let span_end = span.output_range.end() as usize;
+        let overlap_start = span_start.max(source_start);
+        let overlap_end = span_end.min(source_end);
+        if overlap_start >= overlap_end {
+            continue;
+        }
+        rebased.push(OutputSpan {
+            output_range: ByteRange::new(
+                (output_start + overlap_start - source_start) as u64,
+                (overlap_end - overlap_start) as u32,
+            ),
+            origin: span.origin.clone(),
+        });
     }
 }
 
@@ -5007,6 +5078,23 @@ mod tests {
         EngineContext::default()
     }
 
+    fn test_source_map_stack(start: u64, len: u32) -> SourceMapStack {
+        SourceMapStack {
+            frames: vec![crate::source_map::SourceMapFrame {
+                source_id: SourceId(1),
+                span: crate::source_map::FrameSpan::Single(ByteRange::new(start, len)),
+                transform: crate::source_map::TransformKind::InterpreterRender,
+            }],
+        }
+    }
+
+    fn test_output_span(output_start: usize, len: usize, origin_start: u64) -> OutputSpan {
+        OutputSpan {
+            output_range: ByteRange::new(output_start as u64, len as u32),
+            origin: test_source_map_stack(origin_start, len as u32),
+        }
+    }
+
     fn context_with_resolver(
         scheme: &str,
         purpose: ResolvePurpose,
@@ -5063,6 +5151,68 @@ mod tests {
         );
         assert!(source_map.is_none());
         assert!(output_spans.is_empty());
+    }
+
+    #[test]
+    fn transform_graph_export_rebases_inline_style_spans_to_css_document() {
+        let raw = "<html><head><style>
+  .card { color: red; }
+</style><style> .grid { display: grid; } </style></head><body>Hi</body></html>";
+        let first_css = ".card { color: red; }";
+        let second_css = ".grid { display: grid; }";
+        let first_start = raw.find(first_css).unwrap();
+        let second_start = raw.find(second_css).unwrap();
+        let source_map = test_source_map_stack(0, raw.len() as u32);
+        let artifact = TransformTemplateDataArtifact {
+            artifact_id: "page".to_owned(),
+            uri: Some("page.html".to_owned()),
+            identity: Some(FormatIdentity {
+                content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+                schema: Some(HTML_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            value: json!({
+                "kind": "html",
+                "content": raw,
+            }),
+        };
+        let first_span = test_output_span(first_start, first_css.len(), 100);
+        let second_span = test_output_span(second_start, second_css.len(), 200);
+        let metadata = TransformOutputMetadata {
+            source_map: Some(source_map.clone()),
+            output_spans: vec![first_span.clone(), second_span.clone()],
+            raw_content: Some(raw.to_owned()),
+        };
+        let target = FormatIdentity {
+            content_type: Some(CSS_CONTENT_TYPE.to_owned()),
+            schema: Some(CSS_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+
+        let (primary, exported_source_map, output_spans) = transform_graph_export_primary(
+            &artifact,
+            &metadata,
+            Some(&target),
+            TransformGraphHtmlStyleProjection::Inline,
+        );
+
+        assert_eq!(primary["kind"], "document");
+        assert_eq!(
+            primary["content"],
+            ".card { color: red; }\n\n.grid { display: grid; }\n"
+        );
+        assert_eq!(exported_source_map, Some(source_map));
+        assert_eq!(output_spans.len(), 2);
+        assert_eq!(
+            output_spans[0].output_range,
+            ByteRange::new(0, first_css.len() as u32)
+        );
+        assert_eq!(output_spans[0].origin, first_span.origin);
+        assert_eq!(
+            output_spans[1].output_range,
+            ByteRange::new((first_css.len() + 2) as u64, second_css.len() as u32)
+        );
+        assert_eq!(output_spans[1].origin, second_span.origin);
     }
 
     #[test]
