@@ -10060,6 +10060,8 @@ fn transform_graph_collection_source_map_value(
             Some(serde_json::json!({
                 "input": item.get("input").cloned().unwrap_or(serde_json::Value::Null),
                 "artifactId": item.get("artifactId").cloned().unwrap_or(serde_json::Value::Null),
+                "uri": item.get("uri").cloned().unwrap_or(serde_json::Value::Null),
+                "identity": item.get("identity").cloned().unwrap_or(serde_json::Value::Null),
                 "sourceMap": source_map.clone(),
                 "outputSpans": item.get("outputSpans").cloned().unwrap_or_else(|| serde_json::json!([])),
             }))
@@ -10103,6 +10105,20 @@ fn transform_graph_collection_item_reports(
                     .and_then(serde_json::Value::as_str)
                     .unwrap_or("")
                     .to_owned(),
+                uri: item
+                    .get("uri")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_owned),
+                content_type: item
+                    .get("identity")
+                    .and_then(|identity| identity.get("contentType"))
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_owned),
+                schema: item
+                    .get("identity")
+                    .and_then(|identity| identity.get("schema"))
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_owned),
                 has_source_map: item
                     .get("sourceMap")
                     .is_some_and(|source_map| !source_map.is_null()),
@@ -10239,6 +10255,25 @@ fn render_report_markdown(report: &cem_ml::report::Report) -> String {
                 ));
             }
             out.push('\n');
+            for item in &export.collection_items {
+                out.push_str(&format!(
+                    "  - {} <- {} -> {}",
+                    item.artifact_id,
+                    item.input,
+                    item.uri.as_deref().unwrap_or("<memory>")
+                ));
+                if let Some(content_type) = item.content_type.as_deref() {
+                    out.push_str(&format!(" ({content_type})"));
+                }
+                if let Some(schema) = item.schema.as_deref() {
+                    out.push_str(&format!(" [{schema}]"));
+                }
+                out.push_str(&format!(
+                    " [sourceMap: {}, outputSpans: {}]\n",
+                    if item.has_source_map { "yes" } else { "no" },
+                    item.output_span_count
+                ));
+            }
         }
     }
     out
@@ -12315,6 +12350,11 @@ mod tests {
                     "items": [{
                         "input": "primary",
                         "artifactId": "html",
+                        "uri": "out/page.html",
+                        "identity": {
+                            "contentType": "text/html",
+                            "schema": "https://cem.dev/ns/data/html/1"
+                        },
                         "sourceMap": collection_source_map,
                         "outputSpans": collection_output_spans,
                     }],
@@ -12340,6 +12380,7 @@ mod tests {
         assert!(markdown.contains("[sourceMapRef: out/page.html.map]"));
         assert!(markdown.contains("- main <- html -> out/page.html"));
         assert!(markdown.contains("[collectionItems: 1]"));
+        assert!(markdown.contains("  - html <- primary -> out/page.html (text/html)"));
 
         let value = serde_json::to_value(report).unwrap();
         assert_eq!(value["exports"][0]["input"], "html");
@@ -12360,6 +12401,18 @@ mod tests {
         assert_eq!(
             value["exports"][2]["collectionItems"][0]["artifactId"],
             "html"
+        );
+        assert_eq!(
+            value["exports"][2]["collectionItems"][0]["uri"],
+            "out/page.html"
+        );
+        assert_eq!(
+            value["exports"][2]["collectionItems"][0]["contentType"],
+            "text/html"
+        );
+        assert_eq!(
+            value["exports"][2]["collectionItems"][0]["schema"],
+            "https://cem.dev/ns/data/html/1"
         );
         assert_eq!(
             value["exports"][2]["collectionItems"][0]["hasSourceMap"],
@@ -12504,6 +12557,11 @@ mod tests {
                 "items": [{
                     "input": "primary",
                     "artifactId": "html",
+                    "uri": "out/page.html",
+                    "identity": {
+                        "contentType": "text/html",
+                        "schema": "https://cem.dev/ns/data/html/1"
+                    },
                     "sourceMap": source_map,
                     "outputSpans": output_spans,
                 }],
@@ -12544,6 +12602,12 @@ mod tests {
         assert_eq!(sidecar["input"], "collection");
         assert_eq!(sidecar["destination"], out.display().to_string());
         assert_eq!(sidecar["items"][0]["artifactId"], "html");
+        assert_eq!(sidecar["items"][0]["uri"], "out/page.html");
+        assert_eq!(sidecar["items"][0]["identity"]["contentType"], "text/html");
+        assert_eq!(
+            sidecar["items"][0]["identity"]["schema"],
+            "https://cem.dev/ns/data/html/1"
+        );
         assert!(sidecar["items"][0]["sourceMap"]["frames"].is_array());
         assert!(stdout.into_inner().is_empty());
     }

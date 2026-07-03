@@ -140,6 +140,12 @@ pub struct TransformGraphCollectionItemReport {
     pub input: String,
     #[serde(rename = "artifactId")]
     pub artifact_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uri: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schema: Option<String>,
     #[serde(rename = "hasSourceMap")]
     pub has_source_map: bool,
     #[serde(rename = "outputSpanCount")]
