@@ -2334,6 +2334,7 @@ fn transform_graph_request_from_config(
                         template_entrypoint,
                         params,
                         execution_policy,
+                        target: None,
                         primary_input: primary_variant.id.clone(),
                         secondary_inputs,
                         scheduler_scope_ids: eng::TransformStageSchedulerScopeIds {
@@ -2464,6 +2465,8 @@ fn transform_graph_request_from_config(
         }
     }
 
+    apply_transform_graph_stage_targets(&mut stages, &exports);
+
     Ok(eng::TransformGraphRequest {
         imports,
         joins,
@@ -2475,6 +2478,33 @@ fn transform_graph_request_from_config(
         context: context.clone(),
         execution_policy: eng::TransformExecutionPolicy::default(),
     })
+}
+
+fn apply_transform_graph_stage_targets(
+    stages: &mut [eng::TransformGraphStage],
+    exports: &[eng::TransformGraphExport],
+) {
+    for stage in stages {
+        stage.target = transform_graph_export_target_for_stage(stage.id.as_str(), exports);
+    }
+}
+
+fn transform_graph_export_target_for_stage(
+    stage_id: &str,
+    exports: &[eng::TransformGraphExport],
+) -> Option<eng::FormatIdentity> {
+    let mut target = None;
+    for export in exports.iter().filter(|export| export.input == stage_id) {
+        let Some(candidate) = export.target.clone() else {
+            continue;
+        };
+        match &target {
+            None => target = Some(candidate),
+            Some(existing) if existing == &candidate => {}
+            Some(_) => return None,
+        }
+    }
+    target
 }
 
 fn transform_graph_request_from_args(
@@ -13069,6 +13099,91 @@ mod tests {
             request.stages[0].execution_policy.runtime_phase,
             eng::TransformRuntimePhase::CemNativeModules
         );
+    }
+
+    #[test]
+    fn transform_config_request_helper_infers_stage_target_from_direct_export() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-stage-target");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("data.cem"), "{p | Source}").unwrap();
+        std::fs::write(
+            root.join("style.cemt"),
+            r#"{@doc cem-ml 1}
+{module |
+  {template @name="main" @visibility="public" |
+    {body | OK}
+  }
+}"#,
+        )
+        .unwrap();
+        let config = root.join("graph.cem");
+        std::fs::write(
+            &config,
+            r#"{run |
+  {import @id=book @src="data.cem" @content-type="text/cem-ml" |
+    {transform @id=style @src="style.cemt" @template-content-type="application/vnd.cem.transform+cem" @template-schema="https://cem.dev/ns/transform/cem/1" |
+      {export @id=css @out="out/site.css" @content-type="text/css" @schema="https://cem.dev/ns/data/css/1"}
+    }
+  }
+}"#,
+        )
+        .unwrap();
+        let parsed = parse_cli(&["transform", "--config", config.to_str().unwrap()]);
+        let cli::Command::Transform(args) = parsed.command else {
+            panic!("expected transform command");
+        };
+        let context = context(&cli::ContextOptions::default());
+
+        let (request, _) = match transform_graph_request_from_args(&context, &args) {
+            Ok(request) => request,
+            Err(_) => panic!("transform config should infer stage export target"),
+        };
+
+        let target = request.stages[0]
+            .target
+            .as_ref()
+            .expect("stage target should be inferred");
+        assert_eq!(target.content_type.as_deref(), Some("text/css"));
+        assert_eq!(
+            target.schema.as_deref(),
+            Some(cem_ml::schema::registry::CSS_SCHEMA_URI)
+        );
+    }
+
+    #[test]
+    fn transform_config_request_helper_leaves_stage_target_ambiguous_for_conflicting_exports() {
+        let root =
+            std::env::temp_dir().join("cem-ml-cli-tests/transform-config-stage-target-conflict");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("data.cem"), "{p | Source}").unwrap();
+        std::fs::write(root.join("view.cemt"), "{module | {template | OK}}").unwrap();
+        let config = root.join("graph.cem");
+        std::fs::write(
+            &config,
+            r#"{run |
+  {import @id=book @src="data.cem" @content-type="text/cem-ml" |
+    {transform @id=view @src="view.cemt" @template-content-type="application/vnd.cem.transform+cem" @template-schema="https://cem.dev/ns/transform/cem/1" |
+      {export @id=css @out="out/site.css" @content-type="text/css" @schema="https://cem.dev/ns/data/css/1"}
+      {export @id=html @out="out/site.html" @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+    }
+  }
+}"#,
+        )
+        .unwrap();
+        let parsed = parse_cli(&["transform", "--config", config.to_str().unwrap()]);
+        let cli::Command::Transform(args) = parsed.command else {
+            panic!("expected transform command");
+        };
+        let context = context(&cli::ContextOptions::default());
+
+        let (request, _) = match transform_graph_request_from_args(&context, &args) {
+            Ok(request) => request,
+            Err(_) => panic!("transform config should lower conflicting export targets"),
+        };
+
+        assert!(request.stages[0].target.is_none());
     }
 
     #[test]

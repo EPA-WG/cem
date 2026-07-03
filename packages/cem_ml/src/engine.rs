@@ -753,6 +753,7 @@ pub struct TransformGraphStage {
     pub template_entrypoint: TransformTemplateEntrypoint,
     pub params: BTreeMap<String, Value>,
     pub execution_policy: TransformExecutionPolicy,
+    pub target: Option<FormatIdentity>,
     pub primary_input: String,
     pub secondary_inputs: BTreeMap<String, String>,
     pub scheduler_scope_ids: TransformStageSchedulerScopeIds,
@@ -1338,6 +1339,7 @@ mod tests {
                     template_entrypoint: TransformTemplateEntrypoint::implicit(),
                     params: BTreeMap::new(),
                     execution_policy: TransformExecutionPolicy::default(),
+                    target: None,
                     primary_input: "missing".to_owned(),
                     secondary_inputs: BTreeMap::from([(
                         "stats".to_owned(),
@@ -1352,6 +1354,7 @@ mod tests {
                     template_entrypoint: TransformTemplateEntrypoint::implicit(),
                     params: BTreeMap::new(),
                     execution_policy: TransformExecutionPolicy::default(),
+                    target: None,
                     primary_input: "book".to_owned(),
                     secondary_inputs: BTreeMap::new(),
                     scheduler_scope_ids: TransformStageSchedulerScopeIds::default(),
@@ -1509,6 +1512,7 @@ mod tests {
                     runtime_phase: TransformRuntimePhase::CemNativeModules,
                     ..TransformExecutionPolicy::default()
                 },
+                target: None,
                 primary_input: "book".to_owned(),
                 secondary_inputs,
                 scheduler_scope_ids: TransformStageSchedulerScopeIds {

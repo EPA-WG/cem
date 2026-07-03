@@ -4293,7 +4293,7 @@ impl CemMlEngine for RealCemMlEngine {
                             compiled: &compiled,
                             primary_input: &primary_input,
                             secondary_inputs: &secondary_inputs,
-                            target: None,
+                            target: stage.target.as_ref(),
                             target_scope: &ScopeConfig::default(),
                             execution_policy: stage.execution_policy,
                             diagnostic_uri: &stage.template.uri,
