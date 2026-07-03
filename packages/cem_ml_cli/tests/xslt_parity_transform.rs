@@ -445,7 +445,7 @@ fn graph_config_executes_mixed_cem_native_and_xslt_stage_policies() {
 }
 
 #[test]
-fn graph_config_projects_inline_style_export_to_css_without_changing_html() {
+fn graph_config_projects_inline_style_export_to_css_and_links_html() {
     let root = fixture_root("graph-inline-style-css-export");
     let data = root.join("asset.cem");
     let template = root.join("page.xsl");
@@ -483,9 +483,10 @@ fn graph_config_projects_inline_style_export_to_css_without_changing_html() {
     assert!(stderr(&output).trim().is_empty(), "{}", stderr(&output));
     let html = fs::read_to_string(&html_out).expect("read html export");
     assert!(
-        html.contains("<style>.card { color: red; }</style>"),
+        html.contains(r#"<link rel="stylesheet" href="page.css">"#),
         "{html}"
     );
+    assert!(!html.contains("<style>"), "{html}");
     assert!(
         html.contains(r#"<main class="card"><h1>Asset</h1></main>"#),
         "{html}"

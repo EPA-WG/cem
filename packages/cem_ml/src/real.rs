@@ -32,8 +32,8 @@ use crate::schema::package_consistency::validate_schema_package_source_consisten
 use crate::schema::registry::{
     content_type_essence, CEM_DOM_JSON_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_CONTENT_TYPE,
     CEM_DOM_PROJECTION_SCHEMA_URI, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
-    CSS_CONTENT_TYPE, CSS_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, XML_CONTENT_TYPE,
-    XML_SCHEMA_URI,
+    CSS_CONTENT_TYPE, CSS_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, XHTML_CONTENT_TYPE,
+    XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
 };
 use crate::schema::vocab::CompiledSchema;
 use crate::source::{BytesSource, SourceId};
@@ -66,7 +66,7 @@ use crate::transform_template::{
 use crate::validation::{RuleContext, RuleRegistry};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -1481,6 +1481,7 @@ fn transform_graph_export_primary(
     artifact: &TransformTemplateDataArtifact,
     metadata: &TransformOutputMetadata,
     target: Option<&FormatIdentity>,
+    stylesheet_href: Option<&str>,
 ) -> (Value, Option<SourceMapStack>, Vec<OutputSpan>) {
     if transform_graph_target_is_css(target) {
         if let Some(raw_content) = transform_graph_artifact_raw_content(artifact, Some(metadata)) {
@@ -1493,6 +1494,27 @@ fn transform_graph_export_primary(
                     None,
                     Vec::new(),
                 );
+            }
+        }
+    }
+
+    if transform_graph_target_is_html(target) {
+        if let Some(stylesheet_href) = stylesheet_href {
+            if let Some(raw_content) =
+                transform_graph_artifact_raw_content(artifact, Some(metadata))
+            {
+                if let Some(html) =
+                    html_with_extracted_stylesheet_link(&raw_content, stylesheet_href, target)
+                {
+                    return (
+                        json!({
+                            "kind": "html",
+                            "content": html,
+                        }),
+                        None,
+                        Vec::new(),
+                    );
+                }
             }
         }
     }
@@ -1516,7 +1538,72 @@ fn transform_graph_target_is_css(target: Option<&FormatIdentity>) -> bool {
         || target.schema.as_deref() == Some(CSS_SCHEMA_URI)
 }
 
+fn transform_graph_target_is_html(target: Option<&FormatIdentity>) -> bool {
+    let Some(target) = target else {
+        return false;
+    };
+    target
+        .content_type
+        .as_deref()
+        .map(content_type_essence)
+        .is_some_and(|essence| matches!(essence.as_str(), HTML_CONTENT_TYPE | XHTML_CONTENT_TYPE))
+        || matches!(
+            target.schema.as_deref(),
+            Some(HTML_SCHEMA_URI) | Some(XHTML_SCHEMA_URI)
+        )
+}
+
 fn extract_inline_style_css(raw: &str) -> Option<String> {
+    let blocks = inline_style_blocks(raw)
+        .into_iter()
+        .filter_map(|block| {
+            let css = raw[block.content_start..block.content_end].trim();
+            (!css.is_empty()).then(|| css.to_owned())
+        })
+        .collect::<Vec<_>>();
+
+    if blocks.is_empty() {
+        None
+    } else {
+        Some(format!("{}\n", blocks.join("\n\n")))
+    }
+}
+
+fn html_with_extracted_stylesheet_link(
+    raw: &str,
+    href: &str,
+    target: Option<&FormatIdentity>,
+) -> Option<String> {
+    let blocks = inline_style_blocks(raw);
+    if blocks.is_empty() {
+        return None;
+    }
+
+    let link = stylesheet_link_tag(href, target);
+    let mut html = String::with_capacity(raw.len() + link.len());
+    let mut cursor = 0;
+    let mut inserted = false;
+    for block in blocks {
+        html.push_str(&raw[cursor..block.tag_start]);
+        if !inserted {
+            html.push_str(&link);
+            inserted = true;
+        }
+        cursor = block.tag_end;
+    }
+    html.push_str(&raw[cursor..]);
+    Some(html)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct InlineStyleBlock {
+    tag_start: usize,
+    tag_end: usize,
+    content_start: usize,
+    content_end: usize,
+}
+
+fn inline_style_blocks(raw: &str) -> Vec<InlineStyleBlock> {
     let mut cursor = 0;
     let mut blocks = Vec::new();
     while let Some(start) = find_ascii_case_insensitive(raw, "<style", cursor) {
@@ -1527,18 +1614,86 @@ fn extract_inline_style_css(raw: &str) -> Option<String> {
         let Some(close) = find_ascii_case_insensitive(raw, "</style>", content_start) else {
             break;
         };
-        let css = raw[content_start..close].trim();
-        if !css.is_empty() {
-            blocks.push(css.to_owned());
-        }
-        cursor = close + "</style>".len();
+        let tag_end = close + "</style>".len();
+        blocks.push(InlineStyleBlock {
+            tag_start: start,
+            tag_end,
+            content_start,
+            content_end: close,
+        });
+        cursor = tag_end;
+    }
+    blocks
+}
+
+fn stylesheet_link_tag(href: &str, target: Option<&FormatIdentity>) -> String {
+    let href = escape_html_attribute(href);
+    if transform_graph_target_is_xhtml(target) {
+        format!(r#"<link rel="stylesheet" href="{href}" />"#)
+    } else {
+        format!(r#"<link rel="stylesheet" href="{href}">"#)
+    }
+}
+
+fn transform_graph_target_is_xhtml(target: Option<&FormatIdentity>) -> bool {
+    let Some(target) = target else {
+        return false;
+    };
+    target
+        .content_type
+        .as_deref()
+        .map(content_type_essence)
+        .is_some_and(|essence| essence == XHTML_CONTENT_TYPE)
+        || target.schema.as_deref() == Some(XHTML_SCHEMA_URI)
+}
+
+fn escape_html_attribute(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+fn transform_graph_stylesheet_href(
+    html_destination: Option<&str>,
+    css_destination: &str,
+) -> String {
+    let Some(html_destination) = html_destination else {
+        return css_destination.to_owned();
+    };
+    if has_uri_scheme(html_destination) || has_uri_scheme(css_destination) {
+        return css_destination.to_owned();
     }
 
-    if blocks.is_empty() {
-        None
-    } else {
-        Some(format!("{}\n", blocks.join("\n\n")))
+    let html_path = Path::new(html_destination);
+    let css_path = Path::new(css_destination);
+    let Some(html_parent) = html_path.parent() else {
+        return css_destination.to_owned();
+    };
+    css_path
+        .strip_prefix(html_parent)
+        .ok()
+        .filter(|relative| !relative.as_os_str().is_empty())
+        .map(|relative| relative.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_else(|| css_destination.to_owned())
+}
+
+fn transform_graph_stylesheet_href_for_export(
+    export: &TransformGraphExport,
+    exports: &[TransformGraphExport],
+) -> Option<String> {
+    if !transform_graph_target_is_html(export.target.as_ref()) {
+        return None;
     }
+    exports
+        .iter()
+        .filter(|candidate| candidate.id != export.id && candidate.input == export.input)
+        .find(|candidate| transform_graph_target_is_css(candidate.target.as_ref()))
+        .and_then(|candidate| candidate.destination.as_deref())
+        .map(|css_destination| {
+            transform_graph_stylesheet_href(export.destination.as_deref(), css_destination)
+        })
 }
 
 fn find_ascii_case_insensitive(haystack: &str, needle: &str, from: usize) -> Option<usize> {
@@ -4456,8 +4611,14 @@ impl CemMlEngine for RealCemMlEngine {
                         .cloned()
                         .unwrap_or_default();
                     let identity = export.target.clone().or_else(|| artifact.identity.clone());
-                    let (primary, source_map, output_spans) =
-                        transform_graph_export_primary(artifact, &metadata, identity.as_ref());
+                    let stylesheet_href =
+                        transform_graph_stylesheet_href_for_export(export, &request.exports);
+                    let (primary, source_map, output_spans) = transform_graph_export_primary(
+                        artifact,
+                        &metadata,
+                        identity.as_ref(),
+                        stylesheet_href.as_deref(),
+                    );
                     exported.push(TransformGraphArtifact {
                         export_id: export.id.clone(),
                         input: export.input.clone(),
@@ -4855,12 +5016,55 @@ mod tests {
         };
 
         let (primary, source_map, output_spans) =
-            transform_graph_export_primary(&artifact, &metadata, Some(&target));
+            transform_graph_export_primary(&artifact, &metadata, Some(&target), None);
 
         assert_eq!(primary["kind"], "document");
         assert_eq!(
             primary["content"],
             ".card { color: red; }\n\n.grid { display: grid; }\n"
+        );
+        assert!(source_map.is_none());
+        assert!(output_spans.is_empty());
+    }
+
+    #[test]
+    fn transform_graph_export_replaces_inline_styles_with_stylesheet_link() {
+        let raw = r#"<html><head><style>.card { color: red; }</style><style>.grid { display: grid; }</style></head><body>Hi</body></html>"#;
+        let artifact = TransformTemplateDataArtifact {
+            artifact_id: "page".to_owned(),
+            uri: Some("page.html".to_owned()),
+            identity: Some(FormatIdentity {
+                content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+                schema: Some(HTML_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            value: json!({
+                "kind": "html",
+                "content": raw,
+            }),
+        };
+        let metadata = TransformOutputMetadata {
+            source_map: None,
+            output_spans: Vec::new(),
+            raw_content: Some(raw.to_owned()),
+        };
+        let target = FormatIdentity {
+            content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+            schema: Some(HTML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
+
+        let (primary, source_map, output_spans) = transform_graph_export_primary(
+            &artifact,
+            &metadata,
+            Some(&target),
+            Some("assets/page.css?mode=screen&theme=\"dark\""),
+        );
+
+        assert_eq!(primary["kind"], "html");
+        assert_eq!(
+            primary["content"],
+            r#"<html><head><link rel="stylesheet" href="assets/page.css?mode=screen&amp;theme=&quot;dark&quot;"></head><body>Hi</body></html>"#
         );
         assert!(source_map.is_none());
         assert!(output_spans.is_empty());
