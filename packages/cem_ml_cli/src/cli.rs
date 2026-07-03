@@ -655,6 +655,12 @@ pub struct TransformArgs {
     #[arg(long, value_name = "FILE", help = "Write target document to file")]
     pub out: Option<PathBuf>,
 
+    #[arg(
+        long = "source-map-summary",
+        help = "Print source-map sidecar refs and output-span counts to stdout"
+    )]
+    pub source_map_summary: bool,
+
     #[command(flatten)]
     pub context: ContextOptions,
     #[command(flatten)]
@@ -960,6 +966,7 @@ mod tests {
             "html.rng",
             "--out",
             "view.html",
+            "--source-map-summary",
         ])
         .unwrap();
 
@@ -978,6 +985,7 @@ mod tests {
         assert_eq!(args.to_content_type.as_deref(), Some("text/html"));
         assert_eq!(args.to_schema.as_deref(), Some("html.rng"));
         assert_eq!(args.out, Some(PathBuf::from("view.html")));
+        assert!(args.source_map_summary);
     }
 
     #[test]

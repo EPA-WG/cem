@@ -852,6 +852,8 @@ For graph exports, the CLI adds `exportId`, `input`, `destination`, and `outputS
 source-map payloads. Collection export sidecars use a collection-shaped source-map payload with per-item `sourceMap` and
 `outputSpans` entries instead of flattening multiple provenance stacks into one. Stdout outputs omit `sourceMapRef`
 because they do not have a stable adjacent file path.
+`cem-ml transform --source-map-summary` prints source-map refs and output-span counts to stdout after successful writes.
+For single transforms, `--source-map-summary` requires `--out` so the summary cannot be appended to document stdout.
 Collection primary JSON outputs are a stable public projection with `kind`, `mode`, `count`, `bindings`, and `items[]`
 entries containing `input`, `artifactId`, `uri`, `identity`, `primary`, and `bindings`. Per-item `sourceMap` and
 `outputSpans` are intentionally omitted from the primary output and remain in sidecar/report surfaces.

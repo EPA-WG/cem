@@ -901,10 +901,11 @@ These are data shapes only. Parser-filled content remains blocked until the pars
           provenance summaries when artifacts expose source-map fields and have export destinations. For concrete
           destinations, the CLI writes `{destination}.map` with the source-map JSON payload through the output resolver.
           Object sidecars carry the source-map `frames`, rebased `outputSpans`, export ID, input artifact ID, and
-          destination metadata. Collection export sidecars retain per-item source maps and output spans instead of
-          flattening multiple item stacks into one source-map stack. Collection primary JSON exports are a stable public
-          projection with collection metadata and item payloads while omitting per-item `sourceMap` and `outputSpans`
-          from the primary output.
+          destination metadata. `cem-ml transform --source-map-summary` prints sidecar refs and output-span counts after
+          successful writes; single transforms require `--out` when the summary is requested. Collection export sidecars
+          retain per-item source maps and output spans instead of flattening multiple item stacks into one source-map
+          stack. Collection primary JSON exports are a stable public projection with collection metadata and item
+          payloads while omitting per-item `sourceMap` and `outputSpans` from the primary output.
         - Graph validation for duplicate IDs, unresolved refs, cycles, unsupported joins, unsupported cardinality
           changes, unknown output bindings, and duplicate resolved output destinations before writes.
       Execution is available through the programmatic engine API, the CLI one-liner, and CLI CEM-ML graph config dispatch

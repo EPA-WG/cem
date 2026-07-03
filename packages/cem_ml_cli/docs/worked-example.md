@@ -95,7 +95,8 @@ export, an extracted CSS export, and `.map` sidecars with `outputSpans`.
 ```bash
 dist/target/debug/cem-ml transform \
   --config examples/cem-ml/transform-graph/source-map-sidecar/graph.cem \
-  --report-json /tmp/cem-ml-source-map-sidecar/report.json
+  --report-json /tmp/cem-ml-source-map-sidecar/report.json \
+  --source-map-summary
 
 node -e "const fs = require('node:fs'); for (const f of ['page.html.map','page.css.map']) { const m = JSON.parse(fs.readFileSync('/tmp/cem-ml-source-map-sidecar/' + f, 'utf8')); console.log(f + ': ' + m.outputSpans.length + ' output spans'); }"
 ```

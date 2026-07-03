@@ -10582,6 +10582,52 @@ fn render_report_markdown(report: &cem_ml::report::Report) -> String {
     out
 }
 
+fn render_source_map_summary(
+    transform: Option<&cem_ml::report::TransformReport>,
+    transform_graph: Option<&cem_ml::report::TransformGraphReport>,
+) -> String {
+    let mut out = String::new();
+    out.push_str("source maps:\n");
+    let mut count = 0usize;
+    if let Some(transform) = transform {
+        if let Some(source_map_ref) = transform.source_map_ref.as_deref() {
+            count += 1;
+            out.push_str(&format!(
+                "- primary <- {} -> {} [outputSpans: {}]\n",
+                transform.input, source_map_ref, transform.output_span_count
+            ));
+        }
+    }
+    if let Some(transform_graph) = transform_graph {
+        for export in &transform_graph.exports {
+            if let Some(source_map_ref) = export.source_map_ref.as_deref() {
+                count += 1;
+                out.push_str(&format!(
+                    "- {} <- {} -> {} [outputSpans: {}]\n",
+                    export.export_id, export.input, source_map_ref, export.output_span_count
+                ));
+            }
+            for item in &export.collection_items {
+                let Some(destination) = item.destination.as_deref() else {
+                    continue;
+                };
+                if !item.has_source_map {
+                    continue;
+                }
+                count += 1;
+                out.push_str(&format!(
+                    "  - {} <- {} -> {}.map [outputSpans: {}]\n",
+                    item.artifact_id, item.input, destination, item.output_span_count
+                ));
+            }
+        }
+    }
+    if count == 0 {
+        out.push_str("- none\n");
+    }
+    out
+}
+
 fn render_benchmark_report_markdown(body: &serde_json::Value) -> String {
     let body = serde_json::to_string_pretty(body).unwrap_or_default();
     format!("# cem-ml benchmark report\n\n```json\n{body}\n```\n")
@@ -11318,6 +11364,7 @@ fn run_transform_graph<E: CemMlEngine + ?Sized>(
     match engine.transform_graph(req) {
         Ok(resp) => {
             let requested_report = report_requested(&args.report);
+            let graph_report = transform_graph_report_from_artifacts(&resp.artifacts);
             if let Err(e) = write_transform_report_if_requested(
                 &engine_context,
                 args,
@@ -11325,7 +11372,7 @@ fn run_transform_graph<E: CemMlEngine + ?Sized>(
                 &resp.diagnostics,
                 &resp.scheduler_trace,
                 None,
-                Some(transform_graph_report_from_artifacts(&resp.artifacts)),
+                Some(graph_report.clone()),
             ) {
                 let _ = writeln!(s.stderr, "cem-ml: transform report write failure: {e}");
                 return Outcome::code(EXIT_IO);
@@ -11349,6 +11396,10 @@ fn run_transform_graph<E: CemMlEngine + ?Sized>(
                 let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
+            if args.source_map_summary && !s.quiet {
+                let summary = render_source_map_summary(None, Some(&graph_report));
+                let _ = write!(s.stdout, "{summary}");
+            }
             Outcome::ok()
         }
         Err(e) => handle_engine_error(e, s),
@@ -11362,6 +11413,14 @@ pub fn run_transform<E: CemMlEngine + ?Sized>(
 ) -> Outcome {
     if let Err(err) = validate_transform_output_color_type(&args) {
         return handle_cli_request_error(err, s);
+    }
+    if args.source_map_summary && args.config.is_none() && args.out.is_none() {
+        return handle_cli_request_error(
+            CliRequestError::Usage(
+                "--source-map-summary requires --out for single transforms".to_owned(),
+            ),
+            s,
+        );
     }
     if args.config.is_some() {
         return run_transform_graph(engine, &args, s);
@@ -11379,17 +11438,15 @@ pub fn run_transform<E: CemMlEngine + ?Sized>(
                 .as_ref()
                 .map(|path| path.display().to_string())
                 .unwrap_or_default();
+            let transform_report =
+                transform_report_from_response(&resp, &input, args.out.as_deref());
             if let Err(e) = write_transform_report_if_requested(
                 &engine_context,
                 &args,
                 std::slice::from_ref(&input),
                 &resp.diagnostics,
                 &resp.scheduler_trace,
-                Some(transform_report_from_response(
-                    &resp,
-                    &input,
-                    args.out.as_deref(),
-                )),
+                Some(transform_report.clone()),
                 None,
             ) {
                 let _ = writeln!(s.stderr, "cem-ml: transform report write failure: {e}");
@@ -11423,6 +11480,10 @@ pub fn run_transform<E: CemMlEngine + ?Sized>(
             ) {
                 let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
                 return Outcome::code(EXIT_IO);
+            }
+            if args.source_map_summary && !s.quiet {
+                let summary = render_source_map_summary(Some(&transform_report), None);
+                let _ = write!(s.stdout, "{summary}");
             }
             Outcome::ok()
         }
@@ -13352,6 +13413,75 @@ mod tests {
         assert!(markdown.contains("(text/html)"));
         assert!(markdown.contains("[sourceMap: yes, outputSpans: "));
         assert!(markdown.contains("[sourceMapRef: "));
+    }
+
+    #[test]
+    fn transform_config_source_map_summary_lists_sidecars() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/transform-config-map-summary");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("data.cem"), "{p}").unwrap();
+        std::fs::write(root.join("view.cem"), "{section | OK}").unwrap();
+        let config = root.join("graph.cem");
+        std::fs::write(
+            &config,
+            r#"{run |
+  {import @id=book @src="data.cem" @content-type="text/cem-ml" |
+    {transform @id=html @src="view.cem" @template-content-type="text/cem-ml" |
+      {export @id=main @out="out/{stem}.html" @content-type="text/html"}
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "transform",
+                "--config",
+                config.to_str().unwrap(),
+                "--source-map-summary",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert!(stdout.contains("source maps:\n"), "{stdout}");
+        assert!(stdout.contains("main <- html ->"), "{stdout}");
+        assert!(stdout.contains("out/data.html.map"), "{stdout}");
+        assert!(stdout.contains("[outputSpans: "), "{stdout}");
+    }
+
+    #[test]
+    fn transform_source_map_summary_requires_out_for_single_transform() {
+        let data = write_fixture("transform-source-map-summary-data.cem", "{p | source}");
+        let template = write_fixture(
+            "transform-source-map-summary-template.cem",
+            "{section | OK}",
+        );
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "transform",
+                data.to_str().unwrap(),
+                "--data-content-type",
+                "text/cem-ml",
+                "--template",
+                template.to_str().unwrap(),
+                "--template-content-type",
+                "text/cem-ml",
+                "--source-map-summary",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_USAGE_OR_RESERVED);
+        assert!(stdout.is_empty(), "{stdout}");
+        assert!(
+            stderr.contains("--source-map-summary requires --out for single transforms"),
+            "{stderr}"
+        );
     }
 
     #[test]
