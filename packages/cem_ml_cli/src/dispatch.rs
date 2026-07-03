@@ -2909,8 +2909,11 @@ fn write_primary_bytes_with_console_color(
 }
 
 fn primary_bytes_text_syntax(primary_bytes: &eng::PrimaryBytes) -> Option<ConsoleTextSyntax> {
-    let content_type = cli_content_type_essence(&primary_bytes.content_type);
-    match content_type.as_str() {
+    content_type_text_syntax(&primary_bytes.content_type)
+}
+
+fn content_type_text_syntax(content_type: &str) -> Option<ConsoleTextSyntax> {
+    match cli_content_type_essence(content_type).as_str() {
         "application/json" | "text/json" => Some(ConsoleTextSyntax::Json),
         "application/yaml" | "application/x-yaml" | "text/yaml" | "text/x-yaml" => {
             Some(ConsoleTextSyntax::Yaml)
@@ -3060,7 +3063,7 @@ fn write_raw_primary_bytes(
     Ok(())
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum ConsoleTextSyntax {
     Json,
     Yaml,
@@ -3073,32 +3076,33 @@ fn write_document_primary(
     output_color_type: Option<&str>,
     s: &mut Streams<'_>,
 ) -> io::Result<()> {
-    let bytes;
-    let body = if let Some(binary) = binary_projection_primary_bytes(primary)? {
-        bytes = binary;
-        &bytes
-    } else if let Some(content) = document_primary_content(primary) {
-        content.as_bytes()
-    } else if let Some(projected) = collection_primary_output_value(primary) {
-        bytes = serde_json::to_vec_pretty(&projected)?;
-        &bytes
-    } else {
-        bytes = serde_json::to_vec_pretty(primary)?;
-        &bytes
-    };
+    write_document_primary_with_identity(context, primary, None, out, output_color_type, s)
+}
+
+fn write_document_primary_with_identity(
+    context: &eng::EngineContext,
+    primary: &serde_json::Value,
+    identity: Option<&eng::FormatIdentity>,
+    out: Option<&Path>,
+    output_color_type: Option<&str>,
+    s: &mut Streams<'_>,
+) -> io::Result<()> {
+    let body = document_primary_bytes(primary, identity)?;
     match out {
         Some(path) => write_destination(
             context,
             path,
             "output destination",
             ResolvePurpose::Output,
-            body,
+            &body,
         )?,
         None => {
-            if let Some(colored) = colorize_document_body_for_console(body, output_color_type, s) {
+            if let Some(colored) =
+                colorize_document_body_for_console(&body, identity, output_color_type, s)
+            {
                 s.stdout.write_all(colored.as_bytes())?;
             } else {
-                s.stdout.write_all(body)?;
+                s.stdout.write_all(&body)?;
             }
             s.stdout.flush()?;
         }
@@ -3106,8 +3110,98 @@ fn write_document_primary(
     Ok(())
 }
 
+fn document_primary_bytes(
+    primary: &serde_json::Value,
+    identity: Option<&eng::FormatIdentity>,
+) -> io::Result<Vec<u8>> {
+    if let Some(binary) = binary_projection_primary_bytes(primary)? {
+        return Ok(binary);
+    }
+    if let Some(content) = document_primary_content(primary) {
+        return Ok(content.as_bytes().to_vec());
+    }
+    let structured = collection_primary_output_value(primary).unwrap_or_else(|| primary.clone());
+    serialize_structured_document_value(&structured, identity)
+}
+
+fn serialize_structured_document_value(
+    value: &serde_json::Value,
+    identity: Option<&eng::FormatIdentity>,
+) -> io::Result<Vec<u8>> {
+    if format_identity_is_yaml(identity) {
+        return serialize_json_value_as_yaml(value);
+    }
+    serde_json::to_vec_pretty(value).map_err(invalid_structured_document)
+}
+
+fn serialize_json_value_as_yaml(value: &serde_json::Value) -> io::Result<Vec<u8>> {
+    let yaml = json_value_to_yaml(value);
+    let mut content = String::new();
+    let mut emitter = yaml_rust2::YamlEmitter::new(&mut content);
+    emitter.multiline_strings(true);
+    emitter
+        .dump(&yaml)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error.to_string()))?;
+    Ok(content.into_bytes())
+}
+
+fn json_value_to_yaml(value: &serde_json::Value) -> yaml_rust2::Yaml {
+    match value {
+        serde_json::Value::Null => yaml_rust2::Yaml::Null,
+        serde_json::Value::Bool(value) => yaml_rust2::Yaml::Boolean(*value),
+        serde_json::Value::Number(number) => {
+            if let Some(value) = number.as_i64() {
+                yaml_rust2::Yaml::Integer(value)
+            } else {
+                yaml_rust2::Yaml::Real(number.to_string())
+            }
+        }
+        serde_json::Value::String(value) => yaml_rust2::Yaml::String(value.clone()),
+        serde_json::Value::Array(values) => {
+            yaml_rust2::Yaml::Array(values.iter().map(json_value_to_yaml).collect())
+        }
+        serde_json::Value::Object(fields) => {
+            let mut out = yaml_rust2::yaml::Hash::new();
+            for (key, value) in fields {
+                out.insert(
+                    yaml_rust2::Yaml::String(key.clone()),
+                    json_value_to_yaml(value),
+                );
+            }
+            yaml_rust2::Yaml::Hash(out)
+        }
+    }
+}
+
+fn invalid_structured_document(error: serde_json::Error) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidData, error.to_string())
+}
+
+fn format_identity_is_yaml(identity: Option<&eng::FormatIdentity>) -> bool {
+    format_identity_text_syntax(identity) == Some(ConsoleTextSyntax::Yaml)
+}
+
+fn format_identity_text_syntax(
+    identity: Option<&eng::FormatIdentity>,
+) -> Option<ConsoleTextSyntax> {
+    let identity = identity?;
+    if let Some(syntax) = identity
+        .content_type
+        .as_deref()
+        .and_then(content_type_text_syntax)
+    {
+        return Some(syntax);
+    }
+    match identity.schema.as_deref().map(str::trim) {
+        Some(cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI) => Some(ConsoleTextSyntax::Json),
+        Some(cem_ml::schema::registry::YAML_SCHEMA_URI) => Some(ConsoleTextSyntax::Yaml),
+        _ => None,
+    }
+}
+
 fn colorize_document_body_for_console(
     body: &[u8],
+    identity: Option<&eng::FormatIdentity>,
     output_color_type: Option<&str>,
     s: &Streams<'_>,
 ) -> Option<String> {
@@ -3116,6 +3210,12 @@ fn colorize_document_body_for_console(
     }
 
     let text = std::str::from_utf8(body).ok()?;
+    if let Some(syntax) = format_identity_text_syntax(identity) {
+        return Some(match syntax {
+            ConsoleTextSyntax::Json => colorize_json_for_console(text, output_color_type),
+            ConsoleTextSyntax::Yaml => colorize_yaml_for_console(text),
+        });
+    }
     let value = serde_json::from_str::<serde_json::Value>(text).ok()?;
     let serialized = serde_json::to_string_pretty(&value).ok()?;
     Some(colorize_json_for_console(&serialized, output_color_type))
@@ -10795,7 +10895,14 @@ fn write_transform_graph_artifacts(
         .collect::<BTreeSet<_>>();
     for artifact in artifacts {
         let out = artifact.destination.as_deref().map(Path::new);
-        write_document_primary(context, &artifact.primary, out, output_color_type, s)?;
+        write_document_primary_with_identity(
+            context,
+            &artifact.primary,
+            artifact.identity.as_ref(),
+            out,
+            output_color_type,
+            s,
+        )?;
         write_transform_graph_source_map_sidecar(context, artifact)?;
         write_transform_graph_collection_item_artifacts(
             context,
@@ -10841,9 +10948,11 @@ fn write_transform_graph_collection_item_artifacts(
         let Some(primary) = item.get("primary").filter(|primary| !primary.is_null()) else {
             continue;
         };
-        write_document_primary(
+        let identity = transform_graph_collection_item_identity(item);
+        write_document_primary_with_identity(
             context,
             primary,
+            identity.as_ref(),
             Some(Path::new(destination)),
             output_color_type,
             s,
@@ -10864,6 +10973,14 @@ fn transform_graph_collection_item_destination(item: &serde_json::Value) -> Opti
         .and_then(serde_json::Value::as_str)
         .map(str::trim)
         .filter(|destination| !destination.is_empty())
+}
+
+fn transform_graph_collection_item_identity(
+    item: &serde_json::Value,
+) -> Option<eng::FormatIdentity> {
+    item.get("identity")
+        .filter(|identity| !identity.is_null())
+        .and_then(|identity| serde_json::from_value(identity.clone()).ok())
 }
 
 fn write_transform_source_map_sidecar(
@@ -12848,6 +12965,88 @@ mod tests {
             out.display().to_string()
         );
         assert!(stdout.into_inner().is_empty());
+    }
+
+    #[test]
+    fn transform_graph_artifact_writer_uses_collection_identities_for_yaml_outputs() {
+        let root =
+            std::env::temp_dir().join("cem-ml-cli-tests/transform-graph-collection-yaml-identity");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let out = root.join("out/collection.yml");
+        let item_out = root.join("out/theme.yml");
+        let artifacts = vec![eng::TransformGraphArtifact {
+            export_id: "joined".to_owned(),
+            input: "collection".to_owned(),
+            destination: Some(out.display().to_string()),
+            identity: Some(eng::FormatIdentity {
+                content_type: Some("application/yaml".to_owned()),
+                schema: Some(cem_ml::schema::registry::YAML_SCHEMA_URI.to_owned()),
+                ..eng::FormatIdentity::default()
+            }),
+            primary: serde_json::json!({
+                "kind": "collection",
+                "items": [{
+                    "input": "css",
+                    "artifactId": "theme",
+                    "destination": item_out.display().to_string(),
+                    "identity": {
+                        "contentType": "application/yaml",
+                        "schema": cem_ml::schema::registry::YAML_SCHEMA_URI
+                    },
+                    "primary": {
+                        "tokens": {
+                            "color": "blue",
+                            "enabled": true
+                        }
+                    },
+                    "bindings": {
+                        "stem": "theme"
+                    }
+                }],
+            }),
+            source_map: None,
+            output_spans: Vec::new(),
+        }];
+        let mut stdout = Cursor::new(Vec::new());
+        let mut stderr = Cursor::new(Vec::new());
+        let mut streams = Streams {
+            stdout: &mut stdout,
+            stderr: &mut stderr,
+            quiet: false,
+            no_color: false,
+        };
+
+        write_transform_graph_artifacts(
+            &eng::EngineContext::default(),
+            &artifacts,
+            Some("ansi-256"),
+            &mut streams,
+        )
+        .unwrap();
+
+        assert!(stdout.into_inner().is_empty());
+        let manifest_text = std::fs::read_to_string(&out).unwrap();
+        assert!(!manifest_text.contains("\x1b["));
+        assert!(!manifest_text.trim_start().starts_with('{'));
+        let manifest = yaml_documents_to_json_value(
+            yaml_rust2::YamlLoader::load_from_str(&manifest_text).unwrap(),
+        );
+        assert_eq!(manifest["kind"], "collection");
+        assert_eq!(manifest["items"][0]["artifactId"], "theme");
+        assert_eq!(
+            manifest["items"][0]["identity"]["contentType"],
+            "application/yaml"
+        );
+
+        let item_text = std::fs::read_to_string(&item_out).unwrap();
+        assert!(!item_text.contains("\x1b["));
+        assert!(!item_text.trim_start().starts_with('{'));
+        let item = yaml_documents_to_json_value(
+            yaml_rust2::YamlLoader::load_from_str(&item_text).unwrap(),
+        );
+        assert_eq!(item["tokens"]["color"], "blue");
+        assert_eq!(item["tokens"]["enabled"], true);
     }
 
     #[test]
