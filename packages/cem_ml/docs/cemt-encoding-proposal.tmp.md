@@ -51,14 +51,20 @@ that carries destination identity, ordering, whitespace, line-ending,
 canonicalization, style-role, and source-map decisions as structured data.
 Formatting must not be hidden inside a final writer or host-side string filter.
 
+Coloring is also a CEMT-owned transformation stage. When the formatted artifact
+is a CEM tree, semantic color projection must transform that CEM tree in place or
+produce a new colored CEM tree with equivalent structure plus color metadata.
+The color stage must not emit final writer text as its primary result for CEM
+tree pipelines.
+
 The writer is the last phase. It materializes an already transformed, formatted,
-and optionally colored artifact into text, bytes, or chunks. A writer may enforce
-the selected low-level syntax and byte boundary rules, but it must not choose the
+and colored artifact into text, bytes, or chunks. A writer may enforce the
+selected low-level syntax and byte boundary rules, but it must not choose the
 schema semantics, destination content identity, formatting policy, or color
 policy. Those choices are CEMT output-producer decisions validated through
-registry metadata. If a writer receives an unformatted tree for a context that
-requires explicit formatting, it must report a diagnostic rather than silently
-choosing formatting policy.
+registry metadata. If a writer receives an unformatted or uncolored tree for a
+context that requires explicit formatting or coloring, it must report a
+diagnostic rather than silently choosing formatting or color policy.
 
 ## Core Decision
 

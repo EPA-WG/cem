@@ -44,6 +44,20 @@
     }
 
     {color-function
+        @name="cem.color-tree"
+        @category="cem-tree"
+        @subject="cem-tree"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @profile="css-custom-properties"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+    }
+
+    {color-function
         @name="terminal.diagnostic"
         @category="terminal-color"
         @subject="tokens"

@@ -796,6 +796,16 @@ const TRANSFORM_TEMPLATE_STANDARD_OUTPUT_FUNCTIONS:
         profile: None,
     },
     TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Color,
+        name: "cem.color-tree",
+        category: "cem-tree",
+        subject: Some("cem-tree"),
+        produces: TransformTemplateOutputProducedKind::CemTree,
+        content_type: CEM_ML_CONTENT_TYPE,
+        schema: CEM_ML_SCHEMA_URI,
+        profile: Some("css-custom-properties"),
+    },
+    TransformTemplateStandardOutputFunctionContract {
         kind: TransformTemplateOutputFunctionKind::Encoding,
         name: "cemt.text",
         category: "cemt-module",
@@ -3463,6 +3473,13 @@ fn transform_template_color_profile_selector(
         .or_else(|| transform_template_trimmed_selector(options.profile.as_deref()))
 }
 
+fn transform_template_encode_options_request_color(
+    options: &TransformTemplateEncodeOptions,
+) -> bool {
+    transform_template_trimmed_selector(options.colorizer.as_deref()).is_some()
+        || transform_template_trimmed_selector(options.color_profile.as_deref()).is_some()
+}
+
 fn transform_template_trimmed_selector(selector: Option<&str>) -> Option<String> {
     selector
         .map(str::trim)
@@ -3707,6 +3724,7 @@ impl TransformTemplateEncodeImplementationRegistry {
         registry.register("cem.content-text", builtin_cem_content_text_encoder);
         registry.register("cem.string-literal", builtin_cem_string_literal_encoder);
         registry.register("cem.format-tree", builtin_cem_tree_formatter);
+        registry.register("cem.color-tree", builtin_cem_tree_colorizer);
         registry.register("cemt.text", builtin_cemt_text_encoder);
         registry.register("cemt.attribute-value", builtin_cemt_attribute_value_encoder);
         registry.register("cemt.string-literal", builtin_cemt_string_literal_encoder);
@@ -4711,6 +4729,158 @@ fn transform_template_cem_tree_nodes(subject: &Value) -> Result<Vec<Value>, Stri
         }
         _ => Err("cem.format-tree expected CEM AST object or node array subject".to_owned()),
     }
+}
+
+fn builtin_cem_tree_colorizer(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_cem_tree_colorizer_binding(binding)?;
+    validate_cem_tree_value(subject).map_err(|message| {
+        format!("cem.color-tree expected formatted CEM tree subject: {message}")
+    })?;
+    let profile = transform_template_binding_color_profile(binding)?;
+    let color_profile = binding
+        .identity
+        .color_profile
+        .clone()
+        .unwrap_or_else(|| transform_template_canonical_color_profile_selector(&profile));
+
+    let mut tree = subject
+        .as_object()
+        .ok_or_else(|| "cem.color-tree expected CEM tree object subject".to_owned())?
+        .clone();
+    tree.insert("colored".to_owned(), Value::Bool(true));
+    tree.insert(
+        "colorProfile".to_owned(),
+        Value::String(color_profile.clone()),
+    );
+    if let Some(color_capability) = binding.identity.color_capability.clone() {
+        tree.insert(
+            "colorCapability".to_owned(),
+            Value::String(color_capability),
+        );
+    }
+    for field in ["nodes", "node", "root"] {
+        if let Some(value) = tree.get_mut(field) {
+            transform_template_apply_cem_tree_color_to_value(value, &profile, &color_profile);
+        }
+    }
+
+    Ok(Value::Object(tree))
+}
+
+fn validate_builtin_cem_tree_colorizer_binding(
+    binding: &TransformTemplateEncodeBinding,
+) -> Result<(), String> {
+    if binding.function.kind != TransformTemplateOutputFunctionKind::Color {
+        return Err(format!(
+            "CEM tree colorizer implementation cannot execute non-color function `{:?}`",
+            binding.function.kind
+        ));
+    }
+    if binding.function.name != "cem.color-tree" {
+        return Err(format!(
+            "CEM tree colorizer implementation `cem.color-tree` cannot execute `{}`",
+            binding.function.name
+        ));
+    }
+    if binding.identity.produces != TransformTemplateOutputProducedKind::CemTree {
+        return Err(format!(
+            "CEM tree colorizer expected `cem-tree` output, got `{}`",
+            binding.identity.produces.as_str()
+        ));
+    }
+    if content_type_essence(&binding.identity.target.content_type) != CEM_ML_CONTENT_TYPE {
+        return Err(format!(
+            "CEM tree colorizer expected content type `{CEM_ML_CONTENT_TYPE}`, got `{}`",
+            binding.identity.target.content_type
+        ));
+    }
+    if binding.identity.target.schema != CEM_ML_SCHEMA_URI {
+        return Err(format!(
+            "CEM tree colorizer expected schema `{CEM_ML_SCHEMA_URI}`, got `{}`",
+            binding.identity.target.schema
+        ));
+    }
+    if binding.identity.target.category != "cem-tree" {
+        return Err(format!(
+            "CEM tree colorizer expected category `cem-tree`, got `{}`",
+            binding.identity.target.category
+        ));
+    }
+    Ok(())
+}
+
+fn transform_template_apply_cem_tree_color_to_value(
+    value: &mut Value,
+    profile: &TransformTemplateColorOutputProfile,
+    color_profile: &str,
+) {
+    match value {
+        Value::Array(items) => {
+            for item in items {
+                transform_template_apply_cem_tree_color_to_value(item, profile, color_profile);
+            }
+        }
+        Value::Object(fields) => {
+            transform_template_apply_cem_tree_color_to_node(fields, profile, color_profile);
+        }
+        _ => {}
+    }
+}
+
+fn transform_template_apply_cem_tree_color_to_node(
+    fields: &mut serde_json::Map<String, Value>,
+    profile: &TransformTemplateColorOutputProfile,
+    color_profile: &str,
+) {
+    let role = transform_template_cem_tree_node_color_role(fields);
+    if profile.supports_role(&role) {
+        let style = fields
+            .entry("style".to_owned())
+            .or_insert_with(|| Value::Object(serde_json::Map::new()));
+        if let Value::Object(style) = style {
+            style.insert("colorRole".to_owned(), Value::String(role.clone()));
+            style.insert(
+                "colorProfile".to_owned(),
+                Value::String(color_profile.to_owned()),
+            );
+        }
+        fields.insert("colorRole".to_owned(), Value::String(role));
+    }
+
+    for field in ["attributes", "children", "slots", "nodes", "node", "root"] {
+        if let Some(value) = fields.get_mut(field) {
+            transform_template_apply_cem_tree_color_to_value(value, profile, color_profile);
+        }
+    }
+}
+
+fn transform_template_cem_tree_node_color_role(fields: &serde_json::Map<String, Value>) -> String {
+    if let Some(role) = fields
+        .get("colorRole")
+        .or_else(|| fields.get("role"))
+        .and_then(Value::as_str)
+        .map(transform_template_canonical_color_role)
+        .filter(|role| transform_template_is_color_role(role))
+    {
+        return role;
+    }
+
+    match fields
+        .get("kind")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+    {
+        "element" | "node" | "root" => "syntax.name",
+        "attribute" | "attr" => "syntax.attribute",
+        "text" | "string" => "syntax.string",
+        "comment" => "syntax.comment",
+        "raw" => "syntax.raw",
+        _ => "syntax.token",
+    }
+    .to_owned()
 }
 
 fn builtin_cemt_text_encoder(
@@ -6963,8 +7133,8 @@ where
         };
 
         let mut request = expression.binding_request(subject.clone());
-        let apply_output_color_type = request.requires_color_binding();
-        if apply_output_color_type {
+        let format_first = request.requires_format_binding();
+        if !format_first && request.requires_color_binding() {
             if let Some(output_color_type) = context.output_color_type {
                 match parse_transform_template_output_color_type(output_color_type) {
                     Ok(selection) => selection.apply_to_request(&mut request),
@@ -6980,6 +7150,85 @@ where
                     }
                 }
             }
+        }
+
+        if format_first {
+            let format_binding = match context
+                .registry
+                .resolve_format_binding(&request, context.host_capabilities)
+            {
+                Ok(binding) => binding,
+                Err(error) => {
+                    diagnostics.push(error.diagnostic(context.uri));
+                    continue;
+                }
+            };
+            let formatted_output = match encode_impl(&format_binding, &subject) {
+                Ok(value) => value,
+                Err(message) => {
+                    diagnostics.push(Diagnostic {
+                        uri: context.uri.map(str::to_owned),
+                        code: TRANSFORM_TEMPLATE_ENCODE_IMPLEMENTATION_FAILED_CODE.to_owned(),
+                        severity: Severity::Error,
+                        message: format!(
+                            "CEMT output function `{}` failed for expression `{}`: {message}",
+                            format_binding.function.name, expression.expression
+                        ),
+                        ..Diagnostic::default()
+                    });
+                    continue;
+                }
+            };
+            let mut binding = format_binding;
+            let mut artifact = binding.artifact_from_value(formatted_output);
+
+            if request.requires_color_binding()
+                || transform_template_encode_options_request_color(&request.options)
+            {
+                let color_request = TransformTemplateEncodeBindingRequest {
+                    subject: artifact.value.clone(),
+                    owner: request.owner.clone(),
+                    subject_type: Some("cem-tree".to_owned()),
+                    target: request.target.clone(),
+                    options: request.options.clone(),
+                };
+                let color_binding = match context
+                    .registry
+                    .resolve_color_binding(&color_request, context.host_capabilities)
+                {
+                    Ok(binding) => binding.into_encode_binding(),
+                    Err(error) => {
+                        diagnostics.push(error.diagnostic(context.uri));
+                        continue;
+                    }
+                };
+                let colored_output = match encode_impl(&color_binding, &artifact.value) {
+                    Ok(value) => value,
+                    Err(message) => {
+                        diagnostics.push(Diagnostic {
+                            uri: context.uri.map(str::to_owned),
+                            code: TRANSFORM_TEMPLATE_ENCODE_IMPLEMENTATION_FAILED_CODE.to_owned(),
+                            severity: Severity::Error,
+                            message: format!(
+                                "CEMT output function `{}` failed for expression `{}`: {message}",
+                                color_binding.function.name, expression.expression
+                            ),
+                            ..Diagnostic::default()
+                        });
+                        continue;
+                    }
+                };
+                binding = color_binding;
+                artifact = binding.artifact_from_value(colored_output);
+            }
+
+            encoded.push(TransformTemplateEvaluatedEncodeExpression {
+                expression: expression.clone(),
+                subject,
+                binding,
+                artifact,
+            });
+            continue;
         }
 
         let binding = if request.requires_color_binding() {
@@ -7074,6 +7323,9 @@ fn append_transform_template_subject_type_hint(candidates: &mut Vec<String>, val
     }
 
     match normalized.as_str() {
+        "cem-tree" | "cem-output-tree" | "formatted-cem-tree" | "colored-cem-tree" => {
+            append_transform_template_subject_type_candidate(candidates, "cem-tree");
+        }
         "qname" | "qualified-name" => {
             append_transform_template_subject_type_candidate(candidates, "qualified-name");
             append_transform_template_subject_type_candidate(candidates, "name");
@@ -7243,6 +7495,10 @@ fn append_transform_template_semantic_subject_type_candidates(
 
     if object.get("tokens").is_some_and(Value::is_array) {
         append_transform_template_subject_type_hint(candidates, "tokens");
+    }
+
+    if object.get("kind").and_then(Value::as_str) == Some("cem-tree") {
+        append_transform_template_subject_type_hint(candidates, "cem-tree");
     }
 
     if object.get("bytes").is_some_and(Value::is_array) {
@@ -10756,6 +11012,32 @@ mod tests {
         }
     }
 
+    fn cem_tree_color_function_descriptor() -> TransformTemplateOutputFunctionDescriptor {
+        TransformTemplateOutputFunctionDescriptor {
+            kind: TransformTemplateOutputFunctionKind::Color,
+            owner: Some("cem".to_owned()),
+            name: "cem.color-tree".to_owned(),
+            category: "cem-tree".to_owned(),
+            subject: "cem-tree".to_owned(),
+            produces: TransformTemplateOutputProducedKind::CemTree,
+            content_type: CEM_ML_CONTENT_TYPE.to_owned(),
+            schema: CEM_ML_SCHEMA_URI.to_owned(),
+            canonical: false,
+            streamable: true,
+            visibility: TransformTemplateModuleVisibility::Public,
+            implementation: TransformTemplateOutputFunctionImplementation::Cemt,
+            profile: Some("css-custom-properties".to_owned()),
+            extends: None,
+            capability: None,
+            deterministic: true,
+            trusted: false,
+            lossy: false,
+            fallback: None,
+            params: Vec::new(),
+            body_declared: false,
+        }
+    }
+
     fn ai_context_output_function_descriptor(
         name: &str,
         category: &str,
@@ -11203,7 +11485,7 @@ mod tests {
             response.diagnostics
         );
         assert!(response.module_declared);
-        assert_eq!(response.module_options.output_functions.len(), 5);
+        assert_eq!(response.module_options.output_functions.len(), 6);
         let html_text = &response.module_options.output_functions[0];
         assert_eq!(
             html_text.kind,
@@ -11251,6 +11533,27 @@ mod tests {
         );
         assert_eq!(cem_tree.category, "cem-tree");
         assert_eq!(cem_tree.subject, "cem-ast-node");
+
+        let colored_cem_tree = response
+            .module_options
+            .output_functions
+            .iter()
+            .find(|function| function.name == "cem.color-tree")
+            .expect("CEM tree colorizer declaration");
+        assert_eq!(
+            colored_cem_tree.kind,
+            TransformTemplateOutputFunctionKind::Color
+        );
+        assert_eq!(
+            colored_cem_tree.produces,
+            TransformTemplateOutputProducedKind::CemTree
+        );
+        assert_eq!(colored_cem_tree.category, "cem-tree");
+        assert_eq!(colored_cem_tree.subject, "cem-tree");
+        assert_eq!(
+            colored_cem_tree.profile.as_deref(),
+            Some("css-custom-properties")
+        );
     }
 
     #[test]
@@ -14226,6 +14529,61 @@ mod tests {
     }
 
     #[test]
+    fn color_binding_transforms_formatted_cem_tree_in_place() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        registry.register(cem_tree_color_function_descriptor());
+        let implementations =
+            TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+        let subject = json!({
+            "kind": "cem-tree",
+            "contentType": CEM_ML_CONTENT_TYPE,
+            "schema": CEM_ML_SCHEMA_URI,
+            "category": "cem-tree",
+            "nodes": [{
+                "kind": "element",
+                "name": "card",
+                "attributes": [{"kind": "attribute", "name": "tone", "value": "info"}],
+                "children": [{"kind": "text", "value": "Ready"}]
+            }]
+        });
+        let request = TransformTemplateEncodeBindingRequest::new(
+            subject.clone(),
+            TransformTemplateEncodingTarget::new(
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                "cem-tree",
+            ),
+        )
+        .with_subject_type("cem-tree")
+        .with_options(TransformTemplateEncodeOptions {
+            colorizer: Some("cem.color-tree".to_owned()),
+            color_profile: Some("css-custom-properties".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+
+        let binding = registry
+            .resolve_color_binding(&request, &BTreeSet::new())
+            .expect("CEM tree colorizer resolves")
+            .into_encode_binding();
+        let colored = implementations
+            .encode(&binding, &subject)
+            .expect("CEM tree colorizer runs");
+
+        assert_eq!(colored["kind"], "cem-tree");
+        assert_eq!(colored["colored"], true);
+        assert_eq!(colored["colorProfile"], "css-custom-properties");
+        assert_eq!(colored["nodes"][0]["style"]["colorRole"], "syntax.name");
+        assert_eq!(
+            colored["nodes"][0]["attributes"][0]["style"]["colorRole"],
+            "syntax.attribute"
+        );
+        assert_eq!(
+            colored["nodes"][0]["children"][0]["style"]["colorRole"],
+            "syntax.string"
+        );
+    }
+
+    #[test]
     fn encode_binding_uses_subject_type_override_for_semantic_values() {
         let mut registry = TransformTemplateOutputFunctionRegistry::new();
         registry.register(TransformTemplateOutputFunctionDescriptor {
@@ -15633,9 +15991,22 @@ mod tests {
       @streamable=true |
       {param @name="subject" @type="object" @required=true}
   }
+  {color-function
+      @name="cem.color-tree"
+      @category="cem-tree"
+      @subject="cem-tree"
+      @produces="cem-tree"
+      @content-type="application/cem"
+      @schema="https://cem.dev/ns/cem-ml/1"
+      @profile="css-custom-properties"
+      @canonical=false
+      @deterministic=true
+      @streamable=true |
+      {param @name="subject" @type="object" @required=true}
+  }
   {template @name="main" @visibility="public" |
     {body |
-      {$ encode($node.ast, { contentType: "application/cem", schema: "https://cem.dev/ns/cem-ml/1", category: "cem-tree", subjectType: "cem-ast-node" }, { formatter: "cem.format-tree", canonical: true }) }
+      {$ encode($node.ast, { contentType: "application/cem", schema: "https://cem.dev/ns/cem-ml/1", category: "cem-tree", subjectType: "cem-ast-node" }, { formatter: "cem.format-tree", colorizer: "cem.color-tree", colorProfile: "css-custom-properties", canonical: true }) }
     }
   }
 }"#,
@@ -15667,6 +16038,7 @@ mod tests {
             }),
         );
 
+        let mut executed = Vec::new();
         let evaluated = evaluate_transform_template_encode_expressions(
             &response.module_options.encode_expressions,
             TransformTemplateEncodeEvaluationContext {
@@ -15677,10 +16049,10 @@ mod tests {
                 uri: Some("templates/runtime-format.cemt"),
             },
             |binding, subject| {
-                assert_eq!(
-                    binding.function.kind,
-                    TransformTemplateOutputFunctionKind::Format
-                );
+                executed.push(binding.function.name.clone());
+                if binding.function.kind == TransformTemplateOutputFunctionKind::Color {
+                    assert_eq!(subject["kind"], "cem-tree");
+                }
                 implementations.encode(binding, subject)
             },
         );
@@ -15691,14 +16063,24 @@ mod tests {
             evaluated.diagnostics
         );
         assert_eq!(evaluated.encoded.len(), 1);
+        assert_eq!(executed, vec!["cem.format-tree", "cem.color-tree"]);
         let evaluated = &evaluated.encoded[0];
-        assert_eq!(evaluated.binding.function.name, "cem.format-tree");
+        assert_eq!(evaluated.binding.function.name, "cem.color-tree");
         assert_eq!(
             evaluated.artifact.identity.produces,
             TransformTemplateOutputProducedKind::CemTree
         );
+        assert_eq!(
+            evaluated.artifact.identity.color_profile.as_deref(),
+            Some("css-custom-properties")
+        );
         assert_eq!(evaluated.artifact.value["kind"], "cem-tree");
+        assert_eq!(evaluated.artifact.value["colored"], true);
         assert_eq!(evaluated.artifact.value["nodes"][0]["name"], "card");
+        assert_eq!(
+            evaluated.artifact.value["nodes"][0]["style"]["colorRole"],
+            "syntax.name"
+        );
     }
 
     #[test]
