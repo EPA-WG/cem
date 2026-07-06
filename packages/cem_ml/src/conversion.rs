@@ -18,9 +18,10 @@ use crate::schema::package_loader::{load_builtin_schema_package, BuiltinSchemaPa
 use crate::schema::registry::{
     content_type_essence, SchemaContentTypeRole, SchemaDescriptor, SchemaRegistry,
     CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
-    CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE,
-    CEM_TRANSFORM_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
-    JSON_VALUE_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI,
+    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
+    JSON_CONTENT_TYPE, JSON_VALUE_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, YAML_CONTENT_TYPE,
+    YAML_SCHEMA_URI,
 };
 use crate::source::{BytesSource, SourceId};
 use crate::tokenizer::cem::CemTokenizer;
@@ -1075,6 +1076,26 @@ pub struct ConversionOutputSafetyContract<'a> {
     pub insertion_context: TransformTemplateEncodedArtifactInsertionContext,
     pub produces: TransformTemplateOutputProducedKind,
     pub color_output_profile: Option<TransformTemplateColorOutputProfile>,
+    pub pipeline: ConversionOutputPipeline,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConversionOutputPipeline {
+    pub stages: Vec<ConversionOutputPipelineStage>,
+    pub cemt_target: TransformTemplateEncodingTarget,
+    pub cemt_options: TransformTemplateEncodeOptions,
+    pub cemt_insertion_context: TransformTemplateEncodedArtifactInsertionContext,
+    pub cemt_produces: TransformTemplateOutputProducedKind,
+    pub writer_insertion_context: TransformTemplateEncodedArtifactInsertionContext,
+    pub writer_produces: TransformTemplateOutputProducedKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConversionOutputPipelineStage {
+    Transform,
+    Format,
+    Color,
+    Writer,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1905,6 +1926,7 @@ pub fn conversion_output_safety_contract(
     let produces = conversion_output_produced_kind(expected_syntax);
     let insertion_context =
         conversion_output_insertion_context(&target, output_contract, &options, produces);
+    let pipeline = conversion_output_pipeline(output_contract, &options, &insertion_context);
 
     (
         Some(ConversionOutputSafetyContract {
@@ -1915,6 +1937,7 @@ pub fn conversion_output_safety_contract(
             insertion_context,
             produces,
             color_output_profile,
+            pipeline,
         }),
         diagnostics,
     )
@@ -3507,6 +3530,105 @@ fn conversion_output_insertion_context(
     context.canonical = Some(options.canonical);
     context.source_map_policy = Some(options.source_map_policy);
     context
+}
+
+fn conversion_output_pipeline(
+    output_contract: &ConversionOutputContractDescriptor,
+    writer_options: &TransformTemplateEncodeOptions,
+    writer_insertion_context: &TransformTemplateEncodedArtifactInsertionContext,
+) -> ConversionOutputPipeline {
+    let cemt_target =
+        TransformTemplateEncodingTarget::new(CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, "cem-tree");
+    let formatter_profile = conversion_cem_tree_formatter_profile(output_contract);
+    let color_profile = conversion_cem_tree_color_profile(output_contract);
+    let cemt_options =
+        conversion_cem_tree_pipeline_options(writer_options, &formatter_profile, &color_profile);
+    let cemt_insertion_context = conversion_cem_tree_insertion_context(
+        &cemt_target,
+        &cemt_options,
+        &formatter_profile,
+        &color_profile,
+    );
+
+    ConversionOutputPipeline {
+        stages: vec![
+            ConversionOutputPipelineStage::Transform,
+            ConversionOutputPipelineStage::Format,
+            ConversionOutputPipelineStage::Color,
+            ConversionOutputPipelineStage::Writer,
+        ],
+        cemt_target,
+        cemt_options,
+        cemt_insertion_context,
+        cemt_produces: TransformTemplateOutputProducedKind::CemTree,
+        writer_insertion_context: writer_insertion_context.clone(),
+        writer_produces: writer_insertion_context
+            .produces
+            .unwrap_or(TransformTemplateOutputProducedKind::Text),
+    }
+}
+
+fn conversion_cem_tree_pipeline_options(
+    writer_options: &TransformTemplateEncodeOptions,
+    formatter_profile: &str,
+    color_profile: &str,
+) -> TransformTemplateEncodeOptions {
+    TransformTemplateEncodeOptions {
+        formatter: Some("cem.format-tree".to_owned()),
+        formatter_profile: Some(formatter_profile.to_owned()),
+        colorizer: Some("cem.color-tree".to_owned()),
+        color_profile: Some(color_profile.to_owned()),
+        mode: writer_options.mode,
+        canonical: writer_options.canonical,
+        source_map_policy: writer_options.source_map_policy,
+        ..TransformTemplateEncodeOptions::default()
+    }
+}
+
+fn conversion_cem_tree_insertion_context(
+    target: &TransformTemplateEncodingTarget,
+    options: &TransformTemplateEncodeOptions,
+    formatter_profile: &str,
+    color_profile: &str,
+) -> TransformTemplateEncodedArtifactInsertionContext {
+    let mut context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+        target,
+        Some(TransformTemplateOutputProducedKind::CemTree),
+    );
+    context.formatter_profile = Some(formatter_profile.to_owned());
+    context.color_profile = Some(color_profile.to_owned());
+    context.mode = Some(options.mode);
+    context.canonical = Some(options.canonical);
+    context.source_map_policy = Some(options.source_map_policy);
+    context
+}
+
+fn conversion_cem_tree_formatter_profile(
+    output_contract: &ConversionOutputContractDescriptor,
+) -> String {
+    output_contract
+        .formatter_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty())
+        .map(|profile| match profile {
+            "format-tree" | "cem.format-tree" => "cem.format-tree",
+            _ => "cem.format-tree",
+        })
+        .unwrap_or("cem.format-tree")
+        .to_owned()
+}
+
+fn conversion_cem_tree_color_profile(
+    output_contract: &ConversionOutputContractDescriptor,
+) -> String {
+    output_contract
+        .color_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty())
+        .unwrap_or("none")
+        .to_owned()
 }
 
 fn conversion_output_color_profile(
@@ -5934,6 +6056,64 @@ mod tests {
             html.insertion_context.source_map_policy,
             Some(TransformTemplateSourceMapPolicy::Generated)
         );
+        assert_eq!(
+            html.pipeline.stages,
+            vec![
+                ConversionOutputPipelineStage::Transform,
+                ConversionOutputPipelineStage::Format,
+                ConversionOutputPipelineStage::Color,
+                ConversionOutputPipelineStage::Writer,
+            ]
+        );
+        assert_eq!(html.pipeline.cemt_target.content_type, CEM_ML_CONTENT_TYPE);
+        assert_eq!(html.pipeline.cemt_target.schema, CEM_ML_SCHEMA_URI);
+        assert_eq!(html.pipeline.cemt_target.category, "cem-tree");
+        assert_eq!(
+            html.pipeline.cemt_produces,
+            TransformTemplateOutputProducedKind::CemTree
+        );
+        assert_eq!(
+            html.pipeline.cemt_options.formatter.as_deref(),
+            Some("cem.format-tree")
+        );
+        assert_eq!(
+            html.pipeline.cemt_options.formatter_profile.as_deref(),
+            Some("cem.format-tree")
+        );
+        assert_eq!(
+            html.pipeline.cemt_options.colorizer.as_deref(),
+            Some("cem.color-tree")
+        );
+        assert_eq!(
+            html.pipeline.cemt_options.color_profile.as_deref(),
+            Some("classes")
+        );
+        assert_eq!(
+            html.pipeline.cemt_insertion_context.produces,
+            Some(TransformTemplateOutputProducedKind::CemTree)
+        );
+        assert_eq!(
+            html.pipeline
+                .cemt_insertion_context
+                .formatter_profile
+                .as_deref(),
+            Some("cem.format-tree")
+        );
+        assert_eq!(
+            html.pipeline
+                .cemt_insertion_context
+                .color_profile
+                .as_deref(),
+            Some("classes")
+        );
+        assert_eq!(
+            html.pipeline.writer_insertion_context,
+            html.insertion_context
+        );
+        assert_eq!(
+            html.pipeline.writer_produces,
+            TransformTemplateOutputProducedKind::Text
+        );
         assert!(html.options.charset.is_none());
         assert_eq!(
             html.syntax_rules
@@ -5960,6 +6140,18 @@ mod tests {
             TransformTemplateTargetSyntaxKind::Xml
         );
         assert_eq!(xml.insertion_context.color_profile, None);
+        assert_eq!(
+            xml.pipeline.cemt_options.colorizer.as_deref(),
+            Some("cem.color-tree")
+        );
+        assert_eq!(
+            xml.pipeline.cemt_options.color_profile.as_deref(),
+            Some("none")
+        );
+        assert_eq!(
+            xml.pipeline.cemt_insertion_context.color_profile.as_deref(),
+            Some("none")
+        );
         assert_eq!(
             xml.syntax_rules
                 .writer_boundaries
@@ -6234,6 +6426,10 @@ mod tests {
             .iter()
             .find(|contract| contract.descriptor.id == "cem-dom-projection-to-html-cemt")
             .expect("HTML output safety contract");
+        assert_eq!(
+            html.pipeline.writer_insertion_context,
+            html.insertion_context
+        );
 
         let mut identity =
             TransformTemplateEncodedArtifactIdentity::new(html.produces, html.target.clone());
@@ -6254,6 +6450,41 @@ mod tests {
             double_encoding.code(),
             TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_DOUBLE_ENCODING_CODE
         );
+
+        let mut cemt_identity = TransformTemplateEncodedArtifactIdentity::new(
+            html.pipeline.cemt_produces,
+            html.pipeline.cemt_target.clone(),
+        );
+        cemt_identity.formatter_profile = html
+            .pipeline
+            .cemt_insertion_context
+            .formatter_profile
+            .clone();
+        cemt_identity.color_profile = html.pipeline.cemt_insertion_context.color_profile.clone();
+        cemt_identity.mode = TransformTemplateEncodedArtifactMode::Document;
+        cemt_identity.canonical = true;
+        let cemt_tree = TransformTemplateEncodedArtifact::new(
+            cemt_identity,
+            serde_json::json!({
+                "kind": "cem-tree",
+                "contentType": CEM_ML_CONTENT_TYPE,
+                "schema": CEM_ML_SCHEMA_URI,
+                "category": "cem-tree",
+                "mode": "document",
+                "canonical": true,
+                "formatterProfile": "cem.format-tree",
+                "colored": true,
+                "colorProfile": "classes",
+                "nodes": [{
+                    "kind": "element",
+                    "name": "main",
+                    "children": [{"kind": "text", "value": "Ready"}]
+                }]
+            }),
+        );
+        cemt_tree
+            .validate_insertion(&html.pipeline.cemt_insertion_context)
+            .expect("CEMT pipeline accepts formatted and colored CEM tree");
 
         let mut wrong_category = html.insertion_context.clone();
         wrong_category.category = Some("html-text".to_owned());

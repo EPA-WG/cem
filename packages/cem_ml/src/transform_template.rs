@@ -806,6 +806,36 @@ const TRANSFORM_TEMPLATE_STANDARD_OUTPUT_FUNCTIONS:
         profile: Some("css-custom-properties"),
     },
     TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Color,
+        name: "cem.color-tree",
+        category: "cem-tree",
+        subject: Some("cem-tree"),
+        produces: TransformTemplateOutputProducedKind::CemTree,
+        content_type: CEM_ML_CONTENT_TYPE,
+        schema: CEM_ML_SCHEMA_URI,
+        profile: Some("classes"),
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Color,
+        name: "cem.color-tree",
+        category: "cem-tree",
+        subject: Some("cem-tree"),
+        produces: TransformTemplateOutputProducedKind::CemTree,
+        content_type: CEM_ML_CONTENT_TYPE,
+        schema: CEM_ML_SCHEMA_URI,
+        profile: Some("inline-style"),
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Color,
+        name: "cem.color-tree",
+        category: "cem-tree",
+        subject: Some("cem-tree"),
+        produces: TransformTemplateOutputProducedKind::CemTree,
+        content_type: CEM_ML_CONTENT_TYPE,
+        schema: CEM_ML_SCHEMA_URI,
+        profile: Some("none"),
+    },
+    TransformTemplateStandardOutputFunctionContract {
         kind: TransformTemplateOutputFunctionKind::Encoding,
         name: "cemt.text",
         category: "cemt-module",
@@ -11369,6 +11399,14 @@ mod tests {
         }
     }
 
+    fn cem_tree_color_function_descriptor_with_profile(
+        profile: &str,
+    ) -> TransformTemplateOutputFunctionDescriptor {
+        let mut descriptor = cem_tree_color_function_descriptor();
+        descriptor.profile = Some(profile.to_owned());
+        descriptor
+    }
+
     fn ai_context_output_function_descriptor(
         name: &str,
         category: &str,
@@ -14989,6 +15027,50 @@ mod tests {
             colored["nodes"][0]["children"][0]["style"]["colorRole"],
             "syntax.string"
         );
+    }
+
+    #[test]
+    fn color_binding_resolves_cem_tree_color_profiles_for_conversion_pipeline() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        for profile in ["css-custom-properties", "classes", "none"] {
+            registry.register(cem_tree_color_function_descriptor_with_profile(profile));
+        }
+        let subject = json!({
+            "kind": "cem-tree",
+            "contentType": CEM_ML_CONTENT_TYPE,
+            "schema": CEM_ML_SCHEMA_URI,
+            "category": "cem-tree",
+            "nodes": [{"kind": "element", "name": "card"}]
+        });
+
+        for profile in ["classes", "none"] {
+            let request = TransformTemplateEncodeBindingRequest::new(
+                subject.clone(),
+                TransformTemplateEncodingTarget::new(
+                    CEM_ML_CONTENT_TYPE,
+                    CEM_ML_SCHEMA_URI,
+                    "cem-tree",
+                ),
+            )
+            .with_subject_type("cem-tree")
+            .with_options(TransformTemplateEncodeOptions {
+                colorizer: Some("cem.color-tree".to_owned()),
+                color_profile: Some(profile.to_owned()),
+                ..TransformTemplateEncodeOptions::default()
+            });
+
+            let binding = registry
+                .resolve_color_binding(&request, &BTreeSet::new())
+                .unwrap_or_else(|error| panic!("CEM tree profile `{profile}` resolves: {error:?}"));
+
+            assert_eq!(binding.function.name, "cem.color-tree");
+            assert_eq!(binding.function.profile.as_deref(), Some(profile));
+            assert_eq!(binding.identity.color_profile.as_deref(), Some(profile));
+            assert_eq!(
+                binding.identity.produces,
+                TransformTemplateOutputProducedKind::CemTree
+            );
+        }
     }
 
     #[test]

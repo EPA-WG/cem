@@ -69,7 +69,7 @@
         {constraint @kind="cemt-template-identity-required" @target="converter" @policy="when implementation is cemt"}
         {constraint @kind="rust-symbol-required" @target="converter" @policy="when implementation is rust"}
         {constraint @kind="converter-cost-positive" @target="converter" @policy="cost, when present, must be a positive integer"}
-        {constraint @kind="converter-output-contract" @target="converter" @policy="output-syntax and parity, when present, must use declared values; encoding-category, formatter-profile, and color-profile describe the produced artifact identity"}
+        {constraint @kind="converter-output-contract" @target="converter" @policy="output-syntax and parity, when present, must use declared values; encoding-category, formatter-profile, and color-profile describe the CEMT tree pipeline and final writer artifact identity"}
         {constraint @kind="converter-endpoint-schema-content-type-match" @target="from to" @policy="when endpoint schema is known, content-type must be registered by that schema"}
         {constraint @kind="planned-cemt-rust-fallback" @target="converter" @policy="planned CEMT converters may declare rust-symbol as fallback hook"}
         {constraint @kind="cemt-native-fallback-reason" @target="converter" @policy="CEMT converters that declare rust-symbol fallback hooks must also declare fallback-reason"}
