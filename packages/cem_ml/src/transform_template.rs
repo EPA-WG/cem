@@ -5346,6 +5346,7 @@ fn transform_template_first_cem_tree_source_map(value: &Value) -> Option<SourceM
                 "children",
                 "slots",
                 "formatNodes",
+                "colorNodes",
                 "formatLayout",
                 "formatBeforeAttributes",
                 "formatBetweenAttributes",
@@ -5404,7 +5405,14 @@ fn builtin_cem_tree_colorizer(
             Value::String(color_capability),
         );
     }
-    for field in ["nodes", "node", "root", "formatNodes"] {
+    let color_nodes = transform_template_cem_tree_color_nodes(
+        &tree,
+        &color_profile,
+        &profile,
+        binding.identity.color_capability.as_deref(),
+    );
+    tree.insert("colorNodes".to_owned(), Value::Array(color_nodes));
+    for field in ["nodes", "node", "root", "formatNodes", "colorNodes"] {
         if let Some(value) = tree.get_mut(field) {
             transform_template_apply_cem_tree_color_to_value(value, &profile, &color_profile);
         }
@@ -5453,6 +5461,145 @@ fn validate_builtin_cem_tree_colorizer_binding(
         ));
     }
     Ok(())
+}
+
+fn transform_template_cem_tree_color_nodes(
+    tree: &serde_json::Map<String, Value>,
+    color_profile: &str,
+    profile: &TransformTemplateColorOutputProfile,
+    color_capability: Option<&str>,
+) -> Vec<Value> {
+    let source_map = transform_template_first_cem_tree_source_map_in_tree_fields(tree);
+    let mut nodes = vec![
+        transform_template_cem_tree_color_marker(color_profile, source_map.as_ref()),
+        transform_template_cem_tree_color_decision(
+            "profile",
+            "colorizer.profile",
+            color_profile.to_owned(),
+            color_profile,
+            source_map.as_ref(),
+        ),
+        transform_template_cem_tree_color_decision(
+            "output",
+            "colorizer.output",
+            transform_template_cem_tree_color_output_kind(profile.output).to_owned(),
+            color_profile,
+            source_map.as_ref(),
+        ),
+    ];
+    if profile.output == TransformTemplateColorOutputKind::Html && !profile.no_color {
+        nodes.push(transform_template_cem_tree_color_decision(
+            "html-mode",
+            "colorizer.html-mode",
+            profile.html_mode.as_str().to_owned(),
+            color_profile,
+            source_map.as_ref(),
+        ));
+    }
+    if let Some(color_capability) = trimmed_optional_str(color_capability) {
+        nodes.push(transform_template_cem_tree_color_decision(
+            "capability",
+            "colorizer.capability",
+            color_capability.to_owned(),
+            color_profile,
+            source_map.as_ref(),
+        ));
+    }
+    nodes
+}
+
+fn transform_template_first_cem_tree_source_map_in_tree_fields(
+    tree: &serde_json::Map<String, Value>,
+) -> Option<SourceMapStack> {
+    ["nodes", "node", "root", "formatNodes"]
+        .iter()
+        .find_map(|field| {
+            tree.get(*field)
+                .and_then(transform_template_first_cem_tree_source_map)
+        })
+}
+
+fn transform_template_cem_tree_color_marker(
+    color_profile: &str,
+    source_map: Option<&SourceMapStack>,
+) -> Value {
+    let mut marker = serde_json::Map::new();
+    marker.insert("kind".to_owned(), Value::String("color-marker".to_owned()));
+    marker.insert(
+        "name".to_owned(),
+        Value::String("cem.color-tree".to_owned()),
+    );
+    marker.insert(
+        "colorizerRole".to_owned(),
+        Value::String("colorizer.boundary".to_owned()),
+    );
+    marker.insert(
+        "colorProfile".to_owned(),
+        Value::String(color_profile.to_owned()),
+    );
+    marker.insert(
+        "colorRole".to_owned(),
+        Value::String("source.gutter".to_owned()),
+    );
+    if let Some(source_map) = transform_template_cem_tree_color_source_map_value(source_map) {
+        marker.insert("sourceMap".to_owned(), source_map);
+    }
+    Value::Object(marker)
+}
+
+fn transform_template_cem_tree_color_decision(
+    name: &str,
+    colorizer_role: &str,
+    value: String,
+    color_profile: &str,
+    source_map: Option<&SourceMapStack>,
+) -> Value {
+    let mut decision = serde_json::Map::new();
+    decision.insert(
+        "kind".to_owned(),
+        Value::String("color-decision".to_owned()),
+    );
+    decision.insert("name".to_owned(), Value::String(name.to_owned()));
+    decision.insert(
+        "colorizerRole".to_owned(),
+        Value::String(colorizer_role.to_owned()),
+    );
+    decision.insert("value".to_owned(), Value::String(value));
+    decision.insert(
+        "colorProfile".to_owned(),
+        Value::String(color_profile.to_owned()),
+    );
+    decision.insert(
+        "colorRole".to_owned(),
+        Value::String("source.gutter".to_owned()),
+    );
+    if let Some(source_map) = transform_template_cem_tree_color_source_map_value(source_map) {
+        decision.insert("sourceMap".to_owned(), source_map);
+    }
+    Value::Object(decision)
+}
+
+fn transform_template_cem_tree_color_source_map_value(
+    source_map: Option<&SourceMapStack>,
+) -> Option<Value> {
+    let source_map = source_map?;
+    serde_json::to_value(transform_template_source_map_with_transform(
+        source_map,
+        TransformKind::TemplateTransform {
+            function: "cem.color-tree".to_owned(),
+        },
+    ))
+    .ok()
+}
+
+fn transform_template_cem_tree_color_output_kind(
+    output: TransformTemplateColorOutputKind,
+) -> &'static str {
+    match output {
+        TransformTemplateColorOutputKind::None => "none",
+        TransformTemplateColorOutputKind::Terminal => "terminal",
+        TransformTemplateColorOutputKind::Html => "html",
+    }
 }
 
 fn transform_template_apply_cem_tree_color_to_value(
@@ -5518,6 +5665,7 @@ fn transform_template_apply_cem_tree_color_to_node(
         "node",
         "root",
         "formatNodes",
+        "colorNodes",
         "formatLayout",
         "formatBeforeAttributes",
         "formatBetweenAttributes",
@@ -5562,7 +5710,8 @@ fn transform_template_cem_tree_node_color_role(fields: &serde_json::Map<String, 
         "attribute" | "attr" => "syntax.attribute",
         "text" | "string" => "syntax.string",
         "comment" => "syntax.comment",
-        "format-marker" | "format-decision" | "format-span" => "source.gutter",
+        "format-marker" | "format-decision" | "format-span" | "color-marker" | "color-decision"
+        | "color-span" => "source.gutter",
         "whitespace" => "syntax.raw",
         "raw" => "syntax.raw",
         _ => "syntax.token",
@@ -8105,6 +8254,7 @@ fn validate_cem_tree_writer_boundary(
             ));
         }
     }
+    validate_cem_tree_color_metadata(&artifact.value, color_profile)?;
 
     Ok(())
 }
@@ -8150,6 +8300,49 @@ fn validate_cem_tree_formatter_metadata(
     }) {
         return Err(format!(
             "CEM tree formatter metadata profile mismatch: tree `{formatter_profile}`, formatNodes `{conflicting_profile}`"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_cem_tree_color_metadata(value: &Value, color_profile: &str) -> Result<(), String> {
+    let color_nodes = value
+        .get("colorNodes")
+        .and_then(Value::as_array)
+        .filter(|nodes| !nodes.is_empty())
+        .ok_or_else(|| {
+            "CEM tree writer requires colorizer-owned `colorNodes`; run `cem.color-tree` before the writer"
+                .to_owned()
+        })?;
+    let has_marker = color_nodes.iter().any(|node| {
+        node.get("kind").and_then(Value::as_str) == Some("color-marker")
+            && node.get("name").and_then(Value::as_str) == Some("cem.color-tree")
+    });
+    if !has_marker {
+        return Err(
+            "CEM tree writer requires a `cem.color-tree` colorizer marker in `colorNodes`"
+                .to_owned(),
+        );
+    }
+    let has_decision = color_nodes.iter().any(|node| {
+        node.get("kind").and_then(Value::as_str) == Some("color-decision")
+            && node
+                .get("colorizerRole")
+                .and_then(Value::as_str)
+                .is_some_and(|role| role.starts_with("colorizer."))
+    });
+    if !has_decision {
+        return Err(
+            "CEM tree writer requires colorizer decision nodes in `colorNodes`; run `cem.color-tree` before the writer"
+                .to_owned(),
+        );
+    }
+    if let Some(conflicting_profile) = color_nodes.iter().find_map(|node| {
+        let profile = node.get("colorProfile").and_then(Value::as_str)?;
+        (profile != color_profile).then_some(profile)
+    }) {
+        return Err(format!(
+            "CEM tree color metadata profile mismatch: tree `{color_profile}`, colorNodes `{conflicting_profile}`"
         ));
     }
     Ok(())
@@ -13132,6 +13325,7 @@ mod tests {
         identity.mode = TransformTemplateEncodedArtifactMode::Fragment;
         identity.canonical = true;
         let format_nodes = colored_cem_tree_format_nodes_value(source_map_stack(54, 0));
+        let color_nodes = colored_cem_tree_color_nodes_value(source_map_stack(54, 0));
 
         let value = json!({
             "kind": "cem-tree",
@@ -13144,6 +13338,7 @@ mod tests {
             "colored": true,
             "colorProfile": "css-custom-properties",
             "formatNodes": format_nodes,
+            "colorNodes": color_nodes,
             "nodes": [{
                 "kind": "element",
                 "name": "card",
@@ -16866,6 +17061,39 @@ mod tests {
         assert_eq!(colored["kind"], "cem-tree");
         assert_eq!(colored["colored"], true);
         assert_eq!(colored["colorProfile"], "css-custom-properties");
+        assert_eq!(colored["colorNodes"][0]["kind"], "color-marker");
+        assert_eq!(colored["colorNodes"][0]["name"], "cem.color-tree");
+        assert_eq!(
+            colored["colorNodes"][0]["colorizerRole"],
+            "colorizer.boundary"
+        );
+        assert_eq!(
+            colored["colorNodes"][0]["style"]["colorRole"],
+            "source.gutter"
+        );
+        assert_eq!(
+            colored["colorNodes"][0]["writerAttributes"]["data-role"],
+            "source.gutter"
+        );
+        assert_eq!(
+            cem_tree_color_decision(&colored, "profile")["value"],
+            "css-custom-properties"
+        );
+        assert_eq!(cem_tree_color_decision(&colored, "output")["value"], "html");
+        assert_eq!(
+            cem_tree_color_decision(&colored, "html-mode")["value"],
+            "css-custom-properties"
+        );
+        assert_cem_tree_source_map_current_transform(
+            &colored["colorNodes"][0]["sourceMap"],
+            |transform| {
+                matches!(
+                    transform,
+                    TransformKind::TemplateTransform { function }
+                        if function == "cem.color-tree"
+                )
+            },
+        );
         assert_eq!(
             colored["formatNodes"][0]["style"]["colorRole"],
             "source.gutter"
@@ -17004,6 +17232,17 @@ mod tests {
 
         let none = encode_colored_cem_tree_with_profile("none");
         assert_eq!(none["colorProfile"], "none");
+        assert_eq!(cem_tree_color_decision(&none, "profile")["value"], "none");
+        assert_eq!(
+            cem_tree_color_decision(&none, "output")["value"],
+            "terminal"
+        );
+        assert!(none
+            .get("colorNodes")
+            .and_then(Value::as_array)
+            .expect("colorNodes array")
+            .iter()
+            .all(|node| node.get("name").and_then(Value::as_str) != Some("html-mode")));
         assert_eq!(none["nodes"][0]["style"]["colorRole"], "syntax.name");
         assert!(none["nodes"][0].get("writerAttributes").is_none());
         assert_eq!(none["nodes"][0]["children"][0]["kind"], "text");
@@ -17100,6 +17339,29 @@ mod tests {
         format_nodes
     }
 
+    fn colored_cem_tree_color_nodes_value(source_map: SourceMapStack) -> Value {
+        let profile =
+            TransformTemplateColorOutputProfile::html_from_selector("css-custom-properties")
+                .expect("CEM tree color profile resolves");
+        let mut tree = serde_json::Map::new();
+        tree.insert(
+            "formatNodes".to_owned(),
+            formatted_cem_tree_format_nodes_value(source_map),
+        );
+        let mut color_nodes = Value::Array(transform_template_cem_tree_color_nodes(
+            &tree,
+            "css-custom-properties",
+            &profile,
+            None,
+        ));
+        transform_template_apply_cem_tree_color_to_value(
+            &mut color_nodes,
+            &profile,
+            "css-custom-properties",
+        );
+        color_nodes
+    }
+
     fn cem_tree_format_decision<'a>(tree: &'a Value, name: &str) -> &'a Value {
         tree.get("formatNodes")
             .and_then(Value::as_array)
@@ -17110,6 +17372,18 @@ mod tests {
                 })
             })
             .unwrap_or_else(|| panic!("missing CEM tree format decision `{name}`"))
+    }
+
+    fn cem_tree_color_decision<'a>(tree: &'a Value, name: &str) -> &'a Value {
+        tree.get("colorNodes")
+            .and_then(Value::as_array)
+            .and_then(|nodes| {
+                nodes.iter().find(|node| {
+                    node.get("kind").and_then(Value::as_str) == Some("color-decision")
+                        && node.get("name").and_then(Value::as_str) == Some(name)
+                })
+            })
+            .unwrap_or_else(|| panic!("missing CEM tree color decision `{name}`"))
     }
 
     fn assert_cem_tree_source_map_current_transform(
@@ -18667,6 +18941,14 @@ mod tests {
             evaluated.artifact.value["formatNodes"][0]["style"]["colorRole"],
             "source.gutter"
         );
+        assert_eq!(
+            evaluated.artifact.value["colorNodes"][0]["name"],
+            "cem.color-tree"
+        );
+        assert_eq!(
+            cem_tree_color_decision(&evaluated.artifact.value, "profile")["value"],
+            "css-custom-properties"
+        );
         assert_eq!(evaluated.artifact.value["nodes"][0]["name"], "card");
         assert_eq!(
             evaluated.artifact.value["nodes"][0]["style"]["colorRole"],
@@ -19470,6 +19752,36 @@ mod tests {
             diagnostic.code == TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_WRITER_ADAPTER_FAILED_CODE
                 && diagnostic.node.as_deref() == Some("body")
                 && diagnostic.message.contains("colored CEM tree")
+                && diagnostic.message.contains("cem.color-tree")
+        }));
+    }
+
+    #[test]
+    fn encoded_text_artifact_composition_rejects_cem_tree_without_color_metadata() {
+        let mut evaluated = evaluated_colored_cem_tree("body");
+        evaluated
+            .artifact
+            .value
+            .as_object_mut()
+            .expect("CEM tree object")
+            .remove("colorNodes");
+        let mut context =
+            TransformTemplateEncodedArtifactInsertionContext::from_encoded_artifact_identity(
+                &evaluated.artifact.identity,
+            );
+        context.produces = Some(TransformTemplateOutputProducedKind::Text);
+
+        let response = compose_transform_template_encoded_text_artifacts(
+            &[evaluated],
+            &context,
+            Some("templates/runtime-encoding.cemt"),
+        );
+
+        assert!(response.artifact.is_none());
+        assert!(response.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_WRITER_ADAPTER_FAILED_CODE
+                && diagnostic.node.as_deref() == Some("body")
+                && diagnostic.message.contains("colorNodes")
                 && diagnostic.message.contains("cem.color-tree")
         }));
     }
