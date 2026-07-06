@@ -29,19 +29,25 @@ use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
 use crate::tokenizer::{SchemaTokenKind, SchemaTokenizer};
 use crate::transform_template::{
-    TransformTemplateAdapter, TransformTemplateAdapterCapability, TransformTemplateAdapterError,
+    compose_transform_template_encoded_text_artifacts, TransformTemplateAdapter,
+    TransformTemplateAdapterCapability, TransformTemplateAdapterError,
     TransformTemplateAdapterExecutionPhase, TransformTemplateAdapterLookup,
     TransformTemplateAdapterRegistry, TransformTemplateAdapterResult,
     TransformTemplateColorOutputProfile, TransformTemplateCompileRequest,
     TransformTemplateCompileResponse, TransformTemplateCompiledArtifact,
-    TransformTemplateDataArtifact, TransformTemplateEncodeOptions,
-    TransformTemplateEncodedArtifactInsertionContext, TransformTemplateEncodedArtifactMode,
-    TransformTemplateEncodingTarget, TransformTemplateHtmlColorMode,
+    TransformTemplateDataArtifact, TransformTemplateEncodeBindingRequest,
+    TransformTemplateEncodeExpression, TransformTemplateEncodeImplementationRegistry,
+    TransformTemplateEncodeOptions, TransformTemplateEncodedArtifactInsertionContext,
+    TransformTemplateEncodedArtifactMode, TransformTemplateEncodingTarget,
+    TransformTemplateEvaluatedEncodeExpression, TransformTemplateHtmlColorMode,
     TransformTemplateModuleOptions, TransformTemplateModulePreflight,
-    TransformTemplateOutputArtifact, TransformTemplateOutputProducedKind,
-    TransformTemplateRenderRequest, TransformTemplateRenderResponse,
-    TransformTemplateSourceMapPolicy, TransformTemplateTargetSyntaxKind,
-    TransformTemplateTargetSyntaxRules, TransformTemplateTerminalColorCapability,
+    TransformTemplateModuleVisibility, TransformTemplateOutputArtifact,
+    TransformTemplateOutputFunctionDescriptor, TransformTemplateOutputFunctionImplementation,
+    TransformTemplateOutputFunctionKind, TransformTemplateOutputFunctionRegistry,
+    TransformTemplateOutputProducedKind, TransformTemplateRenderRequest,
+    TransformTemplateRenderResponse, TransformTemplateSourceMapPolicy,
+    TransformTemplateTargetSyntaxKind, TransformTemplateTargetSyntaxRules,
+    TransformTemplateTerminalColorCapability,
 };
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -849,6 +855,28 @@ impl TransformTemplateAdapter for DomProjectionParityCemtAdapter {
         &self,
         request: TransformTemplateRenderRequest<'_>,
     ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
+        if conversion_dom_projection_parity_target_is_cem_tree(&request) {
+            let tree =
+                conversion_dom_projection_parity_cem_tree_document(&request.primary_input.value)
+                    .map_err(|message| {
+                        TransformTemplateAdapterError::failed(
+                            self.id(),
+                            TransformTemplateAdapterExecutionPhase::Render,
+                            message,
+                        )
+                    })?;
+            return Ok(TransformTemplateRenderResponse {
+                output: TransformTemplateOutputArtifact {
+                    uri: None,
+                    identity: request.target.cloned(),
+                    value: tree,
+                    source_map: None,
+                    output_spans: Vec::new(),
+                },
+                diagnostics: Vec::new(),
+            });
+        }
+
         let output = conversion_dom_projection_parity_output(&request).map_err(|message| {
             TransformTemplateAdapterError::failed(
                 self.id(),
@@ -877,6 +905,21 @@ impl TransformTemplateAdapter for DomProjectionParityCemtAdapter {
             diagnostics: Vec::new(),
         })
     }
+}
+
+fn conversion_dom_projection_parity_target_is_cem_tree(
+    request: &TransformTemplateRenderRequest<'_>,
+) -> bool {
+    request.target.is_some_and(|target| {
+        target
+            .content_type
+            .as_deref()
+            .is_some_and(|content_type| content_type_essence(content_type) == CEM_ML_CONTENT_TYPE)
+            || target
+                .schema
+                .as_deref()
+                .is_some_and(|schema| schema == CEM_ML_SCHEMA_URI)
+    })
 }
 
 fn conversion_dom_projection_parity_output(
@@ -1065,6 +1108,106 @@ fn conversion_dom_projection_parity_data(node: &Value) -> &str {
         .or_else(|| node.get("value"))
         .and_then(Value::as_str)
         .unwrap_or_default()
+}
+
+fn conversion_dom_projection_parity_cem_tree_document(input: &Value) -> Result<Value, String> {
+    let children = input
+        .get("children")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "DOM projection input must contain a children array".to_owned())?;
+    let mut nodes = Vec::new();
+    for child in children {
+        if let Some(node) = conversion_dom_projection_parity_cem_tree_node(child)? {
+            nodes.push(node);
+        }
+    }
+    Ok(Value::Array(nodes))
+}
+
+fn conversion_dom_projection_parity_cem_tree_node(node: &Value) -> Result<Option<Value>, String> {
+    let kind = node.get("kind").and_then(Value::as_str).unwrap_or_default();
+    match kind {
+        "text" | "whitespace" | "comment" | "cdata" | "raw-text" => Ok(Some(serde_json::json!({
+            "kind": kind,
+            "value": conversion_dom_projection_parity_data(node),
+        }))),
+        "processing-instruction" => {
+            let name = conversion_dom_projection_parity_name(node)?;
+            let mut fields = serde_json::Map::new();
+            fields.insert(
+                "kind".to_owned(),
+                Value::String("processing-instruction".to_owned()),
+            );
+            fields.insert("target".to_owned(), Value::String(name.local.to_owned()));
+            fields.insert(
+                "value".to_owned(),
+                Value::String(conversion_dom_projection_parity_data(node).to_owned()),
+            );
+            Ok(Some(Value::Object(fields)))
+        }
+        _ => conversion_dom_projection_parity_cem_tree_element(node),
+    }
+}
+
+fn conversion_dom_projection_parity_cem_tree_element(
+    node: &Value,
+) -> Result<Option<Value>, String> {
+    let name = conversion_dom_projection_parity_name(node)?;
+    if name.local.starts_with('@') {
+        return Ok(None);
+    }
+
+    let mut fields = serde_json::Map::new();
+    fields.insert("kind".to_owned(), Value::String("element".to_owned()));
+    fields.insert("name".to_owned(), Value::String(name.local.to_owned()));
+    if !name.namespace.is_empty() {
+        fields.insert(
+            "namespace".to_owned(),
+            Value::String(name.namespace.to_owned()),
+        );
+    }
+
+    if let Some(attributes) = node.get("attributes").and_then(Value::as_array) {
+        let attributes = attributes
+            .iter()
+            .map(conversion_dom_projection_parity_cem_tree_attribute)
+            .collect::<Result<Vec<_>, _>>()?;
+        if !attributes.is_empty() {
+            fields.insert("attributes".to_owned(), Value::Array(attributes));
+        }
+    }
+
+    if let Some(children) = node.get("children").and_then(Value::as_array) {
+        let mut child_nodes = Vec::new();
+        for child in children {
+            if let Some(child_node) = conversion_dom_projection_parity_cem_tree_node(child)? {
+                child_nodes.push(child_node);
+            }
+        }
+        if !child_nodes.is_empty() {
+            fields.insert("children".to_owned(), Value::Array(child_nodes));
+        }
+    }
+
+    Ok(Some(Value::Object(fields)))
+}
+
+fn conversion_dom_projection_parity_cem_tree_attribute(attribute: &Value) -> Result<Value, String> {
+    let name = conversion_dom_projection_parity_name(attribute)?;
+    let mut fields = serde_json::Map::new();
+    fields.insert("kind".to_owned(), Value::String("attribute".to_owned()));
+    fields.insert("name".to_owned(), Value::String(name.local.to_owned()));
+    if !name.namespace.is_empty() {
+        fields.insert(
+            "namespace".to_owned(),
+            Value::String(name.namespace.to_owned()),
+        );
+    }
+    fields.insert(
+        "value".to_owned(),
+        attribute.get("value").cloned().unwrap_or(Value::Null),
+    );
+    Ok(Value::Object(fields))
 }
 
 #[derive(Debug, Clone)]
@@ -2126,17 +2269,32 @@ fn execute_cemt_template_parity_fixture(
         value: input,
     };
     let secondary_inputs = BTreeMap::new();
-    let target = FormatIdentity {
+    let final_target = FormatIdentity {
         content_type: Some(descriptor.to.content_type.clone()),
         schema: descriptor.to.schema.clone(),
         ..FormatIdentity::default()
     };
+    let (contract, mut contract_diagnostics) = conversion_output_safety_contract(descriptor);
+    diagnostics.append(&mut contract_diagnostics);
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return ConversionParityFixtureExecution {
+            output: None,
+            diagnostics,
+        };
+    }
+    let render_target = contract
+        .as_ref()
+        .map(|contract| contract.pipeline.cemt_target.format_identity())
+        .unwrap_or(final_target);
 
     let render_response = match adapter.render(TransformTemplateRenderRequest {
         compiled: &compile_response.artifact,
         primary_input: &primary_input,
         secondary_inputs: &secondary_inputs,
-        target: Some(&target),
+        target: Some(&render_target),
         target_scope: &ScopeConfig::default(),
         execution_policy,
     }) {
@@ -2155,6 +2313,22 @@ fn execute_cemt_template_parity_fixture(
         .any(|diagnostic| diagnostic.severity.is_hard_violation())
     {
         None
+    } else if let Some(contract) = contract.as_ref() {
+        let pipeline_execution = execute_conversion_output_pipeline(
+            descriptor,
+            fixture,
+            contract,
+            render_response.output.value,
+        );
+        diagnostics.extend(pipeline_execution.diagnostics);
+        if diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity.is_hard_violation())
+        {
+            None
+        } else {
+            pipeline_execution.output
+        }
     } else {
         Some(render_response.output.value)
     };
@@ -2162,6 +2336,258 @@ fn execute_cemt_template_parity_fixture(
     ConversionParityFixtureExecution {
         output,
         diagnostics,
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ConversionOutputPipelineExecution {
+    output: Option<Value>,
+    diagnostics: Vec<Diagnostic>,
+}
+
+fn execute_conversion_output_pipeline(
+    descriptor: &ConversionDescriptor,
+    fixture: &ConversionParityFixture,
+    contract: &ConversionOutputSafetyContract<'_>,
+    rendered_value: Value,
+) -> ConversionOutputPipelineExecution {
+    let mut diagnostics = Vec::new();
+    let functions = conversion_cem_tree_output_function_registry(&contract.pipeline);
+    let implementations = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+
+    let format_request = TransformTemplateEncodeBindingRequest::new(
+        rendered_value.clone(),
+        contract.pipeline.cemt_target.clone(),
+    )
+    .with_subject_type("cem-ast-node")
+    .with_options(contract.pipeline.cemt_options.clone());
+    let format_binding = match functions
+        .resolve_format_binding(&format_request, implementations.host_capabilities())
+    {
+        Ok(binding) => binding,
+        Err(error) => {
+            let mut diagnostic = error.diagnostic(None);
+            diagnostic.node = Some(fixture.id.clone());
+            diagnostics.push(diagnostic);
+            return ConversionOutputPipelineExecution {
+                output: None,
+                diagnostics,
+            };
+        }
+    };
+    let formatted_output = match implementations.encode(&format_binding, &rendered_value) {
+        Ok(value) => value,
+        Err(message) => {
+            diagnostics.push(conversion_parity_fixture_pipeline_diagnostic(
+                descriptor,
+                fixture,
+                format!(
+                    "CEMT formatter `{}` failed: {message}",
+                    format_binding.function.name
+                ),
+            ));
+            return ConversionOutputPipelineExecution {
+                output: None,
+                diagnostics,
+            };
+        }
+    };
+    let formatted_artifact = format_binding.artifact_from_value(formatted_output);
+    if let Err(error) = formatted_artifact.validate_insertion(
+        &conversion_cem_tree_format_insertion_context(&contract.pipeline),
+    ) {
+        let mut diagnostic = error.diagnostic(None);
+        diagnostic.node = Some(fixture.id.clone());
+        diagnostics.push(diagnostic);
+        return ConversionOutputPipelineExecution {
+            output: None,
+            diagnostics,
+        };
+    }
+
+    let color_request = TransformTemplateEncodeBindingRequest::new(
+        formatted_artifact.value.clone(),
+        contract.pipeline.cemt_target.clone(),
+    )
+    .with_subject_type("cem-tree")
+    .with_options(contract.pipeline.cemt_options.clone());
+    let color_binding = match functions
+        .resolve_color_binding(&color_request, implementations.host_capabilities())
+    {
+        Ok(binding) => binding.into_encode_binding(),
+        Err(error) => {
+            let mut diagnostic = error.diagnostic(None);
+            diagnostic.node = Some(fixture.id.clone());
+            diagnostics.push(diagnostic);
+            return ConversionOutputPipelineExecution {
+                output: None,
+                diagnostics,
+            };
+        }
+    };
+    let colored_output = match implementations.encode(&color_binding, &formatted_artifact.value) {
+        Ok(value) => value,
+        Err(message) => {
+            diagnostics.push(conversion_parity_fixture_pipeline_diagnostic(
+                descriptor,
+                fixture,
+                format!(
+                    "CEMT colorizer `{}` failed: {message}",
+                    color_binding.function.name
+                ),
+            ));
+            return ConversionOutputPipelineExecution {
+                output: None,
+                diagnostics,
+            };
+        }
+    };
+    let colored_artifact = color_binding.artifact_from_value(colored_output);
+    if let Err(error) =
+        colored_artifact.validate_insertion(&contract.pipeline.cemt_insertion_context)
+    {
+        let mut diagnostic = error.diagnostic(None);
+        diagnostic.node = Some(fixture.id.clone());
+        diagnostics.push(diagnostic);
+        return ConversionOutputPipelineExecution {
+            output: None,
+            diagnostics,
+        };
+    }
+
+    let evaluated = TransformTemplateEvaluatedEncodeExpression {
+        expression: TransformTemplateEncodeExpression {
+            owner: Some(fixture.id.clone()),
+            expression: format!("{} output pipeline", descriptor.id),
+            subject: "rendered-cem-tree".to_owned(),
+            subject_type: Some("cem-tree".to_owned()),
+            target: contract.pipeline.cemt_target.clone(),
+            options: contract.pipeline.cemt_options.clone(),
+        },
+        subject: formatted_artifact.value,
+        binding: color_binding,
+        artifact: colored_artifact,
+    };
+    let composition = compose_transform_template_encoded_text_artifacts(
+        &[evaluated],
+        &contract.pipeline.writer_insertion_context,
+        None,
+    );
+    diagnostics.extend(composition.diagnostics);
+    ConversionOutputPipelineExecution {
+        output: composition.artifact.map(|artifact| artifact.value),
+        diagnostics,
+    }
+}
+
+fn conversion_cem_tree_format_insertion_context(
+    pipeline: &ConversionOutputPipeline,
+) -> TransformTemplateEncodedArtifactInsertionContext {
+    let mut context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+        &pipeline.cemt_target,
+        Some(TransformTemplateOutputProducedKind::CemTree),
+    );
+    context.formatter_profile = pipeline.cemt_options.formatter_profile.clone();
+    context.mode = Some(pipeline.cemt_options.mode);
+    context.canonical = Some(pipeline.cemt_options.canonical);
+    context.source_map_policy = Some(pipeline.cemt_options.source_map_policy);
+    context
+}
+
+fn conversion_cem_tree_output_function_registry(
+    pipeline: &ConversionOutputPipeline,
+) -> TransformTemplateOutputFunctionRegistry {
+    let mut registry = TransformTemplateOutputFunctionRegistry::new();
+    registry.register(conversion_cem_tree_format_function_descriptor(
+        pipeline
+            .cemt_options
+            .formatter_profile
+            .as_deref()
+            .unwrap_or("cem.format-tree"),
+    ));
+    let mut profiles = BTreeSet::new();
+    profiles.insert("classes".to_owned());
+    profiles.insert("inline-style".to_owned());
+    profiles.insert("none".to_owned());
+    if let Some(profile) = pipeline.cemt_options.color_profile.as_deref() {
+        profiles.insert(profile.to_owned());
+    }
+    for profile in profiles {
+        registry.register(conversion_cem_tree_color_function_descriptor(&profile));
+    }
+    registry
+}
+
+fn conversion_cem_tree_format_function_descriptor(
+    profile: &str,
+) -> TransformTemplateOutputFunctionDescriptor {
+    TransformTemplateOutputFunctionDescriptor {
+        kind: TransformTemplateOutputFunctionKind::Format,
+        owner: Some("cem".to_owned()),
+        name: "cem.format-tree".to_owned(),
+        category: "cem-tree".to_owned(),
+        subject: "cem-ast-node".to_owned(),
+        produces: TransformTemplateOutputProducedKind::CemTree,
+        content_type: CEM_ML_CONTENT_TYPE.to_owned(),
+        schema: CEM_ML_SCHEMA_URI.to_owned(),
+        canonical: true,
+        streamable: true,
+        visibility: TransformTemplateModuleVisibility::Public,
+        implementation: TransformTemplateOutputFunctionImplementation::Cemt,
+        profile: Some(profile.to_owned()),
+        extends: None,
+        capability: None,
+        deterministic: true,
+        trusted: false,
+        lossy: false,
+        fallback: None,
+        params: Vec::new(),
+        body_declared: false,
+    }
+}
+
+fn conversion_cem_tree_color_function_descriptor(
+    profile: &str,
+) -> TransformTemplateOutputFunctionDescriptor {
+    TransformTemplateOutputFunctionDescriptor {
+        kind: TransformTemplateOutputFunctionKind::Color,
+        owner: Some("cem".to_owned()),
+        name: "cem.color-tree".to_owned(),
+        category: "cem-tree".to_owned(),
+        subject: "cem-tree".to_owned(),
+        produces: TransformTemplateOutputProducedKind::CemTree,
+        content_type: CEM_ML_CONTENT_TYPE.to_owned(),
+        schema: CEM_ML_SCHEMA_URI.to_owned(),
+        canonical: false,
+        streamable: true,
+        visibility: TransformTemplateModuleVisibility::Public,
+        implementation: TransformTemplateOutputFunctionImplementation::Cemt,
+        profile: Some(profile.to_owned()),
+        extends: None,
+        capability: None,
+        deterministic: true,
+        trusted: false,
+        lossy: false,
+        fallback: None,
+        params: Vec::new(),
+        body_declared: false,
+    }
+}
+
+fn conversion_parity_fixture_pipeline_diagnostic(
+    descriptor: &ConversionDescriptor,
+    fixture: &ConversionParityFixture,
+    message: String,
+) -> Diagnostic {
+    Diagnostic {
+        code: CONVERSION_PARITY_FIXTURE_EXECUTION_CODE.to_owned(),
+        severity: Severity::Error,
+        message: format!(
+            "converter `{}` could not execute parity fixture `{}` output pipeline: {}",
+            descriptor.id, fixture.id, message
+        ),
+        node: Some(fixture.id.clone()),
+        ..Diagnostic::default()
     }
 }
 

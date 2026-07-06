@@ -6915,14 +6915,6 @@ fn text_composition_artifact_for_evaluated_encode(
             )
         }
         TransformTemplateOutputProducedKind::CemTree => {
-            if let Err(error) = evaluated
-                .artifact
-                .validate_insertion(writer_boundary_context)
-            {
-                return Err(diagnostics_for_evaluated_encode_error(
-                    error, evaluated, uri,
-                ));
-            }
             transform_template_writer_cem_tree_artifact_to_text(
                 &evaluated.artifact,
                 writer_boundary_context,
@@ -7059,9 +7051,10 @@ fn transform_template_writer_cem_tree_artifact_to_text(
     validate_cem_tree_value(&artifact.value)
         .map_err(|message| format!("CEM tree envelope is invalid: {message}"))?;
     validate_cem_tree_writer_boundary(artifact, writer_boundary_context)?;
-    let text = transform_template_cem_tree_value_to_text(&artifact.value)?;
+    let text = transform_template_cem_tree_value_to_text(&artifact.value, writer_boundary_context)?;
 
-    let mut identity = artifact.identity.clone();
+    let mut identity =
+        transform_template_writer_text_identity_from_context(artifact, writer_boundary_context);
     identity.produces = TransformTemplateOutputProducedKind::Text;
     let (source_map, output_spans) = match artifact.identity.source_map_policy {
         TransformTemplateSourceMapPolicy::None => (None, Vec::new()),
@@ -7103,7 +7096,7 @@ fn validate_cem_tree_writer_boundary(
     if let Some(expected) =
         trimmed_optional_str(writer_boundary_context.formatter_profile.as_deref())
     {
-        if formatter_profile != expected {
+        if expected.starts_with("cem.") && formatter_profile != expected {
             return Err(format!(
                 "CEM tree writer expected formatterProfile `{expected}`, got `{formatter_profile}`"
             ));
@@ -7152,6 +7145,60 @@ fn validate_cem_tree_writer_boundary(
     Ok(())
 }
 
+fn transform_template_writer_text_identity_from_context(
+    artifact: &TransformTemplateEncodedArtifact,
+    writer_boundary_context: &TransformTemplateEncodedArtifactInsertionContext,
+) -> TransformTemplateEncodedArtifactIdentity {
+    let mut identity = artifact.identity.clone();
+    if !writer_boundary_context.content_type.trim().is_empty()
+        || !writer_boundary_context.schema.trim().is_empty()
+        || writer_boundary_context.category.is_some()
+    {
+        identity.target = TransformTemplateEncodingTarget {
+            content_type: if writer_boundary_context.content_type.trim().is_empty() {
+                artifact.identity.target.content_type.clone()
+            } else {
+                writer_boundary_context.content_type.clone()
+            },
+            schema: if writer_boundary_context.schema.trim().is_empty() {
+                artifact.identity.target.schema.clone()
+            } else {
+                writer_boundary_context.schema.clone()
+            },
+            category: writer_boundary_context
+                .category
+                .clone()
+                .unwrap_or_else(|| artifact.identity.target.category.clone()),
+            context: writer_boundary_context
+                .context
+                .clone()
+                .or_else(|| artifact.identity.target.context.clone()),
+        };
+    }
+    identity.formatter_profile = writer_boundary_context
+        .formatter_profile
+        .clone()
+        .or_else(|| artifact.identity.formatter_profile.clone());
+    identity.color_profile = writer_boundary_context
+        .color_profile
+        .clone()
+        .or_else(|| artifact.identity.color_profile.clone());
+    identity.color_capability = writer_boundary_context
+        .color_capability
+        .clone()
+        .or_else(|| artifact.identity.color_capability.clone());
+    if let Some(mode) = writer_boundary_context.mode {
+        identity.mode = mode;
+    }
+    if let Some(canonical) = writer_boundary_context.canonical {
+        identity.canonical = canonical;
+    }
+    if let Some(source_map_policy) = writer_boundary_context.source_map_policy {
+        identity.source_map_policy = source_map_policy;
+    }
+    identity
+}
+
 fn trimmed_optional_str(value: Option<&str>) -> Option<&str> {
     value.map(str::trim).filter(|value| !value.is_empty())
 }
@@ -7164,20 +7211,31 @@ fn trimmed_value_string_field<'a>(value: &'a Value, field: &str) -> Option<&'a s
         .filter(|value| !value.is_empty())
 }
 
-fn transform_template_cem_tree_value_to_text(value: &Value) -> Result<String, String> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TransformTemplateCemTreeWriterSyntax {
+    Cem,
+    Html,
+    Xml,
+}
+
+fn transform_template_cem_tree_value_to_text(
+    value: &Value,
+    writer_boundary_context: &TransformTemplateEncodedArtifactInsertionContext,
+) -> Result<String, String> {
+    let syntax = transform_template_cem_tree_writer_syntax(writer_boundary_context);
     let object = value
         .as_object()
         .ok_or_else(|| "CEM tree writer expected object value".to_owned())?;
     if let Some(nodes) = object.get("nodes").and_then(Value::as_array) {
-        return transform_template_cem_tree_nodes_to_text(nodes);
+        return transform_template_cem_tree_nodes_to_text(nodes, syntax);
     }
     if let Some(node) = object.get("node") {
-        return transform_template_cem_tree_node_to_text(node);
+        return transform_template_cem_tree_node_to_text(node, syntax);
     }
     if let Some(root) = object.get("root") {
         return match root {
-            Value::Array(nodes) => transform_template_cem_tree_nodes_to_text(nodes),
-            Value::Object(_) => transform_template_cem_tree_node_to_text(root),
+            Value::Array(nodes) => transform_template_cem_tree_nodes_to_text(nodes, syntax),
+            Value::Object(_) => transform_template_cem_tree_node_to_text(root, syntax),
             _ => Err(format!(
                 "CEM tree writer expected `root` object or array, got {}",
                 json_value_type_name(root)
@@ -7187,18 +7245,58 @@ fn transform_template_cem_tree_value_to_text(value: &Value) -> Result<String, St
     Err("CEM tree writer expected `nodes`, `node`, or `root`".to_owned())
 }
 
-fn transform_template_cem_tree_nodes_to_text(nodes: &[Value]) -> Result<String, String> {
-    nodes
-        .iter()
-        .map(transform_template_cem_tree_node_to_text)
-        .collect::<Result<Vec<_>, _>>()
-        .map(|nodes| nodes.join("\n"))
+fn transform_template_cem_tree_writer_syntax(
+    writer_boundary_context: &TransformTemplateEncodedArtifactInsertionContext,
+) -> TransformTemplateCemTreeWriterSyntax {
+    let content_type = content_type_essence(&writer_boundary_context.content_type);
+    let schema = writer_boundary_context.schema.trim();
+    if content_type == HTML_CONTENT_TYPE || schema == HTML_SCHEMA_URI {
+        TransformTemplateCemTreeWriterSyntax::Html
+    } else if matches!(
+        content_type.as_str(),
+        XML_CONTENT_TYPE | XHTML_CONTENT_TYPE | SVG_CONTENT_TYPE | MATHML_CONTENT_TYPE
+    ) || matches!(
+        schema,
+        XML_SCHEMA_URI | XHTML_SCHEMA_URI | SVG_SCHEMA_URI | MATHML_SCHEMA_URI
+    ) {
+        TransformTemplateCemTreeWriterSyntax::Xml
+    } else {
+        TransformTemplateCemTreeWriterSyntax::Cem
+    }
 }
 
-fn transform_template_cem_tree_node_to_text(node: &Value) -> Result<String, String> {
+fn transform_template_cem_tree_nodes_to_text(
+    nodes: &[Value],
+    syntax: TransformTemplateCemTreeWriterSyntax,
+) -> Result<String, String> {
+    nodes
+        .iter()
+        .map(|node| transform_template_cem_tree_node_to_text(node, syntax))
+        .collect::<Result<Vec<_>, _>>()
+        .map(|nodes| match syntax {
+            TransformTemplateCemTreeWriterSyntax::Cem => nodes.join("\n"),
+            TransformTemplateCemTreeWriterSyntax::Html
+            | TransformTemplateCemTreeWriterSyntax::Xml => nodes.join(""),
+        })
+}
+
+fn transform_template_cem_tree_node_to_text(
+    node: &Value,
+    syntax: TransformTemplateCemTreeWriterSyntax,
+) -> Result<String, String> {
     match node {
-        Value::String(text) => transform_template_encode_cem_content_text(text),
-        Value::Object(fields) => transform_template_cem_tree_object_node_to_text(fields),
+        Value::String(text) => match syntax {
+            TransformTemplateCemTreeWriterSyntax::Cem => {
+                transform_template_encode_cem_content_text(text)
+            }
+            TransformTemplateCemTreeWriterSyntax::Html => {
+                Ok(transform_template_encode_html_text(text))
+            }
+            TransformTemplateCemTreeWriterSyntax::Xml => {
+                Ok(transform_template_encode_xml_text(text))
+            }
+        },
+        Value::Object(fields) => transform_template_cem_tree_object_node_to_text(fields, syntax),
         other => Err(format!(
             "CEM tree writer expected node object or string, got {}",
             json_value_type_name(other)
@@ -7208,6 +7306,44 @@ fn transform_template_cem_tree_node_to_text(node: &Value) -> Result<String, Stri
 
 fn transform_template_cem_tree_object_node_to_text(
     fields: &serde_json::Map<String, Value>,
+    syntax: TransformTemplateCemTreeWriterSyntax,
+) -> Result<String, String> {
+    let kind = fields
+        .get("kind")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .unwrap_or("element");
+    if syntax != TransformTemplateCemTreeWriterSyntax::Cem {
+        return transform_template_cem_tree_markup_node_to_text(fields, syntax);
+    }
+    match kind {
+        "text" | "content" | "string" => {
+            let text = fields
+                .get("value")
+                .or_else(|| fields.get("text"))
+                .or_else(|| fields.get("data"))
+                .and_then(Value::as_str)
+                .ok_or_else(|| {
+                    "CEM text node missing string `value`, `text`, or `data`".to_owned()
+                })?;
+            transform_template_encode_cem_content_text(text)
+        }
+        "whitespace" => Ok(transform_template_cem_tree_node_data(fields).to_owned()),
+        "comment" => Ok(format!(
+            "{{comment @value={}}}",
+            transform_template_encode_cem_attribute_value(
+                transform_template_cem_tree_node_data(fields),
+                "CEM comment value"
+            )?
+        )),
+        "attribute" | "attr" => transform_template_cem_tree_attribute_to_text(fields),
+        _ => transform_template_cem_tree_element_to_text(fields),
+    }
+}
+
+fn transform_template_cem_tree_markup_node_to_text(
+    fields: &serde_json::Map<String, Value>,
+    syntax: TransformTemplateCemTreeWriterSyntax,
 ) -> Result<String, String> {
     let kind = fields
         .get("kind")
@@ -7216,16 +7352,95 @@ fn transform_template_cem_tree_object_node_to_text(
         .unwrap_or("element");
     match kind {
         "text" | "content" | "string" => {
-            let text = fields
-                .get("value")
-                .or_else(|| fields.get("text"))
-                .and_then(Value::as_str)
-                .ok_or_else(|| "CEM text node missing string `value` or `text`".to_owned())?;
-            transform_template_encode_cem_content_text(text)
+            let text = transform_template_cem_tree_node_data(fields);
+            Ok(match syntax {
+                TransformTemplateCemTreeWriterSyntax::Html => {
+                    transform_template_encode_html_text(text)
+                }
+                TransformTemplateCemTreeWriterSyntax::Xml => {
+                    transform_template_encode_xml_text(text)
+                }
+                TransformTemplateCemTreeWriterSyntax::Cem => unreachable!(),
+            })
         }
-        "attribute" | "attr" => transform_template_cem_tree_attribute_to_text(fields),
-        _ => transform_template_cem_tree_element_to_text(fields),
+        "whitespace" => Ok(transform_template_cem_tree_node_data(fields).to_owned()),
+        "comment" => Ok(format!(
+            "<!--{}-->",
+            transform_template_cem_tree_node_data(fields)
+        )),
+        "cdata" if syntax == TransformTemplateCemTreeWriterSyntax::Xml => Ok(format!(
+            "<![CDATA[{}]]>",
+            transform_template_cem_tree_node_data(fields)
+        )),
+        "processing-instruction" if syntax == TransformTemplateCemTreeWriterSyntax::Xml => {
+            let target = fields
+                .get("target")
+                .or_else(|| fields.get("name"))
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|target| !target.is_empty())
+                .ok_or_else(|| "XML processing-instruction node missing target".to_owned())?;
+            let data = transform_template_cem_tree_node_data(fields);
+            if data.is_empty() {
+                Ok(format!("<?{target}?>"))
+            } else {
+                Ok(format!("<?{target} {data}?>"))
+            }
+        }
+        "raw-text" if syntax == TransformTemplateCemTreeWriterSyntax::Html => {
+            Ok(transform_template_cem_tree_node_data(fields).to_owned())
+        }
+        "attribute" | "attr" => Ok(String::new()),
+        _ => transform_template_cem_tree_markup_element_to_text(fields, syntax),
     }
+}
+
+fn transform_template_cem_tree_markup_element_to_text(
+    fields: &serde_json::Map<String, Value>,
+    syntax: TransformTemplateCemTreeWriterSyntax,
+) -> Result<String, String> {
+    let name = transform_template_cem_tree_markup_name(fields)?;
+    let attributes =
+        transform_template_cem_tree_markup_attributes_to_text(fields.get("attributes"), syntax)?;
+    let children = transform_template_cem_tree_children_to_text(fields, syntax)?;
+    let mut output = String::new();
+    output.push('<');
+    output.push_str(&name);
+    for attribute in attributes {
+        if !attribute.is_empty() {
+            output.push(' ');
+            output.push_str(&attribute);
+        }
+    }
+    output.push('>');
+    output.push_str(&children.join(""));
+    output.push_str("</");
+    output.push_str(&name);
+    output.push('>');
+    Ok(output)
+}
+
+fn transform_template_cem_tree_markup_name(
+    fields: &serde_json::Map<String, Value>,
+) -> Result<String, String> {
+    let local_name = fields
+        .get("name")
+        .or_else(|| fields.get("localName"))
+        .or_else(|| fields.get("tag"))
+        .or_else(|| fields.get("tagName"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "CEM tree element missing markup name".to_owned())?;
+    let namespace = fields
+        .get("namespace")
+        .or_else(|| fields.get("prefix"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    Ok(namespace
+        .map(|namespace| format!("{namespace}:{local_name}"))
+        .unwrap_or_else(|| local_name.to_owned()))
 }
 
 fn transform_template_cem_tree_element_to_text(
@@ -7242,7 +7457,10 @@ fn transform_template_cem_tree_element_to_text(
         .unwrap_or("node");
     let name = transform_template_encode_cem_name(raw_name)?;
     let attributes = transform_template_cem_tree_attributes_to_text(fields.get("attributes"))?;
-    let children = transform_template_cem_tree_children_to_text(fields)?;
+    let children = transform_template_cem_tree_children_to_text(
+        fields,
+        TransformTemplateCemTreeWriterSyntax::Cem,
+    )?;
 
     let mut output = String::new();
     output.push('{');
@@ -7295,6 +7513,113 @@ fn transform_template_cem_tree_attributes_to_text(
     }
 }
 
+fn transform_template_cem_tree_node_data(fields: &serde_json::Map<String, Value>) -> &str {
+    fields
+        .get("value")
+        .or_else(|| fields.get("text"))
+        .or_else(|| fields.get("data"))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+}
+
+fn transform_template_cem_tree_markup_attributes_to_text(
+    attributes: Option<&Value>,
+    syntax: TransformTemplateCemTreeWriterSyntax,
+) -> Result<Vec<String>, String> {
+    let Some(attributes) = attributes else {
+        return Ok(Vec::new());
+    };
+    match attributes {
+        Value::Array(items) => items
+            .iter()
+            .map(|item| {
+                item.as_object()
+                    .ok_or_else(|| {
+                        format!(
+                            "CEM tree writer expected attribute object, got {}",
+                            json_value_type_name(item)
+                        )
+                    })
+                    .and_then(|fields| {
+                        transform_template_cem_tree_markup_attribute_to_text(fields, syntax)
+                    })
+            })
+            .collect(),
+        Value::Object(map) => {
+            let mut keys = map.keys().collect::<Vec<_>>();
+            keys.sort();
+            keys.into_iter()
+                .map(|key| {
+                    transform_template_cem_tree_markup_attribute_pair_to_text(
+                        key,
+                        map.get(key).unwrap(),
+                        syntax,
+                    )
+                })
+                .collect()
+        }
+        other => Err(format!(
+            "CEM tree writer expected `attributes` array or object, got {}",
+            json_value_type_name(other)
+        )),
+    }
+}
+
+fn transform_template_cem_tree_markup_attribute_to_text(
+    fields: &serde_json::Map<String, Value>,
+    syntax: TransformTemplateCemTreeWriterSyntax,
+) -> Result<String, String> {
+    let name = transform_template_cem_tree_markup_name(fields)?;
+    let value = fields
+        .get("value")
+        .or_else(|| fields.get("text"))
+        .or_else(|| fields.get("data"));
+    transform_template_cem_tree_markup_attribute_pair_to_text(
+        &name,
+        value.unwrap_or(&Value::Null),
+        syntax,
+    )
+}
+
+fn transform_template_cem_tree_markup_attribute_pair_to_text(
+    name: &str,
+    value: &Value,
+    syntax: TransformTemplateCemTreeWriterSyntax,
+) -> Result<String, String> {
+    match (syntax, value) {
+        (TransformTemplateCemTreeWriterSyntax::Html, Value::Null)
+        | (TransformTemplateCemTreeWriterSyntax::Html, Value::Bool(true)) => Ok(name.to_owned()),
+        _ => {
+            let value = transform_template_cem_tree_markup_attribute_value(value)?;
+            Ok(format!(
+                "{name}=\"{}\"",
+                match syntax {
+                    TransformTemplateCemTreeWriterSyntax::Html => {
+                        transform_template_encode_html_attribute(&value)
+                    }
+                    TransformTemplateCemTreeWriterSyntax::Xml => {
+                        transform_template_encode_xml_attribute(&value)
+                    }
+                    TransformTemplateCemTreeWriterSyntax::Cem => unreachable!(),
+                }
+            ))
+        }
+    }
+}
+
+fn transform_template_cem_tree_markup_attribute_value(value: &Value) -> Result<String, String> {
+    match value {
+        Value::Null => Ok(String::new()),
+        Value::String(text) => Ok(text.clone()),
+        Value::Bool(value) => Ok(value.to_string()),
+        Value::Number(value) => Ok(value.to_string()),
+        other => Err(format!(
+            "CEM tree writer expected scalar markup attribute value, got {}",
+            json_value_type_name(other)
+        )),
+    }
+}
+
 fn transform_template_cem_tree_attribute_to_text(
     fields: &serde_json::Map<String, Value>,
 ) -> Result<String, String> {
@@ -7341,6 +7666,7 @@ fn transform_template_cem_tree_scalar_to_attribute_value(value: &Value) -> Resul
 
 fn transform_template_cem_tree_children_to_text(
     fields: &serde_json::Map<String, Value>,
+    syntax: TransformTemplateCemTreeWriterSyntax,
 ) -> Result<Vec<String>, String> {
     let Some(children) = fields
         .get("children")
@@ -7352,10 +7678,10 @@ fn transform_template_cem_tree_children_to_text(
     match children {
         Value::Array(items) => items
             .iter()
-            .map(transform_template_cem_tree_node_to_text)
+            .map(|child| transform_template_cem_tree_node_to_text(child, syntax))
             .collect(),
         Value::Object(_) | Value::String(_) => {
-            transform_template_cem_tree_node_to_text(children).map(|child| vec![child])
+            transform_template_cem_tree_node_to_text(children, syntax).map(|child| vec![child])
         }
         other => Err(format!(
             "CEM tree writer expected children array, object, or string, got {}",
@@ -17041,6 +17367,54 @@ mod tests {
         );
         assert!(artifact.source_map.is_some());
         assert_eq!(artifact.output_spans.len(), 1);
+    }
+
+    #[test]
+    fn encoded_text_artifact_composition_writes_colored_cem_tree_as_html() {
+        let evaluated = evaluated_colored_cem_tree("body");
+        let mut context = TransformTemplateEncodedArtifactInsertionContext::new(
+            HTML_CONTENT_TYPE,
+            HTML_SCHEMA_URI,
+        )
+        .with_category("html-document")
+        .with_produces(TransformTemplateOutputProducedKind::Text);
+        context.formatter_profile = Some("canonical".to_owned());
+        context.color_profile = Some("css-custom-properties".to_owned());
+        context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+        context.canonical = Some(true);
+        context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+
+        let response = compose_transform_template_encoded_text_artifacts(
+            &[evaluated],
+            &context,
+            Some("templates/runtime-encoding.cemt"),
+        );
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        let artifact = response.artifact.expect("CEM tree composes to HTML");
+        assert_eq!(
+            artifact.value,
+            Value::String("<card tone=\"info\">Ready</card>".to_owned())
+        );
+        assert_eq!(
+            artifact.identity.produces,
+            TransformTemplateOutputProducedKind::Text
+        );
+        assert_eq!(artifact.identity.target.content_type, HTML_CONTENT_TYPE);
+        assert_eq!(artifact.identity.target.schema, HTML_SCHEMA_URI);
+        assert_eq!(artifact.identity.target.category, "html-document");
+        assert_eq!(
+            artifact.identity.formatter_profile.as_deref(),
+            Some("canonical")
+        );
+        assert_eq!(
+            artifact.identity.color_profile.as_deref(),
+            Some("css-custom-properties")
+        );
     }
 
     #[test]
