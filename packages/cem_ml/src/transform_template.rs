@@ -4878,6 +4878,11 @@ fn transform_template_apply_cem_tree_color_to_node(
             );
         }
         fields.insert("colorRole".to_owned(), Value::String(role));
+        if let Some(writer_attributes) =
+            transform_template_cem_tree_color_writer_attributes(profile, fields)
+        {
+            transform_template_merge_cem_tree_color_writer_attributes(fields, writer_attributes);
+        }
     }
 
     for field in ["attributes", "children", "slots", "nodes", "node", "root"] {
@@ -4911,6 +4916,104 @@ fn transform_template_cem_tree_node_color_role(fields: &serde_json::Map<String, 
         _ => "syntax.token",
     }
     .to_owned()
+}
+
+fn transform_template_cem_tree_color_writer_attributes(
+    profile: &TransformTemplateColorOutputProfile,
+    fields: &serde_json::Map<String, Value>,
+) -> Option<serde_json::Map<String, Value>> {
+    if profile.output != TransformTemplateColorOutputKind::Html || profile.no_color {
+        return None;
+    }
+
+    let role = fields.get("colorRole")?.as_str()?;
+    let class_role = transform_template_color_role_class(role);
+    let mut attributes = serde_json::Map::new();
+    attributes.insert("data-role".to_owned(), Value::String(role.to_owned()));
+
+    match profile.html_mode {
+        TransformTemplateHtmlColorMode::Classes => {
+            attributes.insert(
+                "class".to_owned(),
+                Value::String(format!("cem-color cem-color-{class_role}")),
+            );
+        }
+        TransformTemplateHtmlColorMode::InlineStyle => {
+            attributes.insert("class".to_owned(), Value::String("cem-color".to_owned()));
+            attributes.insert(
+                "style".to_owned(),
+                Value::String(transform_template_html_inline_style_for_role(role)),
+            );
+        }
+        TransformTemplateHtmlColorMode::CssCustomProperties => {
+            attributes.insert(
+                "class".to_owned(),
+                Value::String(format!("cem-color cem-color-{class_role}")),
+            );
+            attributes.insert(
+                "style".to_owned(),
+                Value::String(transform_template_html_css_var_style_for_role(
+                    role,
+                    &class_role,
+                )),
+            );
+        }
+    }
+
+    Some(attributes)
+}
+
+fn transform_template_merge_cem_tree_color_writer_attributes(
+    fields: &mut serde_json::Map<String, Value>,
+    attributes: serde_json::Map<String, Value>,
+) {
+    let writer_attributes = fields
+        .entry("writerAttributes".to_owned())
+        .or_insert_with(|| Value::Object(serde_json::Map::new()));
+    if let Value::Object(writer_attributes) = writer_attributes {
+        for (name, value) in attributes {
+            if let Some(existing) = writer_attributes.get_mut(&name) {
+                match (name.as_str(), existing, value) {
+                    ("class", Value::String(existing), Value::String(generated)) => {
+                        transform_template_merge_space_separated_attribute(existing, &generated);
+                    }
+                    ("style", Value::String(existing), Value::String(generated)) => {
+                        transform_template_merge_css_declarations(existing, &generated);
+                    }
+                    (_, existing, value) => {
+                        *existing = value;
+                    }
+                }
+            } else {
+                writer_attributes.insert(name, value);
+            }
+        }
+    }
+}
+
+fn transform_template_merge_space_separated_attribute(existing: &mut String, generated: &str) {
+    for token in generated.split_whitespace() {
+        if !existing
+            .split_whitespace()
+            .any(|candidate| candidate == token)
+        {
+            if !existing.trim().is_empty() {
+                existing.push(' ');
+            }
+            existing.push_str(token);
+        }
+    }
+}
+
+fn transform_template_merge_css_declarations(existing: &mut String, generated: &str) {
+    let existing_trimmed = existing.trim_end();
+    if !existing_trimmed.is_empty() && !existing_trimmed.ends_with(';') {
+        existing.push(';');
+    }
+    if !existing.trim().is_empty() {
+        existing.push(' ');
+    }
+    existing.push_str(generated);
 }
 
 fn builtin_cemt_text_encoder(
@@ -7400,8 +7503,7 @@ fn transform_template_cem_tree_markup_element_to_text(
     syntax: TransformTemplateCemTreeWriterSyntax,
 ) -> Result<String, String> {
     let name = transform_template_cem_tree_markup_name(fields)?;
-    let attributes =
-        transform_template_cem_tree_markup_attributes_to_text(fields.get("attributes"), syntax)?;
+    let attributes = transform_template_cem_tree_markup_element_attributes_to_text(fields, syntax)?;
     let children = transform_template_cem_tree_children_to_text(fields, syntax)?;
     let mut output = String::new();
     output.push('<');
@@ -7418,6 +7520,48 @@ fn transform_template_cem_tree_markup_element_to_text(
     output.push_str(&name);
     output.push('>');
     Ok(output)
+}
+
+fn transform_template_cem_tree_markup_element_attributes_to_text(
+    fields: &serde_json::Map<String, Value>,
+    syntax: TransformTemplateCemTreeWriterSyntax,
+) -> Result<Vec<String>, String> {
+    let mut entries =
+        transform_template_cem_tree_markup_attribute_entries(fields.get("attributes"))?;
+    for (name, value) in
+        transform_template_cem_tree_markup_attribute_entries(fields.get("writerAttributes"))?
+    {
+        transform_template_merge_cem_tree_markup_attribute(&mut entries, name, value);
+    }
+    entries
+        .into_iter()
+        .map(|(name, value)| {
+            transform_template_cem_tree_markup_attribute_pair_to_text(&name, &value, syntax)
+        })
+        .collect()
+}
+
+fn transform_template_merge_cem_tree_markup_attribute(
+    entries: &mut Vec<(String, Value)>,
+    name: String,
+    value: Value,
+) {
+    let Some((_, existing)) = entries.iter_mut().find(|(candidate, _)| candidate == &name) else {
+        entries.push((name, value));
+        return;
+    };
+
+    match (name.as_str(), existing, value) {
+        ("class", Value::String(existing), Value::String(generated)) => {
+            transform_template_merge_space_separated_attribute(existing, &generated);
+        }
+        ("style", Value::String(existing), Value::String(generated)) => {
+            transform_template_merge_css_declarations(existing, &generated);
+        }
+        (_, existing, value) => {
+            *existing = value;
+        }
+    }
 }
 
 fn transform_template_cem_tree_markup_name(
@@ -7522,10 +7666,9 @@ fn transform_template_cem_tree_node_data(fields: &serde_json::Map<String, Value>
         .unwrap_or_default()
 }
 
-fn transform_template_cem_tree_markup_attributes_to_text(
+fn transform_template_cem_tree_markup_attribute_entries(
     attributes: Option<&Value>,
-    syntax: TransformTemplateCemTreeWriterSyntax,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<(String, Value)>, String> {
     let Some(attributes) = attributes else {
         return Ok(Vec::new());
     };
@@ -7540,22 +7683,14 @@ fn transform_template_cem_tree_markup_attributes_to_text(
                             json_value_type_name(item)
                         )
                     })
-                    .and_then(|fields| {
-                        transform_template_cem_tree_markup_attribute_to_text(fields, syntax)
-                    })
+                    .and_then(transform_template_cem_tree_markup_attribute_entry)
             })
             .collect(),
         Value::Object(map) => {
             let mut keys = map.keys().collect::<Vec<_>>();
             keys.sort();
             keys.into_iter()
-                .map(|key| {
-                    transform_template_cem_tree_markup_attribute_pair_to_text(
-                        key,
-                        map.get(key).unwrap(),
-                        syntax,
-                    )
-                })
+                .map(|key| Ok((key.to_owned(), map.get(key).unwrap().clone())))
                 .collect()
         }
         other => Err(format!(
@@ -7565,20 +7700,15 @@ fn transform_template_cem_tree_markup_attributes_to_text(
     }
 }
 
-fn transform_template_cem_tree_markup_attribute_to_text(
+fn transform_template_cem_tree_markup_attribute_entry(
     fields: &serde_json::Map<String, Value>,
-    syntax: TransformTemplateCemTreeWriterSyntax,
-) -> Result<String, String> {
+) -> Result<(String, Value), String> {
     let name = transform_template_cem_tree_markup_name(fields)?;
     let value = fields
         .get("value")
         .or_else(|| fields.get("text"))
         .or_else(|| fields.get("data"));
-    transform_template_cem_tree_markup_attribute_pair_to_text(
-        &name,
-        value.unwrap_or(&Value::Null),
-        syntax,
-    )
+    Ok((name, value.cloned().unwrap_or(Value::Null)))
 }
 
 fn transform_template_cem_tree_markup_attribute_pair_to_text(
@@ -11866,7 +11996,12 @@ mod tests {
                 "name": "card",
                 "attributes": [{"kind": "attribute", "name": "tone", "value": "info"}],
                 "children": [{"kind": "text", "value": "Ready"}],
-                "style": {"colorRole": "syntax.name", "colorProfile": "css-custom-properties"}
+                "style": {"colorRole": "syntax.name", "colorProfile": "css-custom-properties"},
+                "writerAttributes": {
+                    "class": "cem-color cem-color-syntax-name",
+                    "data-role": "syntax.name",
+                    "style": "color: var(--cem-color-syntax-name, #087990)"
+                }
             }]
         });
         let mut artifact = TransformTemplateEncodedArtifact::new(identity.clone(), value);
@@ -15346,6 +15481,14 @@ mod tests {
         assert_eq!(colored["colorProfile"], "css-custom-properties");
         assert_eq!(colored["nodes"][0]["style"]["colorRole"], "syntax.name");
         assert_eq!(
+            colored["nodes"][0]["writerAttributes"]["class"],
+            "cem-color cem-color-syntax-name"
+        );
+        assert_eq!(
+            colored["nodes"][0]["writerAttributes"]["data-role"],
+            "syntax.name"
+        );
+        assert_eq!(
             colored["nodes"][0]["attributes"][0]["style"]["colorRole"],
             "syntax.attribute"
         );
@@ -17398,7 +17541,10 @@ mod tests {
         let artifact = response.artifact.expect("CEM tree composes to HTML");
         assert_eq!(
             artifact.value,
-            Value::String("<card tone=\"info\">Ready</card>".to_owned())
+            Value::String(
+                "<card tone=\"info\" class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\" style=\"color: var(--cem-color-syntax-name, #087990)\">Ready</card>"
+                    .to_owned()
+            )
         );
         assert_eq!(
             artifact.identity.produces,

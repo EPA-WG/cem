@@ -9001,7 +9001,10 @@ mod tests {
         let resp = RealCemMlEngine::new().convert(req).unwrap();
 
         assert_eq!(resp.primary["kind"], "html");
-        assert_eq!(resp.primary["content"], "<cemt-ready>document</cemt-ready>");
+        assert_eq!(
+            resp.primary["content"],
+            "<cemt-ready class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\">document</cemt-ready>"
+        );
         assert_ne!(resp.primary["sourceMap"], Value::Null);
         assert_eq!(
             resp.primary["outputSpans"]

@@ -3842,6 +3842,8 @@ fn append_conversion_parse_projection_event(
                     _ => None,
                 })
                 .collect::<Vec<_>>();
+            projected_attributes =
+                conversion_normalize_parse_projection_attributes(projected_attributes);
             projected_attributes.sort();
             projection.push(ConversionParseProjectionEvent::Open {
                 name: name.clone(),
@@ -3874,6 +3876,66 @@ fn append_conversion_parse_projection_event(
         | CemAstNode::Attribute { .. }
         | CemAstNode::Error { .. } => {}
     }
+}
+
+fn conversion_normalize_parse_projection_attributes(
+    attributes: Vec<(String, Option<String>)>,
+) -> Vec<(String, Option<String>)> {
+    let has_cem_color_class = attributes.iter().any(|(name, value)| {
+        name == "class"
+            && value
+                .as_deref()
+                .is_some_and(conversion_class_contains_cem_color_marker)
+    });
+
+    attributes
+        .into_iter()
+        .filter_map(|(name, value)| match name.as_str() {
+            "class" => {
+                conversion_normalize_parse_projection_class(value).map(|value| (name, Some(value)))
+            }
+            "data-role"
+                if has_cem_color_class
+                    && value
+                        .as_deref()
+                        .is_some_and(conversion_is_cem_color_role_value) =>
+            {
+                None
+            }
+            "style"
+                if has_cem_color_class
+                    && value.as_deref().is_some_and(|value| {
+                        value.contains("--cem-color-") || value.contains("cem-color-")
+                    }) =>
+            {
+                None
+            }
+            _ => Some((name, value)),
+        })
+        .collect()
+}
+
+fn conversion_class_contains_cem_color_marker(value: &str) -> bool {
+    value
+        .split_whitespace()
+        .any(|token| token == "cem-color" || token.starts_with("cem-color-"))
+}
+
+fn conversion_normalize_parse_projection_class(value: Option<String>) -> Option<String> {
+    let value = value?;
+    let class = value
+        .split_whitespace()
+        .filter(|token| *token != "cem-color" && !token.starts_with("cem-color-"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    (!class.is_empty()).then_some(class)
+}
+
+fn conversion_is_cem_color_role_value(value: &str) -> bool {
+    matches!(
+        value.split_once('.').map(|(family, _)| family),
+        Some("diagnostic" | "diff" | "source" | "status" | "syntax")
+    )
 }
 
 fn conversion_normalize_character_references(value: &str) -> String {
