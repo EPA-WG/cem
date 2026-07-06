@@ -3842,6 +3842,12 @@ fn append_conversion_parse_projection_event(
                     _ => None,
                 })
                 .collect::<Vec<_>>();
+            if conversion_is_cem_color_wrapper_element(&name, &projected_attributes) {
+                for child in children {
+                    append_conversion_parse_projection_event(document, *child, projection);
+                }
+                return;
+            }
             projected_attributes =
                 conversion_normalize_parse_projection_attributes(projected_attributes);
             projected_attributes.sort();
@@ -3902,6 +3908,7 @@ fn conversion_normalize_parse_projection_attributes(
             {
                 None
             }
+            "data-cem-attribute-roles" if has_cem_color_class => None,
             "style"
                 if has_cem_color_class
                     && value.as_deref().is_some_and(|value| {
@@ -3913,6 +3920,25 @@ fn conversion_normalize_parse_projection_attributes(
             _ => Some((name, value)),
         })
         .collect()
+}
+
+fn conversion_is_cem_color_wrapper_element(
+    name: &str,
+    attributes: &[(String, Option<String>)],
+) -> bool {
+    name == "span"
+        && attributes.iter().any(|(name, value)| {
+            name == "class"
+                && value
+                    .as_deref()
+                    .is_some_and(conversion_class_contains_cem_color_marker)
+        })
+        && attributes.iter().any(|(name, value)| {
+            name == "data-role"
+                && value
+                    .as_deref()
+                    .is_some_and(conversion_is_cem_color_role_value)
+        })
 }
 
 fn conversion_class_contains_cem_color_marker(value: &str) -> bool {

@@ -9003,7 +9003,7 @@ mod tests {
         assert_eq!(resp.primary["kind"], "html");
         assert_eq!(
             resp.primary["content"],
-            "<cemt-ready class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\">document</cemt-ready>"
+            "<cemt-ready class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\">document</span></cemt-ready>"
         );
         assert_ne!(resp.primary["sourceMap"], Value::Null);
         assert_eq!(

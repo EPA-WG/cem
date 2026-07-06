@@ -4855,6 +4855,11 @@ fn transform_template_apply_cem_tree_color_to_value(
         }
         Value::Object(fields) => {
             transform_template_apply_cem_tree_color_to_node(fields, profile, color_profile);
+            if let Some(wrapper) =
+                transform_template_cem_tree_color_text_wrapper(fields, profile, color_profile)
+            {
+                *value = wrapper;
+            }
         }
         _ => {}
     }
@@ -4889,6 +4894,11 @@ fn transform_template_apply_cem_tree_color_to_node(
         if let Some(value) = fields.get_mut(field) {
             transform_template_apply_cem_tree_color_to_value(value, profile, color_profile);
         }
+    }
+    if let Some(writer_attributes) =
+        transform_template_cem_tree_color_attribute_writer_attributes(profile, fields)
+    {
+        transform_template_merge_cem_tree_color_writer_attributes(fields, writer_attributes);
     }
 }
 
@@ -4927,6 +4937,17 @@ fn transform_template_cem_tree_color_writer_attributes(
     }
 
     let role = fields.get("colorRole")?.as_str()?;
+    transform_template_cem_tree_color_writer_attributes_for_role(profile, role)
+}
+
+fn transform_template_cem_tree_color_writer_attributes_for_role(
+    profile: &TransformTemplateColorOutputProfile,
+    role: &str,
+) -> Option<serde_json::Map<String, Value>> {
+    if profile.output != TransformTemplateColorOutputKind::Html || profile.no_color {
+        return None;
+    }
+
     let class_role = transform_template_color_role_class(role);
     let mut attributes = serde_json::Map::new();
     attributes.insert("data-role".to_owned(), Value::String(role.to_owned()));
@@ -4961,6 +4982,141 @@ fn transform_template_cem_tree_color_writer_attributes(
     }
 
     Some(attributes)
+}
+
+fn transform_template_cem_tree_color_text_wrapper(
+    fields: &serde_json::Map<String, Value>,
+    profile: &TransformTemplateColorOutputProfile,
+    color_profile: &str,
+) -> Option<Value> {
+    if profile.output != TransformTemplateColorOutputKind::Html || profile.no_color {
+        return None;
+    }
+    if !matches!(
+        fields.get("kind").and_then(Value::as_str),
+        Some("text" | "content" | "string")
+    ) {
+        return None;
+    }
+
+    let role = fields.get("colorRole")?.as_str()?;
+    let writer_attributes =
+        transform_template_cem_tree_color_writer_attributes_for_role(profile, role)?;
+    let mut style = serde_json::Map::new();
+    style.insert("colorRole".to_owned(), Value::String(role.to_owned()));
+    style.insert(
+        "colorProfile".to_owned(),
+        Value::String(color_profile.to_owned()),
+    );
+
+    let mut wrapper = serde_json::Map::new();
+    wrapper.insert("kind".to_owned(), Value::String("element".to_owned()));
+    wrapper.insert("name".to_owned(), Value::String("span".to_owned()));
+    wrapper.insert("colorWrapper".to_owned(), Value::Bool(true));
+    wrapper.insert("colorRole".to_owned(), Value::String(role.to_owned()));
+    wrapper.insert("style".to_owned(), Value::Object(style));
+    wrapper.insert(
+        "writerAttributes".to_owned(),
+        Value::Object(writer_attributes),
+    );
+    wrapper.insert(
+        "children".to_owned(),
+        Value::Array(vec![Value::Object(fields.clone())]),
+    );
+    Some(Value::Object(wrapper))
+}
+
+fn transform_template_cem_tree_color_attribute_writer_attributes(
+    profile: &TransformTemplateColorOutputProfile,
+    fields: &serde_json::Map<String, Value>,
+) -> Option<serde_json::Map<String, Value>> {
+    if profile.output != TransformTemplateColorOutputKind::Html || profile.no_color {
+        return None;
+    }
+    if !matches!(
+        fields.get("kind").and_then(Value::as_str),
+        Some("element" | "node" | "root") | None
+    ) {
+        return None;
+    }
+
+    let attributes = fields.get("attributes")?;
+    let roles = transform_template_cem_tree_color_attribute_roles(attributes, profile);
+    if roles.is_empty() {
+        return None;
+    }
+
+    let mut writer_attributes = serde_json::Map::new();
+    writer_attributes.insert(
+        "class".to_owned(),
+        Value::String("cem-color-has-attributes".to_owned()),
+    );
+    writer_attributes.insert(
+        "data-cem-attribute-roles".to_owned(),
+        Value::String(roles.join(" ")),
+    );
+    Some(writer_attributes)
+}
+
+fn transform_template_cem_tree_color_attribute_roles(
+    attributes: &Value,
+    profile: &TransformTemplateColorOutputProfile,
+) -> Vec<String> {
+    let mut roles = Vec::new();
+    match attributes {
+        Value::Array(items) => {
+            for item in items {
+                let Some(fields) = item.as_object() else {
+                    continue;
+                };
+                let Some(name) = transform_template_cem_tree_color_attribute_name(fields) else {
+                    continue;
+                };
+                let role = fields
+                    .get("colorRole")
+                    .or_else(|| fields.get("role"))
+                    .and_then(Value::as_str)
+                    .map(transform_template_canonical_color_role)
+                    .unwrap_or_else(|| "syntax.attribute".to_owned());
+                if profile.supports_role(&role) {
+                    roles.push(format!("{name}:{role}"));
+                }
+            }
+        }
+        Value::Object(map) => {
+            if profile.supports_role("syntax.attribute") {
+                for name in map.keys() {
+                    roles.push(format!("{name}:syntax.attribute"));
+                }
+            }
+        }
+        _ => {}
+    }
+    roles.sort();
+    roles.dedup();
+    roles
+}
+
+fn transform_template_cem_tree_color_attribute_name(
+    fields: &serde_json::Map<String, Value>,
+) -> Option<String> {
+    let local_name = fields
+        .get("name")
+        .or_else(|| fields.get("localName"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())?;
+    let namespace = fields
+        .get("namespace")
+        .or_else(|| fields.get("prefix"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    Some(
+        namespace
+            .map(|namespace| format!("{namespace}:{local_name}"))
+            .unwrap_or_else(|| local_name.to_owned()),
+    )
 }
 
 fn transform_template_merge_cem_tree_color_writer_attributes(
@@ -11995,10 +12151,33 @@ mod tests {
                 "kind": "element",
                 "name": "card",
                 "attributes": [{"kind": "attribute", "name": "tone", "value": "info"}],
-                "children": [{"kind": "text", "value": "Ready"}],
+                "children": [{
+                    "kind": "element",
+                    "name": "span",
+                    "colorWrapper": true,
+                    "colorRole": "syntax.string",
+                    "style": {"colorRole": "syntax.string", "colorProfile": "css-custom-properties"},
+                    "writerAttributes": {
+                        "class": "cem-color cem-color-syntax-string",
+                        "data-role": "syntax.string",
+                        "style": "color: var(--cem-color-syntax-string, #067647)"
+                    },
+                    "children": [{
+                        "kind": "text",
+                        "value": "Ready",
+                        "colorRole": "syntax.string",
+                        "style": {"colorRole": "syntax.string", "colorProfile": "css-custom-properties"},
+                        "writerAttributes": {
+                            "class": "cem-color cem-color-syntax-string",
+                            "data-role": "syntax.string",
+                            "style": "color: var(--cem-color-syntax-string, #067647)"
+                        }
+                    }]
+                }],
                 "style": {"colorRole": "syntax.name", "colorProfile": "css-custom-properties"},
                 "writerAttributes": {
-                    "class": "cem-color cem-color-syntax-name",
+                    "class": "cem-color cem-color-syntax-name cem-color-has-attributes",
+                    "data-cem-attribute-roles": "tone:syntax.attribute",
                     "data-role": "syntax.name",
                     "style": "color: var(--cem-color-syntax-name, #087990)"
                 }
@@ -15482,7 +15661,11 @@ mod tests {
         assert_eq!(colored["nodes"][0]["style"]["colorRole"], "syntax.name");
         assert_eq!(
             colored["nodes"][0]["writerAttributes"]["class"],
-            "cem-color cem-color-syntax-name"
+            "cem-color cem-color-syntax-name cem-color-has-attributes"
+        );
+        assert_eq!(
+            colored["nodes"][0]["writerAttributes"]["data-cem-attribute-roles"],
+            "tone:syntax.attribute"
         );
         assert_eq!(
             colored["nodes"][0]["writerAttributes"]["data-role"],
@@ -15492,8 +15675,15 @@ mod tests {
             colored["nodes"][0]["attributes"][0]["style"]["colorRole"],
             "syntax.attribute"
         );
+        assert_eq!(colored["nodes"][0]["children"][0]["kind"], "element");
+        assert_eq!(colored["nodes"][0]["children"][0]["name"], "span");
+        assert_eq!(colored["nodes"][0]["children"][0]["colorWrapper"], true);
         assert_eq!(
-            colored["nodes"][0]["children"][0]["style"]["colorRole"],
+            colored["nodes"][0]["children"][0]["writerAttributes"]["class"],
+            "cem-color cem-color-syntax-string"
+        );
+        assert_eq!(
+            colored["nodes"][0]["children"][0]["children"][0]["style"]["colorRole"],
             "syntax.string"
         );
     }
@@ -17506,7 +17696,7 @@ mod tests {
         );
         assert_eq!(
             artifact.value,
-            Value::String("{card @tone=info | Ready}".to_owned())
+            Value::String("{card @tone=info | {span | Ready}}".to_owned())
         );
         assert!(artifact.source_map.is_some());
         assert_eq!(artifact.output_spans.len(), 1);
@@ -17542,7 +17732,7 @@ mod tests {
         assert_eq!(
             artifact.value,
             Value::String(
-                "<card tone=\"info\" class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\" style=\"color: var(--cem-color-syntax-name, #087990)\">Ready</card>"
+                "<card tone=\"info\" class=\"cem-color cem-color-syntax-name cem-color-has-attributes\" data-cem-attribute-roles=\"tone:syntax.attribute\" data-role=\"syntax.name\" style=\"color: var(--cem-color-syntax-name, #087990)\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\" style=\"color: var(--cem-color-syntax-string, #067647)\">Ready</span></card>"
                     .to_owned()
             )
         );
