@@ -4686,6 +4686,7 @@ fn builtin_cem_tree_formatter(
 ) -> Result<Value, String> {
     validate_builtin_cem_tree_formatter_binding(binding)?;
     let nodes = transform_template_cem_tree_nodes(subject)?;
+    let nodes = transform_template_format_cem_tree_nodes(nodes, &binding.options);
     let format_nodes = transform_template_cem_tree_format_nodes(
         &nodes,
         binding.identity.formatter_profile.as_deref(),
@@ -4765,6 +4766,120 @@ fn transform_template_cem_tree_nodes(subject: &Value) -> Result<Vec<Value>, Stri
         }
         _ => Err("cem.format-tree expected CEM AST object or node array subject".to_owned()),
     }
+}
+
+fn transform_template_format_cem_tree_nodes(
+    nodes: Vec<Value>,
+    options: &TransformTemplateEncodeOptions,
+) -> Vec<Value> {
+    let nodes = nodes
+        .into_iter()
+        .map(|node| transform_template_format_cem_tree_node(node, options))
+        .collect::<Vec<_>>();
+    transform_template_insert_formatter_whitespace_nodes(
+        nodes,
+        transform_template_cem_tree_formatter_line_ending_data(options),
+        "formatter.line-ending",
+    )
+}
+
+fn transform_template_format_cem_tree_node(
+    node: Value,
+    options: &TransformTemplateEncodeOptions,
+) -> Value {
+    match node {
+        Value::Array(nodes) => {
+            Value::Array(transform_template_format_cem_tree_nodes(nodes, options))
+        }
+        Value::Object(fields) => transform_template_format_cem_tree_object(fields, options),
+        other => other,
+    }
+}
+
+fn transform_template_format_cem_tree_object(
+    mut fields: serde_json::Map<String, Value>,
+    options: &TransformTemplateEncodeOptions,
+) -> Value {
+    for field in ["children", "nodes", "slots"] {
+        if let Some(value) = fields.remove(field) {
+            fields.insert(
+                field.to_owned(),
+                transform_template_format_cem_tree_child_value(value, options),
+            );
+        }
+    }
+    Value::Object(fields)
+}
+
+fn transform_template_format_cem_tree_child_value(
+    value: Value,
+    options: &TransformTemplateEncodeOptions,
+) -> Value {
+    match value {
+        Value::Array(children) => {
+            let children = children
+                .into_iter()
+                .map(|child| transform_template_format_cem_tree_node(child, options))
+                .collect::<Vec<_>>();
+            Value::Array(transform_template_insert_formatter_whitespace_nodes(
+                children,
+                " ".to_owned(),
+                "formatter.whitespace",
+            ))
+        }
+        Value::Object(_) | Value::String(_) => {
+            transform_template_format_cem_tree_node(value, options)
+        }
+        other => other,
+    }
+}
+
+fn transform_template_insert_formatter_whitespace_nodes(
+    nodes: Vec<Value>,
+    data: String,
+    formatter_role: &str,
+) -> Vec<Value> {
+    let mut formatted = Vec::with_capacity(nodes.len().saturating_mul(2));
+    for node in nodes {
+        if let Some(previous) = formatted.last() {
+            if !transform_template_cem_tree_value_is_whitespace(previous)
+                && !transform_template_cem_tree_value_is_whitespace(&node)
+            {
+                let source_map = transform_template_first_cem_tree_source_map(previous)
+                    .or_else(|| transform_template_first_cem_tree_source_map(&node));
+                formatted.push(transform_template_cem_tree_formatter_whitespace_node(
+                    &data,
+                    formatter_role,
+                    source_map.as_ref(),
+                ));
+            }
+        }
+        formatted.push(node);
+    }
+    formatted
+}
+
+fn transform_template_cem_tree_formatter_whitespace_node(
+    data: &str,
+    formatter_role: &str,
+    source_map: Option<&SourceMapStack>,
+) -> Value {
+    let mut whitespace = serde_json::Map::new();
+    whitespace.insert("kind".to_owned(), Value::String("whitespace".to_owned()));
+    whitespace.insert("value".to_owned(), Value::String(data.to_owned()));
+    whitespace.insert("formatterOwned".to_owned(), Value::Bool(true));
+    whitespace.insert(
+        "formatterRole".to_owned(),
+        Value::String(formatter_role.to_owned()),
+    );
+    whitespace.insert(
+        "colorRole".to_owned(),
+        Value::String("syntax.raw".to_owned()),
+    );
+    if let Some(source_map) = transform_template_cem_tree_format_source_map_value(source_map) {
+        whitespace.insert("sourceMap".to_owned(), source_map);
+    }
+    Value::Object(whitespace)
 }
 
 fn transform_template_cem_tree_format_nodes(
@@ -4902,6 +5017,20 @@ fn transform_template_cem_tree_formatter_line_ending(
         .to_owned()
 }
 
+fn transform_template_cem_tree_formatter_line_ending_data(
+    options: &TransformTemplateEncodeOptions,
+) -> String {
+    match options
+        .line_ending
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        Some("crlf") | Some("\\r\\n") => "\r\n".to_owned(),
+        _ => "\n".to_owned(),
+    }
+}
+
 fn transform_template_cem_tree_formatter_indent(
     options: &TransformTemplateEncodeOptions,
 ) -> String {
@@ -4966,6 +5095,15 @@ fn transform_template_first_cem_tree_source_map(value: &Value) -> Option<SourceM
         Value::Array(items) => transform_template_first_cem_tree_source_map_in_values(items),
         _ => None,
     }
+}
+
+fn transform_template_cem_tree_value_is_whitespace(value: &Value) -> bool {
+    value
+        .as_object()
+        .and_then(|fields| fields.get("kind"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        == Some("whitespace")
 }
 
 fn builtin_cem_tree_colorizer(
@@ -7898,7 +8036,10 @@ fn transform_template_render_cem_tree_nodes(
     rendered: &mut TransformTemplateCemTreeRenderedText,
 ) -> Result<(), String> {
     for (index, node) in nodes.iter().enumerate() {
-        if index > 0 {
+        if index > 0
+            && !transform_template_cem_tree_value_is_whitespace(&nodes[index - 1])
+            && !transform_template_cem_tree_value_is_whitespace(node)
+        {
             match syntax {
                 TransformTemplateCemTreeWriterSyntax::Cem => rendered.push_unmapped("\n"),
                 TransformTemplateCemTreeWriterSyntax::Html
@@ -8169,7 +8310,11 @@ fn transform_template_render_cem_tree_children(
     match children {
         Value::Array(items) => {
             for (index, child) in items.iter().enumerate() {
-                if index > 0 && syntax == TransformTemplateCemTreeWriterSyntax::Cem {
+                if index > 0
+                    && syntax == TransformTemplateCemTreeWriterSyntax::Cem
+                    && !transform_template_cem_tree_value_is_whitespace(&items[index - 1])
+                    && !transform_template_cem_tree_value_is_whitespace(child)
+                {
                     rendered.push_unmapped(" ");
                 }
                 transform_template_render_cem_tree_node(child, syntax, rendered)?;
@@ -16170,6 +16315,78 @@ mod tests {
     }
 
     #[test]
+    fn format_binding_materializes_formatter_whitespace_in_cem_tree_nodes() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        registry.register(cem_tree_format_function_descriptor());
+        let implementations =
+            TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+        let first_source_map =
+            serde_json::to_value(source_map_stack(90, 4)).expect("first source map serializes");
+        let child_source_map =
+            serde_json::to_value(source_map_stack(96, 4)).expect("child source map serializes");
+        let second_source_map =
+            serde_json::to_value(source_map_stack(110, 6)).expect("second source map serializes");
+        let subject = json!([{
+            "kind": "element",
+            "name": "card",
+            "sourceMap": first_source_map,
+            "children": [
+                {"kind": "element", "name": "title", "sourceMap": child_source_map},
+                {"kind": "element", "name": "body"}
+            ]
+        }, {
+            "kind": "element",
+            "name": "footer",
+            "sourceMap": second_source_map
+        }]);
+        let request = TransformTemplateEncodeBindingRequest::new(
+            subject.clone(),
+            TransformTemplateEncodingTarget::new(
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                "cem-tree",
+            ),
+        )
+        .with_subject_type("cem-ast-node")
+        .with_options(TransformTemplateEncodeOptions {
+            formatter: Some("cem.format-tree".to_owned()),
+            line_ending: Some("crlf".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+
+        let binding = registry
+            .resolve_format_binding(&request, &BTreeSet::new())
+            .expect("CEM tree formatter resolves");
+        let formatted = implementations
+            .encode(&binding, &subject)
+            .expect("CEM tree formatter runs");
+
+        assert_eq!(formatted["nodes"][1]["kind"], "whitespace");
+        assert_eq!(formatted["nodes"][1]["value"], "\r\n");
+        assert_eq!(formatted["nodes"][1]["formatterOwned"], true);
+        assert_eq!(
+            formatted["nodes"][1]["formatterRole"],
+            "formatter.line-ending"
+        );
+        assert_cem_tree_source_map_current_transform(
+            &formatted["nodes"][1]["sourceMap"],
+            |transform| {
+                matches!(
+                    transform,
+                    TransformKind::TemplateTransform { function }
+                        if function == "cem.format-tree"
+                )
+            },
+        );
+        assert_eq!(formatted["nodes"][0]["children"][1]["kind"], "whitespace");
+        assert_eq!(formatted["nodes"][0]["children"][1]["value"], " ");
+        assert_eq!(
+            formatted["nodes"][0]["children"][1]["formatterRole"],
+            "formatter.whitespace"
+        );
+    }
+
+    #[test]
     fn color_binding_transforms_formatted_cem_tree_in_place() {
         let colored = encode_colored_cem_tree_with_profile("css-custom-properties");
 
@@ -18452,6 +18669,53 @@ mod tests {
         );
         assert!(artifact.source_map.is_some());
         assert_eq!(artifact.output_spans.len(), 1);
+    }
+
+    #[test]
+    fn cem_tree_writer_honors_formatter_whitespace_nodes_without_synthetic_separators() {
+        let tree = json!({
+            "kind": "cem-tree",
+            "nodes": [{
+                "kind": "element",
+                "name": "card",
+                "children": [{
+                    "kind": "element",
+                    "name": "span",
+                    "children": [{"kind": "text", "value": "Ready"}]
+                }, {
+                    "kind": "whitespace",
+                    "value": " ",
+                    "formatterOwned": true,
+                    "formatterRole": "formatter.whitespace"
+                }, {
+                    "kind": "element",
+                    "name": "span",
+                    "children": [{"kind": "text", "value": "Done"}]
+                }]
+            }, {
+                "kind": "whitespace",
+                "value": "\n",
+                "formatterOwned": true,
+                "formatterRole": "formatter.line-ending"
+            }, {
+                "kind": "element",
+                "name": "footer"
+            }]
+        });
+        let context = TransformTemplateEncodedArtifactInsertionContext::new(
+            CEM_ML_CONTENT_TYPE,
+            CEM_ML_SCHEMA_URI,
+        )
+        .with_category("cem-tree")
+        .with_produces(TransformTemplateOutputProducedKind::Text);
+
+        let rendered = transform_template_cem_tree_value_to_rendered_text(&tree, &context)
+            .expect("CEM tree renders");
+
+        assert_eq!(
+            rendered.text,
+            "{card | {span | Ready} {span | Done}}\n{footer}"
+        );
     }
 
     #[test]
