@@ -6884,6 +6884,25 @@ fn text_composition_artifact_for_evaluated_encode(
                 },
             )
         }
+        TransformTemplateOutputProducedKind::CemTree => {
+            if let Err(error) = evaluated
+                .artifact
+                .validate_insertion(writer_boundary_context)
+            {
+                return Err(diagnostics_for_evaluated_encode_error(
+                    error, evaluated, uri,
+                ));
+            }
+            transform_template_writer_cem_tree_artifact_to_text(
+                &evaluated.artifact,
+                writer_boundary_context,
+            )
+            .map_err(|message| {
+                vec![diagnostic_for_evaluated_encode_writer_adapter_failed(
+                    evaluated, message, uri,
+                )]
+            })
+        }
         _ => {
             match evaluated
                 .artifact
@@ -7001,6 +7020,318 @@ fn transform_template_writer_chunk_artifact_to_text(
         output_spans,
         encoded: true,
     })
+}
+
+fn transform_template_writer_cem_tree_artifact_to_text(
+    artifact: &TransformTemplateEncodedArtifact,
+    writer_boundary_context: &TransformTemplateEncodedArtifactInsertionContext,
+) -> Result<TransformTemplateEncodedArtifact, String> {
+    validate_cem_tree_value(&artifact.value)
+        .map_err(|message| format!("CEM tree envelope is invalid: {message}"))?;
+    validate_cem_tree_writer_boundary(artifact, writer_boundary_context)?;
+    let text = transform_template_cem_tree_value_to_text(&artifact.value)?;
+
+    let mut identity = artifact.identity.clone();
+    identity.produces = TransformTemplateOutputProducedKind::Text;
+    let (source_map, output_spans) = match artifact.identity.source_map_policy {
+        TransformTemplateSourceMapPolicy::None => (None, Vec::new()),
+        TransformTemplateSourceMapPolicy::Generated
+        | TransformTemplateSourceMapPolicy::Preserve => {
+            (artifact.source_map.clone(), artifact.output_spans.clone())
+        }
+    };
+
+    Ok(TransformTemplateEncodedArtifact {
+        identity,
+        value: Value::String(text),
+        source_map,
+        output_spans,
+        encoded: true,
+    })
+}
+
+fn validate_cem_tree_writer_boundary(
+    artifact: &TransformTemplateEncodedArtifact,
+    writer_boundary_context: &TransformTemplateEncodedArtifactInsertionContext,
+) -> Result<(), String> {
+    let identity_formatter_profile =
+        trimmed_optional_str(artifact.identity.formatter_profile.as_deref());
+    let value_formatter_profile = trimmed_value_string_field(&artifact.value, "formatterProfile");
+    let formatter_profile = identity_formatter_profile
+        .or(value_formatter_profile)
+        .ok_or_else(|| {
+            "CEM tree writer requires a formatted CEM tree with `formatterProfile`; run `cem.format-tree` before the writer"
+                .to_owned()
+        })?;
+    if let (Some(identity), Some(value)) = (identity_formatter_profile, value_formatter_profile) {
+        if identity != value {
+            return Err(format!(
+                "CEM tree formatter profile metadata mismatch: identity `{identity}`, tree `{value}`"
+            ));
+        }
+    }
+    if let Some(expected) =
+        trimmed_optional_str(writer_boundary_context.formatter_profile.as_deref())
+    {
+        if formatter_profile != expected {
+            return Err(format!(
+                "CEM tree writer expected formatterProfile `{expected}`, got `{formatter_profile}`"
+            ));
+        }
+    }
+
+    if artifact.value.get("colored").and_then(Value::as_bool) != Some(true) {
+        return Err(
+            "CEM tree writer requires a colored CEM tree with `colored: true`; run `cem.color-tree` before the writer"
+                .to_owned(),
+        );
+    }
+    let identity_color_profile = trimmed_optional_str(artifact.identity.color_profile.as_deref());
+    let value_color_profile = trimmed_value_string_field(&artifact.value, "colorProfile");
+    let color_profile = identity_color_profile
+        .or(value_color_profile)
+        .ok_or_else(|| {
+            "CEM tree writer requires a colored CEM tree with `colorProfile`; run `cem.color-tree` before the writer"
+                .to_owned()
+        })?;
+    if let (Some(identity), Some(value)) = (identity_color_profile, value_color_profile) {
+        if identity != value {
+            return Err(format!(
+                "CEM tree color profile metadata mismatch: identity `{identity}`, tree `{value}`"
+            ));
+        }
+    }
+    if let Some(expected) = trimmed_optional_str(writer_boundary_context.color_profile.as_deref()) {
+        if color_profile != expected {
+            return Err(format!(
+                "CEM tree writer expected colorProfile `{expected}`, got `{color_profile}`"
+            ));
+        }
+    }
+    if let (Some(identity), Some(value)) = (
+        trimmed_optional_str(artifact.identity.color_capability.as_deref()),
+        trimmed_value_string_field(&artifact.value, "colorCapability"),
+    ) {
+        if identity != value {
+            return Err(format!(
+                "CEM tree color capability metadata mismatch: identity `{identity}`, tree `{value}`"
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn trimmed_optional_str(value: Option<&str>) -> Option<&str> {
+    value.map(str::trim).filter(|value| !value.is_empty())
+}
+
+fn trimmed_value_string_field<'a>(value: &'a Value, field: &str) -> Option<&'a str> {
+    value
+        .get(field)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
+fn transform_template_cem_tree_value_to_text(value: &Value) -> Result<String, String> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| "CEM tree writer expected object value".to_owned())?;
+    if let Some(nodes) = object.get("nodes").and_then(Value::as_array) {
+        return transform_template_cem_tree_nodes_to_text(nodes);
+    }
+    if let Some(node) = object.get("node") {
+        return transform_template_cem_tree_node_to_text(node);
+    }
+    if let Some(root) = object.get("root") {
+        return match root {
+            Value::Array(nodes) => transform_template_cem_tree_nodes_to_text(nodes),
+            Value::Object(_) => transform_template_cem_tree_node_to_text(root),
+            _ => Err(format!(
+                "CEM tree writer expected `root` object or array, got {}",
+                json_value_type_name(root)
+            )),
+        };
+    }
+    Err("CEM tree writer expected `nodes`, `node`, or `root`".to_owned())
+}
+
+fn transform_template_cem_tree_nodes_to_text(nodes: &[Value]) -> Result<String, String> {
+    nodes
+        .iter()
+        .map(transform_template_cem_tree_node_to_text)
+        .collect::<Result<Vec<_>, _>>()
+        .map(|nodes| nodes.join("\n"))
+}
+
+fn transform_template_cem_tree_node_to_text(node: &Value) -> Result<String, String> {
+    match node {
+        Value::String(text) => transform_template_encode_cem_content_text(text),
+        Value::Object(fields) => transform_template_cem_tree_object_node_to_text(fields),
+        other => Err(format!(
+            "CEM tree writer expected node object or string, got {}",
+            json_value_type_name(other)
+        )),
+    }
+}
+
+fn transform_template_cem_tree_object_node_to_text(
+    fields: &serde_json::Map<String, Value>,
+) -> Result<String, String> {
+    let kind = fields
+        .get("kind")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .unwrap_or("element");
+    match kind {
+        "text" | "content" | "string" => {
+            let text = fields
+                .get("value")
+                .or_else(|| fields.get("text"))
+                .and_then(Value::as_str)
+                .ok_or_else(|| "CEM text node missing string `value` or `text`".to_owned())?;
+            transform_template_encode_cem_content_text(text)
+        }
+        "attribute" | "attr" => transform_template_cem_tree_attribute_to_text(fields),
+        _ => transform_template_cem_tree_element_to_text(fields),
+    }
+}
+
+fn transform_template_cem_tree_element_to_text(
+    fields: &serde_json::Map<String, Value>,
+) -> Result<String, String> {
+    let raw_name = fields
+        .get("name")
+        .or_else(|| fields.get("localName"))
+        .or_else(|| fields.get("tag"))
+        .or_else(|| fields.get("tagName"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("node");
+    let name = transform_template_encode_cem_name(raw_name)?;
+    let attributes = transform_template_cem_tree_attributes_to_text(fields.get("attributes"))?;
+    let children = transform_template_cem_tree_children_to_text(fields)?;
+
+    let mut output = String::new();
+    output.push('{');
+    output.push_str(&name);
+    if !attributes.is_empty() {
+        output.push(' ');
+        output.push_str(&attributes.join(" "));
+    }
+    if !children.is_empty() {
+        output.push_str(" | ");
+        output.push_str(&children.join(" "));
+    }
+    output.push('}');
+    Ok(output)
+}
+
+fn transform_template_cem_tree_attributes_to_text(
+    attributes: Option<&Value>,
+) -> Result<Vec<String>, String> {
+    let Some(attributes) = attributes else {
+        return Ok(Vec::new());
+    };
+    match attributes {
+        Value::Array(items) => items
+            .iter()
+            .map(|item| {
+                item.as_object()
+                    .ok_or_else(|| {
+                        format!(
+                            "CEM tree writer expected attribute object, got {}",
+                            json_value_type_name(item)
+                        )
+                    })
+                    .and_then(transform_template_cem_tree_attribute_to_text)
+            })
+            .collect(),
+        Value::Object(map) => {
+            let mut keys = map.keys().collect::<Vec<_>>();
+            keys.sort();
+            keys.into_iter()
+                .map(|key| {
+                    transform_template_cem_tree_attribute_pair_to_text(key, map.get(key).unwrap())
+                })
+                .collect()
+        }
+        other => Err(format!(
+            "CEM tree writer expected `attributes` array or object, got {}",
+            json_value_type_name(other)
+        )),
+    }
+}
+
+fn transform_template_cem_tree_attribute_to_text(
+    fields: &serde_json::Map<String, Value>,
+) -> Result<String, String> {
+    let name = fields
+        .get("name")
+        .or_else(|| fields.get("localName"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "CEM tree attribute missing non-empty `name`".to_owned())?;
+    let Some(value) = fields.get("value").or_else(|| fields.get("text")) else {
+        let name = transform_template_encode_cem_name(name)?;
+        return Ok(format!("@{name}"));
+    };
+    transform_template_cem_tree_attribute_pair_to_text(name, value)
+}
+
+fn transform_template_cem_tree_attribute_pair_to_text(
+    name: &str,
+    value: &Value,
+) -> Result<String, String> {
+    let name = transform_template_encode_cem_name(name)?;
+    if value.as_bool() == Some(true) || value.is_null() {
+        return Ok(format!("@{name}"));
+    }
+    let value = transform_template_cem_tree_scalar_to_attribute_value(value)?;
+    Ok(format!("@{name}={value}"))
+}
+
+fn transform_template_cem_tree_scalar_to_attribute_value(value: &Value) -> Result<String, String> {
+    let text = match value {
+        Value::String(text) => text.clone(),
+        Value::Bool(value) => value.to_string(),
+        Value::Number(value) => value.to_string(),
+        other => {
+            return Err(format!(
+                "CEM tree writer expected scalar attribute value, got {}",
+                json_value_type_name(other)
+            ))
+        }
+    };
+    transform_template_encode_cem_attribute_value(&text, "CEM tree attribute value")
+}
+
+fn transform_template_cem_tree_children_to_text(
+    fields: &serde_json::Map<String, Value>,
+) -> Result<Vec<String>, String> {
+    let Some(children) = fields
+        .get("children")
+        .or_else(|| fields.get("nodes"))
+        .or_else(|| fields.get("slots"))
+    else {
+        return Ok(Vec::new());
+    };
+    match children {
+        Value::Array(items) => items
+            .iter()
+            .map(transform_template_cem_tree_node_to_text)
+            .collect(),
+        Value::Object(_) | Value::String(_) => {
+            transform_template_cem_tree_node_to_text(children).map(|child| vec![child])
+        }
+        other => Err(format!(
+            "CEM tree writer expected children array, object, or string, got {}",
+            json_value_type_name(other)
+        )),
+    }
 }
 
 fn shift_output_span(span: &OutputSpan, offset: u64) -> OutputSpan {
@@ -11136,6 +11467,83 @@ mod tests {
         TransformTemplateEvaluatedEncodeExpression {
             expression,
             subject: Value::String(value.to_owned()),
+            binding,
+            artifact,
+        }
+    }
+
+    fn evaluated_colored_cem_tree(owner: &str) -> TransformTemplateEvaluatedEncodeExpression {
+        let target = TransformTemplateEncodingTarget::new(
+            CEM_ML_CONTENT_TYPE,
+            CEM_ML_SCHEMA_URI,
+            "cem-tree",
+        );
+        let mut identity = TransformTemplateEncodedArtifactIdentity::new(
+            TransformTemplateOutputProducedKind::CemTree,
+            target.clone(),
+        );
+        identity.formatter_profile = Some("cem.format-tree".to_owned());
+        identity.color_profile = Some("css-custom-properties".to_owned());
+        identity.mode = TransformTemplateEncodedArtifactMode::Fragment;
+        identity.canonical = true;
+
+        let value = json!({
+            "kind": "cem-tree",
+            "contentType": CEM_ML_CONTENT_TYPE,
+            "schema": CEM_ML_SCHEMA_URI,
+            "category": "cem-tree",
+            "mode": "fragment",
+            "canonical": true,
+            "formatterProfile": "cem.format-tree",
+            "colored": true,
+            "colorProfile": "css-custom-properties",
+            "nodes": [{
+                "kind": "element",
+                "name": "card",
+                "attributes": [{"kind": "attribute", "name": "tone", "value": "info"}],
+                "children": [{"kind": "text", "value": "Ready"}],
+                "style": {"colorRole": "syntax.name", "colorProfile": "css-custom-properties"}
+            }]
+        });
+        let mut artifact = TransformTemplateEncodedArtifact::new(identity.clone(), value);
+        artifact.source_map = Some(source_map_stack(60, 5));
+        artifact.output_spans = vec![output_span(0, 5)];
+
+        let expression = TransformTemplateEncodeExpression {
+            owner: Some(owner.to_owned()),
+            expression: format!(
+                "encode($node.{owner}, {{ contentType: \"{CEM_ML_CONTENT_TYPE}\" }})"
+            ),
+            subject: format!("$node.{owner}"),
+            subject_type: Some("cem-tree".to_owned()),
+            target,
+            options: TransformTemplateEncodeOptions {
+                canonical: identity.canonical,
+                mode: identity.mode,
+                formatter_profile: identity.formatter_profile.clone(),
+                color_profile: identity.color_profile.clone(),
+                ..TransformTemplateEncodeOptions::default()
+            },
+        };
+        let mut function = output_function_descriptor();
+        function.kind = TransformTemplateOutputFunctionKind::Color;
+        function.name = "cem.color-tree".to_owned();
+        function.category = "cem-tree".to_owned();
+        function.subject = "cem-tree".to_owned();
+        function.produces = TransformTemplateOutputProducedKind::CemTree;
+        function.content_type = CEM_ML_CONTENT_TYPE.to_owned();
+        function.schema = CEM_ML_SCHEMA_URI.to_owned();
+        function.profile = Some("css-custom-properties".to_owned());
+        let binding = TransformTemplateEncodeBinding {
+            function,
+            subject_type: "cem-tree".to_owned(),
+            identity,
+            options: TransformTemplateEncodeOptions::default(),
+        };
+
+        TransformTemplateEvaluatedEncodeExpression {
+            expression,
+            subject: artifact.value.clone(),
             binding,
             artifact,
         }
@@ -16508,6 +16916,115 @@ mod tests {
             diagnostic.code == TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_VALUE_TYPE_CODE
                 && diagnostic.node.as_deref() == Some("body")
                 && diagnostic.message.contains("object")
+        }));
+    }
+
+    #[test]
+    fn encoded_text_artifact_composition_adapts_colored_cem_tree_to_text() {
+        let evaluated = evaluated_colored_cem_tree("body");
+        let mut context =
+            TransformTemplateEncodedArtifactInsertionContext::from_encoded_artifact_identity(
+                &evaluated.artifact.identity,
+            );
+        context.produces = Some(TransformTemplateOutputProducedKind::Text);
+
+        let response = compose_transform_template_encoded_text_artifacts(
+            &[evaluated],
+            &context,
+            Some("templates/runtime-encoding.cemt"),
+        );
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        let artifact = response.artifact.expect("CEM tree composes to text");
+        assert_eq!(
+            artifact.identity.produces,
+            TransformTemplateOutputProducedKind::Text
+        );
+        assert_eq!(artifact.identity.target.category, "cem-tree");
+        assert_eq!(
+            artifact.identity.formatter_profile.as_deref(),
+            Some("cem.format-tree")
+        );
+        assert_eq!(
+            artifact.identity.color_profile.as_deref(),
+            Some("css-custom-properties")
+        );
+        assert_eq!(
+            artifact.value,
+            Value::String("{card @tone=info | Ready}".to_owned())
+        );
+        assert!(artifact.source_map.is_some());
+        assert_eq!(artifact.output_spans.len(), 1);
+    }
+
+    #[test]
+    fn encoded_text_artifact_composition_rejects_unformatted_cem_tree_before_writer() {
+        let mut evaluated = evaluated_colored_cem_tree("body");
+        evaluated.artifact.identity.formatter_profile = None;
+        evaluated.binding.identity.formatter_profile = None;
+        evaluated.expression.options.formatter_profile = None;
+        evaluated
+            .artifact
+            .value
+            .as_object_mut()
+            .expect("CEM tree object")
+            .remove("formatterProfile");
+        let mut context =
+            TransformTemplateEncodedArtifactInsertionContext::from_encoded_artifact_identity(
+                &evaluated.artifact.identity,
+            );
+        context.produces = Some(TransformTemplateOutputProducedKind::Text);
+
+        let response = compose_transform_template_encoded_text_artifacts(
+            &[evaluated],
+            &context,
+            Some("templates/runtime-encoding.cemt"),
+        );
+
+        assert!(response.artifact.is_none());
+        assert!(response.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_WRITER_ADAPTER_FAILED_CODE
+                && diagnostic.node.as_deref() == Some("body")
+                && diagnostic.message.contains("formatted CEM tree")
+                && diagnostic.message.contains("cem.format-tree")
+        }));
+    }
+
+    #[test]
+    fn encoded_text_artifact_composition_rejects_uncolored_cem_tree_before_writer() {
+        let mut evaluated = evaluated_colored_cem_tree("body");
+        evaluated.artifact.identity.color_profile = None;
+        evaluated.binding.identity.color_profile = None;
+        evaluated.expression.options.color_profile = None;
+        let tree = evaluated
+            .artifact
+            .value
+            .as_object_mut()
+            .expect("CEM tree object");
+        tree.remove("colored");
+        tree.remove("colorProfile");
+        let mut context =
+            TransformTemplateEncodedArtifactInsertionContext::from_encoded_artifact_identity(
+                &evaluated.artifact.identity,
+            );
+        context.produces = Some(TransformTemplateOutputProducedKind::Text);
+
+        let response = compose_transform_template_encoded_text_artifacts(
+            &[evaluated],
+            &context,
+            Some("templates/runtime-encoding.cemt"),
+        );
+
+        assert!(response.artifact.is_none());
+        assert!(response.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_WRITER_ADAPTER_FAILED_CODE
+                && diagnostic.node.as_deref() == Some("body")
+                && diagnostic.message.contains("colored CEM tree")
+                && diagnostic.message.contains("cem.color-tree")
         }));
     }
 

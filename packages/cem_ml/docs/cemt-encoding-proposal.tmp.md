@@ -62,9 +62,9 @@ and colored artifact into text, bytes, or chunks. A writer may enforce the
 selected low-level syntax and byte boundary rules, but it must not choose the
 schema semantics, destination content identity, formatting policy, or color
 policy. Those choices are CEMT output-producer decisions validated through
-registry metadata. If a writer receives an unformatted or uncolored tree for a
-context that requires explicit formatting or coloring, it must report a
-diagnostic rather than silently choosing formatting or color policy.
+registry metadata. A writer for a CEM tree must receive a formatted tree with
+formatter metadata and a colored tree with color metadata; otherwise it must
+report a diagnostic rather than silently choosing formatting or color policy.
 
 ## Core Decision
 
