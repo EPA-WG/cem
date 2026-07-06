@@ -60,6 +60,24 @@ fn render_template_interpolates_attribute_value_templates() {
 }
 
 #[test]
+fn render_template_preserves_explicit_empty_and_boolean_attributes() {
+    let rendered = render_template(
+        r#"{button @type=button @alt="" @required @data-state="{$state}" | Save}"#,
+        &TemplateData::default().with_binding("state", string_value("")),
+    );
+
+    assert_eq!(
+        rendered.rendered,
+        r#"<button type="button" alt required>Save</button>"#
+    );
+    assert!(
+        rendered.diagnostics.is_empty(),
+        "{:?}",
+        rendered.diagnostics
+    );
+}
+
+#[test]
 fn render_template_escapes_expression_output() {
     let data = TemplateData::default().with_binding("label", string_value("<Email & Phone>"));
 

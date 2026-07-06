@@ -22,6 +22,44 @@ Encoding here means syntax/context encoding. It is separate from byte character
 encoding such as UTF-8 or UTF-16 and separate from transport content encoding
 such as gzip.
 
+## Base Principle
+
+CEMT is the primary transformation mechanism for schema-owned output from the
+canonical CEM AST and typed projection artifacts into registered destination
+content identities. Once source bytes have been parsed, normalized, validated,
+and represented as CEM AST, DOM, events, or another typed projection, the
+content-family conversion work belongs in CEMT unless a native producer is
+explicitly registered as a paired fallback or fast path.
+
+The output pipeline is layered:
+
+```text
+CEM AST / typed projection subject
+  -> CEMT transformation
+    -> target semantic tree, syntax tree, token stream, or chunk plan
+      -> CEMT formatting
+        -> formatted CEM output tree or token tree
+          -> CEMT semantic color projection
+            -> colored CEM output tree or styled token tree
+              -> final writer
+                -> text, bytes, sealed chunks, or transport-ready artifact
+```
+
+Formatting is a CEMT-owned transformation stage. The primary output of a
+formatter must be a typed CEM output tree, syntax tree, token tree, or chunk plan
+that carries destination identity, ordering, whitespace, line-ending,
+canonicalization, style-role, and source-map decisions as structured data.
+Formatting must not be hidden inside a final writer or host-side string filter.
+
+The writer is the last phase. It materializes an already transformed, formatted,
+and optionally colored artifact into text, bytes, or chunks. A writer may enforce
+the selected low-level syntax and byte boundary rules, but it must not choose the
+schema semantics, destination content identity, formatting policy, or color
+policy. Those choices are CEMT output-producer decisions validated through
+registry metadata. If a writer receives an unformatted tree for a context that
+requires explicit formatting, it must report a diagnostic rather than silently
+choosing formatting policy.
+
 ## Core Decision
 
 CEMT is the primary output producer for schema-owned exports. Output production
@@ -33,9 +71,10 @@ helpers are part of the CEMT stack, not an external post-processing layer.
 ```text
 typed subject
   -> schema-owned CEMT output producer
-    -> content-type-specific encode / format / color helpers
-      -> encoded text, bytes, token stream, or chunk stream
-        -> destination content type and schema
+    -> content-type-specific transform / encode / format / color helpers
+      -> formatted and optionally colored CEM output tree, token tree, or chunk plan
+        -> final writer
+          -> destination content type and schema
 ```
 
 Native output producers remain necessary for performance, bootstrap, and clarity
@@ -160,8 +199,8 @@ Proposed CEMT declaration shape:
 }
 ```
 
-Formatter declarations use the same pattern but produce formatting decisions or
-formatted token streams:
+Formatter declarations use the same pattern but produce typed formatting
+decisions, formatted CEM output trees, or formatted token streams:
 
 ```cemt
 {format-function

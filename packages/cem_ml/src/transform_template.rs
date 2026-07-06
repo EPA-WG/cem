@@ -318,6 +318,7 @@ pub enum TransformTemplateOutputProducedKind {
     #[default]
     Text,
     Bytes,
+    CemTree,
     Tokens,
     Chunks,
     Diagnostics,
@@ -328,6 +329,7 @@ impl TransformTemplateOutputProducedKind {
         match value.trim() {
             "text" => Some(Self::Text),
             "bytes" => Some(Self::Bytes),
+            "cem-tree" | "tree" => Some(Self::CemTree),
             "tokens" => Some(Self::Tokens),
             "chunks" => Some(Self::Chunks),
             "diagnostics" => Some(Self::Diagnostics),
@@ -339,6 +341,7 @@ impl TransformTemplateOutputProducedKind {
         match self {
             Self::Text => "text",
             Self::Bytes => "bytes",
+            Self::CemTree => "cem-tree",
             Self::Tokens => "tokens",
             Self::Chunks => "chunks",
             Self::Diagnostics => "diagnostics",
@@ -778,6 +781,16 @@ const TRANSFORM_TEMPLATE_STANDARD_OUTPUT_FUNCTIONS:
         category: "cem-string-literal",
         subject: Some("string"),
         produces: TransformTemplateOutputProducedKind::Text,
+        content_type: CEM_ML_CONTENT_TYPE,
+        schema: CEM_ML_SCHEMA_URI,
+        profile: None,
+    },
+    TransformTemplateStandardOutputFunctionContract {
+        kind: TransformTemplateOutputFunctionKind::Format,
+        name: "cem.format-tree",
+        category: "cem-tree",
+        subject: Some("cem-ast-node"),
+        produces: TransformTemplateOutputProducedKind::CemTree,
         content_type: CEM_ML_CONTENT_TYPE,
         schema: CEM_ML_SCHEMA_URI,
         profile: None,
@@ -1625,6 +1638,82 @@ impl TransformTemplateOutputFunctionRegistry {
         Err(TransformTemplateOutputFunctionResolutionError::Unknown {
             kind: Some(TransformTemplateOutputFunctionKind::Encoding),
             name: request.options.encoder.clone(),
+            category: Some(request.target.category.clone()),
+            subject: request.subject_type.as_ref().cloned(),
+        })
+    }
+
+    pub fn resolve_format_binding(
+        &self,
+        request: &TransformTemplateEncodeBindingRequest,
+        host_capabilities: &BTreeSet<String>,
+    ) -> Result<TransformTemplateEncodeBinding, TransformTemplateOutputFunctionResolutionError>
+    {
+        let syntax_rules = request.syntax_rules()?;
+        let subject_types = request.subject_type_candidates();
+        let query_profile =
+            transform_template_format_function_query_profile(&request.target, &request.options);
+        for subject_type in &subject_types {
+            let query = TransformTemplateOutputFunctionQuery {
+                kind: Some(TransformTemplateOutputFunctionKind::Format),
+                owner: request.owner.clone(),
+                name: request.options.formatter.clone(),
+                content_type: Some(request.target.content_type.clone()),
+                schema: Some(request.target.schema.clone()),
+                category: Some(request.target.category.clone()),
+                subject: Some(subject_type.clone()),
+                profile: query_profile.clone(),
+                ..TransformTemplateOutputFunctionQuery::default()
+            };
+            match self.resolve(&query, host_capabilities) {
+                Ok(function) => {
+                    validate_transform_template_output_kind_for_syntax(function, &syntax_rules)?;
+                    validate_transform_template_canonical_determinism(function, &request.options)?;
+                    validate_transform_template_raw_output_trust(function, &request.options)?;
+                    validate_transform_template_lossy_output_policy(function, &request.options)?;
+                    let mut identity = TransformTemplateEncodedArtifactIdentity::from_options(
+                        function.produces,
+                        request.target.clone(),
+                        &request.options,
+                    );
+                    if identity.formatter_profile.is_none() {
+                        identity.formatter_profile = function.profile.clone();
+                    }
+                    identity.canonical =
+                        transform_template_encode_options_are_canonical(function, &request.options);
+                    return Ok(TransformTemplateEncodeBinding {
+                        function: function.clone(),
+                        subject_type: subject_type.clone(),
+                        identity,
+                        options: request.options.clone(),
+                    });
+                }
+                Err(TransformTemplateOutputFunctionResolutionError::Unknown { .. }) => {
+                    continue;
+                }
+                Err(error) => return Err(error),
+            }
+        }
+
+        let subjectless_query = TransformTemplateOutputFunctionQuery {
+            kind: Some(TransformTemplateOutputFunctionKind::Format),
+            owner: request.owner.clone(),
+            name: request.options.formatter.clone(),
+            content_type: Some(request.target.content_type.clone()),
+            schema: Some(request.target.schema.clone()),
+            category: Some(request.target.category.clone()),
+            profile: query_profile,
+            ..TransformTemplateOutputFunctionQuery::default()
+        };
+        if let Some(error) =
+            self.subject_type_incompatible_for_query(&subjectless_query, &subject_types)
+        {
+            return Err(error);
+        }
+
+        Err(TransformTemplateOutputFunctionResolutionError::Unknown {
+            kind: Some(TransformTemplateOutputFunctionKind::Format),
+            name: request.options.formatter.clone(),
             category: Some(request.target.category.clone()),
             subject: request.subject_type.as_ref().cloned(),
         })
@@ -2946,6 +3035,30 @@ impl TransformTemplateEncodeBindingRequest {
 
         transform_template_target_is_explicit_color_output(&self.target)
     }
+
+    pub fn requires_format_binding(&self) -> bool {
+        if self
+            .options
+            .encoder
+            .as_deref()
+            .map(str::trim)
+            .is_some_and(|selector| !selector.is_empty())
+        {
+            return false;
+        }
+
+        if self
+            .options
+            .formatter
+            .as_deref()
+            .map(str::trim)
+            .is_some_and(|selector| !selector.is_empty())
+        {
+            return true;
+        }
+
+        transform_template_target_is_explicit_format_output(&self.target)
+    }
 }
 
 fn validate_transform_template_charset_request(
@@ -3051,6 +3164,7 @@ fn validate_transform_template_output_kind_for_syntax(
         }
         TransformTemplateOutputProducedKind::Text
         | TransformTemplateOutputProducedKind::Tokens
+        | TransformTemplateOutputProducedKind::CemTree
         | TransformTemplateOutputProducedKind::Diagnostics
             if rules.syntax == TransformTemplateTargetSyntaxKind::Binary =>
         {
@@ -3139,6 +3253,28 @@ fn transform_template_encode_options_formatter_profile(
     )
 }
 
+fn transform_template_format_function_query_profile(
+    target: &TransformTemplateEncodingTarget,
+    options: &TransformTemplateEncodeOptions,
+) -> Option<String> {
+    let explicit_formatter = options
+        .formatter
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|selector| !selector.is_empty());
+    let selector = options
+        .formatter_profile
+        .clone()
+        .or_else(|| (!explicit_formatter && options.preserve).then(|| "preserve".to_owned()))
+        .or_else(|| (!explicit_formatter && options.pretty).then(|| "pretty".to_owned()))
+        .or_else(|| (!explicit_formatter && options.canonical).then(|| "canonical".to_owned()))
+        .or_else(|| options.profile.clone())?;
+    transform_template_canonical_formatter_profile_selector(
+        transform_template_target_syntax_kind(target),
+        &selector,
+    )
+}
+
 fn transform_template_canonical_formatter_profile_selector(
     syntax: TransformTemplateTargetSyntaxKind,
     selector: &str,
@@ -3172,6 +3308,13 @@ fn transform_template_canonical_formatter_profile_selector(
             "wrap" | "markdown.wrap" => Some("markdown.wrap"),
             "canonical" | "markdown.canonical" => Some("markdown.canonical"),
             "preserve" | "markdown.preserve" => Some("markdown.preserve"),
+            _ => None,
+        },
+        TransformTemplateTargetSyntaxKind::Cemt => match selector {
+            "format-tree" | "cem.format-tree" => Some("cem.format-tree"),
+            "pretty" | "cem.pretty" => Some("cem.pretty"),
+            "canonical" | "cem.canonical" => Some("cem.canonical"),
+            "preserve" | "cem.preserve" => Some("cem.preserve"),
             _ => None,
         },
         _ => None,
@@ -3404,6 +3547,16 @@ fn transform_template_target_is_explicit_color_output(
         || schema == TRANSFORM_TEMPLATE_TERMINAL_TEXT_SCHEMA_URI
 }
 
+fn transform_template_target_is_explicit_format_output(
+    target: &TransformTemplateEncodingTarget,
+) -> bool {
+    let category = target.category.trim();
+    category == "cem-tree"
+        || category == "cem-output-tree"
+        || category == "formatted-cem-tree"
+        || category.ends_with("-cem-tree")
+}
+
 fn transform_template_canonical_color_profile_selector(
     profile: &TransformTemplateColorOutputProfile,
 ) -> String {
@@ -3553,6 +3706,7 @@ impl TransformTemplateEncodeImplementationRegistry {
         registry.register("cem.attribute-value", builtin_cem_attribute_value_encoder);
         registry.register("cem.content-text", builtin_cem_content_text_encoder);
         registry.register("cem.string-literal", builtin_cem_string_literal_encoder);
+        registry.register("cem.format-tree", builtin_cem_tree_formatter);
         registry.register("cemt.text", builtin_cemt_text_encoder);
         registry.register("cemt.attribute-value", builtin_cemt_attribute_value_encoder);
         registry.register("cemt.string-literal", builtin_cemt_string_literal_encoder);
@@ -4476,6 +4630,87 @@ fn builtin_cem_string_literal_encoder(
         .as_str()
         .ok_or_else(|| "cem.string-literal expected string subject".to_owned())?;
     transform_template_encode_cem_string_literal(text).map(Value::String)
+}
+
+fn builtin_cem_tree_formatter(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<Value, String> {
+    validate_builtin_cem_tree_formatter_binding(binding)?;
+    let nodes = transform_template_cem_tree_nodes(subject)?;
+    Ok(serde_json::json!({
+        "kind": "cem-tree",
+        "contentType": binding.identity.target.content_type.clone(),
+        "schema": binding.identity.target.schema.clone(),
+        "category": binding.identity.target.category.clone(),
+        "mode": binding.identity.mode.as_str(),
+        "canonical": binding.identity.canonical,
+        "formatterProfile": binding.identity.formatter_profile.clone(),
+        "nodes": nodes,
+    }))
+}
+
+fn validate_builtin_cem_tree_formatter_binding(
+    binding: &TransformTemplateEncodeBinding,
+) -> Result<(), String> {
+    if binding.function.kind != TransformTemplateOutputFunctionKind::Format {
+        return Err(format!(
+            "CEM tree formatter implementation cannot execute non-format function `{:?}`",
+            binding.function.kind
+        ));
+    }
+    if binding.function.name != "cem.format-tree" {
+        return Err(format!(
+            "CEM tree formatter implementation `cem.format-tree` cannot execute `{}`",
+            binding.function.name
+        ));
+    }
+    if binding.identity.produces != TransformTemplateOutputProducedKind::CemTree {
+        return Err(format!(
+            "CEM tree formatter expected `cem-tree` output, got `{}`",
+            binding.identity.produces.as_str()
+        ));
+    }
+    if content_type_essence(&binding.identity.target.content_type) != CEM_ML_CONTENT_TYPE {
+        return Err(format!(
+            "CEM tree formatter expected content type `{CEM_ML_CONTENT_TYPE}`, got `{}`",
+            binding.identity.target.content_type
+        ));
+    }
+    if binding.identity.target.schema != CEM_ML_SCHEMA_URI {
+        return Err(format!(
+            "CEM tree formatter expected schema `{CEM_ML_SCHEMA_URI}`, got `{}`",
+            binding.identity.target.schema
+        ));
+    }
+    if binding.identity.target.category != "cem-tree" {
+        return Err(format!(
+            "CEM tree formatter expected category `cem-tree`, got `{}`",
+            binding.identity.target.category
+        ));
+    }
+    Ok(())
+}
+
+fn transform_template_cem_tree_nodes(subject: &Value) -> Result<Vec<Value>, String> {
+    match subject {
+        Value::Array(nodes) => Ok(nodes.clone()),
+        Value::Object(fields) => {
+            if fields.get("kind").and_then(Value::as_str) == Some("cem-tree") {
+                if let Some(nodes) = fields.get("nodes").and_then(Value::as_array) {
+                    return Ok(nodes.clone());
+                }
+                if let Some(node) = fields.get("node").filter(|node| node.is_object()) {
+                    return Ok(vec![node.clone()]);
+                }
+                if let Some(root) = fields.get("root").filter(|root| root.is_object()) {
+                    return Ok(vec![root.clone()]);
+                }
+            }
+            Ok(vec![subject.clone()])
+        }
+        _ => Err("cem.format-tree expected CEM AST object or node array subject".to_owned()),
+    }
 }
 
 fn builtin_cemt_text_encoder(
@@ -6758,6 +6993,17 @@ where
                     continue;
                 }
             }
+        } else if request.requires_format_binding() {
+            match context
+                .registry
+                .resolve_format_binding(&request, context.host_capabilities)
+            {
+                Ok(binding) => binding,
+                Err(error) => {
+                    diagnostics.push(error.diagnostic(context.uri));
+                    continue;
+                }
+            }
         } else {
             match context
                 .registry
@@ -8398,6 +8644,7 @@ fn validate_encoded_artifact_value_shape(
             }
         }
         TransformTemplateOutputProducedKind::Bytes => validate_writer_byte_stream_value(value),
+        TransformTemplateOutputProducedKind::CemTree => validate_cem_tree_value(value),
         TransformTemplateOutputProducedKind::Tokens => validate_writer_token_stream_value(value),
         TransformTemplateOutputProducedKind::Chunks => validate_writer_chunk_stream_value(value),
         TransformTemplateOutputProducedKind::Diagnostics => {
@@ -8421,10 +8668,50 @@ fn transform_template_produced_value_shape(
         TransformTemplateOutputProducedKind::Bytes => {
             "object with `encoding: \"u8-array\"`, `bytes`, and `byteLength`"
         }
+        TransformTemplateOutputProducedKind::CemTree => {
+            "object with `kind: \"cem-tree\"` and `nodes`, `node`, or `root`"
+        }
         TransformTemplateOutputProducedKind::Tokens => "object with `tokens` array",
         TransformTemplateOutputProducedKind::Chunks => "object with `chunks` array",
         TransformTemplateOutputProducedKind::Diagnostics => "object with `diagnostics` array",
     }
+}
+
+fn validate_cem_tree_value(value: &Value) -> Result<(), String> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| format!("{}", json_value_type_name(value)))?;
+    let kind = object
+        .get("kind")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|kind| !kind.is_empty())
+        .ok_or_else(|| "`kind` missing or not a non-empty string".to_owned())?;
+    if kind != "cem-tree" {
+        return Err(format!("unsupported CEM tree kind `{kind}`"));
+    }
+    for field in ["contentType", "schema", "category"] {
+        validate_optional_writer_string_field(object.get(field), field)?;
+    }
+    if let Some(nodes) = object.get("nodes") {
+        if !nodes.is_array() {
+            return Err(format!("`nodes` {}", json_value_type_name(nodes)));
+        }
+        return Ok(());
+    }
+    if let Some(node) = object.get("node") {
+        if !node.is_object() {
+            return Err(format!("`node` {}", json_value_type_name(node)));
+        }
+        return Ok(());
+    }
+    if let Some(root) = object.get("root") {
+        if root.is_object() || root.is_array() {
+            return Ok(());
+        }
+        return Err(format!("`root` {}", json_value_type_name(root)));
+    }
+    Err("missing `nodes`, `node`, or `root`".to_owned())
 }
 
 fn validate_writer_token_stream_value(value: &Value) -> Result<(), String> {
@@ -10443,6 +10730,32 @@ mod tests {
         }
     }
 
+    fn cem_tree_format_function_descriptor() -> TransformTemplateOutputFunctionDescriptor {
+        TransformTemplateOutputFunctionDescriptor {
+            kind: TransformTemplateOutputFunctionKind::Format,
+            owner: Some("cem".to_owned()),
+            name: "cem.format-tree".to_owned(),
+            category: "cem-tree".to_owned(),
+            subject: "cem-ast-node".to_owned(),
+            produces: TransformTemplateOutputProducedKind::CemTree,
+            content_type: CEM_ML_CONTENT_TYPE.to_owned(),
+            schema: CEM_ML_SCHEMA_URI.to_owned(),
+            canonical: true,
+            streamable: true,
+            visibility: TransformTemplateModuleVisibility::Public,
+            implementation: TransformTemplateOutputFunctionImplementation::Cemt,
+            profile: None,
+            extends: None,
+            capability: None,
+            deterministic: true,
+            trusted: false,
+            lossy: false,
+            fallback: None,
+            params: Vec::new(),
+            body_declared: false,
+        }
+    }
+
     fn ai_context_output_function_descriptor(
         name: &str,
         category: &str,
@@ -10890,7 +11203,7 @@ mod tests {
             response.diagnostics
         );
         assert!(response.module_declared);
-        assert_eq!(response.module_options.output_functions.len(), 4);
+        assert_eq!(response.module_options.output_functions.len(), 5);
         let html_text = &response.module_options.output_functions[0];
         assert_eq!(
             html_text.kind,
@@ -10924,6 +11237,20 @@ mod tests {
         assert!(custom.deterministic);
         assert_eq!(custom.extends.as_deref(), Some("markdown-document"));
         assert!(custom.body_declared);
+
+        let cem_tree = response
+            .module_options
+            .output_functions
+            .iter()
+            .find(|function| function.name == "cem.format-tree")
+            .expect("CEM tree formatter declaration");
+        assert_eq!(cem_tree.kind, TransformTemplateOutputFunctionKind::Format);
+        assert_eq!(
+            cem_tree.produces,
+            TransformTemplateOutputProducedKind::CemTree
+        );
+        assert_eq!(cem_tree.category, "cem-tree");
+        assert_eq!(cem_tree.subject, "cem-ast-node");
     }
 
     #[test]
@@ -13834,6 +14161,71 @@ mod tests {
     }
 
     #[test]
+    fn format_binding_resolves_cem_tree_formatter_and_builtin_runs() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        registry.register(cem_tree_format_function_descriptor());
+        let implementations =
+            TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+        let subject = json!({
+            "subjectType": "cem-ast",
+            "kind": "element",
+            "name": "card",
+            "attributes": [{"name": "tone", "value": "info"}],
+            "children": [{"kind": "text", "value": "Ready"}]
+        });
+        let request = TransformTemplateEncodeBindingRequest::new(
+            subject.clone(),
+            TransformTemplateEncodingTarget::new(
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                "cem-tree",
+            ),
+        )
+        .with_options(TransformTemplateEncodeOptions {
+            formatter: Some("cem.format-tree".to_owned()),
+            canonical: true,
+            ..TransformTemplateEncodeOptions::default()
+        });
+
+        let binding = registry
+            .resolve_format_binding(&request, &BTreeSet::new())
+            .expect("CEM tree formatter resolves");
+
+        assert_eq!(
+            binding.function.kind,
+            TransformTemplateOutputFunctionKind::Format
+        );
+        assert_eq!(binding.function.name, "cem.format-tree");
+        assert_eq!(binding.subject_type, "cem-ast-node");
+        assert_eq!(
+            binding.identity.produces,
+            TransformTemplateOutputProducedKind::CemTree
+        );
+        assert_eq!(
+            binding.identity.formatter_profile.as_deref(),
+            Some("cem.format-tree")
+        );
+        assert!(binding.identity.canonical);
+
+        let formatted = implementations
+            .encode(&binding, &subject)
+            .expect("CEM tree formatter runs");
+        assert_eq!(formatted["kind"], "cem-tree");
+        assert_eq!(formatted["contentType"], CEM_ML_CONTENT_TYPE);
+        assert_eq!(formatted["nodes"][0]["name"], "card");
+
+        binding
+            .artifact_from_value(formatted)
+            .validate_insertion(
+                &TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+                    &request.target,
+                    Some(TransformTemplateOutputProducedKind::CemTree),
+                ),
+            )
+            .expect("CEM tree artifact validates as a structured formatter output");
+    }
+
+    #[test]
     fn encode_binding_uses_subject_type_override_for_semantic_values() {
         let mut registry = TransformTemplateOutputFunctionRegistry::new();
         registry.register(TransformTemplateOutputFunctionDescriptor {
@@ -15219,6 +15611,94 @@ mod tests {
                 && diagnostic.node.as_deref() == Some("main")
                 && diagnostic.message.contains("context")
         }));
+    }
+
+    #[test]
+    fn evaluate_encode_expressions_runs_formatter_bindings_to_cem_tree() {
+        let response = parse_cem_native_template_module_options(
+            TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "templates/runtime-format.cemt",
+                    r#"{@doc cem-ml 1}
+{module |
+  {format-function
+      @name="cem.format-tree"
+      @category="cem-tree"
+      @subject="cem-ast-node"
+      @produces="cem-tree"
+      @content-type="application/cem"
+      @schema="https://cem.dev/ns/cem-ml/1"
+      @canonical=true
+      @deterministic=true
+      @streamable=true |
+      {param @name="subject" @type="object" @required=true}
+  }
+  {template @name="main" @visibility="public" |
+    {body |
+      {$ encode($node.ast, { contentType: "application/cem", schema: "https://cem.dev/ns/cem-ml/1", category: "cem-tree", subjectType: "cem-ast-node" }, { formatter: "cem.format-tree", canonical: true }) }
+    }
+  }
+}"#,
+                    Some(FormatIdentity {
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            },
+        );
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        let registry =
+            TransformTemplateOutputFunctionRegistry::from_module_options(&response.module_options);
+        let implementations =
+            TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+        let mut values = BTreeMap::new();
+        values.insert(
+            "node".to_owned(),
+            json!({
+                "ast": {
+                    "kind": "element",
+                    "name": "card",
+                    "children": [{"kind": "text", "value": "Ready"}]
+                }
+            }),
+        );
+
+        let evaluated = evaluate_transform_template_encode_expressions(
+            &response.module_options.encode_expressions,
+            TransformTemplateEncodeEvaluationContext {
+                registry: &registry,
+                value_bindings: &values,
+                host_capabilities: implementations.host_capabilities(),
+                output_color_type: None,
+                uri: Some("templates/runtime-format.cemt"),
+            },
+            |binding, subject| {
+                assert_eq!(
+                    binding.function.kind,
+                    TransformTemplateOutputFunctionKind::Format
+                );
+                implementations.encode(binding, subject)
+            },
+        );
+
+        assert!(
+            evaluated.diagnostics.is_empty(),
+            "{:?}",
+            evaluated.diagnostics
+        );
+        assert_eq!(evaluated.encoded.len(), 1);
+        let evaluated = &evaluated.encoded[0];
+        assert_eq!(evaluated.binding.function.name, "cem.format-tree");
+        assert_eq!(
+            evaluated.artifact.identity.produces,
+            TransformTemplateOutputProducedKind::CemTree
+        );
+        assert_eq!(evaluated.artifact.value["kind"], "cem-tree");
+        assert_eq!(evaluated.artifact.value["nodes"][0]["name"], "card");
     }
 
     #[test]

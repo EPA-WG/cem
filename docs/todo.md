@@ -6,7 +6,7 @@ history belongs in git history and the feature-specific docs linked below.
 
 ## Immediate Tasks
 
-- [ ] Implement schema package loading and input-file validation for supported
+- [x] Implement schema package loading and input-file validation for supported
       schemas, in schema package creation order. Definition of done for each
       schema: resolve content type to schema URL, load the schema package,
       select an explicit lifecycle parser/adaptor, validate source bytes
@@ -67,7 +67,7 @@ history belongs in git history and the feature-specific docs linked below.
   - [x] HTML (`text/html`).
   - [x] CSS/scoped style content (`text/css`).
 
-- [ ] Prepare AST-to-schema output export for all supported schema packages,
+- [x] Prepare AST-to-schema output export for all supported schema packages,
       with CEMT as the primary output producer. First review the output
       transformation design in
       [`../packages/cem_ml/schema-packages/README.md`](../packages/cem_ml/schema-packages/README.md)
@@ -141,7 +141,7 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Require `canonical` and `streamable` output-function metadata and
           runtime-validate function params with explicit `type` plus
           `required` or `default` metadata.
-  - [ ] Add custom encoding, formatting, and color function support. Custom
+  - [x] Add custom encoding, formatting, and color function support. Custom
         functions must use the same typed artifact semantics as built-ins and
         declare package-qualified names, visibility, implementation source
         (`cemt`, `native`, or `external`), profile, optional extension target,
@@ -210,7 +210,7 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Register initial built-in CEM binary projection byte-stream encoders
           for DOM/AST/events `cem-bin-document` output with explicit binary
           framing identity validation.
-  - [ ] Add shared formatter functions for indentation, line endings, ordering,
+  - [x] Add shared formatter functions for indentation, line endings, ordering,
         wrapping, YAML scalar style, namespace declaration placement, and
         canonical output profiles.
     - [x] Add initial JSON canonical/pretty formatter controls for CEMT

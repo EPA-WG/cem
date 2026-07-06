@@ -1392,7 +1392,13 @@ impl PlanRenderer {
 
     fn render_attribute(&mut self, attribute: &TemplateAttribute) -> Option<RenderPlanAttribute> {
         let (value, value_stream) = self.render_attribute_value(attribute);
+        let preserves_empty_value = match &attribute.value {
+            None => true,
+            Some(TemplateAttributeValue::Literal(value)) => value.is_empty(),
+            Some(TemplateAttributeValue::Template(_)) | Some(TemplateAttributeValue::Expression(_)) => false,
+        };
         if value.is_empty()
+            && !preserves_empty_value
             && (!attribute.name.starts_with("with:") || value_stream.items.is_empty())
         {
             return None;

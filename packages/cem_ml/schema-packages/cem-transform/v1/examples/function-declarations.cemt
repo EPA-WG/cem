@@ -30,6 +30,19 @@
         {param @name="indent" @type="string" @default="  "}
     }
 
+    {format-function
+        @name="cem.format-tree"
+        @category="cem-tree"
+        @subject="cem-ast-node"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @canonical=true
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+    }
+
     {color-function
         @name="terminal.diagnostic"
         @category="terminal-color"
