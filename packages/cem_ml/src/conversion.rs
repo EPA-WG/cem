@@ -68,6 +68,8 @@ pub const CONVERSION_OUTPUT_UNSUPPORTED_CATEGORY_CODE: &str =
 pub const CONVERSION_OUTPUT_CONTEXT_MISMATCH_CODE: &str = "cem.converter.output_context_mismatch";
 pub const CONVERSION_OUTPUT_COLOR_PROFILE_UNSAFE_CODE: &str =
     "cem.converter.output_color_profile_unsafe";
+pub const CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE: &str =
+    "cem.converter.output_pipeline_execution";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ConversionImplementation {
@@ -2315,10 +2317,11 @@ fn execute_cemt_template_parity_fixture(
         None
     } else if let Some(contract) = contract.as_ref() {
         let pipeline_execution = execute_conversion_output_pipeline(
-            descriptor,
-            fixture,
-            contract,
+            &contract.pipeline,
             render_response.output.value,
+            &descriptor.id,
+            Some(&fixture.id),
+            None,
         );
         diagnostics.extend(pipeline_execution.diagnostics);
         if diagnostics
@@ -2339,35 +2342,36 @@ fn execute_cemt_template_parity_fixture(
     }
 }
 
-#[derive(Debug, Clone)]
-struct ConversionOutputPipelineExecution {
-    output: Option<Value>,
-    diagnostics: Vec<Diagnostic>,
+#[derive(Debug, Clone, Default)]
+pub struct ConversionOutputPipelineExecution {
+    pub output: Option<Value>,
+    pub diagnostics: Vec<Diagnostic>,
 }
 
-fn execute_conversion_output_pipeline(
-    descriptor: &ConversionDescriptor,
-    fixture: &ConversionParityFixture,
-    contract: &ConversionOutputSafetyContract<'_>,
+pub fn execute_conversion_output_pipeline(
+    pipeline: &ConversionOutputPipeline,
     rendered_value: Value,
+    converter_id: &str,
+    diagnostic_node: Option<&str>,
+    diagnostic_uri: Option<&str>,
 ) -> ConversionOutputPipelineExecution {
     let mut diagnostics = Vec::new();
-    let functions = conversion_cem_tree_output_function_registry(&contract.pipeline);
+    let functions = conversion_cem_tree_output_function_registry(pipeline);
     let implementations = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
 
     let format_request = TransformTemplateEncodeBindingRequest::new(
         rendered_value.clone(),
-        contract.pipeline.cemt_target.clone(),
+        pipeline.cemt_target.clone(),
     )
     .with_subject_type("cem-ast-node")
-    .with_options(contract.pipeline.cemt_options.clone());
+    .with_options(pipeline.cemt_options.clone());
     let format_binding = match functions
         .resolve_format_binding(&format_request, implementations.host_capabilities())
     {
         Ok(binding) => binding,
         Err(error) => {
-            let mut diagnostic = error.diagnostic(None);
-            diagnostic.node = Some(fixture.id.clone());
+            let mut diagnostic = error.diagnostic(diagnostic_uri);
+            diagnostic.node = diagnostic_node.map(str::to_owned);
             diagnostics.push(diagnostic);
             return ConversionOutputPipelineExecution {
                 output: None,
@@ -2378,9 +2382,10 @@ fn execute_conversion_output_pipeline(
     let formatted_output = match implementations.encode(&format_binding, &rendered_value) {
         Ok(value) => value,
         Err(message) => {
-            diagnostics.push(conversion_parity_fixture_pipeline_diagnostic(
-                descriptor,
-                fixture,
+            diagnostics.push(conversion_output_pipeline_diagnostic(
+                converter_id,
+                diagnostic_node,
+                diagnostic_uri,
                 format!(
                     "CEMT formatter `{}` failed: {message}",
                     format_binding.function.name
@@ -2393,11 +2398,11 @@ fn execute_conversion_output_pipeline(
         }
     };
     let formatted_artifact = format_binding.artifact_from_value(formatted_output);
-    if let Err(error) = formatted_artifact.validate_insertion(
-        &conversion_cem_tree_format_insertion_context(&contract.pipeline),
-    ) {
-        let mut diagnostic = error.diagnostic(None);
-        diagnostic.node = Some(fixture.id.clone());
+    if let Err(error) = formatted_artifact
+        .validate_insertion(&conversion_cem_tree_format_insertion_context(pipeline))
+    {
+        let mut diagnostic = error.diagnostic(diagnostic_uri);
+        diagnostic.node = diagnostic_node.map(str::to_owned);
         diagnostics.push(diagnostic);
         return ConversionOutputPipelineExecution {
             output: None,
@@ -2407,17 +2412,17 @@ fn execute_conversion_output_pipeline(
 
     let color_request = TransformTemplateEncodeBindingRequest::new(
         formatted_artifact.value.clone(),
-        contract.pipeline.cemt_target.clone(),
+        pipeline.cemt_target.clone(),
     )
     .with_subject_type("cem-tree")
-    .with_options(contract.pipeline.cemt_options.clone());
+    .with_options(pipeline.cemt_options.clone());
     let color_binding = match functions
         .resolve_color_binding(&color_request, implementations.host_capabilities())
     {
         Ok(binding) => binding.into_encode_binding(),
         Err(error) => {
-            let mut diagnostic = error.diagnostic(None);
-            diagnostic.node = Some(fixture.id.clone());
+            let mut diagnostic = error.diagnostic(diagnostic_uri);
+            diagnostic.node = diagnostic_node.map(str::to_owned);
             diagnostics.push(diagnostic);
             return ConversionOutputPipelineExecution {
                 output: None,
@@ -2428,9 +2433,10 @@ fn execute_conversion_output_pipeline(
     let colored_output = match implementations.encode(&color_binding, &formatted_artifact.value) {
         Ok(value) => value,
         Err(message) => {
-            diagnostics.push(conversion_parity_fixture_pipeline_diagnostic(
-                descriptor,
-                fixture,
+            diagnostics.push(conversion_output_pipeline_diagnostic(
+                converter_id,
+                diagnostic_node,
+                diagnostic_uri,
                 format!(
                     "CEMT colorizer `{}` failed: {message}",
                     color_binding.function.name
@@ -2443,11 +2449,9 @@ fn execute_conversion_output_pipeline(
         }
     };
     let colored_artifact = color_binding.artifact_from_value(colored_output);
-    if let Err(error) =
-        colored_artifact.validate_insertion(&contract.pipeline.cemt_insertion_context)
-    {
-        let mut diagnostic = error.diagnostic(None);
-        diagnostic.node = Some(fixture.id.clone());
+    if let Err(error) = colored_artifact.validate_insertion(&pipeline.cemt_insertion_context) {
+        let mut diagnostic = error.diagnostic(diagnostic_uri);
+        diagnostic.node = diagnostic_node.map(str::to_owned);
         diagnostics.push(diagnostic);
         return ConversionOutputPipelineExecution {
             output: None,
@@ -2457,12 +2461,12 @@ fn execute_conversion_output_pipeline(
 
     let evaluated = TransformTemplateEvaluatedEncodeExpression {
         expression: TransformTemplateEncodeExpression {
-            owner: Some(fixture.id.clone()),
-            expression: format!("{} output pipeline", descriptor.id),
+            owner: diagnostic_node.map(str::to_owned),
+            expression: format!("{converter_id} output pipeline"),
             subject: "rendered-cem-tree".to_owned(),
             subject_type: Some("cem-tree".to_owned()),
-            target: contract.pipeline.cemt_target.clone(),
-            options: contract.pipeline.cemt_options.clone(),
+            target: pipeline.cemt_target.clone(),
+            options: pipeline.cemt_options.clone(),
         },
         subject: formatted_artifact.value,
         binding: color_binding,
@@ -2470,8 +2474,8 @@ fn execute_conversion_output_pipeline(
     };
     let composition = compose_transform_template_encoded_text_artifacts(
         &[evaluated],
-        &contract.pipeline.writer_insertion_context,
-        None,
+        &pipeline.writer_insertion_context,
+        diagnostic_uri,
     );
     diagnostics.extend(composition.diagnostics);
     ConversionOutputPipelineExecution {
@@ -2574,19 +2578,20 @@ fn conversion_cem_tree_color_function_descriptor(
     }
 }
 
-fn conversion_parity_fixture_pipeline_diagnostic(
-    descriptor: &ConversionDescriptor,
-    fixture: &ConversionParityFixture,
+fn conversion_output_pipeline_diagnostic(
+    converter_id: &str,
+    diagnostic_node: Option<&str>,
+    diagnostic_uri: Option<&str>,
     message: String,
 ) -> Diagnostic {
     Diagnostic {
-        code: CONVERSION_PARITY_FIXTURE_EXECUTION_CODE.to_owned(),
+        uri: diagnostic_uri.map(str::to_owned),
+        code: CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE.to_owned(),
         severity: Severity::Error,
         message: format!(
-            "converter `{}` could not execute parity fixture `{}` output pipeline: {}",
-            descriptor.id, fixture.id, message
+            "converter `{converter_id}` could not execute CEMT output pipeline: {message}"
         ),
-        node: Some(fixture.id.clone()),
+        node: diagnostic_node.map(str::to_owned),
         ..Diagnostic::default()
     }
 }

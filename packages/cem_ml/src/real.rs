@@ -6,7 +6,8 @@
 //! replaces `NotImplementedEngine` in `cem-ml-cli/src/main.rs`.
 
 use crate::conversion::{
-    ConversionExecution, ConversionRustFallbackDescriptor, GenericDataTextConversionOutcome,
+    conversion_output_safety_contract, execute_conversion_output_pipeline, ConversionExecution,
+    ConversionOutputPipeline, ConversionRustFallbackDescriptor, GenericDataTextConversionOutcome,
     GenericDataTextDocument,
 };
 use crate::diagnostics::{Diagnostic, Severity};
@@ -86,13 +87,15 @@ impl RealCemMlEngine {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 struct ExportConversionExecution {
     converter_id: String,
     source: FormatIdentity,
     target: FormatIdentity,
     execution: ConversionExecution,
     rust_fallback: Option<ConversionRustFallbackDescriptor>,
+    output_pipeline: Option<ConversionOutputPipeline>,
+    output_pipeline_diagnostics: Vec<Diagnostic>,
 }
 
 fn resolve_export_conversion_execution(
@@ -115,6 +118,9 @@ fn resolve_export_conversion_execution(
         )
         .ok()?;
 
+    let (contract, output_pipeline_diagnostics) =
+        conversion_output_safety_contract(execution.descriptor);
+
     Some(ExportConversionExecution {
         converter_id: execution.descriptor.id.clone(),
         source: FormatIdentity {
@@ -129,6 +135,8 @@ fn resolve_export_conversion_execution(
         },
         execution: execution.execution,
         rust_fallback: execution.descriptor.rust_fallback.clone(),
+        output_pipeline: contract.map(|contract| contract.pipeline),
+        output_pipeline_diagnostics,
     })
 }
 
@@ -178,6 +186,19 @@ fn render_export_conversion_template(
     };
 
     let mut local_diagnostics = Vec::new();
+    local_diagnostics.extend(conversion.output_pipeline_diagnostics.clone());
+    if local_diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return fallback_or_publish_converter_diagnostics(
+            conversion,
+            "output safety contract validation failed",
+            local_diagnostics,
+            diagnostics,
+        );
+    }
+
     let Some(adapter) =
         select_converter_template_adapter(context, template, *adapter_id, &mut local_diagnostics)
     else {
@@ -236,6 +257,11 @@ fn render_export_conversion_template(
         value: projection::dom_json(document),
     };
     let secondary_inputs = BTreeMap::new();
+    let render_target = conversion
+        .output_pipeline
+        .as_ref()
+        .map(|pipeline| pipeline.cemt_target.format_identity())
+        .unwrap_or_else(|| conversion.target.clone());
     let Some(output) = render_transform_stage(
         TransformStageRenderSpec {
             context,
@@ -243,7 +269,7 @@ fn render_export_conversion_template(
             compiled: &compiled,
             primary_input: &primary_input,
             secondary_inputs: &secondary_inputs,
-            target: Some(&conversion.target),
+            target: Some(&render_target),
             target_scope,
             execution_policy,
             diagnostic_uri: &template_input.uri,
@@ -257,6 +283,45 @@ fn render_export_conversion_template(
             local_diagnostics,
             diagnostics,
         );
+    };
+
+    let output = if let Some(pipeline) = conversion.output_pipeline.as_ref() {
+        let pipeline_execution = execute_conversion_output_pipeline(
+            pipeline,
+            output.value,
+            &conversion.converter_id,
+            Some("output"),
+            Some(&template_input.uri),
+        );
+        local_diagnostics.extend(pipeline_execution.diagnostics);
+        if local_diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity.is_hard_violation())
+        {
+            return fallback_or_publish_converter_diagnostics(
+                conversion,
+                "CEMT output pipeline failed",
+                local_diagnostics,
+                diagnostics,
+            );
+        }
+        let Some(value) = pipeline_execution.output else {
+            return fallback_or_publish_converter_diagnostics(
+                conversion,
+                "CEMT output pipeline produced no writer artifact",
+                local_diagnostics,
+                diagnostics,
+            );
+        };
+        TransformTemplateOutputArtifact {
+            uri: output.uri,
+            identity: Some(conversion.target.clone()),
+            value,
+            source_map: output.source_map,
+            output_spans: output.output_spans,
+        }
+    } else {
+        output
     };
 
     let Some(primary) = convert_primary_from_template_output(output, to_format) else {
@@ -5502,7 +5567,13 @@ mod tests {
                 }),
                 streamable: true,
                 lossiness: Some("serialization".to_owned()),
-                output_contract: Default::default(),
+                output_contract: crate::conversion::ConversionOutputContractDescriptor {
+                    output_syntax: Some(crate::conversion::ConversionOutputSyntax::Html),
+                    encoding_category: Some("html-document".to_owned()),
+                    formatter_profile: Some("canonical".to_owned()),
+                    color_profile: Some("classes".to_owned()),
+                    parity: None,
+                },
                 parity_fixtures: Vec::new(),
                 implicit: true,
                 explicit_only: false,
@@ -5591,6 +5662,33 @@ mod tests {
             &self,
             request: TransformTemplateRenderRequest<'_>,
         ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
+            if request.target.is_some_and(|target| {
+                target.content_type.as_deref().is_some_and(|content_type| {
+                    content_type_essence(content_type)
+                        == crate::schema::registry::CEM_ML_CONTENT_TYPE
+                })
+            }) {
+                return Ok(TransformTemplateRenderResponse {
+                    output: TransformTemplateOutputArtifact {
+                        uri: None,
+                        identity: request.target.cloned(),
+                        value: json!([{
+                            "kind": "element",
+                            "name": "cemt-ready",
+                            "children": [{
+                                "kind": "text",
+                                "value": request.primary_input.value["kind"]
+                                    .as_str()
+                                    .unwrap_or("unknown")
+                            }]
+                        }]),
+                        source_map: None,
+                        output_spans: Vec::new(),
+                    },
+                    diagnostics: Vec::new(),
+                });
+            }
+
             Ok(TransformTemplateRenderResponse {
                 output: TransformTemplateOutputArtifact {
                     uri: None,
@@ -5598,7 +5696,7 @@ mod tests {
                     value: json!({
                         "kind": "html",
                         "content": format!(
-                            "<cemt-ready>{}</cemt-ready>",
+                            "<direct-ready>{}</direct-ready>",
                             request.primary_input.value["kind"].as_str().unwrap_or("unknown")
                         ),
                     }),
