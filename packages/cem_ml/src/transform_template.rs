@@ -5353,6 +5353,7 @@ fn transform_template_first_cem_tree_source_map(value: &Value) -> Option<SourceM
                 "formatContentBoundary",
                 "formatBeforeClose",
                 "writerAttributeNodes",
+                "colorWrapperNodes",
             ] {
                 if let Some(value) = fields.get(field) {
                     if let Some(source_map) = transform_template_first_cem_tree_source_map(value) {
@@ -5714,7 +5715,7 @@ fn transform_template_cem_tree_node_color_role(fields: &serde_json::Map<String, 
         "text" | "string" => "syntax.string",
         "comment" => "syntax.comment",
         "format-marker" | "format-decision" | "format-span" | "color-marker" | "color-decision"
-        | "color-span" => "source.gutter",
+        | "color-span" | "color-wrapper" => "source.gutter",
         "whitespace" => "syntax.raw",
         "raw" => "syntax.raw",
         _ => "syntax.token",
@@ -5826,7 +5827,17 @@ fn transform_template_cem_tree_color_text_wrapper(
         "writerAttributes".to_owned(),
         Value::Object(writer_attributes),
     );
-    if let Some(source_map) = transform_template_cem_tree_color_generated_source_map_value(fields) {
+    let wrapper_source_map = transform_template_cem_tree_color_generated_source_map_value(fields);
+    wrapper.insert(
+        "colorWrapperNodes".to_owned(),
+        transform_template_cem_tree_color_wrapper_nodes(
+            fields,
+            role,
+            color_profile,
+            wrapper_source_map.as_ref(),
+        ),
+    );
+    if let Some(source_map) = wrapper_source_map {
         wrapper.insert("sourceMap".to_owned(), source_map.clone());
         wrapper.insert("writerAttributesSourceMap".to_owned(), source_map.clone());
     }
@@ -5836,6 +5847,85 @@ fn transform_template_cem_tree_color_text_wrapper(
         Value::Array(vec![Value::Object(fields.clone())]),
     );
     Some(Value::Object(wrapper))
+}
+
+fn transform_template_cem_tree_color_wrapper_nodes(
+    fields: &serde_json::Map<String, Value>,
+    role: &str,
+    color_profile: &str,
+    source_map: Option<&Value>,
+) -> Value {
+    let wrapped_kind = fields
+        .get("kind")
+        .and_then(Value::as_str)
+        .unwrap_or("text")
+        .to_owned();
+    Value::Array(vec![
+        transform_template_cem_tree_color_wrapper_metadata_node(
+            "color-wrapper",
+            "span",
+            None,
+            "colorizer.text-wrapper",
+            color_profile,
+            source_map,
+        ),
+        transform_template_cem_tree_color_wrapper_metadata_node(
+            "color-decision",
+            "wrapped-kind",
+            Some(Value::String(wrapped_kind)),
+            "colorizer.wrapped-kind",
+            color_profile,
+            source_map,
+        ),
+        transform_template_cem_tree_color_wrapper_metadata_node(
+            "color-decision",
+            "wrapped-role",
+            Some(Value::String(role.to_owned())),
+            "colorizer.wrapped-role",
+            color_profile,
+            source_map,
+        ),
+    ])
+}
+
+fn transform_template_cem_tree_color_wrapper_metadata_node(
+    kind: &str,
+    name: &str,
+    value: Option<Value>,
+    colorizer_role: &str,
+    color_profile: &str,
+    source_map: Option<&Value>,
+) -> Value {
+    let mut node = serde_json::Map::new();
+    node.insert("kind".to_owned(), Value::String(kind.to_owned()));
+    node.insert("name".to_owned(), Value::String(name.to_owned()));
+    if let Some(value) = value {
+        node.insert("value".to_owned(), value);
+    }
+    node.insert("colorizerOwned".to_owned(), Value::Bool(true));
+    node.insert(
+        "colorizerRole".to_owned(),
+        Value::String(colorizer_role.to_owned()),
+    );
+    node.insert(
+        "colorProfile".to_owned(),
+        Value::String(color_profile.to_owned()),
+    );
+    node.insert(
+        "colorRole".to_owned(),
+        Value::String("source.gutter".to_owned()),
+    );
+    node.insert(
+        "style".to_owned(),
+        serde_json::json!({
+            "colorRole": "source.gutter",
+            "colorProfile": color_profile,
+        }),
+    );
+    if let Some(source_map) = source_map {
+        node.insert("sourceMap".to_owned(), source_map.clone());
+    }
+    Value::Object(node)
 }
 
 fn transform_template_cem_tree_color_attribute_writer_attributes(
@@ -8743,7 +8833,8 @@ fn transform_template_render_cem_tree_markup_element(
 ) -> Result<(), String> {
     let name = transform_template_cem_tree_markup_name(fields)?;
     let node_source_map = transform_template_cem_tree_node_source_map(fields);
-    let writer_source_map = transform_template_cem_tree_writer_attributes_source_map(fields)
+    let writer_source_map = transform_template_cem_tree_color_wrapper_source_map(fields)
+        .or_else(|| transform_template_cem_tree_writer_attributes_source_map(fields))
         .or_else(|| {
             fields
                 .get("colorWrapper")
@@ -8787,7 +8878,8 @@ fn transform_template_render_cem_tree_element(
         .unwrap_or("node");
     let name = transform_template_encode_cem_name(raw_name)?;
     let node_source_map = transform_template_cem_tree_node_source_map(fields);
-    let writer_source_map = transform_template_cem_tree_writer_attributes_source_map(fields)
+    let writer_source_map = transform_template_cem_tree_color_wrapper_source_map(fields)
+        .or_else(|| transform_template_cem_tree_writer_attributes_source_map(fields))
         .or_else(|| {
             fields
                 .get("colorWrapper")
@@ -8944,6 +9036,14 @@ fn transform_template_cem_tree_writer_attributes_source_map(
     fields
         .get("writerAttributesSourceMap")
         .and_then(|value| serde_json::from_value::<SourceMapStack>(value.clone()).ok())
+}
+
+fn transform_template_cem_tree_color_wrapper_source_map(
+    fields: &serde_json::Map<String, Value>,
+) -> Option<SourceMapStack> {
+    fields
+        .get("colorWrapperNodes")
+        .and_then(transform_template_first_cem_tree_source_map)
 }
 
 fn transform_template_cem_tree_markup_attribute_entries_with_source(
@@ -17270,6 +17370,52 @@ mod tests {
         assert_eq!(colored["nodes"][0]["children"][0]["kind"], "element");
         assert_eq!(colored["nodes"][0]["children"][0]["name"], "span");
         assert_eq!(colored["nodes"][0]["children"][0]["colorWrapper"], true);
+        assert_eq!(
+            colored["nodes"][0]["children"][0]["colorWrapperNodes"][0]["kind"],
+            "color-wrapper"
+        );
+        assert_eq!(
+            colored["nodes"][0]["children"][0]["colorWrapperNodes"][0]["name"],
+            "span"
+        );
+        assert_eq!(
+            colored["nodes"][0]["children"][0]["colorWrapperNodes"][0]["colorizerOwned"],
+            true
+        );
+        assert_eq!(
+            colored["nodes"][0]["children"][0]["colorWrapperNodes"][0]["colorizerRole"],
+            "colorizer.text-wrapper"
+        );
+        assert_eq!(
+            colored["nodes"][0]["children"][0]["colorWrapperNodes"][0]["style"]["colorRole"],
+            "source.gutter"
+        );
+        assert_eq!(
+            colored["nodes"][0]["children"][0]["colorWrapperNodes"][1]["name"],
+            "wrapped-kind"
+        );
+        assert_eq!(
+            colored["nodes"][0]["children"][0]["colorWrapperNodes"][1]["value"],
+            "text"
+        );
+        assert_eq!(
+            colored["nodes"][0]["children"][0]["colorWrapperNodes"][2]["name"],
+            "wrapped-role"
+        );
+        assert_eq!(
+            colored["nodes"][0]["children"][0]["colorWrapperNodes"][2]["value"],
+            "syntax.string"
+        );
+        assert_cem_tree_source_map_current_transform(
+            &colored["nodes"][0]["children"][0]["colorWrapperNodes"][0]["sourceMap"],
+            |transform| {
+                matches!(
+                    transform,
+                    TransformKind::TemplateTransform { function }
+                        if function == "cem.color-tree"
+                )
+            },
+        );
         assert_eq!(
             colored["nodes"][0]["children"][0]["writerAttributes"]["class"],
             "cem-color cem-color-syntax-string"
