@@ -4689,6 +4689,7 @@ fn builtin_cem_tree_formatter(
     let format_nodes = transform_template_cem_tree_format_nodes(
         &nodes,
         binding.identity.formatter_profile.as_deref(),
+        &binding.options,
     );
     Ok(serde_json::json!({
         "kind": "cem-tree",
@@ -4769,7 +4770,53 @@ fn transform_template_cem_tree_nodes(subject: &Value) -> Result<Vec<Value>, Stri
 fn transform_template_cem_tree_format_nodes(
     nodes: &[Value],
     formatter_profile: Option<&str>,
+    options: &TransformTemplateEncodeOptions,
 ) -> Vec<Value> {
+    let source_map = transform_template_first_cem_tree_source_map_in_values(nodes);
+    vec![
+        transform_template_cem_tree_format_marker(formatter_profile, source_map.as_ref()),
+        transform_template_cem_tree_format_decision(
+            "line-ending",
+            "formatter.line-ending",
+            transform_template_cem_tree_formatter_line_ending(options),
+            formatter_profile,
+            source_map.as_ref(),
+        ),
+        transform_template_cem_tree_format_decision(
+            "indent",
+            "formatter.indent",
+            transform_template_cem_tree_formatter_indent(options),
+            formatter_profile,
+            source_map.as_ref(),
+        ),
+        transform_template_cem_tree_format_decision(
+            "ordering",
+            "formatter.ordering",
+            transform_template_cem_tree_formatter_ordering(options),
+            formatter_profile,
+            source_map.as_ref(),
+        ),
+        transform_template_cem_tree_format_decision(
+            "wrapping",
+            "formatter.wrapping",
+            transform_template_cem_tree_formatter_wrapping(options),
+            formatter_profile,
+            source_map.as_ref(),
+        ),
+        transform_template_cem_tree_format_decision(
+            "whitespace",
+            "formatter.whitespace",
+            "formatter-owned".to_owned(),
+            formatter_profile,
+            source_map.as_ref(),
+        ),
+    ]
+}
+
+fn transform_template_cem_tree_format_marker(
+    formatter_profile: Option<&str>,
+    source_map: Option<&SourceMapStack>,
+) -> Value {
     let mut marker = serde_json::Map::new();
     marker.insert("kind".to_owned(), Value::String("format-marker".to_owned()));
     marker.insert(
@@ -4790,17 +4837,99 @@ fn transform_template_cem_tree_format_nodes(
             Value::String(formatter_profile.to_owned()),
         );
     }
-    if let Some(source_map) = transform_template_first_cem_tree_source_map_in_values(nodes) {
-        if let Ok(source_map) = serde_json::to_value(transform_template_source_map_with_transform(
-            &source_map,
-            TransformKind::TemplateTransform {
-                function: "cem.format-tree".to_owned(),
-            },
-        )) {
-            marker.insert("sourceMap".to_owned(), source_map);
-        }
+    if let Some(source_map) = transform_template_cem_tree_format_source_map_value(source_map) {
+        marker.insert("sourceMap".to_owned(), source_map);
     }
-    vec![Value::Object(marker)]
+    Value::Object(marker)
+}
+
+fn transform_template_cem_tree_format_decision(
+    name: &str,
+    formatter_role: &str,
+    value: String,
+    formatter_profile: Option<&str>,
+    source_map: Option<&SourceMapStack>,
+) -> Value {
+    let mut decision = serde_json::Map::new();
+    decision.insert(
+        "kind".to_owned(),
+        Value::String("format-decision".to_owned()),
+    );
+    decision.insert("name".to_owned(), Value::String(name.to_owned()));
+    decision.insert(
+        "formatterRole".to_owned(),
+        Value::String(formatter_role.to_owned()),
+    );
+    decision.insert("value".to_owned(), Value::String(value));
+    decision.insert(
+        "colorRole".to_owned(),
+        Value::String("source.gutter".to_owned()),
+    );
+    if let Some(formatter_profile) = formatter_profile {
+        decision.insert(
+            "formatterProfile".to_owned(),
+            Value::String(formatter_profile.to_owned()),
+        );
+    }
+    if let Some(source_map) = transform_template_cem_tree_format_source_map_value(source_map) {
+        decision.insert("sourceMap".to_owned(), source_map);
+    }
+    Value::Object(decision)
+}
+
+fn transform_template_cem_tree_format_source_map_value(
+    source_map: Option<&SourceMapStack>,
+) -> Option<Value> {
+    let source_map = source_map?;
+    serde_json::to_value(transform_template_source_map_with_transform(
+        source_map,
+        TransformKind::TemplateTransform {
+            function: "cem.format-tree".to_owned(),
+        },
+    ))
+    .ok()
+}
+
+fn transform_template_cem_tree_formatter_line_ending(
+    options: &TransformTemplateEncodeOptions,
+) -> String {
+    options
+        .line_ending
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("lf")
+        .to_owned()
+}
+
+fn transform_template_cem_tree_formatter_indent(
+    options: &TransformTemplateEncodeOptions,
+) -> String {
+    options.indent.clone().unwrap_or_else(|| "  ".to_owned())
+}
+
+fn transform_template_cem_tree_formatter_ordering(
+    options: &TransformTemplateEncodeOptions,
+) -> String {
+    options
+        .ordering
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("source")
+        .to_owned()
+}
+
+fn transform_template_cem_tree_formatter_wrapping(
+    options: &TransformTemplateEncodeOptions,
+) -> String {
+    options
+        .wrap_column
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("none")
+        .to_owned()
 }
 
 fn transform_template_first_cem_tree_source_map_in_values(
@@ -5022,7 +5151,7 @@ fn transform_template_cem_tree_node_color_role(fields: &serde_json::Map<String, 
         "attribute" | "attr" => "syntax.attribute",
         "text" | "string" => "syntax.string",
         "comment" => "syntax.comment",
-        "format-marker" | "format-span" => "source.gutter",
+        "format-marker" | "format-decision" | "format-span" => "source.gutter",
         "whitespace" => "syntax.raw",
         "raw" => "syntax.raw",
         _ => "syntax.token",
@@ -7525,6 +7654,7 @@ fn validate_cem_tree_writer_boundary(
             ));
         }
     }
+    validate_cem_tree_formatter_metadata(&artifact.value, formatter_profile)?;
 
     if artifact.value.get("colored").and_then(Value::as_bool) != Some(true) {
         return Err(
@@ -7565,6 +7695,52 @@ fn validate_cem_tree_writer_boundary(
         }
     }
 
+    Ok(())
+}
+
+fn validate_cem_tree_formatter_metadata(
+    value: &Value,
+    formatter_profile: &str,
+) -> Result<(), String> {
+    let format_nodes = value
+        .get("formatNodes")
+        .and_then(Value::as_array)
+        .filter(|nodes| !nodes.is_empty())
+        .ok_or_else(|| {
+            "CEM tree writer requires formatter-owned `formatNodes`; run `cem.format-tree` before the writer"
+                .to_owned()
+        })?;
+    let has_marker = format_nodes.iter().any(|node| {
+        node.get("kind").and_then(Value::as_str) == Some("format-marker")
+            && node.get("name").and_then(Value::as_str) == Some("cem.format-tree")
+    });
+    if !has_marker {
+        return Err(
+            "CEM tree writer requires a `cem.format-tree` formatter marker in `formatNodes`"
+                .to_owned(),
+        );
+    }
+    let has_decision = format_nodes.iter().any(|node| {
+        node.get("kind").and_then(Value::as_str) == Some("format-decision")
+            && node
+                .get("formatterRole")
+                .and_then(Value::as_str)
+                .is_some_and(|role| role.starts_with("formatter."))
+    });
+    if !has_decision {
+        return Err(
+            "CEM tree writer requires formatter decision nodes in `formatNodes`; run `cem.format-tree` before the writer"
+                .to_owned(),
+        );
+    }
+    if let Some(conflicting_profile) = format_nodes.iter().find_map(|node| {
+        let profile = node.get("formatterProfile").and_then(Value::as_str)?;
+        (profile != formatter_profile).then_some(profile)
+    }) {
+        return Err(format!(
+            "CEM tree formatter metadata profile mismatch: tree `{formatter_profile}`, formatNodes `{conflicting_profile}`"
+        ));
+    }
     Ok(())
 }
 
@@ -12464,6 +12640,7 @@ mod tests {
         identity.color_profile = Some("css-custom-properties".to_owned());
         identity.mode = TransformTemplateEncodedArtifactMode::Fragment;
         identity.canonical = true;
+        let format_nodes = colored_cem_tree_format_nodes_value(source_map_stack(54, 0));
 
         let value = json!({
             "kind": "cem-tree",
@@ -12475,6 +12652,7 @@ mod tests {
             "formatterProfile": "cem.format-tree",
             "colored": true,
             "colorProfile": "css-custom-properties",
+            "formatNodes": format_nodes,
             "nodes": [{
                 "kind": "element",
                 "name": "card",
@@ -15904,6 +16082,10 @@ mod tests {
         .with_options(TransformTemplateEncodeOptions {
             formatter: Some("cem.format-tree".to_owned()),
             canonical: true,
+            line_ending: Some("crlf".to_owned()),
+            indent: Some("\t".to_owned()),
+            ordering: Some("lexical".to_owned()),
+            wrap_column: Some("88".to_owned()),
             ..TransformTemplateEncodeOptions::default()
         });
 
@@ -15954,6 +16136,26 @@ mod tests {
                 )
             },
         );
+        assert_eq!(
+            cem_tree_format_decision(&formatted, "line-ending")["value"],
+            "crlf"
+        );
+        assert_eq!(
+            cem_tree_format_decision(&formatted, "indent")["value"],
+            "\t"
+        );
+        assert_eq!(
+            cem_tree_format_decision(&formatted, "ordering")["value"],
+            "lexical"
+        );
+        assert_eq!(
+            cem_tree_format_decision(&formatted, "wrapping")["value"],
+            "88"
+        );
+        assert_eq!(
+            cem_tree_format_decision(&formatted, "whitespace")["value"],
+            "formatter-owned"
+        );
         assert_eq!(formatted["nodes"][0]["name"], "card");
 
         binding
@@ -15980,6 +16182,10 @@ mod tests {
         );
         assert_eq!(
             colored["formatNodes"][0]["writerAttributes"]["data-role"],
+            "source.gutter"
+        );
+        assert_eq!(
+            cem_tree_format_decision(&colored, "indent")["style"]["colorRole"],
             "source.gutter"
         );
         assert_cem_tree_source_map_current_transform(
@@ -16158,27 +16364,14 @@ mod tests {
             serde_json::to_value(source_map_stack(66, 4)).expect("attribute source map serializes");
         let text_source_map =
             serde_json::to_value(source_map_stack(72, 5)).expect("text source map serializes");
-        let format_source_map = serde_json::to_value(transform_template_source_map_with_transform(
-            &source_map_stack(54, 0),
-            TransformKind::TemplateTransform {
-                function: "cem.format-tree".to_owned(),
-            },
-        ))
-        .expect("format source map serializes");
+        let format_nodes = formatted_cem_tree_format_nodes_value(source_map_stack(54, 0));
         json!({
             "kind": "cem-tree",
             "contentType": CEM_ML_CONTENT_TYPE,
             "schema": CEM_ML_SCHEMA_URI,
             "category": "cem-tree",
             "formatterProfile": "cem.format-tree",
-            "formatNodes": [{
-                "kind": "format-marker",
-                "name": "cem.format-tree",
-                "formatterProfile": "cem.format-tree",
-                "formatterRole": "formatter.boundary",
-                "colorRole": "source.gutter",
-                "sourceMap": format_source_map
-            }],
+            "formatNodes": format_nodes,
             "nodes": [{
                 "kind": "element",
                 "name": "card",
@@ -16192,6 +16385,41 @@ mod tests {
                 "children": [{"kind": "text", "value": "Ready", "sourceMap": text_source_map}]
             }]
         })
+    }
+
+    fn formatted_cem_tree_format_nodes_value(source_map: SourceMapStack) -> Value {
+        let source_map = serde_json::to_value(source_map).expect("source map serializes");
+        let nodes = vec![json!({ "sourceMap": source_map })];
+        Value::Array(transform_template_cem_tree_format_nodes(
+            &nodes,
+            Some("cem.format-tree"),
+            &TransformTemplateEncodeOptions::default(),
+        ))
+    }
+
+    fn colored_cem_tree_format_nodes_value(source_map: SourceMapStack) -> Value {
+        let mut format_nodes = formatted_cem_tree_format_nodes_value(source_map);
+        let profile =
+            TransformTemplateColorOutputProfile::html_from_selector("css-custom-properties")
+                .expect("CEM tree color profile resolves");
+        transform_template_apply_cem_tree_color_to_value(
+            &mut format_nodes,
+            &profile,
+            "css-custom-properties",
+        );
+        format_nodes
+    }
+
+    fn cem_tree_format_decision<'a>(tree: &'a Value, name: &str) -> &'a Value {
+        tree.get("formatNodes")
+            .and_then(Value::as_array)
+            .and_then(|nodes| {
+                nodes.iter().find(|node| {
+                    node.get("kind").and_then(Value::as_str) == Some("format-decision")
+                        && node.get("name").and_then(Value::as_str) == Some(name)
+                })
+            })
+            .unwrap_or_else(|| panic!("missing CEM tree format decision `{name}`"))
     }
 
     fn assert_cem_tree_source_map_current_transform(
@@ -18378,6 +18606,36 @@ mod tests {
             diagnostic.code == TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_WRITER_ADAPTER_FAILED_CODE
                 && diagnostic.node.as_deref() == Some("body")
                 && diagnostic.message.contains("formatted CEM tree")
+                && diagnostic.message.contains("cem.format-tree")
+        }));
+    }
+
+    #[test]
+    fn encoded_text_artifact_composition_rejects_cem_tree_without_formatter_metadata() {
+        let mut evaluated = evaluated_colored_cem_tree("body");
+        evaluated
+            .artifact
+            .value
+            .as_object_mut()
+            .expect("CEM tree object")
+            .remove("formatNodes");
+        let mut context =
+            TransformTemplateEncodedArtifactInsertionContext::from_encoded_artifact_identity(
+                &evaluated.artifact.identity,
+            );
+        context.produces = Some(TransformTemplateOutputProducedKind::Text);
+
+        let response = compose_transform_template_encoded_text_artifacts(
+            &[evaluated],
+            &context,
+            Some("templates/runtime-encoding.cemt"),
+        );
+
+        assert!(response.artifact.is_none());
+        assert!(response.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_WRITER_ADAPTER_FAILED_CODE
+                && diagnostic.node.as_deref() == Some("body")
+                && diagnostic.message.contains("formatNodes")
                 && diagnostic.message.contains("cem.format-tree")
         }));
     }
