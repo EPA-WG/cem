@@ -286,9 +286,12 @@ fn render_export_conversion_template(
     };
 
     let output = if let Some(pipeline) = conversion.output_pipeline.as_ref() {
+        let output_uri = output.uri.clone();
         let pipeline_execution = execute_conversion_output_pipeline(
             pipeline,
             output.value,
+            output.source_map,
+            output.output_spans,
             &conversion.converter_id,
             Some("output"),
             Some(&template_input.uri),
@@ -314,11 +317,11 @@ fn render_export_conversion_template(
             );
         };
         TransformTemplateOutputArtifact {
-            uri: output.uri,
+            uri: output_uri,
             identity: Some(conversion.target.clone()),
             value,
-            source_map: output.source_map,
-            output_spans: output.output_spans,
+            source_map: pipeline_execution.source_map,
+            output_spans: pipeline_execution.output_spans,
         }
     } else {
         output
@@ -5682,8 +5685,8 @@ mod tests {
                                     .unwrap_or("unknown")
                             }]
                         }]),
-                        source_map: None,
-                        output_spans: Vec::new(),
+                        source_map: Some(test_source_map_stack(10, 8)),
+                        output_spans: vec![test_output_span(0, 8, 10)],
                     },
                     diagnostics: Vec::new(),
                 });
@@ -8999,6 +9002,14 @@ mod tests {
 
         assert_eq!(resp.primary["kind"], "html");
         assert_eq!(resp.primary["content"], "<cemt-ready>document</cemt-ready>");
+        assert_ne!(resp.primary["sourceMap"], Value::Null);
+        assert_eq!(
+            resp.primary["outputSpans"]
+                .as_array()
+                .expect("output spans array")
+                .len(),
+            1
+        );
         assert!(!resp
             .diagnostics
             .iter()

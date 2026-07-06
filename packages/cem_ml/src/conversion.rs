@@ -10,6 +10,7 @@ use crate::engine::{
     TransformTemplateKind,
 };
 use crate::events::cem::CemEventNormalizer;
+use crate::interpreter::OutputSpan;
 use crate::parser::builder::CemAstBuilder;
 use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
@@ -24,6 +25,7 @@ use crate::schema::registry::{
     YAML_SCHEMA_URI,
 };
 use crate::source::{BytesSource, SourceId};
+use crate::source_map::SourceMapStack;
 use crate::tokenizer::cem::CemTokenizer;
 use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
@@ -2319,6 +2321,8 @@ fn execute_cemt_template_parity_fixture(
         let pipeline_execution = execute_conversion_output_pipeline(
             &contract.pipeline,
             render_response.output.value,
+            render_response.output.source_map,
+            render_response.output.output_spans,
             &descriptor.id,
             Some(&fixture.id),
             None,
@@ -2345,12 +2349,16 @@ fn execute_cemt_template_parity_fixture(
 #[derive(Debug, Clone, Default)]
 pub struct ConversionOutputPipelineExecution {
     pub output: Option<Value>,
+    pub source_map: Option<SourceMapStack>,
+    pub output_spans: Vec<OutputSpan>,
     pub diagnostics: Vec<Diagnostic>,
 }
 
 pub fn execute_conversion_output_pipeline(
     pipeline: &ConversionOutputPipeline,
     rendered_value: Value,
+    rendered_source_map: Option<SourceMapStack>,
+    rendered_output_spans: Vec<OutputSpan>,
     converter_id: &str,
     diagnostic_node: Option<&str>,
     diagnostic_uri: Option<&str>,
@@ -2376,6 +2384,7 @@ pub fn execute_conversion_output_pipeline(
             return ConversionOutputPipelineExecution {
                 output: None,
                 diagnostics,
+                ..ConversionOutputPipelineExecution::default()
             };
         }
     };
@@ -2394,10 +2403,15 @@ pub fn execute_conversion_output_pipeline(
             return ConversionOutputPipelineExecution {
                 output: None,
                 diagnostics,
+                ..ConversionOutputPipelineExecution::default()
             };
         }
     };
-    let formatted_artifact = format_binding.artifact_from_value(formatted_output);
+    let formatted_artifact = format_binding.artifact_with_metadata(
+        formatted_output,
+        rendered_source_map,
+        rendered_output_spans,
+    );
     if let Err(error) = formatted_artifact
         .validate_insertion(&conversion_cem_tree_format_insertion_context(pipeline))
     {
@@ -2407,6 +2421,7 @@ pub fn execute_conversion_output_pipeline(
         return ConversionOutputPipelineExecution {
             output: None,
             diagnostics,
+            ..ConversionOutputPipelineExecution::default()
         };
     }
 
@@ -2427,6 +2442,7 @@ pub fn execute_conversion_output_pipeline(
             return ConversionOutputPipelineExecution {
                 output: None,
                 diagnostics,
+                ..ConversionOutputPipelineExecution::default()
             };
         }
     };
@@ -2445,10 +2461,15 @@ pub fn execute_conversion_output_pipeline(
             return ConversionOutputPipelineExecution {
                 output: None,
                 diagnostics,
+                ..ConversionOutputPipelineExecution::default()
             };
         }
     };
-    let colored_artifact = color_binding.artifact_from_value(colored_output);
+    let colored_artifact = color_binding.artifact_with_metadata(
+        colored_output,
+        formatted_artifact.source_map.clone(),
+        formatted_artifact.output_spans.clone(),
+    );
     if let Err(error) = colored_artifact.validate_insertion(&pipeline.cemt_insertion_context) {
         let mut diagnostic = error.diagnostic(diagnostic_uri);
         diagnostic.node = diagnostic_node.map(str::to_owned);
@@ -2456,6 +2477,7 @@ pub fn execute_conversion_output_pipeline(
         return ConversionOutputPipelineExecution {
             output: None,
             diagnostics,
+            ..ConversionOutputPipelineExecution::default()
         };
     }
 
@@ -2478,9 +2500,18 @@ pub fn execute_conversion_output_pipeline(
         diagnostic_uri,
     );
     diagnostics.extend(composition.diagnostics);
-    ConversionOutputPipelineExecution {
-        output: composition.artifact.map(|artifact| artifact.value),
-        diagnostics,
+    match composition.artifact {
+        Some(artifact) => ConversionOutputPipelineExecution {
+            output: Some(artifact.value),
+            source_map: artifact.source_map,
+            output_spans: artifact.output_spans,
+            diagnostics,
+        },
+        None => ConversionOutputPipelineExecution {
+            output: None,
+            diagnostics,
+            ..ConversionOutputPipelineExecution::default()
+        },
     }
 }
 
