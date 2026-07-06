@@ -255,6 +255,9 @@ fn decode_transform(tag: u16, payload: Option<String>) -> Result<TransformKind, 
         11 => TransformKind::TemplateEmbedding {
             host: decode_byte_range(payload.as_deref()),
         },
+        12 => TransformKind::TemplateTransform {
+            function: payload.unwrap_or_default(),
+        },
         _ => return Err(DecodeError::UnknownTransformTag(tag)),
     })
 }

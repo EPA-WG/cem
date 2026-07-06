@@ -280,6 +280,7 @@ fn encode_transform(t: &TransformKind) -> (u16, Option<String>) {
         TransformKind::TemplateEmbedding { host } => {
             (11, Some(format!("{},{}", host.start, host.len)))
         }
+        TransformKind::TemplateTransform { function } => (12, Some(function.clone())),
     }
 }
 

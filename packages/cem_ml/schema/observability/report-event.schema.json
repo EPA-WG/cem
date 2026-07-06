@@ -141,7 +141,8 @@
             "QueryStep",
             "HandoffBoundary",
             "ContentTypeTransform",
-            "InterpreterRender"
+            "InterpreterRender",
+            "TemplateTransform"
           ]
         },
         "schema_id": {
@@ -153,6 +154,9 @@
           "type": "string"
         },
         "content_type": {
+          "type": "string"
+        },
+        "function": {
           "type": "string"
         }
       },
@@ -176,7 +180,8 @@
             "anyOf": [
               { "required": ["schema_id"] },
               { "required": ["child_content_type"] },
-              { "required": ["content_type"] }
+              { "required": ["content_type"] },
+              { "required": ["function"] }
             ]
           }
         },
@@ -186,7 +191,8 @@
           "not": {
             "anyOf": [
               { "required": ["child_content_type"] },
-              { "required": ["content_type"] }
+              { "required": ["content_type"] },
+              { "required": ["function"] }
             ]
           }
         },
@@ -196,7 +202,8 @@
           "not": {
             "anyOf": [
               { "required": ["schema_id"] },
-              { "required": ["content_type"] }
+              { "required": ["content_type"] },
+              { "required": ["function"] }
             ]
           }
         },
@@ -206,7 +213,19 @@
           "not": {
             "anyOf": [
               { "required": ["schema_id"] },
-              { "required": ["child_content_type"] }
+              { "required": ["child_content_type"] },
+              { "required": ["function"] }
+            ]
+          }
+        },
+        {
+          "properties": { "kind": { "const": "TemplateTransform" } },
+          "required": ["function"],
+          "not": {
+            "anyOf": [
+              { "required": ["schema_id"] },
+              { "required": ["child_content_type"] },
+              { "required": ["content_type"] }
             ]
           }
         }

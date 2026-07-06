@@ -47,7 +47,8 @@ mod tests {
     use crate::events::cem::CemEventNormalizer;
     use crate::parser::builder::CemAstBuilder;
     use crate::parser::document::CemDocument;
-    use crate::source::{BytesSource, SourceId};
+    use crate::source::{ByteRange, BytesSource, SourceId};
+    use crate::source_map::{FrameSpan, SourceMapFrame, TransformKind};
     use crate::tokenizer::cem::CemTokenizer;
 
     fn parse(input: &str) -> CemDocument {
@@ -107,6 +108,38 @@ mod tests {
         assert_documents_equivalent(&doc, &decoded);
         // id_table content survives the round trip.
         assert!(decoded.id_table.contains_key("email"));
+    }
+
+    #[test]
+    fn template_transform_source_map_frame_round_trips() {
+        let mut doc = parse("{p | Ready}");
+        let text_source = doc
+            .nodes
+            .iter_mut()
+            .find_map(|node| match node {
+                CemAstNode::Text { source, .. } => Some(source),
+                _ => None,
+            })
+            .expect("text node exists");
+        text_source.push(SourceMapFrame {
+            source_id: SourceId(1),
+            span: FrameSpan::Single(ByteRange::new(0, 0)),
+            transform: TransformKind::TemplateTransform {
+                function: "cem.color-tree".to_owned(),
+            },
+        });
+
+        let (_, decoded) = round_trip(&doc);
+        assert_documents_equivalent(&doc, &decoded);
+        assert!(decoded.nodes.iter().any(|node| matches!(
+            node,
+            CemAstNode::Text { source, .. }
+                if source.frames.iter().any(|frame| matches!(
+                    &frame.transform,
+                    TransformKind::TemplateTransform { function }
+                        if function == "cem.color-tree"
+                ))
+        )));
     }
 
     #[test]

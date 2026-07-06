@@ -23,6 +23,9 @@ pub enum TransformKind {
         content_type: String,
     },
     InterpreterRender,
+    TemplateTransform {
+        function: String,
+    },
     /// Host → cem-ql embedding boundary per AC-T-7. `host` is the byte
     /// range the host parser owned (whole attribute value, `{...}` AVT
     /// span, or `{$ ... }` expression-node body); the next frame the
