@@ -10398,7 +10398,7 @@ fn resolve_runtime_string_value(
     uri: Option<&str>,
     expression: &TransformTemplateEncodeExpression,
 ) -> Result<String, Diagnostic> {
-    if !value.trim_start().starts_with('$') {
+    if !cemt_runtime_expression_is_dynamic(value) {
         return Ok(value.to_owned());
     }
 
@@ -11046,6 +11046,12 @@ fn resolve_encode_subject_expression(
     value_bindings: &BTreeMap<String, Value>,
 ) -> Option<Value> {
     let expression = expression.trim();
+    if let Some(value) = resolve_cemt_match_expression(expression, value_bindings) {
+        return Some(value);
+    }
+    if let Some(value) = resolve_cemt_exists_expression(expression, value_bindings) {
+        return Some(value);
+    }
     if expression.starts_with('"') || expression.starts_with('\'') {
         return parse_cemt_quoted_string(expression).ok().map(Value::String);
     }
@@ -11055,6 +11061,91 @@ fn resolve_encode_subject_expression(
 
     let path = expression.strip_prefix('$')?;
     resolve_encode_subject_path(path, value_bindings).cloned()
+}
+
+fn resolve_cemt_match_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+) -> Option<Value> {
+    let args = parse_cemt_function_call_args(expression, "match").ok()??;
+    if args.len() != 2 {
+        return None;
+    }
+    let cases = parse_cemt_object_literal(&args[1]).ok()?;
+    let selected = resolve_encode_subject_expression(&args[0], value_bindings)
+        .and_then(|value| cemt_match_key(&value))
+        .and_then(|key| cases.get(&key))
+        .or_else(|| cases.get("default"))
+        .or_else(|| cases.get("_"))?;
+
+    resolve_cemt_literal_runtime_value(selected, value_bindings)
+}
+
+fn resolve_cemt_exists_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+) -> Option<Value> {
+    let args = parse_cemt_function_call_args(expression, "exists").ok()??;
+    if args.len() != 1 {
+        return None;
+    }
+    Some(Value::Bool(
+        resolve_encode_subject_expression(&args[0], value_bindings).is_some(),
+    ))
+}
+
+fn resolve_cemt_literal_runtime_value(
+    literal: &CemtExpressionLiteral,
+    value_bindings: &BTreeMap<String, Value>,
+) -> Option<Value> {
+    match literal {
+        CemtExpressionLiteral::String(value) => Some(Value::String(value.clone())),
+        CemtExpressionLiteral::Bool(value) => Some(Value::Bool(*value)),
+        CemtExpressionLiteral::Number(value) => serde_json::from_str(value).ok(),
+        CemtExpressionLiteral::Null => Some(Value::Null),
+        CemtExpressionLiteral::Bare(value) => {
+            let value = value.trim();
+            if cemt_runtime_expression_is_dynamic(value) {
+                resolve_encode_subject_expression(value, value_bindings)
+            } else if value.is_empty() {
+                None
+            } else {
+                Some(Value::String(value.to_owned()))
+            }
+        }
+    }
+}
+
+fn cemt_match_key(value: &Value) -> Option<String> {
+    match value {
+        Value::Null => Some("null".to_owned()),
+        Value::Bool(value) => Some(value.to_string()),
+        Value::Number(value) => Some(value.to_string()),
+        Value::String(value) => Some(value.clone()),
+        Value::Array(_) | Value::Object(_) => None,
+    }
+}
+
+fn cemt_runtime_expression_is_dynamic(value: &str) -> bool {
+    let value = value.trim_start();
+    value.starts_with('$')
+        || cemt_expression_starts_with_call(value, "match")
+        || cemt_expression_starts_with_call(value, "exists")
+}
+
+fn cemt_expression_starts_with_call(expression: &str, name: &str) -> bool {
+    let Some(rest) = expression.strip_prefix(name) else {
+        return false;
+    };
+    if expression.len() > name.len()
+        && expression[name.len()..]
+            .chars()
+            .next()
+            .is_some_and(is_identifier_continue)
+    {
+        return false;
+    }
+    rest.trim_start().starts_with('(')
 }
 
 fn resolve_encode_subject_path<'a>(
@@ -15046,6 +15137,48 @@ mod tests {
         );
         assert_eq!(value_bindings.get("input"), Some(&json!({"title": "Card"})));
         assert!(!value_bindings.contains_key("otherOnly"));
+    }
+
+    #[test]
+    fn cemt_runtime_match_expression_dispatches_values_default_and_presence() {
+        let values = BTreeMap::from([(
+            "node".to_owned(),
+            json!({
+                "kind": "element",
+                "name": "card",
+                "attributes": {"href": "#details"},
+                "children": [{"kind": "text", "value": "Ready"}]
+            }),
+        )]);
+
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"match($node.kind, { element: $node.name, text: $node.value, default: "unknown" })"#,
+                &values,
+            ),
+            Some(json!("card"))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"match($node.missing, { element: "ignored", default: "fallback" })"#,
+                &values,
+            ),
+            Some(json!("fallback"))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"match(exists($node.attributes.href), { true: "link", false: "plain" })"#,
+                &values,
+            ),
+            Some(json!("link"))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"match(exists($node.attributes.title), { true: "titled", false: "untitled" })"#,
+                &values,
+            ),
+            Some(json!("untitled"))
+        );
     }
 
     #[test]
@@ -20474,7 +20607,7 @@ mod tests {
       {let @name="formatterName" @value="cem.format-tree"}
       {let @name="colorizerName" @value="cem.color-tree"}
       {let @name="colorProfile" @value="css-custom-properties"}
-      {$ encode($node.ast, { contentType: "application/cem", schema: "https://cem.dev/ns/cem-ml/1", category: "cem-tree", subjectType: "cem-ast-node" }, { formatter: $formatterName, colorizer: $colorizerName, colorProfile: $colorProfile, canonical: true }) }
+      {$ encode($node.ast, { contentType: "application/cem", schema: "https://cem.dev/ns/cem-ml/1", category: "cem-tree", subjectType: "cem-ast-node" }, { formatter: match($node.ast.kind, { element: $formatterName, default: "cem.format-tree" }), colorizer: match($node.ast.name, { card: $colorizerName, default: "cem.color-tree" }), colorProfile: match(exists($node.ast.children.0), { true: $colorProfile, false: "none" }), canonical: true }) }
     }
   }
 }"#,
