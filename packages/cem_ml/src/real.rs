@@ -47,8 +47,9 @@ use crate::transform_config::{
     parse_transform_graph_config, TransformGraphParseRequest, TRANSFORM_CONFIG_SCHEMA_URI,
 };
 use crate::transform_template::{
-    evaluate_transform_template_encode_expressions, parse_cem_native_template_module_options,
-    TransformTemplateAdapter, TransformTemplateAdapterLookup, TransformTemplateCompileRequest,
+    apply_transform_template_let_bindings, evaluate_transform_template_encode_expressions,
+    parse_cem_native_template_module_options, TransformTemplateAdapter,
+    TransformTemplateAdapterLookup, TransformTemplateCompileRequest,
     TransformTemplateCompiledArtifact, TransformTemplateDataArtifact,
     TransformTemplateEncodeEvaluationContext, TransformTemplateEncodedArtifactInsertionContext,
     TransformTemplateModuleCacheKey, TransformTemplateModuleDependencyKind,
@@ -3574,6 +3575,12 @@ fn transform_template_render_value_bindings(
         value_bindings.insert(artifact.artifact_id.clone(), artifact.value.clone());
     }
 
+    apply_transform_template_let_bindings(
+        &mut value_bindings,
+        &spec.compiled.module_options.let_bindings,
+        spec.compiled.entrypoint.name.as_deref(),
+    );
+
     value_bindings
 }
 
@@ -6173,7 +6180,8 @@ mod tests {
   }
   {template @name="main" @visibility="public" |
     {body |
-      {$ encode($input.title, { contentType: "text/html", schema: "https://cem.dev/ns/data/html/1", category: "html-text", context: "text" }, { mode: "fragment", encoder: "html.text" }) }
+      {let @name="encoderName" @value="html.text"}
+      {$ encode($input.title, { contentType: "text/html", schema: "https://cem.dev/ns/data/html/1", category: "html-text", context: "text" }, { mode: "fragment", encoder: $encoderName }) }
     }
   }
 }"#
@@ -6215,6 +6223,7 @@ mod tests {
         assert_eq!(encode.owner.as_deref(), Some("main"));
         assert_eq!(encode.subject, "$input.title");
         assert_eq!(encode.target.context.as_deref(), Some("text"));
+        assert_eq!(compiled.module_options.let_bindings.len(), 1);
         assert_eq!(
             compiled.module_options.output_functions[0].name,
             "html.text"
@@ -6296,7 +6305,8 @@ mod tests {
   }
   {template @name="main" @visibility="public" |
     {body |
-      {$ encode($input.title, { contentType: "text/html", schema: "https://cem.dev/ns/data/html/1", category: "html-text", context: "text" }, { mode: "fragment", encoder: "html.text" }) }
+      {let @name="encoderName" @value="html.text"}
+      {$ encode($input.title, { contentType: "text/html", schema: "https://cem.dev/ns/data/html/1", category: "html-text", context: "text" }, { mode: "fragment", encoder: $encoderName }) }
     }
   }
 }"#
@@ -6328,6 +6338,7 @@ mod tests {
             &mut diagnostics,
         )
         .expect("template compiles");
+        assert_eq!(compiled.module_options.let_bindings.len(), 1);
         let primary_input = TransformTemplateDataArtifact {
             artifact_id: "input".to_owned(),
             uri: None,

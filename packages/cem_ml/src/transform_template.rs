@@ -239,6 +239,8 @@ pub const TRANSFORM_TEMPLATE_ENCODE_CALL_INVALID_CODE: &str =
     "cem.transform_template.encode_call_invalid";
 pub const TRANSFORM_TEMPLATE_ENCODE_SUBJECT_UNRESOLVED_CODE: &str =
     "cem.transform_template.encode_subject_unresolved";
+pub const TRANSFORM_TEMPLATE_ENCODE_VALUE_UNRESOLVED_CODE: &str =
+    "cem.transform_template.encode_value_unresolved";
 pub const TRANSFORM_TEMPLATE_ENCODE_IMPLEMENTATION_FAILED_CODE: &str =
     "cem.transform_template.encode_implementation_failed";
 
@@ -10039,6 +10041,15 @@ where
         };
 
         let mut request = expression.binding_request(subject.clone());
+        if let Err(diagnostic) = resolve_encode_request_runtime_values(
+            &mut request,
+            context.value_bindings,
+            context.uri,
+            expression,
+        ) {
+            diagnostics.push(diagnostic);
+            continue;
+        }
         let format_first = request.requires_format_binding();
         if !format_first && request.requires_color_binding() {
             if let Some(output_color_type) = context.output_color_type {
@@ -10201,6 +10212,239 @@ where
     TransformTemplateEncodeEvaluationResponse {
         encoded,
         diagnostics,
+    }
+}
+
+fn resolve_encode_request_runtime_values(
+    request: &mut TransformTemplateEncodeBindingRequest,
+    value_bindings: &BTreeMap<String, Value>,
+    uri: Option<&str>,
+    expression: &TransformTemplateEncodeExpression,
+) -> Result<(), Diagnostic> {
+    resolve_runtime_string_field(
+        &mut request.subject_type,
+        "subjectType",
+        value_bindings,
+        uri,
+        expression,
+    )?;
+    resolve_runtime_required_string_field(
+        &mut request.target.content_type,
+        "contentType",
+        value_bindings,
+        uri,
+        expression,
+    )?;
+    resolve_runtime_required_string_field(
+        &mut request.target.schema,
+        "schema",
+        value_bindings,
+        uri,
+        expression,
+    )?;
+    resolve_runtime_required_string_field(
+        &mut request.target.category,
+        "category",
+        value_bindings,
+        uri,
+        expression,
+    )?;
+    resolve_runtime_string_field(
+        &mut request.target.context,
+        "context",
+        value_bindings,
+        uri,
+        expression,
+    )?;
+    resolve_runtime_string_field(
+        &mut request.options.encoder,
+        "encoder",
+        value_bindings,
+        uri,
+        expression,
+    )?;
+    resolve_runtime_string_field(
+        &mut request.options.formatter,
+        "formatter",
+        value_bindings,
+        uri,
+        expression,
+    )?;
+    resolve_runtime_string_field(
+        &mut request.options.colorizer,
+        "colorizer",
+        value_bindings,
+        uri,
+        expression,
+    )?;
+    resolve_runtime_string_field(
+        &mut request.options.profile,
+        "profile",
+        value_bindings,
+        uri,
+        expression,
+    )?;
+    resolve_runtime_string_field(
+        &mut request.options.formatter_profile,
+        "formatterProfile",
+        value_bindings,
+        uri,
+        expression,
+    )?;
+    resolve_runtime_string_field(
+        &mut request.options.color_profile,
+        "colorProfile",
+        value_bindings,
+        uri,
+        expression,
+    )?;
+    resolve_runtime_string_field(
+        &mut request.options.charset,
+        "charset",
+        value_bindings,
+        uri,
+        expression,
+    )?;
+    resolve_runtime_string_field(
+        &mut request.options.line_ending,
+        "lineEnding",
+        value_bindings,
+        uri,
+        expression,
+    )?;
+    resolve_runtime_string_field(
+        &mut request.options.quote_policy,
+        "quote",
+        value_bindings,
+        uri,
+        expression,
+    )?;
+    resolve_runtime_string_field(
+        &mut request.options.ordering,
+        "ordering",
+        value_bindings,
+        uri,
+        expression,
+    )?;
+    resolve_runtime_string_field(
+        &mut request.options.wrap_column,
+        "wrapColumn",
+        value_bindings,
+        uri,
+        expression,
+    )?;
+    resolve_runtime_string_field(
+        &mut request.options.indent,
+        "indent",
+        value_bindings,
+        uri,
+        expression,
+    )?;
+    resolve_runtime_string_field(
+        &mut request.options.namespace_policy,
+        "namespacePolicy",
+        value_bindings,
+        uri,
+        expression,
+    )?;
+    resolve_runtime_string_field(
+        &mut request.options.namespace_placement,
+        "namespacePlacement",
+        value_bindings,
+        uri,
+        expression,
+    )?;
+    resolve_runtime_string_field(
+        &mut request.options.binary_framing,
+        "binaryFraming",
+        value_bindings,
+        uri,
+        expression,
+    )?;
+    Ok(())
+}
+
+fn resolve_runtime_required_string_field(
+    field: &mut String,
+    label: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    uri: Option<&str>,
+    expression: &TransformTemplateEncodeExpression,
+) -> Result<(), Diagnostic> {
+    let resolved = resolve_runtime_string_value(field, label, value_bindings, uri, expression)?;
+    *field = resolved;
+    Ok(())
+}
+
+fn resolve_runtime_string_field(
+    field: &mut Option<String>,
+    label: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    uri: Option<&str>,
+    expression: &TransformTemplateEncodeExpression,
+) -> Result<(), Diagnostic> {
+    let Some(value) = field.as_deref() else {
+        return Ok(());
+    };
+    let resolved = resolve_runtime_string_value(value, label, value_bindings, uri, expression)?;
+    *field = Some(resolved);
+    Ok(())
+}
+
+fn resolve_runtime_string_value(
+    value: &str,
+    label: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    uri: Option<&str>,
+    expression: &TransformTemplateEncodeExpression,
+) -> Result<String, Diagnostic> {
+    if !value.trim_start().starts_with('$') {
+        return Ok(value.to_owned());
+    }
+
+    let Some(resolved) = resolve_encode_subject_expression(value, value_bindings) else {
+        return Err(encode_runtime_value_diagnostic(
+            uri,
+            expression,
+            format!("CEMT encode `{label}` value `{value}` could not be resolved"),
+        ));
+    };
+
+    match resolved {
+        Value::String(value) => Ok(value),
+        Value::Bool(value) => Ok(value.to_string()),
+        Value::Number(value) => Ok(value.to_string()),
+        Value::Null => Err(encode_runtime_value_diagnostic(
+            uri,
+            expression,
+            format!("CEMT encode `{label}` value `{value}` resolved to null"),
+        )),
+        Value::Array(_) | Value::Object(_) => Err(encode_runtime_value_diagnostic(
+            uri,
+            expression,
+            format!(
+                "CEMT encode `{label}` value `{value}` resolved to {} but requires a scalar string value",
+                json_value_type_name(&resolved)
+            ),
+        )),
+    }
+}
+
+fn encode_runtime_value_diagnostic(
+    uri: Option<&str>,
+    expression: &TransformTemplateEncodeExpression,
+    message: impl Into<String>,
+) -> Diagnostic {
+    Diagnostic {
+        uri: uri.map(str::to_owned),
+        code: TRANSFORM_TEMPLATE_ENCODE_VALUE_UNRESOLVED_CODE.to_owned(),
+        severity: Severity::Error,
+        message: message.into(),
+        node: expression
+            .owner
+            .clone()
+            .or_else(|| Some(expression.expression.clone())),
+        ..Diagnostic::default()
     }
 }
 
@@ -12189,6 +12433,29 @@ pub struct TransformTemplateModuleLetBinding {
     #[serde(default, skip_serializing_if = "is_false")]
     pub nullable: bool,
     pub value: Value,
+}
+
+pub fn apply_transform_template_let_bindings(
+    value_bindings: &mut BTreeMap<String, Value>,
+    let_bindings: &[TransformTemplateModuleLetBinding],
+    owner_entrypoint: Option<&str>,
+) {
+    for binding in let_bindings
+        .iter()
+        .filter(|binding| binding.owner_entrypoint.is_none())
+    {
+        value_bindings.insert(binding.name.clone(), binding.value.clone());
+    }
+
+    let Some(owner_entrypoint) = owner_entrypoint else {
+        return;
+    };
+    for binding in let_bindings
+        .iter()
+        .filter(|binding| binding.owner_entrypoint.as_deref() == Some(owner_entrypoint))
+    {
+        value_bindings.insert(binding.name.clone(), binding.value.clone());
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -14742,6 +15009,43 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn cemt_runtime_let_bindings_apply_module_then_entrypoint_scope() {
+        let mut value_bindings = BTreeMap::from([("input".to_owned(), json!({"title": "Card"}))]);
+        let let_bindings = vec![
+            TransformTemplateModuleLetBinding {
+                owner_entrypoint: None,
+                name: "profile".to_owned(),
+                value_type: TransformTemplateModuleParamType::String,
+                nullable: false,
+                value: json!("module-profile"),
+            },
+            TransformTemplateModuleLetBinding {
+                owner_entrypoint: Some("main".to_owned()),
+                name: "profile".to_owned(),
+                value_type: TransformTemplateModuleParamType::String,
+                nullable: false,
+                value: json!("entrypoint-profile"),
+            },
+            TransformTemplateModuleLetBinding {
+                owner_entrypoint: Some("other".to_owned()),
+                name: "otherOnly".to_owned(),
+                value_type: TransformTemplateModuleParamType::String,
+                nullable: false,
+                value: json!("ignored"),
+            },
+        ];
+
+        apply_transform_template_let_bindings(&mut value_bindings, &let_bindings, Some("main"));
+
+        assert_eq!(
+            value_bindings.get("profile"),
+            Some(&json!("entrypoint-profile"))
+        );
+        assert_eq!(value_bindings.get("input"), Some(&json!({"title": "Card"})));
+        assert!(!value_bindings.contains_key("otherOnly"));
     }
 
     #[test]
@@ -20167,7 +20471,10 @@ mod tests {
   }
   {template @name="main" @visibility="public" |
     {body |
-      {$ encode($node.ast, { contentType: "application/cem", schema: "https://cem.dev/ns/cem-ml/1", category: "cem-tree", subjectType: "cem-ast-node" }, { formatter: "cem.format-tree", colorizer: "cem.color-tree", colorProfile: "css-custom-properties", canonical: true }) }
+      {let @name="formatterName" @value="cem.format-tree"}
+      {let @name="colorizerName" @value="cem.color-tree"}
+      {let @name="colorProfile" @value="css-custom-properties"}
+      {$ encode($node.ast, { contentType: "application/cem", schema: "https://cem.dev/ns/cem-ml/1", category: "cem-tree", subjectType: "cem-ast-node" }, { formatter: $formatterName, colorizer: $colorizerName, colorProfile: $colorProfile, canonical: true }) }
     }
   }
 }"#,
@@ -20183,6 +20490,7 @@ mod tests {
             "{:?}",
             response.diagnostics
         );
+        assert_eq!(response.module_options.let_bindings.len(), 3);
         let registry =
             TransformTemplateOutputFunctionRegistry::from_module_options(&response.module_options);
         let implementations =
@@ -20197,6 +20505,11 @@ mod tests {
                     "children": [{"kind": "text", "value": "Ready"}]
                 }
             }),
+        );
+        apply_transform_template_let_bindings(
+            &mut values,
+            &response.module_options.let_bindings,
+            Some("main"),
         );
 
         let mut executed = Vec::new();
@@ -20496,6 +20809,36 @@ mod tests {
             .diagnostics
             .iter()
             .any(|diag| diag.code == TRANSFORM_TEMPLATE_OUTPUT_ENCODER_UNKNOWN_CODE));
+    }
+
+    #[test]
+    fn evaluate_encode_expressions_reports_unresolved_runtime_option_value() {
+        let expression = parse_transform_template_encode_expression(
+            r#"encode("Hello", { contentType: "text/html", schema: "https://cem.dev/ns/data/html/1", category: "html-text" }, { encoder: $encoderName })"#,
+            Some("main"),
+        )
+        .expect("parse")
+        .expect("encode expression");
+        let registry = TransformTemplateOutputFunctionRegistry::new();
+        let values = BTreeMap::new();
+
+        let evaluated = evaluate_transform_template_encode_expressions(
+            &[expression],
+            TransformTemplateEncodeEvaluationContext {
+                registry: &registry,
+                value_bindings: &values,
+                host_capabilities: &BTreeSet::new(),
+                output_color_type: None,
+                uri: Some("templates/runtime-encoding.cemt"),
+            },
+            |_, _| Ok(Value::Null),
+        );
+
+        assert!(evaluated.encoded.is_empty());
+        assert!(evaluated.diagnostics.iter().any(|diag| {
+            diag.code == TRANSFORM_TEMPLATE_ENCODE_VALUE_UNRESOLVED_CODE
+                && diag.node.as_deref() == Some("main")
+        }));
     }
 
     #[test]
