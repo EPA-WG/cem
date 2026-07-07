@@ -31,19 +31,21 @@ use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
 use crate::tokenizer::{SchemaTokenKind, SchemaTokenizer};
 use crate::transform_template::{
-    compose_transform_template_encoded_text_artifacts, TransformTemplateAdapter,
-    TransformTemplateAdapterCapability, TransformTemplateAdapterError,
+    compose_transform_template_encoded_text_artifacts,
+    evaluate_transform_template_encode_expressions, parse_cem_native_template_module_options,
+    TransformTemplateAdapter, TransformTemplateAdapterCapability, TransformTemplateAdapterError,
     TransformTemplateAdapterExecutionPhase, TransformTemplateAdapterLookup,
     TransformTemplateAdapterRegistry, TransformTemplateAdapterResult,
     TransformTemplateColorOutputProfile, TransformTemplateCompileRequest,
     TransformTemplateCompileResponse, TransformTemplateCompiledArtifact,
     TransformTemplateDataArtifact, TransformTemplateEncodeBinding,
-    TransformTemplateEncodeBindingRequest, TransformTemplateEncodeExpression,
-    TransformTemplateEncodeImplementationOrigin, TransformTemplateEncodeImplementationRegistry,
-    TransformTemplateEncodeOptions, TransformTemplateEncodedArtifact,
-    TransformTemplateEncodedArtifactInsertionContext, TransformTemplateEncodedArtifactMode,
-    TransformTemplateEncodingTarget, TransformTemplateEvaluatedEncodeExpression,
-    TransformTemplateHtmlColorMode, TransformTemplateModuleOptions,
+    TransformTemplateEncodeBindingRequest, TransformTemplateEncodeEvaluationContext,
+    TransformTemplateEncodeExpression, TransformTemplateEncodeImplementationOrigin,
+    TransformTemplateEncodeImplementationRegistry, TransformTemplateEncodeOptions,
+    TransformTemplateEncodedArtifact, TransformTemplateEncodedArtifactInsertionContext,
+    TransformTemplateEncodedArtifactMode, TransformTemplateEncodingTarget,
+    TransformTemplateEvaluatedEncodeExpression, TransformTemplateHtmlColorMode,
+    TransformTemplateModuleOptions, TransformTemplateModuleParseRequest,
     TransformTemplateModulePreflight, TransformTemplateModuleVisibility,
     TransformTemplateOutputArtifact, TransformTemplateOutputFunctionDescriptor,
     TransformTemplateOutputFunctionImplementation, TransformTemplateOutputFunctionKind,
@@ -1251,6 +1253,7 @@ pub enum ConversionOutputPipelineStageExecution {
     CemtAdapter {
         adapter_id: String,
         function_name: String,
+        body_function_name: Option<String>,
         fallback_function_name: Option<String>,
     },
     CemtFallback {
@@ -2391,6 +2394,9 @@ const CEM_TREE_FORMAT_CEMT_TEMPLATE_SOURCE: &str = r#"@doc cem-ml 1
         @deterministic=true
         @streamable=true |
         {param @name="subject" @type="object" @required=true}
+        {body |
+            {$ encode($subject, { contentType: "application/cem", schema: "https://cem.dev/ns/cem-ml/1", category: "cem-tree", subjectType: "cem-ast-node" }, { formatter: "cem.format-tree", formatterProfile: "cem.format-tree", canonical: true }) }
+        }
     }
 }
 "#;
@@ -2406,6 +2412,7 @@ const CEM_TREE_COLOR_CEMT_TEMPLATE_SOURCE: &str = r#"@doc cem-ml 1
         @produces="cem-tree"
         @content-type="application/cem"
         @schema="https://cem.dev/ns/cem-ml/1"
+        @profile="css-custom-properties"
         @canonical=false
         @deterministic=true
         @streamable=true |
@@ -2563,29 +2570,16 @@ impl TransformTemplateAdapter for CemTreeCemtOutputAdapter {
             ));
         }
 
-        let implementations =
-            TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
-        if implementations.implementation_origin(&binding.function.name)
-            != Some(TransformTemplateEncodeImplementationOrigin::CemtFallback)
-        {
-            return Err(TransformTemplateAdapterError::failed(
-                self.id(),
-                TransformTemplateAdapterExecutionPhase::Render,
-                format!(
-                    "{} fallback implementation is not registered as a CEMT fallback",
-                    self.stage.function_name
-                ),
-            ));
-        }
-        let value = implementations
-            .encode(binding, &request.primary_input.value)
-            .map_err(|message| {
-                TransformTemplateAdapterError::failed(
+        let value =
+            match execute_conversion_cem_tree_output_stage_body(self.stage, &request, binding)? {
+                Some(value) => value,
+                None => execute_conversion_cem_tree_output_stage_fallback(
                     self.id(),
-                    TransformTemplateAdapterExecutionPhase::Render,
-                    message,
-                )
-            })?;
+                    self.stage,
+                    binding,
+                    &request.primary_input.value,
+                )?,
+            };
 
         Ok(TransformTemplateRenderResponse {
             output: TransformTemplateOutputArtifact {
@@ -2598,6 +2592,115 @@ impl TransformTemplateAdapter for CemTreeCemtOutputAdapter {
             diagnostics: Vec::new(),
         })
     }
+}
+
+fn execute_conversion_cem_tree_output_stage_body(
+    stage: CemTreeCemtOutputStage,
+    request: &TransformTemplateRenderRequest<'_>,
+    binding: &TransformTemplateEncodeBinding,
+) -> TransformTemplateAdapterResult<Option<Value>> {
+    let expressions = request
+        .compiled
+        .module_options
+        .encode_expressions
+        .iter()
+        .filter(|expression| expression.owner.as_deref() == Some(stage.function_name))
+        .cloned()
+        .collect::<Vec<_>>();
+    if expressions.is_empty() {
+        return Ok(None);
+    }
+
+    let registry = TransformTemplateOutputFunctionRegistry::from_module_options(
+        &request.compiled.module_options,
+    );
+    let implementations = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+    let mut value_bindings = BTreeMap::new();
+    value_bindings.insert("subject".to_owned(), request.primary_input.value.clone());
+
+    let response = evaluate_transform_template_encode_expressions(
+        &expressions,
+        TransformTemplateEncodeEvaluationContext {
+            registry: &registry,
+            value_bindings: &value_bindings,
+            host_capabilities: implementations.host_capabilities(),
+            output_color_type: None,
+            uri: Some(request.compiled.template_uri.as_str()),
+        },
+        |body_binding, body_subject| {
+            if body_binding.function.kind != binding.function.kind
+                || body_binding.function.name != binding.function.name
+            {
+                return Err(format!(
+                    "CEMT {} body attempted to dispatch `{}` instead of `{}`",
+                    stage.role, body_binding.function.name, binding.function.name
+                ));
+            }
+            execute_conversion_cem_tree_output_stage_fallback(
+                stage.adapter_id,
+                stage,
+                binding,
+                body_subject,
+            )
+            .map_err(|error| error.to_string())
+        },
+    );
+    if !response.diagnostics.is_empty() {
+        let message = response
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>()
+            .join("; ");
+        return Err(TransformTemplateAdapterError::failed(
+            stage.adapter_id,
+            TransformTemplateAdapterExecutionPhase::Render,
+            message,
+        ));
+    }
+    let [evaluated] = response.encoded.as_slice() else {
+        return Err(TransformTemplateAdapterError::failed(
+            stage.adapter_id,
+            TransformTemplateAdapterExecutionPhase::Render,
+            format!(
+                "CEMT {} body for `{}` produced {} encoded artifacts; expected exactly one",
+                stage.role,
+                stage.function_name,
+                response.encoded.len()
+            ),
+        ));
+    };
+
+    Ok(Some(evaluated.artifact.value.clone()))
+}
+
+fn execute_conversion_cem_tree_output_stage_fallback(
+    adapter_id: &'static str,
+    stage: CemTreeCemtOutputStage,
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> TransformTemplateAdapterResult<Value> {
+    let implementations = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+    if implementations.implementation_origin(&binding.function.name)
+        != Some(TransformTemplateEncodeImplementationOrigin::CemtFallback)
+    {
+        return Err(TransformTemplateAdapterError::failed(
+            adapter_id,
+            TransformTemplateAdapterExecutionPhase::Render,
+            format!(
+                "{} fallback implementation is not registered as a CEMT fallback",
+                stage.function_name
+            ),
+        ));
+    }
+
+    implementations.encode(binding, subject).map_err(|message| {
+        TransformTemplateAdapterError::failed(
+            adapter_id,
+            TransformTemplateAdapterExecutionPhase::Render,
+            message,
+        )
+    })
 }
 
 fn execute_conversion_cem_tree_format_stage(
@@ -2630,13 +2733,33 @@ fn execute_conversion_cem_tree_output_stage(
         }),
         root_scope: ScopeConfig::default(),
     };
+    let parse_response =
+        parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+            template: template.clone(),
+        });
+    if !parse_response.diagnostics.is_empty() {
+        return Err(parse_response
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>()
+            .join("; "));
+    }
+    let mut module_options = parse_response.module_options;
+    module_options.output_functions.retain(|function| {
+        function.kind != stage.function_kind || function.name != stage.function_name
+    });
+    module_options
+        .output_functions
+        .push(binding.function.clone());
+    let body_function_name = module_options
+        .encode_expressions
+        .iter()
+        .any(|expression| expression.owner.as_deref() == Some(stage.function_name))
+        .then(|| stage.function_name.to_owned());
     let entrypoint = TransformTemplateEntrypoint::named(stage.function_name);
     let params = BTreeMap::new();
     let data_bindings = vec!["subject".to_owned()];
-    let module_options = TransformTemplateModuleOptions {
-        output_functions: vec![binding.function.clone()],
-        ..TransformTemplateModuleOptions::default()
-    };
     let compile_response = adapter
         .compile(TransformTemplateCompileRequest {
             template: &template,
@@ -2694,6 +2817,7 @@ fn execute_conversion_cem_tree_output_stage(
         ConversionOutputPipelineStageExecution::CemtAdapter {
             adapter_id: compiled.adapter_id,
             function_name: binding.function.name.clone(),
+            body_function_name,
             fallback_function_name: Some(binding.function.name.clone()),
         },
     ))
@@ -7481,6 +7605,7 @@ mod tests {
             Some(ConversionOutputPipelineStageExecution::CemtAdapter {
                 adapter_id: CEM_TREE_FORMAT_CEMT_ADAPTER_ID.to_owned(),
                 function_name: "cem.format-tree".to_owned(),
+                body_function_name: Some("cem.format-tree".to_owned()),
                 fallback_function_name: Some("cem.format-tree".to_owned()),
             })
         );
@@ -7489,6 +7614,7 @@ mod tests {
             Some(ConversionOutputPipelineStageExecution::CemtAdapter {
                 adapter_id: CEM_TREE_COLOR_CEMT_ADAPTER_ID.to_owned(),
                 function_name: "cem.color-tree".to_owned(),
+                body_function_name: None,
                 fallback_function_name: Some("cem.color-tree".to_owned()),
             })
         );
