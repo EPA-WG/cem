@@ -11877,6 +11877,23 @@ impl CemtMetadataAccumulatorKind {
 
     fn normalize_item(self, value: Value) -> Result<Value, String> {
         match self {
+            Self::FormatNode => {
+                let mut object = cemt_metadata_object(self, value, "format node")?;
+                cemt_required_metadata_string_field(&mut object, self, "kind")?;
+                cemt_required_metadata_string_field(&mut object, self, "formatterRole")?;
+                cemt_optional_metadata_string_field(&mut object, self, "name")?;
+                cemt_optional_metadata_string_field(&mut object, self, "value")?;
+                Ok(Value::Object(object))
+            }
+            Self::ColorNode => {
+                let mut object = cemt_metadata_object(self, value, "color node")?;
+                cemt_required_metadata_string_field(&mut object, self, "kind")?;
+                cemt_required_metadata_string_field(&mut object, self, "colorizerRole")?;
+                cemt_optional_metadata_string_field(&mut object, self, "name")?;
+                cemt_optional_metadata_string_field(&mut object, self, "colorRole")?;
+                cemt_optional_metadata_string_field(&mut object, self, "value")?;
+                Ok(Value::Object(object))
+            }
             Self::Diagnostic => {
                 let Value::Object(object) = value else {
                     return Err(format!(
@@ -11887,9 +11904,128 @@ impl CemtMetadataAccumulatorKind {
                 };
                 normalize_cemt_diagnostic_object(object).map(Value::Object)
             }
-            _ => Ok(value),
+            Self::Namespace => {
+                let mut object = cemt_metadata_object(self, value, "namespace declaration")?;
+                cemt_required_metadata_string_field(&mut object, self, "uri")?;
+                cemt_optional_metadata_string_field(&mut object, self, "prefix")?;
+                Ok(Value::Object(object))
+            }
+            Self::OutputSpan => {
+                let mut object = cemt_metadata_object(self, value, "output span")?;
+                cemt_required_metadata_string_field(&mut object, self, "kind")?;
+                let start = cemt_required_metadata_u64_field(&mut object, self, "start")?;
+                let end = cemt_required_metadata_u64_field(&mut object, self, "end")?;
+                if end < start {
+                    return Err(format!(
+                        "CEMT {} output span `end` must be greater than or equal to `start`",
+                        self.function_name()
+                    ));
+                }
+                Ok(Value::Object(object))
+            }
+            Self::WriterBoundary => {
+                let mut object = cemt_metadata_object(self, value, "writer boundary")?;
+                cemt_required_metadata_string_field(&mut object, self, "kind")?;
+                cemt_required_metadata_string_field(&mut object, self, "stage")?;
+                Ok(Value::Object(object))
+            }
         }
     }
+}
+
+fn cemt_metadata_object(
+    kind: CemtMetadataAccumulatorKind,
+    value: Value,
+    label: &str,
+) -> Result<serde_json::Map<String, Value>, String> {
+    let Value::Object(object) = value else {
+        return Err(format!(
+            "CEMT {} expected {label} object, got {}",
+            kind.function_name(),
+            json_value_type_name(&value)
+        ));
+    };
+    Ok(object)
+}
+
+fn cemt_required_metadata_string_field(
+    object: &mut serde_json::Map<String, Value>,
+    kind: CemtMetadataAccumulatorKind,
+    field: &str,
+) -> Result<String, String> {
+    let Some(value) = object.get(field) else {
+        return Err(format!(
+            "CEMT {} metadata missing `{field}`",
+            kind.function_name()
+        ));
+    };
+    let Some(value) = value
+        .as_str()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Err(format!(
+            "CEMT {} metadata `{field}` expected non-empty string, got {}",
+            kind.function_name(),
+            json_value_type_name(value)
+        ));
+    };
+    let value = value.to_owned();
+    object.insert(field.to_owned(), Value::String(value.clone()));
+    Ok(value)
+}
+
+fn cemt_optional_metadata_string_field(
+    object: &mut serde_json::Map<String, Value>,
+    kind: CemtMetadataAccumulatorKind,
+    field: &str,
+) -> Result<Option<String>, String> {
+    let Some(value) = object.get(field) else {
+        return Ok(None);
+    };
+    if value.is_null() {
+        object.remove(field);
+        return Ok(None);
+    }
+    let Some(value) = value
+        .as_str()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Err(format!(
+            "CEMT {} metadata `{field}` expected string, got {}",
+            kind.function_name(),
+            json_value_type_name(value)
+        ));
+    };
+    let value = value.to_owned();
+    object.insert(field.to_owned(), Value::String(value.clone()));
+    Ok(Some(value))
+}
+
+fn cemt_required_metadata_u64_field(
+    object: &mut serde_json::Map<String, Value>,
+    kind: CemtMetadataAccumulatorKind,
+    field: &str,
+) -> Result<u64, String> {
+    let Some(value) = object.get(field) else {
+        return Err(format!(
+            "CEMT {} metadata missing `{field}`",
+            kind.function_name()
+        ));
+    };
+    let Some(value) = value.as_u64() else {
+        return Err(format!(
+            "CEMT {} metadata `{field}` expected unsigned integer, got {}",
+            kind.function_name(),
+            json_value_type_name(value)
+        ));
+    };
+    object.insert(
+        field.to_owned(),
+        Value::Number(serde_json::Number::from(value)),
+    );
+    Ok(value)
 }
 
 fn resolve_cemt_metadata_accumulator_expression(
@@ -12231,7 +12367,8 @@ fn parse_cemt_tree_patch_edit(index: usize, value: Value) -> Result<CemtTreePatc
         }
     };
     let path = required_cemt_tree_patch_edit_string(&object, index, &["path"])?;
-    let value = required_cemt_tree_patch_edit_value(
+    validate_cemt_tree_patch_edit_path(index, &path)?;
+    let (_value_key, value) = required_cemt_tree_patch_edit_value(
         &object,
         index,
         match operation {
@@ -12239,6 +12376,7 @@ fn parse_cemt_tree_patch_edit(index: usize, value: Value) -> Result<CemtTreePatc
             _ => &["value", "node", "replacement"],
         },
     )?;
+    validate_cemt_tree_patch_edit_value(index, operation, &value)?;
     Ok(CemtTreePatchEdit {
         operation,
         path,
@@ -12277,16 +12415,53 @@ fn required_cemt_tree_patch_edit_value(
     object: &serde_json::Map<String, Value>,
     index: usize,
     keys: &[&str],
-) -> Result<Value, String> {
-    for key in keys {
-        if let Some(value) = object.get(*key) {
-            return Ok(value.clone());
-        }
+) -> Result<(String, Value), String> {
+    let mut found = keys
+        .iter()
+        .filter_map(|key| object.get(*key).map(|value| (*key, value)));
+    let Some((key, value)) = found.next() else {
+        return Err(format!(
+            "CEMT applyEdits edit {index} is missing `{}`",
+            keys[0]
+        ));
+    };
+    if let Some((other_key, _)) = found.next() {
+        return Err(format!(
+            "CEMT applyEdits edit {index} has ambiguous value fields `{key}` and `{other_key}`"
+        ));
     }
-    Err(format!(
-        "CEMT applyEdits edit {index} is missing `{}`",
-        keys[0]
-    ))
+    Ok((key.to_owned(), value.clone()))
+}
+
+fn validate_cemt_tree_patch_edit_path(index: usize, path: &str) -> Result<(), String> {
+    cemt_patch_path_segments(path, &format!("applyEdits edit {index}"))?;
+    Ok(())
+}
+
+fn validate_cemt_tree_patch_edit_value(
+    index: usize,
+    operation: CemtTreePatchOperation,
+    value: &Value,
+) -> Result<(), String> {
+    match operation {
+        CemtTreePatchOperation::Wrap => {
+            if !value.is_object() {
+                return Err(format!(
+                    "CEMT applyEdits edit {index} wrap expected object wrapper, got {}",
+                    json_value_type_name(value)
+                ));
+            }
+        }
+        CemtTreePatchOperation::Append | CemtTreePatchOperation::Prepend => {
+            if value.is_null() {
+                return Err(format!(
+                    "CEMT applyEdits edit {index} node value must not be null"
+                ));
+            }
+        }
+        CemtTreePatchOperation::Replace | CemtTreePatchOperation::Set => {}
+    }
+    Ok(())
 }
 
 fn resolve_cemt_with_stack_expression(
@@ -13221,15 +13396,21 @@ fn apply_cemt_tree_patch_operation(
 }
 
 fn cemt_patch_path_segments<'a>(path: &'a str, owner: &str) -> Result<Vec<&'a str>, String> {
-    let segments: Vec<&str> = path
-        .split('.')
-        .map(str::trim)
-        .filter(|segment| !segment.is_empty())
-        .collect();
-    if segments.is_empty() {
+    let path = path.trim();
+    if path.is_empty() {
         return Err(format!(
             "CEMT {owner} path must contain at least one segment"
         ));
+    }
+    let mut segments = Vec::new();
+    for segment in path.split('.') {
+        let segment = segment.trim();
+        if segment.is_empty() {
+            return Err(format!(
+                "CEMT {owner} path `{path}` contains an empty segment"
+            ));
+        }
+        segments.push(segment);
     }
     Ok(segments)
 }
@@ -18456,7 +18637,10 @@ mod tests {
             .contains("CEMT appendFormatNode expected object accumulator, got array"));
 
         let field_error = resolve_encode_subject_expression_at_depth(
-            r#"appendColorNode({ colorNodes: "bad" }, { kind: "color-decision" })"#,
+            r#"appendColorNode({ colorNodes: "bad" }, {
+                kind: "color-decision",
+                colorizerRole: "colorizer.syntax"
+            })"#,
             &values,
             &BTreeMap::new(),
             None,
@@ -18476,6 +18660,58 @@ mod tests {
         )
         .expect_err("diagnostic metadata helper validates diagnostic shape");
         assert!(diagnostic_error.contains("CEMT diagnostic missing `code`"));
+
+        let format_error = resolve_encode_subject_expression_at_depth(
+            r#"appendFormatNode({}, { kind: "format-decision" })"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("format metadata helper validates formatter role");
+        assert!(format_error.contains("CEMT appendFormatNode metadata missing `formatterRole`"));
+
+        let color_error = resolve_encode_subject_expression_at_depth(
+            r#"appendColorNode({}, { kind: "color-decision" })"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("color metadata helper validates colorizer role");
+        assert!(color_error.contains("CEMT appendColorNode metadata missing `colorizerRole`"));
+
+        let namespace_error = resolve_encode_subject_expression_at_depth(
+            r#"appendNamespace({}, { prefix: "svg" })"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("namespace metadata helper validates uri");
+        assert!(namespace_error.contains("CEMT appendNamespace metadata missing `uri`"));
+
+        let span_error = resolve_encode_subject_expression_at_depth(
+            r#"appendOutputSpan({}, { kind: "generated", start: 8, end: 4 })"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("output span helper validates start/end order");
+        assert!(span_error.contains(
+            "CEMT appendOutputSpan output span `end` must be greater than or equal to `start`"
+        ));
+
+        let writer_error = resolve_encode_subject_expression_at_depth(
+            r#"appendWriterBoundary({}, { kind: "writer-boundary" })"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("writer boundary helper validates stage");
+        assert!(writer_error.contains("CEMT appendWriterBoundary metadata missing `stage`"));
     }
 
     #[test]
@@ -19141,6 +19377,43 @@ mod tests {
         )
         .expect_err("applyEdits rejects unknown edit kinds");
         assert!(edit_error.contains("CEMT applyEdits edit 0 has unsupported kind `unknown`"));
+
+        let ambiguous_error = resolve_encode_subject_expression_at_depth(
+            r#"applyEdits($node, [{
+                kind: "append",
+                path: "children",
+                value: { kind: "text", value: "bad" },
+                node: { kind: "text", value: "also-bad" }
+            }])"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("applyEdits rejects ambiguous edit values");
+        assert!(ambiguous_error
+            .contains("CEMT applyEdits edit 0 has ambiguous value fields `value` and `node`"));
+
+        let path_error = resolve_encode_subject_expression_at_depth(
+            r#"applyEdits($node, [{ kind: "set", path: "children..0", value: "bad" }])"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("applyEdits rejects malformed paths");
+        assert!(path_error
+            .contains("CEMT applyEdits edit 0 path `children..0` contains an empty segment"));
+
+        let null_node_error = resolve_encode_subject_expression_at_depth(
+            r#"applyEdits($node, [{ kind: "append", path: "children", node: null }])"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("applyEdits rejects null appended nodes");
+        assert!(null_node_error.contains("CEMT applyEdits edit 0 node value must not be null"));
     }
 
     #[test]

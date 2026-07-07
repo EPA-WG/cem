@@ -162,8 +162,8 @@ metadata. They are not opaque host-side string filters.
   writer-boundary metadata. `appendFormatNode(...)`, `appendColorNode(...)`,
   `appendDiagnostic(...)`, `appendNamespace(...)`, `appendOutputSpan(...)`, and
   `appendWriterBoundary(...)` now append typed metadata arrays on immutable
-  object accumulators; remaining work is richer field validation,
-  source-map-aware defaults, and formatter/coloring showcases.
+  object accumulators with role/shape validation; remaining work is
+  source-map-aware defaults and formatter/coloring showcases.
 - Extend tree patch operations for replacing nodes, wrapping nodes,
   prepending/appending formatter or color nodes, and applying queued edits to a
   formatted CEM tree. Shallow object `merge(...)` and path-based `set(...)` now
@@ -172,8 +172,9 @@ metadata. They are not opaque host-side string filters.
   `applyEdits(...)` now provide node replacement, child-array insertion,
   wrapper insertion, and queued edit replay. The built-in `cem.format-tree` and
   `cem.color-tree` CEMT declarations now use these helpers around their direct
-  runtime operations; remaining work is richer edit validation,
-  source-map-aware wrapper defaults, and formatter/coloring showcases.
+  runtime operations. Queued edits now reject ambiguous value fields, malformed
+  paths, null appended/prepended nodes, and non-object wrappers; remaining work
+  is source-map-aware wrapper defaults and formatter/coloring showcases.
 - Extend first-class diagnostics emitted from formatter/color templates.
   `diagnostic(...)` and `diagnostics(...)` now construct writer-ready diagnostic
   values for unsupported layout, inaccessible color, unsafe raw content,
@@ -369,11 +370,24 @@ The typed helpers are:
 - `appendOutputSpan(accumulator, span)` for `outputSpans`
 - `appendWriterBoundary(accumulator, metadata)` for `writerBoundaries`
 
-`appendDiagnostic(...)` normalizes the diagnostic object the same way as
-`diagnostic(...)`: it requires `code` and `message`, defaults severity to
-`info`, and accepts optional source/location fields. These helpers keep
-formatter metadata, coloring metadata, diagnostics, namespace repairs, output
-spans, and writer-boundary checks in the CEM tree value before the writer phase.
+Metadata helpers validate their item shape before appending:
+
+- `appendFormatNode(...)` requires object items with `kind` and
+  `formatterRole`.
+- `appendColorNode(...)` requires object items with `kind` and
+  `colorizerRole`.
+- `appendDiagnostic(...)` normalizes the diagnostic object the same way as
+  `diagnostic(...)`: it requires `code` and `message`, defaults severity to
+  `info`, and accepts optional source/location fields.
+- `appendNamespace(...)` requires a namespace `uri` and accepts an optional
+  `prefix`.
+- `appendOutputSpan(...)` requires `kind`, `start`, and `end`; `end` must be
+  greater than or equal to `start`.
+- `appendWriterBoundary(...)` requires `kind` and `stage`.
+
+These helpers keep formatter metadata, coloring metadata, diagnostics,
+namespace repairs, output spans, and writer-boundary checks in the CEM tree
+value before the writer phase.
 
 ## Scoped Traversal Stacks
 
@@ -483,6 +497,10 @@ Queued edit objects use `kind` or `op`, a string `path`, and a value field. The
 supported edit kinds are `set`, `replace`, `append`, `prepend`, and `wrap`.
 `set`, `replace`, `append`, and `prepend` read `value`, `node`, or
 `replacement`; `wrap` reads `wrapper`, `value`, or `node`:
+
+Each edit must provide exactly one value field. Patch paths cannot contain empty
+segments. `append` and `prepend` reject `null` nodes, and `wrap` requires an
+object wrapper before the edit is applied.
 
 ```cemt
 {$ applyEdits($formattedTree, [
