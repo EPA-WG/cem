@@ -2396,7 +2396,20 @@ const CEM_TREE_FORMAT_CEMT_TEMPLATE_SOURCE: &str = r#"@doc cem-ml 1
         @streamable=true |
         {param @name="subject" @type="json" @required=true}
         {body |
-            {$ call(cem.format-tree.envelope, { subject: call(cem.format-tree.nodes, { subject: $subject }) }) }
+            {$ applyEdits(
+                appendFormatNode(
+                    call(cem.format-tree.envelope, {
+                        subject: call(cem.format-tree.nodes, { subject: $subject })
+                    }),
+                    {
+                        kind: "format-decision",
+                        name: "cemt-tree-patches",
+                        formatterRole: "formatter.cemt.patch",
+                        value: "applyEdits"
+                    }
+                ),
+                [{ kind: "set", path: "canonical", value: true }]
+            ) }
         }
     }
 }
@@ -2419,7 +2432,18 @@ const CEM_TREE_COLOR_CEMT_TEMPLATE_SOURCE: &str = r#"@doc cem-ml 1
         @streamable=true |
         {param @name="subject" @type="object" @required=true}
         {body |
-            {$ call(cem.color-tree.apply, { subject: $subject }) }
+            {$ applyEdits(
+                appendColorNode(
+                    call(cem.color-tree.apply, { subject: $subject }),
+                    {
+                        kind: "color-decision",
+                        name: "cemt-tree-patches",
+                        colorizerRole: "colorizer.cemt.patch",
+                        value: "applyEdits"
+                    }
+                ),
+                [{ kind: "set", path: "colored", value: true }]
+            ) }
         }
     }
 }
@@ -7713,9 +7737,16 @@ mod tests {
         assert_eq!(
             formatter.body_expression.as_deref(),
             Some(
-                "call(cem.format-tree.envelope, { subject: call(cem.format-tree.nodes, { subject: $subject }) })"
+                "applyEdits(\n                appendFormatNode(\n                    call(cem.format-tree.envelope, {\n                        subject: call(cem.format-tree.nodes, { subject: $subject })\n                    }),\n                    {\n                        kind: \"format-decision\",\n                        name: \"cemt-tree-patches\",\n                        formatterRole: \"formatter.cemt.patch\",\n                        value: \"applyEdits\"\n                    }\n                ),\n                [{ kind: \"set\", path: \"canonical\", value: true }]\n            )"
             )
         );
+        let body = formatter
+            .body_expression
+            .as_deref()
+            .expect("formatter body expression");
+        assert!(body.contains("appendFormatNode("));
+        assert!(body.contains("applyEdits("));
+        assert!(body.contains("call(cem.format-tree.nodes"));
     }
 
     #[test]
@@ -7756,8 +7787,17 @@ mod tests {
         );
         assert_eq!(
             colorizer.body_expression.as_deref(),
-            Some("call(cem.color-tree.apply, { subject: $subject })")
+            Some(
+                "applyEdits(\n                appendColorNode(\n                    call(cem.color-tree.apply, { subject: $subject }),\n                    {\n                        kind: \"color-decision\",\n                        name: \"cemt-tree-patches\",\n                        colorizerRole: \"colorizer.cemt.patch\",\n                        value: \"applyEdits\"\n                    }\n                ),\n                [{ kind: \"set\", path: \"colored\", value: true }]\n            )"
+            )
         );
+        let body = colorizer
+            .body_expression
+            .as_deref()
+            .expect("colorizer body expression");
+        assert!(body.contains("appendColorNode("));
+        assert!(body.contains("applyEdits("));
+        assert!(body.contains("call(cem.color-tree.apply"));
     }
 
     #[test]

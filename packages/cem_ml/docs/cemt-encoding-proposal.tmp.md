@@ -170,9 +170,10 @@ metadata. They are not opaque host-side string filters.
   provide immutable object/tree patching in CEMT bodies. `replaceNode(...)`,
   `appendNode(...)`, `prependNode(...)`, `wrapNode(...)`, and
   `applyEdits(...)` now provide node replacement, child-array insertion,
-  wrapper insertion, and queued edit replay; remaining work is richer edit
-  validation, source-map-aware wrapper defaults, and formatter/coloring
-  showcases.
+  wrapper insertion, and queued edit replay. The built-in `cem.format-tree` and
+  `cem.color-tree` CEMT declarations now use these helpers around their direct
+  runtime operations; remaining work is richer edit validation,
+  source-map-aware wrapper defaults, and formatter/coloring showcases.
 - Extend first-class diagnostics emitted from formatter/color templates.
   `diagnostic(...)` and `diagnostics(...)` now construct writer-ready diagnostic
   values for unsupported layout, inaccessible color, unsafe raw content,
