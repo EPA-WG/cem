@@ -2639,7 +2639,7 @@ fn execute_conversion_cem_tree_output_stage_body(
                     stage.role, body_binding.function.name, binding.function.name
                 ));
             }
-            execute_conversion_cem_tree_output_stage_fallback(
+            execute_conversion_cem_tree_output_stage_intrinsic(
                 stage.adapter_id,
                 stage,
                 binding,
@@ -2684,14 +2684,48 @@ fn execute_conversion_cem_tree_output_stage_fallback(
     subject: &Value,
 ) -> TransformTemplateAdapterResult<Value> {
     let implementations = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+    let origin = implementations.implementation_origin(&binding.function.name);
+    if !matches!(
+        origin,
+        Some(
+            TransformTemplateEncodeImplementationOrigin::CemtFallback
+                | TransformTemplateEncodeImplementationOrigin::CemtIntrinsic
+        )
+    ) {
+        return Err(TransformTemplateAdapterError::failed(
+            adapter_id,
+            TransformTemplateAdapterExecutionPhase::Render,
+            format!(
+                "{} fallback implementation is not registered as CEMT-compatible",
+                stage.function_name
+            ),
+        ));
+    }
+
+    implementations.encode(binding, subject).map_err(|message| {
+        TransformTemplateAdapterError::failed(
+            adapter_id,
+            TransformTemplateAdapterExecutionPhase::Render,
+            message,
+        )
+    })
+}
+
+fn execute_conversion_cem_tree_output_stage_intrinsic(
+    adapter_id: &'static str,
+    stage: CemTreeCemtOutputStage,
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> TransformTemplateAdapterResult<Value> {
+    let implementations = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
     if implementations.implementation_origin(&binding.function.name)
-        != Some(TransformTemplateEncodeImplementationOrigin::CemtFallback)
+        != Some(TransformTemplateEncodeImplementationOrigin::CemtIntrinsic)
     {
         return Err(TransformTemplateAdapterError::failed(
             adapter_id,
             TransformTemplateAdapterExecutionPhase::Render,
             format!(
-                "{} fallback implementation is not registered as a CEMT fallback",
+                "{} body implementation is not registered as a CEMT intrinsic",
                 stage.function_name
             ),
         ));
@@ -2820,8 +2854,10 @@ fn execute_conversion_cem_tree_output_stage(
         ConversionOutputPipelineStageExecution::CemtAdapter {
             adapter_id: compiled.adapter_id,
             function_name: binding.function.name.clone(),
+            fallback_function_name: body_function_name
+                .is_none()
+                .then(|| binding.function.name.clone()),
             body_function_name,
-            fallback_function_name: Some(binding.function.name.clone()),
         },
     ))
 }
@@ -7609,7 +7645,7 @@ mod tests {
                 adapter_id: CEM_TREE_FORMAT_CEMT_ADAPTER_ID.to_owned(),
                 function_name: "cem.format-tree".to_owned(),
                 body_function_name: Some("cem.format-tree".to_owned()),
-                fallback_function_name: Some("cem.format-tree".to_owned()),
+                fallback_function_name: None,
             })
         );
         assert_eq!(
@@ -7618,7 +7654,7 @@ mod tests {
                 adapter_id: CEM_TREE_COLOR_CEMT_ADAPTER_ID.to_owned(),
                 function_name: "cem.color-tree".to_owned(),
                 body_function_name: Some("cem.color-tree".to_owned()),
-                fallback_function_name: Some("cem.color-tree".to_owned()),
+                fallback_function_name: None,
             })
         );
         let formatted = execution

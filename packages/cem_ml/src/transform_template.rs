@@ -3715,6 +3715,7 @@ where
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TransformTemplateEncodeImplementationOrigin {
     Host,
+    CemtIntrinsic,
     CemtFallback,
 }
 
@@ -3775,8 +3776,8 @@ impl TransformTemplateEncodeImplementationRegistry {
         registry.register("cem.attribute-value", builtin_cem_attribute_value_encoder);
         registry.register("cem.content-text", builtin_cem_content_text_encoder);
         registry.register("cem.string-literal", builtin_cem_string_literal_encoder);
-        registry.register_cemt_fallback("cem.format-tree", builtin_cem_tree_formatter);
-        registry.register_cemt_fallback("cem.color-tree", builtin_cem_tree_colorizer);
+        registry.register_cemt_intrinsic("cem.format-tree", builtin_cem_tree_formatter);
+        registry.register_cemt_intrinsic("cem.color-tree", builtin_cem_tree_colorizer);
         registry.register("cemt.text", builtin_cemt_text_encoder);
         registry.register("cemt.attribute-value", builtin_cemt_attribute_value_encoder);
         registry.register("cemt.string-literal", builtin_cemt_string_literal_encoder);
@@ -3830,6 +3831,18 @@ impl TransformTemplateEncodeImplementationRegistry {
             function_name,
             implementation,
             TransformTemplateEncodeImplementationOrigin::CemtFallback,
+        );
+    }
+
+    pub fn register_cemt_intrinsic(
+        &mut self,
+        function_name: impl Into<String>,
+        implementation: impl TransformTemplateEncodeImplementation + 'static,
+    ) {
+        self.register_with_origin(
+            function_name,
+            implementation,
+            TransformTemplateEncodeImplementationOrigin::CemtIntrinsic,
         );
     }
 
@@ -15301,16 +15314,16 @@ mod tests {
     }
 
     #[test]
-    fn builtin_cem_tree_transform_implementations_are_cemt_fallbacks() {
+    fn builtin_cem_tree_transform_implementations_are_cemt_intrinsics() {
         let registry = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
 
         assert_eq!(
             registry.implementation_origin("cem.format-tree"),
-            Some(TransformTemplateEncodeImplementationOrigin::CemtFallback)
+            Some(TransformTemplateEncodeImplementationOrigin::CemtIntrinsic)
         );
         assert_eq!(
             registry.implementation_origin("cem.color-tree"),
-            Some(TransformTemplateEncodeImplementationOrigin::CemtFallback)
+            Some(TransformTemplateEncodeImplementationOrigin::CemtIntrinsic)
         );
         assert_eq!(
             registry.implementation_origin("html.text"),
