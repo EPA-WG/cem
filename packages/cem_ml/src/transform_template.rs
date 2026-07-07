@@ -90,8 +90,8 @@ pub const CEM_NATIVE_TEMPLATE_SCHEMA_ELEMENTS: &[TransformTemplateNativeElementS
     },
     TransformTemplateNativeElementSchema {
         local_name: "let",
-        required_attributes: &["name", "value"],
-        optional_attributes: &["expr", "expression", "nullable", "type"],
+        required_attributes: &["name"],
+        optional_attributes: &["expr", "expression", "nullable", "type", "value"],
         child_elements: &[],
     },
     TransformTemplateNativeElementSchema {
@@ -166,8 +166,8 @@ pub const TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE: &str =
     "cem.transform_template.include_reserved";
 pub const TRANSFORM_TEMPLATE_PARAM_DEFAULT_EXPR_RESERVED_CODE: &str =
     "cem.transform_template.param_default_expr_reserved";
-pub const TRANSFORM_TEMPLATE_LET_EXPR_RESERVED_CODE: &str =
-    "cem.transform_template.let_expr_reserved";
+pub const TRANSFORM_TEMPLATE_LET_EXPR_INVALID_CODE: &str =
+    "cem.transform_template.let_expr_invalid";
 pub const TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE: &str =
     "cem.transform_template.import_alias_duplicate";
 pub const TRANSFORM_TEMPLATE_DECLARATION_UNSUPPORTED_CODE: &str =
@@ -13098,6 +13098,8 @@ pub struct TransformTemplateModuleLetBinding {
     #[serde(default, skip_serializing_if = "is_false")]
     pub nullable: bool,
     pub value: Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expression: Option<String>,
 }
 
 pub fn apply_transform_template_let_bindings(
@@ -13105,22 +13107,61 @@ pub fn apply_transform_template_let_bindings(
     let_bindings: &[TransformTemplateModuleLetBinding],
     owner_entrypoint: Option<&str>,
 ) {
+    let _ =
+        try_apply_transform_template_let_bindings(value_bindings, let_bindings, owner_entrypoint);
+}
+
+pub fn try_apply_transform_template_let_bindings(
+    value_bindings: &mut BTreeMap<String, Value>,
+    let_bindings: &[TransformTemplateModuleLetBinding],
+    owner_entrypoint: Option<&str>,
+) -> Result<(), String> {
     for binding in let_bindings
         .iter()
         .filter(|binding| binding.owner_entrypoint.is_none())
     {
-        value_bindings.insert(binding.name.clone(), binding.value.clone());
+        apply_transform_template_let_binding(value_bindings, binding)?;
     }
 
     let Some(owner_entrypoint) = owner_entrypoint else {
-        return;
+        return Ok(());
     };
     for binding in let_bindings
         .iter()
         .filter(|binding| binding.owner_entrypoint.as_deref() == Some(owner_entrypoint))
     {
-        value_bindings.insert(binding.name.clone(), binding.value.clone());
+        apply_transform_template_let_binding(value_bindings, binding)?;
     }
+
+    Ok(())
+}
+
+fn apply_transform_template_let_binding(
+    value_bindings: &mut BTreeMap<String, Value>,
+    binding: &TransformTemplateModuleLetBinding,
+) -> Result<(), String> {
+    let value = if let Some(expression) = binding.expression.as_deref() {
+        resolve_encode_subject_expression(expression, value_bindings).ok_or_else(|| {
+            format!(
+                "template let `{}` expression `{expression}` could not be resolved",
+                binding.name
+            )
+        })?
+    } else {
+        binding.value.clone()
+    };
+
+    if !binding.value_type.accepts(&value, binding.nullable) {
+        return Err(format!(
+            "template let `{}` expected {}, got {}",
+            binding.name,
+            binding.value_type.as_contract_name(),
+            json_value_type_name(&value)
+        ));
+    }
+
+    value_bindings.insert(binding.name.clone(), value);
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -13695,21 +13736,40 @@ impl NativeTemplateModuleLowerer<'_> {
                 self.push_diag(TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE, message);
                 false
             });
-        let expr = attr_value(&attrs, "", "expr").or_else(|| attr_value(&attrs, "", "expression"));
-        if expr.is_some() {
+        let expression =
+            attr_value(&attrs, "", "expr").or_else(|| attr_value(&attrs, "", "expression"));
+        let literal_value = attr_value(&attrs, "", "value");
+        if expression.is_some() && literal_value.is_some() {
             self.push_diag(
-                TRANSFORM_TEMPLATE_LET_EXPR_RESERVED_CODE,
+                TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE,
                 format!(
-                    "template let `{name}` uses reserved expression syntax; use literal `@value` until let expression semantics are defined"
+                    "template let `{name}` must use either literal `@value` or expression `@expr`, not both"
                 ),
             );
         }
-        let Some(value) = attr_value(&attrs, "", "value") else {
-            self.push_missing_attr("let", "value");
-            return None;
+        let (value, expression) = if let Some(expression) = expression
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty())
+        {
+            (Value::Null, Some(expression))
+        } else {
+            let Some(value) = literal_value else {
+                self.push_diag(
+                    TRANSFORM_TEMPLATE_DECLARATION_REQUIRED_CODE,
+                    "CEM-native template `let` declaration requires `@value` or `@expr`",
+                );
+                return None;
+            };
+            let value = self.parse_typed_literal(
+                "template let",
+                &name,
+                "value",
+                value_type,
+                nullable,
+                &value,
+            )?;
+            (value, None)
         };
-        let value =
-            self.parse_typed_literal("template let", &name, "value", value_type, nullable, &value)?;
 
         Some(TransformTemplateModuleLetBinding {
             owner_entrypoint: owner_entrypoint.map(str::to_owned),
@@ -13717,6 +13777,7 @@ impl NativeTemplateModuleLowerer<'_> {
             value_type,
             nullable,
             value,
+            expression,
         })
     }
 
@@ -15617,10 +15678,12 @@ mod tests {
         assert!(param.optional_attributes.contains(&"nullable"));
         assert_eq!(template.required_attributes, &["name"]);
         assert!(template.optional_attributes.contains(&"visibility"));
-        assert_eq!(let_decl.required_attributes, &["name", "value"]);
+        assert_eq!(let_decl.required_attributes, &["name"]);
         assert!(let_decl.optional_attributes.contains(&"type"));
         assert!(let_decl.optional_attributes.contains(&"nullable"));
+        assert!(let_decl.optional_attributes.contains(&"value"));
         assert!(let_decl.optional_attributes.contains(&"expr"));
+        assert!(let_decl.optional_attributes.contains(&"expression"));
         assert_eq!(call.required_attributes, &["template"]);
         assert!(call.optional_attributes.contains(&"from"));
         assert!(call.optional_attributes.contains(&"with:*"));
@@ -15945,6 +16008,7 @@ mod tests {
       {let @name="layout" @type="string" @value="block"}
       {let @name="depth" @type="integer" @value="2"}
       {let @name="enabled" @type="boolean" @value="true"}
+      {let @name="title" @type="string" @expr="$input.title"}
       {article | Ready}
     }
   }
@@ -15970,6 +16034,7 @@ mod tests {
                     value_type: TransformTemplateModuleParamType::String,
                     nullable: false,
                     value: json!("lf"),
+                    expression: None,
                 },
                 TransformTemplateModuleLetBinding {
                     owner_entrypoint: Some("card".to_owned()),
@@ -15977,6 +16042,7 @@ mod tests {
                     value_type: TransformTemplateModuleParamType::String,
                     nullable: false,
                     value: json!("block"),
+                    expression: None,
                 },
                 TransformTemplateModuleLetBinding {
                     owner_entrypoint: Some("card".to_owned()),
@@ -15984,6 +16050,7 @@ mod tests {
                     value_type: TransformTemplateModuleParamType::Integer,
                     nullable: false,
                     value: json!(2),
+                    expression: None,
                 },
                 TransformTemplateModuleLetBinding {
                     owner_entrypoint: Some("card".to_owned()),
@@ -15991,6 +16058,15 @@ mod tests {
                     value_type: TransformTemplateModuleParamType::Boolean,
                     nullable: false,
                     value: json!(true),
+                    expression: None,
+                },
+                TransformTemplateModuleLetBinding {
+                    owner_entrypoint: Some("card".to_owned()),
+                    name: "title".to_owned(),
+                    value_type: TransformTemplateModuleParamType::String,
+                    nullable: false,
+                    value: Value::Null,
+                    expression: Some("$input.title".to_owned()),
                 },
             ]
         );
@@ -16006,6 +16082,23 @@ mod tests {
                 value_type: TransformTemplateModuleParamType::String,
                 nullable: false,
                 value: json!("module-profile"),
+                expression: None,
+            },
+            TransformTemplateModuleLetBinding {
+                owner_entrypoint: None,
+                name: "title".to_owned(),
+                value_type: TransformTemplateModuleParamType::String,
+                nullable: false,
+                value: Value::Null,
+                expression: Some("$input.title".to_owned()),
+            },
+            TransformTemplateModuleLetBinding {
+                owner_entrypoint: Some("main".to_owned()),
+                name: "titleLabel".to_owned(),
+                value_type: TransformTemplateModuleParamType::String,
+                nullable: false,
+                value: Value::Null,
+                expression: Some("$title".to_owned()),
             },
             TransformTemplateModuleLetBinding {
                 owner_entrypoint: Some("main".to_owned()),
@@ -16013,6 +16106,7 @@ mod tests {
                 value_type: TransformTemplateModuleParamType::String,
                 nullable: false,
                 value: json!("entrypoint-profile"),
+                expression: None,
             },
             TransformTemplateModuleLetBinding {
                 owner_entrypoint: Some("other".to_owned()),
@@ -16020,6 +16114,7 @@ mod tests {
                 value_type: TransformTemplateModuleParamType::String,
                 nullable: false,
                 value: json!("ignored"),
+                expression: None,
             },
         ];
 
@@ -16029,8 +16124,29 @@ mod tests {
             value_bindings.get("profile"),
             Some(&json!("entrypoint-profile"))
         );
+        assert_eq!(value_bindings.get("title"), Some(&json!("Card")));
+        assert_eq!(value_bindings.get("titleLabel"), Some(&json!("Card")));
         assert_eq!(value_bindings.get("input"), Some(&json!({"title": "Card"})));
         assert!(!value_bindings.contains_key("otherOnly"));
+    }
+
+    #[test]
+    fn cemt_runtime_let_binding_reports_invalid_expression() {
+        let mut value_bindings = BTreeMap::from([("input".to_owned(), json!({"title": "Card"}))]);
+        let let_bindings = vec![TransformTemplateModuleLetBinding {
+            owner_entrypoint: None,
+            name: "depth".to_owned(),
+            value_type: TransformTemplateModuleParamType::Integer,
+            nullable: false,
+            value: Value::Null,
+            expression: Some("$input.title".to_owned()),
+        }];
+
+        let error =
+            try_apply_transform_template_let_bindings(&mut value_bindings, &let_bindings, None)
+                .expect_err("string expression cannot satisfy integer let");
+        assert!(error.contains("template let `depth` expected integer, got string"));
+        assert!(!value_bindings.contains_key("depth"));
     }
 
     #[test]
@@ -24109,11 +24225,13 @@ mod tests {
         assert!(response
             .diagnostics
             .iter()
-            .any(|diag| diag.code == TRANSFORM_TEMPLATE_LET_EXPR_RESERVED_CODE));
-        assert!(response
-            .diagnostics
-            .iter()
             .any(|diag| diag.code == TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE));
+        assert!(response.diagnostics.iter().any(|diag| {
+            diag.code == TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE
+                && diag
+                    .message
+                    .contains("must use either literal `@value` or expression `@expr`")
+        }));
         assert!(response
             .diagnostics
             .iter()
@@ -24523,6 +24641,7 @@ mod tests {
                 value_type: TransformTemplateModuleParamType::String,
                 nullable: false,
                 value: json!("block"),
+                expression: None,
             }],
             ..TransformTemplateModuleOptions::default()
         };

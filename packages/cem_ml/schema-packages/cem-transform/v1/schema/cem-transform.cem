@@ -78,7 +78,7 @@
         {constraint @kind="function-names-package-qualified" @target="encoding-function format-function color-function" @policy="required for custom public functions"}
         {constraint @kind="function-output-identity-required" @target="encoding-function format-function color-function" @policy="required"}
         {constraint @kind="native-external-function-capability-required" @target="encoding-function format-function color-function" @policy="when implementation is native or external"}
-        {constraint @kind="let-expression-reserved" @target="let" @policy="fatal in v1"}
+        {constraint @kind="let-value-or-expression" @target="let" @policy="exactly one of value, expr, or expression is required"}
     }
 
     {diagnostics |
@@ -90,7 +90,7 @@
         {diagnostic @code="cem.transform.function_identity_missing" @severity="error"}
         {diagnostic @code="cem.transform.function_capability_missing" @severity="error"}
         {diagnostic @code="cem.transform.function_shadowed_standard" @severity="error"}
-        {diagnostic @code="cem.transform_template.let_expr_reserved" @severity="fatal"}
+        {diagnostic @code="cem.transform_template.let_expr_invalid" @severity="fatal"}
     }
 
     {open-content |

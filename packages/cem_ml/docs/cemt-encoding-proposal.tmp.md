@@ -132,8 +132,11 @@ metadata. They are not opaque host-side string filters.
   unknown arguments. Declaration-site `{call @template ... @with:* ...}` now
   validates local targets, import aliases, required/default/type-compatible
   arguments, and reports source-map-aware diagnostics.
-- Add immutable local `let` bindings for computed layout, style, profile,
-  namespace, source-map, and node-shape decisions.
+- Extend immutable local `let` bindings for computed layout, style, profile,
+  namespace, source-map, and node-shape decisions. Literal `@value` and
+  expression-backed `@expr`/`@expression` lets now lower into module options;
+  remaining work is broader expression coverage, source-map diagnostics, and
+  formatter/coloring showcases.
 - Add `match` dispatch over CEM tree node kind, name, attribute presence,
   formatter role, color role, and layout mode.
 - Add deterministic `map` and `fold` operations over children, attributes,
@@ -279,6 +282,23 @@ the target type, and unknown arguments are rejected. Diagnostics carry the call
 node source map and byte offset. Imported calls currently validate the import
 alias only; imported target params are validated once module loading is wired
 into the call graph.
+
+## Local Let Bindings
+
+CEMT modules and entrypoints can declare immutable local values with either a
+typed literal value or an expression over the current lexical bindings:
+
+```cemt
+{let @name="layout" @type="string" @value="block"}
+{let @name="title" @type="string" @expr="$input.title"}
+```
+
+Module-level lets are applied before entrypoint-level lets, and both are
+evaluated in declaration order. Expression lets can reference earlier bindings
+from the same render context, including prior lets. The resolved value must
+satisfy the declared type and nullable contract before it is inserted into the
+binding scope; unresolved expressions or type mismatches produce fatal template
+diagnostics rather than falling through to writer behavior.
 
 ## Encoding, Formatting, And Color Function Declarations
 

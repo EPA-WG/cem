@@ -31,7 +31,7 @@
         {element @name="param" @required-attributes="name" @optional-attributes="default default-expr defaultExpr nullable required type visibility"}
         {element @name="template" @required-attributes="name" @optional-attributes="visibility" @children="param body"}
         {element @name="body" @children="*"}
-        {element @name="let" @required-attributes="name value" @optional-attributes="expr expression nullable type"}
+        {element @name="let" @required-attributes="name" @optional-attributes="value expr expression nullable type"}
         {element @name="call" @required-attributes="template" @optional-attributes="from with:*"}
     }
 
@@ -66,7 +66,7 @@
         {constraint @kind="unique-param-name-per-scope" @target="param" @policy="required"}
         {constraint @kind="default-expr-reserved" @target="param" @policy="fatal in v1"}
         {constraint @kind="unique-let-name-per-scope" @target="let" @policy="required"}
-        {constraint @kind="let-expression-reserved" @target="let" @policy="fatal in v1"}
+        {constraint @kind="let-value-or-expression" @target="let" @policy="exactly one of value, expr, or expression is required"}
         {constraint @kind="call-target-resolvable" @target="call" @policy="required"}
     }
 
@@ -77,7 +77,7 @@
         {diagnostic @code="cem.template.import_alias_duplicate" @severity="error"}
         {diagnostic @code="cem.template.call_unknown" @severity="error"}
         {diagnostic @code="cem.template.param_default_expr_reserved" @severity="fatal"}
-        {diagnostic @code="cem.transform_template.let_expr_reserved" @severity="fatal"}
+        {diagnostic @code="cem.transform_template.let_expr_invalid" @severity="fatal"}
     }
 
     {open-content |
