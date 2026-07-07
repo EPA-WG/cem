@@ -11312,6 +11312,24 @@ fn resolve_encode_subject_expression_at_depth(
     )? {
         return Ok(Some(value));
     }
+    if let Some(value) = resolve_cemt_merge_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
+    if let Some(value) = resolve_cemt_set_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
     if let Some(value) = resolve_cemt_match_expression(
         expression,
         value_bindings,
@@ -11649,6 +11667,198 @@ fn resolve_cemt_append_expression(
     Ok(Some(Value::Array(accumulator)))
 }
 
+fn resolve_cemt_merge_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) =
+        parse_cemt_function_call_args(expression, "merge").map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 2 {
+        return Ok(None);
+    }
+    let Some(target) = resolve_encode_subject_expression_at_depth(
+        &args[0],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some(patch) = resolve_encode_subject_expression_at_depth(
+        &args[1],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Value::Object(mut target) = target else {
+        return Err(format!(
+            "CEMT merge expected object target, got {}",
+            json_value_type_name(&target)
+        ));
+    };
+    let Value::Object(patch) = patch else {
+        return Err(format!(
+            "CEMT merge expected object patch, got {}",
+            json_value_type_name(&patch)
+        ));
+    };
+    for (key, value) in patch {
+        target.insert(key, value);
+    }
+    Ok(Some(Value::Object(target)))
+}
+
+fn resolve_cemt_set_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) =
+        parse_cemt_function_call_args(expression, "set").map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 3 {
+        return Ok(None);
+    }
+    let Some(mut target) = resolve_encode_subject_expression_at_depth(
+        &args[0],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some(path) = resolve_cemt_patch_path_argument(
+        &args[1],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some(value) = resolve_encode_subject_expression_at_depth(
+        &args[2],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    set_cemt_value_path(&mut target, &path, value)?;
+    Ok(Some(target))
+}
+
+fn resolve_cemt_patch_path_argument(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<String>, String> {
+    let literal = parse_cemt_literal(expression).map_err(|error| error.to_string())?;
+    let Some(value) = resolve_cemt_literal_runtime_value(
+        &literal,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some(path) = value
+        .as_str()
+        .map(str::trim)
+        .filter(|path| !path.is_empty())
+    else {
+        return Err(format!(
+            "CEMT set expected string path, got {}",
+            json_value_type_name(&value)
+        ));
+    };
+    Ok(Some(path.to_owned()))
+}
+
+fn set_cemt_value_path(target: &mut Value, path: &str, value: Value) -> Result<(), String> {
+    let segments: Vec<&str> = path
+        .split('.')
+        .map(str::trim)
+        .filter(|segment| !segment.is_empty())
+        .collect();
+    if segments.is_empty() {
+        return Err("CEMT set path must contain at least one segment".to_owned());
+    }
+    set_cemt_value_path_segments(target, &segments, path, value)
+}
+
+fn set_cemt_value_path_segments(
+    target: &mut Value,
+    segments: &[&str],
+    original_path: &str,
+    value: Value,
+) -> Result<(), String> {
+    let (segment, rest) = segments
+        .split_first()
+        .expect("set path segments are checked before recursion");
+    match target {
+        Value::Object(object) => {
+            if rest.is_empty() {
+                object.insert((*segment).to_owned(), value);
+                return Ok(());
+            }
+            let child = object
+                .entry((*segment).to_owned())
+                .or_insert_with(|| Value::Object(serde_json::Map::new()));
+            if !child.is_object() && !child.is_array() {
+                return Err(format!(
+                    "CEMT set path `{original_path}` crosses non-container field `{segment}`"
+                ));
+            }
+            set_cemt_value_path_segments(child, rest, original_path, value)
+        }
+        Value::Array(items) => {
+            let index = segment.parse::<usize>().map_err(|_| {
+                format!("CEMT set path `{original_path}` expected array index, got `{segment}`")
+            })?;
+            let Some(child) = items.get_mut(index) else {
+                return Err(format!(
+                    "CEMT set path `{original_path}` index `{index}` is out of bounds"
+                ));
+            };
+            if rest.is_empty() {
+                *child = value;
+                return Ok(());
+            }
+            set_cemt_value_path_segments(child, rest, original_path, value)
+        }
+        other => Err(format!(
+            "CEMT set expected object or array target, got {}",
+            json_value_type_name(other)
+        )),
+    }
+}
+
 fn resolve_cemt_object_expression(
     expression: &str,
     value_bindings: &BTreeMap<String, Value>,
@@ -11830,6 +12040,8 @@ fn cemt_runtime_expression_is_dynamic(value: &str) -> bool {
         || cemt_expression_starts_with_call(value, "map")
         || cemt_expression_starts_with_call(value, "fold")
         || cemt_expression_starts_with_call(value, "append")
+        || cemt_expression_starts_with_call(value, "merge")
+        || cemt_expression_starts_with_call(value, "set")
         || cemt_expression_starts_with_call(value, "match")
         || cemt_expression_starts_with_call(value, "exists")
         || value.starts_with('{')
@@ -16429,6 +16641,134 @@ mod tests {
         .expect_err("append only accepts arrays");
 
         assert!(error.contains("CEMT append expected array accumulator, got object"));
+    }
+
+    #[test]
+    fn cemt_runtime_patch_expressions_merge_and_set_tree_values() {
+        let values = BTreeMap::from([
+            (
+                "node".to_owned(),
+                json!({
+                    "kind": "element",
+                    "name": "card",
+                    "children": [
+                        {"kind": "text", "value": "Ready"},
+                        {"kind": "text", "value": "Soon"}
+                    ]
+                }),
+            ),
+            ("labelPath".to_owned(), json!("children.1.value")),
+        ]);
+
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"merge($node, { role: "document", format: { layout: "block" } })"#,
+                &values,
+            ),
+            Some(json!({
+                "kind": "element",
+                "name": "card",
+                "role": "document",
+                "format": {"layout": "block"},
+                "children": [
+                    {"kind": "text", "value": "Ready"},
+                    {"kind": "text", "value": "Soon"}
+                ]
+            }))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"set($node, "style.colorRole", "syntax.name")"#,
+                &values,
+            ),
+            Some(json!({
+                "kind": "element",
+                "name": "card",
+                "style": {"colorRole": "syntax.name"},
+                "children": [
+                    {"kind": "text", "value": "Ready"},
+                    {"kind": "text", "value": "Soon"}
+                ]
+            }))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"set($node, children.0.style.colorRole, "syntax.text")"#,
+                &values,
+            ),
+            Some(json!({
+                "kind": "element",
+                "name": "card",
+                "children": [
+                    {
+                        "kind": "text",
+                        "value": "Ready",
+                        "style": {"colorRole": "syntax.text"}
+                    },
+                    {"kind": "text", "value": "Soon"}
+                ]
+            }))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(r#"set($node, $labelPath, "Done")"#, &values),
+            Some(json!({
+                "kind": "element",
+                "name": "card",
+                "children": [
+                    {"kind": "text", "value": "Ready"},
+                    {"kind": "text", "value": "Done"}
+                ]
+            }))
+        );
+        assert_eq!(
+            values.get("node").and_then(|node| node.get("style")),
+            None,
+            "patch helpers return new values without mutating source bindings"
+        );
+    }
+
+    #[test]
+    fn cemt_runtime_patch_expressions_report_invalid_targets() {
+        let values = BTreeMap::from([(
+            "node".to_owned(),
+            json!({
+                "kind": "element",
+                "name": "card",
+                "children": [{"kind": "text", "value": "Ready"}]
+            }),
+        )]);
+
+        let merge_error = resolve_encode_subject_expression_at_depth(
+            r#"merge($node.children, { role: "document" })"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("merge requires object target");
+        assert!(merge_error.contains("CEMT merge expected object target, got array"));
+
+        let array_path_error = resolve_encode_subject_expression_at_depth(
+            r#"set($node, "children.name.value", "Done")"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("array path requires numeric segment");
+        assert!(array_path_error
+            .contains("CEMT set path `children.name.value` expected array index, got `name`"));
+
+        let non_container_error = resolve_encode_subject_expression_at_depth(
+            r#"set($node, "name.value", "Done")"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("set cannot cross scalar values");
+        assert!(non_container_error
+            .contains("CEMT set path `name.value` crosses non-container field `name`"));
     }
 
     #[test]
@@ -22514,14 +22854,14 @@ mod tests {
       @streamable=true |
       {param @name="subject" @type="object" @required=true}
       {body |
-        {$ {
-          kind: $subject.kind,
-          formattedBy: $subject.formattedBy,
-          coloredBy: "acme.color-tree",
-          nodes: $subject.nodes,
-          formatNodes: $subject.formatNodes,
-          colorNodes: [{ kind: "colorizer", name: "acme.color-tree" }]
-        } }
+        {$ set(
+          merge($subject, {
+            coloredBy: "acme.color-tree",
+            colorNodes: [{ kind: "colorizer", name: "acme.color-tree" }]
+          }),
+          "nodes.0.style.colorRole",
+          "syntax.name"
+        ) }
       }
   }
   {template @name="main" @visibility="public" |
@@ -22597,6 +22937,10 @@ mod tests {
         assert_eq!(
             evaluated.artifact.value["nodes"][0]["children"][0]["value"],
             "Ready"
+        );
+        assert_eq!(
+            evaluated.artifact.value["nodes"][0]["style"]["colorRole"],
+            "syntax.name"
         );
         assert_eq!(
             evaluated.artifact.value["formatNodes"][0]["name"],

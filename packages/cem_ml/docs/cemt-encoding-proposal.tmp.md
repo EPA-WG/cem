@@ -154,9 +154,10 @@ metadata. They are not opaque host-side string filters.
 - Extend accumulator helpers beyond array `append(...)` for `formatNodes`,
   `colorNodes`, diagnostics, namespace declarations, output spans, and
   writer-boundary metadata.
-- Add tree patch operations for setting fields, replacing nodes, wrapping nodes,
+- Extend tree patch operations for replacing nodes, wrapping nodes,
   prepending/appending formatter or color nodes, and applying queued edits to a
-  formatted CEM tree.
+  formatted CEM tree. Shallow object `merge(...)` and path-based `set(...)` now
+  provide immutable object/tree patching in CEMT bodies.
 - Add first-class diagnostics as emitted values so formatter/color templates can
   report unsupported layout, inaccessible color, unsafe raw content, missing
   metadata, or writer-boundary mismatch without falling back to host errors.
@@ -324,6 +325,27 @@ each iteration:
 bounded accumulator helper for formatter/coloring templates that need to collect
 formatted children, color nodes, writer chunks, or diagnostics before returning
 a CEM tree value.
+
+## Immutable Tree Patches
+
+CEMT body expressions can patch JSON-compatible CEM tree values without mutating
+the source binding. `merge(object, patch)` returns a shallow object merge, while
+`set(value, path, replacement)` returns a new value with a dotted object/array
+path replaced:
+
+```cemt
+{$ set(
+  merge($subject, {
+    coloredBy: "acme.color-tree",
+    colorNodes: [{ kind: "colorizer", name: "acme.color-tree" }]
+  }),
+  "nodes.0.style.colorRole",
+  "syntax.name"
+) }
+```
+
+Object fields in a `set(...)` path are created as needed. Array segments must be
+numeric and in bounds; appending remains explicit through `append(...)`.
 
 ## Encoding, Formatting, And Color Function Declarations
 
