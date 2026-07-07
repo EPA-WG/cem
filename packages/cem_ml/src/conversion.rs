@@ -2414,154 +2414,45 @@ const CEM_TREE_COLOR_CEMT_TEMPLATE_SOURCE: &str = r#"@doc cem-ml 1
 }
 "#;
 
-#[derive(Clone, Debug, Default)]
-struct CemTreeFormatCemtAdapter;
-
-#[derive(Clone, Debug, Default)]
-struct CemTreeColorCemtAdapter;
-
-impl TransformTemplateAdapter for CemTreeFormatCemtAdapter {
-    fn id(&self) -> &'static str {
-        CEM_TREE_FORMAT_CEMT_ADAPTER_ID
-    }
-
-    fn kind(&self) -> TransformTemplateKind {
-        TransformTemplateKind::CemNative
-    }
-
-    fn capability(&self) -> TransformTemplateAdapterCapability {
-        TransformTemplateAdapterCapability::Executable
-    }
-
-    fn matches_template(&self, identity: &FormatIdentity) -> bool {
-        identity
-            .content_type
-            .as_deref()
-            .is_some_and(|content_type| {
-                content_type_essence(content_type) == CEM_TRANSFORM_CONTENT_TYPE
-            })
-            || identity
-                .schema
-                .as_deref()
-                .is_some_and(|schema| schema == CEM_TRANSFORM_SCHEMA_URI)
-    }
-
-    fn compile(
-        &self,
-        request: TransformTemplateCompileRequest<'_>,
-    ) -> TransformTemplateAdapterResult<TransformTemplateCompileResponse> {
-        let template = std::str::from_utf8(&request.template.bytes).map_err(|error| {
-            TransformTemplateAdapterError::failed(
-                self.id(),
-                TransformTemplateAdapterExecutionPhase::Compile,
-                error.to_string(),
-            )
-        })?;
-        if !template.contains("{format-function")
-            || !template.contains(r#"@name="cem.format-tree""#)
-        {
-            return Err(TransformTemplateAdapterError::failed(
-                self.id(),
-                TransformTemplateAdapterExecutionPhase::Compile,
-                "template is not a cem.format-tree CEMT formatter declaration",
-            ));
-        }
-        if !request
-            .module_options
-            .output_functions
-            .iter()
-            .any(|function| {
-                function.kind == TransformTemplateOutputFunctionKind::Format
-                    && function.name == "cem.format-tree"
-                    && function.implementation
-                        == TransformTemplateOutputFunctionImplementation::Cemt
-            })
-        {
-            return Err(TransformTemplateAdapterError::failed(
-                self.id(),
-                TransformTemplateAdapterExecutionPhase::Compile,
-                "module options do not declare CEMT formatter `cem.format-tree`",
-            ));
-        }
-
-        Ok(TransformTemplateCompileResponse {
-            artifact: TransformTemplateCompiledArtifact::new(
-                self.id(),
-                self.kind(),
-                request.template.uri.clone(),
-                request.template.identity.clone(),
-                request.entrypoint.clone(),
-                serde_json::json!({ "outputFunction": "cem.format-tree" }),
-            )
-            .with_module_options(request.module_options),
-            diagnostics: Vec::new(),
-        })
-    }
-
-    fn render(
-        &self,
-        request: TransformTemplateRenderRequest<'_>,
-    ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
-        let binding = request
-            .compiled
-            .native_payload::<TransformTemplateEncodeBinding>()
-            .ok_or_else(|| {
-                TransformTemplateAdapterError::failed(
-                    self.id(),
-                    TransformTemplateAdapterExecutionPhase::Render,
-                    "compiled formatter artifact is missing the resolved encode binding",
-                )
-            })?;
-        if binding.function.kind != TransformTemplateOutputFunctionKind::Format
-            || binding.function.name != "cem.format-tree"
-        {
-            return Err(TransformTemplateAdapterError::failed(
-                self.id(),
-                TransformTemplateAdapterExecutionPhase::Render,
-                format!(
-                    "compiled formatter binding cannot execute `{}`",
-                    binding.function.name
-                ),
-            ));
-        }
-
-        let implementations =
-            TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
-        if implementations.implementation_origin(&binding.function.name)
-            != Some(TransformTemplateEncodeImplementationOrigin::CemtFallback)
-        {
-            return Err(TransformTemplateAdapterError::failed(
-                self.id(),
-                TransformTemplateAdapterExecutionPhase::Render,
-                "cem.format-tree fallback implementation is not registered as a CEMT fallback",
-            ));
-        }
-        let value = implementations
-            .encode(binding, &request.primary_input.value)
-            .map_err(|message| {
-                TransformTemplateAdapterError::failed(
-                    self.id(),
-                    TransformTemplateAdapterExecutionPhase::Render,
-                    message,
-                )
-            })?;
-
-        Ok(TransformTemplateRenderResponse {
-            output: TransformTemplateOutputArtifact {
-                uri: None,
-                identity: request.target.cloned(),
-                value,
-                source_map: None,
-                output_spans: Vec::new(),
-            },
-            diagnostics: Vec::new(),
-        })
-    }
+#[derive(Debug, Clone, Copy)]
+struct CemTreeCemtOutputStage {
+    adapter_id: &'static str,
+    template_uri: &'static str,
+    template_source: &'static str,
+    declaration_element: &'static str,
+    function_kind: TransformTemplateOutputFunctionKind,
+    function_name: &'static str,
+    role: &'static str,
 }
 
-impl TransformTemplateAdapter for CemTreeColorCemtAdapter {
+const CEM_TREE_FORMAT_CEMT_STAGE: CemTreeCemtOutputStage = CemTreeCemtOutputStage {
+    adapter_id: CEM_TREE_FORMAT_CEMT_ADAPTER_ID,
+    template_uri: CEM_TREE_FORMAT_CEMT_TEMPLATE_URI,
+    template_source: CEM_TREE_FORMAT_CEMT_TEMPLATE_SOURCE,
+    declaration_element: "{format-function",
+    function_kind: TransformTemplateOutputFunctionKind::Format,
+    function_name: "cem.format-tree",
+    role: "formatter",
+};
+
+const CEM_TREE_COLOR_CEMT_STAGE: CemTreeCemtOutputStage = CemTreeCemtOutputStage {
+    adapter_id: CEM_TREE_COLOR_CEMT_ADAPTER_ID,
+    template_uri: CEM_TREE_COLOR_CEMT_TEMPLATE_URI,
+    template_source: CEM_TREE_COLOR_CEMT_TEMPLATE_SOURCE,
+    declaration_element: "{color-function",
+    function_kind: TransformTemplateOutputFunctionKind::Color,
+    function_name: "cem.color-tree",
+    role: "colorizer",
+};
+
+#[derive(Clone, Debug)]
+struct CemTreeCemtOutputAdapter {
+    stage: CemTreeCemtOutputStage,
+}
+
+impl TransformTemplateAdapter for CemTreeCemtOutputAdapter {
     fn id(&self) -> &'static str {
-        CEM_TREE_COLOR_CEMT_ADAPTER_ID
+        self.stage.adapter_id
     }
 
     fn kind(&self) -> TransformTemplateKind {
@@ -2596,12 +2487,15 @@ impl TransformTemplateAdapter for CemTreeColorCemtAdapter {
                 error.to_string(),
             )
         })?;
-        if !template.contains("{color-function") || !template.contains(r#"@name="cem.color-tree""#)
-        {
+        let name_attr = format!(r#"@name="{}""#, self.stage.function_name);
+        if !template.contains(self.stage.declaration_element) || !template.contains(&name_attr) {
             return Err(TransformTemplateAdapterError::failed(
                 self.id(),
                 TransformTemplateAdapterExecutionPhase::Compile,
-                "template is not a cem.color-tree CEMT colorizer declaration",
+                format!(
+                    "template is not a {} CEMT {} declaration",
+                    self.stage.function_name, self.stage.role
+                ),
             ));
         }
         if !request
@@ -2609,8 +2503,8 @@ impl TransformTemplateAdapter for CemTreeColorCemtAdapter {
             .output_functions
             .iter()
             .any(|function| {
-                function.kind == TransformTemplateOutputFunctionKind::Color
-                    && function.name == "cem.color-tree"
+                function.kind == self.stage.function_kind
+                    && function.name == self.stage.function_name
                     && function.implementation
                         == TransformTemplateOutputFunctionImplementation::Cemt
             })
@@ -2618,7 +2512,10 @@ impl TransformTemplateAdapter for CemTreeColorCemtAdapter {
             return Err(TransformTemplateAdapterError::failed(
                 self.id(),
                 TransformTemplateAdapterExecutionPhase::Compile,
-                "module options do not declare CEMT colorizer `cem.color-tree`",
+                format!(
+                    "module options do not declare CEMT {} `{}`",
+                    self.stage.role, self.stage.function_name
+                ),
             ));
         }
 
@@ -2629,7 +2526,7 @@ impl TransformTemplateAdapter for CemTreeColorCemtAdapter {
                 request.template.uri.clone(),
                 request.template.identity.clone(),
                 request.entrypoint.clone(),
-                serde_json::json!({ "outputFunction": "cem.color-tree" }),
+                serde_json::json!({ "outputFunction": self.stage.function_name }),
             )
             .with_module_options(request.module_options),
             diagnostics: Vec::new(),
@@ -2647,18 +2544,21 @@ impl TransformTemplateAdapter for CemTreeColorCemtAdapter {
                 TransformTemplateAdapterError::failed(
                     self.id(),
                     TransformTemplateAdapterExecutionPhase::Render,
-                    "compiled colorizer artifact is missing the resolved encode binding",
+                    format!(
+                        "compiled {} artifact is missing the resolved encode binding",
+                        self.stage.role
+                    ),
                 )
             })?;
-        if binding.function.kind != TransformTemplateOutputFunctionKind::Color
-            || binding.function.name != "cem.color-tree"
+        if binding.function.kind != self.stage.function_kind
+            || binding.function.name != self.stage.function_name
         {
             return Err(TransformTemplateAdapterError::failed(
                 self.id(),
                 TransformTemplateAdapterExecutionPhase::Render,
                 format!(
-                    "compiled colorizer binding cannot execute `{}`",
-                    binding.function.name
+                    "compiled {} binding cannot execute `{}`",
+                    self.stage.role, binding.function.name
                 ),
             ));
         }
@@ -2671,7 +2571,10 @@ impl TransformTemplateAdapter for CemTreeColorCemtAdapter {
             return Err(TransformTemplateAdapterError::failed(
                 self.id(),
                 TransformTemplateAdapterExecutionPhase::Render,
-                "cem.color-tree fallback implementation is not registered as a CEMT fallback",
+                format!(
+                    "{} fallback implementation is not registered as a CEMT fallback",
+                    self.stage.function_name
+                ),
             ));
         }
         let value = implementations
@@ -2701,94 +2604,25 @@ fn execute_conversion_cem_tree_format_stage(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
 ) -> Result<(Value, ConversionOutputPipelineStageExecution), String> {
-    let adapter = CemTreeFormatCemtAdapter;
-    let template = TemplateInput {
-        uri: CEM_TREE_FORMAT_CEMT_TEMPLATE_URI.to_owned(),
-        bytes: CEM_TREE_FORMAT_CEMT_TEMPLATE_SOURCE.as_bytes().to_vec(),
-        identity: Some(FormatIdentity {
-            content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
-            schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
-            ..FormatIdentity::default()
-        }),
-        root_scope: ScopeConfig::default(),
-    };
-    let entrypoint = TransformTemplateEntrypoint::named("cem.format-tree");
-    let params = BTreeMap::new();
-    let data_bindings = vec!["subject".to_owned()];
-    let module_options = TransformTemplateModuleOptions {
-        output_functions: vec![binding.function.clone()],
-        ..TransformTemplateModuleOptions::default()
-    };
-    let compile_response = adapter
-        .compile(TransformTemplateCompileRequest {
-            template: &template,
-            entrypoint: &entrypoint,
-            params: &params,
-            data_bindings: &data_bindings,
-            module_options,
-            module_preflight: TransformTemplateModulePreflight::default(),
-            execution_policy: TransformExecutionPolicy::default(),
-        })
-        .map_err(|error| error.to_string())?;
-    if let Some(diagnostic) = compile_response
-        .diagnostics
-        .iter()
-        .find(|diagnostic| diagnostic.severity.is_hard_violation())
-    {
-        return Err(diagnostic.message.clone());
-    }
-
-    let compiled = compile_response
-        .artifact
-        .with_native_payload(binding.clone());
-    let primary_input = TransformTemplateDataArtifact {
-        artifact_id: "subject".to_owned(),
-        uri: None,
-        identity: Some(FormatIdentity {
-            content_type: Some(binding.function.content_type.clone()),
-            schema: Some(binding.function.schema.clone()),
-            ..FormatIdentity::default()
-        }),
-        value: subject.clone(),
-    };
-    let secondary_inputs = BTreeMap::new();
-    let target = binding.identity.target.format_identity();
-    let render_response = adapter
-        .render(TransformTemplateRenderRequest {
-            compiled: &compiled,
-            primary_input: &primary_input,
-            secondary_inputs: &secondary_inputs,
-            target: Some(&target),
-            target_scope: &ScopeConfig::default(),
-            execution_policy: TransformExecutionPolicy::default(),
-        })
-        .map_err(|error| error.to_string())?;
-    if let Some(diagnostic) = render_response
-        .diagnostics
-        .iter()
-        .find(|diagnostic| diagnostic.severity.is_hard_violation())
-    {
-        return Err(diagnostic.message.clone());
-    }
-
-    Ok((
-        render_response.output.value,
-        ConversionOutputPipelineStageExecution::CemtAdapter {
-            adapter_id: compiled.adapter_id,
-            function_name: binding.function.name.clone(),
-            fallback_function_name: Some(binding.function.name.clone()),
-        },
-    ))
+    execute_conversion_cem_tree_output_stage(CEM_TREE_FORMAT_CEMT_STAGE, binding, subject)
 }
 
 fn execute_conversion_cem_tree_color_stage(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
 ) -> Result<(Value, ConversionOutputPipelineStageExecution), String> {
-    let adapter = CemTreeColorCemtAdapter;
+    execute_conversion_cem_tree_output_stage(CEM_TREE_COLOR_CEMT_STAGE, binding, subject)
+}
+
+fn execute_conversion_cem_tree_output_stage(
+    stage: CemTreeCemtOutputStage,
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+) -> Result<(Value, ConversionOutputPipelineStageExecution), String> {
+    let adapter = CemTreeCemtOutputAdapter { stage };
     let template = TemplateInput {
-        uri: CEM_TREE_COLOR_CEMT_TEMPLATE_URI.to_owned(),
-        bytes: CEM_TREE_COLOR_CEMT_TEMPLATE_SOURCE.as_bytes().to_vec(),
+        uri: stage.template_uri.to_owned(),
+        bytes: stage.template_source.as_bytes().to_vec(),
         identity: Some(FormatIdentity {
             content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
             schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
@@ -2796,7 +2630,7 @@ fn execute_conversion_cem_tree_color_stage(
         }),
         root_scope: ScopeConfig::default(),
     };
-    let entrypoint = TransformTemplateEntrypoint::named("cem.color-tree");
+    let entrypoint = TransformTemplateEntrypoint::named(stage.function_name);
     let params = BTreeMap::new();
     let data_bindings = vec!["subject".to_owned()];
     let module_options = TransformTemplateModuleOptions {
