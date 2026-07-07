@@ -162,8 +162,10 @@ metadata. They are not opaque host-side string filters.
   writer-boundary metadata. `appendFormatNode(...)`, `appendColorNode(...)`,
   `appendDiagnostic(...)`, `appendNamespace(...)`, `appendOutputSpan(...)`, and
   `appendWriterBoundary(...)` now append typed metadata arrays on immutable
-  object accumulators with role/shape validation; remaining work is
-  source-map-aware defaults and formatter/coloring showcases.
+  object accumulators with role/shape validation. Metadata helpers now default
+  missing item source maps from the accumulator CEM tree and stamp the active
+  formatter/colorizer transform frame; remaining work is formatter/coloring
+  showcases.
 - Extend tree patch operations for replacing nodes, wrapping nodes,
   prepending/appending formatter or color nodes, and applying queued edits to a
   formatted CEM tree. Shallow object `merge(...)` and path-based `set(...)` now
@@ -173,8 +175,10 @@ metadata. They are not opaque host-side string filters.
   wrapper insertion, and queued edit replay. The built-in `cem.format-tree` and
   `cem.color-tree` CEMT declarations now use these helpers around their direct
   runtime operations. Queued edits now reject ambiguous value fields, malformed
-  paths, null appended/prepended nodes, and non-object wrappers; remaining work
-  is source-map-aware wrapper defaults and formatter/coloring showcases.
+  paths, null appended/prepended nodes, and non-object wrappers. Wrapper
+  insertion now defaults missing wrapper source maps from the wrapped node and
+  stamps the active CEMT transform frame; remaining work is formatter/coloring
+  showcases.
 - Extend first-class diagnostics emitted from formatter/color templates.
   `diagnostic(...)` and `diagnostics(...)` now construct writer-ready diagnostic
   values for unsupported layout, inaccessible color, unsafe raw content,
@@ -387,7 +391,10 @@ Metadata helpers validate their item shape before appending:
 
 These helpers keep formatter metadata, coloring metadata, diagnostics,
 namespace repairs, output spans, and writer-boundary checks in the CEM tree
-value before the writer phase.
+value before the writer phase. When an appended metadata item omits
+`sourceMap`, the helper derives one from the nearest source-mapped CEM tree
+value in the accumulator and appends the current formatter/colorizer transform
+frame. Explicit `sourceMap` values are preserved.
 
 ## Scoped Traversal Stacks
 
@@ -501,6 +508,12 @@ supported edit kinds are `set`, `replace`, `append`, `prepend`, and `wrap`.
 Each edit must provide exactly one value field. Patch paths cannot contain empty
 segments. `append` and `prepend` reject `null` nodes, and `wrap` requires an
 object wrapper before the edit is applied.
+
+When `wrapNode(...)` or an `applyEdits(...)` wrap edit creates a wrapper without
+`sourceMap`, CEMT derives the wrapper map from the wrapped node and appends the
+active transform frame. Formatter bodies therefore produce formatted wrapper
+metadata, coloring bodies produce colored wrapper metadata, and explicit wrapper
+`sourceMap` values are preserved.
 
 ```cemt
 {$ applyEdits($formattedTree, [

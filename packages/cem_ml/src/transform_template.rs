@@ -5634,14 +5634,7 @@ fn transform_template_cem_tree_format_decision(
 fn transform_template_cem_tree_format_source_map_value(
     source_map: Option<&SourceMapStack>,
 ) -> Option<Value> {
-    let source_map = source_map?;
-    serde_json::to_value(transform_template_source_map_with_transform(
-        source_map,
-        TransformKind::TemplateTransform {
-            function: "cem.format-tree".to_owned(),
-        },
-    ))
-    .ok()
+    transform_template_cem_tree_transform_source_map_value(source_map, "cem.format-tree")
 }
 
 fn transform_template_cem_tree_formatter_line_ending(
@@ -5967,11 +5960,18 @@ fn transform_template_cem_tree_color_decision(
 fn transform_template_cem_tree_color_source_map_value(
     source_map: Option<&SourceMapStack>,
 ) -> Option<Value> {
+    transform_template_cem_tree_transform_source_map_value(source_map, "cem.color-tree")
+}
+
+fn transform_template_cem_tree_transform_source_map_value(
+    source_map: Option<&SourceMapStack>,
+    function: &str,
+) -> Option<Value> {
     let source_map = source_map?;
     serde_json::to_value(transform_template_source_map_with_transform(
         source_map,
         TransformKind::TemplateTransform {
-            function: "cem.color-tree".to_owned(),
+            function: function.to_owned(),
         },
     ))
     .ok()
@@ -11875,6 +11875,28 @@ impl CemtMetadataAccumulatorKind {
         }
     }
 
+    fn default_source_map_function_name(
+        self,
+        binding: Option<&TransformTemplateEncodeBinding>,
+    ) -> String {
+        match (self, binding) {
+            (Self::FormatNode, Some(binding))
+                if binding.function.kind == TransformTemplateOutputFunctionKind::Format =>
+            {
+                binding.function.name.clone()
+            }
+            (Self::ColorNode, Some(binding))
+                if binding.function.kind == TransformTemplateOutputFunctionKind::Color =>
+            {
+                binding.function.name.clone()
+            }
+            (Self::FormatNode, _) => "cem.format-tree".to_owned(),
+            (Self::ColorNode, _) => "cem.color-tree".to_owned(),
+            (_, Some(binding)) => binding.function.name.clone(),
+            _ => self.function_name().to_owned(),
+        }
+    }
+
     fn normalize_item(self, value: Value) -> Result<Value, String> {
         match self {
             Self::FormatNode => {
@@ -12068,9 +12090,37 @@ fn resolve_cemt_metadata_accumulator_expression(
     else {
         return Ok(None);
     };
-    let item = kind.normalize_item(item)?;
+    let mut item = kind.normalize_item(item)?;
+    apply_cemt_metadata_source_map_default(&mut item, &accumulator, kind, binding);
     append_cemt_metadata_accumulator_item(&mut accumulator, kind, item)?;
     Ok(Some(Value::Object(accumulator)))
+}
+
+fn apply_cemt_metadata_source_map_default(
+    item: &mut Value,
+    accumulator: &serde_json::Map<String, Value>,
+    kind: CemtMetadataAccumulatorKind,
+    binding: Option<&TransformTemplateEncodeBinding>,
+) {
+    let Value::Object(item_fields) = item else {
+        return;
+    };
+    if item_fields.contains_key("sourceMap") {
+        return;
+    }
+    let source_map = transform_template_first_cem_tree_source_map(&Value::Object(
+        accumulator.clone(),
+    ))
+    .or_else(|| transform_template_first_cem_tree_source_map(&Value::Object(item_fields.clone())));
+    let Some(source_map) = source_map else {
+        return;
+    };
+    let function = kind.default_source_map_function_name(binding);
+    if let Some(source_map) =
+        transform_template_cem_tree_transform_source_map_value(Some(&source_map), &function)
+    {
+        item_fields.insert("sourceMap".to_owned(), source_map);
+    }
 }
 
 fn append_cemt_metadata_accumulator_item(
@@ -12283,7 +12333,7 @@ fn resolve_cemt_tree_patch_expression(
     else {
         return Ok(None);
     };
-    apply_cemt_tree_patch_operation(&mut target, operation, &path, value, owner)?;
+    apply_cemt_tree_patch_operation(&mut target, operation, &path, value, owner, binding)?;
     Ok(Some(target))
 }
 
@@ -12332,6 +12382,7 @@ fn resolve_cemt_apply_edits_expression(
             &edit.path,
             edit.value,
             "applyEdits",
+            binding,
         )?;
     }
 
@@ -13381,6 +13432,7 @@ fn apply_cemt_tree_patch_operation(
     path: &str,
     value: Value,
     owner: &str,
+    binding: Option<&TransformTemplateEncodeBinding>,
 ) -> Result<(), String> {
     match operation {
         CemtTreePatchOperation::Set => set_cemt_value_path_with_owner(target, path, value, owner),
@@ -13391,7 +13443,7 @@ fn apply_cemt_tree_patch_operation(
         CemtTreePatchOperation::Prepend => {
             insert_cemt_array_value_path(target, path, value, CemtArrayInsertPosition::Front, owner)
         }
-        CemtTreePatchOperation::Wrap => wrap_cemt_value_path(target, path, value, owner),
+        CemtTreePatchOperation::Wrap => wrap_cemt_value_path(target, path, value, owner, binding),
     }
 }
 
@@ -13565,8 +13617,9 @@ fn wrap_cemt_value_path(
     path: &str,
     wrapper: Value,
     owner: &str,
+    binding: Option<&TransformTemplateEncodeBinding>,
 ) -> Result<(), String> {
-    let wrapper = match wrapper {
+    let mut wrapper = match wrapper {
         Value::Object(wrapper) => wrapper,
         other => {
             return Err(format!(
@@ -13576,8 +13629,52 @@ fn wrap_cemt_value_path(
         }
     };
     let wrapped = clone_cemt_existing_value_path(target, path, owner)?;
+    apply_cemt_wrapper_source_map_default(&mut wrapper, &wrapped, owner, binding);
     let wrapper = cemt_wrap_node_value(wrapper, wrapped, owner)?;
     replace_cemt_value_path(target, path, wrapper, owner)
+}
+
+fn apply_cemt_wrapper_source_map_default(
+    wrapper: &mut serde_json::Map<String, Value>,
+    wrapped: &Value,
+    owner: &str,
+    binding: Option<&TransformTemplateEncodeBinding>,
+) {
+    if wrapper.contains_key("sourceMap") {
+        return;
+    }
+    let Some(source_map) = transform_template_first_cem_tree_source_map(wrapped) else {
+        return;
+    };
+    let function = cemt_tree_patch_source_map_function_name(wrapper, owner, binding);
+    if let Some(source_map) =
+        transform_template_cem_tree_transform_source_map_value(Some(&source_map), &function)
+    {
+        wrapper.insert("sourceMap".to_owned(), source_map);
+    }
+}
+
+fn cemt_tree_patch_source_map_function_name(
+    wrapper: &serde_json::Map<String, Value>,
+    owner: &str,
+    binding: Option<&TransformTemplateEncodeBinding>,
+) -> String {
+    if let Some(binding) = binding {
+        return binding.function.name.clone();
+    }
+    if wrapper.contains_key("colorRole")
+        || wrapper.contains_key("colorizerRole")
+        || wrapper.contains_key("colorWrapperNodes")
+    {
+        return "cem.color-tree".to_owned();
+    }
+    if wrapper.contains_key("formatterRole")
+        || wrapper.contains_key("formatLayout")
+        || wrapper.contains_key("formatNodes")
+    {
+        return "cem.format-tree".to_owned();
+    }
+    owner.to_owned()
 }
 
 fn cemt_wrap_node_value(
@@ -18581,6 +18678,77 @@ mod tests {
     }
 
     #[test]
+    fn cemt_runtime_metadata_accumulators_default_formatter_and_color_source_maps() {
+        let tree_source_map =
+            serde_json::to_value(source_map_stack(120, 6)).expect("tree source map serializes");
+        let explicit_source_map =
+            serde_json::to_value(source_map_stack(140, 3)).expect("explicit source map serializes");
+        let values = BTreeMap::from([
+            (
+                "tree".to_owned(),
+                json!({
+                    "kind": "cem-tree",
+                    "sourceMap": tree_source_map
+                }),
+            ),
+            ("explicit".to_owned(), explicit_source_map.clone()),
+        ]);
+
+        let tree = resolve_encode_subject_expression(
+            r#"appendColorNode(
+                appendFormatNode(
+                    appendFormatNode(
+                        $tree,
+                        {
+                            kind: "format-decision",
+                            name: "layout",
+                            formatterRole: "formatter.layout"
+                        }
+                    ),
+                    {
+                        kind: "format-decision",
+                        name: "explicit",
+                        formatterRole: "formatter.layout",
+                        sourceMap: $explicit
+                    }
+                ),
+                {
+                    kind: "color-decision",
+                    name: "syntax",
+                    colorizerRole: "colorizer.syntax"
+                }
+            )"#,
+            &values,
+        )
+        .expect("metadata helpers resolve");
+
+        assert_cem_tree_source_map_current_transform(
+            &tree["formatNodes"][0]["sourceMap"],
+            |transform| {
+                matches!(
+                    transform,
+                    TransformKind::TemplateTransform { function }
+                        if function == "cem.format-tree"
+                )
+            },
+        );
+        assert_eq!(
+            tree["formatNodes"][1]["sourceMap"], explicit_source_map,
+            "explicit metadata source maps are preserved"
+        );
+        assert_cem_tree_source_map_current_transform(
+            &tree["colorNodes"][0]["sourceMap"],
+            |transform| {
+                matches!(
+                    transform,
+                    TransformKind::TemplateTransform { function }
+                        if function == "cem.color-tree"
+                )
+            },
+        );
+    }
+
+    #[test]
     fn cemt_runtime_metadata_accumulators_fold_over_children() {
         let values = BTreeMap::from([(
             "node".to_owned(),
@@ -19289,6 +19457,144 @@ mod tests {
                     }
                 ]
             }))
+        );
+    }
+
+    #[test]
+    fn cemt_runtime_tree_patch_wrap_defaults_color_source_maps() {
+        let ready_source_map =
+            serde_json::to_value(source_map_stack(160, 5)).expect("ready source map serializes");
+        let soon_source_map =
+            serde_json::to_value(source_map_stack(170, 4)).expect("soon source map serializes");
+        let explicit_source_map = serde_json::to_value(source_map_stack(190, 2))
+            .expect("explicit wrapper source map serializes");
+        let values = BTreeMap::from([
+            (
+                "node".to_owned(),
+                json!({
+                    "kind": "cem-tree",
+                    "nodes": [{
+                        "kind": "element",
+                        "name": "card",
+                        "children": [
+                            {
+                                "kind": "text",
+                                "value": "Ready",
+                                "sourceMap": ready_source_map
+                            },
+                            {
+                                "kind": "text",
+                                "value": "Soon",
+                                "sourceMap": soon_source_map
+                            }
+                        ]
+                    }]
+                }),
+            ),
+            ("explicit".to_owned(), explicit_source_map.clone()),
+        ]);
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        registry.register(cem_tree_color_function_descriptor_with_profile("classes"));
+        let request = TransformTemplateEncodeBindingRequest::new(
+            values.get("node").expect("node binding").clone(),
+            TransformTemplateEncodingTarget::new(
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                "cem-tree",
+            ),
+        )
+        .with_subject_type("cem-tree")
+        .with_options(TransformTemplateEncodeOptions {
+            colorizer: Some("cem.color-tree".to_owned()),
+            color_profile: Some("classes".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let binding = registry
+            .resolve_color_binding(&request, &BTreeSet::new())
+            .expect("CEM tree colorizer resolves")
+            .into_encode_binding();
+
+        let wrapped = resolve_encode_subject_expression_with_binding(
+            r#"wrapNode(
+                $node,
+                "nodes.0.children.0",
+                {
+                    kind: "element",
+                    name: "span",
+                    colorRole: "syntax.string"
+                }
+            )"#,
+            &values,
+            &BTreeMap::new(),
+            &binding,
+        )
+        .expect("wrapNode resolves")
+        .expect("wrapNode returns value");
+        assert_cem_tree_source_map_current_transform(
+            &wrapped["nodes"][0]["children"][0]["sourceMap"],
+            |transform| {
+                matches!(
+                    transform,
+                    TransformKind::TemplateTransform { function }
+                        if function == "cem.color-tree"
+                )
+            },
+        );
+        assert_cem_tree_source_map_current_transform(
+            &wrapped["nodes"][0]["children"][0]["children"][0]["sourceMap"],
+            |transform| matches!(transform, TransformKind::CemTokenizer),
+        );
+
+        let explicit = resolve_encode_subject_expression_with_binding(
+            r#"wrapNode(
+                $node,
+                "nodes.0.children.0",
+                {
+                    kind: "element",
+                    name: "span",
+                    colorRole: "syntax.string",
+                    sourceMap: $explicit
+                }
+            )"#,
+            &values,
+            &BTreeMap::new(),
+            &binding,
+        )
+        .expect("explicit wrapNode resolves")
+        .expect("explicit wrapNode returns value");
+        assert_eq!(
+            explicit["nodes"][0]["children"][0]["sourceMap"], explicit_source_map,
+            "explicit wrapper source maps are preserved"
+        );
+
+        let edited = resolve_encode_subject_expression_with_binding(
+            r#"applyEdits(
+                $node,
+                [{
+                    kind: "wrap",
+                    path: "nodes.0.children.1",
+                    wrapper: {
+                        kind: "element",
+                        name: "span",
+                        colorRole: "syntax.string"
+                    }
+                }]
+            )"#,
+            &values,
+            &BTreeMap::new(),
+            &binding,
+        )
+        .expect("applyEdits resolves")
+        .expect("applyEdits returns value");
+        assert_cem_tree_source_map_current_transform(
+            &edited["nodes"][0]["children"][1]["sourceMap"],
+            |transform| {
+                matches!(
+                    transform,
+                    TransformKind::TemplateTransform { function }
+                        if function == "cem.color-tree"
+                )
+            },
         );
     }
 
