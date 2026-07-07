@@ -45,6 +45,14 @@ CEM AST / typed projection subject
                 -> text, bytes, sealed chunks, or transport-ready artifact
 ```
 
+When an intermediate artifact could be represented as JSON, YAML, XML, or
+another non-target surface, CEM-native representation is the default. JSON is
+reserved for explicit JSON destination identities, declared debug/projection
+routes, or integration boundaries that cannot consume CEM-native data. If a
+pipeline step cannot clearly use either the target-native surface or a
+CEM-native intermediate, the producer must require an explicit policy decision
+instead of silently choosing JSON.
+
 Formatting is a CEMT-owned transformation stage. The primary output of a
 formatter must be a typed CEM output tree, syntax tree, token tree, or chunk plan
 that carries destination identity, ordering, whitespace, line-ending,
@@ -1056,6 +1064,12 @@ must carry its own identity:
 - encoder, formatter, and color/profile selection;
 - source-map and canonical AST references;
 - lossiness and inclusion policy when the artifact omits or derives content.
+
+Final artifacts use their registered target surface directly: HTML output is
+HTML, CEM-ML output is CEM text, YAML output is YAML, and JSON output is JSON.
+Cross-stage fixtures and implementation artifacts should stay CEM-native unless
+they are themselves registered target artifacts or explicitly declared
+debug/projection routes.
 
 Mixed-content exports are therefore modeled as an artifact collection, not as a
 global content-type switch. For example, an XHTML input can produce:
