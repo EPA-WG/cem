@@ -11041,24 +11041,65 @@ pub struct TransformTemplateWriterDiagnostics {
     pub diagnostics: Vec<Diagnostic>,
 }
 
+const CEMT_RUNTIME_CALL_RECURSION_LIMIT: usize = 64;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CemtRuntimeFunction {
+    params: Vec<String>,
+    body: String,
+}
+
 fn resolve_encode_subject_expression(
     expression: &str,
     value_bindings: &BTreeMap<String, Value>,
 ) -> Option<Value> {
+    let runtime_functions = BTreeMap::new();
+    resolve_encode_subject_expression_with_functions(expression, value_bindings, &runtime_functions)
+}
+
+fn resolve_encode_subject_expression_with_functions(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+) -> Option<Value> {
+    resolve_encode_subject_expression_at_depth(expression, value_bindings, runtime_functions, 0)
+}
+
+fn resolve_encode_subject_expression_at_depth(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    call_depth: usize,
+) -> Option<Value> {
     let expression = expression.trim();
-    if let Some(value) = resolve_cemt_map_expression(expression, value_bindings) {
+    if let Some(value) =
+        resolve_cemt_call_expression(expression, value_bindings, runtime_functions, call_depth)
+    {
         return Some(value);
     }
-    if let Some(value) = resolve_cemt_match_expression(expression, value_bindings) {
+    if let Some(value) =
+        resolve_cemt_map_expression(expression, value_bindings, runtime_functions, call_depth)
+    {
         return Some(value);
     }
-    if let Some(value) = resolve_cemt_exists_expression(expression, value_bindings) {
+    if let Some(value) =
+        resolve_cemt_match_expression(expression, value_bindings, runtime_functions, call_depth)
+    {
         return Some(value);
     }
-    if let Some(value) = resolve_cemt_object_expression(expression, value_bindings) {
+    if let Some(value) =
+        resolve_cemt_exists_expression(expression, value_bindings, runtime_functions, call_depth)
+    {
         return Some(value);
     }
-    if let Some(value) = resolve_cemt_array_expression(expression, value_bindings) {
+    if let Some(value) =
+        resolve_cemt_object_expression(expression, value_bindings, runtime_functions, call_depth)
+    {
+        return Some(value);
+    }
+    if let Some(value) =
+        resolve_cemt_array_expression(expression, value_bindings, runtime_functions, call_depth)
+    {
         return Some(value);
     }
     if expression.starts_with('"') || expression.starts_with('\'') {
@@ -11072,15 +11113,73 @@ fn resolve_encode_subject_expression(
     resolve_encode_subject_path(path, value_bindings).cloned()
 }
 
+fn resolve_cemt_call_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    call_depth: usize,
+) -> Option<Value> {
+    let args = parse_cemt_function_call_args(expression, "call").ok()??;
+    if args.len() != 2 || call_depth >= CEMT_RUNTIME_CALL_RECURSION_LIMIT {
+        return None;
+    }
+    let function_name_literal = parse_cemt_literal(&args[0]).ok()?;
+    let function_name = resolve_cemt_literal_runtime_value(
+        &function_name_literal,
+        value_bindings,
+        runtime_functions,
+        call_depth,
+    )?;
+    let function_name = function_name.as_str()?.trim();
+    if function_name.is_empty() {
+        return None;
+    }
+    let function = runtime_functions.get(function_name)?;
+    let arguments = parse_cemt_object_literal(&args[1]).ok()?;
+    if arguments.len() != function.params.len()
+        || arguments
+            .keys()
+            .any(|name| !function.params.iter().any(|param| param == name))
+    {
+        return None;
+    }
+
+    let mut scoped_bindings = value_bindings.clone();
+    for param in &function.params {
+        let literal = arguments.get(param)?;
+        let value = resolve_cemt_literal_runtime_value(
+            literal,
+            value_bindings,
+            runtime_functions,
+            call_depth,
+        )?;
+        scoped_bindings.insert(param.clone(), value);
+    }
+
+    resolve_encode_subject_expression_at_depth(
+        &function.body,
+        &scoped_bindings,
+        runtime_functions,
+        call_depth + 1,
+    )
+}
+
 fn resolve_cemt_map_expression(
     expression: &str,
     value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    call_depth: usize,
 ) -> Option<Value> {
     let args = parse_cemt_function_call_args(expression, "map").ok()??;
     if args.len() != 2 {
         return None;
     }
-    let collection = resolve_encode_subject_expression(&args[0], value_bindings)?;
+    let collection = resolve_encode_subject_expression_at_depth(
+        &args[0],
+        value_bindings,
+        runtime_functions,
+        call_depth,
+    )?;
     let Value::Array(items) = collection else {
         return None;
     };
@@ -11093,9 +11192,11 @@ fn resolve_cemt_map_expression(
             "index".to_owned(),
             Value::Number(serde_json::Number::from(index as u64)),
         );
-        mapped.push(resolve_encode_subject_expression(
+        mapped.push(resolve_encode_subject_expression_at_depth(
             &args[1],
             &scoped_bindings,
+            runtime_functions,
+            call_depth,
         )?);
     }
 
@@ -11105,13 +11206,20 @@ fn resolve_cemt_map_expression(
 fn resolve_cemt_object_expression(
     expression: &str,
     value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    call_depth: usize,
 ) -> Option<Value> {
     let fields = parse_cemt_object_literal(expression).ok()?;
     let mut object = serde_json::Map::new();
     for (key, literal) in fields {
         object.insert(
             key,
-            resolve_cemt_literal_runtime_value(&literal, value_bindings)?,
+            resolve_cemt_literal_runtime_value(
+                &literal,
+                value_bindings,
+                runtime_functions,
+                call_depth,
+            )?,
         );
     }
     Some(Value::Object(object))
@@ -11120,6 +11228,8 @@ fn resolve_cemt_object_expression(
 fn resolve_cemt_array_expression(
     expression: &str,
     value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    call_depth: usize,
 ) -> Option<Value> {
     let expression = expression.trim();
     if !expression.starts_with('[') {
@@ -11140,6 +11250,8 @@ fn resolve_cemt_array_expression(
         items.push(resolve_cemt_literal_runtime_value(
             &literal,
             value_bindings,
+            runtime_functions,
+            call_depth,
         )?);
     }
     Some(Value::Array(items))
@@ -11148,37 +11260,54 @@ fn resolve_cemt_array_expression(
 fn resolve_cemt_match_expression(
     expression: &str,
     value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    call_depth: usize,
 ) -> Option<Value> {
     let args = parse_cemt_function_call_args(expression, "match").ok()??;
     if args.len() != 2 {
         return None;
     }
     let cases = parse_cemt_object_literal(&args[1]).ok()?;
-    let selected = resolve_encode_subject_expression(&args[0], value_bindings)
-        .and_then(|value| cemt_match_key(&value))
-        .and_then(|key| cases.get(&key))
-        .or_else(|| cases.get("default"))
-        .or_else(|| cases.get("_"))?;
+    let selected = resolve_encode_subject_expression_at_depth(
+        &args[0],
+        value_bindings,
+        runtime_functions,
+        call_depth,
+    )
+    .and_then(|value| cemt_match_key(&value))
+    .and_then(|key| cases.get(&key))
+    .or_else(|| cases.get("default"))
+    .or_else(|| cases.get("_"))?;
 
-    resolve_cemt_literal_runtime_value(selected, value_bindings)
+    resolve_cemt_literal_runtime_value(selected, value_bindings, runtime_functions, call_depth)
 }
 
 fn resolve_cemt_exists_expression(
     expression: &str,
     value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    call_depth: usize,
 ) -> Option<Value> {
     let args = parse_cemt_function_call_args(expression, "exists").ok()??;
     if args.len() != 1 {
         return None;
     }
     Some(Value::Bool(
-        resolve_encode_subject_expression(&args[0], value_bindings).is_some(),
+        resolve_encode_subject_expression_at_depth(
+            &args[0],
+            value_bindings,
+            runtime_functions,
+            call_depth,
+        )
+        .is_some(),
     ))
 }
 
 fn resolve_cemt_literal_runtime_value(
     literal: &CemtExpressionLiteral,
     value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    call_depth: usize,
 ) -> Option<Value> {
     match literal {
         CemtExpressionLiteral::String(value) => Some(Value::String(value.clone())),
@@ -11188,7 +11317,12 @@ fn resolve_cemt_literal_runtime_value(
         CemtExpressionLiteral::Bare(value) => {
             let value = value.trim();
             if cemt_runtime_expression_is_dynamic(value) {
-                resolve_encode_subject_expression(value, value_bindings)
+                resolve_encode_subject_expression_at_depth(
+                    value,
+                    value_bindings,
+                    runtime_functions,
+                    call_depth,
+                )
             } else if value.is_empty() {
                 None
             } else {
@@ -11211,6 +11345,7 @@ fn cemt_match_key(value: &Value) -> Option<String> {
 fn cemt_runtime_expression_is_dynamic(value: &str) -> bool {
     let value = value.trim_start();
     value.starts_with('$')
+        || cemt_expression_starts_with_call(value, "call")
         || cemt_expression_starts_with_call(value, "map")
         || cemt_expression_starts_with_call(value, "match")
         || cemt_expression_starts_with_call(value, "exists")
@@ -15350,6 +15485,110 @@ mod tests {
                     }
                 ]
             }))
+        );
+    }
+
+    #[test]
+    fn cemt_runtime_call_expression_binds_parameters_for_formatter_helpers() {
+        let values = BTreeMap::from([(
+            "node".to_owned(),
+            json!({
+                "kind": "element",
+                "name": "card",
+                "children": [
+                    {"kind": "text", "value": "Ready"},
+                    {
+                        "kind": "element",
+                        "name": "badge",
+                        "children": [{"kind": "text", "value": "New"}]
+                    }
+                ]
+            }),
+        )]);
+        let functions = BTreeMap::from([
+            (
+                "formatNode".to_owned(),
+                CemtRuntimeFunction {
+                    params: vec!["node".to_owned(), "slot".to_owned()],
+                    body: r#"match($node.kind, {
+                        element: call(formatElement, { node: $node, slot: $slot }),
+                        text: call(formatText, { node: $node, slot: $slot }),
+                        default: { kind: "unknown", slot: $slot }
+                    })"#
+                    .to_owned(),
+                },
+            ),
+            (
+                "formatElement".to_owned(),
+                CemtRuntimeFunction {
+                    params: vec!["node".to_owned(), "slot".to_owned()],
+                    body: r#"{
+                        kind: "element",
+                        name: $node.name,
+                        slot: $slot,
+                        children: map($node.children, call(formatNode, { node: $item, slot: $index }))
+                    }"#
+                    .to_owned(),
+                },
+            ),
+            (
+                "formatText".to_owned(),
+                CemtRuntimeFunction {
+                    params: vec!["node".to_owned(), "slot".to_owned()],
+                    body: r#"{ kind: "text", text: $node.value, slot: $slot }"#.to_owned(),
+                },
+            ),
+        ]);
+
+        assert_eq!(
+            resolve_encode_subject_expression_with_functions(
+                r#"call(formatNode, { node: $node, slot: 0 })"#,
+                &values,
+                &functions,
+            ),
+            Some(json!({
+                "kind": "element",
+                "name": "card",
+                "slot": 0,
+                "children": [
+                    {"kind": "text", "text": "Ready", "slot": 0},
+                    {
+                        "kind": "element",
+                        "name": "badge",
+                        "slot": 1,
+                        "children": [{"kind": "text", "text": "New", "slot": 0}]
+                    }
+                ]
+            }))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression_with_functions(
+                r#"call(formatNode, { node: $node })"#,
+                &values,
+                &functions,
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn cemt_runtime_call_expression_stops_unbounded_recursion() {
+        let values = BTreeMap::from([("node".to_owned(), json!({"kind": "element"}))]);
+        let functions = BTreeMap::from([(
+            "loop".to_owned(),
+            CemtRuntimeFunction {
+                params: vec!["node".to_owned()],
+                body: r#"call(loop, { node: $node })"#.to_owned(),
+            },
+        )]);
+
+        assert_eq!(
+            resolve_encode_subject_expression_with_functions(
+                r#"call(loop, { node: $node })"#,
+                &values,
+                &functions,
+            ),
+            None
         );
     }
 
