@@ -2417,6 +2417,9 @@ const CEM_TREE_COLOR_CEMT_TEMPLATE_SOURCE: &str = r#"@doc cem-ml 1
         @deterministic=true
         @streamable=true |
         {param @name="subject" @type="object" @required=true}
+        {body |
+            {$ encode($subject, { contentType: "application/cem", schema: "https://cem.dev/ns/cem-ml/1", category: "cem-tree", subjectType: "cem-tree" }, { colorizer: "cem.color-tree" }) }
+        }
     }
 }
 "#;
@@ -7614,7 +7617,7 @@ mod tests {
             Some(ConversionOutputPipelineStageExecution::CemtAdapter {
                 adapter_id: CEM_TREE_COLOR_CEMT_ADAPTER_ID.to_owned(),
                 function_name: "cem.color-tree".to_owned(),
-                body_function_name: None,
+                body_function_name: Some("cem.color-tree".to_owned()),
                 fallback_function_name: Some("cem.color-tree".to_owned()),
             })
         );

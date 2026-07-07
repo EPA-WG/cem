@@ -3097,6 +3097,16 @@ impl TransformTemplateEncodeBindingRequest {
             return true;
         }
 
+        if self
+            .options
+            .colorizer
+            .as_deref()
+            .map(str::trim)
+            .is_some_and(|selector| !selector.is_empty())
+        {
+            return false;
+        }
+
         transform_template_target_is_explicit_format_output(&self.target)
     }
 }
