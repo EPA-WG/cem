@@ -41,19 +41,19 @@ use crate::transform_template::{
     TransformTemplateCompileResponse, TransformTemplateCompiledArtifact,
     TransformTemplateDataArtifact, TransformTemplateEncodeBinding,
     TransformTemplateEncodeBindingRequest, TransformTemplateEncodeEvaluationContext,
-    TransformTemplateEncodeExpression, TransformTemplateEncodeImplementationOrigin,
-    TransformTemplateEncodeImplementationRegistry, TransformTemplateEncodeOptions,
-    TransformTemplateEncodedArtifact, TransformTemplateEncodedArtifactInsertionContext,
-    TransformTemplateEncodedArtifactMode, TransformTemplateEncodingTarget,
-    TransformTemplateEvaluatedEncodeExpression, TransformTemplateHtmlColorMode,
-    TransformTemplateModuleOptions, TransformTemplateModuleParseRequest,
-    TransformTemplateModulePreflight, TransformTemplateModuleVisibility,
-    TransformTemplateOutputArtifact, TransformTemplateOutputFunctionDescriptor,
-    TransformTemplateOutputFunctionImplementation, TransformTemplateOutputFunctionKind,
-    TransformTemplateOutputFunctionRegistry, TransformTemplateOutputProducedKind,
-    TransformTemplateRenderRequest, TransformTemplateRenderResponse,
-    TransformTemplateSourceMapPolicy, TransformTemplateTargetSyntaxKind,
-    TransformTemplateTargetSyntaxRules, TransformTemplateTerminalColorCapability,
+    TransformTemplateEncodeExpression, TransformTemplateEncodeImplementationRegistry,
+    TransformTemplateEncodeOptions, TransformTemplateEncodedArtifact,
+    TransformTemplateEncodedArtifactInsertionContext, TransformTemplateEncodedArtifactMode,
+    TransformTemplateEncodingTarget, TransformTemplateEvaluatedEncodeExpression,
+    TransformTemplateHtmlColorMode, TransformTemplateModuleOptions,
+    TransformTemplateModuleParseRequest, TransformTemplateModulePreflight,
+    TransformTemplateModuleVisibility, TransformTemplateOutputArtifact,
+    TransformTemplateOutputFunctionDescriptor, TransformTemplateOutputFunctionImplementation,
+    TransformTemplateOutputFunctionKind, TransformTemplateOutputFunctionRegistry,
+    TransformTemplateOutputProducedKind, TransformTemplateRenderRequest,
+    TransformTemplateRenderResponse, TransformTemplateSourceMapPolicy,
+    TransformTemplateTargetSyntaxKind, TransformTemplateTargetSyntaxRules,
+    TransformTemplateTerminalColorCapability,
 };
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -2574,16 +2574,18 @@ impl TransformTemplateAdapter for CemTreeCemtOutputAdapter {
             ));
         }
 
-        let value =
-            match execute_conversion_cem_tree_output_stage_body(self.stage, &request, binding)? {
-                Some(value) => value,
-                None => execute_conversion_cem_tree_output_stage_fallback(
-                    self.id(),
-                    self.stage,
-                    binding,
-                    &request.primary_input.value,
-                )?,
-            };
+        let Some(value) =
+            execute_conversion_cem_tree_output_stage_body(self.stage, &request, binding)?
+        else {
+            return Err(TransformTemplateAdapterError::failed(
+                self.id(),
+                TransformTemplateAdapterExecutionPhase::Render,
+                format!(
+                    "CEMT {} `{}` requires a direct CEMT body",
+                    self.stage.role, self.stage.function_name
+                ),
+            ));
+        };
 
         Ok(TransformTemplateRenderResponse {
             output: TransformTemplateOutputArtifact {
@@ -2614,26 +2616,15 @@ fn execute_conversion_cem_tree_output_stage_body(
     let registry = TransformTemplateOutputFunctionRegistry::from_module_options(
         &request.compiled.module_options,
     );
-    let implementations = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+    let host_capabilities = BTreeSet::new();
     let mut value_bindings = BTreeMap::new();
     value_bindings.insert("subject".to_owned(), request.primary_input.value.clone());
-    let mut execute_intrinsic = |body_binding: &TransformTemplateEncodeBinding,
-                                 body_subject: &Value| {
-        if body_binding.function.kind != binding.function.kind
-            || body_binding.function.name != binding.function.name
-        {
-            return Err(format!(
-                "CEMT {} body attempted to dispatch `{}` instead of `{}`",
-                stage.role, body_binding.function.name, binding.function.name
-            ));
-        }
-        execute_conversion_cem_tree_output_stage_intrinsic(
-            stage.adapter_id,
-            stage,
-            binding,
-            body_subject,
-        )
-        .map_err(|error| error.to_string())
+    let mut reject_encode_facade = |body_binding: &TransformTemplateEncodeBinding,
+                                    _subject: &Value| {
+        Err(format!(
+            "CEMT {} `{}` requires a direct CEMT body; encode(...) facade attempted to dispatch `{}`",
+            stage.role, stage.function_name, body_binding.function.name
+        ))
     };
 
     if expressions.is_empty() {
@@ -2646,11 +2637,11 @@ fn execute_conversion_cem_tree_output_stage_body(
             &TransformTemplateEncodeEvaluationContext {
                 registry: &registry,
                 value_bindings: &value_bindings,
-                host_capabilities: implementations.host_capabilities(),
+                host_capabilities: &host_capabilities,
                 output_color_type: None,
                 uri: Some(request.compiled.template_uri.as_str()),
             },
-            &mut execute_intrinsic,
+            &mut reject_encode_facade,
         )
         .map_err(|message| {
             TransformTemplateAdapterError::failed(
@@ -2667,11 +2658,11 @@ fn execute_conversion_cem_tree_output_stage_body(
         TransformTemplateEncodeEvaluationContext {
             registry: &registry,
             value_bindings: &value_bindings,
-            host_capabilities: implementations.host_capabilities(),
+            host_capabilities: &host_capabilities,
             output_color_type: None,
             uri: Some(request.compiled.template_uri.as_str()),
         },
-        execute_intrinsic,
+        reject_encode_facade,
     );
     if !response.diagnostics.is_empty() {
         let message = response
@@ -2700,69 +2691,6 @@ fn execute_conversion_cem_tree_output_stage_body(
     };
 
     Ok(Some(evaluated.artifact.value.clone()))
-}
-
-fn execute_conversion_cem_tree_output_stage_fallback(
-    adapter_id: &'static str,
-    stage: CemTreeCemtOutputStage,
-    binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
-) -> TransformTemplateAdapterResult<Value> {
-    let implementations = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
-    let origin = implementations.implementation_origin(&binding.function.name);
-    if !matches!(
-        origin,
-        Some(
-            TransformTemplateEncodeImplementationOrigin::CemtFallback
-                | TransformTemplateEncodeImplementationOrigin::CemtIntrinsic
-        )
-    ) {
-        return Err(TransformTemplateAdapterError::failed(
-            adapter_id,
-            TransformTemplateAdapterExecutionPhase::Render,
-            format!(
-                "{} fallback implementation is not registered as CEMT-compatible",
-                stage.function_name
-            ),
-        ));
-    }
-
-    implementations.encode(binding, subject).map_err(|message| {
-        TransformTemplateAdapterError::failed(
-            adapter_id,
-            TransformTemplateAdapterExecutionPhase::Render,
-            message,
-        )
-    })
-}
-
-fn execute_conversion_cem_tree_output_stage_intrinsic(
-    adapter_id: &'static str,
-    stage: CemTreeCemtOutputStage,
-    binding: &TransformTemplateEncodeBinding,
-    subject: &Value,
-) -> TransformTemplateAdapterResult<Value> {
-    let implementations = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
-    if implementations.implementation_origin(&binding.function.name)
-        != Some(TransformTemplateEncodeImplementationOrigin::CemtIntrinsic)
-    {
-        return Err(TransformTemplateAdapterError::failed(
-            adapter_id,
-            TransformTemplateAdapterExecutionPhase::Render,
-            format!(
-                "{} body implementation is not registered as a CEMT intrinsic",
-                stage.function_name
-            ),
-        ));
-    }
-
-    implementations.encode(binding, subject).map_err(|message| {
-        TransformTemplateAdapterError::failed(
-            adapter_id,
-            TransformTemplateAdapterExecutionPhase::Render,
-            message,
-        )
-    })
 }
 
 fn execute_conversion_cem_tree_format_stage(
@@ -2895,9 +2823,7 @@ fn execute_conversion_cem_tree_output_stage(
         ConversionOutputPipelineStageExecution::CemtAdapter {
             adapter_id: compiled.adapter_id,
             function_name: binding.function.name.clone(),
-            fallback_function_name: body_function_name
-                .is_none()
-                .then(|| binding.function.name.clone()),
+            fallback_function_name: None,
             body_function_name,
         },
     ))
@@ -7953,6 +7879,133 @@ mod tests {
                 ),
             )
             .expect("direct formatted CEM tree validates");
+    }
+
+    #[test]
+    fn cemt_output_stage_rejects_missing_direct_body_instead_of_fallback() {
+        let stage = CemTreeCemtOutputStage {
+            adapter_id: "cem-tree-format-no-body-cemt",
+            template_uri: "builtin:cem.format-tree.no-body.cemt",
+            template_source: r#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {format-function
+        @name="cem.format-tree"
+        @category="cem-tree"
+        @subject="cem-ast-node"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @canonical=true
+        @deterministic=true
+        @streamable=true}
+}
+"#,
+            declaration_element: "{format-function",
+            function_kind: TransformTemplateOutputFunctionKind::Format,
+            function_name: "cem.format-tree",
+            role: "formatter",
+        };
+        let subject = serde_json::json!({
+            "kind": "element",
+            "name": "main",
+            "children": [{"kind": "text", "value": "Ready"}]
+        });
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        registry.register(conversion_cem_tree_format_function_descriptor(
+            "cem.format-tree",
+        ));
+        let request = TransformTemplateEncodeBindingRequest::new(
+            subject.clone(),
+            TransformTemplateEncodingTarget::new(
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                "cem-tree",
+            ),
+        )
+        .with_subject_type("cem-ast-node")
+        .with_options(TransformTemplateEncodeOptions {
+            formatter: Some("cem.format-tree".to_owned()),
+            canonical: true,
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let binding = registry
+            .resolve_format_binding(&request, &BTreeSet::new())
+            .expect("formatter binding resolves");
+
+        let error = execute_conversion_cem_tree_output_stage(stage, &binding, &subject)
+            .expect_err("output stage without direct body is rejected");
+
+        assert!(error.contains("CEMT formatter `cem.format-tree` requires a direct CEMT body"));
+        assert!(!error.contains("fallback implementation"));
+    }
+
+    #[test]
+    fn cemt_output_stage_rejects_legacy_encode_facade_body() {
+        let stage = CemTreeCemtOutputStage {
+            adapter_id: "cem-tree-format-encode-facade-cemt",
+            template_uri: "builtin:cem.format-tree.encode-facade.cemt",
+            template_source: r#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {format-function
+        @name="cem.format-tree"
+        @category="cem-tree"
+        @subject="cem-ast-node"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @canonical=true
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="json" @required=true}
+        {body |
+            {$ encode($subject, { contentType: "application/cem", schema: "https://cem.dev/ns/cem-ml/1", category: "cem-tree", subjectType: "cem-ast-node" }, { formatter: "cem.format-tree" }) }
+        }
+    }
+}
+"#,
+            declaration_element: "{format-function",
+            function_kind: TransformTemplateOutputFunctionKind::Format,
+            function_name: "cem.format-tree",
+            role: "formatter",
+        };
+        let subject = serde_json::json!({
+            "kind": "element",
+            "name": "main",
+            "children": [{"kind": "text", "value": "Ready"}]
+        });
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        registry.register(conversion_cem_tree_format_function_descriptor(
+            "cem.format-tree",
+        ));
+        let request = TransformTemplateEncodeBindingRequest::new(
+            subject.clone(),
+            TransformTemplateEncodingTarget::new(
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                "cem-tree",
+            ),
+        )
+        .with_subject_type("cem-ast-node")
+        .with_options(TransformTemplateEncodeOptions {
+            formatter: Some("cem.format-tree".to_owned()),
+            canonical: true,
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let binding = registry
+            .resolve_format_binding(&request, &BTreeSet::new())
+            .expect("formatter binding resolves");
+
+        let error = execute_conversion_cem_tree_output_stage(stage, &binding, &subject)
+            .expect_err("legacy encode facade body is rejected");
+
+        assert!(error.contains("CEMT formatter `cem.format-tree` requires a direct CEMT body"));
+        assert!(error.contains("encode(...) facade attempted to dispatch `cem.format-tree`"));
     }
 
     #[test]
