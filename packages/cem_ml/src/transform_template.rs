@@ -11314,6 +11314,15 @@ fn resolve_encode_subject_expression_at_depth(
     )? {
         return Ok(Some(value));
     }
+    if let Some(value) = resolve_cemt_metadata_accumulator_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
     if let Some(value) = resolve_cemt_merge_expression(
         expression,
         value_bindings,
@@ -11795,6 +11804,145 @@ fn resolve_cemt_append_expression(
     };
     accumulator.push(value);
     Ok(Some(Value::Array(accumulator)))
+}
+
+#[derive(Debug, Clone, Copy)]
+enum CemtMetadataAccumulatorKind {
+    FormatNode,
+    ColorNode,
+    Diagnostic,
+    Namespace,
+    OutputSpan,
+    WriterBoundary,
+}
+
+impl CemtMetadataAccumulatorKind {
+    fn from_expression(expression: &str) -> Result<Option<(Self, Vec<String>)>, String> {
+        for (name, kind) in [
+            ("appendFormatNode", Self::FormatNode),
+            ("appendColorNode", Self::ColorNode),
+            ("appendDiagnostic", Self::Diagnostic),
+            ("appendNamespace", Self::Namespace),
+            ("appendOutputSpan", Self::OutputSpan),
+            ("appendWriterBoundary", Self::WriterBoundary),
+        ] {
+            if let Some(args) = parse_cemt_function_call_args(expression, name)
+                .map_err(|error| error.to_string())?
+            {
+                return Ok(Some((kind, args)));
+            }
+        }
+        Ok(None)
+    }
+
+    fn function_name(self) -> &'static str {
+        match self {
+            Self::FormatNode => "appendFormatNode",
+            Self::ColorNode => "appendColorNode",
+            Self::Diagnostic => "appendDiagnostic",
+            Self::Namespace => "appendNamespace",
+            Self::OutputSpan => "appendOutputSpan",
+            Self::WriterBoundary => "appendWriterBoundary",
+        }
+    }
+
+    fn field_name(self) -> &'static str {
+        match self {
+            Self::FormatNode => "formatNodes",
+            Self::ColorNode => "colorNodes",
+            Self::Diagnostic => "diagnostics",
+            Self::Namespace => "namespaceDeclarations",
+            Self::OutputSpan => "outputSpans",
+            Self::WriterBoundary => "writerBoundaries",
+        }
+    }
+
+    fn normalize_item(self, value: Value) -> Result<Value, String> {
+        match self {
+            Self::Diagnostic => {
+                let Value::Object(object) = value else {
+                    return Err(format!(
+                        "CEMT {} expected diagnostic object, got {}",
+                        self.function_name(),
+                        json_value_type_name(&value)
+                    ));
+                };
+                normalize_cemt_diagnostic_object(object).map(Value::Object)
+            }
+            _ => Ok(value),
+        }
+    }
+}
+
+fn resolve_cemt_metadata_accumulator_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some((kind, args)) = CemtMetadataAccumulatorKind::from_expression(expression)? else {
+        return Ok(None);
+    };
+    if args.len() != 2 {
+        return Ok(None);
+    }
+    let Some(accumulator) = resolve_encode_subject_expression_at_depth(
+        &args[0],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Value::Object(mut accumulator) = accumulator else {
+        return Err(format!(
+            "CEMT {} expected object accumulator, got {}",
+            kind.function_name(),
+            json_value_type_name(&accumulator)
+        ));
+    };
+    let Some(item) = resolve_encode_subject_expression_at_depth(
+        &args[1],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let item = kind.normalize_item(item)?;
+    append_cemt_metadata_accumulator_item(&mut accumulator, kind, item)?;
+    Ok(Some(Value::Object(accumulator)))
+}
+
+fn append_cemt_metadata_accumulator_item(
+    accumulator: &mut serde_json::Map<String, Value>,
+    kind: CemtMetadataAccumulatorKind,
+    item: Value,
+) -> Result<(), String> {
+    let field = kind.field_name();
+    match accumulator.entry(field.to_owned()) {
+        serde_json::map::Entry::Vacant(entry) => {
+            entry.insert(Value::Array(vec![item]));
+            Ok(())
+        }
+        serde_json::map::Entry::Occupied(mut entry) => {
+            let value = entry.get_mut();
+            let Value::Array(items) = value else {
+                return Err(format!(
+                    "CEMT {} expected `{field}` array, got {}",
+                    kind.function_name(),
+                    json_value_type_name(value)
+                ));
+            };
+            items.push(item);
+            Ok(())
+        }
+    }
 }
 
 fn resolve_cemt_merge_expression(
@@ -12961,6 +13109,12 @@ fn cemt_runtime_expression_is_dynamic(value: &str) -> bool {
         || cemt_expression_starts_with_call(value, "map")
         || cemt_expression_starts_with_call(value, "fold")
         || cemt_expression_starts_with_call(value, "append")
+        || cemt_expression_starts_with_call(value, "appendFormatNode")
+        || cemt_expression_starts_with_call(value, "appendColorNode")
+        || cemt_expression_starts_with_call(value, "appendDiagnostic")
+        || cemt_expression_starts_with_call(value, "appendNamespace")
+        || cemt_expression_starts_with_call(value, "appendOutputSpan")
+        || cemt_expression_starts_with_call(value, "appendWriterBoundary")
         || cemt_expression_starts_with_call(value, "merge")
         || cemt_expression_starts_with_call(value, "set")
         || cemt_expression_starts_with_call(value, "withStack")
@@ -17592,6 +17746,183 @@ mod tests {
         .expect_err("append only accepts arrays");
 
         assert!(error.contains("CEMT append expected array accumulator, got object"));
+    }
+
+    #[test]
+    fn cemt_runtime_metadata_accumulators_collect_formatter_coloring_and_writer_metadata() {
+        let values = BTreeMap::from([(
+            "node".to_owned(),
+            json!({
+                "name": "button",
+                "colorRole": "syntax.name"
+            }),
+        )]);
+
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"appendWriterBoundary(
+                    appendOutputSpan(
+                        appendNamespace(
+                            appendDiagnostic(
+                                appendColorNode(
+                                    appendFormatNode(
+                                        { kind: "cem-tree" },
+                                        {
+                                            kind: "format-decision",
+                                            name: "formatter.block",
+                                            formatterRole: "formatter.block"
+                                        }
+                                    ),
+                                    {
+                                        kind: "color-decision",
+                                        name: "color.syntax",
+                                        colorizerRole: "colorizer.syntax",
+                                        colorRole: $node.colorRole
+                                    }
+                                ),
+                                diagnostic({
+                                    code: "cem.format.metadata",
+                                    message: $node.name
+                                })
+                            ),
+                            {
+                                prefix: "svg",
+                                uri: "http://www.w3.org/2000/svg"
+                            }
+                        ),
+                        {
+                            kind: "generated",
+                            start: 0,
+                            end: 6
+                        }
+                    ),
+                    {
+                        kind: "writer-boundary",
+                        stage: "pre-write"
+                    }
+                )"#,
+                &values,
+            ),
+            Some(json!({
+                "kind": "cem-tree",
+                "formatNodes": [{
+                    "kind": "format-decision",
+                    "name": "formatter.block",
+                    "formatterRole": "formatter.block"
+                }],
+                "colorNodes": [{
+                    "kind": "color-decision",
+                    "name": "color.syntax",
+                    "colorizerRole": "colorizer.syntax",
+                    "colorRole": "syntax.name"
+                }],
+                "diagnostics": [{
+                    "code": "cem.format.metadata",
+                    "severity": "info",
+                    "message": "button"
+                }],
+                "namespaceDeclarations": [{
+                    "prefix": "svg",
+                    "uri": "http://www.w3.org/2000/svg"
+                }],
+                "outputSpans": [{
+                    "kind": "generated",
+                    "start": 0,
+                    "end": 6
+                }],
+                "writerBoundaries": [{
+                    "kind": "writer-boundary",
+                    "stage": "pre-write"
+                }]
+            }))
+        );
+        assert_eq!(
+            values.get("node"),
+            Some(&json!({
+                "name": "button",
+                "colorRole": "syntax.name"
+            })),
+            "metadata accumulator helpers do not mutate source bindings"
+        );
+    }
+
+    #[test]
+    fn cemt_runtime_metadata_accumulators_fold_over_children() {
+        let values = BTreeMap::from([(
+            "node".to_owned(),
+            json!({
+                "children": [
+                    {"kind": "element", "name": "title"},
+                    {"kind": "text", "value": "Ready"}
+                ]
+            }),
+        )]);
+
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"fold($node.children, { formatNodes: [] }, appendFormatNode($acc, {
+                    kind: "format-decision",
+                    name: match($item.kind, { element: $item.name, text: $item.value, default: "unknown" }),
+                    slot: $index,
+                    formatterRole: "formatter.child"
+                }))"#,
+                &values,
+            ),
+            Some(json!({
+                "formatNodes": [
+                    {
+                        "kind": "format-decision",
+                        "name": "title",
+                        "slot": 0,
+                        "formatterRole": "formatter.child"
+                    },
+                    {
+                        "kind": "format-decision",
+                        "name": "Ready",
+                        "slot": 1,
+                        "formatterRole": "formatter.child"
+                    }
+                ]
+            }))
+        );
+    }
+
+    #[test]
+    fn cemt_runtime_metadata_accumulators_report_invalid_shapes() {
+        let values = BTreeMap::new();
+
+        let accumulator_error = resolve_encode_subject_expression_at_depth(
+            r#"appendFormatNode([], { kind: "format-decision" })"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("metadata helpers require object accumulators");
+        assert!(accumulator_error
+            .contains("CEMT appendFormatNode expected object accumulator, got array"));
+
+        let field_error = resolve_encode_subject_expression_at_depth(
+            r#"appendColorNode({ colorNodes: "bad" }, { kind: "color-decision" })"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("metadata helper fields must be arrays");
+        assert!(
+            field_error.contains("CEMT appendColorNode expected `colorNodes` array, got string")
+        );
+
+        let diagnostic_error = resolve_encode_subject_expression_at_depth(
+            r#"appendDiagnostic({}, { message: "missing code" })"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("diagnostic metadata helper validates diagnostic shape");
+        assert!(diagnostic_error.contains("CEMT diagnostic missing `code`"));
     }
 
     #[test]

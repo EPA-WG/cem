@@ -159,7 +159,11 @@ metadata. They are not opaque host-side string filters.
   and formatter/coloring showcases.
 - Extend accumulator helpers beyond array `append(...)` for `formatNodes`,
   `colorNodes`, diagnostics, namespace declarations, output spans, and
-  writer-boundary metadata.
+  writer-boundary metadata. `appendFormatNode(...)`, `appendColorNode(...)`,
+  `appendDiagnostic(...)`, `appendNamespace(...)`, `appendOutputSpan(...)`, and
+  `appendWriterBoundary(...)` now append typed metadata arrays on immutable
+  object accumulators; remaining work is richer field validation,
+  source-map-aware defaults, and formatter/coloring showcases.
 - Extend tree patch operations for replacing nodes, wrapping nodes,
   prepending/appending formatter or color nodes, and applying queued edits to a
   formatted CEM tree. Shallow object `merge(...)` and path-based `set(...)` now
@@ -333,6 +337,37 @@ each iteration:
 bounded accumulator helper for formatter/coloring templates that need to collect
 formatted children, color nodes, writer chunks, or diagnostics before returning
 a CEM tree value.
+
+## Typed Metadata Accumulators
+
+CEMT formatter and color templates can collect transformation metadata on object
+accumulators without manually expanding `set(... append(...))` chains. Each
+helper returns a new object, creates the target metadata array when it is absent,
+and appends to the existing array when present:
+
+```cemt
+{$ fold($subject.children, { formatNodes: [] }, appendFormatNode($acc, {
+  kind: "format-decision",
+  name: match($item.kind, { element: $item.name, text: $item.value, default: "unknown" }),
+  slot: $index,
+  formatterRole: "formatter.child"
+})) }
+```
+
+The typed helpers are:
+
+- `appendFormatNode(accumulator, node)` for `formatNodes`
+- `appendColorNode(accumulator, node)` for `colorNodes`
+- `appendDiagnostic(accumulator, diagnostic)` for `diagnostics`
+- `appendNamespace(accumulator, declaration)` for `namespaceDeclarations`
+- `appendOutputSpan(accumulator, span)` for `outputSpans`
+- `appendWriterBoundary(accumulator, metadata)` for `writerBoundaries`
+
+`appendDiagnostic(...)` normalizes the diagnostic object the same way as
+`diagnostic(...)`: it requires `code` and `message`, defaults severity to
+`info`, and accepts optional source/location fields. These helpers keep
+formatter metadata, coloring metadata, diagnostics, namespace repairs, output
+spans, and writer-boundary checks in the CEM tree value before the writer phase.
 
 ## Scoped Traversal Stacks
 
