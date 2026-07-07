@@ -2394,9 +2394,9 @@ const CEM_TREE_FORMAT_CEMT_TEMPLATE_SOURCE: &str = r#"@doc cem-ml 1
         @canonical=true
         @deterministic=true
         @streamable=true |
-        {param @name="subject" @type="object" @required=true}
+        {param @name="subject" @type="json" @required=true}
         {body |
-            {$ encode($subject, { contentType: "application/cem", schema: "https://cem.dev/ns/cem-ml/1", category: "cem-tree", subjectType: "cem-ast-node" }, { formatter: "cem.format-tree", formatterProfile: "cem.format-tree", canonical: true }) }
+            {$ call(cem.format-tree.envelope, { subject: call(cem.format-tree.nodes, { subject: $subject }) }) }
         }
     }
 }
@@ -7746,6 +7746,50 @@ mod tests {
         assert!(output.contains("<main"));
         assert!(output.contains("cem-color-syntax-name"));
         assert!(output.contains("<span class=\"cem-color cem-color-syntax-string\""));
+    }
+
+    #[test]
+    fn builtin_cem_tree_formatter_template_uses_direct_cemt_operations() {
+        let response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: TemplateInput {
+                    uri: CEM_TREE_FORMAT_CEMT_TEMPLATE_URI.to_owned(),
+                    bytes: CEM_TREE_FORMAT_CEMT_TEMPLATE_SOURCE.as_bytes().to_vec(),
+                    identity: Some(FormatIdentity {
+                        content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                    root_scope: ScopeConfig::default(),
+                },
+            });
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        assert!(response.module_options.encode_expressions.is_empty());
+        let formatter = response
+            .module_options
+            .output_functions
+            .iter()
+            .find(|function| function.name == "cem.format-tree")
+            .expect("built-in CEM tree formatter declaration");
+        assert_eq!(
+            formatter
+                .params
+                .iter()
+                .find(|param| param.name == "subject")
+                .map(|param| param.value_type.as_contract_name()),
+            Some("json")
+        );
+        assert_eq!(
+            formatter.body_expression.as_deref(),
+            Some(
+                "call(cem.format-tree.envelope, { subject: call(cem.format-tree.nodes, { subject: $subject }) })"
+            )
+        );
     }
 
     #[test]

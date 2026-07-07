@@ -4842,6 +4842,18 @@ enum TransformTemplateCemtRuntimeOperation {
 }
 
 impl TransformTemplateCemtRuntimeOperation {
+    fn parse(value: &str) -> Option<Self> {
+        match value.trim() {
+            "cem.format-tree.nodes" => Some(Self::CemFormatTreeNodes),
+            "cem.format-tree.inter-node-whitespace" => Some(Self::CemFormatTreeInterNodeWhitespace),
+            "cem.format-tree.block-children" => Some(Self::CemFormatTreeBlockChildren),
+            "cem.format-tree.content-boundary" => Some(Self::CemFormatTreeContentBoundary),
+            "cem.format-tree.format-nodes" => Some(Self::CemFormatTreeFormatNodes),
+            "cem.format-tree.envelope" => Some(Self::CemFormatTreeEnvelope),
+            _ => None,
+        }
+    }
+
     fn as_str(self) -> &'static str {
         match self {
             Self::CemFormatTreeNodes => "cem.format-tree.nodes",
@@ -4891,7 +4903,12 @@ fn transform_template_cemt_runtime_format_tree_nodes(
     subject: Value,
 ) -> Result<Value, String> {
     validate_builtin_cem_tree_formatter_binding(binding)?;
-    let nodes = transform_template_cemt_runtime_node_array_subject(operation, subject)?;
+    let nodes = transform_template_cem_tree_nodes(&subject).map_err(|message| {
+        format!(
+            "{} expected CEM tree subject: {message}",
+            operation.as_str()
+        )
+    })?;
     let nodes = nodes
         .into_iter()
         .map(|node| transform_template_format_cem_tree_node(node, binding, 0))
@@ -10277,10 +10294,11 @@ fn execute_transform_template_cemt_body_expression(
             Err(message) => return Some(Err(message)),
         };
     Some(
-        resolve_encode_subject_expression_with_functions(
+        resolve_encode_subject_expression_with_binding(
             body_expression,
             &scoped_bindings,
             runtime_functions,
+            binding,
         )
         .ok_or_else(|| {
             format!(
@@ -11210,44 +11228,90 @@ fn resolve_encode_subject_expression_with_functions(
     value_bindings: &BTreeMap<String, Value>,
     runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
 ) -> Option<Value> {
-    resolve_encode_subject_expression_at_depth(expression, value_bindings, runtime_functions, 0)
+    resolve_encode_subject_expression_at_depth(
+        expression,
+        value_bindings,
+        runtime_functions,
+        None,
+        0,
+    )
+}
+
+fn resolve_encode_subject_expression_with_binding(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: &TransformTemplateEncodeBinding,
+) -> Option<Value> {
+    resolve_encode_subject_expression_at_depth(
+        expression,
+        value_bindings,
+        runtime_functions,
+        Some(binding),
+        0,
+    )
 }
 
 fn resolve_encode_subject_expression_at_depth(
     expression: &str,
     value_bindings: &BTreeMap<String, Value>,
     runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
     call_depth: usize,
 ) -> Option<Value> {
     let expression = expression.trim();
-    if let Some(value) =
-        resolve_cemt_call_expression(expression, value_bindings, runtime_functions, call_depth)
-    {
+    if let Some(value) = resolve_cemt_call_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    ) {
         return Some(value);
     }
-    if let Some(value) =
-        resolve_cemt_map_expression(expression, value_bindings, runtime_functions, call_depth)
-    {
+    if let Some(value) = resolve_cemt_map_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    ) {
         return Some(value);
     }
-    if let Some(value) =
-        resolve_cemt_match_expression(expression, value_bindings, runtime_functions, call_depth)
-    {
+    if let Some(value) = resolve_cemt_match_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    ) {
         return Some(value);
     }
-    if let Some(value) =
-        resolve_cemt_exists_expression(expression, value_bindings, runtime_functions, call_depth)
-    {
+    if let Some(value) = resolve_cemt_exists_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    ) {
         return Some(value);
     }
-    if let Some(value) =
-        resolve_cemt_object_expression(expression, value_bindings, runtime_functions, call_depth)
-    {
+    if let Some(value) = resolve_cemt_object_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    ) {
         return Some(value);
     }
-    if let Some(value) =
-        resolve_cemt_array_expression(expression, value_bindings, runtime_functions, call_depth)
-    {
+    if let Some(value) = resolve_cemt_array_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    ) {
         return Some(value);
     }
     if expression.starts_with('"') || expression.starts_with('\'') {
@@ -11265,6 +11329,7 @@ fn resolve_cemt_call_expression(
     expression: &str,
     value_bindings: &BTreeMap<String, Value>,
     runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
     call_depth: usize,
 ) -> Option<Value> {
     let args = parse_cemt_function_call_args(expression, "call").ok()??;
@@ -11276,14 +11341,34 @@ fn resolve_cemt_call_expression(
         &function_name_literal,
         value_bindings,
         runtime_functions,
+        binding,
         call_depth,
     )?;
     let function_name = function_name.as_str()?.trim();
     if function_name.is_empty() {
         return None;
     }
-    let function = runtime_functions.get(function_name)?;
     let arguments = parse_cemt_object_literal(&args[1]).ok()?;
+    if let Some(operation) = TransformTemplateCemtRuntimeOperation::parse(function_name) {
+        if arguments.len() != 1 {
+            return None;
+        }
+        let subject = arguments
+            .get("subject")
+            .or_else(|| arguments.get("nodes"))
+            .or_else(|| arguments.get("tree"))?;
+        let subject = resolve_cemt_literal_runtime_value(
+            subject,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        )?;
+        return execute_transform_template_cemt_runtime_operation(operation, binding?, subject)
+            .ok();
+    }
+
+    let function = runtime_functions.get(function_name)?;
     if arguments.len() != function.params.len()
         || arguments
             .keys()
@@ -11299,6 +11384,7 @@ fn resolve_cemt_call_expression(
             literal,
             value_bindings,
             runtime_functions,
+            binding,
             call_depth,
         )?;
         scoped_bindings.insert(param.clone(), value);
@@ -11308,6 +11394,7 @@ fn resolve_cemt_call_expression(
         &function.body,
         &scoped_bindings,
         runtime_functions,
+        binding,
         call_depth + 1,
     )
 }
@@ -11316,6 +11403,7 @@ fn resolve_cemt_map_expression(
     expression: &str,
     value_bindings: &BTreeMap<String, Value>,
     runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
     call_depth: usize,
 ) -> Option<Value> {
     let args = parse_cemt_function_call_args(expression, "map").ok()??;
@@ -11326,6 +11414,7 @@ fn resolve_cemt_map_expression(
         &args[0],
         value_bindings,
         runtime_functions,
+        binding,
         call_depth,
     )?;
     let Value::Array(items) = collection else {
@@ -11344,6 +11433,7 @@ fn resolve_cemt_map_expression(
             &args[1],
             &scoped_bindings,
             runtime_functions,
+            binding,
             call_depth,
         )?);
     }
@@ -11355,6 +11445,7 @@ fn resolve_cemt_object_expression(
     expression: &str,
     value_bindings: &BTreeMap<String, Value>,
     runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
     call_depth: usize,
 ) -> Option<Value> {
     let fields = parse_cemt_object_literal(expression).ok()?;
@@ -11366,6 +11457,7 @@ fn resolve_cemt_object_expression(
                 &literal,
                 value_bindings,
                 runtime_functions,
+                binding,
                 call_depth,
             )?,
         );
@@ -11377,6 +11469,7 @@ fn resolve_cemt_array_expression(
     expression: &str,
     value_bindings: &BTreeMap<String, Value>,
     runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
     call_depth: usize,
 ) -> Option<Value> {
     let expression = expression.trim();
@@ -11399,6 +11492,7 @@ fn resolve_cemt_array_expression(
             &literal,
             value_bindings,
             runtime_functions,
+            binding,
             call_depth,
         )?);
     }
@@ -11409,6 +11503,7 @@ fn resolve_cemt_match_expression(
     expression: &str,
     value_bindings: &BTreeMap<String, Value>,
     runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
     call_depth: usize,
 ) -> Option<Value> {
     let args = parse_cemt_function_call_args(expression, "match").ok()??;
@@ -11420,6 +11515,7 @@ fn resolve_cemt_match_expression(
         &args[0],
         value_bindings,
         runtime_functions,
+        binding,
         call_depth,
     )
     .and_then(|value| cemt_match_key(&value))
@@ -11427,13 +11523,20 @@ fn resolve_cemt_match_expression(
     .or_else(|| cases.get("default"))
     .or_else(|| cases.get("_"))?;
 
-    resolve_cemt_literal_runtime_value(selected, value_bindings, runtime_functions, call_depth)
+    resolve_cemt_literal_runtime_value(
+        selected,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )
 }
 
 fn resolve_cemt_exists_expression(
     expression: &str,
     value_bindings: &BTreeMap<String, Value>,
     runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
     call_depth: usize,
 ) -> Option<Value> {
     let args = parse_cemt_function_call_args(expression, "exists").ok()??;
@@ -11445,6 +11548,7 @@ fn resolve_cemt_exists_expression(
             &args[0],
             value_bindings,
             runtime_functions,
+            binding,
             call_depth,
         )
         .is_some(),
@@ -11455,6 +11559,7 @@ fn resolve_cemt_literal_runtime_value(
     literal: &CemtExpressionLiteral,
     value_bindings: &BTreeMap<String, Value>,
     runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
     call_depth: usize,
 ) -> Option<Value> {
     match literal {
@@ -11469,6 +11574,7 @@ fn resolve_cemt_literal_runtime_value(
                     value,
                     value_bindings,
                     runtime_functions,
+                    binding,
                     call_depth,
                 )
             } else if value.is_empty() {
