@@ -10237,7 +10237,7 @@ where
     }
 }
 
-fn execute_transform_template_encode_binding<F>(
+pub(crate) fn execute_transform_template_encode_binding<F>(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
     context: &TransformTemplateEncodeEvaluationContext<'_>,
