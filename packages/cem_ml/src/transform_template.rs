@@ -11193,6 +11193,7 @@ pub struct TransformTemplateWriterDiagnostics {
 }
 
 const CEMT_RUNTIME_CALL_RECURSION_LIMIT: usize = 64;
+const CEMT_RUNTIME_STACK_DEPTH_LIMIT: usize = 128;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CemtRuntimeFunction {
@@ -11322,6 +11323,60 @@ fn resolve_encode_subject_expression_at_depth(
         return Ok(Some(value));
     }
     if let Some(value) = resolve_cemt_set_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
+    if let Some(value) = resolve_cemt_with_stack_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
+    if let Some(value) = resolve_cemt_stack_push_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
+    if let Some(value) = resolve_cemt_stack_pop_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
+    if let Some(value) = resolve_cemt_stack_top_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
+    if let Some(value) = resolve_cemt_stack_depth_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
+    if let Some(value) = resolve_cemt_stack_path_expression(
         expression,
         value_bindings,
         runtime_functions,
@@ -11785,6 +11840,293 @@ fn resolve_cemt_set_expression(
     };
     set_cemt_value_path(&mut target, &path, value)?;
     Ok(Some(target))
+}
+
+fn resolve_cemt_with_stack_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) = parse_cemt_function_call_args(expression, "withStack")
+        .map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 3 {
+        return Ok(None);
+    }
+    let stack_name = parse_cemt_stack_binding_name_argument(&args[0])?;
+    let mut stack = match value_bindings.get(&stack_name) {
+        Some(Value::Array(items)) => items.clone(),
+        Some(other) => {
+            return Err(format!(
+                "CEMT stack `{stack_name}` expected array binding, got {}",
+                json_value_type_name(other)
+            ))
+        }
+        None => Vec::new(),
+    };
+    push_cemt_stack_frame(
+        &mut stack,
+        stack_name.as_str(),
+        resolve_encode_subject_expression_at_depth(
+            &args[1],
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        )?
+        .ok_or_else(|| format!("CEMT withStack frame for `{stack_name}` could not be resolved"))?,
+    )?;
+
+    let mut scoped_bindings = value_bindings.clone();
+    scoped_bindings.insert(stack_name, Value::Array(stack));
+    resolve_encode_subject_expression_at_depth(
+        &args[2],
+        &scoped_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )
+}
+
+fn resolve_cemt_stack_push_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) = parse_cemt_function_call_args(expression, "stackPush")
+        .map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 2 {
+        return Ok(None);
+    }
+    let Some(mut stack) = resolve_cemt_stack_argument(
+        &args[0],
+        "stackPush",
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some(frame) = resolve_encode_subject_expression_at_depth(
+        &args[1],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    push_cemt_stack_frame(&mut stack, "stackPush", frame)?;
+    Ok(Some(Value::Array(stack)))
+}
+
+fn resolve_cemt_stack_pop_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) =
+        parse_cemt_function_call_args(expression, "stackPop").map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 1 {
+        return Ok(None);
+    }
+    let Some(mut stack) = resolve_cemt_stack_argument(
+        &args[0],
+        "stackPop",
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    stack.pop();
+    Ok(Some(Value::Array(stack)))
+}
+
+fn resolve_cemt_stack_top_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) =
+        parse_cemt_function_call_args(expression, "stackTop").map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 1 {
+        return Ok(None);
+    }
+    let Some(stack) = resolve_cemt_stack_argument(
+        &args[0],
+        "stackTop",
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    Ok(Some(stack.last().cloned().unwrap_or(Value::Null)))
+}
+
+fn resolve_cemt_stack_depth_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) = parse_cemt_function_call_args(expression, "stackDepth")
+        .map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 1 {
+        return Ok(None);
+    }
+    let Some(stack) = resolve_cemt_stack_argument(
+        &args[0],
+        "stackDepth",
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    Ok(Some(Value::Number(serde_json::Number::from(
+        stack.len() as u64
+    ))))
+}
+
+fn resolve_cemt_stack_path_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) = parse_cemt_function_call_args(expression, "stackPath")
+        .map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 2 {
+        return Ok(None);
+    }
+    let Some(stack) = resolve_cemt_stack_argument(
+        &args[0],
+        "stackPath",
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some(path) = resolve_cemt_patch_path_argument(
+        &args[1],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let values = stack
+        .iter()
+        .map(|frame| {
+            resolve_cemt_value_path(frame, path.as_str())
+                .cloned()
+                .unwrap_or(Value::Null)
+        })
+        .collect();
+    Ok(Some(Value::Array(values)))
+}
+
+fn parse_cemt_stack_binding_name_argument(expression: &str) -> Result<String, String> {
+    let literal = parse_cemt_literal(expression).map_err(|error| error.to_string())?;
+    let Some(name) = literal
+        .as_string()
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+    else {
+        return Err("CEMT stack binding name must be a non-empty identifier".to_owned());
+    };
+    if !cemt_stack_binding_name_is_valid(name.as_str()) {
+        return Err(format!("CEMT stack binding name `{name}` is invalid"));
+    }
+    Ok(name)
+}
+
+fn cemt_stack_binding_name_is_valid(name: &str) -> bool {
+    let mut chars = name.chars();
+    chars
+        .next()
+        .is_some_and(|ch| ch.is_ascii_alphabetic() || ch == '_')
+        && chars.all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
+}
+
+fn resolve_cemt_stack_argument(
+    expression: &str,
+    owner: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Vec<Value>>, String> {
+    let Some(value) = resolve_encode_subject_expression_at_depth(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Value::Array(items) = value else {
+        return Err(format!(
+            "CEMT {owner} expected array stack, got {}",
+            json_value_type_name(&value)
+        ));
+    };
+    Ok(Some(items))
+}
+
+fn push_cemt_stack_frame(stack: &mut Vec<Value>, owner: &str, frame: Value) -> Result<(), String> {
+    if stack.len() >= CEMT_RUNTIME_STACK_DEPTH_LIMIT {
+        return Err(format!(
+            "CEMT stack `{owner}` exceeded depth limit {CEMT_RUNTIME_STACK_DEPTH_LIMIT}"
+        ));
+    }
+    stack.push(frame);
+    Ok(())
 }
 
 fn resolve_cemt_diagnostic_expression(
@@ -12323,6 +12665,12 @@ fn cemt_runtime_expression_is_dynamic(value: &str) -> bool {
         || cemt_expression_starts_with_call(value, "append")
         || cemt_expression_starts_with_call(value, "merge")
         || cemt_expression_starts_with_call(value, "set")
+        || cemt_expression_starts_with_call(value, "withStack")
+        || cemt_expression_starts_with_call(value, "stackPush")
+        || cemt_expression_starts_with_call(value, "stackPop")
+        || cemt_expression_starts_with_call(value, "stackTop")
+        || cemt_expression_starts_with_call(value, "stackDepth")
+        || cemt_expression_starts_with_call(value, "stackPath")
         || cemt_expression_starts_with_call(value, "diagnostic")
         || cemt_expression_starts_with_call(value, "diagnostics")
         || cemt_expression_starts_with_call(value, "match")
@@ -12357,6 +12705,22 @@ fn resolve_encode_subject_path<'a>(
     }
     let mut cursor = value_bindings.get(root)?;
     for segment in segments {
+        let segment = segment.trim();
+        if segment.is_empty() {
+            return None;
+        }
+        cursor = match cursor {
+            Value::Object(object) => object.get(segment)?,
+            Value::Array(items) => items.get(segment.parse::<usize>().ok()?)?,
+            _ => return None,
+        };
+    }
+    Some(cursor)
+}
+
+fn resolve_cemt_value_path<'a>(value: &'a Value, path: &str) -> Option<&'a Value> {
+    let mut cursor = value;
+    for segment in path.split('.') {
         let segment = segment.trim();
         if segment.is_empty() {
             return None;
@@ -16924,6 +17288,178 @@ mod tests {
         .expect_err("append only accepts arrays");
 
         assert!(error.contains("CEMT append expected array accumulator, got object"));
+    }
+
+    #[test]
+    fn cemt_runtime_stack_expressions_scope_traversal_frames() {
+        let values = BTreeMap::from([(
+            "node".to_owned(),
+            json!({
+                "kind": "element",
+                "name": "card",
+                "children": [
+                    {"kind": "element", "name": "title", "children": []},
+                    {"kind": "element", "name": "badge", "children": []}
+                ]
+            }),
+        )]);
+        let functions = BTreeMap::from([(
+            "formatNode".to_owned(),
+            CemtRuntimeFunction {
+                params: vec![
+                    cemt_required_param("node", TransformTemplateModuleParamType::Object),
+                    cemt_default_param("slot", TransformTemplateModuleParamType::Integer, json!(0)),
+                    cemt_default_param(
+                        "ancestors",
+                        TransformTemplateModuleParamType::Array,
+                        json!([]),
+                    ),
+                ],
+                body: r#"withStack(ancestors, {
+                    name: $node.name,
+                    slot: $slot,
+                    layout: "block"
+                }, {
+                    kind: $node.kind,
+                    name: $node.name,
+                    depth: stackDepth($ancestors),
+                    ancestorNames: stackPath($ancestors, name),
+                    currentFrame: stackTop($ancestors),
+                    children: map($node.children, call(formatNode, {
+                        node: $item,
+                        slot: $index,
+                        ancestors: $ancestors
+                    }))
+                })"#
+                .to_owned(),
+            },
+        )]);
+
+        assert_eq!(
+            resolve_encode_subject_expression_with_functions(
+                r#"call(formatNode, { node: $node })"#,
+                &values,
+                &functions,
+            ),
+            Some(json!({
+                "kind": "element",
+                "name": "card",
+                "depth": 1,
+                "ancestorNames": ["card"],
+                "currentFrame": {
+                    "name": "card",
+                    "slot": 0,
+                    "layout": "block"
+                },
+                "children": [
+                    {
+                        "kind": "element",
+                        "name": "title",
+                        "depth": 2,
+                        "ancestorNames": ["card", "title"],
+                        "currentFrame": {
+                            "name": "title",
+                            "slot": 0,
+                            "layout": "block"
+                        },
+                        "children": []
+                    },
+                    {
+                        "kind": "element",
+                        "name": "badge",
+                        "depth": 2,
+                        "ancestorNames": ["card", "badge"],
+                        "currentFrame": {
+                            "name": "badge",
+                            "slot": 1,
+                            "layout": "block"
+                        },
+                        "children": []
+                    }
+                ]
+            }))
+        );
+        assert!(
+            !values.contains_key("ancestors"),
+            "withStack scopes stack frames without mutating caller bindings"
+        );
+    }
+
+    #[test]
+    fn cemt_runtime_stack_helpers_are_immutable_and_validate_inputs() {
+        let values = BTreeMap::from([(
+            "ancestors".to_owned(),
+            json!([{"name": "root", "namespace": {"html": "http://www.w3.org/1999/xhtml"}}]),
+        )]);
+
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"stackPush($ancestors, { name: "child", namespace: { svg: "http://www.w3.org/2000/svg" } })"#,
+                &values,
+            ),
+            Some(json!([
+                {"name": "root", "namespace": {"html": "http://www.w3.org/1999/xhtml"}},
+                {"name": "child", "namespace": {"svg": "http://www.w3.org/2000/svg"}}
+            ]))
+        );
+        assert_eq!(
+            values.get("ancestors"),
+            Some(&json!([{"name": "root", "namespace": {"html": "http://www.w3.org/1999/xhtml"}}])),
+            "stackPush returns a new stack instead of mutating the binding"
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(r#"stackPop($ancestors)"#, &values),
+            Some(json!([]))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(r#"stackTop([])"#, &values),
+            Some(Value::Null)
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(r#"stackPath($ancestors, namespace.html)"#, &values),
+            Some(json!(["http://www.w3.org/1999/xhtml"]))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"withStack(colorStack, { role: "syntax.name" }, stackTop($colorStack))"#,
+                &values,
+            ),
+            Some(json!({"role": "syntax.name"}))
+        );
+
+        let bad_stack = resolve_encode_subject_expression_at_depth(
+            r#"stackPush({ not: "array" }, { name: "child" })"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("stack helpers require array stack values");
+        assert!(bad_stack.contains("CEMT stackPush expected array stack, got object"));
+
+        let bad_name = resolve_encode_subject_expression_at_depth(
+            r#"withStack($ancestors, { name: "child" }, $ancestors)"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("withStack requires a binding name");
+        assert!(bad_name.contains("CEMT stack binding name `$ancestors` is invalid"));
+
+        let limit_values = BTreeMap::from([(
+            "ancestors".to_owned(),
+            Value::Array(vec![Value::Null; CEMT_RUNTIME_STACK_DEPTH_LIMIT]),
+        )]);
+        let limit_error = resolve_encode_subject_expression_at_depth(
+            r#"withStack(ancestors, { name: "overflow" }, $ancestors)"#,
+            &limit_values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("withStack enforces stack depth limit");
+        assert!(limit_error.contains("CEMT stack `ancestors` exceeded depth limit 128"));
     }
 
     #[test]

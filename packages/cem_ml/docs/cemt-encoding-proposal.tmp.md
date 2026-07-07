@@ -144,10 +144,12 @@ metadata. They are not opaque host-side string filters.
   `fold(...)`, and the array accumulator helper `append(...)` now execute in
   CEMT bodies; remaining work is richer helpers for object patching, filtering,
   sorting, flattening, and diagnostics accumulation.
-- Add scoped traversal stack support for ancestor path, indentation depth,
+- Extend scoped traversal stack support for ancestor path, indentation depth,
   namespace scope, inherited layout, source-map frames, semantic style role, and
-  active color capability. Stack frames must be scoped so they are popped when a
-  template call or traversal frame exits.
+  active color capability. `withStack(...)`, `stackPush(...)`, `stackPop(...)`,
+  `stackTop(...)`, `stackDepth(...)`, and `stackPath(...)` now provide bounded
+  immutable stack values for CEMT bodies; remaining work is parser/declaration
+  diagnostics, source-map policy integration, and formatter/coloring showcases.
 - Add deferred queue support for post-order edits, wrapper insertions, color
   mutations, diagnostics, namespace repairs, and writer-boundary checks that
   must run after child traversal is complete.
@@ -327,6 +329,44 @@ each iteration:
 bounded accumulator helper for formatter/coloring templates that need to collect
 formatted children, color nodes, writer chunks, or diagnostics before returning
 a CEM tree value.
+
+## Scoped Traversal Stacks
+
+CEMT body expressions can carry traversal context as bounded immutable stack
+values. Stack helpers are data helpers, so formatter and color templates can pass
+the active stack through normal `call(...)` parameters while the writer remains
+only the final serialization phase.
+
+`withStack(name, frame, body)` pushes `frame` onto the named stack binding,
+evaluates `body` with that scoped value, and then returns the body result without
+mutating the caller binding. Missing named stacks start as empty arrays; existing
+stack bindings must be arrays. The stack depth is bounded.
+
+```cemt
+{$ withStack(ancestors, {
+  name: $subject.name,
+  slot: $slot,
+  layout: "block"
+}, {
+  name: $subject.name,
+  depth: stackDepth($ancestors),
+  ancestorNames: stackPath($ancestors, name),
+  currentFrame: stackTop($ancestors),
+  children: map($subject.children, call(acme.format-node, {
+    subject: $item,
+    slot: $index,
+    ancestors: $ancestors
+  }))
+}) }
+```
+
+`stackPush(stack, frame)` and `stackPop(stack)` return new stack arrays for
+explicit parameter passing. `stackTop(stack)` returns the last frame or `null`
+for an empty stack. `stackDepth(stack)` returns the current depth.
+`stackPath(stack, path)` projects a dotted object/array path from each frame,
+preserving missing frame values as `null`. Formatter and color templates use
+these frames for ancestor paths, indentation, namespace scope, inherited layout,
+source-map frames, semantic style role, and active color capability.
 
 ## Immutable Tree Patches
 
