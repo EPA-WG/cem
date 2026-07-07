@@ -39,17 +39,17 @@ use crate::transform_template::{
     TransformTemplateCompileResponse, TransformTemplateCompiledArtifact,
     TransformTemplateDataArtifact, TransformTemplateEncodeBindingRequest,
     TransformTemplateEncodeExpression, TransformTemplateEncodeImplementationRegistry,
-    TransformTemplateEncodeOptions, TransformTemplateEncodedArtifactInsertionContext,
-    TransformTemplateEncodedArtifactMode, TransformTemplateEncodingTarget,
-    TransformTemplateEvaluatedEncodeExpression, TransformTemplateHtmlColorMode,
-    TransformTemplateModuleOptions, TransformTemplateModulePreflight,
-    TransformTemplateModuleVisibility, TransformTemplateOutputArtifact,
-    TransformTemplateOutputFunctionDescriptor, TransformTemplateOutputFunctionImplementation,
-    TransformTemplateOutputFunctionKind, TransformTemplateOutputFunctionRegistry,
-    TransformTemplateOutputProducedKind, TransformTemplateRenderRequest,
-    TransformTemplateRenderResponse, TransformTemplateSourceMapPolicy,
-    TransformTemplateTargetSyntaxKind, TransformTemplateTargetSyntaxRules,
-    TransformTemplateTerminalColorCapability,
+    TransformTemplateEncodeOptions, TransformTemplateEncodedArtifact,
+    TransformTemplateEncodedArtifactInsertionContext, TransformTemplateEncodedArtifactMode,
+    TransformTemplateEncodingTarget, TransformTemplateEvaluatedEncodeExpression,
+    TransformTemplateHtmlColorMode, TransformTemplateModuleOptions,
+    TransformTemplateModulePreflight, TransformTemplateModuleVisibility,
+    TransformTemplateOutputArtifact, TransformTemplateOutputFunctionDescriptor,
+    TransformTemplateOutputFunctionImplementation, TransformTemplateOutputFunctionKind,
+    TransformTemplateOutputFunctionRegistry, TransformTemplateOutputProducedKind,
+    TransformTemplateRenderRequest, TransformTemplateRenderResponse,
+    TransformTemplateSourceMapPolicy, TransformTemplateTargetSyntaxKind,
+    TransformTemplateTargetSyntaxRules, TransformTemplateTerminalColorCapability,
 };
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -2351,6 +2351,8 @@ pub struct ConversionOutputPipelineExecution {
     pub output: Option<Value>,
     pub source_map: Option<SourceMapStack>,
     pub output_spans: Vec<OutputSpan>,
+    pub formatted_cem_tree: Option<TransformTemplateEncodedArtifact>,
+    pub colored_cem_tree: Option<TransformTemplateEncodedArtifact>,
     pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -2424,6 +2426,7 @@ pub fn execute_conversion_output_pipeline(
             ..ConversionOutputPipelineExecution::default()
         };
     }
+    let formatted_cem_tree = Some(formatted_artifact.clone());
 
     let color_request = TransformTemplateEncodeBindingRequest::new(
         formatted_artifact.value.clone(),
@@ -2442,6 +2445,7 @@ pub fn execute_conversion_output_pipeline(
             return ConversionOutputPipelineExecution {
                 output: None,
                 diagnostics,
+                formatted_cem_tree: formatted_cem_tree.clone(),
                 ..ConversionOutputPipelineExecution::default()
             };
         }
@@ -2461,6 +2465,7 @@ pub fn execute_conversion_output_pipeline(
             return ConversionOutputPipelineExecution {
                 output: None,
                 diagnostics,
+                formatted_cem_tree: formatted_cem_tree.clone(),
                 ..ConversionOutputPipelineExecution::default()
             };
         }
@@ -2477,9 +2482,11 @@ pub fn execute_conversion_output_pipeline(
         return ConversionOutputPipelineExecution {
             output: None,
             diagnostics,
+            formatted_cem_tree,
             ..ConversionOutputPipelineExecution::default()
         };
     }
+    let colored_cem_tree = Some(colored_artifact.clone());
 
     let evaluated = TransformTemplateEvaluatedEncodeExpression {
         expression: TransformTemplateEncodeExpression {
@@ -2490,9 +2497,9 @@ pub fn execute_conversion_output_pipeline(
             target: pipeline.cemt_target.clone(),
             options: pipeline.cemt_options.clone(),
         },
-        subject: formatted_artifact.value,
+        subject: formatted_artifact.value.clone(),
         binding: color_binding,
-        artifact: colored_artifact,
+        artifact: colored_artifact.clone(),
     };
     let composition = compose_transform_template_encoded_text_artifacts(
         &[evaluated],
@@ -2505,11 +2512,15 @@ pub fn execute_conversion_output_pipeline(
             output: Some(artifact.value),
             source_map: artifact.source_map,
             output_spans: artifact.output_spans,
+            formatted_cem_tree,
+            colored_cem_tree,
             diagnostics,
         },
         None => ConversionOutputPipelineExecution {
             output: None,
             diagnostics,
+            formatted_cem_tree,
+            colored_cem_tree,
             ..ConversionOutputPipelineExecution::default()
         },
     }
@@ -7078,6 +7089,83 @@ mod tests {
             mismatch.code(),
             TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_CONTEXT_MISMATCH_CODE
         );
+    }
+
+    #[test]
+    fn conversion_output_pipeline_exposes_colored_cem_tree_before_writer() {
+        let registry = ConversionRegistry::with_builtin_converters();
+        let (contracts, diagnostics) = registry.cemt_output_safety_contracts();
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let html = contracts
+            .iter()
+            .find(|contract| contract.descriptor.id == "cem-dom-projection-to-html-cemt")
+            .expect("HTML output safety contract");
+
+        let execution = execute_conversion_output_pipeline(
+            &html.pipeline,
+            serde_json::json!({
+                "kind": "element",
+                "name": "main",
+                "children": [{"kind": "text", "value": "Ready"}]
+            }),
+            None,
+            Vec::new(),
+            "cem-dom-projection-to-html-cemt",
+            Some("basic-dom"),
+            Some("schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt"),
+        );
+
+        assert!(
+            execution.diagnostics.is_empty(),
+            "{:?}",
+            execution.diagnostics
+        );
+        let formatted = execution
+            .formatted_cem_tree
+            .as_ref()
+            .expect("formatted CEM tree stage is retained");
+        assert_eq!(
+            formatted.identity.produces,
+            TransformTemplateOutputProducedKind::CemTree
+        );
+        assert_eq!(formatted.value["kind"], "cem-tree");
+        assert_eq!(formatted.value["formatterProfile"], "cem.format-tree");
+        assert!(formatted.value.get("formatNodes").is_some());
+        assert!(formatted.value.get("colored").is_none());
+        assert!(formatted.value.get("colorNodes").is_none());
+        assert!(formatted.value["nodes"][0]
+            .get("writerAttributeNodes")
+            .is_none());
+
+        let colored = execution
+            .colored_cem_tree
+            .as_ref()
+            .expect("colored CEM tree stage is retained");
+        assert_eq!(
+            colored.identity.produces,
+            TransformTemplateOutputProducedKind::CemTree
+        );
+        assert_eq!(colored.value["kind"], "cem-tree");
+        assert_eq!(colored.value["colored"], true);
+        assert_eq!(colored.value["colorProfile"], "classes");
+        assert_eq!(colored.value["colorNodes"][0]["name"], "cem.color-tree");
+        assert_eq!(
+            colored.value["nodes"][0]["writerAttributeNodes"][0]["kind"],
+            "writer-attribute"
+        );
+        assert_eq!(
+            colored.value["nodes"][0]["children"][0]["colorWrapperNodes"][0]["kind"],
+            "color-wrapper"
+        );
+
+        let output = execution
+            .output
+            .as_ref()
+            .and_then(Value::as_str)
+            .expect("writer output text");
+        assert!(output.contains("<main"));
+        assert!(output.contains("cem-color-syntax-name"));
+        assert!(output.contains("<span class=\"cem-color cem-color-syntax-string\""));
     }
 
     #[test]
