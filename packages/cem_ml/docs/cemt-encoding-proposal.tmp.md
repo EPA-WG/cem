@@ -139,8 +139,11 @@ metadata. They are not opaque host-side string filters.
   formatter/coloring showcases.
 - Add `match` dispatch over CEM tree node kind, name, attribute presence,
   formatter role, color role, and layout mode.
-- Add deterministic `map` and `fold` operations over children, attributes,
-  slots, formatter nodes, color nodes, token streams, and chunk plans.
+- Extend deterministic sequence operations over children, attributes, slots,
+  formatter nodes, color nodes, token streams, and chunk plans. `map(...)`,
+  `fold(...)`, and the array accumulator helper `append(...)` now execute in
+  CEMT bodies; remaining work is richer helpers for object patching, filtering,
+  sorting, flattening, and diagnostics accumulation.
 - Add scoped traversal stack support for ancestor path, indentation depth,
   namespace scope, inherited layout, source-map frames, semantic style role, and
   active color capability. Stack frames must be scoped so they are popped when a
@@ -148,8 +151,9 @@ metadata. They are not opaque host-side string filters.
 - Add deferred queue support for post-order edits, wrapper insertions, color
   mutations, diagnostics, namespace repairs, and writer-boundary checks that
   must run after child traversal is complete.
-- Add accumulator helpers for `formatNodes`, `colorNodes`, diagnostics,
-  namespace declarations, output spans, and writer-boundary metadata.
+- Extend accumulator helpers beyond array `append(...)` for `formatNodes`,
+  `colorNodes`, diagnostics, namespace declarations, output spans, and
+  writer-boundary metadata.
 - Add tree patch operations for setting fields, replacing nodes, wrapping nodes,
   prepending/appending formatter or color nodes, and applying queued edits to a
   formatted CEM tree.
@@ -299,6 +303,27 @@ from the same render context, including prior lets. The resolved value must
 satisfy the declared type and nullable contract before it is inserted into the
 binding scope; unresolved expressions or type mismatches produce fatal template
 diagnostics rather than falling through to writer behavior.
+
+## Sequence Fold And Accumulators
+
+CEMT body expressions can use deterministic `map(...)` and `fold(...)` over JSON
+arrays. `map(collection, body)` evaluates `body` once for each item with `$item`
+and `$index` in scope. `fold(collection, initial, step)` also provides `$acc`
+and `$accumulator`, updating the accumulator with the resolved `step` value on
+each iteration:
+
+```cemt
+{$ fold($subject.children, [], append($acc, {
+  kind: "child",
+  slot: $index,
+  name: $item.name
+})) }
+```
+
+`append(array, value)` returns a new array with `value` appended. It is the first
+bounded accumulator helper for formatter/coloring templates that need to collect
+formatted children, color nodes, writer chunks, or diagnostics before returning
+a CEM tree value.
 
 ## Encoding, Formatting, And Color Function Declarations
 

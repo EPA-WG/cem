@@ -11294,6 +11294,24 @@ fn resolve_encode_subject_expression_at_depth(
     )? {
         return Ok(Some(value));
     }
+    if let Some(value) = resolve_cemt_fold_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
+    if let Some(value) = resolve_cemt_append_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
     if let Some(value) = resolve_cemt_match_expression(
         expression,
         value_bindings,
@@ -11522,6 +11540,115 @@ fn resolve_cemt_map_expression(
     Ok(Some(Value::Array(mapped)))
 }
 
+fn resolve_cemt_fold_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) =
+        parse_cemt_function_call_args(expression, "fold").map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 3 {
+        return Ok(None);
+    }
+    let collection = resolve_encode_subject_expression_at_depth(
+        &args[0],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?;
+    let Some(collection) = collection else {
+        return Ok(None);
+    };
+    let Value::Array(items) = collection else {
+        return Ok(None);
+    };
+    let Some(mut accumulator) = resolve_encode_subject_expression_at_depth(
+        &args[1],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+
+    for (index, item) in items.into_iter().enumerate() {
+        let mut scoped_bindings = value_bindings.clone();
+        scoped_bindings.insert("item".to_owned(), item);
+        scoped_bindings.insert(
+            "index".to_owned(),
+            Value::Number(serde_json::Number::from(index as u64)),
+        );
+        scoped_bindings.insert("acc".to_owned(), accumulator.clone());
+        scoped_bindings.insert("accumulator".to_owned(), accumulator);
+        let Some(next) = resolve_encode_subject_expression_at_depth(
+            &args[2],
+            &scoped_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        )?
+        else {
+            return Ok(None);
+        };
+        accumulator = next;
+    }
+
+    Ok(Some(accumulator))
+}
+
+fn resolve_cemt_append_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) =
+        parse_cemt_function_call_args(expression, "append").map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 2 {
+        return Ok(None);
+    }
+    let accumulator = resolve_encode_subject_expression_at_depth(
+        &args[0],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?;
+    let Some(accumulator) = accumulator else {
+        return Ok(None);
+    };
+    let Value::Array(mut accumulator) = accumulator else {
+        return Err(format!(
+            "CEMT append expected array accumulator, got {}",
+            json_value_type_name(&accumulator)
+        ));
+    };
+    let Some(value) = resolve_encode_subject_expression_at_depth(
+        &args[1],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    accumulator.push(value);
+    Ok(Some(Value::Array(accumulator)))
+}
+
 fn resolve_cemt_object_expression(
     expression: &str,
     value_bindings: &BTreeMap<String, Value>,
@@ -11701,6 +11828,8 @@ fn cemt_runtime_expression_is_dynamic(value: &str) -> bool {
     value.starts_with('$')
         || cemt_expression_starts_with_call(value, "call")
         || cemt_expression_starts_with_call(value, "map")
+        || cemt_expression_starts_with_call(value, "fold")
+        || cemt_expression_starts_with_call(value, "append")
         || cemt_expression_starts_with_call(value, "match")
         || cemt_expression_starts_with_call(value, "exists")
         || value.starts_with('{')
@@ -16226,6 +16355,83 @@ mod tests {
     }
 
     #[test]
+    fn cemt_runtime_fold_expression_accumulates_with_item_index_and_acc_scope() {
+        let values = BTreeMap::from([(
+            "node".to_owned(),
+            json!({
+                "children": [
+                    {"kind": "element", "name": "title"},
+                    {"kind": "text", "value": "Ready"},
+                    {"kind": "element", "name": "badge"}
+                ]
+            }),
+        )]);
+
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"fold($node.children, [], append($acc, {
+                    kind: $item.kind,
+                    label: match($item.kind, { element: $item.name, text: $item.value, default: "unknown" }),
+                    slot: $index
+                }))"#,
+                &values,
+            ),
+            Some(json!([
+                {"kind": "element", "label": "title", "slot": 0},
+                {"kind": "text", "label": "Ready", "slot": 1},
+                {"kind": "element", "label": "badge", "slot": 2}
+            ]))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"fold($node.children, [], append($accumulator, $index))"#,
+                &values,
+            ),
+            Some(json!([0, 1, 2]))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"fold($node.children, { count: 0 }, {
+                    previous: $acc,
+                    label: match($item.kind, { element: $item.name, text: $item.value, default: "unknown" }),
+                    slot: $index
+                })"#,
+                &values,
+            ),
+            Some(json!({
+                "previous": {
+                    "previous": {
+                        "previous": {"count": 0},
+                        "label": "title",
+                        "slot": 0
+                    },
+                    "label": "Ready",
+                    "slot": 1
+                },
+                "label": "badge",
+                "slot": 2
+            }))
+        );
+    }
+
+    #[test]
+    fn cemt_runtime_append_expression_reports_non_array_accumulator() {
+        let values =
+            BTreeMap::from([("node".to_owned(), json!({"children": [{"name": "title"}]}))]);
+
+        let error = resolve_encode_subject_expression_at_depth(
+            r#"fold($node.children, { nodes: [] }, append($acc, $item))"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("append only accepts arrays");
+
+        assert!(error.contains("CEMT append expected array accumulator, got object"));
+    }
+
+    #[test]
     fn cemt_runtime_constructs_cem_tree_objects_and_arrays() {
         let values = BTreeMap::from([(
             "node".to_owned(),
@@ -16489,8 +16695,8 @@ mod tests {
 
     #[test]
     fn cemt_module_output_function_bodies_build_runtime_call_table() {
-        let response =
-            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+        let response = parse_cem_native_template_module_options(
+            TransformTemplateModuleParseRequest {
                 template: template_input(
                     "templates/runtime-function-bodies.cemt",
                     r#"{@doc cem-ml 1}
@@ -16512,7 +16718,7 @@ mod tests {
           kind: "element",
           name: $subject.name,
           slot: $slot,
-          children: map($subject.children, call(acme.format-node, { subject: $item, slot: $index }))
+          children: fold($subject.children, [], append($acc, call(acme.format-node, { subject: $item, slot: $index })))
         } }
       }
   }
@@ -16537,7 +16743,8 @@ mod tests {
                         ..FormatIdentity::default()
                     }),
                 ),
-            });
+            },
+        );
 
         assert!(
             response.diagnostics.is_empty(),
@@ -16555,7 +16762,7 @@ mod tests {
         assert!(format_node
             .body_expression
             .as_deref()
-            .is_some_and(|body| body.contains("map($subject.children")));
+            .is_some_and(|body| body.contains("fold($subject.children")));
 
         let runtime_functions =
             cemt_runtime_functions_from_module_options(&response.module_options);
@@ -22286,7 +22493,7 @@ mod tests {
           nodes: [{
             kind: "element",
             name: $subject.name,
-            children: map($subject.children, { kind: "text", value: $item.value })
+            children: fold($subject.children, [], append($acc, { kind: "text", value: $item.value }))
           }],
           formatNodes: [{ kind: "formatter", name: "acme.format-tree" }]
         } }
