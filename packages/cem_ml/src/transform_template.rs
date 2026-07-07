@@ -11341,6 +11341,24 @@ fn resolve_encode_subject_expression_at_depth(
     )? {
         return Ok(Some(value));
     }
+    if let Some(value) = resolve_cemt_tree_patch_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
+    if let Some(value) = resolve_cemt_apply_edits_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
     if let Some(value) = resolve_cemt_with_stack_expression(
         expression,
         value_bindings,
@@ -12045,6 +12063,230 @@ fn resolve_cemt_set_expression(
     };
     set_cemt_value_path(&mut target, &path, value)?;
     Ok(Some(target))
+}
+
+#[derive(Debug, Clone, Copy)]
+enum CemtTreePatchOperation {
+    Set,
+    Replace,
+    Append,
+    Prepend,
+    Wrap,
+}
+
+impl CemtTreePatchOperation {
+    fn from_expression(expression: &str) -> Result<Option<(Self, Vec<String>)>, String> {
+        for (name, operation) in [
+            ("replaceNode", Self::Replace),
+            ("appendNode", Self::Append),
+            ("prependNode", Self::Prepend),
+            ("wrapNode", Self::Wrap),
+        ] {
+            if let Some(args) = parse_cemt_function_call_args(expression, name)
+                .map_err(|error| error.to_string())?
+            {
+                return Ok(Some((operation, args)));
+            }
+        }
+        Ok(None)
+    }
+
+    fn function_name(self) -> &'static str {
+        match self {
+            Self::Set => "set",
+            Self::Replace => "replaceNode",
+            Self::Append => "appendNode",
+            Self::Prepend => "prependNode",
+            Self::Wrap => "wrapNode",
+        }
+    }
+}
+
+fn resolve_cemt_tree_patch_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some((operation, args)) = CemtTreePatchOperation::from_expression(expression)? else {
+        return Ok(None);
+    };
+    if args.len() != 3 {
+        return Ok(None);
+    }
+    let owner = operation.function_name();
+    let Some(mut target) = resolve_encode_subject_expression_at_depth(
+        &args[0],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some(path) = resolve_cemt_patch_path_argument_for_owner(
+        &args[1],
+        owner,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some(value) = resolve_encode_subject_expression_at_depth(
+        &args[2],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    apply_cemt_tree_patch_operation(&mut target, operation, &path, value, owner)?;
+    Ok(Some(target))
+}
+
+fn resolve_cemt_apply_edits_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) = parse_cemt_function_call_args(expression, "applyEdits")
+        .map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 2 {
+        return Ok(None);
+    }
+    let Some(mut target) = resolve_encode_subject_expression_at_depth(
+        &args[0],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some(edits) = resolve_cemt_queue_argument(
+        &args[1],
+        "applyEdits",
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+
+    for (index, edit) in edits.into_iter().enumerate() {
+        let edit = parse_cemt_tree_patch_edit(index, edit)?;
+        apply_cemt_tree_patch_operation(
+            &mut target,
+            edit.operation,
+            &edit.path,
+            edit.value,
+            "applyEdits",
+        )?;
+    }
+
+    Ok(Some(target))
+}
+
+#[derive(Debug, Clone)]
+struct CemtTreePatchEdit {
+    operation: CemtTreePatchOperation,
+    path: String,
+    value: Value,
+}
+
+fn parse_cemt_tree_patch_edit(index: usize, value: Value) -> Result<CemtTreePatchEdit, String> {
+    let Value::Object(object) = value else {
+        return Err(format!(
+            "CEMT applyEdits expected edit object at index {index}, got {}",
+            json_value_type_name(&value)
+        ));
+    };
+    let kind = required_cemt_tree_patch_edit_string(&object, index, &["kind", "op"])?;
+    let normalized_kind = kind.trim().replace('_', "-").to_ascii_lowercase();
+    let operation = match normalized_kind.as_str() {
+        "set" => CemtTreePatchOperation::Set,
+        "replace" | "replace-node" => CemtTreePatchOperation::Replace,
+        "append" | "append-node" => CemtTreePatchOperation::Append,
+        "prepend" | "prepend-node" => CemtTreePatchOperation::Prepend,
+        "wrap" | "wrap-node" => CemtTreePatchOperation::Wrap,
+        _ => {
+            return Err(format!(
+                "CEMT applyEdits edit {index} has unsupported kind `{kind}`"
+            ))
+        }
+    };
+    let path = required_cemt_tree_patch_edit_string(&object, index, &["path"])?;
+    let value = required_cemt_tree_patch_edit_value(
+        &object,
+        index,
+        match operation {
+            CemtTreePatchOperation::Wrap => &["wrapper", "value", "node"],
+            _ => &["value", "node", "replacement"],
+        },
+    )?;
+    Ok(CemtTreePatchEdit {
+        operation,
+        path,
+        value,
+    })
+}
+
+fn required_cemt_tree_patch_edit_string(
+    object: &serde_json::Map<String, Value>,
+    index: usize,
+    keys: &[&str],
+) -> Result<String, String> {
+    let Some((key, value)) = keys
+        .iter()
+        .find_map(|key| object.get(*key).map(|value| (*key, value)))
+    else {
+        return Err(format!(
+            "CEMT applyEdits edit {index} is missing `{}`",
+            keys[0]
+        ));
+    };
+    let Some(value) = value
+        .as_str()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Err(format!(
+            "CEMT applyEdits edit {index} expected `{key}` string, got {}",
+            json_value_type_name(value)
+        ));
+    };
+    Ok(value.to_owned())
+}
+
+fn required_cemt_tree_patch_edit_value(
+    object: &serde_json::Map<String, Value>,
+    index: usize,
+    keys: &[&str],
+) -> Result<Value, String> {
+    for key in keys {
+        if let Some(value) = object.get(*key) {
+            return Ok(value.clone());
+        }
+    }
+    Err(format!(
+        "CEMT applyEdits edit {index} is missing `{}`",
+        keys[0]
+    ))
 }
 
 fn resolve_cemt_with_stack_expression(
@@ -12845,6 +13087,24 @@ fn resolve_cemt_patch_path_argument(
     binding: Option<&TransformTemplateEncodeBinding>,
     call_depth: usize,
 ) -> Result<Option<String>, String> {
+    resolve_cemt_patch_path_argument_for_owner(
+        expression,
+        "set",
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )
+}
+
+fn resolve_cemt_patch_path_argument_for_owner(
+    expression: &str,
+    owner: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<String>, String> {
     let literal = parse_cemt_literal(expression).map_err(|error| error.to_string())?;
     let Some(value) = resolve_cemt_literal_runtime_value(
         &literal,
@@ -12862,7 +13122,7 @@ fn resolve_cemt_patch_path_argument(
         .filter(|path| !path.is_empty())
     else {
         return Err(format!(
-            "CEMT set expected string path, got {}",
+            "CEMT {owner} expected string path, got {}",
             json_value_type_name(&value)
         ));
     };
@@ -12870,15 +13130,26 @@ fn resolve_cemt_patch_path_argument(
 }
 
 fn set_cemt_value_path(target: &mut Value, path: &str, value: Value) -> Result<(), String> {
+    set_cemt_value_path_with_owner(target, path, value, "set")
+}
+
+fn set_cemt_value_path_with_owner(
+    target: &mut Value,
+    path: &str,
+    value: Value,
+    owner: &str,
+) -> Result<(), String> {
     let segments: Vec<&str> = path
         .split('.')
         .map(str::trim)
         .filter(|segment| !segment.is_empty())
         .collect();
     if segments.is_empty() {
-        return Err("CEMT set path must contain at least one segment".to_owned());
+        return Err(format!(
+            "CEMT {owner} path must contain at least one segment"
+        ));
     }
-    set_cemt_value_path_segments(target, &segments, path, value)
+    set_cemt_value_path_segments(target, &segments, path, value, owner)
 }
 
 fn set_cemt_value_path_segments(
@@ -12886,6 +13157,7 @@ fn set_cemt_value_path_segments(
     segments: &[&str],
     original_path: &str,
     value: Value,
+    owner: &str,
 ) -> Result<(), String> {
     let (segment, rest) = segments
         .split_first()
@@ -12901,28 +13173,304 @@ fn set_cemt_value_path_segments(
                 .or_insert_with(|| Value::Object(serde_json::Map::new()));
             if !child.is_object() && !child.is_array() {
                 return Err(format!(
-                    "CEMT set path `{original_path}` crosses non-container field `{segment}`"
+                    "CEMT {owner} path `{original_path}` crosses non-container field `{segment}`"
                 ));
             }
-            set_cemt_value_path_segments(child, rest, original_path, value)
+            set_cemt_value_path_segments(child, rest, original_path, value, owner)
         }
         Value::Array(items) => {
             let index = segment.parse::<usize>().map_err(|_| {
-                format!("CEMT set path `{original_path}` expected array index, got `{segment}`")
+                format!("CEMT {owner} path `{original_path}` expected array index, got `{segment}`")
             })?;
             let Some(child) = items.get_mut(index) else {
                 return Err(format!(
-                    "CEMT set path `{original_path}` index `{index}` is out of bounds"
+                    "CEMT {owner} path `{original_path}` index `{index}` is out of bounds"
                 ));
             };
             if rest.is_empty() {
                 *child = value;
                 return Ok(());
             }
-            set_cemt_value_path_segments(child, rest, original_path, value)
+            set_cemt_value_path_segments(child, rest, original_path, value, owner)
         }
         other => Err(format!(
-            "CEMT set expected object or array target, got {}",
+            "CEMT {owner} expected object or array target, got {}",
+            json_value_type_name(other)
+        )),
+    }
+}
+
+fn apply_cemt_tree_patch_operation(
+    target: &mut Value,
+    operation: CemtTreePatchOperation,
+    path: &str,
+    value: Value,
+    owner: &str,
+) -> Result<(), String> {
+    match operation {
+        CemtTreePatchOperation::Set => set_cemt_value_path_with_owner(target, path, value, owner),
+        CemtTreePatchOperation::Replace => replace_cemt_value_path(target, path, value, owner),
+        CemtTreePatchOperation::Append => {
+            insert_cemt_array_value_path(target, path, value, CemtArrayInsertPosition::Back, owner)
+        }
+        CemtTreePatchOperation::Prepend => {
+            insert_cemt_array_value_path(target, path, value, CemtArrayInsertPosition::Front, owner)
+        }
+        CemtTreePatchOperation::Wrap => wrap_cemt_value_path(target, path, value, owner),
+    }
+}
+
+fn cemt_patch_path_segments<'a>(path: &'a str, owner: &str) -> Result<Vec<&'a str>, String> {
+    let segments: Vec<&str> = path
+        .split('.')
+        .map(str::trim)
+        .filter(|segment| !segment.is_empty())
+        .collect();
+    if segments.is_empty() {
+        return Err(format!(
+            "CEMT {owner} path must contain at least one segment"
+        ));
+    }
+    Ok(segments)
+}
+
+fn replace_cemt_value_path(
+    target: &mut Value,
+    path: &str,
+    value: Value,
+    owner: &str,
+) -> Result<(), String> {
+    let segments = cemt_patch_path_segments(path, owner)?;
+    replace_cemt_value_path_segments(target, &segments, path, value, owner)
+}
+
+fn replace_cemt_value_path_segments(
+    target: &mut Value,
+    segments: &[&str],
+    original_path: &str,
+    value: Value,
+    owner: &str,
+) -> Result<(), String> {
+    let (segment, rest) = segments
+        .split_first()
+        .expect("replace path segments are checked before recursion");
+    match target {
+        Value::Object(object) => {
+            let Some(child) = object.get_mut(*segment) else {
+                return Err(format!(
+                    "CEMT {owner} path `{original_path}` missing field `{segment}`"
+                ));
+            };
+            if rest.is_empty() {
+                *child = value;
+                return Ok(());
+            }
+            if !child.is_object() && !child.is_array() {
+                return Err(format!(
+                    "CEMT {owner} path `{original_path}` crosses non-container field `{segment}`"
+                ));
+            }
+            replace_cemt_value_path_segments(child, rest, original_path, value, owner)
+        }
+        Value::Array(items) => {
+            let index = segment.parse::<usize>().map_err(|_| {
+                format!("CEMT {owner} path `{original_path}` expected array index, got `{segment}`")
+            })?;
+            let Some(child) = items.get_mut(index) else {
+                return Err(format!(
+                    "CEMT {owner} path `{original_path}` index `{index}` is out of bounds"
+                ));
+            };
+            if rest.is_empty() {
+                *child = value;
+                return Ok(());
+            }
+            replace_cemt_value_path_segments(child, rest, original_path, value, owner)
+        }
+        other => Err(format!(
+            "CEMT {owner} expected object or array target, got {}",
+            json_value_type_name(other)
+        )),
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum CemtArrayInsertPosition {
+    Front,
+    Back,
+}
+
+fn insert_cemt_array_value_path(
+    target: &mut Value,
+    path: &str,
+    value: Value,
+    position: CemtArrayInsertPosition,
+    owner: &str,
+) -> Result<(), String> {
+    let segments = cemt_patch_path_segments(path, owner)?;
+    let items = cemt_array_value_path_mut(target, &segments, path, owner)?;
+    match position {
+        CemtArrayInsertPosition::Front => items.insert(0, value),
+        CemtArrayInsertPosition::Back => items.push(value),
+    }
+    Ok(())
+}
+
+fn cemt_array_value_path_mut<'a>(
+    target: &'a mut Value,
+    segments: &[&str],
+    original_path: &str,
+    owner: &str,
+) -> Result<&'a mut Vec<Value>, String> {
+    let (segment, rest) = segments
+        .split_first()
+        .expect("array path segments are checked before recursion");
+    match target {
+        Value::Object(object) => {
+            let child = if rest.is_empty() {
+                object
+                    .entry((*segment).to_owned())
+                    .or_insert_with(|| Value::Array(Vec::new()))
+            } else {
+                object
+                    .entry((*segment).to_owned())
+                    .or_insert_with(|| Value::Object(serde_json::Map::new()))
+            };
+            if rest.is_empty() {
+                return match child {
+                    Value::Array(items) => Ok(items),
+                    other => Err(format!(
+                        "CEMT {owner} path `{original_path}` expected array field `{segment}`, got {}",
+                        json_value_type_name(other)
+                    )),
+                };
+            }
+            if !child.is_object() && !child.is_array() {
+                return Err(format!(
+                    "CEMT {owner} path `{original_path}` crosses non-container field `{segment}`"
+                ));
+            }
+            cemt_array_value_path_mut(child, rest, original_path, owner)
+        }
+        Value::Array(items) => {
+            let index = segment.parse::<usize>().map_err(|_| {
+                format!("CEMT {owner} path `{original_path}` expected array index, got `{segment}`")
+            })?;
+            let Some(child) = items.get_mut(index) else {
+                return Err(format!(
+                    "CEMT {owner} path `{original_path}` index `{index}` is out of bounds"
+                ));
+            };
+            if rest.is_empty() {
+                return match child {
+                    Value::Array(items) => Ok(items),
+                    other => Err(format!(
+                        "CEMT {owner} path `{original_path}` expected array at index `{index}`, got {}",
+                        json_value_type_name(other)
+                    )),
+                };
+            }
+            cemt_array_value_path_mut(child, rest, original_path, owner)
+        }
+        other => Err(format!(
+            "CEMT {owner} expected object or array target, got {}",
+            json_value_type_name(other)
+        )),
+    }
+}
+
+fn wrap_cemt_value_path(
+    target: &mut Value,
+    path: &str,
+    wrapper: Value,
+    owner: &str,
+) -> Result<(), String> {
+    let wrapper = match wrapper {
+        Value::Object(wrapper) => wrapper,
+        other => {
+            return Err(format!(
+                "CEMT {owner} expected object wrapper, got {}",
+                json_value_type_name(&other)
+            ))
+        }
+    };
+    let wrapped = clone_cemt_existing_value_path(target, path, owner)?;
+    let wrapper = cemt_wrap_node_value(wrapper, wrapped, owner)?;
+    replace_cemt_value_path(target, path, wrapper, owner)
+}
+
+fn cemt_wrap_node_value(
+    mut wrapper: serde_json::Map<String, Value>,
+    wrapped: Value,
+    owner: &str,
+) -> Result<Value, String> {
+    match wrapper.entry("children".to_owned()) {
+        serde_json::map::Entry::Vacant(entry) => {
+            entry.insert(Value::Array(vec![wrapped]));
+        }
+        serde_json::map::Entry::Occupied(mut entry) => match entry.get_mut() {
+            Value::Array(items) => items.push(wrapped),
+            Value::Null => {
+                *entry.get_mut() = Value::Array(vec![wrapped]);
+            }
+            other => {
+                return Err(format!(
+                    "CEMT {owner} expected wrapper `children` array, got {}",
+                    json_value_type_name(other)
+                ))
+            }
+        },
+    }
+    Ok(Value::Object(wrapper))
+}
+
+fn clone_cemt_existing_value_path(value: &Value, path: &str, owner: &str) -> Result<Value, String> {
+    let segments = cemt_patch_path_segments(path, owner)?;
+    clone_cemt_existing_value_path_segments(value, &segments, path, owner)
+}
+
+fn clone_cemt_existing_value_path_segments(
+    value: &Value,
+    segments: &[&str],
+    original_path: &str,
+    owner: &str,
+) -> Result<Value, String> {
+    let (segment, rest) = segments
+        .split_first()
+        .expect("clone path segments are checked before recursion");
+    match value {
+        Value::Object(object) => {
+            let Some(child) = object.get(*segment) else {
+                return Err(format!(
+                    "CEMT {owner} path `{original_path}` missing field `{segment}`"
+                ));
+            };
+            if rest.is_empty() {
+                return Ok(child.clone());
+            }
+            if !child.is_object() && !child.is_array() {
+                return Err(format!(
+                    "CEMT {owner} path `{original_path}` crosses non-container field `{segment}`"
+                ));
+            }
+            clone_cemt_existing_value_path_segments(child, rest, original_path, owner)
+        }
+        Value::Array(items) => {
+            let index = segment.parse::<usize>().map_err(|_| {
+                format!("CEMT {owner} path `{original_path}` expected array index, got `{segment}`")
+            })?;
+            let Some(child) = items.get(index) else {
+                return Err(format!(
+                    "CEMT {owner} path `{original_path}` index `{index}` is out of bounds"
+                ));
+            };
+            if rest.is_empty() {
+                return Ok(child.clone());
+            }
+            clone_cemt_existing_value_path_segments(child, rest, original_path, owner)
+        }
+        other => Err(format!(
+            "CEMT {owner} expected object or array target, got {}",
             json_value_type_name(other)
         )),
     }
@@ -13117,6 +13665,11 @@ fn cemt_runtime_expression_is_dynamic(value: &str) -> bool {
         || cemt_expression_starts_with_call(value, "appendWriterBoundary")
         || cemt_expression_starts_with_call(value, "merge")
         || cemt_expression_starts_with_call(value, "set")
+        || cemt_expression_starts_with_call(value, "replaceNode")
+        || cemt_expression_starts_with_call(value, "appendNode")
+        || cemt_expression_starts_with_call(value, "prependNode")
+        || cemt_expression_starts_with_call(value, "wrapNode")
+        || cemt_expression_starts_with_call(value, "applyEdits")
         || cemt_expression_starts_with_call(value, "withStack")
         || cemt_expression_starts_with_call(value, "stackPush")
         || cemt_expression_starts_with_call(value, "stackPop")
@@ -18334,6 +18887,176 @@ mod tests {
     }
 
     #[test]
+    fn cemt_runtime_tree_patch_helpers_replace_wrap_prepend_and_append_nodes() {
+        let values = BTreeMap::from([(
+            "node".to_owned(),
+            json!({
+                "kind": "element",
+                "name": "card",
+                "children": [
+                    {
+                        "kind": "element",
+                        "name": "title",
+                        "children": [{"kind": "text", "value": "Ready"}]
+                    },
+                    {"kind": "text", "value": "Soon"}
+                ]
+            }),
+        )]);
+
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"appendNode(
+                    prependNode(
+                        wrapNode(
+                            replaceNode($node, "children.1", { kind: "text", value: "Done" }),
+                            "children.0",
+                            {
+                                kind: "element",
+                                name: "span",
+                                colorRole: "syntax.wrapper"
+                            }
+                        ),
+                        "children",
+                        {
+                            kind: "format-node",
+                            name: "before",
+                            formatterRole: "formatter.before"
+                        }
+                    ),
+                    "children",
+                    {
+                        kind: "color-node",
+                        name: "after",
+                        colorizerRole: "colorizer.after"
+                    }
+                )"#,
+                &values,
+            ),
+            Some(json!({
+                "kind": "element",
+                "name": "card",
+                "children": [
+                    {
+                        "kind": "format-node",
+                        "name": "before",
+                        "formatterRole": "formatter.before"
+                    },
+                    {
+                        "kind": "element",
+                        "name": "span",
+                        "colorRole": "syntax.wrapper",
+                        "children": [{
+                            "kind": "element",
+                            "name": "title",
+                            "children": [{"kind": "text", "value": "Ready"}]
+                        }]
+                    },
+                    {"kind": "text", "value": "Done"},
+                    {
+                        "kind": "color-node",
+                        "name": "after",
+                        "colorizerRole": "colorizer.after"
+                    }
+                ]
+            }))
+        );
+        assert_eq!(
+            values
+                .get("node")
+                .and_then(|node| node.get("children"))
+                .and_then(Value::as_array)
+                .map(Vec::len),
+            Some(2),
+            "tree patch helpers do not mutate source bindings"
+        );
+    }
+
+    #[test]
+    fn cemt_runtime_apply_edits_replays_deferred_tree_patch_queue() {
+        let values = BTreeMap::from([(
+            "node".to_owned(),
+            json!({
+                "kind": "element",
+                "name": "card",
+                "children": [
+                    {"kind": "element", "name": "title", "children": []},
+                    {"kind": "text", "value": "Ready"}
+                ]
+            }),
+        )]);
+
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"applyEdits(
+                    $node,
+                    defer(
+                        defer(
+                            defer(
+                                defer(
+                                    [],
+                                    {
+                                        kind: "set",
+                                        path: "children.0.style.colorRole",
+                                        value: "syntax.name"
+                                    }
+                                ),
+                                {
+                                    kind: "append",
+                                    path: "children.0.children",
+                                    node: { kind: "text", value: "Heading" }
+                                }
+                            ),
+                            {
+                                kind: "wrap",
+                                path: "children.1",
+                                wrapper: {
+                                    kind: "element",
+                                    name: "span",
+                                    colorRole: "syntax.text"
+                                }
+                            }
+                        ),
+                        {
+                            kind: "prepend",
+                            path: "children",
+                            node: {
+                                kind: "format-node",
+                                name: "line-start",
+                                formatterRole: "formatter.line-start"
+                            }
+                        }
+                    )
+                )"#,
+                &values,
+            ),
+            Some(json!({
+                "kind": "element",
+                "name": "card",
+                "children": [
+                    {
+                        "kind": "format-node",
+                        "name": "line-start",
+                        "formatterRole": "formatter.line-start"
+                    },
+                    {
+                        "kind": "element",
+                        "name": "title",
+                        "style": {"colorRole": "syntax.name"},
+                        "children": [{"kind": "text", "value": "Heading"}]
+                    },
+                    {
+                        "kind": "element",
+                        "name": "span",
+                        "colorRole": "syntax.text",
+                        "children": [{"kind": "text", "value": "Ready"}]
+                    }
+                ]
+            }))
+        );
+    }
+
+    #[test]
     fn cemt_runtime_patch_expressions_report_invalid_targets() {
         let values = BTreeMap::from([(
             "node".to_owned(),
@@ -18375,6 +19098,49 @@ mod tests {
         .expect_err("set cannot cross scalar values");
         assert!(non_container_error
             .contains("CEMT set path `name.value` crosses non-container field `name`"));
+    }
+
+    #[test]
+    fn cemt_runtime_tree_patch_helpers_report_invalid_targets_and_edits() {
+        let values = BTreeMap::from([(
+            "node".to_owned(),
+            json!({
+                "kind": "element",
+                "name": "card",
+                "children": [{"kind": "text", "value": "Ready"}]
+            }),
+        )]);
+
+        let append_error = resolve_encode_subject_expression_at_depth(
+            r#"appendNode($node, "name", { kind: "text", value: "bad" })"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("appendNode requires array target path");
+        assert!(append_error
+            .contains("CEMT appendNode path `name` expected array field `name`, got string"));
+
+        let wrap_error = resolve_encode_subject_expression_at_depth(
+            r#"wrapNode($node, "children.0", [])"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("wrapNode requires object wrapper");
+        assert!(wrap_error.contains("CEMT wrapNode expected object wrapper, got array"));
+
+        let edit_error = resolve_encode_subject_expression_at_depth(
+            r#"applyEdits($node, [{ kind: "unknown", path: "children", node: {} }])"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("applyEdits rejects unknown edit kinds");
+        assert!(edit_error.contains("CEMT applyEdits edit 0 has unsupported kind `unknown`"));
     }
 
     #[test]

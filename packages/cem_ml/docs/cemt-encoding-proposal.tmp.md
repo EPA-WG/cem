@@ -167,7 +167,12 @@ metadata. They are not opaque host-side string filters.
 - Extend tree patch operations for replacing nodes, wrapping nodes,
   prepending/appending formatter or color nodes, and applying queued edits to a
   formatted CEM tree. Shallow object `merge(...)` and path-based `set(...)` now
-  provide immutable object/tree patching in CEMT bodies.
+  provide immutable object/tree patching in CEMT bodies. `replaceNode(...)`,
+  `appendNode(...)`, `prependNode(...)`, `wrapNode(...)`, and
+  `applyEdits(...)` now provide node replacement, child-array insertion,
+  wrapper insertion, and queued edit replay; remaining work is richer edit
+  validation, source-map-aware wrapper defaults, and formatter/coloring
+  showcases.
 - Extend first-class diagnostics emitted from formatter/color templates.
   `diagnostic(...)` and `diagnostics(...)` now construct writer-ready diagnostic
   values for unsupported layout, inaccessible color, unsafe raw content,
@@ -427,14 +432,13 @@ iteration evaluates `step` with `$item`, `$index`, `$acc`/`$accumulator`, and
 accumulator:
 
 ```cemt
-{$ drainQueue(
+{$ applyEdits(
+  $formattedTree,
   fold($subject.children, [], defer($acc, {
-    kind: "color",
+    kind: "set",
     path: $item.colorPath,
     value: $item.colorRole
-  })),
-  $formattedTree,
-  set($acc, $item.path, $item.value)
+  }))
 ) }
 ```
 
@@ -462,6 +466,42 @@ path replaced:
 
 Object fields in a `set(...)` path are created as needed. Array segments must be
 numeric and in bounds; appending remains explicit through `append(...)`.
+
+Node-specific helpers cover the formatter and coloring edits that should remain
+in CEMT before the writer phase:
+
+- `replaceNode(tree, path, node)` replaces an existing node path.
+- `appendNode(tree, path, node)` appends a node to the array at `path`, creating
+  a missing object field as an array.
+- `prependNode(tree, path, node)` prepends a node to the array at `path`.
+- `wrapNode(tree, path, wrapper)` replaces the node at `path` with `wrapper` and
+  places the original node in `wrapper.children`.
+- `applyEdits(tree, edits)` replays a queue/array of edit objects in order.
+
+Queued edit objects use `kind` or `op`, a string `path`, and a value field. The
+supported edit kinds are `set`, `replace`, `append`, `prepend`, and `wrap`.
+`set`, `replace`, `append`, and `prepend` read `value`, `node`, or
+`replacement`; `wrap` reads `wrapper`, `value`, or `node`:
+
+```cemt
+{$ applyEdits($formattedTree, [
+  { kind: "set", path: "children.0.style.colorRole", value: "syntax.name" },
+  { kind: "wrap", path: "children.1", wrapper: {
+      kind: "element",
+      name: "span",
+      colorRole: "syntax.text"
+  }},
+  { kind: "append", path: "children", node: {
+      kind: "color-node",
+      name: "trailing-color-metadata",
+      colorizerRole: "colorizer.after"
+  }}
+]) }
+```
+
+This lets the formatter build the formatted CEM tree, lets the coloring
+transformation change that CEM tree, and leaves final serialization to the
+writer after formatting and coloring metadata has already been materialized.
 
 ## First-Class Diagnostics
 
