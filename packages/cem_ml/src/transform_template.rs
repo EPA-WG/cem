@@ -4761,22 +4761,11 @@ fn builtin_cem_tree_formatter(
     validate_builtin_cem_tree_formatter_binding(binding)?;
     let nodes = transform_template_cem_tree_nodes(subject)?;
     let nodes = transform_template_format_cem_tree_nodes(nodes, &binding.options);
-    let format_nodes = transform_template_cem_tree_format_nodes(
-        &nodes,
-        binding.identity.formatter_profile.as_deref(),
-        &binding.options,
-    );
-    Ok(serde_json::json!({
-        "kind": "cem-tree",
-        "contentType": binding.identity.target.content_type.clone(),
-        "schema": binding.identity.target.schema.clone(),
-        "category": binding.identity.target.category.clone(),
-        "mode": binding.identity.mode.as_str(),
-        "canonical": binding.identity.canonical,
-        "formatterProfile": binding.identity.formatter_profile.clone(),
-        "formatNodes": format_nodes,
-        "nodes": nodes,
-    }))
+    execute_transform_template_cemt_runtime_operation(
+        TransformTemplateCemtRuntimeOperation::CemFormatTreeEnvelope,
+        binding,
+        Value::Array(nodes),
+    )
 }
 
 fn validate_builtin_cem_tree_formatter_binding(
@@ -4819,6 +4808,88 @@ fn validate_builtin_cem_tree_formatter_binding(
         ));
     }
     Ok(())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TransformTemplateCemtRuntimeOperation {
+    CemFormatTreeFormatNodes,
+    CemFormatTreeEnvelope,
+}
+
+impl TransformTemplateCemtRuntimeOperation {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::CemFormatTreeFormatNodes => "cem.format-tree.format-nodes",
+            Self::CemFormatTreeEnvelope => "cem.format-tree.envelope",
+        }
+    }
+}
+
+fn execute_transform_template_cemt_runtime_operation(
+    operation: TransformTemplateCemtRuntimeOperation,
+    binding: &TransformTemplateEncodeBinding,
+    subject: Value,
+) -> Result<Value, String> {
+    match operation {
+        TransformTemplateCemtRuntimeOperation::CemFormatTreeFormatNodes => {
+            transform_template_cemt_runtime_format_tree_format_nodes(operation, binding, subject)
+        }
+        TransformTemplateCemtRuntimeOperation::CemFormatTreeEnvelope => {
+            transform_template_cemt_runtime_format_tree_envelope(operation, binding, subject)
+        }
+    }
+}
+
+fn transform_template_cemt_runtime_format_tree_format_nodes(
+    operation: TransformTemplateCemtRuntimeOperation,
+    binding: &TransformTemplateEncodeBinding,
+    subject: Value,
+) -> Result<Value, String> {
+    validate_builtin_cem_tree_formatter_binding(binding)?;
+    let nodes = transform_template_cemt_runtime_node_array_subject(operation, subject)?;
+    Ok(Value::Array(transform_template_cem_tree_format_nodes(
+        &nodes,
+        binding.identity.formatter_profile.as_deref(),
+        &binding.options,
+    )))
+}
+
+fn transform_template_cemt_runtime_format_tree_envelope(
+    operation: TransformTemplateCemtRuntimeOperation,
+    binding: &TransformTemplateEncodeBinding,
+    subject: Value,
+) -> Result<Value, String> {
+    validate_builtin_cem_tree_formatter_binding(binding)?;
+    let nodes = transform_template_cemt_runtime_node_array_subject(operation, subject)?;
+    let format_nodes = execute_transform_template_cemt_runtime_operation(
+        TransformTemplateCemtRuntimeOperation::CemFormatTreeFormatNodes,
+        binding,
+        Value::Array(nodes.clone()),
+    )?;
+    Ok(serde_json::json!({
+        "kind": "cem-tree",
+        "contentType": binding.identity.target.content_type.clone(),
+        "schema": binding.identity.target.schema.clone(),
+        "category": binding.identity.target.category.clone(),
+        "mode": binding.identity.mode.as_str(),
+        "canonical": binding.identity.canonical,
+        "formatterProfile": binding.identity.formatter_profile.clone(),
+        "formatNodes": format_nodes,
+        "nodes": nodes,
+    }))
+}
+
+fn transform_template_cemt_runtime_node_array_subject(
+    operation: TransformTemplateCemtRuntimeOperation,
+    subject: Value,
+) -> Result<Vec<Value>, String> {
+    match subject {
+        Value::Array(nodes) => Ok(nodes),
+        _ => Err(format!(
+            "{} expected formatted CEM tree node array subject",
+            operation.as_str()
+        )),
+    }
 }
 
 fn transform_template_cem_tree_nodes(subject: &Value) -> Result<Vec<Value>, String> {
@@ -17357,6 +17428,111 @@ mod tests {
                 ),
             )
             .expect("CEM tree artifact validates as a structured formatter output");
+    }
+
+    #[test]
+    fn cemt_runtime_operations_build_cem_tree_formatter_envelope() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        registry.register(cem_tree_format_function_descriptor());
+        let subject_source_map =
+            serde_json::to_value(source_map_stack(84, 4)).expect("subject source map serializes");
+        let subject = json!({
+            "kind": "element",
+            "name": "panel",
+            "sourceMap": subject_source_map,
+            "children": [{"kind": "text", "value": "Ready"}]
+        });
+        let request = TransformTemplateEncodeBindingRequest::new(
+            subject.clone(),
+            TransformTemplateEncodingTarget::new(
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                "cem-tree",
+            ),
+        )
+        .with_subject_type("cem-ast-node")
+        .with_options(TransformTemplateEncodeOptions {
+            formatter: Some("cem.format-tree".to_owned()),
+            canonical: true,
+            indent: Some("    ".to_owned()),
+            wrap_column: Some("96".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let binding = registry
+            .resolve_format_binding(&request, &BTreeSet::new())
+            .expect("CEM tree formatter resolves");
+        let formatted_nodes = transform_template_format_cem_tree_nodes(
+            transform_template_cem_tree_nodes(&subject).expect("subject normalizes to CEM nodes"),
+            &binding.options,
+        );
+
+        assert_eq!(
+            TransformTemplateCemtRuntimeOperation::CemFormatTreeFormatNodes.as_str(),
+            "cem.format-tree.format-nodes"
+        );
+        assert_eq!(
+            TransformTemplateCemtRuntimeOperation::CemFormatTreeEnvelope.as_str(),
+            "cem.format-tree.envelope"
+        );
+
+        let format_nodes = execute_transform_template_cemt_runtime_operation(
+            TransformTemplateCemtRuntimeOperation::CemFormatTreeFormatNodes,
+            &binding,
+            Value::Array(formatted_nodes.clone()),
+        )
+        .expect("formatNodes operation runs");
+        assert_eq!(format_nodes[0]["kind"], "format-marker");
+        assert_eq!(format_nodes[0]["name"], "cem.format-tree");
+        assert_eq!(
+            format_nodes[0]["formatterProfile"],
+            binding.identity.formatter_profile.as_deref().unwrap()
+        );
+        assert_eq!(
+            format_nodes
+                .as_array()
+                .expect("formatNodes are an array")
+                .len(),
+            6
+        );
+
+        let envelope = execute_transform_template_cemt_runtime_operation(
+            TransformTemplateCemtRuntimeOperation::CemFormatTreeEnvelope,
+            &binding,
+            Value::Array(formatted_nodes.clone()),
+        )
+        .expect("formatter envelope operation runs");
+        assert_eq!(envelope["kind"], "cem-tree");
+        assert_eq!(envelope["canonical"], true);
+        assert_eq!(envelope["formatterProfile"], "cem.format-tree");
+        assert_eq!(envelope["formatNodes"], format_nodes);
+        assert_eq!(envelope["nodes"], Value::Array(formatted_nodes));
+        assert_eq!(
+            cem_tree_format_decision(&envelope, "indent")["value"],
+            "    "
+        );
+        assert_eq!(
+            cem_tree_format_decision(&envelope, "wrapping")["value"],
+            "96"
+        );
+
+        binding
+            .artifact_from_value(envelope)
+            .validate_insertion(
+                &TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+                    &request.target,
+                    Some(TransformTemplateOutputProducedKind::CemTree),
+                ),
+            )
+            .expect("runtime operation envelope validates as CEM tree output");
+
+        let error = execute_transform_template_cemt_runtime_operation(
+            TransformTemplateCemtRuntimeOperation::CemFormatTreeEnvelope,
+            &binding,
+            json!({"kind": "element"}),
+        )
+        .expect_err("formatter envelope requires formatted node array");
+        assert!(error
+            .contains("cem.format-tree.envelope expected formatted CEM tree node array subject"));
     }
 
     #[test]
