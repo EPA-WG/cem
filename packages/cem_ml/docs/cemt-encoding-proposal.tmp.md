@@ -122,6 +122,68 @@ The CEMT output stack should provide:
 These capabilities are called from CEMT templates and declared by schema package
 metadata. They are not opaque host-side string filters.
 
+## Immediate TODO: CEMT Language Features
+
+### Needed For Formatter And Coloring
+
+- Implement template `call` with named parameters, including `with:*`
+  attributes, argument validation against target template params, defaults, and
+  source-map-aware diagnostics.
+- Add immutable local `let` bindings for computed layout, style, profile,
+  namespace, source-map, and node-shape decisions.
+- Add `match` dispatch over CEM tree node kind, name, attribute presence,
+  formatter role, color role, and layout mode.
+- Add deterministic `map` and `fold` operations over children, attributes,
+  slots, formatter nodes, color nodes, token streams, and chunk plans.
+- Add scoped traversal stack support for ancestor path, indentation depth,
+  namespace scope, inherited layout, source-map frames, semantic style role, and
+  active color capability. Stack frames must be scoped so they are popped when a
+  template call or traversal frame exits.
+- Add deferred queue support for post-order edits, wrapper insertions, color
+  mutations, diagnostics, namespace repairs, and writer-boundary checks that
+  must run after child traversal is complete.
+- Add accumulator helpers for `formatNodes`, `colorNodes`, diagnostics,
+  namespace declarations, output spans, and writer-boundary metadata.
+- Add tree patch operations for setting fields, replacing nodes, wrapping nodes,
+  prepending/appending formatter or color nodes, and applying queued edits to a
+  formatted CEM tree.
+- Add first-class diagnostics as emitted values so formatter/color templates can
+  report unsupported layout, inaccessible color, unsafe raw content, missing
+  metadata, or writer-boundary mismatch without falling back to host errors.
+- Document each formatter/coloring feature in the CEMT docs, add Rust unit and
+  integration tests for parser/lowering/runtime behavior, and add Storybook
+  showcases that demonstrate formatted tree output, colored tree output, and
+  final writer output as separate visible stages.
+
+### Sufficient Generic Programming Language Surface
+
+- Typed `param` declarations with required/default/nullable semantics for
+  modules, templates, and output functions.
+- Named template/function `call` with explicit arguments, lexical parameter
+  scope, import-qualified targets, recursion limits, and unknown-call
+  diagnostics.
+- Immutable `let` bindings and expression evaluation over JSON-compatible CEMT
+  values: null, boolean, number, string, array, object, node, token, chunk, and
+  diagnostic.
+- Conditional control flow through `if` and structural `match`, with exhaustive
+  or default branches for deterministic output profiles.
+- Sequence primitives: `map`, `filter`, `fold`, `flatMap`, stable `sortBy`,
+  `first`, `last`, `isEmpty`, `length`, and `join`.
+- Structured update primitives for immutable object/array/node patching instead
+  of arbitrary mutation.
+- Scoped stack, FIFO queue, and accumulator abstractions with deterministic
+  operations and bounded resource limits.
+- Error handling through typed diagnostics and explicit fallback branches rather
+  than unchecked exceptions.
+- Module/import visibility rules, package-qualified names, deterministic
+  registry lookup, and parity hooks for native paired implementations.
+- Resource limits for recursion depth, queue length, stack depth, output size,
+  and traversal budget so templates stay safe in canonical producer paths.
+- Document the generic language surface as a compact CEMT language reference,
+  add parser/lowering/runtime tests for each feature, add negative diagnostics
+  fixtures, and add Storybook showcases for representative formatter, coloring,
+  and generic transformation templates.
+
 ## Function Call Declaration
 
 Proposed expression-level function:

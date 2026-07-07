@@ -2305,19 +2305,25 @@ fn compile_transform_template(
         spec.execution_policy,
         diagnostics,
     )?;
-    validate_transform_template_call_sites(
-        spec.template,
+    let imported_modules = parse_imported_template_modules(&module_preflight, diagnostics)?;
+    validate_transform_template_call_sites_with_imported_modules(
+        &spec.template.uri,
         &module_options,
         &module_preflight,
+        &imported_modules,
         diagnostics,
     )?;
-    let compiled_module_options = module_options.clone();
+    let compiled_module_options = normalize_transform_template_module_call_arguments(
+        &module_options,
+        &module_preflight,
+        &imported_modules,
+    );
     match spec.adapter.compile(TransformTemplateCompileRequest {
         template: spec.template,
         entrypoint: spec.entrypoint,
         params: &params,
         data_bindings: spec.data_bindings,
-        module_options,
+        module_options: compiled_module_options.clone(),
         module_preflight,
         execution_policy: spec.execution_policy,
     }) {
@@ -2625,6 +2631,7 @@ fn accepted_param_names<'a>(
     accepted_names
 }
 
+#[cfg(test)]
 fn validate_transform_template_call_sites(
     template: &TemplateInput,
     module_options: &TransformTemplateModuleOptions,
@@ -2632,12 +2639,28 @@ fn validate_transform_template_call_sites(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<()> {
     let imported_modules = parse_imported_template_modules(module_preflight, diagnostics)?;
-    let mut has_fatal = !validate_module_call_sites(
+    validate_transform_template_call_sites_with_imported_modules(
         &template.uri,
+        module_options,
+        module_preflight,
+        &imported_modules,
+        diagnostics,
+    )
+}
+
+fn validate_transform_template_call_sites_with_imported_modules(
+    template_uri: &str,
+    module_options: &TransformTemplateModuleOptions,
+    module_preflight: &TransformTemplateModulePreflight,
+    imported_modules: &BTreeMap<String, TransformTemplateModuleOptions>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<()> {
+    let mut has_fatal = !validate_module_call_sites(
+        template_uri,
         module_options,
         None,
         module_preflight,
-        &imported_modules,
+        imported_modules,
         diagnostics,
     );
 
@@ -2650,7 +2673,7 @@ fn validate_transform_template_call_sites(
             imported_options,
             Some(module.uri.as_str()),
             module_preflight,
-            &imported_modules,
+            imported_modules,
             diagnostics,
         ) {
             has_fatal = true;
@@ -2662,6 +2685,29 @@ fn validate_transform_template_call_sites(
     } else {
         Some(())
     }
+}
+
+fn normalize_transform_template_module_call_arguments(
+    module_options: &TransformTemplateModuleOptions,
+    module_preflight: &TransformTemplateModulePreflight,
+    imported_modules: &BTreeMap<String, TransformTemplateModuleOptions>,
+) -> TransformTemplateModuleOptions {
+    let mut normalized = module_options.clone();
+    for call in &mut normalized.calls {
+        let target_options = match call.from.as_deref() {
+            Some(alias) => find_preflight_import(module_preflight, None, alias)
+                .and_then(|module| imported_modules.get(&module.uri)),
+            None => Some(module_options),
+        };
+        if let Some(target_options) = target_options {
+            call.arguments = normalize_transform_template_module_params(
+                &call.arguments,
+                Some(&call.template),
+                target_options,
+            );
+        }
+    }
+    normalized
 }
 
 fn validate_module_call_sites(
@@ -2724,6 +2770,15 @@ fn validate_module_call_sites(
                         ),
                     ));
                     has_fatal = true;
+                    continue;
+                }
+                if !validate_transform_template_call_arguments(
+                    module_uri,
+                    call,
+                    imported_options,
+                    diagnostics,
+                ) {
+                    has_fatal = true;
                 }
             }
             None => {
@@ -2737,8 +2792,156 @@ fn validate_module_call_sites(
                         ),
                     ));
                     has_fatal = true;
+                    continue;
+                }
+                if !validate_transform_template_call_arguments(
+                    module_uri,
+                    call,
+                    module_options,
+                    diagnostics,
+                ) {
+                    has_fatal = true;
                 }
             }
+        }
+    }
+
+    !has_fatal
+}
+
+fn validate_transform_template_call_arguments(
+    module_uri: &str,
+    call: &crate::transform_template::TransformTemplateModuleCallSite,
+    target_options: &TransformTemplateModuleOptions,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let params = call
+        .arguments
+        .iter()
+        .map(|(name, value)| (name.clone(), value.clone()))
+        .collect::<BTreeMap<_, _>>();
+    let params =
+        normalize_transform_template_module_params(&params, Some(&call.template), target_options);
+    let selected_entrypoint = Some(call.template.as_str());
+    let mut has_fatal = false;
+
+    let mut allowed_params = BTreeSet::new();
+    for declaration in &target_options.params {
+        if declaration.visibility == TransformTemplateModuleVisibility::Public
+            && !declaration.name.contains('.')
+        {
+            allowed_params.insert(declaration.name.clone());
+        }
+
+        if let Some(local_name) = declaration
+            .name
+            .strip_prefix(call.template.as_str())
+            .and_then(|remaining| remaining.strip_prefix('.'))
+        {
+            allowed_params.insert(local_name.to_owned());
+            allowed_params.insert(declaration.name.clone());
+        }
+    }
+
+    for name in params.keys() {
+        if !allowed_params.contains(name) {
+            diagnostics.push(template_module_diagnostic(
+                Some(module_uri),
+                TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE,
+                format!(
+                    "template call to `{}` passes undeclared param `{name}`",
+                    call.template
+                ),
+            ));
+            has_fatal = true;
+        }
+    }
+
+    let mut checked_alias_params = BTreeSet::new();
+    for declaration in &target_options.params {
+        let accepted_names = accepted_param_names(declaration, selected_entrypoint);
+        if accepted_names.is_empty() {
+            continue;
+        }
+
+        let display_name = accepted_names[0];
+        if !checked_alias_params.insert(display_name.to_owned()) {
+            continue;
+        }
+        let provided_names = accepted_names
+            .iter()
+            .filter(|name| params.contains_key(**name))
+            .copied()
+            .collect::<Vec<_>>();
+        if provided_names.len() > 1 {
+            diagnostics.push(template_module_diagnostic(
+                Some(module_uri),
+                TRANSFORM_TEMPLATE_PARAM_DUPLICATE_ALIAS_CODE,
+                format!(
+                    "template call to `{}` provides param `{display_name}` through duplicate aliases `{}`",
+                    call.template,
+                    provided_names.join("`, `")
+                ),
+            ));
+            has_fatal = true;
+        }
+    }
+
+    let mut checked_typed_params = BTreeSet::new();
+    for declaration in &target_options.params {
+        let accepted_names = accepted_param_names(declaration, selected_entrypoint);
+        if accepted_names.is_empty() {
+            continue;
+        }
+
+        let display_name = accepted_names[0];
+        if !checked_typed_params.insert(display_name.to_owned()) {
+            continue;
+        }
+
+        for name in accepted_names {
+            let Some(value) = params.get(name) else {
+                continue;
+            };
+            if !declaration.value_type.accepts(value, declaration.nullable) {
+                diagnostics.push(template_module_diagnostic(
+                    Some(module_uri),
+                    TRANSFORM_TEMPLATE_PARAM_TYPE_CODE,
+                    format!(
+                        "template call to `{}` param `{name}` value does not match declared type `{}`",
+                        call.template,
+                        declaration.value_type.as_contract_name()
+                    ),
+                ));
+                has_fatal = true;
+            }
+        }
+    }
+
+    let mut checked_required_params = BTreeSet::new();
+    for declaration in &target_options.params {
+        if !declaration.required || declaration.default_value.is_some() {
+            continue;
+        }
+
+        let accepted_names = accepted_param_names(declaration, selected_entrypoint);
+        if accepted_names.is_empty() {
+            continue;
+        }
+        let display_name = accepted_names[0];
+        if !checked_required_params.insert(display_name.to_owned()) {
+            continue;
+        }
+        if !accepted_names.iter().any(|name| params.contains_key(*name)) {
+            diagnostics.push(template_module_diagnostic(
+                Some(module_uri),
+                TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE,
+                format!(
+                    "template call to `{}` is missing required param `{display_name}`",
+                    call.template
+                ),
+            ));
+            has_fatal = true;
         }
     }
 
@@ -5820,6 +6023,7 @@ mod tests {
                 owner_entrypoint: None,
                 from: Some("ui".to_owned()),
                 template: "card".to_owned(),
+                arguments: BTreeMap::new(),
             }],
             ..TransformTemplateModuleOptions::default()
         };
@@ -5916,6 +6120,7 @@ mod tests {
                 owner_entrypoint: Some("card".to_owned()),
                 from: None,
                 template: "missing".to_owned(),
+                arguments: BTreeMap::new(),
             }],
             ..TransformTemplateModuleOptions::default()
         };
@@ -5974,7 +6179,7 @@ mod tests {
         let data_bindings = vec!["input".to_owned()];
         let mut diagnostics = Vec::new();
 
-        let compiled = compile_transform_template(
+        let compiled = match compile_transform_template(
             TransformTemplateCompileSpec {
                 context: &ctx(),
                 adapter: &adapter,
@@ -5987,8 +6192,10 @@ mod tests {
                 execution_policy: TransformExecutionPolicy::default(),
             },
             &mut diagnostics,
-        )
-        .expect("template compiles");
+        ) {
+            Some(compiled) => compiled,
+            None => panic!("template should compile: {diagnostics:?}"),
+        };
 
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
         assert_eq!(compiled.module_options.encode_expressions.len(), 1);
@@ -6001,6 +6208,61 @@ mod tests {
             compiled.module_options.output_functions[0].name,
             "html.text"
         );
+    }
+
+    #[test]
+    fn compile_transform_template_normalizes_call_arguments_for_render() {
+        let template = TemplateInput {
+            uri: "templates/calls.cemt".to_owned(),
+            bytes: br#"{@doc cem-ml 1}
+{module |
+  {template @name="main" @visibility="public" |
+    {body | {call @template="badge" @with:title=" Ready " @with:count="2" @with:enabled="true"}}
+  }
+  {template @name="badge" |
+    {param @name="title" @type="string" @required="true"}
+    {param @name="count" @type="integer" @required="true"}
+    {param @name="enabled" @type="boolean" @default="false"}
+    {body | {span | Badge}}
+  }
+}"#
+            .to_vec(),
+            identity: Some(FormatIdentity {
+                content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+                schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            root_scope: ScopeConfig::default(),
+        };
+        let adapter: Arc<dyn TransformTemplateAdapter> = Arc::new(ReadyCemtHtmlExportAdapter);
+        let params = BTreeMap::new();
+        let data_bindings = Vec::new();
+        let mut diagnostics = Vec::new();
+
+        let compiled = match compile_transform_template(
+            TransformTemplateCompileSpec {
+                context: &ctx(),
+                adapter: &adapter,
+                template: &template,
+                template_kind: TransformTemplateKind::CemNative,
+                entrypoint: &TransformTemplateEntrypoint::named("main"),
+                params: &params,
+                data_bindings: &data_bindings,
+                module_options: TransformTemplateModuleOptions::default(),
+                execution_policy: TransformExecutionPolicy::default(),
+            },
+            &mut diagnostics,
+        ) {
+            Some(compiled) => compiled,
+            None => panic!("template should compile: {diagnostics:?}"),
+        };
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let call = &compiled.module_options.calls[0];
+        assert_eq!(call.template, "badge");
+        assert_eq!(call.arguments.get("title"), Some(&json!(" Ready ")));
+        assert_eq!(call.arguments.get("count"), Some(&json!(2)));
+        assert_eq!(call.arguments.get("enabled"), Some(&json!(true)));
     }
 
     #[test]
@@ -7597,6 +7859,7 @@ mod tests {
                 owner_entrypoint: Some("card".to_owned()),
                 from: None,
                 template: "helper".to_owned(),
+                arguments: BTreeMap::new(),
             }],
             ..TransformTemplateModuleOptions::default()
         };
@@ -7621,6 +7884,7 @@ mod tests {
                 owner_entrypoint: Some("card".to_owned()),
                 from: None,
                 template: "missing".to_owned(),
+                arguments: BTreeMap::new(),
             }],
             ..TransformTemplateModuleOptions::default()
         };
@@ -7637,6 +7901,174 @@ mod tests {
         assert!(diagnostics
             .iter()
             .any(|diag| diag.code == TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE));
+    }
+
+    #[test]
+    fn template_module_call_validation_accepts_typed_call_arguments() {
+        let template = template("main.cem", b"{main}");
+        let options = TransformTemplateModuleOptions {
+            entrypoints: vec![
+                crate::transform_template::TransformTemplateModuleEntrypointDeclaration {
+                    name: "badge".to_owned(),
+                    visibility: TransformTemplateModuleVisibility::Private,
+                },
+            ],
+            params: vec![
+                TransformTemplateModuleParamDeclaration {
+                    name: "badge.title".to_owned(),
+                    value_type: TransformTemplateModuleParamType::String,
+                    nullable: false,
+                    default_value: None,
+                    required: true,
+                    visibility: TransformTemplateModuleVisibility::Private,
+                },
+                TransformTemplateModuleParamDeclaration {
+                    name: "badge.count".to_owned(),
+                    value_type: TransformTemplateModuleParamType::Integer,
+                    nullable: false,
+                    default_value: None,
+                    required: true,
+                    visibility: TransformTemplateModuleVisibility::Private,
+                },
+                TransformTemplateModuleParamDeclaration {
+                    name: "badge.options".to_owned(),
+                    value_type: TransformTemplateModuleParamType::Object,
+                    nullable: false,
+                    default_value: Some(json!({})),
+                    required: false,
+                    visibility: TransformTemplateModuleVisibility::Private,
+                },
+            ],
+            calls: vec![crate::transform_template::TransformTemplateModuleCallSite {
+                owner_entrypoint: Some("card".to_owned()),
+                from: None,
+                template: "badge".to_owned(),
+                arguments: BTreeMap::from([
+                    ("count".to_owned(), json!("2")),
+                    ("options".to_owned(), json!(r#"{"compact":true}"#)),
+                    ("title".to_owned(), json!(" Ready ")),
+                ]),
+            }],
+            ..TransformTemplateModuleOptions::default()
+        };
+        let mut diagnostics = Vec::new();
+
+        let validated = validate_transform_template_call_sites(
+            &template,
+            &options,
+            &TransformTemplateModulePreflight::default(),
+            &mut diagnostics,
+        );
+
+        assert!(validated.is_some(), "{diagnostics:?}");
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn template_module_call_validation_rejects_invalid_call_arguments() {
+        let template = template("main.cem", b"{main}");
+        let options = TransformTemplateModuleOptions {
+            entrypoints: vec![
+                crate::transform_template::TransformTemplateModuleEntrypointDeclaration {
+                    name: "badge".to_owned(),
+                    visibility: TransformTemplateModuleVisibility::Private,
+                },
+            ],
+            params: vec![
+                TransformTemplateModuleParamDeclaration {
+                    name: "badge.title".to_owned(),
+                    value_type: TransformTemplateModuleParamType::String,
+                    nullable: false,
+                    default_value: None,
+                    required: true,
+                    visibility: TransformTemplateModuleVisibility::Private,
+                },
+                TransformTemplateModuleParamDeclaration {
+                    name: "badge.count".to_owned(),
+                    value_type: TransformTemplateModuleParamType::Integer,
+                    nullable: false,
+                    default_value: None,
+                    required: false,
+                    visibility: TransformTemplateModuleVisibility::Private,
+                },
+            ],
+            calls: vec![crate::transform_template::TransformTemplateModuleCallSite {
+                owner_entrypoint: Some("card".to_owned()),
+                from: None,
+                template: "badge".to_owned(),
+                arguments: BTreeMap::from([
+                    ("count".to_owned(), json!("not-int")),
+                    ("unexpected".to_owned(), json!("value")),
+                ]),
+            }],
+            ..TransformTemplateModuleOptions::default()
+        };
+        let mut diagnostics = Vec::new();
+
+        let validated = validate_transform_template_call_sites(
+            &template,
+            &options,
+            &TransformTemplateModulePreflight::default(),
+            &mut diagnostics,
+        );
+
+        assert!(validated.is_none());
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE));
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE));
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_PARAM_TYPE_CODE));
+    }
+
+    #[test]
+    fn template_module_call_validation_rejects_duplicate_argument_aliases() {
+        let template = template("main.cem", b"{main}");
+        let options = TransformTemplateModuleOptions {
+            entrypoints: vec![
+                crate::transform_template::TransformTemplateModuleEntrypointDeclaration {
+                    name: "badge".to_owned(),
+                    visibility: TransformTemplateModuleVisibility::Private,
+                },
+            ],
+            params: vec![TransformTemplateModuleParamDeclaration {
+                name: "badge.title".to_owned(),
+                value_type: TransformTemplateModuleParamType::String,
+                nullable: false,
+                default_value: None,
+                required: true,
+                visibility: TransformTemplateModuleVisibility::Private,
+            }],
+            calls: vec![crate::transform_template::TransformTemplateModuleCallSite {
+                owner_entrypoint: Some("card".to_owned()),
+                from: None,
+                template: "badge".to_owned(),
+                arguments: BTreeMap::from([
+                    ("badge.title".to_owned(), json!("Qualified")),
+                    ("title".to_owned(), json!("Local")),
+                ]),
+            }],
+            ..TransformTemplateModuleOptions::default()
+        };
+        let mut diagnostics = Vec::new();
+
+        let validated = validate_transform_template_call_sites(
+            &template,
+            &options,
+            &TransformTemplateModulePreflight::default(),
+            &mut diagnostics,
+        );
+
+        assert!(validated.is_none());
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_PARAM_DUPLICATE_ALIAS_CODE));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE));
     }
 
     #[test]
@@ -7665,6 +8097,7 @@ mod tests {
                 owner_entrypoint: Some("card".to_owned()),
                 from: Some("ui".to_owned()),
                 template: "icon".to_owned(),
+                arguments: BTreeMap::new(),
             }],
             ..TransformTemplateModuleOptions::default()
         };
@@ -7717,6 +8150,7 @@ mod tests {
                 owner_entrypoint: Some("card".to_owned()),
                 from: Some("ui".to_owned()),
                 template: "icon".to_owned(),
+                arguments: BTreeMap::new(),
             }],
             ..TransformTemplateModuleOptions::default()
         };

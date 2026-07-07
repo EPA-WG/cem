@@ -12162,6 +12162,8 @@ pub struct TransformTemplateModuleCallSite {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub from: Option<String>,
     pub template: String,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub arguments: BTreeMap<String, Value>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -12655,6 +12657,7 @@ impl NativeTemplateModuleLowerer<'_> {
             owner_entrypoint: owner_entrypoint.map(str::to_owned),
             from: optional_trimmed_attr(&attrs, "from"),
             template,
+            arguments: call_arguments(&attrs),
         });
     }
 
@@ -13026,6 +13029,19 @@ fn optional_trimmed_attr(
     attr_value(attrs, "", local)
         .map(|value| value.trim().to_owned())
         .filter(|value| !value.is_empty())
+}
+
+fn call_arguments(attrs: &BTreeMap<(String, String), Option<String>>) -> BTreeMap<String, Value> {
+    attrs
+        .iter()
+        .filter(|((prefix, local), _)| prefix == "with" && !local.trim().is_empty())
+        .map(|((_, local), value)| {
+            (
+                local.trim().to_owned(),
+                Value::String(value.clone().unwrap_or_default()),
+            )
+        })
+        .collect()
 }
 
 fn output_function_owner(name: &str) -> Option<String> {
@@ -14451,13 +14467,58 @@ mod tests {
                     owner_entrypoint: Some("card".to_owned()),
                     from: None,
                     template: "badge".to_owned(),
+                    arguments: BTreeMap::new(),
                 },
                 TransformTemplateModuleCallSite {
                     owner_entrypoint: Some("card".to_owned()),
                     from: Some("ui".to_owned()),
                     template: "icon".to_owned(),
+                    arguments: BTreeMap::new(),
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn cem_native_template_module_parser_lowers_call_arguments() {
+        let response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "templates/calls.cem",
+                    r#"{@doc cem-ml 1}
+{module |
+  {template @name="card" @visibility="public" |
+    {body | {call @template="badge" @with:title=" Ready " @with:count="2"}}
+  }
+  {template @name="badge" |
+    {param @name="title" @type="string" @required="true"}
+    {param @name="count" @type="integer" @default="1"}
+    {body | {span | Badge}}
+  }
+}"#,
+                    Some(FormatIdentity {
+                        schema: Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            });
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        assert_eq!(
+            response.module_options.calls,
+            vec![TransformTemplateModuleCallSite {
+                owner_entrypoint: Some("card".to_owned()),
+                from: None,
+                template: "badge".to_owned(),
+                arguments: BTreeMap::from([
+                    ("count".to_owned(), json!("2")),
+                    ("title".to_owned(), json!(" Ready ")),
+                ]),
+            }]
         );
     }
 
@@ -21805,6 +21866,7 @@ mod tests {
                 owner_entrypoint: Some("card".to_owned()),
                 from: Some("ui".to_owned()),
                 template: "icon".to_owned(),
+                arguments: BTreeMap::new(),
             }]
         );
     }
