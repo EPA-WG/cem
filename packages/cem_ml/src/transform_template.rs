@@ -20324,6 +20324,170 @@ mod tests {
     }
 
     #[test]
+    fn cemt_formatter_coloring_pipeline_example_executes_before_writer() {
+        let response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.cemt",
+                    include_str!(
+                        "../schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.cemt"
+                    ),
+                    Some(FormatIdentity {
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            });
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        let registry =
+            TransformTemplateOutputFunctionRegistry::from_module_options(&response.module_options);
+        let host_capabilities = BTreeSet::new();
+        let value_bindings = BTreeMap::new();
+        let subject_source_map =
+            serde_json::to_value(source_map_stack(200, 7)).expect("subject source map serializes");
+        let subject = json!({
+            "kind": "element",
+            "name": "article",
+            "sourceMap": subject_source_map,
+            "attributes": [],
+            "children": [{"kind": "text", "value": "Ready", "sourceMap": subject_source_map}]
+        });
+
+        let format_request = TransformTemplateEncodeBindingRequest::new(
+            subject.clone(),
+            TransformTemplateEncodingTarget::new(
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                "cem-tree",
+            ),
+        )
+        .with_subject_type("cem-ast-node")
+        .with_options(TransformTemplateEncodeOptions {
+            formatter: Some("acme.showcase.format-tree".to_owned()),
+            canonical: true,
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let format_binding = registry
+            .resolve_format_binding(&format_request, &host_capabilities)
+            .expect("showcase formatter resolves");
+        let mut reject_fallback = |binding: &TransformTemplateEncodeBinding, _subject: &Value| {
+            Err(format!(
+                "unexpected fallback for `{}`",
+                binding.function.name
+            ))
+        };
+        let formatted = execute_transform_template_encode_binding(
+            &format_binding,
+            &subject,
+            &TransformTemplateEncodeEvaluationContext {
+                registry: &registry,
+                value_bindings: &value_bindings,
+                host_capabilities: &host_capabilities,
+                output_color_type: None,
+                uri: Some(
+                    "schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.cemt",
+                ),
+            },
+            &mut reject_fallback,
+        )
+        .expect("showcase formatter body executes");
+
+        assert_eq!(formatted["kind"], "cem-tree");
+        assert_eq!(formatted["formatterProfile"], "acme.showcase.format-tree");
+        assert_eq!(
+            cem_tree_format_decision(&formatted, "showcase")["value"],
+            "formatted tree before writer"
+        );
+        assert!(formatted.get("colorNodes").is_none());
+        assert!(formatted.get("colored").is_none());
+        let formatted_artifact = format_binding.artifact_from_value(formatted.clone());
+        let writer_context = TransformTemplateEncodedArtifactInsertionContext {
+            produces: Some(TransformTemplateOutputProducedKind::Text),
+            content_type: HTML_CONTENT_TYPE.to_owned(),
+            schema: HTML_SCHEMA_URI.to_owned(),
+            category: Some("html-fragment".to_owned()),
+            context: Some("fragment".to_owned()),
+            formatter_profile: Some("acme.showcase.format-tree".to_owned()),
+            color_profile: Some("classes".to_owned()),
+            color_capability: None,
+            binary_framing: None,
+            mode: Some(TransformTemplateEncodedArtifactMode::Fragment),
+            canonical: Some(true),
+            source_map_policy: Some(TransformTemplateSourceMapPolicy::Generated),
+        };
+        let formatted_writer_error = transform_template_writer_cem_tree_artifact_to_text(
+            &formatted_artifact,
+            &writer_context,
+        )
+        .expect_err("writer rejects formatted-only tree");
+        assert!(formatted_writer_error.contains("run `cem.color-tree` before the writer"));
+
+        let color_request = TransformTemplateEncodeBindingRequest::new(
+            formatted,
+            TransformTemplateEncodingTarget::new(
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                "cem-tree",
+            ),
+        )
+        .with_subject_type("cem-tree")
+        .with_options(TransformTemplateEncodeOptions {
+            colorizer: Some("acme.showcase.color-tree".to_owned()),
+            color_profile: Some("classes".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let color_binding = registry
+            .resolve_color_binding(&color_request, &host_capabilities)
+            .expect("showcase colorizer resolves")
+            .into_encode_binding();
+        let colored = execute_transform_template_encode_binding(
+            &color_binding,
+            &color_request.subject,
+            &TransformTemplateEncodeEvaluationContext {
+                registry: &registry,
+                value_bindings: &value_bindings,
+                host_capabilities: &host_capabilities,
+                output_color_type: None,
+                uri: Some(
+                    "schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.cemt",
+                ),
+            },
+            &mut reject_fallback,
+        )
+        .expect("showcase colorizer body executes");
+
+        assert_eq!(colored["colored"], true);
+        assert_eq!(colored["colorProfile"], "classes");
+        assert_eq!(
+            cem_tree_color_decision(&colored, "showcase")["value"],
+            "colored tree before writer"
+        );
+        assert_eq!(
+            cem_tree_writer_attribute_value(&colored["nodes"][0], "class"),
+            "cem-color cem-color-syntax-name"
+        );
+        let colored_artifact = color_binding.artifact_from_value(colored);
+        let writer_artifact =
+            transform_template_writer_cem_tree_artifact_to_text(&colored_artifact, &writer_context)
+                .expect("writer consumes colored CEM tree");
+        assert_eq!(
+            writer_artifact.identity.produces,
+            TransformTemplateOutputProducedKind::Text
+        );
+        let output = writer_artifact
+            .value
+            .as_str()
+            .expect("writer output is text");
+        assert!(output.contains("<article class=\"cem-color cem-color-syntax-name\""));
+        assert!(output.contains("<span class=\"cem-color cem-color-syntax-string\""));
+    }
+
+    #[test]
     fn cemt_module_parser_lowers_lossy_output_function_metadata() {
         let response =
             parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {

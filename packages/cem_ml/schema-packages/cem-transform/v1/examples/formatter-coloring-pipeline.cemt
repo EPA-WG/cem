@@ -1,0 +1,160 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {format-function
+        @name="acme.showcase.format-tree"
+        @visibility="public"
+        @category="cem-tree"
+        @subject="cem-ast-node"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @extends="cem.format-tree"
+        @canonical=true
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="json" @required=true}
+        {body |
+            {$ appendFormatNode(
+                {
+                    kind: "cem-tree",
+                    contentType: "application/cem",
+                    schema: "https://cem.dev/ns/cem-ml/1",
+                    category: "cem-tree",
+                    mode: "fragment",
+                    canonical: true,
+                    formatterProfile: "acme.showcase.format-tree",
+                    formatNodes: [{
+                        kind: "format-marker",
+                        name: "cem.format-tree",
+                        formatterRole: "formatter.boundary",
+                        formatterProfile: "acme.showcase.format-tree"
+                    }],
+                    nodes: [{
+                        kind: "element",
+                        name: $subject.name,
+                        sourceMap: $subject.sourceMap,
+                        attributes: $subject.attributes,
+                        children: $subject.children,
+                        formatLayout: {
+                            kind: "format-decision",
+                            formatterRole: "formatter.layout",
+                            value: "inline"
+                        }
+                    }]
+                },
+                {
+                    kind: "format-decision",
+                    name: "showcase",
+                    formatterRole: "formatter.showcase",
+                    value: "formatted tree before writer"
+                }
+            ) }
+        }
+    }
+
+    {color-function
+        @name="acme.showcase.color-tree"
+        @visibility="public"
+        @category="cem-tree"
+        @subject="cem-tree"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @extends="cem.color-tree"
+        @profile="classes"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body |
+            {$ applyEdits(
+                appendColorNode(
+                    merge($subject, {
+                        colored: true,
+                        colorProfile: "classes",
+                        colorNodes: [{
+                            kind: "color-marker",
+                            name: "cem.color-tree",
+                            colorizerRole: "colorizer.boundary",
+                            colorProfile: "classes"
+                        }]
+                    }),
+                    {
+                        kind: "color-decision",
+                        name: "showcase",
+                        colorizerRole: "colorizer.showcase",
+                        value: "colored tree before writer"
+                    }
+                ),
+                [
+                    {
+                        kind: "set",
+                        path: "nodes.0.colorRole",
+                        value: "syntax.name"
+                    },
+                    {
+                        kind: "set",
+                        path: "nodes.0.style",
+                        value: {
+                            colorRole: "syntax.name",
+                            colorProfile: "classes"
+                        }
+                    },
+                    {
+                        kind: "set",
+                        path: "nodes.0.writerAttributeNodes",
+                        value: [{
+                            kind: "writer-attribute",
+                            name: "class",
+                            value: "cem-color cem-color-syntax-name",
+                            colorizerOwned: true,
+                            colorizerRole: "colorizer.writer-attribute",
+                            colorProfile: "classes"
+                        }]
+                    },
+                    {
+                        kind: "wrap",
+                        path: "nodes.0.children.0",
+                        wrapper: {
+                            kind: "element",
+                            name: "span",
+                            colorRole: "syntax.string",
+                            style: {
+                                colorRole: "syntax.string",
+                                colorProfile: "classes"
+                            },
+                            writerAttributeNodes: [{
+                                kind: "writer-attribute",
+                                name: "class",
+                                value: "cem-color cem-color-syntax-string",
+                                colorizerOwned: true,
+                                colorizerRole: "colorizer.writer-attribute",
+                                colorProfile: "classes"
+                            }],
+                            colorWrapperNodes: [
+                                {
+                                    kind: "color-wrapper",
+                                    name: "span",
+                                    colorizerOwned: true,
+                                    colorizerRole: "colorizer.text-wrapper",
+                                    colorProfile: "classes"
+                                },
+                                {
+                                    kind: "color-decision",
+                                    name: "wrapped-role",
+                                    value: "syntax.string",
+                                    colorizerOwned: true,
+                                    colorizerRole: "colorizer.wrapped-role",
+                                    colorProfile: "classes"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            ) }
+        }
+    }
+}

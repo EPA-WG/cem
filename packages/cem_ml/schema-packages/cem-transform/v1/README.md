@@ -137,6 +137,7 @@ CLI validation integration tests.
 | [`basic-transform.cemt`](examples/basic-transform.cemt) | Minimal CEMT module with one template body. | Pass |
 | [`module-transform.cemt`](examples/module-transform.cemt) | Converter template module with import metadata, params, nested output, and `with:*` data propagation. | Pass |
 | [`function-declarations.cemt`](examples/function-declarations.cemt) | Encoding, formatting, color, and custom function declarations for CEMT output production. | Pass |
+| [`formatter-coloring-pipeline.cemt`](examples/formatter-coloring-pipeline.cemt) | Executable CEM tree formatter and colorizer bodies that materialize formatted and colored CEM trees before the writer phase. | Pass |
 | [`invalid-missing-required-attribute.cemt`](examples/invalid-missing-required-attribute.cemt) | Template declaration missing the inherited required `name` attribute. | Fail with `cem.schema_model.missing_required_attribute` |
 | [`invalid-function-missing-category.cemt`](examples/invalid-function-missing-category.cemt) | Encoding function declaration missing required output category metadata. | Fail with `cem.schema_model.missing_required_attribute` |
 | [`invalid-function-missing-contract-metadata.cemt`](examples/invalid-function-missing-contract-metadata.cemt) | Encoding function declaration missing required canonical and streamable contract metadata. | Fail with `cem.schema_model.missing_required_attribute` |
