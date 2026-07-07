@@ -75,6 +75,8 @@ pub enum FixtureCmd {
     Roundtrip(FixtureRoundtripArgs),
     #[command(about = "Evaluate declared CEMT/native converter parity fixtures")]
     Parity(FixtureParityArgs),
+    #[command(about = "Generate the CEMT formatter/coloring pipeline stage fixture")]
+    CemtPipeline(FixtureCemtPipelineArgs),
 }
 
 #[derive(Subcommand, Debug)]
@@ -775,6 +777,16 @@ pub struct FixtureParityArgs {
     pub report: ReportOptions,
 }
 
+#[derive(Args, Debug)]
+pub struct FixtureCemtPipelineArgs {
+    #[arg(
+        long,
+        value_name = "PATH",
+        help = "Write the generated CEM-native fixture to PATH; defaults to stdout"
+    )]
+    pub out: Option<PathBuf>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1217,6 +1229,8 @@ mod tests {
     fn fixture_subcommands_parse() {
         try_parse(&["fixture", "validate"]).unwrap();
         try_parse(&["fixture", "roundtrip"]).unwrap();
+        try_parse(&["fixture", "cemt-pipeline"]).unwrap();
+        try_parse(&["fixture", "cemt-pipeline", "--out", "pipeline.fixture.cem"]).unwrap();
         try_parse(&["fixture", "validate", "a.cem", "b.cem"]).unwrap();
     }
 

@@ -17224,6 +17224,505 @@ fn content_type_essence(content_type: &str) -> String {
         .to_ascii_lowercase()
 }
 
+const CEMT_FORMATTER_COLORING_PIPELINE_URI: &str =
+    "schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.cemt";
+const CEMT_FORMATTER_COLORING_PIPELINE_SOURCE: &str =
+    include_str!("../schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.cemt");
+
+pub fn cemt_formatter_coloring_pipeline_fixture_source() -> Result<String, String> {
+    let response = parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+        template: cemt_fixture_template_input(
+            CEMT_FORMATTER_COLORING_PIPELINE_URI,
+            CEMT_FORMATTER_COLORING_PIPELINE_SOURCE,
+        ),
+    });
+    if !response.diagnostics.is_empty() {
+        return Err(response
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>()
+            .join("; "));
+    }
+
+    let registry =
+        TransformTemplateOutputFunctionRegistry::from_module_options(&response.module_options);
+    let host_capabilities = BTreeSet::new();
+    let value_bindings = BTreeMap::new();
+    let source_ast = serde_json::json!({
+        "kind": "element",
+        "name": "article",
+        "sourceMap": null,
+        "attributes": [],
+        "children": [{"kind": "text", "value": "Ready"}]
+    });
+    let format_request = TransformTemplateEncodeBindingRequest::new(
+        source_ast.clone(),
+        TransformTemplateEncodingTarget::new(CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, "cem-tree"),
+    )
+    .with_subject_type("cem-ast-node")
+    .with_options(TransformTemplateEncodeOptions {
+        formatter: Some("acme.showcase.format-tree".to_owned()),
+        canonical: true,
+        ..TransformTemplateEncodeOptions::default()
+    });
+    let format_binding = registry
+        .resolve_format_binding(&format_request, &host_capabilities)
+        .map_err(|error| {
+            error
+                .diagnostic(Some(CEMT_FORMATTER_COLORING_PIPELINE_URI))
+                .message
+        })?;
+    let mut reject_fallback = |binding: &TransformTemplateEncodeBinding, _subject: &Value| {
+        Err(format!(
+            "unexpected fallback while generating CEMT fixture for `{}`",
+            binding.function.name
+        ))
+    };
+    let formatted = execute_transform_template_encode_binding(
+        &format_binding,
+        &source_ast,
+        &TransformTemplateEncodeEvaluationContext {
+            registry: &registry,
+            value_bindings: &value_bindings,
+            host_capabilities: &host_capabilities,
+            output_color_type: None,
+            uri: Some(CEMT_FORMATTER_COLORING_PIPELINE_URI),
+        },
+        &mut reject_fallback,
+    )?;
+
+    let color_request = TransformTemplateEncodeBindingRequest::new(
+        formatted.clone(),
+        TransformTemplateEncodingTarget::new(CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, "cem-tree"),
+    )
+    .with_subject_type("cem-tree")
+    .with_options(TransformTemplateEncodeOptions {
+        colorizer: Some("acme.showcase.color-tree".to_owned()),
+        color_profile: Some("classes".to_owned()),
+        ..TransformTemplateEncodeOptions::default()
+    });
+    let color_binding = registry
+        .resolve_color_binding(&color_request, &host_capabilities)
+        .map_err(|error| {
+            error
+                .diagnostic(Some(CEMT_FORMATTER_COLORING_PIPELINE_URI))
+                .message
+        })?
+        .into_encode_binding();
+    let colorizer = color_binding.function.name.clone();
+    let colored = execute_transform_template_encode_binding(
+        &color_binding,
+        &color_request.subject,
+        &TransformTemplateEncodeEvaluationContext {
+            registry: &registry,
+            value_bindings: &value_bindings,
+            host_capabilities: &host_capabilities,
+            output_color_type: None,
+            uri: Some(CEMT_FORMATTER_COLORING_PIPELINE_URI),
+        },
+        &mut reject_fallback,
+    )?;
+
+    let writer_context = TransformTemplateEncodedArtifactInsertionContext {
+        produces: Some(TransformTemplateOutputProducedKind::Text),
+        content_type: HTML_CONTENT_TYPE.to_owned(),
+        schema: HTML_SCHEMA_URI.to_owned(),
+        category: Some("html-fragment".to_owned()),
+        context: Some("fragment".to_owned()),
+        formatter_profile: Some("acme.showcase.format-tree".to_owned()),
+        color_profile: Some("classes".to_owned()),
+        color_capability: None,
+        binary_framing: None,
+        mode: Some(TransformTemplateEncodedArtifactMode::Fragment),
+        canonical: Some(true),
+        source_map_policy: Some(TransformTemplateSourceMapPolicy::Generated),
+    };
+    transform_template_writer_cem_tree_artifact_to_text(
+        &color_binding.artifact_from_value(colored.clone()),
+        &writer_context,
+    )?;
+
+    render_cemt_formatter_coloring_pipeline_fixture(&formatted, &colored, &colorizer)
+}
+
+fn cemt_fixture_template_input(uri: &str, source: &str) -> TemplateInput {
+    TemplateInput {
+        uri: uri.to_owned(),
+        bytes: source.as_bytes().to_vec(),
+        identity: Some(FormatIdentity {
+            schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        }),
+        root_scope: ScopeConfig::default(),
+    }
+}
+
+fn render_cemt_formatter_coloring_pipeline_fixture(
+    formatted: &Value,
+    colored: &Value,
+    colorizer: &str,
+) -> Result<String, String> {
+    let formatter = cemt_fixture_required_str(formatted, "formatterProfile")?;
+    let color_profile = cemt_fixture_required_str(colored, "colorProfile")?;
+    let formatted_stage = cemt_fixture_render_cem_tree(formatted)?;
+    let colored_stage = cemt_fixture_render_cem_tree(colored)?;
+    Ok(format!(
+        r#"@doc cem-ml 1
+@ns showcase = "https://cem.dev/ns/showcase/1"
+@default showcase
+
+{{cemt-output-pipeline-fixture
+    @source="{CEMT_FORMATTER_COLORING_PIPELINE_URI}"
+    @formatter="{formatter}"
+    @colorizer="{colorizer}"
+    @color-profile="{color_profile}" |
+    {{stage
+        @name="source-ast"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @category="cem-fragment" |
+```cem
+{{article |
+    {{text | Ready}}
+}}
+```
+    }}
+
+    {{stage
+        @name="formatted-cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @category="cem-tree" |
+```cem
+{formatted_stage}
+```
+    }}
+
+    {{stage
+        @name="colored-cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @category="cem-tree" |
+```cem
+{colored_stage}
+```
+    }}
+}}
+"#
+    ))
+}
+
+fn cemt_fixture_render_cem_tree(tree: &Value) -> Result<String, String> {
+    let mut attributes = vec![
+        cemt_fixture_attribute(
+            "content-type",
+            cemt_fixture_required_str(tree, "contentType")?,
+        ),
+        cemt_fixture_attribute("schema", cemt_fixture_required_str(tree, "schema")?),
+        cemt_fixture_attribute("category", cemt_fixture_required_str(tree, "category")?),
+        cemt_fixture_attribute("mode", cemt_fixture_required_str(tree, "mode")?),
+        cemt_fixture_bool_attribute("canonical", cemt_fixture_required_bool(tree, "canonical")?),
+        cemt_fixture_attribute(
+            "formatter-profile",
+            cemt_fixture_required_str(tree, "formatterProfile")?,
+        ),
+    ];
+    if cemt_fixture_optional_bool(tree, "colored") == Some(true) {
+        attributes.push(cemt_fixture_bool_attribute("colored", true));
+    }
+    if let Some(color_profile) = cemt_fixture_optional_str(tree, "colorProfile") {
+        attributes.push(cemt_fixture_attribute("color-profile", color_profile));
+    }
+
+    let mut children = Vec::new();
+    children.push(cemt_fixture_render_metadata_array(
+        "format-nodes",
+        cemt_fixture_required_array(tree, "formatNodes")?,
+        1,
+    )?);
+    if let Some(color_nodes) = cemt_fixture_optional_array(tree, "colorNodes") {
+        children.push(cemt_fixture_render_metadata_array(
+            "color-nodes",
+            color_nodes,
+            1,
+        )?);
+    }
+    children.push(cemt_fixture_render_node_array(
+        "nodes",
+        cemt_fixture_required_array(tree, "nodes")?,
+        1,
+    )?);
+
+    Ok(format!(
+        "{{cem-tree {} |\n{}\n}}",
+        attributes.join(" "),
+        children.join("\n")
+    ))
+}
+
+fn cemt_fixture_render_metadata_array(
+    name: &str,
+    values: &[Value],
+    depth: usize,
+) -> Result<String, String> {
+    let children = values
+        .iter()
+        .map(|value| cemt_fixture_render_metadata(value, depth + 1))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(format!(
+        "{}{{{} |\n{}\n{}}}",
+        cemt_fixture_indent(depth),
+        name,
+        children.join("\n"),
+        cemt_fixture_indent(depth)
+    ))
+}
+
+fn cemt_fixture_render_metadata(value: &Value, depth: usize) -> Result<String, String> {
+    let fields = value
+        .as_object()
+        .ok_or_else(|| "CEMT fixture metadata item must be an object".to_owned())?;
+    let kind = fields
+        .get("kind")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "CEMT fixture metadata item is missing `kind`".to_owned())?;
+    cemt_fixture_render_object_element(kind, fields, depth, true)
+}
+
+fn cemt_fixture_render_node_array(
+    name: &str,
+    values: &[Value],
+    depth: usize,
+) -> Result<String, String> {
+    let children = values
+        .iter()
+        .map(|value| cemt_fixture_render_node(value, depth + 1))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(format!(
+        "{}{{{} |\n{}\n{}}}",
+        cemt_fixture_indent(depth),
+        name,
+        children.join("\n"),
+        cemt_fixture_indent(depth)
+    ))
+}
+
+fn cemt_fixture_render_node(value: &Value, depth: usize) -> Result<String, String> {
+    let fields = value
+        .as_object()
+        .ok_or_else(|| "CEMT fixture node must be an object".to_owned())?;
+    match fields.get("kind").and_then(Value::as_str) {
+        Some("text") => {
+            let text = cemt_fixture_required_str(value, "value")?;
+            Ok(format!(
+                "{}{{text | {}}}",
+                cemt_fixture_indent(depth),
+                cemt_fixture_escape_text(text)
+            ))
+        }
+        Some("element") => cemt_fixture_render_element_node(fields, depth),
+        Some(other) => Err(format!("unsupported CEMT fixture node kind `{other}`")),
+        None => Err("CEMT fixture node is missing `kind`".to_owned()),
+    }
+}
+
+fn cemt_fixture_render_element_node(
+    fields: &serde_json::Map<String, Value>,
+    depth: usize,
+) -> Result<String, String> {
+    let name = fields
+        .get("name")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "CEMT fixture element node is missing `name`".to_owned())?;
+    let mut attributes = Vec::new();
+    if let Some(color_role) = fields.get("colorRole").and_then(Value::as_str) {
+        attributes.push(cemt_fixture_attribute("color-role", color_role));
+    }
+    let mut children = Vec::new();
+    if let Some(format_layout) = fields.get("formatLayout").and_then(Value::as_object) {
+        children.push(cemt_fixture_render_named_object_element(
+            "format-layout",
+            format_layout,
+            depth + 1,
+        )?);
+    }
+    if let Some(style) = fields.get("style").and_then(Value::as_object) {
+        children.push(cemt_fixture_render_named_object_element(
+            "style",
+            style,
+            depth + 1,
+        )?);
+    }
+    if let Some(writer_attributes) = fields.get("writerAttributeNodes").and_then(Value::as_array) {
+        for attribute in writer_attributes {
+            children.push(cemt_fixture_render_named_object_value(
+                "writer-attribute",
+                attribute,
+                depth + 1,
+            )?);
+        }
+    }
+    if let Some(color_wrappers) = fields.get("colorWrapperNodes").and_then(Value::as_array) {
+        for wrapper in color_wrappers {
+            children.push(cemt_fixture_render_metadata(wrapper, depth + 1)?);
+        }
+    }
+    if let Some(child_nodes) = fields.get("children").and_then(Value::as_array) {
+        for child in child_nodes {
+            children.push(cemt_fixture_render_node(child, depth + 1)?);
+        }
+    }
+
+    let suffix = if attributes.is_empty() {
+        String::new()
+    } else {
+        format!(" {}", attributes.join(" "))
+    };
+    if children.is_empty() {
+        return Ok(format!("{}{{{name}{suffix}}}", cemt_fixture_indent(depth)));
+    }
+    Ok(format!(
+        "{}{{{name}{suffix} |\n{}\n{}}}",
+        cemt_fixture_indent(depth),
+        children.join("\n"),
+        cemt_fixture_indent(depth)
+    ))
+}
+
+fn cemt_fixture_render_named_object_value(
+    element: &str,
+    value: &Value,
+    depth: usize,
+) -> Result<String, String> {
+    let fields = value
+        .as_object()
+        .ok_or_else(|| format!("CEMT fixture `{element}` value must be an object"))?;
+    cemt_fixture_render_named_object_element(element, fields, depth)
+}
+
+fn cemt_fixture_render_named_object_element(
+    element: &str,
+    fields: &serde_json::Map<String, Value>,
+    depth: usize,
+) -> Result<String, String> {
+    let skip_kind = fields.get("kind").and_then(Value::as_str) == Some(element);
+    cemt_fixture_render_object_element(element, fields, depth, skip_kind)
+}
+
+fn cemt_fixture_render_object_element(
+    element: &str,
+    fields: &serde_json::Map<String, Value>,
+    depth: usize,
+    skip_kind: bool,
+) -> Result<String, String> {
+    let attributes = cemt_fixture_ordered_attributes(fields, skip_kind);
+    let suffix = if attributes.is_empty() {
+        String::new()
+    } else {
+        format!(" {}", attributes.join(" "))
+    };
+    Ok(format!(
+        "{}{{{element}{suffix}}}",
+        cemt_fixture_indent(depth)
+    ))
+}
+
+fn cemt_fixture_ordered_attributes(
+    fields: &serde_json::Map<String, Value>,
+    skip_kind: bool,
+) -> Vec<String> {
+    const ORDER: &[(&str, &str)] = &[
+        ("kind", "kind"),
+        ("name", "name"),
+        ("value", "value"),
+        ("formatterRole", "formatter-role"),
+        ("formatterProfile", "formatter-profile"),
+        ("colorRole", "color-role"),
+        ("colorProfile", "color-profile"),
+        ("colorizerOwned", "colorizer-owned"),
+        ("colorizerRole", "colorizer-role"),
+    ];
+    let mut attributes = Vec::new();
+    for (field, attribute) in ORDER {
+        let Some(value) = fields.get(*field) else {
+            continue;
+        };
+        if matches!(value, Value::Null) || (*field == "kind" && skip_kind) {
+            continue;
+        }
+        match value {
+            Value::Bool(value) => attributes.push(cemt_fixture_bool_attribute(attribute, *value)),
+            Value::String(value) => attributes.push(cemt_fixture_attribute(attribute, value)),
+            _ => {}
+        }
+    }
+    attributes
+}
+
+fn cemt_fixture_required_str<'a>(value: &'a Value, field: &str) -> Result<&'a str, String> {
+    value
+        .get(field)
+        .and_then(Value::as_str)
+        .ok_or_else(|| format!("CEMT fixture value is missing string field `{field}`"))
+}
+
+fn cemt_fixture_optional_str<'a>(value: &'a Value, field: &str) -> Option<&'a str> {
+    value.get(field).and_then(Value::as_str)
+}
+
+fn cemt_fixture_required_bool(value: &Value, field: &str) -> Result<bool, String> {
+    value
+        .get(field)
+        .and_then(Value::as_bool)
+        .ok_or_else(|| format!("CEMT fixture value is missing bool field `{field}`"))
+}
+
+fn cemt_fixture_optional_bool(value: &Value, field: &str) -> Option<bool> {
+    value.get(field).and_then(Value::as_bool)
+}
+
+fn cemt_fixture_required_array<'a>(value: &'a Value, field: &str) -> Result<&'a [Value], String> {
+    value
+        .get(field)
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .ok_or_else(|| format!("CEMT fixture value is missing array field `{field}`"))
+}
+
+fn cemt_fixture_optional_array<'a>(value: &'a Value, field: &str) -> Option<&'a [Value]> {
+    value
+        .get(field)
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+}
+
+fn cemt_fixture_attribute(name: &str, value: &str) -> String {
+    format!("@{name}=\"{}\"", cemt_fixture_escape_attribute(value))
+}
+
+fn cemt_fixture_bool_attribute(name: &str, value: bool) -> String {
+    format!("@{name}={value}")
+}
+
+fn cemt_fixture_escape_attribute(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+}
+
+fn cemt_fixture_escape_text(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('{', "\\{")
+        .replace('}', "\\}")
+}
+
+fn cemt_fixture_indent(depth: usize) -> String {
+    "    ".repeat(depth)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

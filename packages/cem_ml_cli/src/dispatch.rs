@@ -11798,6 +11798,39 @@ pub fn run_fixture_parity(args: cli::FixtureParityArgs, s: &mut Streams<'_>) -> 
     }
 }
 
+pub fn run_fixture_cemt_pipeline(
+    args: cli::FixtureCemtPipelineArgs,
+    s: &mut Streams<'_>,
+) -> Outcome {
+    let fixture =
+        match cem_ml::transform_template::cemt_formatter_coloring_pipeline_fixture_source() {
+            Ok(fixture) => fixture,
+            Err(error) => {
+                let _ = writeln!(
+                    s.stderr,
+                    "cem-ml: failed to generate CEMT pipeline fixture: {error}"
+                );
+                return Outcome::code(EXIT_HARD_FAILURE);
+            }
+        };
+    if let Some(out) = args.out {
+        let context = eng::EngineContext::default();
+        if let Err(error) = write_destination(
+            &context,
+            &out,
+            "CEMT pipeline fixture destination",
+            ResolvePurpose::Output,
+            fixture.as_bytes(),
+        ) {
+            let _ = writeln!(s.stderr, "cem-ml: fixture write failure: {error}");
+            return Outcome::code(EXIT_IO);
+        }
+    } else if !s.quiet {
+        let _ = write!(s.stdout, "{fixture}");
+    }
+    Outcome::ok()
+}
+
 fn default_cem_ml_package_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../cem_ml")
 }
@@ -21584,6 +21617,35 @@ start =
     }
 
     #[test]
+    fn fixture_cemt_pipeline_emits_checked_stage_fixture() {
+        let (outcome, stdout, stderr) = run(&FakeEngine, &["fixture", "cemt-pipeline"]);
+        let checked = include_str!(
+            "../../cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.fixture.cem"
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert_eq!(stdout, checked);
+    }
+
+    #[test]
+    fn fixture_cemt_pipeline_writes_output_path() {
+        let out = std::env::temp_dir()
+            .join("cem-ml-cli-tests")
+            .join("formatter-coloring-pipeline.generated.fixture.cem");
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &["fixture", "cemt-pipeline", "--out", out.to_str().unwrap()],
+        );
+        let checked = include_str!(
+            "../../cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.fixture.cem"
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.is_empty());
+        assert_eq!(std::fs::read_to_string(out).unwrap(), checked);
+    }
+
+    #[test]
     fn fixture_inputs_infer_format_from_extension() {
         let inputs = collect_fixture_inputs(
             &[
@@ -23761,6 +23823,7 @@ pub fn dispatch<E: CemMlEngine + ?Sized>(
         cli::Command::Fixture(cli::FixtureCmd::Validate(a)) => run_fixture_validate(engine, a, s),
         cli::Command::Fixture(cli::FixtureCmd::Roundtrip(a)) => run_fixture_roundtrip(engine, a, s),
         cli::Command::Fixture(cli::FixtureCmd::Parity(a)) => run_fixture_parity(a, s),
+        cli::Command::Fixture(cli::FixtureCmd::CemtPipeline(a)) => run_fixture_cemt_pipeline(a, s),
         cli::Command::Version => run_version(s),
         cli::Command::Transform(a) => run_transform(engine, a, s),
         cli::Command::Schema(cli::SchemaCmd::Emit) => run_reserved("schema emit", s),
