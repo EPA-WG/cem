@@ -3702,9 +3702,21 @@ where
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransformTemplateEncodeImplementationOrigin {
+    Host,
+    CemtFallback,
+}
+
+#[derive(Clone)]
+struct TransformTemplateEncodeImplementationEntry {
+    implementation: Arc<dyn TransformTemplateEncodeImplementation>,
+    origin: TransformTemplateEncodeImplementationOrigin,
+}
+
 #[derive(Clone, Default)]
 pub struct TransformTemplateEncodeImplementationRegistry {
-    implementations: BTreeMap<String, Arc<dyn TransformTemplateEncodeImplementation>>,
+    implementations: BTreeMap<String, TransformTemplateEncodeImplementationEntry>,
     host_capabilities: BTreeSet<String>,
 }
 
@@ -3753,8 +3765,8 @@ impl TransformTemplateEncodeImplementationRegistry {
         registry.register("cem.attribute-value", builtin_cem_attribute_value_encoder);
         registry.register("cem.content-text", builtin_cem_content_text_encoder);
         registry.register("cem.string-literal", builtin_cem_string_literal_encoder);
-        registry.register("cem.format-tree", builtin_cem_tree_formatter);
-        registry.register("cem.color-tree", builtin_cem_tree_colorizer);
+        registry.register_cemt_fallback("cem.format-tree", builtin_cem_tree_formatter);
+        registry.register_cemt_fallback("cem.color-tree", builtin_cem_tree_colorizer);
         registry.register("cemt.text", builtin_cemt_text_encoder);
         registry.register("cemt.attribute-value", builtin_cemt_attribute_value_encoder);
         registry.register("cemt.string-literal", builtin_cemt_string_literal_encoder);
@@ -3782,8 +3794,11 @@ impl TransformTemplateEncodeImplementationRegistry {
         function_name: impl Into<String>,
         implementation: impl TransformTemplateEncodeImplementation + 'static,
     ) {
-        self.implementations
-            .insert(function_name.into(), Arc::new(implementation));
+        self.register_with_origin(
+            function_name,
+            implementation,
+            TransformTemplateEncodeImplementationOrigin::Host,
+        );
     }
 
     pub fn register_with_capability(
@@ -3796,8 +3811,44 @@ impl TransformTemplateEncodeImplementationRegistry {
         self.register(function_name, implementation);
     }
 
+    pub fn register_cemt_fallback(
+        &mut self,
+        function_name: impl Into<String>,
+        implementation: impl TransformTemplateEncodeImplementation + 'static,
+    ) {
+        self.register_with_origin(
+            function_name,
+            implementation,
+            TransformTemplateEncodeImplementationOrigin::CemtFallback,
+        );
+    }
+
+    fn register_with_origin(
+        &mut self,
+        function_name: impl Into<String>,
+        implementation: impl TransformTemplateEncodeImplementation + 'static,
+        origin: TransformTemplateEncodeImplementationOrigin,
+    ) {
+        self.implementations.insert(
+            function_name.into(),
+            TransformTemplateEncodeImplementationEntry {
+                implementation: Arc::new(implementation),
+                origin,
+            },
+        );
+    }
+
     pub fn host_capabilities(&self) -> &BTreeSet<String> {
         &self.host_capabilities
+    }
+
+    pub fn implementation_origin(
+        &self,
+        function_name: &str,
+    ) -> Option<TransformTemplateEncodeImplementationOrigin> {
+        self.implementations
+            .get(function_name)
+            .map(|entry| entry.origin)
     }
 
     pub fn encode(
@@ -3805,13 +3856,13 @@ impl TransformTemplateEncodeImplementationRegistry {
         binding: &TransformTemplateEncodeBinding,
         subject: &Value,
     ) -> Result<Value, String> {
-        let Some(implementation) = self.implementations.get(&binding.function.name) else {
+        let Some(entry) = self.implementations.get(&binding.function.name) else {
             return Err(format!(
                 "no host encoder implementation registered for `{}`",
                 binding.function.name
             ));
         };
-        implementation.encode(binding, subject)
+        entry.implementation.encode(binding, subject)
     }
 }
 
@@ -15237,6 +15288,24 @@ mod tests {
         assert!(bytes_error.diagnostic(None).message.contains(
             "produces `bytes` but `html` target syntax requires text-compatible writer output"
         ));
+    }
+
+    #[test]
+    fn builtin_cem_tree_transform_implementations_are_cemt_fallbacks() {
+        let registry = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+
+        assert_eq!(
+            registry.implementation_origin("cem.format-tree"),
+            Some(TransformTemplateEncodeImplementationOrigin::CemtFallback)
+        );
+        assert_eq!(
+            registry.implementation_origin("cem.color-tree"),
+            Some(TransformTemplateEncodeImplementationOrigin::CemtFallback)
+        );
+        assert_eq!(
+            registry.implementation_origin("html.text"),
+            Some(TransformTemplateEncodeImplementationOrigin::Host)
+        );
     }
 
     #[test]
