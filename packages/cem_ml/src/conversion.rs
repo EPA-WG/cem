@@ -7023,11 +7023,44 @@ mod tests {
                 "mode": "document",
                 "canonical": true,
                 "formatterProfile": "cem.format-tree",
+                "formatNodes": [{
+                    "kind": "format-marker",
+                    "name": "cem.format-tree",
+                    "formatterRole": "formatter.boundary",
+                    "formatterProfile": "cem.format-tree"
+                }, {
+                    "kind": "format-decision",
+                    "name": "line-ending",
+                    "formatterRole": "formatter.line-ending",
+                    "value": "lf",
+                    "formatterProfile": "cem.format-tree"
+                }],
                 "colored": true,
                 "colorProfile": "classes",
+                "colorNodes": [{
+                    "kind": "color-marker",
+                    "name": "cem.color-tree",
+                    "colorizerRole": "colorizer.boundary",
+                    "colorProfile": "classes"
+                }, {
+                    "kind": "color-decision",
+                    "name": "profile",
+                    "colorizerRole": "colorizer.profile",
+                    "value": "classes",
+                    "colorProfile": "classes"
+                }],
                 "nodes": [{
                     "kind": "element",
                     "name": "main",
+                    "colorRole": "syntax.name",
+                    "writerAttributeNodes": [{
+                        "kind": "writer-attribute",
+                        "name": "class",
+                        "value": "cem-color cem-color-syntax-name",
+                        "colorizerOwned": true,
+                        "colorizerRole": "colorizer.writer-attribute",
+                        "colorProfile": "classes"
+                    }],
                     "children": [{"kind": "text", "value": "Ready"}]
                 }]
             }),

@@ -11514,6 +11514,7 @@ fn validate_cem_tree_value(value: &Value) -> Result<(), String> {
     for field in ["contentType", "schema", "category"] {
         validate_optional_writer_string_field(object.get(field), field)?;
     }
+    validate_cem_tree_pipeline_metadata(value, object)?;
     if let Some(nodes) = object.get("nodes") {
         if !nodes.is_array() {
             return Err(format!("`nodes` {}", json_value_type_name(nodes)));
@@ -11533,6 +11534,38 @@ fn validate_cem_tree_value(value: &Value) -> Result<(), String> {
         return Err(format!("`root` {}", json_value_type_name(root)));
     }
     Err("missing `nodes`, `node`, or `root`".to_owned())
+}
+
+fn validate_cem_tree_pipeline_metadata(
+    value: &Value,
+    object: &serde_json::Map<String, Value>,
+) -> Result<(), String> {
+    if let Some(formatter_profile) = trimmed_value_string_field(value, "formatterProfile") {
+        validate_cem_tree_formatter_metadata(value, formatter_profile)?;
+    }
+
+    let colored = match object.get("colored") {
+        Some(Value::Bool(value)) => *value,
+        Some(other) => {
+            return Err(format!("`colored` {}", json_value_type_name(other)));
+        }
+        None => false,
+    };
+    let color_profile = trimmed_value_string_field(value, "colorProfile");
+    if colored || color_profile.is_some() {
+        if !colored {
+            return Err(
+                "colored CEM tree metadata requires `colored: true`; run `cem.color-tree` before validation"
+                    .to_owned(),
+            );
+        }
+        let color_profile = color_profile.ok_or_else(|| {
+            "colored CEM tree metadata requires `colorProfile`; run `cem.color-tree` before validation"
+                .to_owned()
+        })?;
+        validate_cem_tree_color_metadata(value, color_profile)?;
+    }
+    Ok(())
 }
 
 fn validate_writer_token_stream_value(value: &Value) -> Result<(), String> {
@@ -20892,6 +20925,68 @@ mod tests {
             TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_VALUE_TYPE_CODE
         );
         assert!(chunk_error.message().contains("chunks[0]"));
+    }
+
+    #[test]
+    fn cem_tree_artifact_value_shape_validation_rejects_invalid_pipeline_metadata() {
+        let target = TransformTemplateEncodingTarget::new(
+            CEM_ML_CONTENT_TYPE,
+            CEM_ML_SCHEMA_URI,
+            "cem-tree",
+        );
+        let mut identity = TransformTemplateEncodedArtifactIdentity::new(
+            TransformTemplateOutputProducedKind::CemTree,
+            target,
+        );
+        identity.formatter_profile = Some("cem.format-tree".to_owned());
+        identity.color_profile = Some("css-custom-properties".to_owned());
+
+        let mut missing_writer_nodes =
+            encode_colored_cem_tree_with_profile("css-custom-properties");
+        missing_writer_nodes
+            .get_mut("nodes")
+            .and_then(Value::as_array_mut)
+            .and_then(|nodes| nodes.first_mut())
+            .and_then(Value::as_object_mut)
+            .expect("colored element object")
+            .remove("writerAttributeNodes");
+        let missing_writer_nodes =
+            TransformTemplateEncodedArtifact::new(identity.clone(), missing_writer_nodes);
+        let writer_nodes_error = missing_writer_nodes
+            .validate_insertion(
+                &TransformTemplateEncodedArtifactInsertionContext::from_encoded_artifact_identity(
+                    &missing_writer_nodes.identity,
+                ),
+            )
+            .expect_err("colored CEM tree without materialized writer nodes is rejected");
+        assert_eq!(
+            writer_nodes_error.code(),
+            TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_VALUE_TYPE_CODE
+        );
+        assert!(writer_nodes_error
+            .message()
+            .contains("writerAttributeNodes"));
+
+        let mut missing_format_nodes =
+            encode_colored_cem_tree_with_profile("css-custom-properties");
+        missing_format_nodes
+            .as_object_mut()
+            .expect("colored CEM tree object")
+            .remove("formatNodes");
+        let missing_format_nodes =
+            TransformTemplateEncodedArtifact::new(identity, missing_format_nodes);
+        let format_nodes_error = missing_format_nodes
+            .validate_insertion(
+                &TransformTemplateEncodedArtifactInsertionContext::from_encoded_artifact_identity(
+                    &missing_format_nodes.identity,
+                ),
+            )
+            .expect_err("formatted CEM tree without format nodes is rejected");
+        assert_eq!(
+            format_nodes_error.code(),
+            TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_VALUE_TYPE_CODE
+        );
+        assert!(format_nodes_error.message().contains("formatNodes"));
     }
 
     #[test]
