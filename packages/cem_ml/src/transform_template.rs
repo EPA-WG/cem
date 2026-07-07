@@ -11194,9 +11194,9 @@ pub struct TransformTemplateWriterDiagnostics {
 
 const CEMT_RUNTIME_CALL_RECURSION_LIMIT: usize = 64;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CemtRuntimeFunction {
-    params: Vec<String>,
+    params: Vec<TransformTemplateModuleParamDeclaration>,
     body: String,
 }
 
@@ -11223,11 +11223,7 @@ fn cemt_runtime_function_from_descriptor(
     Some((
         function.name.clone(),
         CemtRuntimeFunction {
-            params: function
-                .params
-                .iter()
-                .map(|param| param.name.clone())
-                .collect(),
+            params: function.params.clone(),
             body: body.clone(),
         },
     ))
@@ -11359,8 +11355,14 @@ fn resolve_cemt_call_expression(
     else {
         return Ok(None);
     };
-    if args.len() != 2 || call_depth >= CEMT_RUNTIME_CALL_RECURSION_LIMIT {
+    if args.len() != 2 {
         return Ok(None);
+    }
+    if call_depth >= CEMT_RUNTIME_CALL_RECURSION_LIMIT {
+        return Err(format!(
+            "CEMT call recursion limit exceeded while calling `{}`",
+            args[0].trim()
+        ));
     }
     let function_name_literal = parse_cemt_literal(&args[0]).map_err(|error| error.to_string())?;
     let function_name = resolve_cemt_literal_runtime_value(
@@ -11411,30 +11413,51 @@ fn resolve_cemt_call_expression(
     let Some(function) = runtime_functions.get(function_name) else {
         return Ok(None);
     };
-    if arguments.len() != function.params.len()
-        || arguments
-            .keys()
-            .any(|name| !function.params.iter().any(|param| param == name))
-    {
-        return Ok(None);
+    for name in arguments.keys() {
+        if !function.params.iter().any(|param| param.name == *name) {
+            return Err(format!(
+                "CEMT function `{function_name}` received unknown argument `{name}`"
+            ));
+        }
     }
 
     let mut scoped_bindings = value_bindings.clone();
     for param in &function.params {
-        let Some(literal) = arguments.get(param) else {
-            return Ok(None);
+        let value = if let Some(literal) = arguments.get(&param.name) {
+            let Some(value) = resolve_cemt_literal_runtime_value(
+                literal,
+                value_bindings,
+                runtime_functions,
+                binding,
+                call_depth,
+            )?
+            else {
+                return Err(format!(
+                    "CEMT function `{function_name}` argument `{}` could not be resolved",
+                    param.name
+                ));
+            };
+            value
+        } else if let Some(value) = param.default_value.clone() {
+            value
+        } else if param.required {
+            return Err(format!(
+                "CEMT function `{function_name}` requires argument `{}`",
+                param.name
+            ));
+        } else {
+            continue;
         };
-        let value = resolve_cemt_literal_runtime_value(
-            literal,
-            value_bindings,
-            runtime_functions,
-            binding,
-            call_depth,
-        )?;
-        let Some(value) = value else {
-            return Ok(None);
-        };
-        scoped_bindings.insert(param.clone(), value);
+
+        if !param.value_type.accepts(&value, param.nullable) {
+            return Err(format!(
+                "CEMT function `{function_name}` argument `{}` expected {}, got {}",
+                param.name,
+                param.value_type.as_contract_name(),
+                json_value_type_name(&value)
+            ));
+        }
+        scoped_bindings.insert(param.name.clone(), value);
     }
 
     resolve_encode_subject_expression_at_depth(
@@ -14719,6 +14742,35 @@ mod tests {
         }
     }
 
+    fn cemt_required_param(
+        name: &str,
+        value_type: TransformTemplateModuleParamType,
+    ) -> TransformTemplateModuleParamDeclaration {
+        TransformTemplateModuleParamDeclaration {
+            name: name.to_owned(),
+            value_type,
+            nullable: false,
+            default_value: None,
+            required: true,
+            visibility: TransformTemplateModuleVisibility::Private,
+        }
+    }
+
+    fn cemt_default_param(
+        name: &str,
+        value_type: TransformTemplateModuleParamType,
+        default_value: Value,
+    ) -> TransformTemplateModuleParamDeclaration {
+        TransformTemplateModuleParamDeclaration {
+            name: name.to_owned(),
+            value_type,
+            nullable: false,
+            default_value: Some(default_value),
+            required: false,
+            visibility: TransformTemplateModuleVisibility::Private,
+        }
+    }
+
     fn encoded_html_text_artifact() -> TransformTemplateEncodedArtifact {
         let mut identity = TransformTemplateEncodedArtifactIdentity::new(
             TransformTemplateOutputProducedKind::Text,
@@ -15895,7 +15947,10 @@ mod tests {
             (
                 "formatNode".to_owned(),
                 CemtRuntimeFunction {
-                    params: vec!["node".to_owned(), "slot".to_owned()],
+                    params: vec![
+                        cemt_required_param("node", TransformTemplateModuleParamType::Object),
+                        cemt_required_param("slot", TransformTemplateModuleParamType::Integer),
+                    ],
                     body: r#"match($node.kind, {
                         element: call(formatElement, { node: $node, slot: $slot }),
                         text: call(formatText, { node: $node, slot: $slot }),
@@ -15907,7 +15962,10 @@ mod tests {
             (
                 "formatElement".to_owned(),
                 CemtRuntimeFunction {
-                    params: vec!["node".to_owned(), "slot".to_owned()],
+                    params: vec![
+                        cemt_required_param("node", TransformTemplateModuleParamType::Object),
+                        cemt_required_param("slot", TransformTemplateModuleParamType::Integer),
+                    ],
                     body: r#"{
                         kind: "element",
                         name: $node.name,
@@ -15920,7 +15978,10 @@ mod tests {
             (
                 "formatText".to_owned(),
                 CemtRuntimeFunction {
-                    params: vec!["node".to_owned(), "slot".to_owned()],
+                    params: vec![
+                        cemt_required_param("node", TransformTemplateModuleParamType::Object),
+                        cemt_required_param("slot", TransformTemplateModuleParamType::Integer),
+                    ],
                     body: r#"{ kind: "text", text: $node.value, slot: $slot }"#.to_owned(),
                 },
             ),
@@ -15958,12 +16019,108 @@ mod tests {
     }
 
     #[test]
+    fn cemt_runtime_call_expression_applies_param_defaults_and_validation() {
+        let values = BTreeMap::from([(
+            "node".to_owned(),
+            json!({
+                "kind": "element",
+                "name": "card"
+            }),
+        )]);
+        let functions = BTreeMap::from([(
+            "decorate".to_owned(),
+            CemtRuntimeFunction {
+                params: vec![
+                    cemt_required_param("subject", TransformTemplateModuleParamType::Object),
+                    cemt_default_param(
+                        "role",
+                        TransformTemplateModuleParamType::String,
+                        json!("syntax.name"),
+                    ),
+                    cemt_default_param(
+                        "depth",
+                        TransformTemplateModuleParamType::Integer,
+                        json!(0),
+                    ),
+                ],
+                body: r#"{
+                    kind: $subject.kind,
+                    name: $subject.name,
+                    role: $role,
+                    depth: $depth
+                }"#
+                .to_owned(),
+            },
+        )]);
+
+        assert_eq!(
+            resolve_encode_subject_expression_with_functions(
+                r#"call(decorate, { subject: $node })"#,
+                &values,
+                &functions,
+            ),
+            Some(json!({
+                "kind": "element",
+                "name": "card",
+                "role": "syntax.name",
+                "depth": 0
+            }))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression_with_functions(
+                r#"call(decorate, { subject: $node, role: "syntax.keyword", depth: 2 })"#,
+                &values,
+                &functions,
+            ),
+            Some(json!({
+                "kind": "element",
+                "name": "card",
+                "role": "syntax.keyword",
+                "depth": 2
+            }))
+        );
+
+        let unknown = resolve_encode_subject_expression_at_depth(
+            r#"call(decorate, { subject: $node, extra: true })"#,
+            &values,
+            &functions,
+            None,
+            0,
+        )
+        .expect_err("unknown call arguments are rejected");
+        assert!(unknown.contains("unknown argument `extra`"));
+
+        let missing = resolve_encode_subject_expression_at_depth(
+            r#"call(decorate, { role: "syntax.keyword" })"#,
+            &values,
+            &functions,
+            None,
+            0,
+        )
+        .expect_err("missing required call arguments are rejected");
+        assert!(missing.contains("requires argument `subject`"));
+
+        let type_error = resolve_encode_subject_expression_at_depth(
+            r#"call(decorate, { subject: $node, depth: "wide" })"#,
+            &values,
+            &functions,
+            None,
+            0,
+        )
+        .expect_err("call argument type is validated");
+        assert!(type_error.contains("argument `depth` expected integer, got string"));
+    }
+
+    #[test]
     fn cemt_runtime_call_expression_stops_unbounded_recursion() {
         let values = BTreeMap::from([("node".to_owned(), json!({"kind": "element"}))]);
         let functions = BTreeMap::from([(
             "loop".to_owned(),
             CemtRuntimeFunction {
-                params: vec!["node".to_owned()],
+                params: vec![cemt_required_param(
+                    "node",
+                    TransformTemplateModuleParamType::Object,
+                )],
                 body: r#"call(loop, { node: $node })"#.to_owned(),
             },
         )]);

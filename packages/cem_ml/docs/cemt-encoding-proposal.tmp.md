@@ -126,9 +126,10 @@ metadata. They are not opaque host-side string filters.
 
 ### Needed For Formatter And Coloring
 
-- Implement template `call` with named parameters, including `with:*`
-  attributes, argument validation against target template params, defaults, and
-  source-map-aware diagnostics.
+- Extend template `call` with named parameters, including `with:*` attributes
+  and source-map-aware diagnostics. Runtime body `call(name, { ... })`
+  expressions now bind named arguments against target function params, apply
+  defaults, validate required/type contracts, and reject unknown arguments.
 - Add immutable local `let` bindings for computed layout, style, profile,
   namespace, source-map, and node-shape decisions.
 - Add `match` dispatch over CEM tree node kind, name, attribute presence,
@@ -243,6 +244,33 @@ The return value is not a plain string. It is an encoded artifact carrying:
 
 Template insertion must reject an encoded artifact when its target identity or
 context is incompatible with the surrounding output context.
+
+## Runtime Function Call Expressions
+
+CEMT output-function bodies can call other CEMT-authored output functions with
+named arguments:
+
+```cemt
+{$ call(acme.format-node, {
+    subject: $subject,
+    depth: 0,
+    role: "syntax.name"
+}) }
+```
+
+Runtime calls are lexically scoped. The callee receives the caller bindings plus
+arguments bound by declared parameter name. Parameter declarations provide the
+argument contract: required params must be supplied, default values are applied
+when an argument is omitted, nullable and type metadata are enforced, and
+unknown arguments are rejected. Argument expressions are evaluated before the
+callee body runs, so unresolved values fail the call rather than silently
+falling back to host code.
+
+Calls are deterministic and bounded. Recursive calls are allowed for formatter
+and coloring traversal helpers, but execution stops at the configured recursion
+limit. Declaration-site `{call @template="..." @with:*="..."}` lowering remains
+metadata only until template-body rendering and source-map-aware call
+diagnostics are promoted.
 
 ## Encoding, Formatting, And Color Function Declarations
 
