@@ -11330,6 +11330,24 @@ fn resolve_encode_subject_expression_at_depth(
     )? {
         return Ok(Some(value));
     }
+    if let Some(value) = resolve_cemt_diagnostic_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
+    if let Some(value) = resolve_cemt_diagnostics_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
     if let Some(value) = resolve_cemt_match_expression(
         expression,
         value_bindings,
@@ -11769,6 +11787,269 @@ fn resolve_cemt_set_expression(
     Ok(Some(target))
 }
 
+fn resolve_cemt_diagnostic_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) = parse_cemt_function_call_args(expression, "diagnostic")
+        .map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+
+    match args.len() {
+        1 => {
+            let Some(value) = resolve_encode_subject_expression_at_depth(
+                &args[0],
+                value_bindings,
+                runtime_functions,
+                binding,
+                call_depth,
+            )?
+            else {
+                return Ok(None);
+            };
+            let Value::Object(object) = value else {
+                return Err(format!(
+                    "CEMT diagnostic expected object argument, got {}",
+                    json_value_type_name(&value)
+                ));
+            };
+            Ok(Some(Value::Object(normalize_cemt_diagnostic_object(
+                object,
+            )?)))
+        }
+        3 => {
+            let Some(code) = resolve_cemt_diagnostic_string_argument(
+                &args[0],
+                "code",
+                value_bindings,
+                runtime_functions,
+                binding,
+                call_depth,
+            )?
+            else {
+                return Ok(None);
+            };
+            let Some(severity) = resolve_cemt_diagnostic_string_argument(
+                &args[1],
+                "severity",
+                value_bindings,
+                runtime_functions,
+                binding,
+                call_depth,
+            )?
+            else {
+                return Ok(None);
+            };
+            let Some(message) = resolve_cemt_diagnostic_string_argument(
+                &args[2],
+                "message",
+                value_bindings,
+                runtime_functions,
+                binding,
+                call_depth,
+            )?
+            else {
+                return Ok(None);
+            };
+            let severity = normalize_cemt_diagnostic_severity(&severity)?;
+            let mut object = serde_json::Map::new();
+            object.insert("code".to_owned(), Value::String(code));
+            object.insert("severity".to_owned(), Value::String(severity));
+            object.insert("message".to_owned(), Value::String(message));
+            Ok(Some(Value::Object(object)))
+        }
+        _ => Ok(None),
+    }
+}
+
+fn resolve_cemt_diagnostics_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) = parse_cemt_function_call_args(expression, "diagnostics")
+        .map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 1 {
+        return Ok(None);
+    }
+    let Some(value) = resolve_encode_subject_expression_at_depth(
+        &args[0],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+
+    let diagnostics = match value {
+        Value::Array(items) => normalize_cemt_diagnostic_array(items)?,
+        Value::Object(mut object) if object.contains_key("diagnostics") => {
+            let Some(items) = object.get("diagnostics").and_then(Value::as_array) else {
+                return Err("CEMT diagnostics expected `diagnostics` array".to_owned());
+            };
+            let diagnostics = normalize_cemt_diagnostic_array(items.clone())?;
+            object.insert("diagnostics".to_owned(), Value::Array(diagnostics));
+            return Ok(Some(Value::Object(object)));
+        }
+        Value::Object(object) => vec![Value::Object(normalize_cemt_diagnostic_object(object)?)],
+        other => {
+            return Err(format!(
+                "CEMT diagnostics expected diagnostic object or array, got {}",
+                json_value_type_name(&other)
+            ))
+        }
+    };
+
+    let mut object = serde_json::Map::new();
+    object.insert("diagnostics".to_owned(), Value::Array(diagnostics));
+    Ok(Some(Value::Object(object)))
+}
+
+fn resolve_cemt_diagnostic_string_argument(
+    expression: &str,
+    field: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<String>, String> {
+    let Some(value) = resolve_encode_subject_expression_at_depth(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    cemt_required_diagnostic_string_value(&value, field).map(Some)
+}
+
+fn normalize_cemt_diagnostic_array(items: Vec<Value>) -> Result<Vec<Value>, String> {
+    items
+        .into_iter()
+        .enumerate()
+        .map(|(index, item)| {
+            let Value::Object(object) = item else {
+                return Err(format!(
+                    "CEMT diagnostics expected diagnostic object at index {index}, got {}",
+                    json_value_type_name(&item)
+                ));
+            };
+            Ok(Value::Object(normalize_cemt_diagnostic_object(object)?))
+        })
+        .collect()
+}
+
+fn normalize_cemt_diagnostic_object(
+    mut object: serde_json::Map<String, Value>,
+) -> Result<serde_json::Map<String, Value>, String> {
+    let code = cemt_required_diagnostic_string_field(&object, "code")?;
+    let message = cemt_required_diagnostic_string_field(&object, "message")?;
+    let severity = cemt_optional_diagnostic_string_field(&object, "severity")?
+        .map(|value| normalize_cemt_diagnostic_severity(&value))
+        .transpose()?
+        .unwrap_or_else(|| "info".to_owned());
+
+    object.insert("code".to_owned(), Value::String(code));
+    object.insert("severity".to_owned(), Value::String(severity));
+    object.insert("message".to_owned(), Value::String(message));
+
+    for field in ["uri", "node"] {
+        if let Some(value) = cemt_optional_diagnostic_string_field(&object, field)? {
+            object.insert(field.to_owned(), Value::String(value));
+        }
+    }
+    for field in ["line", "column", "byteOffset"] {
+        if let Some(value) = cemt_optional_diagnostic_u64_field(&object, field)? {
+            object.insert(
+                field.to_owned(),
+                Value::Number(serde_json::Number::from(value)),
+            );
+        }
+    }
+
+    Ok(object)
+}
+
+fn cemt_required_diagnostic_string_field(
+    object: &serde_json::Map<String, Value>,
+    field: &str,
+) -> Result<String, String> {
+    let Some(value) = object.get(field) else {
+        return Err(format!("CEMT diagnostic missing `{field}`"));
+    };
+    cemt_required_diagnostic_string_value(value, field)
+}
+
+fn cemt_required_diagnostic_string_value(value: &Value, field: &str) -> Result<String, String> {
+    value
+        .as_str()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .ok_or_else(|| {
+            format!(
+                "CEMT diagnostic `{field}` expected non-empty string, got {}",
+                json_value_type_name(value)
+            )
+        })
+}
+
+fn cemt_optional_diagnostic_string_field(
+    object: &serde_json::Map<String, Value>,
+    field: &str,
+) -> Result<Option<String>, String> {
+    let Some(value) = object.get(field) else {
+        return Ok(None);
+    };
+    if value.is_null() {
+        return Ok(None);
+    }
+    cemt_required_diagnostic_string_value(value, field).map(Some)
+}
+
+fn cemt_optional_diagnostic_u64_field(
+    object: &serde_json::Map<String, Value>,
+    field: &str,
+) -> Result<Option<u64>, String> {
+    let Some(value) = object.get(field) else {
+        return Ok(None);
+    };
+    if value.is_null() {
+        return Ok(None);
+    }
+    value.as_u64().map(Some).ok_or_else(|| {
+        format!(
+            "CEMT diagnostic `{field}` expected unsigned integer, got {}",
+            json_value_type_name(value)
+        )
+    })
+}
+
+fn normalize_cemt_diagnostic_severity(value: &str) -> Result<String, String> {
+    let normalized = value.trim().to_ascii_lowercase();
+    match normalized.as_str() {
+        "info" | "warning" | "error" | "fatal" => Ok(normalized),
+        _ => Err(format!(
+            "CEMT diagnostic severity expected one of info, warning, error, fatal, got `{value}`"
+        )),
+    }
+}
+
 fn resolve_cemt_patch_path_argument(
     expression: &str,
     value_bindings: &BTreeMap<String, Value>,
@@ -12042,6 +12323,8 @@ fn cemt_runtime_expression_is_dynamic(value: &str) -> bool {
         || cemt_expression_starts_with_call(value, "append")
         || cemt_expression_starts_with_call(value, "merge")
         || cemt_expression_starts_with_call(value, "set")
+        || cemt_expression_starts_with_call(value, "diagnostic")
+        || cemt_expression_starts_with_call(value, "diagnostics")
         || cemt_expression_starts_with_call(value, "match")
         || cemt_expression_starts_with_call(value, "exists")
         || value.starts_with('{')
@@ -16769,6 +17052,145 @@ mod tests {
         .expect_err("set cannot cross scalar values");
         assert!(non_container_error
             .contains("CEMT set path `name.value` crosses non-container field `name`"));
+    }
+
+    #[test]
+    fn cemt_runtime_diagnostic_expression_builds_typed_diagnostic_values() {
+        let values = BTreeMap::from([(
+            "node".to_owned(),
+            json!({
+                "name": "card",
+                "message": "unsupported inline layout",
+                "uri": "components/card.cem",
+                "sourceMap": [{"uri": "components/card.cem", "line": 8, "column": 3}]
+            }),
+        )]);
+
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"diagnostic({
+                    code: "cem.format.unsupported_layout",
+                    severity: "warning",
+                    message: $node.message,
+                    node: $node.name,
+                    uri: $node.uri,
+                    line: 8,
+                    byteOffset: 42,
+                    sourceMap: $node.sourceMap
+                })"#,
+                &values,
+            ),
+            Some(json!({
+                "code": "cem.format.unsupported_layout",
+                "severity": "warning",
+                "message": "unsupported inline layout",
+                "node": "card",
+                "uri": "components/card.cem",
+                "line": 8,
+                "byteOffset": 42,
+                "sourceMap": [{"uri": "components/card.cem", "line": 8, "column": 3}]
+            }))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"diagnostic("cem.color.inaccessible", "error", "palette contrast failed")"#,
+                &values,
+            ),
+            Some(json!({
+                "code": "cem.color.inaccessible",
+                "severity": "error",
+                "message": "palette contrast failed"
+            }))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"diagnostic({ code: "cem.writer.boundary", message: "writer boundary missing" })"#,
+                &values,
+            ),
+            Some(json!({
+                "code": "cem.writer.boundary",
+                "severity": "info",
+                "message": "writer boundary missing"
+            }))
+        );
+    }
+
+    #[test]
+    fn cemt_runtime_diagnostics_expression_wraps_single_and_array_values() {
+        let values = BTreeMap::new();
+
+        let single = resolve_encode_subject_expression(
+            r#"diagnostics(diagnostic("cem.format.fallback", "warning", "using fallback layout"))"#,
+            &values,
+        )
+        .expect("single diagnostic wrapper resolves");
+        assert_eq!(
+            single,
+            json!({
+                "diagnostics": [{
+                    "code": "cem.format.fallback",
+                    "severity": "warning",
+                    "message": "using fallback layout"
+                }]
+            })
+        );
+        validate_writer_diagnostics_value(&single).expect("CEMT diagnostics value is writer-ready");
+
+        let collection = resolve_encode_subject_expression(
+            r#"diagnostics([
+                diagnostic("cem.format.fallback", "warning", "using fallback layout"),
+                diagnostic({ code: "cem.color.disabled", severity: "info", message: "no color capability" })
+            ])"#,
+            &values,
+        )
+        .expect("diagnostics array resolves");
+        assert_eq!(
+            collection,
+            json!({
+                "diagnostics": [
+                    {
+                        "code": "cem.format.fallback",
+                        "severity": "warning",
+                        "message": "using fallback layout"
+                    },
+                    {
+                        "code": "cem.color.disabled",
+                        "severity": "info",
+                        "message": "no color capability"
+                    }
+                ]
+            })
+        );
+        validate_writer_diagnostics_value(&collection)
+            .expect("CEMT diagnostics collection is writer-ready");
+    }
+
+    #[test]
+    fn cemt_runtime_diagnostic_expression_reports_invalid_shapes() {
+        let values = BTreeMap::new();
+
+        let severity_error = resolve_encode_subject_expression_at_depth(
+            r#"diagnostic({ code: "cem.format.bad", severity: "notice", message: "bad severity" })"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("diagnostic validates severity");
+        assert!(severity_error.contains(
+            "CEMT diagnostic severity expected one of info, warning, error, fatal, got `notice`"
+        ));
+
+        let shape_error = resolve_encode_subject_expression_at_depth(
+            r#"diagnostics("not a diagnostic")"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("diagnostics requires diagnostic object or array");
+        assert!(shape_error
+            .contains("CEMT diagnostics expected diagnostic object or array, got string"));
     }
 
     #[test]

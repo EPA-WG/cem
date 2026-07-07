@@ -158,9 +158,11 @@ metadata. They are not opaque host-side string filters.
   prepending/appending formatter or color nodes, and applying queued edits to a
   formatted CEM tree. Shallow object `merge(...)` and path-based `set(...)` now
   provide immutable object/tree patching in CEMT bodies.
-- Add first-class diagnostics as emitted values so formatter/color templates can
-  report unsupported layout, inaccessible color, unsafe raw content, missing
-  metadata, or writer-boundary mismatch without falling back to host errors.
+- Extend first-class diagnostics emitted from formatter/color templates.
+  `diagnostic(...)` and `diagnostics(...)` now construct writer-ready diagnostic
+  values for unsupported layout, inaccessible color, unsafe raw content,
+  missing metadata, and writer-boundary mismatch; remaining work is source-map
+  policy integration, diagnostics accumulation helpers, and showcases.
 - Document each formatter/coloring feature in the CEMT docs, add Rust unit and
   integration tests for parser/lowering/runtime behavior, and add Storybook
   showcases that demonstrate formatted tree output, colored tree output, and
@@ -346,6 +348,34 @@ path replaced:
 
 Object fields in a `set(...)` path are created as needed. Array segments must be
 numeric and in bounds; appending remains explicit through `append(...)`.
+
+## First-Class Diagnostics
+
+CEMT formatter and color templates can construct diagnostics as data instead of
+throwing host-side errors or leaving diagnostics to the writer phase.
+`diagnostic({...})` accepts a JSON-compatible object with `code`, `message`, an
+optional `severity`, and optional location fields such as `uri`, `node`, `line`,
+`column`, `byteOffset`, and `sourceMap`. Missing severity defaults to `info`.
+The positional form `diagnostic(code, severity, message)` is available for
+compact cases:
+
+```cemt
+{$ diagnostics([
+  diagnostic({
+    code: "cem.format.unsupported_layout",
+    severity: "warning",
+    message: "inline layout is not supported by this formatter profile",
+    node: $subject.name
+  }),
+  diagnostic("cem.color.inaccessible", "error", "palette contrast failed")
+]) }
+```
+
+`diagnostics(value)` wraps either one diagnostic object or an array of diagnostic
+objects into the `{ diagnostics: [...] }` shape expected by diagnostics writer
+artifacts. This keeps formatter and coloring transformations responsible for
+their own diagnostics while the writer remains the final serialization phase for
+already formatted, colored, and annotated CEM values.
 
 ## Encoding, Formatting, And Color Function Declarations
 
