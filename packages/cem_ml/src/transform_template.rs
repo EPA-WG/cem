@@ -11055,6 +11055,12 @@ fn resolve_encode_subject_expression(
     if let Some(value) = resolve_cemt_exists_expression(expression, value_bindings) {
         return Some(value);
     }
+    if let Some(value) = resolve_cemt_object_expression(expression, value_bindings) {
+        return Some(value);
+    }
+    if let Some(value) = resolve_cemt_array_expression(expression, value_bindings) {
+        return Some(value);
+    }
     if expression.starts_with('"') || expression.starts_with('\'') {
         return parse_cemt_quoted_string(expression).ok().map(Value::String);
     }
@@ -11094,6 +11100,49 @@ fn resolve_cemt_map_expression(
     }
 
     Some(Value::Array(mapped))
+}
+
+fn resolve_cemt_object_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+) -> Option<Value> {
+    let fields = parse_cemt_object_literal(expression).ok()?;
+    let mut object = serde_json::Map::new();
+    for (key, literal) in fields {
+        object.insert(
+            key,
+            resolve_cemt_literal_runtime_value(&literal, value_bindings)?,
+        );
+    }
+    Some(Value::Object(object))
+}
+
+fn resolve_cemt_array_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+) -> Option<Value> {
+    let expression = expression.trim();
+    if !expression.starts_with('[') {
+        return None;
+    }
+    let end = matching_closing_delimiter(expression, 0, '[', ']').ok()?;
+    if !expression[end + 1..].trim().is_empty() {
+        return None;
+    }
+    let body = expression[1..end].trim();
+    if body.is_empty() {
+        return Some(Value::Array(Vec::new()));
+    }
+
+    let mut items = Vec::new();
+    for item in split_top_level(body, ',').ok()? {
+        let literal = parse_cemt_literal(&item).ok()?;
+        items.push(resolve_cemt_literal_runtime_value(
+            &literal,
+            value_bindings,
+        )?);
+    }
+    Some(Value::Array(items))
 }
 
 fn resolve_cemt_match_expression(
@@ -11165,6 +11214,8 @@ fn cemt_runtime_expression_is_dynamic(value: &str) -> bool {
         || cemt_expression_starts_with_call(value, "map")
         || cemt_expression_starts_with_call(value, "match")
         || cemt_expression_starts_with_call(value, "exists")
+        || value.starts_with('{')
+        || value.starts_with('[')
 }
 
 fn cemt_expression_starts_with_call(expression: &str, name: &str) -> bool {
@@ -15246,6 +15297,59 @@ mod tests {
                 {"kind": "text", "value": "Ready"},
                 {"kind": "element", "name": "badge"}
             ]))
+        );
+    }
+
+    #[test]
+    fn cemt_runtime_constructs_cem_tree_objects_and_arrays() {
+        let values = BTreeMap::from([(
+            "node".to_owned(),
+            json!({
+                "name": "card",
+                "children": [
+                    {"kind": "element", "name": "title"},
+                    {"kind": "text", "value": "Ready"}
+                ]
+            }),
+        )]);
+
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"{
+                    kind: "element",
+                    name: $node.name,
+                    format: { display: "block", childCount: 2 },
+                    children: map($node.children, {
+                        kind: match($item.kind, { element: "element", text: "text", default: "unknown" }),
+                        name: match($item.kind, { element: $item.name, default: null }),
+                        text: match($item.kind, { text: $item.value, default: null }),
+                        index: $index,
+                        roles: ["formatted", $item.kind]
+                    })
+                }"#,
+                &values,
+            ),
+            Some(json!({
+                "kind": "element",
+                "name": "card",
+                "format": {"display": "block", "childCount": 2},
+                "children": [
+                    {
+                        "kind": "element",
+                        "name": "title",
+                        "text": null,
+                        "index": 0,
+                        "roles": ["formatted", "element"]
+                    },
+                    {
+                        "kind": "text",
+                        "name": null,
+                        "text": "Ready",
+                        "index": 1,
+                        "roles": ["formatted", "text"]
+                    }
+                ]
+            }))
         );
     }
 
