@@ -10087,7 +10087,12 @@ where
                     continue;
                 }
             };
-            let formatted_output = match encode_impl(&format_binding, &subject) {
+            let formatted_output = match execute_transform_template_encode_binding(
+                &format_binding,
+                &subject,
+                &context,
+                &mut encode_impl,
+            ) {
                 Ok(value) => value,
                 Err(message) => {
                     diagnostics.push(Diagnostic {
@@ -10126,7 +10131,12 @@ where
                         continue;
                     }
                 };
-                let colored_output = match encode_impl(&color_binding, &artifact.value) {
+                let colored_output = match execute_transform_template_encode_binding(
+                    &color_binding,
+                    &artifact.value,
+                    &context,
+                    &mut encode_impl,
+                ) {
                     Ok(value) => value,
                     Err(message) => {
                         diagnostics.push(Diagnostic {
@@ -10190,7 +10200,12 @@ where
             }
         };
 
-        let output = match encode_impl(&binding, &subject) {
+        let output = match execute_transform_template_encode_binding(
+            &binding,
+            &subject,
+            &context,
+            &mut encode_impl,
+        ) {
             Ok(value) => value,
             Err(message) => {
                 diagnostics.push(Diagnostic {
@@ -10220,6 +10235,99 @@ where
         encoded,
         diagnostics,
     }
+}
+
+fn execute_transform_template_encode_binding<F>(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+    context: &TransformTemplateEncodeEvaluationContext<'_>,
+    encode_impl: &mut F,
+) -> Result<Value, String>
+where
+    F: FnMut(&TransformTemplateEncodeBinding, &Value) -> Result<Value, String>,
+{
+    if let Some(result) = execute_transform_template_cemt_body_expression(
+        binding,
+        subject,
+        context.value_bindings,
+        &context.registry.runtime_functions,
+    ) {
+        return result;
+    }
+    encode_impl(binding, subject)
+}
+
+fn execute_transform_template_cemt_body_expression(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+) -> Option<Result<Value, String>> {
+    if binding.function.implementation != TransformTemplateOutputFunctionImplementation::Cemt {
+        return None;
+    }
+    let body_expression = binding.function.body_expression.as_deref()?.trim();
+    if cemt_expression_starts_with_call(body_expression, "encode") {
+        return None;
+    }
+
+    let scoped_bindings =
+        match cemt_runtime_bind_output_function_params(binding, subject, value_bindings) {
+            Ok(scoped_bindings) => scoped_bindings,
+            Err(message) => return Some(Err(message)),
+        };
+    Some(
+        resolve_encode_subject_expression_with_functions(
+            body_expression,
+            &scoped_bindings,
+            runtime_functions,
+        )
+        .ok_or_else(|| {
+            format!(
+                "CEMT output function `{}` body expression could not be resolved",
+                binding.function.name
+            )
+        }),
+    )
+}
+
+fn cemt_runtime_bind_output_function_params(
+    binding: &TransformTemplateEncodeBinding,
+    subject: &Value,
+    value_bindings: &BTreeMap<String, Value>,
+) -> Result<BTreeMap<String, Value>, String> {
+    let mut scoped_bindings = value_bindings.clone();
+    scoped_bindings.insert("subject".to_owned(), subject.clone());
+
+    for param in &binding.function.params {
+        let value = if param.name == "subject" {
+            subject.clone()
+        } else if let Some(value) = value_bindings.get(&param.name) {
+            value.clone()
+        } else if let Some(value) = param.default_value.clone() {
+            value
+        } else if param.required {
+            return Err(format!(
+                "CEMT output function `{}` requires runtime param `{}`",
+                binding.function.name, param.name
+            ));
+        } else {
+            continue;
+        };
+
+        if !param.value_type.accepts(&value, param.nullable) {
+            return Err(format!(
+                "CEMT output function `{}` param `{}` expected {}, got {}",
+                binding.function.name,
+                param.name,
+                param.value_type.as_contract_name(),
+                json_value_type_name(&value)
+            ));
+        }
+        scoped_bindings.insert(param.name.clone(), value);
+    }
+
+    Ok(scoped_bindings)
 }
 
 fn resolve_encode_request_runtime_values(
@@ -21323,6 +21431,149 @@ mod tests {
         assert_eq!(
             evaluated.artifact.value["nodes"][0]["formatLayout"]["style"]["colorRole"],
             "source.gutter"
+        );
+    }
+
+    #[test]
+    fn evaluate_encode_expressions_executes_cemt_formatter_and_colorizer_bodies() {
+        let response = parse_cem_native_template_module_options(
+            TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "templates/runtime-cemt-bodies.cemt",
+                    r#"{@doc cem-ml 1}
+{module |
+  {format-function
+      @name="acme.format-tree"
+      @visibility="public"
+      @implementation="cemt"
+      @category="cem-tree"
+      @subject="object"
+      @produces="cem-tree"
+      @content-type="application/cem"
+      @schema="https://cem.dev/ns/cem-ml/1"
+      @canonical=true
+      @deterministic=true
+      @streamable=true |
+      {param @name="subject" @type="object" @required=true}
+      {body |
+        {$ {
+          kind: "cem-tree",
+          formattedBy: "acme.format-tree",
+          nodes: [{
+            kind: "element",
+            name: $subject.name,
+            children: map($subject.children, { kind: "text", value: $item.value })
+          }],
+          formatNodes: [{ kind: "formatter", name: "acme.format-tree" }]
+        } }
+      }
+  }
+  {color-function
+      @name="acme.color-tree"
+      @visibility="public"
+      @implementation="cemt"
+      @category="cem-tree"
+      @subject="cem-tree"
+      @produces="cem-tree"
+      @content-type="application/cem"
+      @schema="https://cem.dev/ns/cem-ml/1"
+      @profile="none"
+      @canonical=false
+      @deterministic=true
+      @streamable=true |
+      {param @name="subject" @type="object" @required=true}
+      {body |
+        {$ {
+          kind: $subject.kind,
+          formattedBy: $subject.formattedBy,
+          coloredBy: "acme.color-tree",
+          nodes: $subject.nodes,
+          formatNodes: $subject.formatNodes,
+          colorNodes: [{ kind: "colorizer", name: "acme.color-tree" }]
+        } }
+      }
+  }
+  {template @name="main" @visibility="public" |
+    {body |
+      {$ encode($node.ast, { contentType: "application/cem", schema: "https://cem.dev/ns/cem-ml/1", category: "cem-tree", subjectType: "object" }, { formatter: "acme.format-tree", colorizer: "acme.color-tree", colorProfile: "none", canonical: true }) }
+    }
+  }
+}"#,
+                    Some(FormatIdentity {
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            },
+        );
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        let registry =
+            TransformTemplateOutputFunctionRegistry::from_module_options(&response.module_options);
+        let mut values = BTreeMap::new();
+        values.insert(
+            "node".to_owned(),
+            json!({
+                "ast": {
+                    "name": "card",
+                    "children": [{"value": "Ready"}]
+                }
+            }),
+        );
+
+        let mut fallback_calls = Vec::new();
+        let evaluated = evaluate_transform_template_encode_expressions(
+            &response.module_options.encode_expressions,
+            TransformTemplateEncodeEvaluationContext {
+                registry: &registry,
+                value_bindings: &values,
+                host_capabilities: &BTreeSet::new(),
+                output_color_type: None,
+                uri: Some("templates/runtime-cemt-bodies.cemt"),
+            },
+            |binding, _subject| {
+                fallback_calls.push(binding.function.name.clone());
+                Err(format!(
+                    "fallback should not execute {}",
+                    binding.function.name
+                ))
+            },
+        );
+
+        assert!(
+            evaluated.diagnostics.is_empty(),
+            "{:?}",
+            evaluated.diagnostics
+        );
+        assert!(fallback_calls.is_empty(), "{fallback_calls:?}");
+        assert_eq!(evaluated.encoded.len(), 1);
+        let evaluated = &evaluated.encoded[0];
+        assert_eq!(evaluated.binding.function.name, "acme.color-tree");
+        assert_eq!(
+            evaluated.artifact.identity.produces,
+            TransformTemplateOutputProducedKind::CemTree
+        );
+        assert_eq!(
+            evaluated.artifact.identity.color_profile.as_deref(),
+            Some("none")
+        );
+        assert_eq!(evaluated.artifact.value["formattedBy"], "acme.format-tree");
+        assert_eq!(evaluated.artifact.value["coloredBy"], "acme.color-tree");
+        assert_eq!(evaluated.artifact.value["nodes"][0]["name"], "card");
+        assert_eq!(
+            evaluated.artifact.value["nodes"][0]["children"][0]["value"],
+            "Ready"
+        );
+        assert_eq!(
+            evaluated.artifact.value["formatNodes"][0]["name"],
+            "acme.format-tree"
+        );
+        assert_eq!(
+            evaluated.artifact.value["colorNodes"][0]["name"],
+            "acme.color-tree"
         );
     }
 
