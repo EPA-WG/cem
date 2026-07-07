@@ -150,9 +150,13 @@ metadata. They are not opaque host-side string filters.
   `stackTop(...)`, `stackDepth(...)`, and `stackPath(...)` now provide bounded
   immutable stack values for CEMT bodies; remaining work is parser/declaration
   diagnostics, source-map policy integration, and formatter/coloring showcases.
-- Add deferred queue support for post-order edits, wrapper insertions, color
+- Extend deferred queue support for post-order edits, wrapper insertions, color
   mutations, diagnostics, namespace repairs, and writer-boundary checks that
-  must run after child traversal is complete.
+  must run after child traversal is complete. `defer(...)`, `queuePush(...)`,
+  `queueShift(...)`, `queuePeek(...)`, `queueLength(...)`, and
+  `drainQueue(...)` now provide bounded immutable FIFO queues for CEMT bodies;
+  remaining work is richer typed edit helpers, source-map policy integration,
+  and formatter/coloring showcases.
 - Extend accumulator helpers beyond array `append(...)` for `formatNodes`,
   `colorNodes`, diagnostics, namespace declarations, output spans, and
   writer-boundary metadata.
@@ -367,6 +371,41 @@ for an empty stack. `stackDepth(stack)` returns the current depth.
 preserving missing frame values as `null`. Formatter and color templates use
 these frames for ancestor paths, indentation, namespace scope, inherited layout,
 source-map frames, semantic style role, and active color capability.
+
+## Deferred FIFO Queues
+
+CEMT body expressions can collect deferred work as bounded immutable FIFO queues
+and drain that work after child traversal. This supports post-order formatter
+edits, wrapper insertions, color mutations, diagnostics, namespace repairs, and
+writer-boundary checks while keeping those decisions in CEMT rather than the
+writer phase.
+
+`defer(queue, item)` appends a deferred work item to the back of a queue.
+`queuePush(queue, item)` is the same generic FIFO append operation. Queue values
+are JSON arrays and are length-bounded. `queuePeek(queue)` returns the first item
+or `null`, `queueShift(queue)` returns `{ item, queue }`, and
+`queueLength(queue)` returns the current queue length.
+
+`drainQueue(queue, initial, step)` processes the queue in FIFO order. Each
+iteration evaluates `step` with `$item`, `$index`, `$acc`/`$accumulator`, and
+`$queue` for the remaining queued items. The returned value becomes the next
+accumulator:
+
+```cemt
+{$ drainQueue(
+  fold($subject.children, [], defer($acc, {
+    kind: "color",
+    path: $item.colorPath,
+    value: $item.colorRole
+  })),
+  $formattedTree,
+  set($acc, $item.path, $item.value)
+) }
+```
+
+Formatter and color templates can use this to first produce formatted children
+and collect work items, then apply queued changes to the CEM tree before the
+writer receives it.
 
 ## Immutable Tree Patches
 

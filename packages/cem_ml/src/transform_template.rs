@@ -11194,6 +11194,7 @@ pub struct TransformTemplateWriterDiagnostics {
 
 const CEMT_RUNTIME_CALL_RECURSION_LIMIT: usize = 64;
 const CEMT_RUNTIME_STACK_DEPTH_LIMIT: usize = 128;
+const CEMT_RUNTIME_QUEUE_LENGTH_LIMIT: usize = 1024;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CemtRuntimeFunction {
@@ -11377,6 +11378,62 @@ fn resolve_encode_subject_expression_at_depth(
         return Ok(Some(value));
     }
     if let Some(value) = resolve_cemt_stack_path_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
+    if let Some(value) = resolve_cemt_queue_push_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+        "defer",
+    )? {
+        return Ok(Some(value));
+    }
+    if let Some(value) = resolve_cemt_queue_push_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+        "queuePush",
+    )? {
+        return Ok(Some(value));
+    }
+    if let Some(value) = resolve_cemt_queue_shift_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
+    if let Some(value) = resolve_cemt_queue_peek_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
+    if let Some(value) = resolve_cemt_queue_length_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
+    if let Some(value) = resolve_cemt_drain_queue_expression(
         expression,
         value_bindings,
         runtime_functions,
@@ -12129,6 +12186,247 @@ fn push_cemt_stack_frame(stack: &mut Vec<Value>, owner: &str, frame: Value) -> R
     Ok(())
 }
 
+fn resolve_cemt_queue_push_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+    name: &str,
+) -> Result<Option<Value>, String> {
+    let Some(args) =
+        parse_cemt_function_call_args(expression, name).map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 2 {
+        return Ok(None);
+    }
+    let Some(mut queue) = resolve_cemt_queue_argument(
+        &args[0],
+        name,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some(item) = resolve_encode_subject_expression_at_depth(
+        &args[1],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    push_cemt_queue_item(&mut queue, name, item)?;
+    Ok(Some(Value::Array(queue)))
+}
+
+fn resolve_cemt_queue_shift_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) = parse_cemt_function_call_args(expression, "queueShift")
+        .map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 1 {
+        return Ok(None);
+    }
+    let Some(mut queue) = resolve_cemt_queue_argument(
+        &args[0],
+        "queueShift",
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let item = if queue.is_empty() {
+        Value::Null
+    } else {
+        queue.remove(0)
+    };
+    let mut object = serde_json::Map::new();
+    object.insert("item".to_owned(), item);
+    object.insert("queue".to_owned(), Value::Array(queue));
+    Ok(Some(Value::Object(object)))
+}
+
+fn resolve_cemt_queue_peek_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) = parse_cemt_function_call_args(expression, "queuePeek")
+        .map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 1 {
+        return Ok(None);
+    }
+    let Some(queue) = resolve_cemt_queue_argument(
+        &args[0],
+        "queuePeek",
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    Ok(Some(queue.first().cloned().unwrap_or(Value::Null)))
+}
+
+fn resolve_cemt_queue_length_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) = parse_cemt_function_call_args(expression, "queueLength")
+        .map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 1 {
+        return Ok(None);
+    }
+    let Some(queue) = resolve_cemt_queue_argument(
+        &args[0],
+        "queueLength",
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    Ok(Some(Value::Number(serde_json::Number::from(
+        queue.len() as u64
+    ))))
+}
+
+fn resolve_cemt_drain_queue_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) = parse_cemt_function_call_args(expression, "drainQueue")
+        .map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 3 {
+        return Ok(None);
+    }
+    let Some(queue) = resolve_cemt_queue_argument(
+        &args[0],
+        "drainQueue",
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some(mut accumulator) = resolve_encode_subject_expression_at_depth(
+        &args[1],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+
+    for (index, item) in queue.iter().cloned().enumerate() {
+        let mut scoped_bindings = value_bindings.clone();
+        scoped_bindings.insert("item".to_owned(), item);
+        scoped_bindings.insert(
+            "index".to_owned(),
+            Value::Number(serde_json::Number::from(index as u64)),
+        );
+        scoped_bindings.insert("acc".to_owned(), accumulator.clone());
+        scoped_bindings.insert("accumulator".to_owned(), accumulator);
+        scoped_bindings.insert(
+            "queue".to_owned(),
+            Value::Array(queue[index + 1..].to_vec()),
+        );
+        let Some(next) = resolve_encode_subject_expression_at_depth(
+            &args[2],
+            &scoped_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        )?
+        else {
+            return Ok(None);
+        };
+        accumulator = next;
+    }
+
+    Ok(Some(accumulator))
+}
+
+fn resolve_cemt_queue_argument(
+    expression: &str,
+    owner: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Vec<Value>>, String> {
+    let Some(value) = resolve_encode_subject_expression_at_depth(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Value::Array(items) = value else {
+        return Err(format!(
+            "CEMT {owner} expected array queue, got {}",
+            json_value_type_name(&value)
+        ));
+    };
+    Ok(Some(items))
+}
+
+fn push_cemt_queue_item(queue: &mut Vec<Value>, owner: &str, item: Value) -> Result<(), String> {
+    if queue.len() >= CEMT_RUNTIME_QUEUE_LENGTH_LIMIT {
+        return Err(format!(
+            "CEMT queue `{owner}` exceeded length limit {CEMT_RUNTIME_QUEUE_LENGTH_LIMIT}"
+        ));
+    }
+    queue.push(item);
+    Ok(())
+}
+
 fn resolve_cemt_diagnostic_expression(
     expression: &str,
     value_bindings: &BTreeMap<String, Value>,
@@ -12671,6 +12969,12 @@ fn cemt_runtime_expression_is_dynamic(value: &str) -> bool {
         || cemt_expression_starts_with_call(value, "stackTop")
         || cemt_expression_starts_with_call(value, "stackDepth")
         || cemt_expression_starts_with_call(value, "stackPath")
+        || cemt_expression_starts_with_call(value, "defer")
+        || cemt_expression_starts_with_call(value, "queuePush")
+        || cemt_expression_starts_with_call(value, "queueShift")
+        || cemt_expression_starts_with_call(value, "queuePeek")
+        || cemt_expression_starts_with_call(value, "queueLength")
+        || cemt_expression_starts_with_call(value, "drainQueue")
         || cemt_expression_starts_with_call(value, "diagnostic")
         || cemt_expression_starts_with_call(value, "diagnostics")
         || cemt_expression_starts_with_call(value, "match")
@@ -17460,6 +17764,158 @@ mod tests {
         )
         .expect_err("withStack enforces stack depth limit");
         assert!(limit_error.contains("CEMT stack `ancestors` exceeded depth limit 128"));
+    }
+
+    #[test]
+    fn cemt_runtime_deferred_queue_drains_post_order_edits() {
+        let values = BTreeMap::from([
+            (
+                "tree".to_owned(),
+                json!({
+                    "nodes": [
+                        {"kind": "element", "name": "button"},
+                        {"kind": "text", "value": "Save"}
+                    ]
+                }),
+            ),
+            (
+                "edits".to_owned(),
+                json!([
+                    {
+                        "kind": "color",
+                        "path": "nodes.0.style.colorRole",
+                        "value": "syntax.name"
+                    },
+                    {
+                        "kind": "color",
+                        "path": "nodes.1.style.colorRole",
+                        "value": "syntax.text"
+                    }
+                ]),
+            ),
+        ]);
+
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"drainQueue(
+                    fold($edits, [], defer($acc, {
+                        kind: $item.kind,
+                        path: $item.path,
+                        value: $item.value
+                    })),
+                    $tree,
+                    set($acc, $item.path, $item.value)
+                )"#,
+                &values,
+            ),
+            Some(json!({
+                "nodes": [
+                    {
+                        "kind": "element",
+                        "name": "button",
+                        "style": {"colorRole": "syntax.name"}
+                    },
+                    {
+                        "kind": "text",
+                        "value": "Save",
+                        "style": {"colorRole": "syntax.text"}
+                    }
+                ]
+            }))
+        );
+        assert_eq!(
+            values.get("tree"),
+            Some(&json!({
+                "nodes": [
+                    {"kind": "element", "name": "button"},
+                    {"kind": "text", "value": "Save"}
+                ]
+            })),
+            "drained queues apply edits to a new value without mutating the source tree"
+        );
+    }
+
+    #[test]
+    fn cemt_runtime_deferred_queue_drains_fifo_with_remaining_queue_scope() {
+        let values = BTreeMap::new();
+
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"drainQueue(
+                    defer(defer([], "first"), "second"),
+                    [],
+                    append($acc, {
+                        item: $item,
+                        slot: $index,
+                        remaining: queueLength($queue)
+                    })
+                )"#,
+                &values,
+            ),
+            Some(json!([
+                {"item": "first", "slot": 0, "remaining": 1},
+                {"item": "second", "slot": 1, "remaining": 0}
+            ]))
+        );
+    }
+
+    #[test]
+    fn cemt_runtime_queue_helpers_are_immutable_and_validate_inputs() {
+        let values = BTreeMap::from([("work".to_owned(), json!(["repair"]))]);
+
+        assert_eq!(
+            resolve_encode_subject_expression(r#"queuePush($work, "diagnostic")"#, &values),
+            Some(json!(["repair", "diagnostic"]))
+        );
+        assert_eq!(
+            values.get("work"),
+            Some(&json!(["repair"])),
+            "queuePush returns a new queue instead of mutating the binding"
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(r#"queuePeek($work)"#, &values),
+            Some(json!("repair"))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(r#"queuePeek([])"#, &values),
+            Some(Value::Null)
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(r#"queueShift(["repair", "diagnostic"])"#, &values),
+            Some(json!({"item": "repair", "queue": ["diagnostic"]}))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(r#"queueShift([])"#, &values),
+            Some(json!({"item": null, "queue": []}))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(r#"queueLength($work)"#, &values),
+            Some(json!(1))
+        );
+
+        let bad_queue = resolve_encode_subject_expression_at_depth(
+            r#"defer({ not: "array" }, { kind: "repair" })"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("queue helpers require array queue values");
+        assert!(bad_queue.contains("CEMT defer expected array queue, got object"));
+
+        let limit_values = BTreeMap::from([(
+            "work".to_owned(),
+            Value::Array(vec![Value::Null; CEMT_RUNTIME_QUEUE_LENGTH_LIMIT]),
+        )]);
+        let limit_error = resolve_encode_subject_expression_at_depth(
+            r#"defer($work, null)"#,
+            &limit_values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("defer enforces queue length limit");
+        assert!(limit_error.contains("CEMT queue `defer` exceeded length limit 1024"));
     }
 
     #[test]
