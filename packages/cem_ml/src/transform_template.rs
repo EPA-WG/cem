@@ -11046,6 +11046,9 @@ fn resolve_encode_subject_expression(
     value_bindings: &BTreeMap<String, Value>,
 ) -> Option<Value> {
     let expression = expression.trim();
+    if let Some(value) = resolve_cemt_map_expression(expression, value_bindings) {
+        return Some(value);
+    }
     if let Some(value) = resolve_cemt_match_expression(expression, value_bindings) {
         return Some(value);
     }
@@ -11061,6 +11064,36 @@ fn resolve_encode_subject_expression(
 
     let path = expression.strip_prefix('$')?;
     resolve_encode_subject_path(path, value_bindings).cloned()
+}
+
+fn resolve_cemt_map_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+) -> Option<Value> {
+    let args = parse_cemt_function_call_args(expression, "map").ok()??;
+    if args.len() != 2 {
+        return None;
+    }
+    let collection = resolve_encode_subject_expression(&args[0], value_bindings)?;
+    let Value::Array(items) = collection else {
+        return None;
+    };
+
+    let mut mapped = Vec::with_capacity(items.len());
+    for (index, item) in items.into_iter().enumerate() {
+        let mut scoped_bindings = value_bindings.clone();
+        scoped_bindings.insert("item".to_owned(), item);
+        scoped_bindings.insert(
+            "index".to_owned(),
+            Value::Number(serde_json::Number::from(index as u64)),
+        );
+        mapped.push(resolve_encode_subject_expression(
+            &args[1],
+            &scoped_bindings,
+        )?);
+    }
+
+    Some(Value::Array(mapped))
 }
 
 fn resolve_cemt_match_expression(
@@ -11129,6 +11162,7 @@ fn cemt_match_key(value: &Value) -> Option<String> {
 fn cemt_runtime_expression_is_dynamic(value: &str) -> bool {
     let value = value.trim_start();
     value.starts_with('$')
+        || cemt_expression_starts_with_call(value, "map")
         || cemt_expression_starts_with_call(value, "match")
         || cemt_expression_starts_with_call(value, "exists")
 }
@@ -15178,6 +15212,40 @@ mod tests {
                 &values,
             ),
             Some(json!("untitled"))
+        );
+    }
+
+    #[test]
+    fn cemt_runtime_map_expression_maps_children_with_item_and_index_scope() {
+        let values = BTreeMap::from([(
+            "node".to_owned(),
+            json!({
+                "children": [
+                    {"kind": "element", "name": "title"},
+                    {"kind": "text", "value": "Ready"},
+                    {"kind": "element", "name": "badge"}
+                ]
+            }),
+        )]);
+
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"map($node.children, match($item.kind, { element: $item.name, text: $item.value, default: "unknown" }))"#,
+                &values,
+            ),
+            Some(json!(["title", "Ready", "badge"]))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(r#"map($node.children, $index)"#, &values),
+            Some(json!([0, 1, 2]))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(r#"map($node.children, $item)"#, &values),
+            Some(json!([
+                {"kind": "element", "name": "title"},
+                {"kind": "text", "value": "Ready"},
+                {"kind": "element", "name": "badge"}
+            ]))
         );
     }
 
