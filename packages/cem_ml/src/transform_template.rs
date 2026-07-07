@@ -4760,11 +4760,15 @@ fn builtin_cem_tree_formatter(
 ) -> Result<Value, String> {
     validate_builtin_cem_tree_formatter_binding(binding)?;
     let nodes = transform_template_cem_tree_nodes(subject)?;
-    let nodes = transform_template_format_cem_tree_nodes(nodes, &binding.options);
+    let nodes = execute_transform_template_cemt_runtime_operation(
+        TransformTemplateCemtRuntimeOperation::CemFormatTreeNodes,
+        binding,
+        Value::Array(nodes),
+    )?;
     execute_transform_template_cemt_runtime_operation(
         TransformTemplateCemtRuntimeOperation::CemFormatTreeEnvelope,
         binding,
-        Value::Array(nodes),
+        nodes,
     )
 }
 
@@ -4812,6 +4816,8 @@ fn validate_builtin_cem_tree_formatter_binding(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TransformTemplateCemtRuntimeOperation {
+    CemFormatTreeNodes,
+    CemFormatTreeInterNodeWhitespace,
     CemFormatTreeFormatNodes,
     CemFormatTreeEnvelope,
 }
@@ -4819,6 +4825,8 @@ enum TransformTemplateCemtRuntimeOperation {
 impl TransformTemplateCemtRuntimeOperation {
     fn as_str(self) -> &'static str {
         match self {
+            Self::CemFormatTreeNodes => "cem.format-tree.nodes",
+            Self::CemFormatTreeInterNodeWhitespace => "cem.format-tree.inter-node-whitespace",
             Self::CemFormatTreeFormatNodes => "cem.format-tree.format-nodes",
             Self::CemFormatTreeEnvelope => "cem.format-tree.envelope",
         }
@@ -4831,6 +4839,14 @@ fn execute_transform_template_cemt_runtime_operation(
     subject: Value,
 ) -> Result<Value, String> {
     match operation {
+        TransformTemplateCemtRuntimeOperation::CemFormatTreeNodes => {
+            transform_template_cemt_runtime_format_tree_nodes(operation, binding, subject)
+        }
+        TransformTemplateCemtRuntimeOperation::CemFormatTreeInterNodeWhitespace => {
+            transform_template_cemt_runtime_format_tree_inter_node_whitespace(
+                operation, binding, subject,
+            )
+        }
         TransformTemplateCemtRuntimeOperation::CemFormatTreeFormatNodes => {
             transform_template_cemt_runtime_format_tree_format_nodes(operation, binding, subject)
         }
@@ -4838,6 +4854,40 @@ fn execute_transform_template_cemt_runtime_operation(
             transform_template_cemt_runtime_format_tree_envelope(operation, binding, subject)
         }
     }
+}
+
+fn transform_template_cemt_runtime_format_tree_nodes(
+    operation: TransformTemplateCemtRuntimeOperation,
+    binding: &TransformTemplateEncodeBinding,
+    subject: Value,
+) -> Result<Value, String> {
+    validate_builtin_cem_tree_formatter_binding(binding)?;
+    let nodes = transform_template_cemt_runtime_node_array_subject(operation, subject)?;
+    let nodes = nodes
+        .into_iter()
+        .map(|node| transform_template_format_cem_tree_node(node, &binding.options, 0))
+        .collect::<Vec<_>>();
+    execute_transform_template_cemt_runtime_operation(
+        TransformTemplateCemtRuntimeOperation::CemFormatTreeInterNodeWhitespace,
+        binding,
+        Value::Array(nodes),
+    )
+}
+
+fn transform_template_cemt_runtime_format_tree_inter_node_whitespace(
+    operation: TransformTemplateCemtRuntimeOperation,
+    binding: &TransformTemplateEncodeBinding,
+    subject: Value,
+) -> Result<Value, String> {
+    validate_builtin_cem_tree_formatter_binding(binding)?;
+    let nodes = transform_template_cemt_runtime_node_array_subject(operation, subject)?;
+    Ok(Value::Array(
+        transform_template_insert_formatter_whitespace_nodes(
+            nodes,
+            transform_template_cem_tree_formatter_line_ending_data(&binding.options),
+            "formatter.line-ending",
+        ),
+    ))
 }
 
 fn transform_template_cemt_runtime_format_tree_format_nodes(
@@ -4926,13 +4976,6 @@ impl TransformTemplateCemTreeLayout {
             Self::Block => "block",
         }
     }
-}
-
-fn transform_template_format_cem_tree_nodes(
-    nodes: Vec<Value>,
-    options: &TransformTemplateEncodeOptions,
-) -> Vec<Value> {
-    transform_template_format_cem_tree_nodes_at_depth(nodes, options, 0)
 }
 
 fn transform_template_format_cem_tree_nodes_at_depth(
@@ -17461,11 +17504,17 @@ mod tests {
         let binding = registry
             .resolve_format_binding(&request, &BTreeSet::new())
             .expect("CEM tree formatter resolves");
-        let formatted_nodes = transform_template_format_cem_tree_nodes(
-            transform_template_cem_tree_nodes(&subject).expect("subject normalizes to CEM nodes"),
-            &binding.options,
-        );
+        let normalized_nodes =
+            transform_template_cem_tree_nodes(&subject).expect("subject normalizes to CEM nodes");
 
+        assert_eq!(
+            TransformTemplateCemtRuntimeOperation::CemFormatTreeNodes.as_str(),
+            "cem.format-tree.nodes"
+        );
+        assert_eq!(
+            TransformTemplateCemtRuntimeOperation::CemFormatTreeInterNodeWhitespace.as_str(),
+            "cem.format-tree.inter-node-whitespace"
+        );
         assert_eq!(
             TransformTemplateCemtRuntimeOperation::CemFormatTreeFormatNodes.as_str(),
             "cem.format-tree.format-nodes"
@@ -17475,10 +17524,40 @@ mod tests {
             "cem.format-tree.envelope"
         );
 
+        let formatted_nodes = execute_transform_template_cemt_runtime_operation(
+            TransformTemplateCemtRuntimeOperation::CemFormatTreeNodes,
+            &binding,
+            Value::Array(normalized_nodes),
+        )
+        .expect("recursive formatter node operation runs");
+        assert_eq!(formatted_nodes[0]["kind"], "element");
+        assert_eq!(formatted_nodes[0]["name"], "panel");
+        assert_eq!(
+            formatted_nodes[0]["formatLayout"]["formatterRole"],
+            "formatter.layout"
+        );
+        assert_eq!(
+            formatted_nodes[0]["formatContentBoundary"][1]["kind"],
+            "raw"
+        );
+
+        let separated_nodes = execute_transform_template_cemt_runtime_operation(
+            TransformTemplateCemtRuntimeOperation::CemFormatTreeInterNodeWhitespace,
+            &binding,
+            json!([
+                {"kind": "element", "name": "first"},
+                {"kind": "element", "name": "second"}
+            ]),
+        )
+        .expect("top-level formatter whitespace operation runs");
+        assert_eq!(separated_nodes[1]["kind"], "whitespace");
+        assert_eq!(separated_nodes[1]["value"], "\n");
+        assert_eq!(separated_nodes[1]["formatterRole"], "formatter.line-ending");
+
         let format_nodes = execute_transform_template_cemt_runtime_operation(
             TransformTemplateCemtRuntimeOperation::CemFormatTreeFormatNodes,
             &binding,
-            Value::Array(formatted_nodes.clone()),
+            formatted_nodes.clone(),
         )
         .expect("formatNodes operation runs");
         assert_eq!(format_nodes[0]["kind"], "format-marker");
@@ -17498,14 +17577,14 @@ mod tests {
         let envelope = execute_transform_template_cemt_runtime_operation(
             TransformTemplateCemtRuntimeOperation::CemFormatTreeEnvelope,
             &binding,
-            Value::Array(formatted_nodes.clone()),
+            formatted_nodes.clone(),
         )
         .expect("formatter envelope operation runs");
         assert_eq!(envelope["kind"], "cem-tree");
         assert_eq!(envelope["canonical"], true);
         assert_eq!(envelope["formatterProfile"], "cem.format-tree");
         assert_eq!(envelope["formatNodes"], format_nodes);
-        assert_eq!(envelope["nodes"], Value::Array(formatted_nodes));
+        assert_eq!(envelope["nodes"], formatted_nodes);
         assert_eq!(
             cem_tree_format_decision(&envelope, "indent")["value"],
             "    "
