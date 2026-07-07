@@ -5650,13 +5650,12 @@ fn transform_template_apply_cem_tree_color_to_node(
         {
             let writer_attributes_source_map =
                 transform_template_cem_tree_color_generated_source_map_value(fields);
-            transform_template_merge_cem_tree_color_writer_attributes(fields, writer_attributes);
-            if let Some(source_map) = writer_attributes_source_map {
-                fields
-                    .entry("writerAttributesSourceMap".to_owned())
-                    .or_insert(source_map.clone());
-            }
-            transform_template_sync_cem_tree_writer_attribute_nodes(fields, color_profile);
+            transform_template_merge_cem_tree_color_writer_attribute_nodes(
+                fields,
+                writer_attributes,
+                color_profile,
+                writer_attributes_source_map.as_ref(),
+            );
         }
     }
 
@@ -5684,13 +5683,12 @@ fn transform_template_apply_cem_tree_color_to_node(
     {
         let writer_attributes_source_map =
             transform_template_cem_tree_color_generated_source_map_value(fields);
-        transform_template_merge_cem_tree_color_writer_attributes(fields, writer_attributes);
-        if let Some(source_map) = writer_attributes_source_map {
-            fields
-                .entry("writerAttributesSourceMap".to_owned())
-                .or_insert(source_map.clone());
-        }
-        transform_template_sync_cem_tree_writer_attribute_nodes(fields, color_profile);
+        transform_template_merge_cem_tree_color_writer_attribute_nodes(
+            fields,
+            writer_attributes,
+            color_profile,
+            writer_attributes_source_map.as_ref(),
+        );
     }
 }
 
@@ -5820,13 +5818,8 @@ fn transform_template_cem_tree_color_text_wrapper(
     let mut wrapper = serde_json::Map::new();
     wrapper.insert("kind".to_owned(), Value::String("element".to_owned()));
     wrapper.insert("name".to_owned(), Value::String("span".to_owned()));
-    wrapper.insert("colorWrapper".to_owned(), Value::Bool(true));
     wrapper.insert("colorRole".to_owned(), Value::String(role.to_owned()));
     wrapper.insert("style".to_owned(), Value::Object(style));
-    wrapper.insert(
-        "writerAttributes".to_owned(),
-        Value::Object(writer_attributes),
-    );
     let wrapper_source_map = transform_template_cem_tree_color_generated_source_map_value(fields);
     wrapper.insert(
         "colorWrapperNodes".to_owned(),
@@ -5838,10 +5831,16 @@ fn transform_template_cem_tree_color_text_wrapper(
         ),
     );
     if let Some(source_map) = wrapper_source_map {
-        wrapper.insert("sourceMap".to_owned(), source_map.clone());
-        wrapper.insert("writerAttributesSourceMap".to_owned(), source_map.clone());
+        wrapper.insert("sourceMap".to_owned(), source_map);
     }
-    transform_template_sync_cem_tree_writer_attribute_nodes(&mut wrapper, color_profile);
+    let writer_attributes_source_map =
+        transform_template_cem_tree_color_generated_source_map_value(fields);
+    transform_template_merge_cem_tree_color_writer_attribute_nodes(
+        &mut wrapper,
+        writer_attributes,
+        color_profile,
+        writer_attributes_source_map.as_ref(),
+    );
     wrapper.insert(
         "children".to_owned(),
         Value::Array(vec![Value::Object(fields.clone())]),
@@ -6054,57 +6053,70 @@ fn transform_template_source_map_with_transform(
     source_map
 }
 
-fn transform_template_merge_cem_tree_color_writer_attributes(
+fn transform_template_merge_cem_tree_color_writer_attribute_nodes(
     fields: &mut serde_json::Map<String, Value>,
     attributes: serde_json::Map<String, Value>,
+    color_profile: &str,
+    source_map: Option<&Value>,
 ) {
-    let writer_attributes = fields
-        .entry("writerAttributes".to_owned())
-        .or_insert_with(|| Value::Object(serde_json::Map::new()));
-    if let Value::Object(writer_attributes) = writer_attributes {
-        for (name, value) in attributes {
-            if let Some(existing) = writer_attributes.get_mut(&name) {
-                match (name.as_str(), existing, value) {
-                    ("class", Value::String(existing), Value::String(generated)) => {
-                        transform_template_merge_space_separated_attribute(existing, &generated);
-                    }
-                    ("style", Value::String(existing), Value::String(generated)) => {
-                        transform_template_merge_css_declarations(existing, &generated);
-                    }
-                    (_, existing, value) => {
-                        *existing = value;
-                    }
-                }
-            } else {
-                writer_attributes.insert(name, value);
+    let mut merged = BTreeMap::<String, (Value, Option<Value>)>::new();
+    if let Some(Value::Array(nodes)) = fields.get("writerAttributeNodes") {
+        for node in nodes {
+            let Some(node_fields) = node.as_object() else {
+                continue;
+            };
+            let Some(name) = node_fields
+                .get("name")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|name| !name.is_empty())
+            else {
+                continue;
+            };
+            if let Some(value) = node_fields.get("value") {
+                merged.insert(
+                    name.to_owned(),
+                    (value.clone(), node_fields.get("sourceMap").cloned()),
+                );
             }
         }
     }
-}
+    if let Some(Value::Object(flat_attributes)) = fields.get("writerAttributes") {
+        let flat_source_map = fields.get("writerAttributesSourceMap").cloned();
+        for (name, value) in flat_attributes {
+            merged
+                .entry(name.clone())
+                .or_insert_with(|| (value.clone(), flat_source_map.clone()));
+        }
+    }
+    for (name, value) in attributes {
+        if let Some((existing, existing_source_map)) = merged.get_mut(&name) {
+            transform_template_merge_cem_tree_color_writer_attribute_value(&name, existing, value);
+            if let Some(source_map) = source_map {
+                *existing_source_map = Some(source_map.clone());
+            }
+        } else {
+            merged.insert(name, (value, source_map.cloned()));
+        }
+    }
 
-fn transform_template_sync_cem_tree_writer_attribute_nodes(
-    fields: &mut serde_json::Map<String, Value>,
-    color_profile: &str,
-) {
-    let Some(Value::Object(attributes)) = fields.get("writerAttributes") else {
+    fields.remove("writerAttributes");
+    fields.remove("writerAttributesSourceMap");
+    if merged.is_empty() {
+        fields.remove("writerAttributeNodes");
         return;
-    };
-    let source_map = fields.get("writerAttributesSourceMap").cloned();
-    let mut names = attributes.keys().cloned().collect::<Vec<_>>();
-    names.sort();
-    let nodes = names
+    }
+
+    let nodes = merged
         .into_iter()
-        .map(|name| {
+        .map(|(name, (value, source_map))| {
             let mut node = serde_json::Map::new();
             node.insert(
                 "kind".to_owned(),
                 Value::String("writer-attribute".to_owned()),
             );
-            node.insert("name".to_owned(), Value::String(name.clone()));
-            node.insert(
-                "value".to_owned(),
-                attributes.get(&name).cloned().unwrap_or(Value::Null),
-            );
+            node.insert("name".to_owned(), Value::String(name));
+            node.insert("value".to_owned(), value);
             node.insert("colorizerOwned".to_owned(), Value::Bool(true));
             node.insert(
                 "colorizerRole".to_owned(),
@@ -6125,13 +6137,31 @@ fn transform_template_sync_cem_tree_writer_attribute_nodes(
                     "colorProfile": color_profile,
                 }),
             );
-            if let Some(source_map) = source_map.clone() {
+            if let Some(source_map) = source_map {
                 node.insert("sourceMap".to_owned(), source_map);
             }
             Value::Object(node)
         })
         .collect::<Vec<_>>();
     fields.insert("writerAttributeNodes".to_owned(), Value::Array(nodes));
+}
+
+fn transform_template_merge_cem_tree_color_writer_attribute_value(
+    name: &str,
+    existing: &mut Value,
+    value: Value,
+) {
+    match (name, existing, value) {
+        ("class", Value::String(existing), Value::String(generated)) => {
+            transform_template_merge_space_separated_attribute(existing, &generated);
+        }
+        ("style", Value::String(existing), Value::String(generated)) => {
+            transform_template_merge_css_declarations(existing, &generated);
+        }
+        (_, existing, value) => {
+            *existing = value;
+        }
+    }
 }
 
 fn transform_template_merge_space_separated_attribute(existing: &mut String, generated: &str) {
@@ -17194,9 +17224,13 @@ mod tests {
             "source.gutter"
         );
         assert_eq!(
-            colored["colorNodes"][0]["writerAttributes"]["data-role"],
+            cem_tree_writer_attribute_value(&colored["colorNodes"][0], "data-role"),
             "source.gutter"
         );
+        assert!(colored["colorNodes"][0].get("writerAttributes").is_none());
+        assert!(colored["colorNodes"][0]
+            .get("writerAttributesSourceMap")
+            .is_none());
         assert_eq!(
             cem_tree_color_decision(&colored, "profile")["value"],
             "css-custom-properties"
@@ -17221,15 +17255,19 @@ mod tests {
             "source.gutter"
         );
         assert_eq!(
-            colored["formatNodes"][0]["writerAttributes"]["data-role"],
+            cem_tree_writer_attribute_value(&colored["formatNodes"][0], "data-role"),
             "source.gutter"
         );
+        assert!(colored["formatNodes"][0].get("writerAttributes").is_none());
+        assert!(colored["formatNodes"][0]
+            .get("writerAttributesSourceMap")
+            .is_none());
         assert_eq!(
             cem_tree_format_decision(&colored, "indent")["style"]["colorRole"],
             "source.gutter"
         );
         assert_cem_tree_source_map_current_transform(
-            &colored["formatNodes"][0]["writerAttributesSourceMap"],
+            &cem_tree_writer_attribute(&colored["formatNodes"][0], "data-role")["sourceMap"],
             |transform| {
                 matches!(
                     transform,
@@ -17240,17 +17278,21 @@ mod tests {
         );
         assert_eq!(colored["nodes"][0]["style"]["colorRole"], "syntax.name");
         assert_eq!(
-            colored["nodes"][0]["writerAttributes"]["class"],
+            cem_tree_writer_attribute_value(&colored["nodes"][0], "class"),
             "cem-color cem-color-syntax-name cem-color-has-attributes"
         );
         assert_eq!(
-            colored["nodes"][0]["writerAttributes"]["data-cem-attribute-roles"],
+            cem_tree_writer_attribute_value(&colored["nodes"][0], "data-cem-attribute-roles"),
             "tone:syntax.attribute"
         );
         assert_eq!(
-            colored["nodes"][0]["writerAttributes"]["data-role"],
+            cem_tree_writer_attribute_value(&colored["nodes"][0], "data-role"),
             "syntax.name"
         );
+        assert!(colored["nodes"][0].get("writerAttributes").is_none());
+        assert!(colored["nodes"][0]
+            .get("writerAttributesSourceMap")
+            .is_none());
         assert_eq!(
             colored["nodes"][0]["writerAttributeNodes"][0]["kind"],
             "writer-attribute"
@@ -17291,7 +17333,9 @@ mod tests {
         );
         assert_eq!(colored["nodes"][0]["children"][0]["kind"], "element");
         assert_eq!(colored["nodes"][0]["children"][0]["name"], "span");
-        assert_eq!(colored["nodes"][0]["children"][0]["colorWrapper"], true);
+        assert!(colored["nodes"][0]["children"][0]
+            .get("colorWrapper")
+            .is_none());
         assert_eq!(
             colored["nodes"][0]["children"][0]["colorWrapperNodes"][0]["kind"],
             "color-wrapper"
@@ -17339,9 +17383,15 @@ mod tests {
             },
         );
         assert_eq!(
-            colored["nodes"][0]["children"][0]["writerAttributes"]["class"],
+            cem_tree_writer_attribute_value(&colored["nodes"][0]["children"][0], "class"),
             "cem-color cem-color-syntax-string"
         );
+        assert!(colored["nodes"][0]["children"][0]
+            .get("writerAttributes")
+            .is_none());
+        assert!(colored["nodes"][0]["children"][0]
+            .get("writerAttributesSourceMap")
+            .is_none());
         assert_eq!(
             colored["nodes"][0]["children"][0]["writerAttributeNodes"][0]["name"],
             "class"
@@ -17361,7 +17411,7 @@ mod tests {
             },
         );
         assert_cem_tree_source_map_current_transform(
-            &colored["nodes"][0]["children"][0]["writerAttributesSourceMap"],
+            &cem_tree_writer_attribute(&colored["nodes"][0]["children"][0], "class")["sourceMap"],
             |transform| {
                 matches!(
                     transform,
@@ -17384,59 +17434,58 @@ mod tests {
     fn color_binding_materializes_cem_tree_output_profile_matrix() {
         let css_vars = encode_colored_cem_tree_with_profile("css-custom-properties");
         assert_eq!(
-            css_vars["nodes"][0]["writerAttributes"]["class"],
+            cem_tree_writer_attribute_value(&css_vars["nodes"][0], "class"),
             "cem-color cem-color-syntax-name cem-color-has-attributes"
         );
         assert_eq!(
-            css_vars["nodes"][0]["writerAttributes"]["style"],
+            cem_tree_writer_attribute_value(&css_vars["nodes"][0], "style"),
             "color: var(--cem-color-syntax-name, #087990)"
         );
         assert_eq!(
-            css_vars["nodes"][0]["children"][0]["writerAttributes"]["class"],
+            cem_tree_writer_attribute_value(&css_vars["nodes"][0]["children"][0], "class"),
             "cem-color cem-color-syntax-string"
         );
         assert_eq!(
-            css_vars["nodes"][0]["children"][0]["writerAttributes"]["style"],
+            cem_tree_writer_attribute_value(&css_vars["nodes"][0]["children"][0], "style"),
             "color: var(--cem-color-syntax-string, #067647)"
         );
 
         let classes = encode_colored_cem_tree_with_profile("classes");
         assert_eq!(
-            classes["nodes"][0]["writerAttributes"]["class"],
+            cem_tree_writer_attribute_value(&classes["nodes"][0], "class"),
             "cem-color cem-color-syntax-name cem-color-has-attributes"
         );
         assert_eq!(
-            classes["nodes"][0]["writerAttributes"]["data-cem-attribute-roles"],
+            cem_tree_writer_attribute_value(&classes["nodes"][0], "data-cem-attribute-roles"),
             "tone:syntax.attribute"
         );
-        assert!(classes["nodes"][0]["writerAttributes"]
-            .get("style")
-            .is_none());
+        assert!(cem_tree_writer_attribute_optional(&classes["nodes"][0], "style").is_none());
         assert_eq!(classes["nodes"][0]["children"][0]["kind"], "element");
         assert_eq!(
-            classes["nodes"][0]["children"][0]["writerAttributes"]["class"],
+            cem_tree_writer_attribute_value(&classes["nodes"][0]["children"][0], "class"),
             "cem-color cem-color-syntax-string"
         );
-        assert!(classes["nodes"][0]["children"][0]["writerAttributes"]
-            .get("style")
-            .is_none());
+        assert!(
+            cem_tree_writer_attribute_optional(&classes["nodes"][0]["children"][0], "style")
+                .is_none()
+        );
 
         let inline = encode_colored_cem_tree_with_profile("inline-style");
         assert_eq!(
-            inline["nodes"][0]["writerAttributes"]["class"],
+            cem_tree_writer_attribute_value(&inline["nodes"][0], "class"),
             "cem-color cem-color-has-attributes"
         );
         assert_eq!(
-            inline["nodes"][0]["writerAttributes"]["style"],
+            cem_tree_writer_attribute_value(&inline["nodes"][0], "style"),
             "color: #087990"
         );
         assert_eq!(inline["nodes"][0]["children"][0]["kind"], "element");
         assert_eq!(
-            inline["nodes"][0]["children"][0]["writerAttributes"]["class"],
+            cem_tree_writer_attribute_value(&inline["nodes"][0]["children"][0], "class"),
             "cem-color"
         );
         assert_eq!(
-            inline["nodes"][0]["children"][0]["writerAttributes"]["style"],
+            cem_tree_writer_attribute_value(&inline["nodes"][0]["children"][0], "style"),
             "color: #067647"
         );
 
@@ -17559,6 +17608,26 @@ mod tests {
                 })
             })
             .unwrap_or_else(|| panic!("missing CEM tree color decision `{name}`"))
+    }
+
+    fn cem_tree_writer_attribute<'a>(node: &'a Value, name: &str) -> &'a Value {
+        cem_tree_writer_attribute_optional(node, name)
+            .unwrap_or_else(|| panic!("missing CEM tree writer attribute `{name}`"))
+    }
+
+    fn cem_tree_writer_attribute_optional<'a>(node: &'a Value, name: &str) -> Option<&'a Value> {
+        node.get("writerAttributeNodes")
+            .and_then(Value::as_array)
+            .and_then(|nodes| {
+                nodes.iter().find(|candidate| {
+                    candidate.get("kind").and_then(Value::as_str) == Some("writer-attribute")
+                        && candidate.get("name").and_then(Value::as_str) == Some(name)
+                })
+            })
+    }
+
+    fn cem_tree_writer_attribute_value<'a>(node: &'a Value, name: &str) -> &'a Value {
+        &cem_tree_writer_attribute(node, name)["value"]
     }
 
     fn assert_cem_tree_source_map_current_transform(
