@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import cemtPipelineStageFixture from '../../../cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.fixture.cem?raw';
 import cemtPipelineSource from '../../../cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.cemt?raw';
 import {
     createCemtPipelineShowcase,
@@ -9,7 +10,7 @@ import {
 
 describe('CEMT output pipeline fixture', () => {
     it('renders intermediate stages as CEM-native source instead of JSON', () => {
-        const showcase = createCemtPipelineShowcase(cemtPipelineSource);
+        const showcase = createCemtPipelineShowcase(cemtPipelineSource, cemtPipelineStageFixture);
 
         expect(showcase.sourceAstCem).toBe('{article |\n    {text | Ready}\n}');
         expect(showcase.formattedTreeCem).toContain('{cem-tree @content-type="application/cem"');
@@ -22,7 +23,7 @@ describe('CEMT output pipeline fixture', () => {
     });
 
     it('keeps coloring as a CEM tree mutation before writer output', () => {
-        const showcase = createCemtPipelineShowcase(cemtPipelineSource);
+        const showcase = createCemtPipelineShowcase(cemtPipelineSource, cemtPipelineStageFixture);
 
         expect(writerReady(showcase.formattedTree)).toBe(false);
         expect(writerReady(showcase.coloredTree)).toBe(true);
@@ -34,13 +35,24 @@ describe('CEMT output pipeline fixture', () => {
     });
 
     it('lets the writer emit target-native HTML only after coloring', () => {
-        const showcase = createCemtPipelineShowcase(cemtPipelineSource);
+        const showcase = createCemtPipelineShowcase(cemtPipelineSource, cemtPipelineStageFixture);
 
         expect(() => writeColoredTreeToHtml(showcase.formattedTree)).toThrow(
             'colored CEM tree is required before writer output'
         );
         expect(writeColoredTreeToHtml(showcase.coloredTree)).toBe(
             '<article class="cem-color cem-color-syntax-name"><span class="cem-color cem-color-syntax-string">Ready</span></article>'
+        );
+    });
+
+    it('rejects a CEM-native stage fixture that drifts from the checked CEMT source', () => {
+        const mismatchedFixture = cemtPipelineStageFixture.replace(
+            '@formatter="acme.showcase.format-tree"',
+            '@formatter="acme.other.format-tree"'
+        );
+
+        expect(() => createCemtPipelineShowcase(cemtPipelineSource, mismatchedFixture)).toThrow(
+            'CEMT stage fixture formatter: expected acme.showcase.format-tree, got acme.other.format-tree'
         );
     });
 });

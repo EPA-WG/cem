@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
+import cemtPipelineStageFixture from '../../../cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.fixture.cem?raw';
 import cemtPipelineSource from '../../../cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.cemt?raw';
 import {
     createCemtPipelineShowcase,
@@ -15,7 +16,7 @@ export default meta;
 
 type Story = StoryObj;
 
-const pipelineShowcase = createCemtPipelineShowcase(cemtPipelineSource);
+const pipelineShowcase = createCemtPipelineShowcase(cemtPipelineSource, cemtPipelineStageFixture);
 const pipelineFixture = pipelineShowcase.fixture;
 const formattedTree = pipelineShowcase.formattedTree;
 const coloredTree = pipelineShowcase.coloredTree;

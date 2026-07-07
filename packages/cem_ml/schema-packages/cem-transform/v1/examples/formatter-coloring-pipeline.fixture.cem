@@ -1,0 +1,74 @@
+@doc cem-ml 1
+@ns showcase = "https://cem.dev/ns/showcase/1"
+@default showcase
+
+{cemt-output-pipeline-fixture
+    @source="schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.cemt"
+    @formatter="acme.showcase.format-tree"
+    @colorizer="acme.showcase.color-tree"
+    @color-profile="classes" |
+    {stage
+        @name="source-ast"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @category="cem-fragment" |
+```cem
+{article |
+    {text | Ready}
+}
+```
+    }
+
+    {stage
+        @name="formatted-cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @category="cem-tree" |
+```cem
+{cem-tree @content-type="application/cem" @schema="https://cem.dev/ns/cem-ml/1" @category="cem-tree" @mode="fragment" @canonical=true @formatter-profile="acme.showcase.format-tree" |
+    {format-nodes |
+        {format-marker @name="cem.format-tree" @formatter-role="formatter.boundary" @formatter-profile="acme.showcase.format-tree"}
+        {format-decision @name="showcase" @formatter-role="formatter.showcase" @value="formatted tree before writer"}
+    }
+    {nodes |
+        {article |
+            {format-layout @kind="format-decision" @formatter-role="formatter.layout" @value="inline"}
+            {text | Ready}
+        }
+    }
+}
+```
+    }
+
+    {stage
+        @name="colored-cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @category="cem-tree" |
+```cem
+{cem-tree @content-type="application/cem" @schema="https://cem.dev/ns/cem-ml/1" @category="cem-tree" @mode="fragment" @canonical=true @formatter-profile="acme.showcase.format-tree" @colored=true @color-profile="classes" |
+    {format-nodes |
+        {format-marker @name="cem.format-tree" @formatter-role="formatter.boundary" @formatter-profile="acme.showcase.format-tree"}
+        {format-decision @name="showcase" @formatter-role="formatter.showcase" @value="formatted tree before writer"}
+    }
+    {color-nodes |
+        {color-marker @name="cem.color-tree" @colorizer-role="colorizer.boundary" @color-profile="classes"}
+        {color-decision @name="showcase" @colorizer-role="colorizer.showcase" @value="colored tree before writer"}
+    }
+    {nodes |
+        {article @color-role="syntax.name" |
+            {style @color-role="syntax.name" @color-profile="classes"}
+            {writer-attribute @name="class" @value="cem-color cem-color-syntax-name" @colorizer-owned=true @colorizer-role="colorizer.writer-attribute" @color-profile="classes"}
+            {span @color-role="syntax.string" |
+                {style @color-role="syntax.string" @color-profile="classes"}
+                {writer-attribute @name="class" @value="cem-color cem-color-syntax-string" @colorizer-owned=true @colorizer-role="colorizer.writer-attribute" @color-profile="classes"}
+                {color-wrapper @name="span" @colorizer-owned=true @colorizer-role="colorizer.text-wrapper" @color-profile="classes"}
+                {color-decision @name="wrapped-role" @value="syntax.string" @colorizer-owned=true @colorizer-role="colorizer.wrapped-role" @color-profile="classes"}
+                {text | Ready}
+            }
+        }
+    }
+}
+```
+    }
+}

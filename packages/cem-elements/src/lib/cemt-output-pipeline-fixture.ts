@@ -56,8 +56,12 @@ export type CemtPipelineShowcase = {
     coloredTreeCem: string;
 };
 
-export function createCemtPipelineShowcase(cemtSource: string): CemtPipelineShowcase {
+export function createCemtPipelineShowcase(
+    cemtSource: string,
+    stageFixtureSource: string
+): CemtPipelineShowcase {
     const fixture = createPipelineFixture(cemtSource);
+    const stages = parseStageFixture(stageFixtureSource, fixture);
     const sourceAst = fixture.sourceAst;
     const formattedTree = formatCemTree(fixture);
     const coloredTree = colorCemTree(fixture, formattedTree);
@@ -66,9 +70,9 @@ export function createCemtPipelineShowcase(cemtSource: string): CemtPipelineShow
         sourceAst,
         formattedTree,
         coloredTree,
-        sourceAstCem: writeCemNodeSource(sourceAst),
-        formattedTreeCem: writeCemTreeSource(formattedTree),
-        coloredTreeCem: writeCemTreeSource(coloredTree),
+        sourceAstCem: stages.sourceAstCem,
+        formattedTreeCem: stages.formattedTreeCem,
+        coloredTreeCem: stages.coloredTreeCem,
     };
 }
 
@@ -86,44 +90,6 @@ export function writeColoredTreeToHtml(tree: CemTree): string {
         throw new Error('colored CEM tree is required before writer output');
     }
     return tree.nodes.map(writeNodeToHtml).join('');
-}
-
-export function writeCemTreeSource(tree: CemTree): string {
-    const attributes = [
-        cemAttribute('content-type', tree.contentType),
-        cemAttribute('schema', tree.schema),
-        cemAttribute('category', tree.category),
-        cemAttribute('mode', tree.mode),
-        cemAttribute('canonical', tree.canonical),
-        cemAttribute('formatter-profile', tree.formatterProfile),
-        tree.colored ? cemAttribute('colored', true) : '',
-        tree.colorProfile ? cemAttribute('color-profile', tree.colorProfile) : '',
-    ].filter(Boolean);
-    const children = [
-        writeMetadataListSource('format-nodes', tree.formatNodes, 1),
-        tree.colorNodes ? writeMetadataListSource('color-nodes', tree.colorNodes, 1) : '',
-        writeNodeListSource('nodes', tree.nodes, 1),
-    ].filter(Boolean);
-
-    return `{cem-tree ${attributes.join(' ')} |\n${children.join('\n')}\n}`;
-}
-
-export function writeCemNodeSource(node: CemNode, depth = 0): string {
-    if (node.kind === 'text') {
-        return `${indent(depth)}{text | ${escapeCemText(node.value ?? '')}}`;
-    }
-
-    const name = node.name ?? 'element';
-    const attributes = [node.colorRole ? cemAttribute('color-role', node.colorRole) : ''].filter(Boolean);
-    const children = [
-        ...(node.writerAttributeNodes ?? []).map((attribute) => writeWriterAttributeSource(attribute, depth + 1)),
-        ...(node.children ?? []).map((child) => writeCemNodeSource(child, depth + 1)),
-    ];
-
-    if (children.length === 0) {
-        return `${indent(depth)}{${name}${attributes.length ? ` ${attributes.join(' ')}` : ''}}`;
-    }
-    return `${indent(depth)}{${name}${attributes.length ? ` ${attributes.join(' ')}` : ''} |\n${children.join('\n')}\n${indent(depth)}}`;
 }
 
 function createPipelineFixture(cemtSource: string): CemtPipelineFixture {
@@ -265,36 +231,6 @@ function requiredMatches(source: string, pattern: RegExp, count: number, label: 
     return values;
 }
 
-function writeMetadataListSource(name: string, values: Array<Record<string, unknown>>, depth: number): string {
-    const children = values.map((value) => writeMetadataSource(value, depth + 1)).join('\n');
-    return `${indent(depth)}{${name} |\n${children}\n${indent(depth)}}`;
-}
-
-function writeMetadataSource(value: Record<string, unknown>, depth: number): string {
-    const kind = requiredString(value.kind, 'metadata kind');
-    const attributes = Object.entries(value)
-        .filter(([name]) => name !== 'kind')
-        .map(([name, attributeValue]) => cemAttribute(kebabCase(name), attributeValue))
-        .filter(Boolean);
-    return `${indent(depth)}{${kind}${attributes.length ? ` ${attributes.join(' ')}` : ''}}`;
-}
-
-function writeNodeListSource(name: string, nodes: CemNode[], depth: number): string {
-    const children = nodes.map((node) => writeCemNodeSource(node, depth + 1)).join('\n');
-    return `${indent(depth)}{${name} |\n${children}\n${indent(depth)}}`;
-}
-
-function writeWriterAttributeSource(attribute: WriterAttributeNode, depth: number): string {
-    const attributes = [
-        cemAttribute('name', attribute.name),
-        cemAttribute('value', attribute.value),
-        cemAttribute('colorizer-owned', attribute.colorizerOwned),
-        cemAttribute('colorizer-role', attribute.colorizerRole),
-        cemAttribute('color-profile', attribute.colorProfile),
-    ];
-    return `${indent(depth)}{writer-attribute ${attributes.join(' ')}}`;
-}
-
 function nodeWriterReady(node: CemNode): boolean {
     if (node.kind === 'text') {
         return true;
@@ -320,37 +256,6 @@ function writerAttribute(node: CemNode, name: string): WriterAttributeNode | und
     return node.writerAttributeNodes?.find((attribute) => attribute.name === name);
 }
 
-function cemAttribute(name: string, value: unknown): string {
-    if (typeof value === 'boolean') {
-        return `@${name}=${String(value)}`;
-    }
-    if (typeof value === 'string') {
-        return `@${name}="${escapeCemAttribute(value)}"`;
-    }
-    return '';
-}
-
-function requiredString(value: unknown, label: string): string {
-    invariant(typeof value === 'string' && value.length > 0, `missing ${label}`);
-    return value;
-}
-
-function kebabCase(value: string): string {
-    return value.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
-}
-
-function indent(depth: number): string {
-    return '    '.repeat(depth);
-}
-
-function escapeCemAttribute(value: string): string {
-    return value.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('\n', '\\n');
-}
-
-function escapeCemText(value: string): string {
-    return value.replaceAll('\\', '\\\\').replaceAll('{', '\\{').replaceAll('}', '\\}');
-}
-
 function escapeHtml(value: string): string {
     return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 }
@@ -363,4 +268,70 @@ function invariant(condition: unknown, message: string): asserts condition {
     if (!condition) {
         throw new Error(message);
     }
+}
+
+type ParsedStageFixture = {
+    sourceAstCem: string;
+    formattedTreeCem: string;
+    coloredTreeCem: string;
+};
+
+function parseStageFixture(source: string, fixture: CemtPipelineFixture): ParsedStageFixture {
+    assertStageFixtureMetadata(source, fixture);
+    const stages = new Map<string, string>();
+    const pattern = /\{stage\b([^|]*?)\|\s*```cem\r?\n([\s\S]*?)\r?\n```\s*\}/g;
+    for (const match of source.matchAll(pattern)) {
+        const name = match[1].match(/@name="([^"]+)"/)?.[1];
+        invariant(name, 'CEMT pipeline stage fixture is missing @name');
+        stages.set(name, normalizeStageSource(match[2]));
+    }
+
+    return {
+        sourceAstCem: requiredStage(stages, 'source-ast'),
+        formattedTreeCem: requiredStage(stages, 'formatted-cem-tree'),
+        coloredTreeCem: requiredStage(stages, 'colored-cem-tree'),
+    };
+}
+
+function assertStageFixtureMetadata(source: string, fixture: CemtPipelineFixture): void {
+    const fixtureSource = requiredStageFixtureAttribute(source, 'source');
+    invariant(
+        fixtureSource.endsWith('formatter-coloring-pipeline.cemt'),
+        `unexpected CEMT pipeline fixture source ${fixtureSource}`
+    );
+    assertEqual(
+        requiredStageFixtureAttribute(source, 'formatter'),
+        fixture.formatterName,
+        'CEMT stage fixture formatter'
+    );
+    assertEqual(
+        requiredStageFixtureAttribute(source, 'colorizer'),
+        fixture.colorizerName,
+        'CEMT stage fixture colorizer'
+    );
+    assertEqual(
+        requiredStageFixtureAttribute(source, 'color-profile'),
+        fixture.colorProfile,
+        'CEMT stage fixture color profile'
+    );
+}
+
+function requiredStageFixtureAttribute(source: string, name: string): string {
+    const value = source.match(new RegExp(`@${name}="([^"]+)"`))?.[1];
+    invariant(value, `CEMT pipeline stage fixture is missing @${name}`);
+    return value;
+}
+
+function requiredStage(stages: Map<string, string>, name: string): string {
+    const stage = stages.get(name);
+    invariant(stage, `CEMT pipeline stage fixture is missing ${name}`);
+    return stage;
+}
+
+function normalizeStageSource(source: string): string {
+    return source.replace(/\r\n/g, '\n').trim();
+}
+
+function assertEqual(actual: string, expected: string, label: string): void {
+    invariant(actual === expected, `${label}: expected ${expected}, got ${actual}`);
 }

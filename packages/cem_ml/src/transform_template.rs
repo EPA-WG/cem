@@ -20325,6 +20325,9 @@ mod tests {
 
     #[test]
     fn cemt_formatter_coloring_pipeline_example_executes_before_writer() {
+        let stage_fixture = include_str!(
+            "../schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.fixture.cem"
+        );
         let response =
             parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
                 template: template_input(
@@ -20403,6 +20406,9 @@ mod tests {
             cem_tree_format_decision(&formatted, "showcase")["value"],
             "formatted tree before writer"
         );
+        assert!(stage_fixture.contains(r#"@formatter="acme.showcase.format-tree""#));
+        assert!(stage_fixture.contains(r#"@formatter-profile="acme.showcase.format-tree""#));
+        assert!(stage_fixture.contains(r#"@value="formatted tree before writer""#));
         assert!(formatted.get("colorNodes").is_none());
         assert!(formatted.get("colored").is_none());
         let formatted_artifact = format_binding.artifact_from_value(formatted.clone());
@@ -20467,10 +20473,15 @@ mod tests {
             cem_tree_color_decision(&colored, "showcase")["value"],
             "colored tree before writer"
         );
+        assert!(stage_fixture.contains(r#"@colorizer="acme.showcase.color-tree""#));
+        assert!(stage_fixture.contains(r#"@color-profile="classes""#));
+        assert!(stage_fixture.contains(r#"@value="colored tree before writer""#));
         assert_eq!(
             cem_tree_writer_attribute_value(&colored["nodes"][0], "class"),
             "cem-color cem-color-syntax-name"
         );
+        assert!(stage_fixture.contains(r#"@value="cem-color cem-color-syntax-name""#));
+        assert!(stage_fixture.contains(r#"@colorizer-role="colorizer.text-wrapper""#));
         let colored_artifact = color_binding.artifact_from_value(colored);
         let writer_artifact =
             transform_template_writer_cem_tree_artifact_to_text(&colored_artifact, &writer_context)
