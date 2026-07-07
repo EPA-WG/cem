@@ -6081,14 +6081,8 @@ fn transform_template_merge_cem_tree_color_writer_attribute_nodes(
             }
         }
     }
-    if let Some(Value::Object(flat_attributes)) = fields.get("writerAttributes") {
-        let flat_source_map = fields.get("writerAttributesSourceMap").cloned();
-        for (name, value) in flat_attributes {
-            merged
-                .entry(name.clone())
-                .or_insert_with(|| (value.clone(), flat_source_map.clone()));
-        }
-    }
+    fields.remove("writerAttributes");
+    fields.remove("writerAttributesSourceMap");
     for (name, value) in attributes {
         if let Some((existing, existing_source_map)) = merged.get_mut(&name) {
             transform_template_merge_cem_tree_color_writer_attribute_value(&name, existing, value);
@@ -6100,8 +6094,6 @@ fn transform_template_merge_cem_tree_color_writer_attribute_nodes(
         }
     }
 
-    fields.remove("writerAttributes");
-    fields.remove("writerAttributesSourceMap");
     if merged.is_empty() {
         fields.remove("writerAttributeNodes");
         return;
@@ -8520,6 +8512,216 @@ fn validate_cem_tree_color_metadata(value: &Value, color_profile: &str) -> Resul
         return Err(format!(
             "CEM tree color metadata profile mismatch: tree `{color_profile}`, colorNodes `{conflicting_profile}`"
         ));
+    }
+    if TransformTemplateColorOutputProfile::html_from_selector(color_profile).is_ok() {
+        validate_cem_tree_materialized_html_color_metadata(value, color_profile)?;
+    }
+    Ok(())
+}
+
+fn validate_cem_tree_materialized_html_color_metadata(
+    value: &Value,
+    color_profile: &str,
+) -> Result<(), String> {
+    validate_cem_tree_materialized_html_color_metadata_value(value, color_profile)
+}
+
+fn validate_cem_tree_materialized_html_color_metadata_value(
+    value: &Value,
+    color_profile: &str,
+) -> Result<(), String> {
+    match value {
+        Value::Object(fields) => {
+            validate_cem_tree_materialized_html_color_metadata_object(fields, color_profile)?;
+            for field in [
+                "nodes",
+                "node",
+                "root",
+                "attributes",
+                "children",
+                "slots",
+                "formatNodes",
+                "colorNodes",
+                "formatLayout",
+                "formatBeforeAttributes",
+                "formatBetweenAttributes",
+                "formatContentBoundary",
+                "formatBeforeClose",
+            ] {
+                if let Some(value) = fields.get(field) {
+                    validate_cem_tree_materialized_html_color_metadata_value(value, color_profile)?;
+                }
+            }
+            Ok(())
+        }
+        Value::Array(items) => {
+            for item in items {
+                validate_cem_tree_materialized_html_color_metadata_value(item, color_profile)?;
+            }
+            Ok(())
+        }
+        _ => Ok(()),
+    }
+}
+
+fn validate_cem_tree_materialized_html_color_metadata_object(
+    fields: &serde_json::Map<String, Value>,
+    color_profile: &str,
+) -> Result<(), String> {
+    if fields.contains_key("writerAttributes") || fields.contains_key("writerAttributesSourceMap") {
+        return Err(
+            "CEM tree writer requires materialized `writerAttributeNodes`; flat `writerAttributes` metadata is not a writer input"
+                .to_owned(),
+        );
+    }
+    if fields.contains_key("colorWrapper") {
+        return Err(
+            "CEM tree writer requires materialized `colorWrapperNodes`; legacy `colorWrapper` metadata is not a writer input"
+                .to_owned(),
+        );
+    }
+    if transform_template_cem_tree_object_requires_writer_attribute_nodes(fields) {
+        validate_cem_tree_writer_attribute_nodes(fields, color_profile)?;
+    }
+    if fields.contains_key("colorWrapperNodes") {
+        validate_cem_tree_color_wrapper_nodes(fields, color_profile)?;
+    }
+    Ok(())
+}
+
+fn transform_template_cem_tree_object_requires_writer_attribute_nodes(
+    fields: &serde_json::Map<String, Value>,
+) -> bool {
+    if !fields.contains_key("colorRole") {
+        return false;
+    }
+    matches!(
+        fields
+            .get("kind")
+            .and_then(Value::as_str)
+            .unwrap_or_default(),
+        "element"
+            | "node"
+            | "root"
+            | "attribute"
+            | "attr"
+            | "text"
+            | "content"
+            | "string"
+            | "comment"
+            | "whitespace"
+            | "raw"
+            | "format-token"
+            | "format-marker"
+            | "format-decision"
+            | "format-span"
+            | "color-marker"
+            | "color-decision"
+            | "color-span"
+    )
+}
+
+fn validate_cem_tree_writer_attribute_nodes(
+    fields: &serde_json::Map<String, Value>,
+    color_profile: &str,
+) -> Result<(), String> {
+    let nodes = fields
+        .get("writerAttributeNodes")
+        .and_then(Value::as_array)
+        .filter(|nodes| !nodes.is_empty())
+        .ok_or_else(|| {
+            "CEM tree writer requires materialized `writerAttributeNodes` for HTML-colored CEM tree nodes"
+                .to_owned()
+        })?;
+    for node in nodes {
+        let fields = node.as_object().ok_or_else(|| {
+            format!(
+                "CEM tree writer expected writerAttributeNodes item object, got {}",
+                json_value_type_name(node)
+            )
+        })?;
+        if fields.get("kind").and_then(Value::as_str) != Some("writer-attribute") {
+            return Err(
+                "CEM tree writer expected writerAttributeNodes items with kind `writer-attribute`"
+                    .to_owned(),
+            );
+        }
+        if fields
+            .get("name")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .is_none()
+        {
+            return Err("CEM tree writer expected writerAttributeNodes item name".to_owned());
+        }
+        if fields.get("value").is_none() {
+            return Err("CEM tree writer expected writerAttributeNodes item value".to_owned());
+        }
+        if fields.get("colorizerOwned").and_then(Value::as_bool) != Some(true) {
+            return Err("CEM tree writer expected colorizer-owned writerAttributeNodes".to_owned());
+        }
+        if !fields
+            .get("colorizerRole")
+            .and_then(Value::as_str)
+            .is_some_and(|role| role.starts_with("colorizer."))
+        {
+            return Err(
+                "CEM tree writer expected writerAttributeNodes colorizerRole metadata".to_owned(),
+            );
+        }
+        if fields.get("colorProfile").and_then(Value::as_str) != Some(color_profile) {
+            return Err(format!(
+                "CEM tree writerAttributeNodes color profile mismatch: tree `{color_profile}`"
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_cem_tree_color_wrapper_nodes(
+    fields: &serde_json::Map<String, Value>,
+    color_profile: &str,
+) -> Result<(), String> {
+    let nodes = fields
+        .get("colorWrapperNodes")
+        .and_then(Value::as_array)
+        .filter(|nodes| !nodes.is_empty())
+        .ok_or_else(|| {
+            "CEM tree writer requires materialized `colorWrapperNodes` for color wrapper elements"
+                .to_owned()
+        })?;
+    let has_wrapper = nodes.iter().any(|node| {
+        let Some(fields) = node.as_object() else {
+            return false;
+        };
+        fields.get("kind").and_then(Value::as_str) == Some("color-wrapper")
+            && fields.get("name").and_then(Value::as_str) == Some("span")
+            && fields.get("colorizerOwned").and_then(Value::as_bool) == Some(true)
+            && fields.get("colorizerRole").and_then(Value::as_str) == Some("colorizer.text-wrapper")
+            && fields.get("colorProfile").and_then(Value::as_str) == Some(color_profile)
+    });
+    if !has_wrapper {
+        return Err(
+            "CEM tree writer expected `colorWrapperNodes` to include the colorizer text wrapper decision"
+                .to_owned(),
+        );
+    }
+    let has_wrapped_role = nodes.iter().any(|node| {
+        let Some(fields) = node.as_object() else {
+            return false;
+        };
+        fields.get("kind").and_then(Value::as_str) == Some("color-decision")
+            && fields.get("name").and_then(Value::as_str) == Some("wrapped-role")
+            && fields.get("colorizerOwned").and_then(Value::as_bool) == Some(true)
+            && fields.get("colorizerRole").and_then(Value::as_str) == Some("colorizer.wrapped-role")
+            && fields.get("colorProfile").and_then(Value::as_str) == Some(color_profile)
+    });
+    if !has_wrapped_role {
+        return Err(
+            "CEM tree writer expected `colorWrapperNodes` to include the wrapped color role decision"
+                .to_owned(),
+        );
     }
     Ok(())
 }
@@ -20070,6 +20272,80 @@ mod tests {
                 && diagnostic.node.as_deref() == Some("body")
                 && diagnostic.message.contains("colorNodes")
                 && diagnostic.message.contains("cem.color-tree")
+        }));
+    }
+
+    #[test]
+    fn encoded_text_artifact_composition_rejects_colored_cem_tree_without_writer_attribute_nodes() {
+        let mut evaluated = evaluated_colored_cem_tree("body");
+        evaluated
+            .artifact
+            .value
+            .get_mut("nodes")
+            .and_then(Value::as_array_mut)
+            .and_then(|nodes| nodes.first_mut())
+            .and_then(Value::as_object_mut)
+            .expect("colored element object")
+            .remove("writerAttributeNodes");
+        evaluated.subject = evaluated.artifact.value.clone();
+        let mut context = TransformTemplateEncodedArtifactInsertionContext::new(
+            HTML_CONTENT_TYPE,
+            HTML_SCHEMA_URI,
+        )
+        .with_category("html-document")
+        .with_produces(TransformTemplateOutputProducedKind::Text);
+        context.color_profile = Some("css-custom-properties".to_owned());
+
+        let response = compose_transform_template_encoded_text_artifacts(
+            &[evaluated],
+            &context,
+            Some("templates/runtime-encoding.cemt"),
+        );
+
+        assert!(response.artifact.is_none());
+        assert!(response.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_WRITER_ADAPTER_FAILED_CODE
+                && diagnostic.node.as_deref() == Some("body")
+                && diagnostic.message.contains("writerAttributeNodes")
+        }));
+    }
+
+    #[test]
+    fn encoded_text_artifact_composition_rejects_colored_cem_tree_with_legacy_color_wrapper() {
+        let mut evaluated = evaluated_colored_cem_tree("body");
+        let wrapper = evaluated
+            .artifact
+            .value
+            .get_mut("nodes")
+            .and_then(Value::as_array_mut)
+            .and_then(|nodes| nodes.first_mut())
+            .and_then(|node| node.get_mut("children"))
+            .and_then(Value::as_array_mut)
+            .and_then(|children| children.first_mut())
+            .and_then(Value::as_object_mut)
+            .expect("colored wrapper object");
+        wrapper.remove("colorWrapperNodes");
+        wrapper.insert("colorWrapper".to_owned(), Value::Bool(true));
+        evaluated.subject = evaluated.artifact.value.clone();
+        let mut context = TransformTemplateEncodedArtifactInsertionContext::new(
+            HTML_CONTENT_TYPE,
+            HTML_SCHEMA_URI,
+        )
+        .with_category("html-document")
+        .with_produces(TransformTemplateOutputProducedKind::Text);
+        context.color_profile = Some("css-custom-properties".to_owned());
+
+        let response = compose_transform_template_encoded_text_artifacts(
+            &[evaluated],
+            &context,
+            Some("templates/runtime-encoding.cemt"),
+        );
+
+        assert!(response.artifact.is_none());
+        assert!(response.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_WRITER_ADAPTER_FAILED_CODE
+                && diagnostic.node.as_deref() == Some("body")
+                && diagnostic.message.contains("colorWrapperNodes")
         }));
     }
 
