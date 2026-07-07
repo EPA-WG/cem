@@ -3108,6 +3108,7 @@ fn conversion_cem_tree_format_function_descriptor(
         fallback: None,
         params: Vec::new(),
         body_declared: false,
+        body_expression: None,
     }
 }
 
@@ -3136,6 +3137,7 @@ fn conversion_cem_tree_color_function_descriptor(
         fallback: None,
         params: Vec::new(),
         body_declared: false,
+        body_expression: None,
     }
 }
 

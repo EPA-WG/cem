@@ -421,6 +421,8 @@ pub struct TransformTemplateOutputFunctionDescriptor {
     pub params: Vec<TransformTemplateModuleParamDeclaration>,
     #[serde(default, skip_serializing_if = "is_false")]
     pub body_declared: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body_expression: Option<String>,
 }
 
 impl TransformTemplateOutputFunctionDescriptor {
@@ -1475,6 +1477,7 @@ fn format_transform_template_selector_list(values: &[String]) -> String {
 #[derive(Debug, Clone, Default)]
 pub struct TransformTemplateOutputFunctionRegistry {
     functions: Vec<TransformTemplateOutputFunctionDescriptor>,
+    runtime_functions: BTreeMap<String, CemtRuntimeFunction>,
 }
 
 impl TransformTemplateOutputFunctionRegistry {
@@ -1485,10 +1488,14 @@ impl TransformTemplateOutputFunctionRegistry {
     pub fn from_module_options(options: &TransformTemplateModuleOptions) -> Self {
         Self {
             functions: options.output_functions.clone(),
+            runtime_functions: cemt_runtime_functions_from_module_options(options),
         }
     }
 
     pub fn register(&mut self, function: TransformTemplateOutputFunctionDescriptor) {
+        if let Some((name, runtime_function)) = cemt_runtime_function_from_descriptor(&function) {
+            self.runtime_functions.insert(name, runtime_function);
+        }
         self.functions.push(function);
     }
 
@@ -11044,9 +11051,42 @@ pub struct TransformTemplateWriterDiagnostics {
 const CEMT_RUNTIME_CALL_RECURSION_LIMIT: usize = 64;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct CemtRuntimeFunction {
+pub(crate) struct CemtRuntimeFunction {
     params: Vec<String>,
     body: String,
+}
+
+pub(crate) fn cemt_runtime_functions_from_module_options(
+    options: &TransformTemplateModuleOptions,
+) -> BTreeMap<String, CemtRuntimeFunction> {
+    options
+        .output_functions
+        .iter()
+        .filter_map(cemt_runtime_function_from_descriptor)
+        .collect()
+}
+
+fn cemt_runtime_function_from_descriptor(
+    function: &TransformTemplateOutputFunctionDescriptor,
+) -> Option<(String, CemtRuntimeFunction)> {
+    if function.implementation != TransformTemplateOutputFunctionImplementation::Cemt {
+        return None;
+    }
+    let body = function.body_expression.as_ref()?;
+    if cemt_expression_starts_with_call(body, "encode") {
+        return None;
+    }
+    Some((
+        function.name.clone(),
+        CemtRuntimeFunction {
+            params: function
+                .params
+                .iter()
+                .map(|param| param.name.clone())
+                .collect(),
+            body: body.clone(),
+        },
+    ))
 }
 
 fn resolve_encode_subject_expression(
@@ -13176,6 +13216,7 @@ impl NativeTemplateModuleLowerer<'_> {
         };
         let mut params = Vec::new();
         let mut body_declared = false;
+        let mut body_expression = None;
         for child in children {
             let Some(child_name) = template_element_name(self.document, *child) else {
                 continue;
@@ -13190,7 +13231,13 @@ impl NativeTemplateModuleLowerer<'_> {
                 }
                 "body" => {
                     body_declared = true;
-                    self.collect_body_expressions(*child, Some(&name));
+                    body_expression =
+                        self.output_function_body_expression(*child, element_name, &name);
+                    if body_expression.as_deref().is_some_and(|expression| {
+                        cemt_expression_starts_with_call(expression, "encode")
+                    }) {
+                        self.collect_body_expressions(*child, Some(&name));
+                    }
                 }
                 other => self.push_diag(
                     TRANSFORM_TEMPLATE_DECLARATION_UNSUPPORTED_CODE,
@@ -13223,7 +13270,42 @@ impl NativeTemplateModuleLowerer<'_> {
                 fallback: optional_trimmed_attr(&attrs, "fallback"),
                 params,
                 body_declared,
+                body_expression,
             });
+    }
+
+    fn output_function_body_expression(
+        &mut self,
+        body_id: AstNodeId,
+        element_name: &str,
+        function_name: &str,
+    ) -> Option<String> {
+        let expressions = self.collect_runtime_body_expressions(body_id);
+        if expressions.len() > 1 {
+            self.push_diag(
+                TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE,
+                format!(
+                    "`{element_name}` `{function_name}` body must contain at most one executable `$` expression"
+                ),
+            );
+        }
+        expressions.into_iter().next()
+    }
+
+    fn collect_runtime_body_expressions(&self, node_id: AstNodeId) -> Vec<String> {
+        let Some(CemAstNode::Element { children, .. }) = self.document.get(node_id) else {
+            return Vec::new();
+        };
+        if template_element_name(self.document, node_id) == Some("$") {
+            return template_expression_body(self.document, node_id)
+                .into_iter()
+                .collect();
+        }
+        let mut expressions = Vec::new();
+        for child in children {
+            expressions.extend(self.collect_runtime_body_expressions(*child));
+        }
+        expressions
     }
 
     fn collect_body_expressions(&mut self, body_id: AstNodeId, owner: Option<&str>) {
@@ -14403,6 +14485,7 @@ mod tests {
             fallback: None,
             params: Vec::new(),
             body_declared: false,
+            body_expression: None,
         }
     }
 
@@ -14433,6 +14516,7 @@ mod tests {
             fallback: None,
             params: Vec::new(),
             body_declared: false,
+            body_expression: None,
         }
     }
 
@@ -14463,6 +14547,7 @@ mod tests {
             fallback: None,
             params: Vec::new(),
             body_declared: false,
+            body_expression: None,
         }
     }
 
@@ -14493,6 +14578,7 @@ mod tests {
             fallback: None,
             params: Vec::new(),
             body_declared: false,
+            body_expression: None,
         }
     }
 
@@ -14523,6 +14609,7 @@ mod tests {
             fallback: None,
             params: Vec::new(),
             body_declared: false,
+            body_expression: None,
         }
     }
 
@@ -14553,6 +14640,7 @@ mod tests {
             fallback: None,
             params: Vec::new(),
             body_declared: false,
+            body_expression: None,
         }
     }
 
@@ -14583,6 +14671,7 @@ mod tests {
             fallback: None,
             params: Vec::new(),
             body_declared: false,
+            body_expression: None,
         }
     }
 
@@ -14613,6 +14702,7 @@ mod tests {
             fallback: None,
             params: Vec::new(),
             body_declared: false,
+            body_expression: None,
         }
     }
 
@@ -14644,6 +14734,7 @@ mod tests {
             fallback: None,
             params: Vec::new(),
             body_declared: false,
+            body_expression: None,
         }
     }
 
@@ -14670,6 +14761,7 @@ mod tests {
             fallback: None,
             params: Vec::new(),
             body_declared: false,
+            body_expression: None,
         }
     }
 
@@ -14696,6 +14788,7 @@ mod tests {
             fallback: None,
             params: Vec::new(),
             body_declared: false,
+            body_expression: None,
         }
     }
 
@@ -14733,6 +14826,7 @@ mod tests {
             fallback: None,
             params: Vec::new(),
             body_declared: false,
+            body_expression: None,
         }
     }
 
@@ -14772,6 +14866,7 @@ mod tests {
             fallback: None,
             params: Vec::new(),
             body_declared: false,
+            body_expression: None,
         }
     }
 
@@ -15593,6 +15688,111 @@ mod tests {
     }
 
     #[test]
+    fn cemt_module_output_function_bodies_build_runtime_call_table() {
+        let response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "templates/runtime-function-bodies.cemt",
+                    r#"{@doc cem-ml 1}
+{module |
+  {format-function
+      @name="acme.format-node"
+      @category="cem-tree"
+      @subject="object"
+      @produces="cem-tree"
+      @content-type="application/cem"
+      @schema="https://cem.dev/ns/cem-ml/1"
+      @canonical=true
+      @deterministic=true
+      @streamable=true |
+      {param @name="subject" @type="object" @required=true}
+      {param @name="slot" @type="integer" @required=true}
+      {body |
+        {$ {
+          kind: "element",
+          name: $subject.name,
+          slot: $slot,
+          children: map($subject.children, call(acme.format-node, { subject: $item, slot: $index }))
+        } }
+      }
+  }
+  {format-function
+      @name="acme.format-root"
+      @category="cem-tree"
+      @subject="object"
+      @produces="cem-tree"
+      @content-type="application/cem"
+      @schema="https://cem.dev/ns/cem-ml/1"
+      @canonical=true
+      @deterministic=true
+      @streamable=true |
+      {param @name="subject" @type="object" @required=true}
+      {body |
+        {$ call(acme.format-node, { subject: $subject, slot: 0 }) }
+      }
+  }
+}"#,
+                    Some(FormatIdentity {
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            });
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        assert!(response.module_options.encode_expressions.is_empty());
+        let format_node = response
+            .module_options
+            .output_functions
+            .iter()
+            .find(|function| function.name == "acme.format-node")
+            .expect("format-node function");
+        assert!(format_node.body_declared);
+        assert!(format_node
+            .body_expression
+            .as_deref()
+            .is_some_and(|body| body.contains("map($subject.children")));
+
+        let runtime_functions =
+            cemt_runtime_functions_from_module_options(&response.module_options);
+        assert_eq!(runtime_functions.len(), 2);
+        let registry =
+            TransformTemplateOutputFunctionRegistry::from_module_options(&response.module_options);
+        assert_eq!(registry.runtime_functions.len(), 2);
+        let values = BTreeMap::from([(
+            "node".to_owned(),
+            json!({
+                "name": "card",
+                "children": [
+                    {"name": "title", "children": []},
+                    {"name": "badge", "children": []}
+                ]
+            }),
+        )]);
+
+        assert_eq!(
+            resolve_encode_subject_expression_with_functions(
+                r#"call(acme.format-root, { subject: $node })"#,
+                &values,
+                &runtime_functions,
+            ),
+            Some(json!({
+                "kind": "element",
+                "name": "card",
+                "slot": 0,
+                "children": [
+                    {"kind": "element", "name": "title", "slot": 0, "children": []},
+                    {"kind": "element", "name": "badge", "slot": 1, "children": []}
+                ]
+            }))
+        );
+    }
+
+    #[test]
     fn cemt_module_parser_lowers_output_function_declarations() {
         let response =
             parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
@@ -15648,6 +15848,7 @@ mod tests {
         assert!(custom.deterministic);
         assert_eq!(custom.extends.as_deref(), Some("markdown-document"));
         assert!(custom.body_declared);
+        assert_eq!(custom.body_expression, None);
 
         let cem_tree = response
             .module_options
@@ -19617,6 +19818,7 @@ mod tests {
             fallback: None,
             params: Vec::new(),
             body_declared: false,
+            body_expression: None,
         });
         let request = TransformTemplateEncodeBindingRequest::new(
             json!([{"role": "diagnostic.error", "text": "Broken"}]),
@@ -19665,6 +19867,7 @@ mod tests {
             fallback: None,
             params: Vec::new(),
             body_declared: false,
+            body_expression: None,
         });
         let request = TransformTemplateEncodeBindingRequest::new(
             json!({"tokens": [{"kind": "text", "text": "Broken"}]}),
@@ -19712,6 +19915,7 @@ mod tests {
             fallback: None,
             params: Vec::new(),
             body_declared: false,
+            body_expression: None,
         });
         let request = TransformTemplateEncodeBindingRequest::new(
             json!({
@@ -19766,6 +19970,7 @@ mod tests {
             fallback: None,
             params: Vec::new(),
             body_declared: false,
+            body_expression: None,
         });
         let request = TransformTemplateEncodeBindingRequest::new(
             json!({"localName": "section"}),
