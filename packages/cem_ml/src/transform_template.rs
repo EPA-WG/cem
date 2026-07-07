@@ -13187,6 +13187,7 @@ pub fn parse_cem_native_template_module_options(
         document: &document,
         template_uri: request.template.uri.as_str(),
         options: TransformTemplateModuleOptions::default(),
+        call_source_maps: Vec::new(),
         diagnostics: Vec::new(),
         module_count: 0,
         saw_doc_directive: false,
@@ -13240,6 +13241,7 @@ struct NativeTemplateModuleLowerer<'a> {
     document: &'a CemDocument,
     template_uri: &'a str,
     options: TransformTemplateModuleOptions,
+    call_source_maps: Vec<Option<SourceMapStack>>,
     diagnostics: Vec<Diagnostic>,
     module_count: usize,
     saw_doc_directive: bool,
@@ -13666,6 +13668,8 @@ impl NativeTemplateModuleLowerer<'_> {
             template,
             arguments: call_arguments(&attrs),
         });
+        self.call_source_maps
+            .push(template_node_source_map(self.document, call_id));
     }
 
     fn lower_let(&mut self, let_id: AstNodeId, owner_entrypoint: Option<&str>) {
@@ -13813,6 +13817,118 @@ impl NativeTemplateModuleLowerer<'_> {
                         function.name, function.category, function.subject
                     ),
                 );
+            }
+        }
+
+        self.validate_call_sites();
+    }
+
+    fn validate_call_sites(&mut self) {
+        let imports = self
+            .options
+            .imports
+            .iter()
+            .map(|import| import.alias.clone())
+            .collect::<BTreeSet<_>>();
+        let templates = self
+            .options
+            .entrypoints
+            .iter()
+            .map(|entrypoint| entrypoint.name.clone())
+            .collect::<BTreeSet<_>>();
+        let mut params_by_template =
+            BTreeMap::<String, Vec<TransformTemplateModuleParamDeclaration>>::new();
+
+        for param in &self.options.params {
+            let Some((template, local_name)) = param.name.split_once('.') else {
+                continue;
+            };
+            if !templates.contains(template) {
+                continue;
+            }
+
+            let mut param = param.clone();
+            param.name = local_name.to_owned();
+            params_by_template
+                .entry(template.to_owned())
+                .or_default()
+                .push(param);
+        }
+
+        for (index, call) in self.options.calls.clone().into_iter().enumerate() {
+            let source_map = self
+                .call_source_maps
+                .get(index)
+                .and_then(|source_map| source_map.clone());
+
+            if let Some(import_alias) = call.from.as_deref() {
+                if !imports.contains(import_alias) {
+                    self.push_call_diag(
+                        source_map.as_ref(),
+                        TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE,
+                        format!(
+                            "template call to `{}` references unknown import alias `{import_alias}`",
+                            call.template
+                        ),
+                    );
+                }
+                continue;
+            }
+
+            if !templates.contains(&call.template) {
+                self.push_call_diag(
+                    source_map.as_ref(),
+                    TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE,
+                    format!("template call target `{}` is not declared", call.template),
+                );
+                continue;
+            }
+
+            let params = params_by_template
+                .get(&call.template)
+                .map(Vec::as_slice)
+                .unwrap_or(&[]);
+            for argument_name in call.arguments.keys() {
+                if !params.iter().any(|param| param.name == *argument_name) {
+                    self.push_call_diag(
+                        source_map.as_ref(),
+                        TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE,
+                        format!(
+                            "template call to `{}` provides unknown argument `{argument_name}`",
+                            call.template
+                        ),
+                    );
+                }
+            }
+
+            for param in params {
+                let Some(argument) = call.arguments.get(&param.name) else {
+                    if param.required && param.default_value.is_none() {
+                        self.push_call_diag(
+                            source_map.as_ref(),
+                            TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE,
+                            format!(
+                                "template call to `{}` requires argument `{}`",
+                                call.template, param.name
+                            ),
+                        );
+                    }
+                    continue;
+                };
+
+                if !template_call_argument_matches_param(argument, param) {
+                    self.push_call_diag(
+                        source_map.as_ref(),
+                        TRANSFORM_TEMPLATE_PARAM_TYPE_CODE,
+                        format!(
+                            "template call to `{}` argument `{}` expected {}, got {}",
+                            call.template,
+                            param.name,
+                            param.value_type.as_contract_name(),
+                            json_value_type_name(argument)
+                        ),
+                    );
+                }
             }
         }
     }
@@ -13976,53 +14092,12 @@ impl NativeTemplateModuleLowerer<'_> {
         nullable: bool,
         value: &str,
     ) -> Option<Value> {
-        let literal_value = if nullable && value.trim() == "null" {
-            Value::Null
-        } else {
-            match value_type {
-                TransformTemplateModuleParamType::Any
-                | TransformTemplateModuleParamType::String => Value::String(value.to_owned()),
-                TransformTemplateModuleParamType::Boolean => match value.trim() {
-                    "true" => Value::Bool(true),
-                    "false" => Value::Bool(false),
-                    _ => {
-                        self.push_typed_literal_invalid(
-                            declaration,
-                            name,
-                            attr_name,
-                            value_type,
-                            value,
-                        );
-                        return None;
-                    }
-                },
-                TransformTemplateModuleParamType::Number
-                | TransformTemplateModuleParamType::Integer
-                | TransformTemplateModuleParamType::Array
-                | TransformTemplateModuleParamType::Object
-                | TransformTemplateModuleParamType::Json => {
-                    match serde_json::from_str::<Value>(value) {
-                        Ok(parsed) => parsed,
-                        Err(_) => {
-                            self.push_typed_literal_invalid(
-                                declaration,
-                                name,
-                                attr_name,
-                                value_type,
-                                value,
-                            );
-                            return None;
-                        }
-                    }
-                }
+        match parse_template_typed_literal_value(value_type, nullable, value) {
+            Some(literal_value) => Some(literal_value),
+            None => {
+                self.push_typed_literal_invalid(declaration, name, attr_name, value_type, value);
+                None
             }
-        };
-
-        if value_type.accepts(&literal_value, nullable) {
-            Some(literal_value)
-        } else {
-            self.push_typed_literal_invalid(declaration, name, attr_name, value_type, value);
-            None
         }
     }
 
@@ -14059,6 +14134,67 @@ impl NativeTemplateModuleLowerer<'_> {
             ..Diagnostic::default()
         });
     }
+
+    fn push_call_diag(
+        &mut self,
+        source_map: Option<&SourceMapStack>,
+        code: &str,
+        message: impl Into<String>,
+    ) {
+        self.diagnostics.push(Diagnostic {
+            uri: Some(self.template_uri.to_owned()),
+            byte_offset: source_map.and_then(source_map_start_offset),
+            code: code.to_owned(),
+            severity: Severity::Fatal,
+            message: message.into(),
+            source_map: source_map.cloned(),
+            ..Diagnostic::default()
+        });
+    }
+}
+
+fn template_call_argument_matches_param(
+    argument: &Value,
+    param: &TransformTemplateModuleParamDeclaration,
+) -> bool {
+    match argument {
+        Value::String(raw) => {
+            parse_template_typed_literal_value(param.value_type, param.nullable, raw).is_some()
+        }
+        value => param.value_type.accepts(value, param.nullable),
+    }
+}
+
+fn parse_template_typed_literal_value(
+    value_type: TransformTemplateModuleParamType,
+    nullable: bool,
+    value: &str,
+) -> Option<Value> {
+    let literal_value = if nullable && value.trim() == "null" {
+        Value::Null
+    } else {
+        match value_type {
+            TransformTemplateModuleParamType::Any | TransformTemplateModuleParamType::String => {
+                Value::String(value.to_owned())
+            }
+            TransformTemplateModuleParamType::Boolean => match value.trim() {
+                "true" => Value::Bool(true),
+                "false" => Value::Bool(false),
+                _ => return None,
+            },
+            TransformTemplateModuleParamType::Number
+            | TransformTemplateModuleParamType::Integer
+            | TransformTemplateModuleParamType::Array
+            | TransformTemplateModuleParamType::Object
+            | TransformTemplateModuleParamType::Json => {
+                serde_json::from_str::<Value>(value).ok()?
+            }
+        }
+    };
+
+    value_type
+        .accepts(&literal_value, nullable)
+        .then_some(literal_value)
 }
 
 fn template_element_name(doc: &CemDocument, node_id: AstNodeId) -> Option<&str> {
@@ -14068,6 +14204,28 @@ fn template_element_name(doc: &CemDocument, node_id: AstNodeId) -> Option<&str> 
         }
         _ => None,
     }
+}
+
+fn template_node_source_map(doc: &CemDocument, node_id: AstNodeId) -> Option<SourceMapStack> {
+    match doc.get(node_id)? {
+        CemAstNode::Document { source, .. }
+        | CemAstNode::Element { source, .. }
+        | CemAstNode::Attribute { source, .. }
+        | CemAstNode::Text { source, .. }
+        | CemAstNode::Whitespace { source, .. }
+        | CemAstNode::Comment { source, .. }
+        | CemAstNode::ProcessingInstruction { source, .. }
+        | CemAstNode::Cdata { source, .. }
+        | CemAstNode::RawText { source, .. }
+        | CemAstNode::Error { source, .. } => Some(source.clone()),
+    }
+}
+
+fn source_map_start_offset(source_map: &SourceMapStack) -> Option<u64> {
+    source_map.current().and_then(|frame| match &frame.span {
+        FrameSpan::Single(range) => Some(range.start),
+        FrameSpan::Multi(ranges) => ranges.first().map(|range| range.start),
+    })
 }
 
 fn template_expression_body(doc: &CemDocument, node_id: AstNodeId) -> Option<String> {
@@ -15557,6 +15715,9 @@ mod tests {
     {param @name="count" @type="integer" @default="3"}
     {body | {article | {$title} {call @template="badge"} {call @from="ui" @template="icon"}}}
   }
+  {template @name="badge" |
+    {body | {span | Badge}}
+  }
 }"#,
                     Some(FormatIdentity {
                         schema: Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
@@ -15584,10 +15745,16 @@ mod tests {
         );
         assert_eq!(
             response.module_options.entrypoints,
-            vec![TransformTemplateModuleEntrypointDeclaration {
-                name: "card".to_owned(),
-                visibility: TransformTemplateModuleVisibility::Public,
-            }]
+            vec![
+                TransformTemplateModuleEntrypointDeclaration {
+                    name: "card".to_owned(),
+                    visibility: TransformTemplateModuleVisibility::Public,
+                },
+                TransformTemplateModuleEntrypointDeclaration {
+                    name: "badge".to_owned(),
+                    visibility: TransformTemplateModuleVisibility::Private,
+                },
+            ]
         );
         assert_eq!(response.module_options.params.len(), 5);
         assert_eq!(response.module_options.params[0].name, "locale");
@@ -15693,6 +15860,75 @@ mod tests {
                 ]),
             }]
         );
+    }
+
+    #[test]
+    fn cem_native_template_module_parser_validates_call_arguments() {
+        let response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "templates/bad-calls.cem",
+                    r#"{@doc cem-ml 1}
+{module |
+  {template @name="card" @visibility="public" |
+    {body |
+      {call @template="missing"}
+      {call @template="badge" @with:title="Ready" @with:extra="x"}
+      {call @template="badge" @with:count="wide"}
+      {call @from="icons" @template="glyph"}
+    }
+  }
+  {template @name="badge" |
+    {param @name="title" @type="string" @required="true"}
+    {param @name="count" @type="integer" @default="1"}
+    {body | {span | Badge}}
+  }
+}"#,
+                    Some(FormatIdentity {
+                        schema: Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            });
+
+        assert!(response.module_declared);
+        for code in [
+            TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE,
+            TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE,
+            TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE,
+            TRANSFORM_TEMPLATE_PARAM_TYPE_CODE,
+        ] {
+            assert!(
+                response.diagnostics.iter().any(|diag| diag.code == code),
+                "missing diagnostic {code}: {:?}",
+                response.diagnostics
+            );
+        }
+        let call_diagnostics = response
+            .diagnostics
+            .iter()
+            .filter(|diag| {
+                matches!(
+                    diag.code.as_str(),
+                    TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE
+                        | TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE
+                        | TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE
+                        | TRANSFORM_TEMPLATE_PARAM_TYPE_CODE
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(call_diagnostics.len(), 5, "{call_diagnostics:?}");
+        assert!(call_diagnostics
+            .iter()
+            .all(|diag| diag.source_map.is_some() && diag.byte_offset.is_some()));
+        assert!(response.diagnostics.iter().any(|diag| {
+            diag.code == TRANSFORM_TEMPLATE_PARAM_TYPE_CODE
+                && diag.message.contains("argument `count` expected integer")
+        }));
+        assert!(response.diagnostics.iter().any(|diag| {
+            diag.code == TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE
+                && diag.message.contains("unknown import alias `icons`")
+        }));
     }
 
     #[test]

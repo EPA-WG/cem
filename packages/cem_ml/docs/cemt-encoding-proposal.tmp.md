@@ -126,10 +126,12 @@ metadata. They are not opaque host-side string filters.
 
 ### Needed For Formatter And Coloring
 
-- Extend template `call` with named parameters, including `with:*` attributes
-  and source-map-aware diagnostics. Runtime body `call(name, { ... })`
-  expressions now bind named arguments against target function params, apply
-  defaults, validate required/type contracts, and reject unknown arguments.
+- Extend template `call` rendering across imported modules. Runtime body
+  `call(name, { ... })` expressions now bind named arguments against target
+  function params, apply defaults, validate required/type contracts, and reject
+  unknown arguments. Declaration-site `{call @template ... @with:* ...}` now
+  validates local targets, import aliases, required/default/type-compatible
+  arguments, and reports source-map-aware diagnostics.
 - Add immutable local `let` bindings for computed layout, style, profile,
   namespace, source-map, and node-shape decisions.
 - Add `match` dispatch over CEM tree node kind, name, attribute presence,
@@ -268,9 +270,15 @@ falling back to host code.
 
 Calls are deterministic and bounded. Recursive calls are allowed for formatter
 and coloring traversal helpers, but execution stops at the configured recursion
-limit. Declaration-site `{call @template="..." @with:*="..."}` lowering remains
-metadata only until template-body rendering and source-map-aware call
-diagnostics are promoted.
+limit.
+
+Declaration-site template calls use `{call @template="..." @with:*="..."}`.
+Local targets are checked against declared template params: required arguments
+must be present unless a default exists, `with:*` values are validated against
+the target type, and unknown arguments are rejected. Diagnostics carry the call
+node source map and byte offset. Imported calls currently validate the import
+alias only; imported target params are validated once module loading is wired
+into the call graph.
 
 ## Encoding, Formatting, And Color Function Declarations
 
