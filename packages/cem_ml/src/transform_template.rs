@@ -8834,14 +8834,7 @@ fn transform_template_render_cem_tree_markup_element(
     let name = transform_template_cem_tree_markup_name(fields)?;
     let node_source_map = transform_template_cem_tree_node_source_map(fields);
     let writer_source_map = transform_template_cem_tree_color_wrapper_source_map(fields)
-        .or_else(|| transform_template_cem_tree_writer_attributes_source_map(fields))
-        .or_else(|| {
-            fields
-                .get("colorWrapper")
-                .and_then(Value::as_bool)
-                .filter(|color_wrapper| *color_wrapper)
-                .and_then(|_| node_source_map.clone())
-        });
+        .or_else(|| transform_template_cem_tree_writer_attribute_nodes_source_map(fields));
     let tag_source_map = writer_source_map.as_ref().or(node_source_map.as_ref());
 
     rendered.push_mapped("<", tag_source_map);
@@ -8879,14 +8872,7 @@ fn transform_template_render_cem_tree_element(
     let name = transform_template_encode_cem_name(raw_name)?;
     let node_source_map = transform_template_cem_tree_node_source_map(fields);
     let writer_source_map = transform_template_cem_tree_color_wrapper_source_map(fields)
-        .or_else(|| transform_template_cem_tree_writer_attributes_source_map(fields))
-        .or_else(|| {
-            fields
-                .get("colorWrapper")
-                .and_then(Value::as_bool)
-                .filter(|color_wrapper| *color_wrapper)
-                .and_then(|_| node_source_map.clone())
-        });
+        .or_else(|| transform_template_cem_tree_writer_attribute_nodes_source_map(fields));
     let tag_source_map = writer_source_map.as_ref().or(node_source_map.as_ref());
     let attributes = transform_template_cem_tree_attributes_to_text(fields.get("attributes"))?;
     let has_children = transform_template_cem_tree_has_children(fields);
@@ -9030,12 +9016,12 @@ fn transform_template_cem_tree_has_children(fields: &serde_json::Map<String, Val
     }
 }
 
-fn transform_template_cem_tree_writer_attributes_source_map(
+fn transform_template_cem_tree_writer_attribute_nodes_source_map(
     fields: &serde_json::Map<String, Value>,
 ) -> Option<SourceMapStack> {
     fields
-        .get("writerAttributesSourceMap")
-        .and_then(|value| serde_json::from_value::<SourceMapStack>(value.clone()).ok())
+        .get("writerAttributeNodes")
+        .and_then(transform_template_first_cem_tree_source_map)
 }
 
 fn transform_template_cem_tree_color_wrapper_source_map(
@@ -9060,29 +9046,15 @@ fn transform_template_cem_tree_markup_attribute_entries_with_source(
                 )
             })
             .collect::<Vec<_>>();
-    let writer_source_map = transform_template_cem_tree_writer_attributes_source_map(fields);
     let writer_attribute_nodes =
         transform_template_cem_tree_writer_attribute_node_entries_with_source(fields)?;
-    if writer_attribute_nodes.is_empty() {
-        for (name, value) in
-            transform_template_cem_tree_markup_attribute_entries(fields.get("writerAttributes"))?
-        {
-            transform_template_merge_cem_tree_markup_attribute_with_source(
-                &mut entries,
-                name,
-                value,
-                writer_source_map.clone(),
-            );
-        }
-    } else {
-        for (name, value, source_map) in writer_attribute_nodes {
-            transform_template_merge_cem_tree_markup_attribute_with_source(
-                &mut entries,
-                name,
-                value,
-                source_map,
-            );
-        }
+    for (name, value, source_map) in writer_attribute_nodes {
+        transform_template_merge_cem_tree_markup_attribute_with_source(
+            &mut entries,
+            name,
+            value,
+            source_map,
+        );
     }
     Ok(entries)
 }
@@ -13524,57 +13496,7 @@ mod tests {
         identity.color_profile = Some("css-custom-properties".to_owned());
         identity.mode = TransformTemplateEncodedArtifactMode::Fragment;
         identity.canonical = true;
-        let format_nodes = colored_cem_tree_format_nodes_value(source_map_stack(54, 0));
-        let color_nodes = colored_cem_tree_color_nodes_value(source_map_stack(54, 0));
-
-        let value = json!({
-            "kind": "cem-tree",
-            "contentType": CEM_ML_CONTENT_TYPE,
-            "schema": CEM_ML_SCHEMA_URI,
-            "category": "cem-tree",
-            "mode": "fragment",
-            "canonical": true,
-            "formatterProfile": "cem.format-tree",
-            "colored": true,
-            "colorProfile": "css-custom-properties",
-            "formatNodes": format_nodes,
-            "colorNodes": color_nodes,
-            "nodes": [{
-                "kind": "element",
-                "name": "card",
-                "attributes": [{"kind": "attribute", "name": "tone", "value": "info"}],
-                "children": [{
-                    "kind": "element",
-                    "name": "span",
-                    "colorWrapper": true,
-                    "colorRole": "syntax.string",
-                    "style": {"colorRole": "syntax.string", "colorProfile": "css-custom-properties"},
-                    "writerAttributes": {
-                        "class": "cem-color cem-color-syntax-string",
-                        "data-role": "syntax.string",
-                        "style": "color: var(--cem-color-syntax-string, #067647)"
-                    },
-                    "children": [{
-                        "kind": "text",
-                        "value": "Ready",
-                        "colorRole": "syntax.string",
-                        "style": {"colorRole": "syntax.string", "colorProfile": "css-custom-properties"},
-                        "writerAttributes": {
-                            "class": "cem-color cem-color-syntax-string",
-                            "data-role": "syntax.string",
-                            "style": "color: var(--cem-color-syntax-string, #067647)"
-                        }
-                    }]
-                }],
-                "style": {"colorRole": "syntax.name", "colorProfile": "css-custom-properties"},
-                "writerAttributes": {
-                    "class": "cem-color cem-color-syntax-name cem-color-has-attributes",
-                    "data-cem-attribute-roles": "tone:syntax.attribute",
-                    "data-role": "syntax.name",
-                    "style": "color: var(--cem-color-syntax-name, #087990)"
-                }
-            }]
-        });
+        let value = encode_colored_cem_tree_with_profile("css-custom-properties");
         let mut artifact = TransformTemplateEncodedArtifact::new(identity.clone(), value);
         artifact.source_map = Some(source_map_stack(60, 5));
         artifact.output_spans = vec![output_span(0, 5)];
@@ -17615,42 +17537,6 @@ mod tests {
         ))
     }
 
-    fn colored_cem_tree_format_nodes_value(source_map: SourceMapStack) -> Value {
-        let mut format_nodes = formatted_cem_tree_format_nodes_value(source_map);
-        let profile =
-            TransformTemplateColorOutputProfile::html_from_selector("css-custom-properties")
-                .expect("CEM tree color profile resolves");
-        transform_template_apply_cem_tree_color_to_value(
-            &mut format_nodes,
-            &profile,
-            "css-custom-properties",
-        );
-        format_nodes
-    }
-
-    fn colored_cem_tree_color_nodes_value(source_map: SourceMapStack) -> Value {
-        let profile =
-            TransformTemplateColorOutputProfile::html_from_selector("css-custom-properties")
-                .expect("CEM tree color profile resolves");
-        let mut tree = serde_json::Map::new();
-        tree.insert(
-            "formatNodes".to_owned(),
-            formatted_cem_tree_format_nodes_value(source_map),
-        );
-        let mut color_nodes = Value::Array(transform_template_cem_tree_color_nodes(
-            &tree,
-            "css-custom-properties",
-            &profile,
-            None,
-        ));
-        transform_template_apply_cem_tree_color_to_value(
-            &mut color_nodes,
-            &profile,
-            "css-custom-properties",
-        );
-        color_nodes
-    }
-
     fn cem_tree_format_decision<'a>(tree: &'a Value, name: &str) -> &'a Value {
         tree.get("formatNodes")
             .and_then(Value::as_array)
@@ -19720,7 +19606,11 @@ mod tests {
             Value::String("{card @tone=info | {span | Ready}}".to_owned())
         );
         assert!(artifact.source_map.is_some());
-        assert_eq!(artifact.output_spans.len(), 1);
+        assert!(artifact.output_spans.len() > 1);
+        assert!(artifact
+            .output_spans
+            .iter()
+            .any(|span| source_map_contains_color_tree_transform(&span.origin)));
     }
 
     #[test]
@@ -19823,6 +19713,45 @@ mod tests {
             .expect("CEM tree renders");
 
         assert_eq!(rendered.text, "{card\t@tone=info\t@size=lg |\tReady}");
+    }
+
+    #[test]
+    fn cem_tree_writer_consumes_materialized_writer_attribute_nodes() {
+        let context = TransformTemplateEncodedArtifactInsertionContext::new(
+            HTML_CONTENT_TYPE,
+            HTML_SCHEMA_URI,
+        )
+        .with_category("html-document")
+        .with_produces(TransformTemplateOutputProducedKind::Text);
+
+        let flat_only = json!({
+            "kind": "cem-tree",
+            "nodes": [{
+                "kind": "element",
+                "name": "card",
+                "writerAttributes": {"class": "legacy-flat"}
+            }]
+        });
+        let rendered = transform_template_cem_tree_value_to_rendered_text(&flat_only, &context)
+            .expect("CEM tree renders");
+        assert_eq!(rendered.text, "<card></card>");
+
+        let materialized = json!({
+            "kind": "cem-tree",
+            "nodes": [{
+                "kind": "element",
+                "name": "card",
+                "writerAttributes": {"class": "legacy-flat"},
+                "writerAttributeNodes": [{
+                    "kind": "writer-attribute",
+                    "name": "data-role",
+                    "value": "syntax.name"
+                }]
+            }]
+        });
+        let rendered = transform_template_cem_tree_value_to_rendered_text(&materialized, &context)
+            .expect("CEM tree renders");
+        assert_eq!(rendered.text, "<card data-role=\"syntax.name\"></card>");
     }
 
     #[test]
