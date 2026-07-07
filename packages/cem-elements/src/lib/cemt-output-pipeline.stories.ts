@@ -30,6 +30,11 @@ type WriterAttributeNode = {
 
 type CemTree = {
     kind: 'cem-tree';
+    contentType: string;
+    schema: string;
+    category: string;
+    mode: 'fragment';
+    canonical: boolean;
     formatterProfile: string;
     formatNodes: Array<Record<string, unknown>>;
     colored?: true;
@@ -44,6 +49,9 @@ type CemtPipelineFixture = {
     formatterName: string;
     colorizerName: string;
     colorProfile: string;
+    contentType: string;
+    schema: string;
+    category: string;
     formattedDecision: string;
     coloredDecision: string;
     elementClass: string;
@@ -54,9 +62,17 @@ const pipelineFixture = createPipelineFixture(cemtPipelineSource);
 const sourceAst = pipelineFixture.sourceAst;
 const formattedTree = formatCemTree(pipelineFixture);
 const coloredTree = colorCemTree(pipelineFixture, formattedTree);
+const sourceAstCem = writeCemNodeSource(sourceAst);
+const formattedTreeCem = writeCemTreeSource(formattedTree);
+const coloredTreeCem = writeCemTreeSource(coloredTree);
 
 function createPipelineFixture(cemtSource: string): CemtPipelineFixture {
-    const writerClasses = requiredMatches(cemtSource, /name:\s*"class",\s*value:\s*"([^"]+)"/g, 2, 'writer class values');
+    const writerClasses = requiredMatches(
+        cemtSource,
+        /name:\s*"class",\s*value:\s*"([^"]+)"/g,
+        2,
+        'writer class values'
+    );
     return {
         cemtSource,
         sourceAst: {
@@ -67,6 +83,9 @@ function createPipelineFixture(cemtSource: string): CemtPipelineFixture {
         formatterName: requiredFunctionAttribute(cemtSource, 'format-function', 'name'),
         colorizerName: requiredFunctionAttribute(cemtSource, 'color-function', 'name'),
         colorProfile: requiredFunctionAttribute(cemtSource, 'color-function', 'profile'),
+        contentType: requiredFunctionAttribute(cemtSource, 'format-function', 'content-type'),
+        schema: requiredFunctionAttribute(cemtSource, 'format-function', 'schema'),
+        category: requiredFunctionAttribute(cemtSource, 'format-function', 'category'),
         formattedDecision: requiredValueAfter(cemtSource, 'formatterRole: "formatter.showcase"'),
         coloredDecision: requiredValueAfter(cemtSource, 'colorizerRole: "colorizer.showcase"'),
         elementClass: writerClasses[0],
@@ -77,6 +96,11 @@ function createPipelineFixture(cemtSource: string): CemtPipelineFixture {
 function formatCemTree(fixture: CemtPipelineFixture): CemTree {
     return {
         kind: 'cem-tree',
+        contentType: fixture.contentType,
+        schema: fixture.schema,
+        category: fixture.category,
+        mode: 'fragment',
+        canonical: true,
         formatterProfile: fixture.formatterName,
         formatNodes: [
             {
@@ -181,6 +205,105 @@ function requiredMatches(source: string, pattern: RegExp, count: number, label: 
     return values;
 }
 
+function writeCemTreeSource(tree: CemTree): string {
+    const attributes = [
+        cemAttribute('content-type', tree.contentType),
+        cemAttribute('schema', tree.schema),
+        cemAttribute('category', tree.category),
+        cemAttribute('mode', tree.mode),
+        cemAttribute('canonical', tree.canonical),
+        cemAttribute('formatter-profile', tree.formatterProfile),
+        tree.colored ? cemAttribute('colored', true) : '',
+        tree.colorProfile ? cemAttribute('color-profile', tree.colorProfile) : '',
+    ].filter(Boolean);
+    const children = [
+        writeMetadataListSource('format-nodes', tree.formatNodes, 1),
+        tree.colorNodes ? writeMetadataListSource('color-nodes', tree.colorNodes, 1) : '',
+        writeNodeListSource('nodes', tree.nodes, 1),
+    ].filter(Boolean);
+
+    return `{cem-tree ${attributes.join(' ')} |\n${children.join('\n')}\n}`;
+}
+
+function writeMetadataListSource(name: string, values: Array<Record<string, unknown>>, depth: number): string {
+    const children = values.map((value) => writeMetadataSource(value, depth + 1)).join('\n');
+    return `${indent(depth)}{${name} |\n${children}\n${indent(depth)}}`;
+}
+
+function writeMetadataSource(value: Record<string, unknown>, depth: number): string {
+    const kind = requiredString(value.kind, 'metadata kind');
+    const attributes = Object.entries(value)
+        .filter(([name]) => name !== 'kind')
+        .map(([name, attributeValue]) => cemAttribute(kebabCase(name), attributeValue))
+        .filter(Boolean);
+    return `${indent(depth)}{${kind}${attributes.length ? ` ${attributes.join(' ')}` : ''}}`;
+}
+
+function writeNodeListSource(name: string, nodes: CemNode[], depth: number): string {
+    const children = nodes.map((node) => writeCemNodeSource(node, depth + 1)).join('\n');
+    return `${indent(depth)}{${name} |\n${children}\n${indent(depth)}}`;
+}
+
+function writeCemNodeSource(node: CemNode, depth = 0): string {
+    if (node.kind === 'text') {
+        return `${indent(depth)}{text | ${escapeCemText(node.value ?? '')}}`;
+    }
+
+    const name = node.name ?? 'element';
+    const attributes = [node.colorRole ? cemAttribute('color-role', node.colorRole) : ''].filter(Boolean);
+    const children = [
+        ...(node.writerAttributeNodes ?? []).map((attribute) => writeWriterAttributeSource(attribute, depth + 1)),
+        ...(node.children ?? []).map((child) => writeCemNodeSource(child, depth + 1)),
+    ];
+
+    if (children.length === 0) {
+        return `${indent(depth)}{${name}${attributes.length ? ` ${attributes.join(' ')}` : ''}}`;
+    }
+    return `${indent(depth)}{${name}${attributes.length ? ` ${attributes.join(' ')}` : ''} |\n${children.join('\n')}\n${indent(depth)}}`;
+}
+
+function writeWriterAttributeSource(attribute: WriterAttributeNode, depth: number): string {
+    const attributes = [
+        cemAttribute('name', attribute.name),
+        cemAttribute('value', attribute.value),
+        cemAttribute('colorizer-owned', attribute.colorizerOwned),
+        cemAttribute('colorizer-role', attribute.colorizerRole),
+        cemAttribute('color-profile', attribute.colorProfile),
+    ];
+    return `${indent(depth)}{writer-attribute ${attributes.join(' ')}}`;
+}
+
+function cemAttribute(name: string, value: unknown): string {
+    if (typeof value === 'boolean') {
+        return `@${name}=${String(value)}`;
+    }
+    if (typeof value === 'string') {
+        return `@${name}="${escapeCemAttribute(value)}"`;
+    }
+    return '';
+}
+
+function requiredString(value: unknown, label: string): string {
+    assert(typeof value === 'string' && value.length > 0, `missing ${label}`);
+    return value;
+}
+
+function kebabCase(value: string): string {
+    return value.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+}
+
+function indent(depth: number): string {
+    return '    '.repeat(depth);
+}
+
+function escapeCemAttribute(value: string): string {
+    return value.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('\n', '\\n');
+}
+
+function escapeCemText(value: string): string {
+    return value.replaceAll('\\', '\\\\').replaceAll('{', '\\{').replaceAll('}', '\\}');
+}
+
 export const FormatterColoringWriterStages: Story = {
     render: () => {
         const root = document.createElement('section');
@@ -210,9 +333,14 @@ export const FormatterColoringWriterStages: Story = {
             'formatted stage shows formatter metadata'
         );
         assert(
+            formattedPanel.textContent?.includes(`@content-type="${pipelineFixture.contentType}"`),
+            'formatted stage shows destination identity'
+        );
+        assert(
             !formattedPanel.textContent?.includes('colored tree before writer'),
             'formatted stage does not include color metadata'
         );
+        assert(!formattedPanel.textContent?.includes('"formatterProfile"'), 'formatted stage is not JSONified');
 
         const coloredPanel = requiredElement(canvasElement, '[data-stage="colored"]');
         assert(
@@ -237,6 +365,10 @@ export const FormatterColoringWriterStages: Story = {
             templatePanel.textContent?.includes('applyEdits('),
             'coloring CEMT source shows tree patching before writer output'
         );
+        assert(
+            !templatePanel.textContent?.includes('"kind":'),
+            'pipeline showcase keeps CEM-native source text instead of JSON'
+        );
     },
 };
 
@@ -245,14 +377,14 @@ function stageGrid(): HTMLElement {
     grid.className = 'cemt-pipeline-grid';
     grid.append(
         stagePanel('Checked CEMT Source', 'cemt-source', pipelineFixture.cemtSource),
-        stagePanel('Source AST', 'source', sourceAst),
-        stagePanel('Formatted CEM Tree', 'formatted', formattedTree),
-        stagePanel('Colored CEM Tree', 'colored', coloredTree)
+        stagePanel('Source AST', 'source', sourceAstCem),
+        stagePanel('Formatted CEM Tree', 'formatted', formattedTreeCem),
+        stagePanel('Colored CEM Tree', 'colored', coloredTreeCem)
     );
     return grid;
 }
 
-function stagePanel(title: string, stage: string, value: unknown): HTMLElement {
+function stagePanel(title: string, stage: string, value: string): HTMLElement {
     const panel = document.createElement('article');
     panel.className = 'cemt-pipeline-panel';
     panel.dataset.stage = stage;
@@ -261,7 +393,7 @@ function stagePanel(title: string, stage: string, value: unknown): HTMLElement {
     heading.textContent = title;
 
     const pre = document.createElement('pre');
-    pre.textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+    pre.textContent = value;
 
     panel.append(heading, pre);
     return panel;
