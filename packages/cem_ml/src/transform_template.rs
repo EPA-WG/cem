@@ -4839,6 +4839,7 @@ enum TransformTemplateCemtRuntimeOperation {
     CemFormatTreeContentBoundary,
     CemFormatTreeFormatNodes,
     CemFormatTreeEnvelope,
+    CemColorTreeApply,
 }
 
 impl TransformTemplateCemtRuntimeOperation {
@@ -4850,6 +4851,7 @@ impl TransformTemplateCemtRuntimeOperation {
             "cem.format-tree.content-boundary" => Some(Self::CemFormatTreeContentBoundary),
             "cem.format-tree.format-nodes" => Some(Self::CemFormatTreeFormatNodes),
             "cem.format-tree.envelope" => Some(Self::CemFormatTreeEnvelope),
+            "cem.color-tree.apply" => Some(Self::CemColorTreeApply),
             _ => None,
         }
     }
@@ -4862,6 +4864,7 @@ impl TransformTemplateCemtRuntimeOperation {
             Self::CemFormatTreeContentBoundary => "cem.format-tree.content-boundary",
             Self::CemFormatTreeFormatNodes => "cem.format-tree.format-nodes",
             Self::CemFormatTreeEnvelope => "cem.format-tree.envelope",
+            Self::CemColorTreeApply => "cem.color-tree.apply",
         }
     }
 }
@@ -4893,6 +4896,9 @@ fn execute_transform_template_cemt_runtime_operation(
         }
         TransformTemplateCemtRuntimeOperation::CemFormatTreeEnvelope => {
             transform_template_cemt_runtime_format_tree_envelope(operation, binding, subject)
+        }
+        TransformTemplateCemtRuntimeOperation::CemColorTreeApply => {
+            transform_template_cemt_runtime_color_tree_apply(operation, binding, subject)
         }
     }
 }
@@ -5005,6 +5011,16 @@ fn transform_template_cemt_runtime_format_tree_envelope(
         "formatNodes": format_nodes,
         "nodes": nodes,
     }))
+}
+
+fn transform_template_cemt_runtime_color_tree_apply(
+    operation: TransformTemplateCemtRuntimeOperation,
+    binding: &TransformTemplateEncodeBinding,
+    subject: Value,
+) -> Result<Value, String> {
+    validate_builtin_cem_tree_colorizer_binding(binding)?;
+    let tree = transform_template_cemt_runtime_object_subject(operation, subject)?;
+    builtin_cem_tree_colorizer(binding, &Value::Object(tree))
 }
 
 fn transform_template_cemt_runtime_node_array_subject(
@@ -19349,6 +19365,79 @@ mod tests {
         .expect_err("formatter envelope requires formatted node array");
         assert!(error
             .contains("cem.format-tree.envelope expected formatted CEM tree node array subject"));
+    }
+
+    #[test]
+    fn cemt_runtime_operation_applies_cem_tree_colorizer() {
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        registry.register(cem_tree_color_function_descriptor_with_profile("classes"));
+        let subject = formatted_cem_tree_color_subject();
+        let request = TransformTemplateEncodeBindingRequest::new(
+            subject.clone(),
+            TransformTemplateEncodingTarget::new(
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                "cem-tree",
+            ),
+        )
+        .with_subject_type("cem-tree")
+        .with_options(TransformTemplateEncodeOptions {
+            colorizer: Some("cem.color-tree".to_owned()),
+            color_profile: Some("classes".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let binding = registry
+            .resolve_color_binding(&request, &BTreeSet::new())
+            .expect("CEM tree colorizer resolves")
+            .into_encode_binding();
+
+        assert_eq!(
+            TransformTemplateCemtRuntimeOperation::parse("cem.color-tree.apply"),
+            Some(TransformTemplateCemtRuntimeOperation::CemColorTreeApply)
+        );
+        assert_eq!(
+            TransformTemplateCemtRuntimeOperation::CemColorTreeApply.as_str(),
+            "cem.color-tree.apply"
+        );
+
+        let colored = execute_transform_template_cemt_runtime_operation(
+            TransformTemplateCemtRuntimeOperation::CemColorTreeApply,
+            &binding,
+            subject,
+        )
+        .expect("color tree operation runs");
+
+        assert_eq!(colored["kind"], "cem-tree");
+        assert_eq!(colored["colored"], true);
+        assert_eq!(colored["colorProfile"], "classes");
+        assert_eq!(colored["colorNodes"][0]["name"], "cem.color-tree");
+        assert_eq!(
+            colored["nodes"][0]["writerAttributeNodes"][0]["kind"],
+            "writer-attribute"
+        );
+        assert_eq!(colored["nodes"][0]["children"][0]["kind"], "element");
+        assert_eq!(
+            colored["nodes"][0]["children"][0]["colorWrapperNodes"][0]["kind"],
+            "color-wrapper"
+        );
+
+        binding
+            .artifact_from_value(colored)
+            .validate_insertion(
+                &TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+                    &request.target,
+                    Some(TransformTemplateOutputProducedKind::CemTree),
+                ),
+            )
+            .expect("runtime color operation validates as colored CEM tree output");
+
+        let error = execute_transform_template_cemt_runtime_operation(
+            TransformTemplateCemtRuntimeOperation::CemColorTreeApply,
+            &binding,
+            json!([]),
+        )
+        .expect_err("color tree operation requires object subject");
+        assert!(error.contains("cem.color-tree.apply expected object subject"));
     }
 
     #[test]
