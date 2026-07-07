@@ -28,6 +28,7 @@
         {element @name="param" @base="template:param"}
         {element @name="template" @base="template:template" @children="param body"}
         {element @name="body" @base="template:body" @children="*"}
+        {element @name="let" @base="template:let"}
         {element @name="call" @base="template:call"}
         {element @name="encoding-function" @required-attributes="name category subject produces content-type schema canonical streamable" @optional-attributes="visibility implementation profile extends capability deterministic trusted fallback" @children="param body"}
         {element @name="format-function" @required-attributes="name category subject produces content-type schema canonical streamable" @optional-attributes="visibility implementation profile extends capability deterministic trusted fallback" @children="param body"}
@@ -45,6 +46,9 @@
         {attribute @name="default" @base="template:default"}
         {attribute @name="default-expr" @base="template:default-expr"}
         {attribute @name="defaultExpr" @base="template:defaultExpr"}
+        {attribute @name="value" @base="template:value"}
+        {attribute @name="expr" @base="template:expr"}
+        {attribute @name="expression" @base="template:expression"}
         {attribute @name="nullable" @base="template:nullable"}
         {attribute @name="required" @base="template:required"}
         {attribute @name="type" @base="template:type"}
@@ -74,6 +78,7 @@
         {constraint @kind="function-names-package-qualified" @target="encoding-function format-function color-function" @policy="required for custom public functions"}
         {constraint @kind="function-output-identity-required" @target="encoding-function format-function color-function" @policy="required"}
         {constraint @kind="native-external-function-capability-required" @target="encoding-function format-function color-function" @policy="when implementation is native or external"}
+        {constraint @kind="let-expression-reserved" @target="let" @policy="fatal in v1"}
     }
 
     {diagnostics |
@@ -85,6 +90,7 @@
         {diagnostic @code="cem.transform.function_identity_missing" @severity="error"}
         {diagnostic @code="cem.transform.function_capability_missing" @severity="error"}
         {diagnostic @code="cem.transform.function_shadowed_standard" @severity="error"}
+        {diagnostic @code="cem.transform_template.let_expr_reserved" @severity="fatal"}
     }
 
     {open-content |

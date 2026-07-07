@@ -89,6 +89,12 @@ pub const CEM_NATIVE_TEMPLATE_SCHEMA_ELEMENTS: &[TransformTemplateNativeElementS
         child_elements: &["*"],
     },
     TransformTemplateNativeElementSchema {
+        local_name: "let",
+        required_attributes: &["name", "value"],
+        optional_attributes: &["expr", "expression", "nullable", "type"],
+        child_elements: &[],
+    },
+    TransformTemplateNativeElementSchema {
         local_name: "call",
         required_attributes: &["template"],
         optional_attributes: &["from", "with:*"],
@@ -160,6 +166,8 @@ pub const TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE: &str =
     "cem.transform_template.include_reserved";
 pub const TRANSFORM_TEMPLATE_PARAM_DEFAULT_EXPR_RESERVED_CODE: &str =
     "cem.transform_template.param_default_expr_reserved";
+pub const TRANSFORM_TEMPLATE_LET_EXPR_RESERVED_CODE: &str =
+    "cem.transform_template.let_expr_reserved";
 pub const TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE: &str =
     "cem.transform_template.import_alias_duplicate";
 pub const TRANSFORM_TEMPLATE_DECLARATION_UNSUPPORTED_CODE: &str =
@@ -12166,6 +12174,23 @@ pub struct TransformTemplateModuleCallSite {
     pub arguments: BTreeMap<String, Value>,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateModuleLetBinding {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner_entrypoint: Option<String>,
+    pub name: String,
+    #[serde(
+        default,
+        rename = "type",
+        skip_serializing_if = "TransformTemplateModuleParamType::is_any"
+    )]
+    pub value_type: TransformTemplateModuleParamType,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub nullable: bool,
+    pub value: Value,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformTemplateModuleLimits {
@@ -12194,6 +12219,8 @@ pub struct TransformTemplateModuleOptions {
     #[serde(default)]
     pub calls: Vec<TransformTemplateModuleCallSite>,
     #[serde(default)]
+    pub let_bindings: Vec<TransformTemplateModuleLetBinding>,
+    #[serde(default)]
     pub encode_expressions: Vec<TransformTemplateEncodeExpression>,
     #[serde(default)]
     pub output_functions: Vec<TransformTemplateOutputFunctionDescriptor>,
@@ -12207,6 +12234,7 @@ impl TransformTemplateModuleOptions {
             && self.entrypoints.is_empty()
             && self.params.is_empty()
             && self.calls.is_empty()
+            && self.let_bindings.is_empty()
             && self.encode_expressions.is_empty()
             && self.output_functions.is_empty()
             && self.limits == TransformTemplateModuleLimits::default()
@@ -12633,6 +12661,11 @@ impl NativeTemplateModuleLowerer<'_> {
         let Some(CemAstNode::Element { children, .. }) = self.document.get(node_id) else {
             return;
         };
+        if template_element_name(self.document, node_id) == Some("let") {
+            self.lower_let(node_id, owner);
+            self.reject_decl_children(node_id, "let");
+            return;
+        }
         if template_element_name(self.document, node_id) == Some("call") {
             self.lower_call(node_id, owner);
             self.reject_decl_children(node_id, "call");
@@ -12659,6 +12692,54 @@ impl NativeTemplateModuleLowerer<'_> {
             template,
             arguments: call_arguments(&attrs),
         });
+    }
+
+    fn lower_let(&mut self, let_id: AstNodeId, owner_entrypoint: Option<&str>) {
+        let Some(binding) = self.parse_let_binding(let_id, owner_entrypoint) else {
+            return;
+        };
+        self.options.let_bindings.push(binding);
+    }
+
+    fn parse_let_binding(
+        &mut self,
+        let_id: AstNodeId,
+        owner_entrypoint: Option<&str>,
+    ) -> Option<TransformTemplateModuleLetBinding> {
+        let attrs = template_collect_attrs(self.document, let_id);
+        let Some(name) = required_attr(&attrs, "name") else {
+            self.push_missing_attr("let", "name");
+            return None;
+        };
+        let value_type = self.parse_value_type(attr_value(&attrs, "", "type").as_deref(), "let");
+        let nullable = parse_bool_attr(attr_value(&attrs, "", "nullable").as_deref())
+            .unwrap_or_else(|message| {
+                self.push_diag(TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE, message);
+                false
+            });
+        let expr = attr_value(&attrs, "", "expr").or_else(|| attr_value(&attrs, "", "expression"));
+        if expr.is_some() {
+            self.push_diag(
+                TRANSFORM_TEMPLATE_LET_EXPR_RESERVED_CODE,
+                format!(
+                    "template let `{name}` uses reserved expression syntax; use literal `@value` until let expression semantics are defined"
+                ),
+            );
+        }
+        let Some(value) = attr_value(&attrs, "", "value") else {
+            self.push_missing_attr("let", "value");
+            return None;
+        };
+        let value =
+            self.parse_typed_literal("template let", &name, "value", value_type, nullable, &value)?;
+
+        Some(TransformTemplateModuleLetBinding {
+            owner_entrypoint: owner_entrypoint.map(str::to_owned),
+            name,
+            value_type,
+            nullable,
+            value,
+        })
     }
 
     fn lower_encode_expression(&mut self, expression_id: AstNodeId, owner: Option<&str>) {
@@ -12708,6 +12789,20 @@ impl NativeTemplateModuleLowerer<'_> {
                 self.push_diag(
                     TRANSFORM_TEMPLATE_DECLARATION_DUPLICATE_CODE,
                     format!("template param `{}` is declared more than once", param.name),
+                );
+            }
+        }
+
+        let mut let_bindings = BTreeSet::new();
+        for binding in self.options.let_bindings.clone() {
+            if !let_bindings.insert((binding.owner_entrypoint.clone(), binding.name.clone())) {
+                let scope = binding.owner_entrypoint.as_deref().unwrap_or("module body");
+                self.push_diag(
+                    TRANSFORM_TEMPLATE_DECLARATION_DUPLICATE_CODE,
+                    format!(
+                        "template let `{}` is declared more than once in `{scope}`",
+                        binding.name
+                    ),
                 );
             }
         }
@@ -12852,6 +12947,14 @@ impl NativeTemplateModuleLowerer<'_> {
     }
 
     fn parse_param_type(&mut self, value: Option<&str>) -> TransformTemplateModuleParamType {
+        self.parse_value_type(value, "param")
+    }
+
+    fn parse_value_type(
+        &mut self,
+        value: Option<&str>,
+        declaration: &str,
+    ) -> TransformTemplateModuleParamType {
         match value.map(str::trim).filter(|value| !value.is_empty()) {
             None | Some("any") => TransformTemplateModuleParamType::Any,
             Some("string") => TransformTemplateModuleParamType::String,
@@ -12865,7 +12968,7 @@ impl NativeTemplateModuleLowerer<'_> {
                 self.push_diag(
                     TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE,
                     format!(
-                        "unsupported template param type `{other}`; use `any`, `string`, `boolean`, `number`, `integer`, `array`, `object`, or `json`"
+                        "unsupported template {declaration} type `{other}`; use `any`, `string`, `boolean`, `number`, `integer`, `array`, `object`, or `json`"
                     ),
                 );
                 TransformTemplateModuleParamType::Any
@@ -12880,7 +12983,26 @@ impl NativeTemplateModuleLowerer<'_> {
         nullable: bool,
         value: &str,
     ) -> Option<Value> {
-        let default_value = if nullable && value.trim() == "null" {
+        self.parse_typed_literal(
+            "template param",
+            name,
+            "default",
+            value_type,
+            nullable,
+            value,
+        )
+    }
+
+    fn parse_typed_literal(
+        &mut self,
+        declaration: &str,
+        name: &str,
+        attr_name: &str,
+        value_type: TransformTemplateModuleParamType,
+        nullable: bool,
+        value: &str,
+    ) -> Option<Value> {
+        let literal_value = if nullable && value.trim() == "null" {
             Value::Null
         } else {
             match value_type {
@@ -12890,7 +13012,13 @@ impl NativeTemplateModuleLowerer<'_> {
                     "true" => Value::Bool(true),
                     "false" => Value::Bool(false),
                     _ => {
-                        self.push_param_default_invalid(name, value_type, value);
+                        self.push_typed_literal_invalid(
+                            declaration,
+                            name,
+                            attr_name,
+                            value_type,
+                            value,
+                        );
                         return None;
                     }
                 },
@@ -12902,7 +13030,13 @@ impl NativeTemplateModuleLowerer<'_> {
                     match serde_json::from_str::<Value>(value) {
                         Ok(parsed) => parsed,
                         Err(_) => {
-                            self.push_param_default_invalid(name, value_type, value);
+                            self.push_typed_literal_invalid(
+                                declaration,
+                                name,
+                                attr_name,
+                                value_type,
+                                value,
+                            );
                             return None;
                         }
                     }
@@ -12910,24 +13044,26 @@ impl NativeTemplateModuleLowerer<'_> {
             }
         };
 
-        if value_type.accepts(&default_value, nullable) {
-            Some(default_value)
+        if value_type.accepts(&literal_value, nullable) {
+            Some(literal_value)
         } else {
-            self.push_param_default_invalid(name, value_type, value);
+            self.push_typed_literal_invalid(declaration, name, attr_name, value_type, value);
             None
         }
     }
 
-    fn push_param_default_invalid(
+    fn push_typed_literal_invalid(
         &mut self,
+        declaration: &str,
         name: &str,
+        attr_name: &str,
         value_type: TransformTemplateModuleParamType,
         value: &str,
     ) {
         self.push_diag(
             TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE,
             format!(
-                "template param `{name}` default `{value}` is not a valid {} value",
+                "{declaration} `{name}` {attr_name} `{value}` is not a valid {} value",
                 value_type.as_contract_name()
             ),
         );
@@ -14221,11 +14357,18 @@ mod tests {
             "defaultValue": "en-US"
         }))
         .expect("param defaults");
+        let let_binding: TransformTemplateModuleLetBinding = serde_json::from_value(json!({
+            "name": "layout",
+            "type": "string",
+            "value": "block"
+        }))
+        .expect("let binding defaults");
         let options = TransformTemplateModuleOptions {
             imports: vec![import],
             entrypoints: vec![entrypoint],
             params: vec![param],
             calls: Vec::new(),
+            let_bindings: vec![let_binding],
             encode_expressions: Vec::new(),
             output_functions: Vec::new(),
             limits: TransformTemplateModuleLimits::default(),
@@ -14247,6 +14390,12 @@ mod tests {
             options.params[0].value_type,
             TransformTemplateModuleParamType::String
         );
+        assert_eq!(options.let_bindings[0].name, "layout");
+        assert_eq!(
+            options.let_bindings[0].value_type,
+            TransformTemplateModuleParamType::String
+        );
+        assert_eq!(options.let_bindings[0].value, json!("block"));
         assert!(options.params[0].nullable);
         assert!(!options.params[0].required);
         assert_eq!(options.limits.max_import_depth, 32);
@@ -14271,6 +14420,10 @@ mod tests {
             .iter()
             .find(|element| element.local_name == "call")
             .expect("call schema");
+        let let_decl = CEM_NATIVE_TEMPLATE_SCHEMA_ELEMENTS
+            .iter()
+            .find(|element| element.local_name == "let")
+            .expect("let schema");
         let param = CEM_NATIVE_TEMPLATE_SCHEMA_ELEMENTS
             .iter()
             .find(|element| element.local_name == "param")
@@ -14290,6 +14443,10 @@ mod tests {
         assert!(param.optional_attributes.contains(&"nullable"));
         assert_eq!(template.required_attributes, &["name"]);
         assert!(template.optional_attributes.contains(&"visibility"));
+        assert_eq!(let_decl.required_attributes, &["name", "value"]);
+        assert!(let_decl.optional_attributes.contains(&"type"));
+        assert!(let_decl.optional_attributes.contains(&"nullable"));
+        assert!(let_decl.optional_attributes.contains(&"expr"));
         assert_eq!(call.required_attributes, &["template"]);
         assert!(call.optional_attributes.contains(&"from"));
         assert!(call.optional_attributes.contains(&"with:*"));
@@ -14519,6 +14676,71 @@ mod tests {
                     ("title".to_owned(), json!(" Ready ")),
                 ]),
             }]
+        );
+    }
+
+    #[test]
+    fn cem_native_template_module_parser_lowers_let_bindings() {
+        let response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "templates/lets.cem",
+                    r#"{@doc cem-ml 1}
+{module |
+  {body | {let @name="lineEnding" @type="string" @value="lf"}}
+  {template @name="card" @visibility="public" |
+    {body |
+      {let @name="layout" @type="string" @value="block"}
+      {let @name="depth" @type="integer" @value="2"}
+      {let @name="enabled" @type="boolean" @value="true"}
+      {article | Ready}
+    }
+  }
+}"#,
+                    Some(FormatIdentity {
+                        schema: Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            });
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        assert_eq!(
+            response.module_options.let_bindings,
+            vec![
+                TransformTemplateModuleLetBinding {
+                    owner_entrypoint: None,
+                    name: "lineEnding".to_owned(),
+                    value_type: TransformTemplateModuleParamType::String,
+                    nullable: false,
+                    value: json!("lf"),
+                },
+                TransformTemplateModuleLetBinding {
+                    owner_entrypoint: Some("card".to_owned()),
+                    name: "layout".to_owned(),
+                    value_type: TransformTemplateModuleParamType::String,
+                    nullable: false,
+                    value: json!("block"),
+                },
+                TransformTemplateModuleLetBinding {
+                    owner_entrypoint: Some("card".to_owned()),
+                    name: "depth".to_owned(),
+                    value_type: TransformTemplateModuleParamType::Integer,
+                    nullable: false,
+                    value: json!(2),
+                },
+                TransformTemplateModuleLetBinding {
+                    owner_entrypoint: Some("card".to_owned()),
+                    name: "enabled".to_owned(),
+                    value_type: TransformTemplateModuleParamType::Boolean,
+                    nullable: false,
+                    value: json!(true),
+                },
+            ]
         );
     }
 
@@ -21808,6 +22030,50 @@ mod tests {
     }
 
     #[test]
+    fn cem_native_template_module_parser_reports_let_declaration_errors() {
+        let response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "templates/bad-lets.cem",
+                    r#"{@doc cem-ml 1}
+{module |
+  {template @name="card" |
+    {body |
+      {let @name="layout" @value="block"}
+      {let @name="layout" @value="inline"}
+      {let @name="computed" @expr="input.layout" @value="block"}
+      {let @name="bad" @type="integer" @value="1.5"}
+      {let @name="missing"}
+    }
+  }
+}"#,
+                    Some(FormatIdentity {
+                        schema: Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            });
+
+        assert!(response.module_declared);
+        assert!(response
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_LET_EXPR_RESERVED_CODE));
+        assert!(response
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE));
+        assert!(response
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_DECLARATION_REQUIRED_CODE));
+        assert!(response
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == TRANSFORM_TEMPLATE_DECLARATION_DUPLICATE_CODE));
+    }
+
+    #[test]
     fn cem_native_template_module_parser_trims_structural_declaration_values() {
         let response = parse_cem_native_template_module_options(
             TransformTemplateModuleParseRequest {
@@ -22080,6 +22346,7 @@ mod tests {
                         "bytes": request.template.bytes.len(),
                         "moduleImports": request.module_options.imports.len(),
                         "moduleEntrypoints": request.module_options.entrypoints.len(),
+                        "moduleLets": request.module_options.let_bindings.len(),
                         "params": request.params.len(),
                     }),
                 )
@@ -22199,6 +22466,13 @@ mod tests {
                 name: "card".to_owned(),
                 visibility: TransformTemplateModuleVisibility::Public,
             }],
+            let_bindings: vec![TransformTemplateModuleLetBinding {
+                owner_entrypoint: Some("card".to_owned()),
+                name: "layout".to_owned(),
+                value_type: TransformTemplateModuleParamType::String,
+                nullable: false,
+                value: json!("block"),
+            }],
             ..TransformTemplateModuleOptions::default()
         };
         let params = BTreeMap::new();
@@ -22219,6 +22493,7 @@ mod tests {
 
         assert_eq!(compiled.opaque["moduleImports"], 1);
         assert_eq!(compiled.opaque["moduleEntrypoints"], 1);
+        assert_eq!(compiled.opaque["moduleLets"], 1);
         assert_eq!(compiled.entrypoint.name.as_deref(), Some("card"));
     }
 

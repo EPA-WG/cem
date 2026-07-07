@@ -2368,6 +2368,9 @@ fn lower_transform_template_module_options(
     module_options.params.extend(overlay_options.params);
     module_options.calls.extend(overlay_options.calls);
     module_options
+        .let_bindings
+        .extend(overlay_options.let_bindings);
+    module_options
         .encode_expressions
         .extend(overlay_options.encode_expressions);
     module_options
@@ -2447,6 +2450,7 @@ fn validate_transform_template_module_contract(
         || !module_options.entrypoints.is_empty()
         || !module_options.params.is_empty()
         || !module_options.calls.is_empty()
+        || !module_options.let_bindings.is_empty()
         || !module_options.encode_expressions.is_empty()
         || !module_options.output_functions.is_empty();
     if !has_module_contract {
@@ -6074,7 +6078,7 @@ mod tests {
             bytes: br#"{@doc cem-ml 1}
 {module |
   {import @as="ui" @src="ui.cem" @content-type="text/cem-ml"}
-  {template @name="card" @visibility="public"}
+  {template @name="card" @visibility="public" | {body | {let @name="layout" @type="string" @value="block"}}}
 }"#
             .to_vec(),
             identity: Some(FormatIdentity {
@@ -6098,6 +6102,13 @@ mod tests {
         assert_eq!(options.imports[0].uri, "ui.cem");
         assert_eq!(options.entrypoints.len(), 1);
         assert_eq!(options.entrypoints[0].name, "card");
+        assert_eq!(options.let_bindings.len(), 1);
+        assert_eq!(
+            options.let_bindings[0].owner_entrypoint.as_deref(),
+            Some("card")
+        );
+        assert_eq!(options.let_bindings[0].name, "layout");
+        assert_eq!(options.let_bindings[0].value, json!("block"));
     }
 
     #[test]
