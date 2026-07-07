@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
+import cemtPipelineSource from '../../../cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.cemt?raw';
 
 const meta: Meta = {
     title: 'CEM Elements/CEMT Output Pipeline',
@@ -162,6 +163,24 @@ export const FormatterColoringWriterStages: Story = {
             coloredPanel.textContent?.includes('colored tree before writer'),
             'colored stage shows colorizer metadata'
         );
+
+        const templatePanel = requiredElement(canvasElement, '[data-stage="cemt-source"]');
+        assert(
+            templatePanel.textContent?.includes('@name="acme.showcase.format-tree"'),
+            'Storybook showcase displays the checked formatter CEMT source'
+        );
+        assert(
+            templatePanel.textContent?.includes('@name="acme.showcase.color-tree"'),
+            'Storybook showcase displays the checked colorizer CEMT source'
+        );
+        assert(
+            templatePanel.textContent?.includes('appendFormatNode('),
+            'formatter CEMT source shows metadata accumulation'
+        );
+        assert(
+            templatePanel.textContent?.includes('applyEdits('),
+            'coloring CEMT source shows tree patching before writer output'
+        );
     },
 };
 
@@ -169,6 +188,7 @@ function stageGrid(): HTMLElement {
     const grid = document.createElement('div');
     grid.className = 'cemt-pipeline-grid';
     grid.append(
+        stagePanel('Checked CEMT Source', 'cemt-source', cemtPipelineSource),
         stagePanel('Source AST', 'source', sourceAst),
         stagePanel('Formatted CEM Tree', 'formatted', formattedTree),
         stagePanel('Colored CEM Tree', 'colored', coloredTree)
@@ -185,7 +205,7 @@ function stagePanel(title: string, stage: string, value: unknown): HTMLElement {
     heading.textContent = title;
 
     const pre = document.createElement('pre');
-    pre.textContent = JSON.stringify(value, null, 2);
+    pre.textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
 
     panel.append(heading, pre);
     return panel;
@@ -269,7 +289,7 @@ function styles(): HTMLStyleElement {
         .cemt-pipeline-grid {
             display: grid;
             gap: 12px;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
         .cemt-pipeline-panel {
