@@ -24,6 +24,8 @@ pub struct RunConfig {
     #[serde(default)]
     pub outputs: Vec<OutputSpec>,
     #[serde(default)]
+    pub schema_packages: Vec<InputSpec>,
+    #[serde(default)]
     pub resolvers: Vec<ResolverSpec>,
     #[serde(default)]
     pub scheduler: SchedulerConfig,
@@ -246,6 +248,18 @@ pub fn normalize_run_config(
         }
     }
 
+    for package in &mut config.schema_packages {
+        resolve_scope_module_map(&mut package.root_scope, base_uri);
+        if package.root_scope.default_content_type.is_none() {
+            package.root_scope.default_content_type =
+                Some(crate::schema::registry::CEM_SCHEMA_PACKAGE_CONTENT_TYPE.to_owned());
+        }
+        if package.root_scope.schema.is_none() {
+            package.root_scope.schema =
+                Some(crate::schema::registry::CEM_SCHEMA_PACKAGE_URI.to_owned());
+        }
+    }
+
     let mut diagnostics = validate_run_config_defaults(&defaults, base_uri);
     diagnostics.extend(validate_run_config(&config, base_uri));
     RunConfigParseResponse {
@@ -290,6 +304,7 @@ pub fn parse_output_spec_record(record: &str) -> Result<OutputSpec, SpecParseErr
 pub fn validate_run_config(config: &RunConfig, base_uri: Option<&str>) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     let mut input_uris = std::collections::BTreeSet::new();
+    let mut schema_package_uris = std::collections::BTreeSet::new();
 
     for (index, input) in config.inputs.iter().enumerate() {
         if input.uri.trim().is_empty() {
@@ -308,6 +323,32 @@ pub fn validate_run_config(config: &RunConfig, base_uri: Option<&str>) -> Vec<Di
         validate_scope_config(
             &input.root_scope,
             "input",
+            index,
+            base_uri,
+            &mut diagnostics,
+        );
+    }
+
+    for (index, package) in config.schema_packages.iter().enumerate() {
+        if package.uri.trim().is_empty() {
+            diagnostics.push(config_diagnostic(
+                "cem.run_config.schema_package_uri_missing",
+                format!("schema package spec at index {index} requires `uri`"),
+                base_uri,
+            ));
+        } else if !schema_package_uris.insert(package.uri.clone()) {
+            diagnostics.push(config_diagnostic(
+                "cem.run_config.schema_package_uri_duplicate",
+                format!(
+                    "schema package URI `{}` is declared more than once",
+                    package.uri
+                ),
+                base_uri,
+            ));
+        }
+        validate_scope_config(
+            &package.root_scope,
+            "schema package",
             index,
             base_uri,
             &mut diagnostics,
@@ -1072,6 +1113,12 @@ mod tests {
         );
         assert_eq!(
             schema
+                .pointer("/properties/schemaPackages/items/$ref")
+                .and_then(serde_json::Value::as_str),
+            Some("#/$defs/inputSpec")
+        );
+        assert_eq!(
+            schema
                 .pointer("/$defs/scopeConfig/properties/defaultContentType/type")
                 .and_then(serde_json::Value::as_str),
             Some("string")
@@ -1113,6 +1160,36 @@ mod tests {
         assert!(response.config.resolvers[0].read);
         assert!(!response.config.resolvers[0].write);
         assert!(response.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn json_run_config_parses_and_normalizes_schema_packages() {
+        let parsed = parse_run_config(RunConfigParseRequest {
+            bytes: br#"{"schemaPackages":[{"uri":"packages/cem_ml/schema-packages/html/v1/package.cem"}]}"#.to_vec(),
+            identity: FormatIdentity {
+                content_type: Some("application/json".to_owned()),
+                ..FormatIdentity::default()
+            },
+            base_uri: None,
+        })
+        .unwrap();
+        let response = normalize_run_config(parsed.config, RunConfigDefaults::default(), None);
+
+        assert!(response.diagnostics.is_empty());
+        assert_eq!(response.config.schema_packages.len(), 1);
+        let package = &response.config.schema_packages[0];
+        assert_eq!(
+            package.uri,
+            "packages/cem_ml/schema-packages/html/v1/package.cem"
+        );
+        assert_eq!(
+            package.root_scope.default_content_type.as_deref(),
+            Some(crate::schema::registry::CEM_SCHEMA_PACKAGE_CONTENT_TYPE)
+        );
+        assert_eq!(
+            package.root_scope.schema.as_deref(),
+            Some(crate::schema::registry::CEM_SCHEMA_PACKAGE_URI)
+        );
     }
 
     #[test]
@@ -1222,6 +1299,7 @@ mod tests {
                         ..OutputSpec::default()
                     },
                 ],
+                schema_packages: Vec::new(),
                 resolvers: Vec::new(),
                 scheduler: SchedulerConfig::default(),
             },
@@ -1337,6 +1415,7 @@ mod tests {
                     },
                     ..OutputSpec::default()
                 }],
+                schema_packages: Vec::new(),
                 resolvers: Vec::new(),
                 scheduler: SchedulerConfig::default(),
             },
@@ -1554,6 +1633,25 @@ mod tests {
             .diagnostics
             .iter()
             .any(|diag| diag.code == "cem.run_config.input_uri_duplicate"));
+    }
+
+    #[test]
+    fn run_config_validation_reports_duplicate_schema_packages() {
+        let parsed = parse_run_config(RunConfigParseRequest {
+            bytes: br#"{"schemaPackages":[{"uri":"pkg.cem"},{"uri":"pkg.cem"}]}"#.to_vec(),
+            identity: FormatIdentity {
+                content_type: Some("application/json".to_owned()),
+                ..FormatIdentity::default()
+            },
+            base_uri: None,
+        })
+        .unwrap();
+        let response = normalize_run_config(parsed.config, RunConfigDefaults::default(), None);
+
+        assert!(response
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "cem.run_config.schema_package_uri_duplicate"));
     }
 
     #[test]

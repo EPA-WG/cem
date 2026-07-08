@@ -252,6 +252,14 @@ pub struct ContextOptions {
         help = "Resolve matching remote/custom write URIs to a local directory; repeatable"
     )]
     pub resolver_write_maps: Vec<ResolverMap>,
+
+    #[arg(
+        long = "schema-package",
+        value_name = "PATH-OR-URI",
+        action = clap::ArgAction::Append,
+        help = "Load a schema-package manifest into the conversion context; repeatable"
+    )]
+    pub schema_packages: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1165,6 +1173,30 @@ mod tests {
             "in.cem"
         ])
         .is_err());
+    }
+
+    #[test]
+    fn commands_accept_schema_package_context_options() {
+        let cli = try_parse(&[
+            "convert",
+            "--schema-package",
+            "packages/cem_ml/schema-packages/html/v1/package.cem",
+            "--schema-package",
+            "cem+vfs://workspace/package.cem",
+            "in.cem",
+        ])
+        .unwrap();
+
+        let Command::Convert(args) = cli.command else {
+            panic!("expected convert command");
+        };
+        assert_eq!(
+            args.context.schema_packages,
+            vec![
+                "packages/cem_ml/schema-packages/html/v1/package.cem".to_owned(),
+                "cem+vfs://workspace/package.cem".to_owned(),
+            ]
+        );
     }
 
     #[test]

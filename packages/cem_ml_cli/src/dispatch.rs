@@ -800,6 +800,11 @@ fn context(c: &cli::ContextOptions) -> eng::EngineContext {
     };
     register_cli_transform_template_adapters(&mut context);
     register_cli_resolvers(&mut context.resolver_registry, c, None);
+    context.schema_package_manifests.extend(
+        c.schema_packages
+            .iter()
+            .map(|uri| schema_package_manifest_input(uri, ScopeConfig::default())),
+    );
     context
 }
 
@@ -809,7 +814,30 @@ fn context_with_config(c: &cli::ContextOptions, config: &RunConfig) -> eng::Engi
         ..context(c)
     };
     register_cli_resolvers(&mut context.resolver_registry, c, Some(config));
+    context.schema_package_manifests.extend(
+        config
+            .schema_packages
+            .iter()
+            .map(|spec| schema_package_manifest_input(&spec.uri, spec.root_scope.clone())),
+    );
     context
+}
+
+fn schema_package_manifest_input(uri: &str, mut root_scope: ScopeConfig) -> eng::EngineInput {
+    if root_scope.default_content_type.is_none() {
+        root_scope.default_content_type =
+            Some(cem_ml::schema::registry::CEM_SCHEMA_PACKAGE_CONTENT_TYPE.to_owned());
+    }
+    if root_scope.schema.is_none() {
+        root_scope.schema = Some(cem_ml::schema::registry::CEM_SCHEMA_PACKAGE_URI.to_owned());
+    }
+    eng::EngineInput {
+        uri: uri.to_owned(),
+        bytes: Vec::new(),
+        from_format: Some(eng::InputFormat::Cem),
+        identity: root_scope.format_identity_option(),
+        root_scope,
+    }
 }
 
 fn register_cli_transform_template_adapters(context: &mut eng::EngineContext) {
@@ -12142,6 +12170,32 @@ mod tests {
         assert_stderr_contains_all(stderr, &["only local file:// URIs are supported", uri]);
     }
 
+    fn assert_schema_package_manifest(input: &eng::EngineInput, uri: &str) {
+        assert_eq!(input.uri, uri);
+        assert!(input.bytes.is_empty());
+        assert_eq!(input.from_format, Some(eng::InputFormat::Cem));
+        assert_eq!(
+            input.root_scope.default_content_type.as_deref(),
+            Some(cem_ml::schema::registry::CEM_SCHEMA_PACKAGE_CONTENT_TYPE)
+        );
+        assert_eq!(
+            input.root_scope.schema.as_deref(),
+            Some(cem_ml::schema::registry::CEM_SCHEMA_PACKAGE_URI)
+        );
+        let identity = input
+            .identity
+            .as_ref()
+            .expect("schema-package manifest identity is populated");
+        assert_eq!(
+            identity.content_type.as_deref(),
+            Some(cem_ml::schema::registry::CEM_SCHEMA_PACKAGE_CONTENT_TYPE)
+        );
+        assert_eq!(
+            identity.schema.as_deref(),
+            Some(cem_ml::schema::registry::CEM_SCHEMA_PACKAGE_URI)
+        );
+    }
+
     fn assert_remote_input_uri_rejected(args: &[&str], uri: &str) {
         let (outcome, stdout, stderr) = run(&FakeEngine, args);
 
@@ -12176,6 +12230,36 @@ mod tests {
         assert!(stdout.trim().is_empty());
         assert_stderr_contains_all(&stderr, &["write failure"]);
         assert_remote_resolver_boundary(&stderr, uri);
+    }
+
+    #[test]
+    fn schema_package_sources_populate_engine_context() {
+        let context_options = cli::ContextOptions {
+            schema_packages: vec!["cli-package.cem".to_owned()],
+            ..cli::ContextOptions::default()
+        };
+        let config = RunConfig {
+            schema_packages: vec![InputSpec {
+                uri: "config-package.cem".to_owned(),
+                root_scope: ScopeConfig {
+                    default_namespace: Some("urn:config-package".to_owned()),
+                    ..ScopeConfig::default()
+                },
+            }],
+            ..RunConfig::default()
+        };
+        let context = context_with_config(&context_options, &config);
+
+        assert_eq!(context.schema_package_manifests.len(), 2);
+        assert_schema_package_manifest(&context.schema_package_manifests[0], "cli-package.cem");
+        assert_schema_package_manifest(&context.schema_package_manifests[1], "config-package.cem");
+        assert_eq!(
+            context.schema_package_manifests[1]
+                .root_scope
+                .default_namespace
+                .as_deref(),
+            Some("urn:config-package")
+        );
     }
 
     #[test]

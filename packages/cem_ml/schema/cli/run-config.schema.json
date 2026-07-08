@@ -20,6 +20,13 @@
       },
       "default": []
     },
+    "schemaPackages": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/inputSpec"
+      },
+      "default": []
+    },
     "resolvers": {
       "type": "array",
       "items": {
