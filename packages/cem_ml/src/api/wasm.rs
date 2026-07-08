@@ -134,7 +134,14 @@ pub fn normalize_run_config(json: &str) -> String {
         base_uri: None,
     };
     match crate::run_config::parse_run_config(request) {
-        Ok(response) => serde_json::to_string(&response).unwrap_or_else(wasm_serialize_error),
+        Ok(response) => {
+            let response = crate::run_config::normalize_run_config(
+                response.config,
+                crate::run_config::RunConfigDefaults::default(),
+                None,
+            );
+            serde_json::to_string(&response).unwrap_or_else(wasm_serialize_error)
+        }
         Err(error) => serde_json::json!({
             "error": {
                 "code": error.code,
@@ -256,9 +263,27 @@ pub fn context_with_resolver_schemes(schemes: &[&str]) -> crate::engine::EngineC
     }
 }
 
-const RESOLVE_PURPOSES: [ResolvePurpose; 6] = [
+pub fn schema_package_manifest_input(uri: &str) -> crate::engine::EngineInput {
+    crate::run_config::schema_package_manifest_input(uri, crate::run_config::ScopeConfig::default())
+}
+
+pub fn context_with_resolver_schemes_and_schema_packages(
+    schemes: &[&str],
+    schema_package_uris: &[&str],
+) -> crate::engine::EngineContext {
+    let mut context = context_with_resolver_schemes(schemes);
+    context.schema_package_manifests.extend(
+        schema_package_uris
+            .iter()
+            .map(|uri| schema_package_manifest_input(uri)),
+    );
+    context
+}
+
+const RESOLVE_PURPOSES: [ResolvePurpose; 7] = [
     ResolvePurpose::Config,
     ResolvePurpose::Input,
+    ResolvePurpose::Template,
     ResolvePurpose::ModuleMap,
     ResolvePurpose::Output,
     ResolvePurpose::Report,

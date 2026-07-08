@@ -803,7 +803,7 @@ fn context(c: &cli::ContextOptions) -> eng::EngineContext {
     context.schema_package_manifests.extend(
         c.schema_packages
             .iter()
-            .map(|uri| schema_package_manifest_input(uri, ScopeConfig::default())),
+            .map(|uri| run_config::schema_package_manifest_input(uri, ScopeConfig::default())),
     );
     context
 }
@@ -815,29 +815,11 @@ fn context_with_config(c: &cli::ContextOptions, config: &RunConfig) -> eng::Engi
     };
     register_cli_resolvers(&mut context.resolver_registry, c, Some(config));
     context.schema_package_manifests.extend(
-        config
-            .schema_packages
-            .iter()
-            .map(|spec| schema_package_manifest_input(&spec.uri, spec.root_scope.clone())),
+        config.schema_packages.iter().map(|spec| {
+            run_config::schema_package_manifest_input(&spec.uri, spec.root_scope.clone())
+        }),
     );
     context
-}
-
-fn schema_package_manifest_input(uri: &str, mut root_scope: ScopeConfig) -> eng::EngineInput {
-    if root_scope.default_content_type.is_none() {
-        root_scope.default_content_type =
-            Some(cem_ml::schema::registry::CEM_SCHEMA_PACKAGE_CONTENT_TYPE.to_owned());
-    }
-    if root_scope.schema.is_none() {
-        root_scope.schema = Some(cem_ml::schema::registry::CEM_SCHEMA_PACKAGE_URI.to_owned());
-    }
-    eng::EngineInput {
-        uri: uri.to_owned(),
-        bytes: Vec::new(),
-        from_format: Some(eng::InputFormat::Cem),
-        identity: root_scope.format_identity_option(),
-        root_scope,
-    }
 }
 
 fn register_cli_transform_template_adapters(context: &mut eng::EngineContext) {

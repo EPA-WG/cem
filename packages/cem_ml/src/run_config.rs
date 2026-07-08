@@ -7,7 +7,7 @@
 //! selection, and resource policy accounting.
 
 use crate::diagnostics::{Diagnostic, Severity};
-use crate::engine::FormatIdentity;
+use crate::engine::{EngineInput, FormatIdentity, InputFormat};
 use crate::resolver::{has_uri_scheme, local_file_uri_to_path};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -265,6 +265,23 @@ pub fn normalize_run_config(
     RunConfigParseResponse {
         config,
         diagnostics,
+    }
+}
+
+pub fn schema_package_manifest_input(uri: &str, mut root_scope: ScopeConfig) -> EngineInput {
+    if root_scope.default_content_type.is_none() {
+        root_scope.default_content_type =
+            Some(crate::schema::registry::CEM_SCHEMA_PACKAGE_CONTENT_TYPE.to_owned());
+    }
+    if root_scope.schema.is_none() {
+        root_scope.schema = Some(crate::schema::registry::CEM_SCHEMA_PACKAGE_URI.to_owned());
+    }
+    EngineInput {
+        uri: uri.to_owned(),
+        bytes: Vec::new(),
+        from_format: Some(InputFormat::Cem),
+        identity: root_scope.format_identity_option(),
+        root_scope,
     }
 }
 
@@ -1188,6 +1205,45 @@ mod tests {
         );
         assert_eq!(
             package.root_scope.schema.as_deref(),
+            Some(crate::schema::registry::CEM_SCHEMA_PACKAGE_URI)
+        );
+    }
+
+    #[test]
+    fn schema_package_manifest_input_sets_manifest_identity_defaults() {
+        let input = schema_package_manifest_input(
+            "packages/cem_ml/schema-packages/html/v1/package.cem",
+            ScopeConfig {
+                default_namespace: Some("urn:package".to_owned()),
+                ..ScopeConfig::default()
+            },
+        );
+
+        assert_eq!(
+            input.uri,
+            "packages/cem_ml/schema-packages/html/v1/package.cem"
+        );
+        assert!(input.bytes.is_empty());
+        assert_eq!(input.from_format, Some(InputFormat::Cem));
+        assert_eq!(
+            input.root_scope.default_content_type.as_deref(),
+            Some(crate::schema::registry::CEM_SCHEMA_PACKAGE_CONTENT_TYPE)
+        );
+        assert_eq!(
+            input.root_scope.schema.as_deref(),
+            Some(crate::schema::registry::CEM_SCHEMA_PACKAGE_URI)
+        );
+        assert_eq!(
+            input.root_scope.default_namespace.as_deref(),
+            Some("urn:package")
+        );
+        let identity = input.identity.expect("schema package identity");
+        assert_eq!(
+            identity.content_type.as_deref(),
+            Some(crate::schema::registry::CEM_SCHEMA_PACKAGE_CONTENT_TYPE)
+        );
+        assert_eq!(
+            identity.schema.as_deref(),
             Some(crate::schema::registry::CEM_SCHEMA_PACKAGE_URI)
         );
     }
