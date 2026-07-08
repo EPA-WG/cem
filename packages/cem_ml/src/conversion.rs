@@ -34,27 +34,28 @@ use crate::tokenizer::{SchemaTokenKind, SchemaTokenizer};
 use crate::transform_template::{
     compose_transform_template_encoded_text_artifacts,
     evaluate_transform_template_encode_expressions, execute_transform_template_encode_binding,
-    parse_cem_native_template_module_options, TransformTemplateAdapter,
+    parse_cem_native_template_module_options,
+    validate_transform_template_artifact_function_contract, TransformTemplateAdapter,
     TransformTemplateAdapterCapability, TransformTemplateAdapterError,
     TransformTemplateAdapterExecutionPhase, TransformTemplateAdapterLookup,
     TransformTemplateAdapterRegistry, TransformTemplateAdapterResult,
-    TransformTemplateColorOutputProfile, TransformTemplateCompileRequest,
-    TransformTemplateCompileResponse, TransformTemplateCompiledArtifact,
-    TransformTemplateDataArtifact, TransformTemplateEncodeBinding,
-    TransformTemplateEncodeBindingRequest, TransformTemplateEncodeEvaluationContext,
-    TransformTemplateEncodeExpression, TransformTemplateEncodeImplementationRegistry,
-    TransformTemplateEncodeOptions, TransformTemplateEncodedArtifact,
-    TransformTemplateEncodedArtifactInsertionContext, TransformTemplateEncodedArtifactMode,
-    TransformTemplateEncodingTarget, TransformTemplateEvaluatedEncodeExpression,
-    TransformTemplateHtmlColorMode, TransformTemplateModuleOptions,
-    TransformTemplateModuleParseRequest, TransformTemplateModulePreflight,
-    TransformTemplateModuleVisibility, TransformTemplateOutputArtifact,
-    TransformTemplateOutputFunctionDescriptor, TransformTemplateOutputFunctionImplementation,
-    TransformTemplateOutputFunctionKind, TransformTemplateOutputFunctionRegistry,
-    TransformTemplateOutputProducedKind, TransformTemplateRenderRequest,
-    TransformTemplateRenderResponse, TransformTemplateSourceMapPolicy,
-    TransformTemplateTargetSyntaxKind, TransformTemplateTargetSyntaxRules,
-    TransformTemplateTerminalColorCapability,
+    TransformTemplateArtifactFunctionContract, TransformTemplateColorOutputProfile,
+    TransformTemplateCompileRequest, TransformTemplateCompileResponse,
+    TransformTemplateCompiledArtifact, TransformTemplateDataArtifact,
+    TransformTemplateEncodeBinding, TransformTemplateEncodeBindingRequest,
+    TransformTemplateEncodeEvaluationContext, TransformTemplateEncodeExpression,
+    TransformTemplateEncodeImplementationRegistry, TransformTemplateEncodeOptions,
+    TransformTemplateEncodedArtifact, TransformTemplateEncodedArtifactInsertionContext,
+    TransformTemplateEncodedArtifactMode, TransformTemplateEncodingTarget,
+    TransformTemplateEvaluatedEncodeExpression, TransformTemplateHtmlColorMode,
+    TransformTemplateModuleOptions, TransformTemplateModuleParseRequest,
+    TransformTemplateModulePreflight, TransformTemplateModuleVisibility,
+    TransformTemplateOutputArtifact, TransformTemplateOutputFunctionDescriptor,
+    TransformTemplateOutputFunctionImplementation, TransformTemplateOutputFunctionKind,
+    TransformTemplateOutputFunctionRegistry, TransformTemplateOutputProducedKind,
+    TransformTemplateRenderRequest, TransformTemplateRenderResponse,
+    TransformTemplateSourceMapPolicy, TransformTemplateTargetSyntaxKind,
+    TransformTemplateTargetSyntaxRules, TransformTemplateTerminalColorCapability,
 };
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -5563,59 +5564,27 @@ fn validate_conversion_package_artifact_cemt_contract(
         ));
     };
 
-    if let Some(expected_kind) = conversion_artifact_output_function_kind(&artifact.kind) {
-        if function.kind != expected_kind {
-            return Err(conversion_artifact_contract_mismatch(
-                artifact,
-                "function kind",
-                conversion_output_function_kind_name(expected_kind),
-                conversion_output_function_kind_name(function.kind),
-            ));
-        }
+    if let Some(mismatch) = validate_transform_template_artifact_function_contract(
+        function,
+        TransformTemplateArtifactFunctionContract {
+            artifact_kind: Some(artifact.kind.as_str()),
+            target_content_type: artifact.target_content_type.as_deref(),
+            target_schema: artifact.target_schema.as_deref(),
+            target_category: artifact.target_category.as_deref(),
+            function_profile: artifact.function_profile.as_deref(),
+        },
+    )
+    .into_iter()
+    .next()
+    {
+        return Err(conversion_artifact_contract_mismatch(
+            artifact,
+            mismatch.field,
+            mismatch.expected.as_str(),
+            mismatch.actual.as_str(),
+        ));
     }
-    validate_conversion_artifact_contract_field(
-        artifact,
-        "target content type",
-        artifact.target_content_type.as_deref(),
-        Some(content_type_essence(&function.content_type).as_str()),
-    )?;
-    validate_conversion_artifact_contract_field(
-        artifact,
-        "target schema",
-        artifact.target_schema.as_deref(),
-        Some(function.schema.as_str()),
-    )?;
-    validate_conversion_artifact_contract_field(
-        artifact,
-        "target category",
-        artifact.target_category.as_deref(),
-        Some(function.category.as_str()),
-    )?;
-    validate_conversion_artifact_contract_field(
-        artifact,
-        "function profile",
-        artifact.function_profile.as_deref(),
-        function.profile.as_deref(),
-    )?;
     Ok(())
-}
-
-fn validate_conversion_artifact_contract_field(
-    artifact: &ConversionPackageArtifactDescriptor,
-    field: &str,
-    expected: Option<&str>,
-    actual: Option<&str>,
-) -> Result<(), ConversionManifestError> {
-    let Some(expected) = expected else {
-        return Ok(());
-    };
-    let actual = actual.unwrap_or("<none>");
-    if actual == expected {
-        return Ok(());
-    }
-    Err(conversion_artifact_contract_mismatch(
-        artifact, field, expected, actual,
-    ))
 }
 
 fn conversion_artifact_contract_mismatch(
@@ -5638,25 +5607,6 @@ fn conversion_artifact_contract_error(
         package_id: artifact.package_id.clone(),
         path: artifact.path.clone(),
         message: message.into(),
-    }
-}
-
-fn conversion_artifact_output_function_kind(
-    artifact_kind: &str,
-) -> Option<TransformTemplateOutputFunctionKind> {
-    match artifact_kind.trim() {
-        "formatter" => Some(TransformTemplateOutputFunctionKind::Format),
-        "colorizer" => Some(TransformTemplateOutputFunctionKind::Color),
-        "encoder" => Some(TransformTemplateOutputFunctionKind::Encoding),
-        _ => None,
-    }
-}
-
-fn conversion_output_function_kind_name(kind: TransformTemplateOutputFunctionKind) -> &'static str {
-    match kind {
-        TransformTemplateOutputFunctionKind::Encoding => "encoding",
-        TransformTemplateOutputFunctionKind::Format => "format",
-        TransformTemplateOutputFunctionKind::Color => "color",
     }
 }
 

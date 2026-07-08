@@ -440,6 +440,131 @@ impl TransformTemplateOutputFunctionDescriptor {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct TransformTemplateArtifactFunctionContract<'a> {
+    pub artifact_kind: Option<&'a str>,
+    pub target_content_type: Option<&'a str>,
+    pub target_schema: Option<&'a str>,
+    pub target_category: Option<&'a str>,
+    pub function_profile: Option<&'a str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TransformTemplateArtifactFunctionContractMismatch {
+    pub field: &'static str,
+    pub expected: String,
+    pub actual: String,
+}
+
+pub fn validate_transform_template_artifact_function_contract(
+    function: &TransformTemplateOutputFunctionDescriptor,
+    contract: TransformTemplateArtifactFunctionContract<'_>,
+) -> Vec<TransformTemplateArtifactFunctionContractMismatch> {
+    let mut mismatches = Vec::new();
+    if let Some(expected_kind) = contract
+        .artifact_kind
+        .and_then(artifact_output_function_kind)
+    {
+        if function.kind != expected_kind {
+            mismatches.push(TransformTemplateArtifactFunctionContractMismatch {
+                field: "function kind",
+                expected: transform_template_output_function_kind_name(expected_kind).to_owned(),
+                actual: transform_template_output_function_kind_name(function.kind).to_owned(),
+            });
+        }
+    }
+
+    push_artifact_contract_field_mismatch(
+        &mut mismatches,
+        "target content type",
+        contract.target_content_type,
+        Some(function.content_type.as_str()),
+        true,
+    );
+    push_artifact_contract_field_mismatch(
+        &mut mismatches,
+        "target schema",
+        contract.target_schema,
+        Some(function.schema.as_str()),
+        false,
+    );
+    push_artifact_contract_field_mismatch(
+        &mut mismatches,
+        "target category",
+        contract.target_category,
+        Some(function.category.as_str()),
+        false,
+    );
+    push_artifact_contract_field_mismatch(
+        &mut mismatches,
+        "function profile",
+        contract.function_profile,
+        function.profile.as_deref(),
+        false,
+    );
+
+    mismatches
+}
+
+fn push_artifact_contract_field_mismatch(
+    mismatches: &mut Vec<TransformTemplateArtifactFunctionContractMismatch>,
+    field: &'static str,
+    expected: Option<&str>,
+    actual: Option<&str>,
+    content_type: bool,
+) {
+    let Some(expected) = trimmed_non_empty(expected) else {
+        return;
+    };
+    let expected = if content_type {
+        content_type_essence(expected)
+    } else {
+        expected.to_owned()
+    };
+    let actual = trimmed_non_empty(actual)
+        .map(|value| {
+            if content_type {
+                content_type_essence(value)
+            } else {
+                value.to_owned()
+            }
+        })
+        .unwrap_or_else(|| "<none>".to_owned());
+    if actual == expected {
+        return;
+    }
+    mismatches.push(TransformTemplateArtifactFunctionContractMismatch {
+        field,
+        expected,
+        actual,
+    });
+}
+
+fn trimmed_non_empty(value: Option<&str>) -> Option<&str> {
+    value.map(str::trim).filter(|value| !value.is_empty())
+}
+
+fn artifact_output_function_kind(
+    artifact_kind: &str,
+) -> Option<TransformTemplateOutputFunctionKind> {
+    match artifact_kind.trim() {
+        "formatter" => Some(TransformTemplateOutputFunctionKind::Format),
+        "colorizer" => Some(TransformTemplateOutputFunctionKind::Color),
+        "encoder" => Some(TransformTemplateOutputFunctionKind::Encoding),
+        _ => None,
+    }
+}
+
+fn transform_template_output_function_kind_name(
+    kind: TransformTemplateOutputFunctionKind,
+) -> &'static str {
+    match kind {
+        TransformTemplateOutputFunctionKind::Encoding => "encoding",
+        TransformTemplateOutputFunctionKind::Format => "format",
+        TransformTemplateOutputFunctionKind::Color => "color",
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TransformTemplateOutputFunctionQuery {
     pub kind: Option<TransformTemplateOutputFunctionKind>,
@@ -18443,6 +18568,62 @@ mod tests {
             binding,
             artifact,
         }
+    }
+
+    #[test]
+    fn artifact_function_contract_accepts_matching_formatter_metadata() {
+        let function = cem_tree_format_function_descriptor();
+        let mismatches = validate_transform_template_artifact_function_contract(
+            &function,
+            TransformTemplateArtifactFunctionContract {
+                artifact_kind: Some("formatter"),
+                target_content_type: Some("application/cem; charset=utf-8"),
+                target_schema: Some(CEM_ML_SCHEMA_URI),
+                target_category: Some("cem-tree"),
+                function_profile: None,
+            },
+        );
+
+        assert!(
+            mismatches.is_empty(),
+            "unexpected mismatches: {mismatches:?}"
+        );
+    }
+
+    #[test]
+    fn artifact_function_contract_reports_structured_mismatches() {
+        let function = cem_tree_format_function_descriptor();
+        let mismatches = validate_transform_template_artifact_function_contract(
+            &function,
+            TransformTemplateArtifactFunctionContract {
+                artifact_kind: Some("formatter"),
+                target_content_type: Some("text/html"),
+                target_schema: Some(CEM_ML_SCHEMA_URI),
+                target_category: Some("wrong-tree"),
+                function_profile: Some("canonical"),
+            },
+        );
+
+        assert_eq!(
+            mismatches,
+            vec![
+                TransformTemplateArtifactFunctionContractMismatch {
+                    field: "target content type",
+                    expected: "text/html".to_owned(),
+                    actual: CEM_ML_CONTENT_TYPE.to_owned(),
+                },
+                TransformTemplateArtifactFunctionContractMismatch {
+                    field: "target category",
+                    expected: "wrong-tree".to_owned(),
+                    actual: "cem-tree".to_owned(),
+                },
+                TransformTemplateArtifactFunctionContractMismatch {
+                    field: "function profile",
+                    expected: "canonical".to_owned(),
+                    actual: "<none>".to_owned(),
+                },
+            ]
+        );
     }
 
     #[test]

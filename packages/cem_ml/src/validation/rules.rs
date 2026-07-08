@@ -32,8 +32,10 @@ use crate::schema::registry::{
 };
 use crate::source_map::FrameSpan;
 use crate::transform_template::{
-    parse_cem_native_template_module_options, TransformTemplateModuleParseRequest,
-    TransformTemplateOutputFunctionKind,
+    parse_cem_native_template_module_options,
+    validate_transform_template_artifact_function_contract,
+    TransformTemplateArtifactFunctionContract, TransformTemplateArtifactFunctionContractMismatch,
+    TransformTemplateModuleParseRequest,
 };
 use crate::validation::{
     RuleContext, RuleDescriptor, RuleId, RuleInput, SemanticRule, TriggerLayer,
@@ -1466,55 +1468,19 @@ fn validate_schema_package_artifact(
         return;
     };
 
-    if let Some(expected_kind) = attr_value(ctx.document, node, "kind")
-        .and_then(schema_package_artifact_output_function_kind)
-    {
-        if function.kind != expected_kind {
-            out.push(schema_package_artifact_contract_mismatch_diag(
-                node,
-                path,
-                "function kind",
-                schema_package_output_function_kind_name(expected_kind),
-                schema_package_output_function_kind_name(function.kind),
-            ));
-        }
-    }
-
-    validate_schema_package_artifact_field(
-        ctx.document,
-        node,
-        path,
-        "target-content-type",
-        "target content type",
-        Some(content_type_essence(&function.content_type).as_str()),
-        out,
-    );
-    validate_schema_package_artifact_field(
-        ctx.document,
-        node,
-        path,
-        "target-schema",
-        "target schema",
-        Some(function.schema.as_str()),
-        out,
-    );
-    validate_schema_package_artifact_field(
-        ctx.document,
-        node,
-        path,
-        "target-category",
-        "target category",
-        Some(function.category.as_str()),
-        out,
-    );
-    validate_schema_package_artifact_field(
-        ctx.document,
-        node,
-        path,
-        "function-profile",
-        "function profile",
-        function.profile.as_deref(),
-        out,
+    out.extend(
+        validate_transform_template_artifact_function_contract(
+            function,
+            TransformTemplateArtifactFunctionContract {
+                artifact_kind: attr_value(ctx.document, node, "kind"),
+                target_content_type: attr_value(ctx.document, node, "target-content-type"),
+                target_schema: attr_value(ctx.document, node, "target-schema"),
+                target_category: attr_value(ctx.document, node, "target-category"),
+                function_profile: attr_value(ctx.document, node, "function-profile"),
+            },
+        )
+        .into_iter()
+        .map(|mismatch| schema_package_artifact_contract_mismatch_diag(node, path, mismatch)),
     );
 }
 
@@ -1555,75 +1521,20 @@ fn local_path_from_validation_source_uri(source_uri: &str) -> Option<PathBuf> {
     }
 }
 
-fn validate_schema_package_artifact_field(
-    doc: &crate::parser::document::CemDocument,
-    node: &CemAstNode,
-    path: &str,
-    attr_name: &str,
-    label: &str,
-    actual: Option<&str>,
-    out: &mut Vec<Diagnostic>,
-) {
-    let Some(expected) = attr_value(doc, node, attr_name)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    else {
-        return;
-    };
-    let expected = if attr_name.ends_with("content-type") {
-        content_type_essence(expected)
-    } else {
-        expected.to_owned()
-    };
-    let actual = actual.unwrap_or("<none>");
-    if actual == expected.as_str() {
-        return;
-    }
-    out.push(schema_package_artifact_contract_mismatch_diag(
-        node,
-        path,
-        label,
-        expected.as_str(),
-        actual,
-    ));
-}
-
 fn schema_package_artifact_contract_mismatch_diag(
     node: &CemAstNode,
     path: &str,
-    label: &str,
-    expected: &str,
-    actual: &str,
+    mismatch: TransformTemplateArtifactFunctionContractMismatch,
 ) -> Diagnostic {
     diag_at(
         "cem.schema_package.artifact_function_contract_mismatch",
         Severity::Error,
         format!(
-            "artifact `{path}` {label} metadata expected `{expected}`, CEMT declares `{actual}`"
+            "artifact `{path}` {} metadata expected `{}`, CEMT declares `{}`",
+            mismatch.field, mismatch.expected, mismatch.actual
         ),
         node,
     )
-}
-
-fn schema_package_artifact_output_function_kind(
-    artifact_kind: &str,
-) -> Option<TransformTemplateOutputFunctionKind> {
-    match artifact_kind.trim() {
-        "formatter" => Some(TransformTemplateOutputFunctionKind::Format),
-        "colorizer" => Some(TransformTemplateOutputFunctionKind::Color),
-        "encoder" => Some(TransformTemplateOutputFunctionKind::Encoding),
-        _ => None,
-    }
-}
-
-fn schema_package_output_function_kind_name(
-    kind: TransformTemplateOutputFunctionKind,
-) -> &'static str {
-    match kind {
-        TransformTemplateOutputFunctionKind::Encoding => "encoding",
-        TransformTemplateOutputFunctionKind::Format => "format",
-        TransformTemplateOutputFunctionKind::Color => "color",
-    }
 }
 
 fn validate_schema_package_bool_attr(
