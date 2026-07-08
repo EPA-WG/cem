@@ -23,7 +23,16 @@
             "options": {
                 "command": "yarn storybook build --config-dir packages/cem-elements/.storybook --output-dir packages/cem-elements/storybook-static",
                 "cwd": "{workspaceRoot}"
-            }
+            },
+            "inputs": [
+                "{projectRoot}/.storybook/**/*",
+                "{projectRoot}/src/**/*.ts",
+                "{projectRoot}/package.json",
+                "{workspaceRoot}/package.json",
+                "{workspaceRoot}/yarn.lock",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.cemt",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.fixture.cem"
+            ]
         },
         "test": {
             "executor": "nx:run-commands",
@@ -38,7 +47,9 @@
                 "{projectRoot}/vitest.config.mts",
                 "{projectRoot}/package.json",
                 "{workspaceRoot}/package.json",
-                "{workspaceRoot}/yarn.lock"
+                "{workspaceRoot}/yarn.lock",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.cemt",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.fixture.cem"
             ],
             "outputs": []
         },
@@ -56,6 +67,8 @@
                 "{projectRoot}/package.json",
                 "{workspaceRoot}/package.json",
                 "{workspaceRoot}/yarn.lock",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.cemt",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.fixture.cem",
                 "{workspaceRoot}/packages/cem_ml/src/legacy_custom_element.rs"
             ],
             "outputs": []
