@@ -16,6 +16,7 @@ use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
 use crate::run_config::ScopeConfig;
 use crate::schema::package_loader::{load_builtin_schema_package, BuiltinSchemaPackage};
+use crate::schema::package_sources::builtin_schema_package_artifact_source;
 use crate::schema::registry::{
     content_type_essence, SchemaContentTypeRole, SchemaDescriptor, SchemaRegistry,
     CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
@@ -2423,32 +2424,6 @@ const CEM_TREE_COLOR_CEMT_ADAPTER_ID: &str = "cem-tree-color-cemt";
 const CEM_TREE_OUTPUT_PACKAGE_ID: &str = "cem-ml";
 
 #[derive(Debug, Clone, Copy)]
-struct BuiltinConversionPackageArtifactSource {
-    path: &'static str,
-    source: &'static str,
-}
-
-const BUILTIN_CONVERSION_PACKAGE_ARTIFACT_SOURCES: &[BuiltinConversionPackageArtifactSource] = &[
-    BuiltinConversionPackageArtifactSource {
-        path: "schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt",
-        source: include_str!("../schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt"),
-    },
-    BuiltinConversionPackageArtifactSource {
-        path: "schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt",
-        source: include_str!("../schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt"),
-    },
-];
-
-fn builtin_conversion_package_artifact_source(
-    path: &str,
-) -> Option<BuiltinConversionPackageArtifactSource> {
-    BUILTIN_CONVERSION_PACKAGE_ARTIFACT_SOURCES
-        .iter()
-        .copied()
-        .find(|source| source.path == path)
-}
-
-#[derive(Debug, Clone, Copy)]
 struct CemTreeCemtOutputStage {
     adapter_id: &'static str,
     template_uri: &'static str,
@@ -2516,12 +2491,14 @@ fn cem_tree_cemt_output_stage(
             )
         })?;
     let artifact_source =
-        builtin_conversion_package_artifact_source(&artifact.path).ok_or_else(|| {
-            format!(
-                "schema package artifact `{}` has no embedded runtime source",
-                artifact.path
-            )
-        })?;
+        builtin_schema_package_artifact_source(&artifact.package_id, &artifact.path).ok_or_else(
+            || {
+                format!(
+                    "schema package artifact `{}` has no embedded runtime source",
+                    artifact.path
+                )
+            },
+        )?;
     Ok(CemTreeCemtOutputStage {
         adapter_id: spec.adapter_id,
         template_uri: artifact_source.path,
@@ -7910,10 +7887,12 @@ mod tests {
             colorizer.path.as_str(),
             "schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt"
         );
-        let formatter_source = builtin_conversion_package_artifact_source(&formatter.path)
-            .expect("embedded formatter source");
-        let colorizer_source = builtin_conversion_package_artifact_source(&colorizer.path)
-            .expect("embedded colorizer source");
+        let formatter_source =
+            builtin_schema_package_artifact_source(&formatter.package_id, &formatter.path)
+                .expect("embedded formatter source");
+        let colorizer_source =
+            builtin_schema_package_artifact_source(&colorizer.package_id, &colorizer.path)
+                .expect("embedded colorizer source");
         assert!(formatter_source.source.contains("{format-function"));
         assert!(colorizer_source.source.contains("{color-function"));
         assert_eq!(

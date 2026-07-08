@@ -11,8 +11,19 @@ pub struct BuiltinSchemaPackageSource {
     pub schema_source: &'static str,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct BuiltinSchemaPackageArtifactSource {
+    pub package_id: &'static str,
+    pub path: &'static str,
+    pub source: &'static str,
+}
+
 pub fn builtin_schema_package_sources() -> &'static [BuiltinSchemaPackageSource] {
     BUILTIN_SCHEMA_PACKAGE_SOURCES
+}
+
+pub fn builtin_schema_package_artifact_sources() -> &'static [BuiltinSchemaPackageArtifactSource] {
+    BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES
 }
 
 pub fn builtin_schema_package_source(
@@ -22,6 +33,28 @@ pub fn builtin_schema_package_source(
         .iter()
         .find(|source| source.package_id == package_id)
 }
+
+pub fn builtin_schema_package_artifact_source(
+    package_id: &str,
+    path: &str,
+) -> Option<&'static BuiltinSchemaPackageArtifactSource> {
+    BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES
+        .iter()
+        .find(|source| source.package_id == package_id && source.path == path)
+}
+
+static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSource] = &[
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "cem-ml",
+        path: "schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt",
+        source: include_str!("../../schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "cem-ml",
+        path: "schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt",
+        source: include_str!("../../schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt"),
+    },
+];
 
 static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
     BuiltinSchemaPackageSource {
@@ -147,3 +180,31 @@ static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
         ),
     },
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn catalog_exposes_cem_ml_output_artifact_sources() {
+        let formatter = builtin_schema_package_artifact_source(
+            "cem-ml",
+            "schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt",
+        )
+        .expect("CEM-ML formatter source");
+        let colorizer = builtin_schema_package_artifact_source(
+            "cem-ml",
+            "schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt",
+        )
+        .expect("CEM-ML colorizer source");
+
+        assert!(formatter.source.contains(r#"@name="cem.format-tree""#));
+        assert!(colorizer.source.contains(r#"@name="cem.color-tree""#));
+        assert!(builtin_schema_package_artifact_sources()
+            .iter()
+            .any(|source| source.path == formatter.path));
+        assert!(builtin_schema_package_artifact_sources()
+            .iter()
+            .any(|source| source.path == colorizer.path));
+    }
+}
