@@ -10735,6 +10735,218 @@ mod tests {
     }
 
     #[test]
+    fn convert_prefers_context_schema_package_output_artifacts_over_builtins() {
+        const PACKAGE_URI: &str = "cem+test://packages/cem-ml/v1/package.cem";
+        const FORMATTER_URI: &str = "cem+test://packages/cem-ml/v1/formatters/cem-format-tree.cemt";
+        const COLORIZER_URI: &str = "cem+test://packages/cem-ml/v1/colorizers/cem-color-tree.cemt";
+        const PACKAGE_MANIFEST: &[u8] = br#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="cem-ml" @version="1.0.0" |
+    {schema @uri="https://cem.dev/ns/cem-ml/1" @source="schema/cem-ml.cem"}
+    {content-type @value="application/cem" @primary=true}
+    {artifact
+        @kind="formatter"
+        @path="formatters/cem-format-tree.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="cem.format-tree"
+        @formatter-profile="cem.format-tree"
+    }
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/cem-color-tree.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="cem.color-tree"
+        @function-profile="css-custom-properties"
+        @color-profile="classes"
+    }
+}
+"#;
+        const FORMATTER_SOURCE: &[u8] = br#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {format-function
+        @name="cem.format-tree"
+        @category="cem-tree"
+        @subject="cem-ast-node"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @canonical=true
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="json" @required=true}
+        {body |
+            {$ {
+                kind: "cem-tree",
+                contentType: "application/cem",
+                schema: "https://cem.dev/ns/cem-ml/1",
+                category: "cem-tree",
+                mode: "fragment",
+                canonical: true,
+                formatterProfile: "cem.format-tree",
+                formatNodes: [
+                    {
+                        kind: "format-marker",
+                        name: "cem.format-tree",
+                        formatterRole: "formatter.boundary",
+                        formatterProfile: "cem.format-tree"
+                    },
+                    {
+                        kind: "format-decision",
+                        name: "external-formatter",
+                        formatterRole: "formatter.external-override",
+                        formatterProfile: "cem.format-tree"
+                    }
+                ],
+                nodes: [{
+                    kind: "element",
+                    name: "external-widget",
+                    children: []
+                }]
+            } }
+        }
+    }
+}
+"#;
+        const COLORIZER_SOURCE: &[u8] = br#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {color-function
+        @name="cem.color-tree"
+        @category="cem-tree"
+        @subject="cem-tree"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @profile="css-custom-properties"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body |
+            {$ {
+                kind: $subject.kind,
+                contentType: $subject.contentType,
+                schema: $subject.schema,
+                category: $subject.category,
+                mode: $subject.mode,
+                canonical: $subject.canonical,
+                formatterProfile: $subject.formatterProfile,
+                formatNodes: $subject.formatNodes,
+                colored: true,
+                colorProfile: "classes",
+                colorNodes: [
+                    {
+                        kind: "color-marker",
+                        name: "cem.color-tree",
+                        colorizerRole: "colorizer.boundary",
+                        colorProfile: "classes"
+                    },
+                    {
+                        kind: "color-decision",
+                        name: "external-colorizer",
+                        colorizerRole: "colorizer.external-override",
+                        colorProfile: "classes"
+                    }
+                ],
+                nodes: map($subject.nodes, {
+                    kind: $item.kind,
+                    name: $item.name,
+                    writerAttributeNodes: [
+                        {
+                            kind: "writer-attribute",
+                            name: "class",
+                            value: "external-package-color",
+                            colorProfile: "classes",
+                            colorizerOwned: true,
+                            colorizerRole: "colorizer.writer-attribute"
+                        },
+                        {
+                            kind: "writer-attribute",
+                            name: "data-package-stage",
+                            value: "external-cemt",
+                            colorProfile: "classes",
+                            colorizerOwned: true,
+                            colorizerRole: "colorizer.writer-attribute"
+                        }
+                    ],
+                    children: $item.children
+                })
+            } }
+        }
+    }
+}
+"#;
+        let mut resolver_registry = ResolverRegistry::new();
+        resolver_registry.register(
+            "cem+test",
+            ResolvePurpose::Template,
+            ResolveDirection::Read,
+            MapReadResolver {
+                entries: vec![
+                    (
+                        FORMATTER_URI,
+                        FORMATTER_SOURCE,
+                        Some(CEM_TRANSFORM_CONTENT_TYPE),
+                    ),
+                    (
+                        COLORIZER_URI,
+                        COLORIZER_SOURCE,
+                        Some(CEM_TRANSFORM_CONTENT_TYPE),
+                    ),
+                ],
+            },
+        );
+
+        let req = ConvertRequest {
+            input: input(b"@doc cem-ml 1\n{main}", "in.cem"),
+            to_format: LayerFormat::Html,
+            preserve_source_offsets: false,
+            context: EngineContext {
+                schema_package_manifests: vec![EngineInput {
+                    uri: PACKAGE_URI.to_owned(),
+                    bytes: PACKAGE_MANIFEST.to_vec(),
+                    from_format: Some(InputFormat::Cem),
+                    identity: Some(schema_package_manifest_identity()),
+                    root_scope: Default::default(),
+                }],
+                resolver_registry,
+                ..ctx()
+            },
+            target: None,
+            target_scope: Default::default(),
+            scheduler_scope_id: 0,
+        };
+
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+
+        assert!(
+            resp.diagnostics.is_empty(),
+            "unexpected diagnostics: {:?}",
+            resp.diagnostics
+        );
+        assert_eq!(resp.primary["kind"], "html");
+        assert_eq!(
+            resp.primary["content"],
+            r#"<external-widget class="external-package-color" data-package-stage="external-cemt"></external-widget>"#
+        );
+    }
+
+    #[test]
     fn convert_reports_unenforced_output_scope_fields() {
         let req = ConvertRequest {
             input: input(b"{p Hi}", "in.cem"),
