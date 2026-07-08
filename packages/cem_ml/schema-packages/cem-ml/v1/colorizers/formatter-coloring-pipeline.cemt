@@ -1,0 +1,162 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {color-function
+        @name="acme.showcase.color-node"
+        @visibility="private"
+        @category="cem-tree-node"
+        @subject="object"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @profile="classes"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="role" @type="string" @default="syntax.string"}
+        {param @name="className" @type="string" @default="cem-color cem-color-syntax-string"}
+        {body |
+            {$ match($subject.kind, {
+                element: call(acme.showcase.color-element, { subject: $subject }),
+                text: call(acme.showcase.color-text, { subject: $subject, role: $role, className: $className }),
+                default: $subject
+            }) }
+        }
+    }
+
+    {color-function
+        @name="acme.showcase.color-element"
+        @visibility="private"
+        @category="cem-tree-node"
+        @subject="object"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @profile="classes"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body |
+            {$ {
+                kind: "element",
+                name: $subject.name,
+                sourceMap: $subject.sourceMap,
+                attributes: $subject.attributes,
+                formatLayout: $subject.formatLayout,
+                colorRole: match($subject.name, { strong: "syntax.keyword", default: "syntax.name" }),
+                style: {
+                    colorRole: match($subject.name, { strong: "syntax.keyword", default: "syntax.name" }),
+                    colorProfile: "classes"
+                },
+                writerAttributeNodes: [{
+                    kind: "writer-attribute",
+                    name: "class",
+                    value: match($subject.name, { strong: "cem-color cem-color-syntax-keyword", default: "cem-color cem-color-syntax-name" }),
+                    colorizerOwned: true,
+                    colorizerRole: "colorizer.writer-attribute",
+                    colorProfile: "classes"
+                }],
+                children: map($subject.children, call(acme.showcase.color-node, {
+                    subject: $item,
+                    role: match($subject.name, { strong: "syntax.keyword", default: "syntax.string" }),
+                    className: match($subject.name, { strong: "cem-color cem-color-syntax-keyword", default: "cem-color cem-color-syntax-string" })
+                }))
+            } }
+        }
+    }
+
+    {color-function
+        @name="acme.showcase.color-text"
+        @visibility="private"
+        @category="cem-tree-node"
+        @subject="object"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @profile="classes"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {param @name="className" @type="string" @required=true}
+        {body |
+            {$ {
+                kind: "element",
+                name: "span",
+                colorRole: $role,
+                style: {
+                    colorRole: $role,
+                    colorProfile: "classes"
+                },
+                writerAttributeNodes: [{
+                    kind: "writer-attribute",
+                    name: "class",
+                    value: $className,
+                    colorizerOwned: true,
+                    colorizerRole: "colorizer.writer-attribute",
+                    colorProfile: "classes"
+                }],
+                colorWrapperNodes: [
+                    {
+                        kind: "color-wrapper",
+                        name: "span",
+                        colorizerOwned: true,
+                        colorizerRole: "colorizer.text-wrapper",
+                        colorProfile: "classes"
+                    },
+                    {
+                        kind: "color-decision",
+                        name: "wrapped-role",
+                        value: $role,
+                        colorizerOwned: true,
+                        colorizerRole: "colorizer.wrapped-role",
+                        colorProfile: "classes"
+                    }
+                ],
+                children: [$subject]
+            } }
+        }
+    }
+
+    {color-function
+        @name="acme.showcase.color-tree"
+        @visibility="public"
+        @category="cem-tree"
+        @subject="cem-tree"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @extends="cem.color-tree"
+        @profile="classes"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body |
+            {$ appendColorNode(
+                merge($subject, {
+                    colored: true,
+                    colorProfile: "classes",
+                    colorNodes: [{
+                        kind: "color-marker",
+                        name: "cem.color-tree",
+                        colorizerRole: "colorizer.boundary",
+                        colorProfile: "classes"
+                    }],
+                    nodes: map($subject.nodes, call(acme.showcase.color-node, { subject: $item }))
+                }),
+                {
+                    kind: "color-decision",
+                    name: "showcase",
+                    colorizerRole: "colorizer.showcase",
+                    value: "colored tree before writer"
+                }
+            ) }
+        }
+    }
+}

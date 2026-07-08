@@ -68,6 +68,19 @@
     }
 
     {artifact
+        @kind="formatter"
+        @path="formatters/formatter-coloring-pipeline.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="acme.showcase.format-tree"
+        @function-profile="acme.showcase.format-tree"
+        @formatter-profile="acme.showcase.format-tree"
+    }
+
+    {artifact
         @kind="colorizer"
         @path="colorizers/cem-color-tree.cemt"
         @content-type="application/vnd.cem.transform+cem"
@@ -90,6 +103,19 @@
         @target-category="cem-tree"
         @function-name="cem.color-tree"
         @function-profile="css-custom-properties"
+        @color-profile="classes"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/formatter-coloring-pipeline.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="acme.showcase.color-tree"
+        @function-profile="classes"
         @color-profile="classes"
     }
 

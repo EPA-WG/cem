@@ -51,8 +51,22 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "cem-ml",
+        path: "schema-packages/cem-ml/v1/formatters/formatter-coloring-pipeline.cemt",
+        source: include_str!(
+            "../../schema-packages/cem-ml/v1/formatters/formatter-coloring-pipeline.cemt"
+        ),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "cem-ml",
         path: "schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt",
         source: include_str!("../../schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "cem-ml",
+        path: "schema-packages/cem-ml/v1/colorizers/formatter-coloring-pipeline.cemt",
+        source: include_str!(
+            "../../schema-packages/cem-ml/v1/colorizers/formatter-coloring-pipeline.cemt"
+        ),
     },
 ];
 
@@ -197,14 +211,36 @@ mod tests {
             "schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt",
         )
         .expect("CEM-ML colorizer source");
+        let showcase_formatter = builtin_schema_package_artifact_source(
+            "cem-ml",
+            "schema-packages/cem-ml/v1/formatters/formatter-coloring-pipeline.cemt",
+        )
+        .expect("CEM-ML showcase formatter source");
+        let showcase_colorizer = builtin_schema_package_artifact_source(
+            "cem-ml",
+            "schema-packages/cem-ml/v1/colorizers/formatter-coloring-pipeline.cemt",
+        )
+        .expect("CEM-ML showcase colorizer source");
 
         assert!(formatter.source.contains(r#"@name="cem.format-tree""#));
         assert!(colorizer.source.contains(r#"@name="cem.color-tree""#));
+        assert!(showcase_formatter
+            .source
+            .contains(r#"@name="acme.showcase.format-tree""#));
+        assert!(showcase_colorizer
+            .source
+            .contains(r#"@name="acme.showcase.color-tree""#));
         assert!(builtin_schema_package_artifact_sources()
             .iter()
             .any(|source| source.path == formatter.path));
         assert!(builtin_schema_package_artifact_sources()
             .iter()
             .any(|source| source.path == colorizer.path));
+        assert!(builtin_schema_package_artifact_sources()
+            .iter()
+            .any(|source| source.path == showcase_formatter.path));
+        assert!(builtin_schema_package_artifact_sources()
+            .iter()
+            .any(|source| source.path == showcase_colorizer.path));
     }
 }

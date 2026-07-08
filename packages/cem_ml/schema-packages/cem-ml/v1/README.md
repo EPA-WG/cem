@@ -36,17 +36,30 @@ Schema-local output transformations live beside the schema package:
 - [`formatters/cem-format-tree.cemt`](formatters/cem-format-tree.cemt)
   declares `cem.format-tree` for `application/cem` /
   `https://cem.dev/ns/cem-ml/1`.
+- [`formatters/formatter-coloring-pipeline.cemt`](formatters/formatter-coloring-pipeline.cemt)
+  declares `acme.showcase.format-tree` as a package-qualified formatter that
+  extends `cem.format-tree`.
 - [`colorizers/cem-color-tree.cemt`](colorizers/cem-color-tree.cemt)
   declares `cem.color-tree` for formatted CEM trees before the writer phase.
+- [`colorizers/formatter-coloring-pipeline.cemt`](colorizers/formatter-coloring-pipeline.cemt)
+  declares `acme.showcase.color-tree` as a package-qualified colorizer that
+  extends `cem.color-tree`.
 
 The package manifest declares these files as `formatter` and `colorizer`
 artifacts so runtime CEMT stages are tied to schema-owned assets instead of
 inline Rust template strings. The artifact entries also declare the target CEM
 tree identity (`application/cem`, `https://cem.dev/ns/cem-ml/1`, `cem-tree`),
-the supplied CEMT function name, and the formatter/color profiles that select
-the asset during output pipeline execution. Colorizer artifacts also declare
-the CEMT function profile separately as `function-profile`, because one CEMT
-body can serve multiple output color profiles.
+the supplied CEMT function name, the CEMT function profile when present, and
+the formatter/color profiles that select the asset during output pipeline
+execution. Colorizer artifacts also keep the CEMT function profile separate
+from the output color profile, because one CEMT body can serve multiple output
+color profiles.
+
+Package-qualified formatter and colorizer artifacts are selected by explicit
+CEMT function name first, then by stage profile fallback. This keeps the
+canonical `cem.format-tree` and `cem.color-tree` pipeline stable while allowing
+showcase or schema-specific formatter/colorizer bodies to opt in through the
+same manifest-declared asset path.
 
 The `formatters/` and `colorizers/` directories are part of the package
 contract. Schema-package validation rejects formatter or colorizer artifacts
