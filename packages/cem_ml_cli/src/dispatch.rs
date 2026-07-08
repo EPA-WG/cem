@@ -104,13 +104,20 @@ impl LocalMirrorResolver {
             .collect()
     }
 
-    fn local_path(&self, request: &ResolveRequest) -> Result<PathBuf, ResolverDiagnostic> {
+    fn local_path(
+        &self,
+        request: &ResolveRequest,
+    ) -> Result<(PathBuf, String), ResolverDiagnostic> {
+        let resolved_uri = mirror_request_uri(&request.uri, request.base_uri.as_deref());
         let (mapping, suffix) =
-            self.mapping_for(&request.uri, request.purpose, request.direction)?;
-        local_mirror_path(&mapping.local_root, &suffix).map_err(|message| ResolverDiagnostic::Io {
-            uri: request.uri.clone(),
-            message,
-        })
+            self.mapping_for(&resolved_uri, request.purpose, request.direction)?;
+        let path = local_mirror_path(&mapping.local_root, &suffix).map_err(|message| {
+            ResolverDiagnostic::Io {
+                uri: resolved_uri.clone(),
+                message,
+            }
+        })?;
+        Ok((path, resolved_uri))
     }
 
     fn mapping_for(
@@ -142,15 +149,15 @@ impl LocalMirrorResolver {
 
 impl ResourceResolver for LocalMirrorResolver {
     fn read(&self, request: &ResolveRequest) -> Result<ResolvedRead, ResolverDiagnostic> {
-        let path = self.local_path(request)?;
+        let (path, resolved_uri) = self.local_path(request)?;
         fs::read(&path)
             .map(|bytes| ResolvedRead {
-                uri: request.uri.clone(),
+                uri: resolved_uri.clone(),
                 bytes,
                 content_type: request.content_type_hint.clone(),
             })
             .map_err(|error| ResolverDiagnostic::Io {
-                uri: request.uri.clone(),
+                uri: resolved_uri,
                 message: error.to_string(),
             })
     }
@@ -160,31 +167,30 @@ impl ResourceResolver for LocalMirrorResolver {
         request: &ResolveRequest,
         bytes: &[u8],
     ) -> Result<ResolvedWrite, ResolverDiagnostic> {
-        let path = self.local_path(request)?;
+        let (path, resolved_uri) = self.local_path(request)?;
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(|error| ResolverDiagnostic::Io {
-                uri: request.uri.clone(),
+                uri: resolved_uri.clone(),
                 message: error.to_string(),
             })?;
         }
         fs::write(&path, bytes).map_err(|error| ResolverDiagnostic::Io {
-            uri: request.uri.clone(),
+            uri: resolved_uri.clone(),
             message: error.to_string(),
         })?;
-        Ok(ResolvedWrite {
-            uri: request.uri.clone(),
-        })
+        Ok(ResolvedWrite { uri: resolved_uri })
     }
 
     fn list(
         &self,
         request: &ResolveListRequest,
     ) -> Result<Vec<ResolvedListEntry>, ResolverDiagnostic> {
+        let resolved_uri = mirror_request_uri(&request.uri, request.base_uri.as_deref());
         let (mapping, suffix) =
-            self.mapping_for(&request.uri, request.purpose, ResolveDirection::List)?;
+            self.mapping_for(&resolved_uri, request.purpose, ResolveDirection::List)?;
         let pattern_path = local_mirror_path(&mapping.local_root, &suffix).map_err(|message| {
             ResolverDiagnostic::Io {
-                uri: request.uri.clone(),
+                uri: resolved_uri.clone(),
                 message,
             }
         })?;
@@ -219,6 +225,33 @@ impl ResourceResolver for LocalMirrorResolver {
             }
         }
         Ok(entries)
+    }
+}
+
+fn mirror_request_uri(uri: &str, base_uri: Option<&str>) -> String {
+    let uri = uri.trim();
+    if uri.is_empty()
+        || uri_scheme(uri).is_some()
+        || is_windows_drive_path(uri)
+        || Path::new(uri).is_absolute()
+    {
+        return uri.to_owned();
+    }
+
+    let Some(base_uri) = base_uri.map(str::trim).filter(|base| !base.is_empty()) else {
+        return uri.to_owned();
+    };
+    if uri_scheme(base_uri).is_none() || is_windows_drive_path(base_uri) {
+        return uri.to_owned();
+    }
+
+    let uri = uri.trim_start_matches("./");
+    if base_uri.ends_with('/') {
+        format!("{base_uri}{uri}")
+    } else if let Some((base_dir, _)) = base_uri.rsplit_once('/') {
+        format!("{base_dir}/{uri}")
+    } else {
+        uri.to_owned()
     }
 }
 
@@ -22263,6 +22296,197 @@ start =
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(v["kind"], "html");
         assert_eq!(v["content"], "<p>Hi</p>");
+    }
+
+    #[test]
+    fn convert_schema_package_option_loads_external_cemt_output_artifacts() {
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/schema-package-cemt-output");
+        let mirror = root.join("mirror");
+        let package_dir = mirror.join("packages/cem-ml/v1");
+        let formatter_dir = package_dir.join("formatters");
+        let colorizer_dir = package_dir.join("colorizers");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&formatter_dir).unwrap();
+        std::fs::create_dir_all(&colorizer_dir).unwrap();
+        std::fs::write(
+            package_dir.join("package.cem"),
+            r#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="cem-ml" @version="1.0.0" |
+    {schema @uri="https://cem.dev/ns/cem-ml/1" @source="schema/cem-ml.cem"}
+    {content-type @value="application/cem" @primary=true}
+    {artifact
+        @kind="formatter"
+        @path="formatters/cem-format-tree.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="cem.format-tree"
+        @formatter-profile="cem.format-tree"
+    }
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/cem-color-tree.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="cem.color-tree"
+        @function-profile="css-custom-properties"
+        @color-profile="none"
+    }
+}
+"#,
+        )
+        .unwrap();
+        std::fs::write(
+            formatter_dir.join("cem-format-tree.cemt"),
+            r#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {format-function
+        @name="cem.format-tree"
+        @category="cem-tree"
+        @subject="cem-ast-node"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @canonical=true
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="json" @required=true}
+        {body |
+            {$ {
+                kind: "cem-tree",
+                contentType: "application/cem",
+                schema: "https://cem.dev/ns/cem-ml/1",
+                category: "cem-tree",
+                mode: "fragment",
+                canonical: true,
+                formatterProfile: "cem.format-tree",
+                formatNodes: [
+                    {
+                        kind: "format-marker",
+                        name: "cem.format-tree",
+                        formatterRole: "formatter.boundary",
+                        formatterProfile: "cem.format-tree"
+                    },
+                    {
+                        kind: "format-decision",
+                        name: "cli-external-formatter",
+                        formatterRole: "formatter.external-override",
+                        formatterProfile: "cem.format-tree"
+                    }
+                ],
+                nodes: [{
+                    kind: "element",
+                    name: "cli-external-widget",
+                    children: []
+                }]
+            } }
+        }
+    }
+}
+"#,
+        )
+        .unwrap();
+        std::fs::write(
+            colorizer_dir.join("cem-color-tree.cemt"),
+            r#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {color-function
+        @name="cem.color-tree"
+        @category="cem-tree"
+        @subject="cem-tree"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @profile="css-custom-properties"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body |
+            {$ {
+                kind: $subject.kind,
+                contentType: $subject.contentType,
+                schema: $subject.schema,
+                category: $subject.category,
+                mode: $subject.mode,
+                canonical: $subject.canonical,
+                formatterProfile: $subject.formatterProfile,
+                formatNodes: $subject.formatNodes,
+                colored: true,
+                colorProfile: "none",
+                colorNodes: [
+                    {
+                        kind: "color-marker",
+                        name: "cem.color-tree",
+                        colorizerRole: "colorizer.boundary",
+                        colorProfile: "none"
+                    },
+                    {
+                        kind: "color-decision",
+                        name: "cli-external-colorizer",
+                        colorizerRole: "colorizer.external-override",
+                        colorProfile: "none"
+                    }
+                ],
+                nodes: map($subject.nodes, {
+                    kind: $item.kind,
+                    name: $item.name,
+                    attributes: [
+                        {
+                            kind: "attribute",
+                            name: "data-cli-package-stage",
+                            value: "external-cemt"
+                        }
+                    ],
+                    children: $item.children
+                })
+            } }
+        }
+    }
+}
+"#,
+        )
+        .unwrap();
+        let input = root.join("input.cem");
+        std::fs::write(&input, "@doc cem-ml 1\n{main}").unwrap();
+        let resolver_map = format!("cem+vfs://workspace={}", mirror.display());
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-format",
+                "cem",
+                "--resolver-read-map",
+                &resolver_map,
+                "--schema-package",
+                "cem+vfs://workspace/packages/cem-ml/v1/package.cem",
+                input.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["kind"], "cem");
+        assert_eq!(
+            v["content"],
+            "{cli-external-widget @data-cli-package-stage=external-cemt}\n"
+        );
     }
 
     #[test]
