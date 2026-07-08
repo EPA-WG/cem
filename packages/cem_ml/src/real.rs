@@ -100,6 +100,13 @@ struct ExportConversionExecution {
     output_pipeline_diagnostics: Vec<Diagnostic>,
 }
 
+#[derive(Debug)]
+enum ExportConversionTemplateResult {
+    Rendered(Value),
+    UseRustFallback,
+    Failed,
+}
+
 fn resolve_export_conversion_execution(
     context: &EngineContext,
     to_format: LayerFormat,
@@ -178,13 +185,13 @@ fn render_export_conversion_template(
     document: &CemDocument,
     target_scope: &ScopeConfig,
     diagnostics: &mut Vec<Diagnostic>,
-) -> Option<Value> {
+) -> ExportConversionTemplateResult {
     let ConversionExecution::CemtTemplate {
         adapter_id,
         template,
     } = &conversion.execution
     else {
-        return None;
+        return ExportConversionTemplateResult::UseRustFallback;
     };
 
     let mut local_diagnostics = Vec::new();
@@ -193,7 +200,7 @@ fn render_export_conversion_template(
         .iter()
         .any(|diagnostic| diagnostic.severity.is_hard_violation())
     {
-        return fallback_or_publish_converter_diagnostics(
+        return publish_converter_cemt_diagnostics(
             conversion,
             "output safety contract validation failed",
             local_diagnostics,
@@ -244,7 +251,7 @@ fn render_export_conversion_template(
         },
         &mut local_diagnostics,
     ) else {
-        return fallback_or_publish_converter_diagnostics(
+        return publish_converter_cemt_diagnostics(
             conversion,
             "template compilation failed",
             local_diagnostics,
@@ -279,7 +286,7 @@ fn render_export_conversion_template(
         },
         &mut local_diagnostics,
     ) else {
-        return fallback_or_publish_converter_diagnostics(
+        return publish_converter_cemt_diagnostics(
             conversion,
             "template rendering failed",
             local_diagnostics,
@@ -303,7 +310,7 @@ fn render_export_conversion_template(
             .iter()
             .any(|diagnostic| diagnostic.severity.is_hard_violation())
         {
-            return fallback_or_publish_converter_diagnostics(
+            return publish_converter_cemt_diagnostics(
                 conversion,
                 "CEMT output pipeline failed",
                 local_diagnostics,
@@ -311,7 +318,7 @@ fn render_export_conversion_template(
             );
         }
         let Some(value) = pipeline_execution.output else {
-            return fallback_or_publish_converter_diagnostics(
+            return publish_converter_cemt_diagnostics(
                 conversion,
                 "CEMT output pipeline produced no writer artifact",
                 local_diagnostics,
@@ -330,7 +337,7 @@ fn render_export_conversion_template(
     };
 
     let Some(primary) = convert_primary_from_template_output(output, to_format) else {
-        return fallback_or_publish_converter_diagnostics(
+        return publish_converter_cemt_diagnostics(
             conversion,
             "template output did not match the selected target content type",
             local_diagnostics,
@@ -339,7 +346,7 @@ fn render_export_conversion_template(
     };
 
     diagnostics.append(&mut local_diagnostics);
-    Some(primary)
+    ExportConversionTemplateResult::Rendered(primary)
 }
 
 fn select_converter_template_adapter(
@@ -626,7 +633,7 @@ fn fallback_or_publish_converter_diagnostics(
     reason: &str,
     mut local_diagnostics: Vec<Diagnostic>,
     diagnostics: &mut Vec<Diagnostic>,
-) -> Option<Value> {
+) -> ExportConversionTemplateResult {
     if let Some(fallback) = conversion.rust_fallback.as_ref() {
         diagnostics.push(converter_template_diagnostic(
             None,
@@ -637,11 +644,35 @@ fn fallback_or_publish_converter_diagnostics(
                 conversion.converter_id, fallback.rust_symbol
             ),
         ));
-        return None;
+        return ExportConversionTemplateResult::UseRustFallback;
     }
 
     diagnostics.append(&mut local_diagnostics);
-    None
+    ExportConversionTemplateResult::Failed
+}
+
+fn publish_converter_cemt_diagnostics(
+    conversion: &ExportConversionExecution,
+    reason: &str,
+    mut local_diagnostics: Vec<Diagnostic>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> ExportConversionTemplateResult {
+    if !local_diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        local_diagnostics.push(converter_template_diagnostic(
+            None,
+            CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE,
+            Severity::Error,
+            format!(
+                "converter `{}` could not complete CEMT conversion: {reason}",
+                conversion.converter_id
+            ),
+        ));
+    }
+    diagnostics.append(&mut local_diagnostics);
+    ExportConversionTemplateResult::Failed
 }
 
 fn converter_template_diagnostic(
@@ -4405,7 +4436,7 @@ impl CemMlEngine for RealCemMlEngine {
                     Value::Null
                 }),
                 LayerFormat::Html => {
-                    if let Some(primary) = export_conversion.as_ref().and_then(|conversion| {
+                    match export_conversion.as_ref().map(|conversion| {
                         render_export_conversion_template(
                             &request.context,
                             conversion,
@@ -4415,31 +4446,33 @@ impl CemMlEngine for RealCemMlEngine {
                             &mut diagnostics,
                         )
                     }) {
-                        primary
-                    } else {
-                        let rendered = LightDomInterpreter::new().render(&run.document);
-                        let output_spans = rendered
-                            .output_spans
-                            .iter()
-                            .map(|span| {
-                                json!({
-                                    "outputRange": span.output_range,
-                                    "origin": span.origin,
+                        Some(ExportConversionTemplateResult::Rendered(primary)) => primary,
+                        Some(ExportConversionTemplateResult::Failed) => Value::Null,
+                        _ => {
+                            let rendered = LightDomInterpreter::new().render(&run.document);
+                            let output_spans = rendered
+                                .output_spans
+                                .iter()
+                                .map(|span| {
+                                    json!({
+                                        "outputRange": span.output_range,
+                                        "origin": span.origin,
+                                    })
                                 })
+                                .collect::<Vec<_>>();
+                            let source_map = rendered.source_map.clone();
+                            diagnostics.extend(rendered.diagnostics);
+                            json!({
+                                "kind": "html",
+                                "content": rendered.rendered,
+                                "sourceMap": source_map,
+                                "outputSpans": output_spans,
                             })
-                            .collect::<Vec<_>>();
-                        let source_map = rendered.source_map.clone();
-                        diagnostics.extend(rendered.diagnostics);
-                        json!({
-                            "kind": "html",
-                            "content": rendered.rendered,
-                            "sourceMap": source_map,
-                            "outputSpans": output_spans,
-                        })
+                        }
                     }
                 }
                 LayerFormat::Xml => {
-                    if let Some(primary) = export_conversion.as_ref().and_then(|conversion| {
+                    match export_conversion.as_ref().map(|conversion| {
                         render_export_conversion_template(
                             &request.context,
                             conversion,
@@ -4449,27 +4482,29 @@ impl CemMlEngine for RealCemMlEngine {
                             &mut diagnostics,
                         )
                     }) {
-                        primary
-                    } else {
-                        let rendered = XmlInterpreter::new().render(&run.document);
-                        let output_spans = rendered
-                            .output_spans
-                            .iter()
-                            .map(|span| {
-                                json!({
-                                    "outputRange": span.output_range,
-                                    "origin": span.origin,
+                        Some(ExportConversionTemplateResult::Rendered(primary)) => primary,
+                        Some(ExportConversionTemplateResult::Failed) => Value::Null,
+                        _ => {
+                            let rendered = XmlInterpreter::new().render(&run.document);
+                            let output_spans = rendered
+                                .output_spans
+                                .iter()
+                                .map(|span| {
+                                    json!({
+                                        "outputRange": span.output_range,
+                                        "origin": span.origin,
+                                    })
                                 })
+                                .collect::<Vec<_>>();
+                            let source_map = rendered.source_map.clone();
+                            diagnostics.extend(rendered.diagnostics);
+                            json!({
+                                "kind": "xml",
+                                "content": rendered.rendered,
+                                "sourceMap": source_map,
+                                "outputSpans": output_spans,
                             })
-                            .collect::<Vec<_>>();
-                        let source_map = rendered.source_map.clone();
-                        diagnostics.extend(rendered.diagnostics);
-                        json!({
-                            "kind": "xml",
-                            "content": rendered.rendered,
-                            "sourceMap": source_map,
-                            "outputSpans": output_spans,
-                        })
+                        }
                     }
                 }
                 LayerFormat::DomJson => projection::dom_json(&run.document),
@@ -5373,7 +5408,8 @@ mod tests {
     use crate::resolver::{ResolverRegistry, ResourceResolver};
     use crate::schema::registry::{CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI};
     use crate::transform_template::{
-        TransformTemplateAdapterCapability, TransformTemplateAdapterRegistry,
+        TransformTemplateAdapterCapability, TransformTemplateAdapterError,
+        TransformTemplateAdapterExecutionPhase, TransformTemplateAdapterRegistry,
         TransformTemplateAdapterResult, TransformTemplateCompileResponse,
         TransformTemplateRenderResponse,
     };
@@ -5926,6 +5962,16 @@ mod tests {
             &self,
             request: TransformTemplateCompileRequest<'_>,
         ) -> TransformTemplateAdapterResult<TransformTemplateCompileResponse> {
+            if std::str::from_utf8(&request.template.bytes)
+                .is_ok_and(|source| source.contains("adapter-compile-fail"))
+            {
+                return Err(TransformTemplateAdapterError::failed(
+                    self.id(),
+                    TransformTemplateAdapterExecutionPhase::Compile,
+                    "adapter compile sentinel",
+                ));
+            }
+
             Ok(TransformTemplateCompileResponse {
                 artifact: TransformTemplateCompiledArtifact::new(
                     self.id(),
@@ -9692,6 +9738,38 @@ mod tests {
             .diagnostics
             .iter()
             .any(|diag| diag.code == "cem.converter.cemt_fallback"));
+    }
+
+    #[test]
+    fn convert_html_publishes_ready_cemt_compile_failure_without_rust_fallback() {
+        let req = ConvertRequest {
+            input: input(b"@doc cem-ml 1\n{p | Hi}", "in.cem"),
+            to_format: LayerFormat::Html,
+            preserve_source_offsets: false,
+            context: ready_cemt_html_export_context(
+                "cem+test://converters/dom-to-html.cemt",
+                b"{module @name=adapter-compile-fail}",
+            ),
+            target: None,
+            target_scope: Default::default(),
+            scheduler_scope_id: 0,
+        };
+
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+
+        assert_eq!(resp.primary, Value::Null);
+        assert!(resp.diagnostics.iter().any(|diag| {
+            diag.code == TransformTemplateAdapterError::FAILED_CODE
+                && diag.severity == Severity::Fatal
+                && diag.message.contains("adapter compile sentinel")
+        }));
+        assert!(
+            resp.diagnostics
+                .iter()
+                .all(|diag| diag.code != "cem.converter.cemt_fallback"),
+            "ready CEMT compile failure must not use Rust fallback: {:?}",
+            resp.diagnostics
+        );
     }
 
     #[test]
