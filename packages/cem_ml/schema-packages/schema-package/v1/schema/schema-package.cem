@@ -108,6 +108,7 @@
         {diagnostic @code="cem.schema_package.artifact_source_unreadable" @severity="error"}
         {diagnostic @code="cem.schema_package.artifact_cemt_invalid" @severity="error"}
         {diagnostic @code="cem.schema_package.artifact_function_missing" @severity="error"}
+        {diagnostic @code="cem.schema_package.artifact_layout_invalid" @severity="error"}
         {diagnostic @code="cem.schema_package.artifact_function_contract_mismatch" @severity="error"}
         {diagnostic @code="cem.schema_package.schema_source_unreadable" @severity="error"}
         {diagnostic @code="cem.schema_package.schema_source_invalid" @severity="error"}

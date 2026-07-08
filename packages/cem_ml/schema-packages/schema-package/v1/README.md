@@ -68,6 +68,8 @@ CLI validation integration tests.
 | [`invalid-unclosed-package.cem`](examples/invalid-unclosed-package.cem) | Missing closing package scope syntax diagnostic. | Fail with `cem.schema.unclosed_scope` |
 | [`invalid-missing-required-attribute.cem`](examples/invalid-missing-required-attribute.cem) | Manifest schema entry missing its required `source` attribute. | Fail with `cem.schema_model.missing_required_attribute` |
 | [`invalid-converter-contract.cem`](examples/invalid-converter-contract.cem) | Converter declaration with missing CEMT template identity, missing target endpoint, invalid cost, and incompatible endpoint schema/content type. | Fail with `cem.schema_package.converter_template_missing`, `cem.schema_package.converter_endpoint_missing`, `cem.schema_package.converter_cost_invalid`, `cem.schema_package.converter_content_type_mismatch` |
+| [`invalid-artifact-contract.cem`](examples/invalid-artifact-contract.cem) | Formatter artifact metadata disagrees with the referenced CEMT function declaration. | Fail with `cem.schema_package.artifact_function_contract_mismatch` |
+| [`invalid-artifact-layout.cem`](examples/invalid-artifact-layout.cem) | Formatter and colorizer artifacts point outside their schema-package stage directories. | Fail with `cem.schema_package.artifact_layout_invalid` |
 | [`invalid-schema-metadata.cem`](examples/invalid-schema-metadata.cem) | Manifest schema metadata disagrees with the referenced schema source. | Fail with `cem.schema_package.schema_uri_mismatch`, `cem.schema_package.schema_content_type_mismatch`, `cem.schema_package.schema_namespace_mismatch` |
 
 Validate an example explicitly against this schema:
