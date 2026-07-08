@@ -3,7 +3,10 @@ export type CemNode = {
     name?: string;
     value?: string;
     colorRole?: string;
+    formatLayout?: Record<string, unknown>;
+    style?: Record<string, unknown>;
     writerAttributeNodes?: WriterAttributeNode[];
+    colorWrapperNodes?: Array<Record<string, unknown>>;
     children?: CemNode[];
 };
 
@@ -44,6 +47,7 @@ export type CemtPipelineFixture = {
     coloredDecision: string;
     elementClass: string;
     textClass: string;
+    keywordClass: string;
 };
 
 export type CemtPipelineShowcase = {
@@ -93,18 +97,20 @@ export function writeColoredTreeToHtml(tree: CemTree): string {
 }
 
 function createPipelineFixture(cemtSource: string): CemtPipelineFixture {
-    const writerClasses = requiredMatches(
-        cemtSource,
-        /name:\s*"class",\s*value:\s*"([^"]+)"/g,
-        2,
-        'writer class values'
-    );
     return {
         cemtSource,
         sourceAst: {
             kind: 'element',
             name: 'article',
-            children: [{ kind: 'text', value: 'Ready' }],
+            children: [
+                { kind: 'text', value: 'Ready ' },
+                {
+                    kind: 'element',
+                    name: 'strong',
+                    children: [{ kind: 'text', value: 'now' }],
+                },
+                { kind: 'text', value: '.' },
+            ],
         },
         formatterName: requiredFunctionAttribute(cemtSource, 'format-function', 'name'),
         colorizerName: requiredFunctionAttribute(cemtSource, 'color-function', 'name'),
@@ -114,8 +120,9 @@ function createPipelineFixture(cemtSource: string): CemtPipelineFixture {
         category: requiredFunctionAttribute(cemtSource, 'format-function', 'category'),
         formattedDecision: requiredValueAfter(cemtSource, 'formatterRole: "formatter.showcase"'),
         coloredDecision: requiredValueAfter(cemtSource, 'colorizerRole: "colorizer.showcase"'),
-        elementClass: writerClasses[0],
-        textClass: writerClasses[1],
+        elementClass: requiredColorClass(cemtSource, 'syntax-name'),
+        textClass: requiredColorClass(cemtSource, 'syntax-string'),
+        keywordClass: requiredColorClass(cemtSource, 'syntax-keyword'),
     };
 }
 
@@ -142,7 +149,7 @@ function formatCemTree(fixture: CemtPipelineFixture): CemTree {
                 value: fixture.formattedDecision,
             },
         ],
-        nodes: [cloneNode(fixture.sourceAst)],
+        nodes: [formatNode(fixture.sourceAst)],
     };
 }
 
@@ -165,28 +172,72 @@ function colorCemTree(fixture: CemtPipelineFixture, formatted: CemTree): CemTree
                 value: fixture.coloredDecision,
             },
         ],
-        nodes: formatted.nodes.map((node) => colorRootNode(fixture, node)),
+        nodes: formatted.nodes.map((node) => colorNode(fixture, node)),
     };
 }
 
-function colorRootNode(fixture: CemtPipelineFixture, node: CemNode): CemNode {
-    const [firstChild, ...restChildren] = node.children ?? [];
+function formatNode(node: CemNode): CemNode {
+    if (node.kind === 'text') {
+        return cloneNode(node);
+    }
+    return {
+        ...cloneNode(node),
+        formatLayout: {
+            kind: 'format-decision',
+            formatterRole: node.name === 'strong' ? 'formatter.inline-emphasis' : 'formatter.layout',
+            value: node.name === 'strong' ? 'inline-emphasis' : 'inline',
+        },
+        children: node.children?.map(formatNode),
+    };
+}
+
+function colorNode(
+    fixture: CemtPipelineFixture,
+    node: CemNode,
+    role = 'syntax.string',
+    className = fixture.textClass
+): CemNode {
+    if (node.kind === 'text') {
+        return colorTextWrapper(fixture, node, role, className);
+    }
+    const isKeyword = node.name === 'strong';
+    const elementRole = isKeyword ? 'syntax.keyword' : 'syntax.name';
+    const elementClass = isKeyword ? fixture.keywordClass : fixture.elementClass;
+    const childRole = isKeyword ? 'syntax.keyword' : 'syntax.string';
+    const childClass = isKeyword ? fixture.keywordClass : fixture.textClass;
     return {
         ...node,
-        colorRole: 'syntax.name',
-        writerAttributeNodes: [writerClassAttribute(fixture.elementClass, fixture.colorProfile)],
-        children: firstChild
-            ? [colorTextWrapper(fixture, firstChild), ...restChildren.map(cloneNode)]
-            : restChildren.map(cloneNode),
+        colorRole: elementRole,
+        style: { colorRole: elementRole, colorProfile: fixture.colorProfile },
+        writerAttributeNodes: [writerClassAttribute(elementClass, fixture.colorProfile)],
+        children: node.children?.map((child) => colorNode(fixture, child, childRole, childClass)),
     };
 }
 
-function colorTextWrapper(fixture: CemtPipelineFixture, child: CemNode): CemNode {
+function colorTextWrapper(fixture: CemtPipelineFixture, child: CemNode, role: string, className: string): CemNode {
     return {
         kind: 'element',
         name: 'span',
-        colorRole: 'syntax.string',
-        writerAttributeNodes: [writerClassAttribute(fixture.textClass, fixture.colorProfile)],
+        colorRole: role,
+        style: { colorRole: role, colorProfile: fixture.colorProfile },
+        writerAttributeNodes: [writerClassAttribute(className, fixture.colorProfile)],
+        colorWrapperNodes: [
+            {
+                kind: 'color-wrapper',
+                name: 'span',
+                colorizerOwned: true,
+                colorizerRole: 'colorizer.text-wrapper',
+                colorProfile: fixture.colorProfile,
+            },
+            {
+                kind: 'color-decision',
+                name: 'wrapped-role',
+                value: role,
+                colorizerOwned: true,
+                colorizerRole: 'colorizer.wrapped-role',
+                colorProfile: fixture.colorProfile,
+            },
+        ],
         children: [cloneNode(child)],
     };
 }
@@ -205,14 +256,22 @@ function writerClassAttribute(value: string, colorProfile: string): WriterAttrib
 function cloneNode(node: CemNode): CemNode {
     return {
         ...node,
+        formatLayout: node.formatLayout ? { ...node.formatLayout } : undefined,
+        style: node.style ? { ...node.style } : undefined,
         writerAttributeNodes: node.writerAttributeNodes?.map((attribute) => ({ ...attribute })),
+        colorWrapperNodes: node.colorWrapperNodes?.map((metadata) => ({ ...metadata })),
         children: node.children?.map(cloneNode),
     };
 }
 
 function requiredFunctionAttribute(source: string, elementName: string, attributeName: string): string {
-    const pattern = new RegExp(String.raw`\{${elementName}[\s\S]*?@${attributeName}="([^"]+)"`);
-    const value = source.match(pattern)?.[1];
+    const declarations = Array.from(
+        source.matchAll(new RegExp(String.raw`^    \{${elementName}\b[\s\S]*?^    \}`, 'gm')),
+        (match) => match[0]
+    );
+    const declaration =
+        declarations.find((block) => block.includes('@visibility="public"')) ?? declarations[0] ?? '';
+    const value = declaration.match(new RegExp(String.raw`@${attributeName}="([^"]+)"`))?.[1];
     invariant(value, `missing @${attributeName} on ${elementName}`);
     return value;
 }
@@ -225,10 +284,10 @@ function requiredValueAfter(source: string, marker: string): string {
     return value;
 }
 
-function requiredMatches(source: string, pattern: RegExp, count: number, label: string): string[] {
-    const values = Array.from(source.matchAll(pattern), (match) => match[1]);
-    invariant(values.length >= count, `expected at least ${count} ${label}`);
-    return values;
+function requiredColorClass(source: string, role: string): string {
+    const value = `cem-color cem-color-${role}`;
+    invariant(source.includes(`"${value}"`), `missing writer class ${value}`);
+    return value;
 }
 
 function nodeWriterReady(node: CemNode): boolean {

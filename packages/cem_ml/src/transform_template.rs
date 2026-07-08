@@ -17255,15 +17255,15 @@ pub fn cemt_formatter_coloring_pipeline_fixture_source() -> Result<String, Strin
         "sourceMap": null,
         "attributes": [],
         "children": [
-            {"kind": "text", "value": "Ready "},
+            {"kind": "text", "value": "Ready ", "sourceMap": null},
             {
                 "kind": "element",
                 "name": "strong",
                 "sourceMap": null,
                 "attributes": [],
-                "children": [{"kind": "text", "value": "now"}]
+                "children": [{"kind": "text", "value": "now", "sourceMap": null}]
             },
-            {"kind": "text", "value": "."}
+            {"kind": "text", "value": ".", "sourceMap": null}
         ]
     });
     let format_request = TransformTemplateEncodeBindingRequest::new(
@@ -21028,6 +21028,14 @@ mod tests {
         assert_eq!(
             colored["nodes"][0]["children"][1]["children"][0]["colorWrapperNodes"][1]["value"],
             "syntax.keyword"
+        );
+        assert_eq!(
+            colored["nodes"][0]["children"][2]["colorRole"], "syntax.string",
+            "coloring maps over later text children instead of using fixed child indexes"
+        );
+        assert_eq!(
+            colored["nodes"][0]["children"][2]["children"][0]["value"],
+            "."
         );
         assert!(stage_fixture.contains(r#"@value="cem-color cem-color-syntax-name""#));
         assert!(stage_fixture.contains(r#"@value="cem-color cem-color-syntax-keyword""#));

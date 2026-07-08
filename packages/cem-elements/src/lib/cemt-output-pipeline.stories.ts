@@ -43,6 +43,11 @@ export const FormatterColoringWriterStages: Story = {
             pipelineFixture.textClass,
             'writer receives materialized text wrapper class'
         );
+        assertEqual(
+            requiredElement(output, 'strong').className,
+            pipelineFixture.keywordClass,
+            'writer receives materialized keyword element class'
+        );
 
         const formattedPanel = requiredElement(canvasElement, '[data-stage="formatted"]');
         assert(
@@ -79,8 +84,8 @@ export const FormatterColoringWriterStages: Story = {
             'formatter CEMT source shows metadata accumulation'
         );
         assert(
-            templatePanel.textContent?.includes('applyEdits('),
-            'coloring CEMT source shows tree patching before writer output'
+            templatePanel.textContent?.includes('map($subject.nodes'),
+            'coloring CEMT source maps over the formatted CEM tree before writer output'
         );
         assert(
             !templatePanel.textContent?.includes('"kind":'),
@@ -202,6 +207,11 @@ function styles(): HTMLStyleElement {
         .cem-color-syntax-string {
             color: #067647;
             font-weight: 650;
+        }
+
+        .cem-color-syntax-keyword {
+            color: #7c3aed;
+            font-weight: 700;
         }
 
         @media (max-width: 860px) {

@@ -12,11 +12,14 @@ describe('CEMT output pipeline fixture', () => {
     it('renders intermediate stages as CEM-native source instead of JSON', () => {
         const showcase = createCemtPipelineShowcase(cemtPipelineSource, cemtPipelineStageFixture);
 
-        expect(showcase.sourceAstCem).toBe('{article |\n    {text | Ready}\n}');
+        expect(showcase.sourceAstCem).toBe(
+            '{article |\n    {text | Ready }\n    {strong |\n        {text | now}\n    }\n    {text | .}\n}'
+        );
         expect(showcase.formattedTreeCem).toContain('{cem-tree @content-type="application/cem"');
         expect(showcase.formattedTreeCem).toContain('@schema="https://cem.dev/ns/cem-ml/1"');
         expect(showcase.formattedTreeCem).toContain('@formatter-profile="acme.showcase.format-tree"');
         expect(showcase.formattedTreeCem).toContain('@formatter-role="formatter.showcase"');
+        expect(showcase.formattedTreeCem).toContain('@formatter-role="formatter.inline-emphasis"');
         expect(showcase.formattedTreeCem).toContain('@value="formatted tree before writer"');
         expect(showcase.formattedTreeCem).not.toContain('"formatterProfile"');
         expect(showcase.formattedTreeCem).not.toContain('"kind":');
@@ -32,6 +35,7 @@ describe('CEMT output pipeline fixture', () => {
         expect(showcase.coloredTreeCem).toContain('@colorizer-role="colorizer.showcase"');
         expect(showcase.coloredTreeCem).toContain('@value="colored tree before writer"');
         expect(showcase.coloredTreeCem).toContain('@color-role="syntax.string"');
+        expect(showcase.coloredTreeCem).toContain('@color-role="syntax.keyword"');
     });
 
     it('lets the writer emit target-native HTML only after coloring', () => {
@@ -41,7 +45,7 @@ describe('CEMT output pipeline fixture', () => {
             'colored CEM tree is required before writer output'
         );
         expect(writeColoredTreeToHtml(showcase.coloredTree)).toBe(
-            '<article class="cem-color cem-color-syntax-name"><span class="cem-color cem-color-syntax-string">Ready</span></article>'
+            '<article class="cem-color cem-color-syntax-name"><span class="cem-color cem-color-syntax-string">Ready </span><strong class="cem-color cem-color-syntax-keyword"><span class="cem-color cem-color-syntax-keyword">now</span></strong><span class="cem-color cem-color-syntax-string">.</span></article>'
         );
     });
 

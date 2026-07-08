@@ -4,6 +4,79 @@
 
 {module @version="1.0.0" |
     {format-function
+        @name="acme.showcase.format-node"
+        @visibility="private"
+        @category="cem-tree-node"
+        @subject="object"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @canonical=true
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="slot" @type="integer" @default="0"}
+        {body |
+            {$ match($subject.kind, {
+                element: call(acme.showcase.format-element, { subject: $subject, slot: $slot }),
+                text: call(acme.showcase.format-text, { subject: $subject, slot: $slot }),
+                default: $subject
+            }) }
+        }
+    }
+
+    {format-function
+        @name="acme.showcase.format-element"
+        @visibility="private"
+        @category="cem-tree-node"
+        @subject="object"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @canonical=true
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="slot" @type="integer" @default="0"}
+        {body |
+            {$ {
+                kind: "element",
+                name: $subject.name,
+                sourceMap: $subject.sourceMap,
+                attributes: $subject.attributes,
+                children: map($subject.children, call(acme.showcase.format-node, { subject: $item, slot: $index })),
+                formatLayout: {
+                    kind: "format-decision",
+                    formatterRole: match($subject.name, { strong: "formatter.inline-emphasis", default: "formatter.layout" }),
+                    value: match($subject.name, { strong: "inline-emphasis", default: "inline" })
+                }
+            } }
+        }
+    }
+
+    {format-function
+        @name="acme.showcase.format-text"
+        @visibility="private"
+        @category="cem-tree-node"
+        @subject="object"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @canonical=true
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="slot" @type="integer" @default="0"}
+        {body |
+            {$ {
+                kind: "text",
+                value: $subject.value,
+                sourceMap: $subject.sourceMap
+            } }
+        }
+    }
+
+    {format-function
         @name="acme.showcase.format-tree"
         @visibility="public"
         @category="cem-tree"
@@ -17,54 +90,150 @@
         @streamable=true |
         {param @name="subject" @type="json" @required=true}
         {body |
-            {$ applyEdits(
-                appendFormatNode(
+            {$ appendFormatNode(
+                {
+                    kind: "cem-tree",
+                    contentType: "application/cem",
+                    schema: "https://cem.dev/ns/cem-ml/1",
+                    category: "cem-tree",
+                    mode: "fragment",
+                    canonical: true,
+                    formatterProfile: "acme.showcase.format-tree",
+                    formatNodes: [{
+                        kind: "format-marker",
+                        name: "cem.format-tree",
+                        formatterRole: "formatter.boundary",
+                        formatterProfile: "acme.showcase.format-tree"
+                    }],
+                    nodes: [call(acme.showcase.format-node, { subject: $subject, slot: 0 })]
+                },
+                {
+                    kind: "format-decision",
+                    name: "showcase",
+                    formatterRole: "formatter.showcase",
+                    value: "formatted tree before writer"
+                }
+            ) }
+        }
+    }
+
+    {color-function
+        @name="acme.showcase.color-node"
+        @visibility="private"
+        @category="cem-tree-node"
+        @subject="object"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @profile="classes"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="role" @type="string" @default="syntax.string"}
+        {param @name="className" @type="string" @default="cem-color cem-color-syntax-string"}
+        {body |
+            {$ match($subject.kind, {
+                element: call(acme.showcase.color-element, { subject: $subject }),
+                text: call(acme.showcase.color-text, { subject: $subject, role: $role, className: $className }),
+                default: $subject
+            }) }
+        }
+    }
+
+    {color-function
+        @name="acme.showcase.color-element"
+        @visibility="private"
+        @category="cem-tree-node"
+        @subject="object"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @profile="classes"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body |
+            {$ {
+                kind: "element",
+                name: $subject.name,
+                sourceMap: $subject.sourceMap,
+                attributes: $subject.attributes,
+                formatLayout: $subject.formatLayout,
+                colorRole: match($subject.name, { strong: "syntax.keyword", default: "syntax.name" }),
+                style: {
+                    colorRole: match($subject.name, { strong: "syntax.keyword", default: "syntax.name" }),
+                    colorProfile: "classes"
+                },
+                writerAttributeNodes: [{
+                    kind: "writer-attribute",
+                    name: "class",
+                    value: match($subject.name, { strong: "cem-color cem-color-syntax-keyword", default: "cem-color cem-color-syntax-name" }),
+                    colorizerOwned: true,
+                    colorizerRole: "colorizer.writer-attribute",
+                    colorProfile: "classes"
+                }],
+                children: map($subject.children, call(acme.showcase.color-node, {
+                    subject: $item,
+                    role: match($subject.name, { strong: "syntax.keyword", default: "syntax.string" }),
+                    className: match($subject.name, { strong: "cem-color cem-color-syntax-keyword", default: "cem-color cem-color-syntax-string" })
+                }))
+            } }
+        }
+    }
+
+    {color-function
+        @name="acme.showcase.color-text"
+        @visibility="private"
+        @category="cem-tree-node"
+        @subject="object"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @profile="classes"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {param @name="className" @type="string" @required=true}
+        {body |
+            {$ {
+                kind: "element",
+                name: "span",
+                colorRole: $role,
+                style: {
+                    colorRole: $role,
+                    colorProfile: "classes"
+                },
+                writerAttributeNodes: [{
+                    kind: "writer-attribute",
+                    name: "class",
+                    value: $className,
+                    colorizerOwned: true,
+                    colorizerRole: "colorizer.writer-attribute",
+                    colorProfile: "classes"
+                }],
+                colorWrapperNodes: [
                     {
-                        kind: "cem-tree",
-                        contentType: "application/cem",
-                        schema: "https://cem.dev/ns/cem-ml/1",
-                        category: "cem-tree",
-                        mode: "fragment",
-                        canonical: true,
-                        formatterProfile: "acme.showcase.format-tree",
-                        formatNodes: [{
-                            kind: "format-marker",
-                            name: "cem.format-tree",
-                            formatterRole: "formatter.boundary",
-                            formatterProfile: "acme.showcase.format-tree"
-                        }],
-                        nodes: [{
-                            kind: "element",
-                            name: $subject.name,
-                            sourceMap: $subject.sourceMap,
-                            attributes: $subject.attributes,
-                            children: $subject.children,
-                            formatLayout: {
-                                kind: "format-decision",
-                                formatterRole: "formatter.layout",
-                                value: "inline"
-                            }
-                        }]
+                        kind: "color-wrapper",
+                        name: "span",
+                        colorizerOwned: true,
+                        colorizerRole: "colorizer.text-wrapper",
+                        colorProfile: "classes"
                     },
                     {
-                        kind: "format-decision",
-                        name: "showcase",
-                        formatterRole: "formatter.showcase",
-                        value: "formatted tree before writer"
+                        kind: "color-decision",
+                        name: "wrapped-role",
+                        value: $role,
+                        colorizerOwned: true,
+                        colorizerRole: "colorizer.wrapped-role",
+                        colorProfile: "classes"
                     }
-                ),
-                [
-                    {
-                        kind: "set",
-                        path: "nodes.0.children.1.formatLayout",
-                        value: {
-                            kind: "format-decision",
-                            formatterRole: "formatter.inline-emphasis",
-                            value: "inline-emphasis"
-                        }
-                    }
-                ]
-            ) }
+                ],
+                children: [$subject]
+            } }
         }
     }
 
@@ -83,153 +252,24 @@
         @streamable=true |
         {param @name="subject" @type="object" @required=true}
         {body |
-            {$ applyEdits(
-                appendColorNode(
-                    merge($subject, {
-                        colored: true,
-                        colorProfile: "classes",
-                        colorNodes: [{
-                            kind: "color-marker",
-                            name: "cem.color-tree",
-                            colorizerRole: "colorizer.boundary",
-                            colorProfile: "classes"
-                        }]
-                    }),
-                    {
-                        kind: "color-decision",
-                        name: "showcase",
-                        colorizerRole: "colorizer.showcase",
-                        value: "colored tree before writer"
-                    }
-                ),
-                [
-                    {
-                        kind: "set",
-                        path: "nodes.0.colorRole",
-                        value: "syntax.name"
-                    },
-                    {
-                        kind: "set",
-                        path: "nodes.0.style",
-                        value: {
-                            colorRole: "syntax.name",
-                            colorProfile: "classes"
-                        }
-                    },
-                    {
-                        kind: "set",
-                        path: "nodes.0.writerAttributeNodes",
-                        value: [{
-                            kind: "writer-attribute",
-                            name: "class",
-                            value: "cem-color cem-color-syntax-name",
-                            colorizerOwned: true,
-                            colorizerRole: "colorizer.writer-attribute",
-                            colorProfile: "classes"
-                        }]
-                    },
-                    {
-                        kind: "set",
-                        path: "nodes.0.children.1.colorRole",
-                        value: "syntax.keyword"
-                    },
-                    {
-                        kind: "set",
-                        path: "nodes.0.children.1.style",
-                        value: {
-                            colorRole: "syntax.keyword",
-                            colorProfile: "classes"
-                        }
-                    },
-                    {
-                        kind: "set",
-                        path: "nodes.0.children.1.writerAttributeNodes",
-                        value: [{
-                            kind: "writer-attribute",
-                            name: "class",
-                            value: "cem-color cem-color-syntax-keyword",
-                            colorizerOwned: true,
-                            colorizerRole: "colorizer.writer-attribute",
-                            colorProfile: "classes"
-                        }]
-                    },
-                    {
-                        kind: "wrap",
-                        path: "nodes.0.children.0",
-                        wrapper: {
-                            kind: "element",
-                            name: "span",
-                            colorRole: "syntax.string",
-                            style: {
-                                colorRole: "syntax.string",
-                                colorProfile: "classes"
-                            },
-                            writerAttributeNodes: [{
-                                kind: "writer-attribute",
-                                name: "class",
-                                value: "cem-color cem-color-syntax-string",
-                                colorizerOwned: true,
-                                colorizerRole: "colorizer.writer-attribute",
-                                colorProfile: "classes"
-                            }],
-                            colorWrapperNodes: [
-                                {
-                                    kind: "color-wrapper",
-                                    name: "span",
-                                    colorizerOwned: true,
-                                    colorizerRole: "colorizer.text-wrapper",
-                                    colorProfile: "classes"
-                                },
-                                {
-                                    kind: "color-decision",
-                                    name: "wrapped-role",
-                                    value: "syntax.string",
-                                    colorizerOwned: true,
-                                    colorizerRole: "colorizer.wrapped-role",
-                                    colorProfile: "classes"
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        kind: "wrap",
-                        path: "nodes.0.children.1.children.0",
-                        wrapper: {
-                            kind: "element",
-                            name: "span",
-                            colorRole: "syntax.keyword",
-                            style: {
-                                colorRole: "syntax.keyword",
-                                colorProfile: "classes"
-                            },
-                            writerAttributeNodes: [{
-                                kind: "writer-attribute",
-                                name: "class",
-                                value: "cem-color cem-color-syntax-keyword",
-                                colorizerOwned: true,
-                                colorizerRole: "colorizer.writer-attribute",
-                                colorProfile: "classes"
-                            }],
-                            colorWrapperNodes: [
-                                {
-                                    kind: "color-wrapper",
-                                    name: "span",
-                                    colorizerOwned: true,
-                                    colorizerRole: "colorizer.text-wrapper",
-                                    colorProfile: "classes"
-                                },
-                                {
-                                    kind: "color-decision",
-                                    name: "wrapped-role",
-                                    value: "syntax.keyword",
-                                    colorizerOwned: true,
-                                    colorizerRole: "colorizer.wrapped-role",
-                                    colorProfile: "classes"
-                                }
-                            ]
-                        }
-                    }
-                ]
+            {$ appendColorNode(
+                merge($subject, {
+                    colored: true,
+                    colorProfile: "classes",
+                    colorNodes: [{
+                        kind: "color-marker",
+                        name: "cem.color-tree",
+                        colorizerRole: "colorizer.boundary",
+                        colorProfile: "classes"
+                    }],
+                    nodes: map($subject.nodes, call(acme.showcase.color-node, { subject: $item }))
+                }),
+                {
+                    kind: "color-decision",
+                    name: "showcase",
+                    colorizerRole: "colorizer.showcase",
+                    value: "colored tree before writer"
+                }
             ) }
         }
     }

@@ -88,7 +88,13 @@
                     {text | now}
                 }
             }
-            {text | .}
+            {span @color-role="syntax.string" |
+                {style @color-role="syntax.string" @color-profile="classes"}
+                {writer-attribute @name="class" @value="cem-color cem-color-syntax-string" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.writer-attribute"}
+                {color-wrapper @name="span" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.text-wrapper"}
+                {color-decision @name="wrapped-role" @value="syntax.string" @color-profile="classes" @colorizer-owned=true @colorizer-role="colorizer.wrapped-role"}
+                {text | .}
+            }
         }
     }
 }
