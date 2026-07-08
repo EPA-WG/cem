@@ -163,9 +163,9 @@ metadata. They are not opaque host-side string filters.
   must run after child traversal is complete. `defer(...)`, `queuePush(...)`,
   `queueShift(...)`, `queuePeek(...)`, `queueLength(...)`, and
   `drainQueue(...)` now provide bounded immutable FIFO queues for CEMT bodies;
-  remaining work is richer typed edit helpers and source-map policy integration.
-  The formatter/coloring showcase now drains a queued edit into
-  `applyEdits(...)` before writer output.
+  remaining work is source-map policy integration and typed edit helpers beyond
+  tree patches. The formatter/coloring showcase now drains a typed queued edit
+  into `applyEdits(...)` before writer output.
 - Extend accumulator helpers beyond array `append(...)` for `formatNodes`,
   `colorNodes`, diagnostics, namespace declarations, output spans, and
   writer-boundary metadata. `appendFormatNode(...)`, `appendColorNode(...)`,
@@ -181,17 +181,19 @@ metadata. They are not opaque host-side string filters.
   provide immutable object/tree patching in CEMT bodies. `replaceNode(...)`,
   `appendNode(...)`, `prependNode(...)`, `wrapNode(...)`, and
   `applyEdits(...)` now provide node replacement, child-array insertion,
-  wrapper insertion, and queued edit replay. The built-in `cem.format-tree` and
-  `cem.color-tree` CEMT declarations now use these helpers around their direct
-  runtime operations. Queued edits now reject ambiguous value fields, malformed
-  paths, null appended/prepended nodes, and non-object wrappers. Wrapper
-  insertion now defaults missing wrapper source maps from the wrapped node and
-  stamps the active CEMT transform frame. Object values inserted by queued
-  `set`, `replace`, `append`, and `prepend` edits now default missing source
-  maps from the patched CEM tree and stamp the active formatter/colorizer frame.
-  The formatter/coloring showcase now uses `applyEdits(...)` to replay deferred
-  color metadata before writer output; remaining work is source-map policy
-  integration.
+  wrapper insertion, and queued edit replay. `setEdit(...)`,
+  `replaceEdit(...)`, `appendEdit(...)`, `prependEdit(...)`, and `wrapEdit(...)`
+  now construct typed queued edit objects for `applyEdits(...)`. The built-in
+  `cem.format-tree` and `cem.color-tree` CEMT declarations now use tree patch
+  helpers around their direct runtime operations. Queued edits now reject
+  ambiguous value fields, malformed paths, null appended/prepended nodes, and
+  non-object wrappers. Wrapper insertion now defaults missing wrapper source
+  maps from the wrapped node and stamps the active CEMT transform frame. Object
+  values inserted by queued `set`, `replace`, `append`, and `prepend` edits now
+  default missing source maps from the patched CEM tree and stamp the active
+  formatter/colorizer frame. The formatter/coloring showcase now uses
+  `applyEdits(...)` to replay deferred color metadata before writer output;
+  remaining work is source-map policy integration.
 - Extend first-class diagnostics emitted from formatter/color templates.
   `diagnostic(...)` and `diagnostics(...)` now construct writer-ready diagnostic
   values for unsupported layout, inaccessible color, unsafe raw content,
@@ -518,6 +520,15 @@ supported edit kinds are `set`, `replace`, `append`, `prepend`, and `wrap`.
 `set`, `replace`, `append`, and `prepend` read `value`, `node`, or
 `replacement`; `wrap` reads `wrapper`, `value`, or `node`:
 
+Typed constructors produce the canonical edit objects without repeating the
+field names at each call site:
+
+- `setEdit(path, value)` creates `{ kind: "set", path, value }`.
+- `replaceEdit(path, node)` creates `{ kind: "replace", path, node }`.
+- `appendEdit(path, node)` creates `{ kind: "append", path, node }`.
+- `prependEdit(path, node)` creates `{ kind: "prepend", path, node }`.
+- `wrapEdit(path, wrapper)` creates `{ kind: "wrap", path, wrapper }`.
+
 Each edit must provide exactly one value field. Patch paths cannot contain empty
 segments. `append` and `prepend` reject `null` nodes, and `wrap` requires an
 object wrapper before the edit is applied.
@@ -532,17 +543,17 @@ patch metadata, and explicit `sourceMap` values are preserved.
 
 ```cemt
 {$ applyEdits($formattedTree, [
-  { kind: "set", path: "children.0.style.colorRole", value: "syntax.name" },
-  { kind: "wrap", path: "children.1", wrapper: {
+  setEdit("children.0.style.colorRole", "syntax.name"),
+  wrapEdit("children.1", {
       kind: "element",
       name: "span",
       colorRole: "syntax.text"
-  }},
-  { kind: "append", path: "children", node: {
+  }),
+  appendEdit("children", {
       kind: "color-node",
       name: "trailing-color-metadata",
       colorizerRole: "colorizer.after"
-  }}
+  })
 ]) }
 ```
 

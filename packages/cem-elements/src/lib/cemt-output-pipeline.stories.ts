@@ -171,6 +171,10 @@ function assertPipelineShowcase(
         'coloring CEMT source queues color mutations before replay'
     );
     assert(
+        templatePanel.textContent?.includes('appendEdit('),
+        'coloring CEMT source uses a typed queued append edit'
+    );
+    assert(
         templatePanel.textContent?.includes('map($subject.nodes'),
         'coloring CEMT source maps over the formatted CEM tree before writer output'
     );

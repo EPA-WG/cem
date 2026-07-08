@@ -163,6 +163,7 @@ function assertStageReport(report, story) {
     assert(cemtSource.includes('applyEdits('), `${story.id}: CEMT source stage omits queued edit replay`);
     assert(cemtSource.includes('drainQueue('), `${story.id}: CEMT source stage omits queue draining`);
     assert(cemtSource.includes('defer([],'), `${story.id}: CEMT source stage omits deferred edit queueing`);
+    assert(cemtSource.includes('appendEdit('), `${story.id}: CEMT source stage omits typed append edit construction`);
     for (const expectedSource of story.sourceIncludes) {
         assert(cemtSource.includes(expectedSource), `${story.id}: CEMT source stage omits ${expectedSource}`);
     }

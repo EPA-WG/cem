@@ -166,18 +166,19 @@
                     }
                 ),
                 drainQueue(
-                    defer([], {
-                        kind: "append",
-                        path: "nodes.0.children.1.children.0.colorWrapperNodes",
-                        node: {
-                            kind: "color-decision",
-                            name: "queued-edit",
-                            colorizerOwned: true,
-                            colorizerRole: "colorizer.queued-edit",
-                            colorProfile: "classes",
-                            value: "queued edit replay before writer"
-                        }
-                    }),
+                    defer([],
+                        appendEdit(
+                            "nodes.0.children.1.children.0.colorWrapperNodes",
+                            {
+                                kind: "color-decision",
+                                name: "queued-edit",
+                                colorizerOwned: true,
+                                colorizerRole: "colorizer.queued-edit",
+                                colorProfile: "classes",
+                                value: "queued edit replay before writer"
+                            }
+                        )
+                    ),
                     [],
                     append($acc, $item)
                 )

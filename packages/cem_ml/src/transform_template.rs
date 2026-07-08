@@ -11582,6 +11582,15 @@ fn resolve_encode_subject_expression_at_depth(
     )? {
         return Ok(Some(value));
     }
+    if let Some(value) = resolve_cemt_edit_constructor_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
     if let Some(value) = resolve_cemt_with_stack_expression(
         expression,
         value_bindings,
@@ -12610,6 +12619,146 @@ fn resolve_cemt_apply_edits_expression(
     }
 
     Ok(Some(target))
+}
+
+#[derive(Debug, Clone, Copy)]
+enum CemtTreePatchEditConstructor {
+    Set,
+    Replace,
+    Append,
+    Prepend,
+    Wrap,
+}
+
+impl CemtTreePatchEditConstructor {
+    fn from_expression(expression: &str) -> Result<Option<(Self, Vec<String>)>, String> {
+        for (name, constructor) in [
+            ("setEdit", Self::Set),
+            ("replaceEdit", Self::Replace),
+            ("appendEdit", Self::Append),
+            ("prependEdit", Self::Prepend),
+            ("wrapEdit", Self::Wrap),
+        ] {
+            if let Some(args) = parse_cemt_function_call_args(expression, name)
+                .map_err(|error| error.to_string())?
+            {
+                return Ok(Some((constructor, args)));
+            }
+        }
+        Ok(None)
+    }
+
+    fn function_name(self) -> &'static str {
+        match self {
+            Self::Set => "setEdit",
+            Self::Replace => "replaceEdit",
+            Self::Append => "appendEdit",
+            Self::Prepend => "prependEdit",
+            Self::Wrap => "wrapEdit",
+        }
+    }
+
+    fn kind_name(self) -> &'static str {
+        match self {
+            Self::Set => "set",
+            Self::Replace => "replace",
+            Self::Append => "append",
+            Self::Prepend => "prepend",
+            Self::Wrap => "wrap",
+        }
+    }
+
+    fn value_field(self) -> &'static str {
+        match self {
+            Self::Set => "value",
+            Self::Replace | Self::Append | Self::Prepend => "node",
+            Self::Wrap => "wrapper",
+        }
+    }
+
+    fn operation(self) -> CemtTreePatchOperation {
+        match self {
+            Self::Set => CemtTreePatchOperation::Set,
+            Self::Replace => CemtTreePatchOperation::Replace,
+            Self::Append => CemtTreePatchOperation::Append,
+            Self::Prepend => CemtTreePatchOperation::Prepend,
+            Self::Wrap => CemtTreePatchOperation::Wrap,
+        }
+    }
+}
+
+fn resolve_cemt_edit_constructor_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some((constructor, args)) = CemtTreePatchEditConstructor::from_expression(expression)?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 2 {
+        return Ok(None);
+    }
+    let Some(path) = resolve_cemt_patch_path_argument_for_owner(
+        &args[0],
+        constructor.function_name(),
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    cemt_patch_path_segments(&path, constructor.function_name())?;
+    let Some(value) = resolve_encode_subject_expression_at_depth(
+        &args[1],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    validate_cemt_edit_constructor_value(constructor, &value)?;
+    let mut edit = serde_json::Map::new();
+    edit.insert(
+        "kind".to_owned(),
+        Value::String(constructor.kind_name().to_owned()),
+    );
+    edit.insert("path".to_owned(), Value::String(path));
+    edit.insert(constructor.value_field().to_owned(), value);
+    Ok(Some(Value::Object(edit)))
+}
+
+fn validate_cemt_edit_constructor_value(
+    constructor: CemtTreePatchEditConstructor,
+    value: &Value,
+) -> Result<(), String> {
+    match constructor.operation() {
+        CemtTreePatchOperation::Append | CemtTreePatchOperation::Prepend => {
+            if value.is_null() {
+                return Err(format!(
+                    "CEMT {} node value must not be null",
+                    constructor.function_name()
+                ));
+            }
+        }
+        CemtTreePatchOperation::Wrap => {
+            if !value.is_object() {
+                return Err(format!(
+                    "CEMT {} expected object wrapper, got {}",
+                    constructor.function_name(),
+                    json_value_type_name(value)
+                ));
+            }
+        }
+        CemtTreePatchOperation::Set | CemtTreePatchOperation::Replace => {}
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone)]
@@ -14204,6 +14353,11 @@ fn cemt_runtime_expression_is_dynamic(value: &str) -> bool {
         || cemt_expression_starts_with_call(value, "prependNode")
         || cemt_expression_starts_with_call(value, "wrapNode")
         || cemt_expression_starts_with_call(value, "applyEdits")
+        || cemt_expression_starts_with_call(value, "setEdit")
+        || cemt_expression_starts_with_call(value, "replaceEdit")
+        || cemt_expression_starts_with_call(value, "appendEdit")
+        || cemt_expression_starts_with_call(value, "prependEdit")
+        || cemt_expression_starts_with_call(value, "wrapEdit")
         || cemt_expression_starts_with_call(value, "withStack")
         || cemt_expression_starts_with_call(value, "stackPush")
         || cemt_expression_starts_with_call(value, "stackPop")
@@ -20330,6 +20484,95 @@ mod tests {
     }
 
     #[test]
+    fn cemt_runtime_typed_edit_helpers_construct_apply_edits_queue() {
+        let values = BTreeMap::from([(
+            "node".to_owned(),
+            json!({
+                "kind": "element",
+                "name": "card",
+                "children": [
+                    {"kind": "element", "name": "title", "children": []},
+                    {"kind": "text", "value": "Ready"}
+                ]
+            }),
+        )]);
+
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"appendEdit("children", { kind: "text", value: "Later" })"#,
+                &values,
+            ),
+            Some(json!({
+                "kind": "append",
+                "path": "children",
+                "node": {"kind": "text", "value": "Later"}
+            }))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"applyEdits(
+                    $node,
+                    [
+                        setEdit("children.0.style.colorRole", "syntax.name"),
+                        appendEdit("children.0.children", { kind: "text", value: "Heading" }),
+                        wrapEdit("children.1", {
+                            kind: "element",
+                            name: "span",
+                            colorRole: "syntax.text"
+                        }),
+                        prependEdit("children", {
+                            kind: "format-node",
+                            name: "line-start",
+                            formatterRole: "formatter.line-start"
+                        })
+                    ]
+                )"#,
+                &values,
+            ),
+            Some(json!({
+                "kind": "element",
+                "name": "card",
+                "children": [
+                    {
+                        "kind": "format-node",
+                        "name": "line-start",
+                        "formatterRole": "formatter.line-start"
+                    },
+                    {
+                        "kind": "element",
+                        "name": "title",
+                        "style": {"colorRole": "syntax.name"},
+                        "children": [{"kind": "text", "value": "Heading"}]
+                    },
+                    {
+                        "kind": "element",
+                        "name": "span",
+                        "colorRole": "syntax.text",
+                        "children": [{"kind": "text", "value": "Ready"}]
+                    }
+                ]
+            }))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"applyEdits(
+                    $node,
+                    defer([], replaceEdit("children.1", { kind: "text", value: "Done" }))
+                )"#,
+                &values,
+            ),
+            Some(json!({
+                "kind": "element",
+                "name": "card",
+                "children": [
+                    {"kind": "element", "name": "title", "children": []},
+                    {"kind": "text", "value": "Done"}
+                ]
+            }))
+        );
+    }
+
+    #[test]
     fn cemt_runtime_tree_patch_wrap_defaults_color_source_maps() {
         let ready_source_map =
             serde_json::to_value(source_map_stack(160, 5)).expect("ready source map serializes");
@@ -20645,6 +20888,37 @@ mod tests {
         )
         .expect_err("applyEdits rejects null appended nodes");
         assert!(null_node_error.contains("CEMT applyEdits edit 0 node value must not be null"));
+
+        let constructor_path_error = resolve_encode_subject_expression_at_depth(
+            r#"appendEdit("children..0", { kind: "text", value: "bad" })"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("typed edit constructors reject malformed paths");
+        assert!(constructor_path_error
+            .contains("CEMT appendEdit path `children..0` contains an empty segment"));
+
+        let constructor_null_error = resolve_encode_subject_expression_at_depth(
+            r#"appendEdit("children", null)"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("appendEdit rejects null nodes");
+        assert!(constructor_null_error.contains("CEMT appendEdit node value must not be null"));
+
+        let constructor_wrap_error = resolve_encode_subject_expression_at_depth(
+            r#"wrapEdit("children.0", [])"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("wrapEdit requires object wrappers");
+        assert!(constructor_wrap_error.contains("CEMT wrapEdit expected object wrapper, got array"));
     }
 
     #[test]
