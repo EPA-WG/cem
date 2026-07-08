@@ -5962,9 +5962,8 @@ mod tests {
             &self,
             request: TransformTemplateCompileRequest<'_>,
         ) -> TransformTemplateAdapterResult<TransformTemplateCompileResponse> {
-            if std::str::from_utf8(&request.template.bytes)
-                .is_ok_and(|source| source.contains("adapter-compile-fail"))
-            {
+            let template_text = std::str::from_utf8(&request.template.bytes).unwrap_or_default();
+            if template_text.contains("adapter-compile-fail") {
                 return Err(TransformTemplateAdapterError::failed(
                     self.id(),
                     TransformTemplateAdapterExecutionPhase::Compile,
@@ -5981,6 +5980,7 @@ mod tests {
                     request.entrypoint.clone(),
                     json!({
                         "templateBytes": request.template.bytes.len(),
+                        "templateText": template_text,
                     }),
                 ),
                 diagnostics: Vec::new(),
@@ -5991,12 +5991,39 @@ mod tests {
             &self,
             request: TransformTemplateRenderRequest<'_>,
         ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
+            let template_text = request
+                .compiled
+                .opaque
+                .get("templateText")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            if template_text.contains("adapter-render-fail") {
+                return Err(TransformTemplateAdapterError::failed(
+                    self.id(),
+                    TransformTemplateAdapterExecutionPhase::Render,
+                    "adapter render sentinel",
+                ));
+            }
+
             if request.target.is_some_and(|target| {
                 target.content_type.as_deref().is_some_and(|content_type| {
                     content_type_essence(content_type)
                         == crate::schema::registry::CEM_ML_CONTENT_TYPE
                 })
             }) {
+                if template_text.contains("adapter-output-pipeline-fail") {
+                    return Ok(TransformTemplateRenderResponse {
+                        output: TransformTemplateOutputArtifact {
+                            uri: None,
+                            identity: request.target.cloned(),
+                            value: Value::String("not a CEM tree".to_owned()),
+                            source_map: Some(test_source_map_stack(10, 8)),
+                            output_spans: vec![test_output_span(0, 8, 10)],
+                        },
+                        diagnostics: Vec::new(),
+                    });
+                }
+
                 return Ok(TransformTemplateRenderResponse {
                     output: TransformTemplateOutputArtifact {
                         uri: None,
@@ -9768,6 +9795,73 @@ mod tests {
                 .iter()
                 .all(|diag| diag.code != "cem.converter.cemt_fallback"),
             "ready CEMT compile failure must not use Rust fallback: {:?}",
+            resp.diagnostics
+        );
+    }
+
+    #[test]
+    fn convert_html_publishes_ready_cemt_render_failure_without_rust_fallback() {
+        let req = ConvertRequest {
+            input: input(b"@doc cem-ml 1\n{p | Hi}", "in.cem"),
+            to_format: LayerFormat::Html,
+            preserve_source_offsets: false,
+            context: ready_cemt_html_export_context(
+                "cem+test://converters/dom-to-html.cemt",
+                b"{module @name=adapter-render-fail}",
+            ),
+            target: None,
+            target_scope: Default::default(),
+            scheduler_scope_id: 0,
+        };
+
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+
+        assert_eq!(resp.primary, Value::Null);
+        assert!(resp.diagnostics.iter().any(|diag| {
+            diag.code == TransformTemplateAdapterError::FAILED_CODE
+                && diag.severity == Severity::Fatal
+                && diag.message.contains("adapter render sentinel")
+        }));
+        assert!(
+            resp.diagnostics
+                .iter()
+                .all(|diag| diag.code != "cem.converter.cemt_fallback"),
+            "ready CEMT render failure must not use Rust fallback: {:?}",
+            resp.diagnostics
+        );
+    }
+
+    #[test]
+    fn convert_html_publishes_ready_cemt_output_pipeline_failure_without_rust_fallback() {
+        let req = ConvertRequest {
+            input: input(b"@doc cem-ml 1\n{p | Hi}", "in.cem"),
+            to_format: LayerFormat::Html,
+            preserve_source_offsets: false,
+            context: ready_cemt_html_export_context(
+                "cem+test://converters/dom-to-html.cemt",
+                b"{module @name=adapter-output-pipeline-fail}",
+            ),
+            target: None,
+            target_scope: Default::default(),
+            scheduler_scope_id: 0,
+        };
+
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+
+        assert_eq!(resp.primary, Value::Null);
+        assert!(resp.diagnostics.iter().any(|diag| {
+            diag.code == CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE
+                && diag.severity.is_hard_violation()
+                && diag.message.contains("CEMT formatter")
+                && diag
+                    .message
+                    .contains("expected CEM AST object or node array")
+        }));
+        assert!(
+            resp.diagnostics
+                .iter()
+                .all(|diag| diag.code != "cem.converter.cemt_fallback"),
+            "ready CEMT output pipeline failure must not use Rust fallback: {:?}",
             resp.diagnostics
         );
     }
