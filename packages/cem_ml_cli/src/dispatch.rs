@@ -825,18 +825,45 @@ fn to_engine_bench_profile(p: cli::BenchProfile) -> eng::BenchProfile {
 }
 
 fn context(c: &cli::ContextOptions) -> eng::EngineContext {
+    context_with_template_adapters(c, true)
+}
+
+fn convert_context(c: &cli::ContextOptions) -> eng::EngineContext {
+    context_with_template_adapters(c, false)
+}
+
+fn context_with_template_adapters(
+    c: &cli::ContextOptions,
+    register_runtime_template_adapters: bool,
+) -> eng::EngineContext {
     let mut context = eng::EngineContext {
         schema: c.schema.clone(),
         content_type: c.content_type.clone(),
         base_uri: c.base_uri.clone(),
         ..eng::EngineContext::default()
     };
-    register_cli_transform_template_adapters(&mut context);
+    if register_runtime_template_adapters {
+        register_cli_transform_template_adapters(&mut context);
+    }
     register_cli_resolvers(&mut context.resolver_registry, c, None);
     context.schema_package_manifests.extend(
         c.schema_packages
             .iter()
             .map(|uri| run_config::schema_package_manifest_input(uri, ScopeConfig::default())),
+    );
+    context
+}
+
+fn convert_context_with_config(c: &cli::ContextOptions, config: &RunConfig) -> eng::EngineContext {
+    let mut context = eng::EngineContext {
+        scheduler: config.scheduler.clone(),
+        ..convert_context(c)
+    };
+    register_cli_resolvers(&mut context.resolver_registry, c, Some(config));
+    context.schema_package_manifests.extend(
+        config.schema_packages.iter().map(|spec| {
+            run_config::schema_package_manifest_input(&spec.uri, spec.root_scope.clone())
+        }),
     );
     context
 }
@@ -2657,7 +2684,7 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
         );
     }
 
-    let engine_context = context_with_config(&args.context, config);
+    let engine_context = convert_context_with_config(&args.context, config);
     let inputs = match convert_configured_inputs(&engine_context, args, config, positional_defaults)
     {
         Ok(inputs) => inputs,
@@ -11049,7 +11076,7 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
     if !config.outputs.is_empty() {
         return run_convert_fanout(engine, &args, &config, &input_defaults, s);
     }
-    let engine_context = context_with_config(&args.context, &config);
+    let engine_context = convert_context_with_config(&args.context, &config);
     let input = match single_configured_input(
         &engine_context,
         args.input.as_deref(),
@@ -11903,6 +11930,18 @@ mod tests {
     use std::io::Cursor;
     use std::path::PathBuf;
     use std::sync::{Arc, Mutex};
+
+    const COLORED_P_HI_HTML: &str = concat!(
+        r#"<p class="cem-color cem-color-syntax-name" data-role="syntax.name">"#,
+        r#"<span class="cem-color cem-color-syntax-string" data-role="syntax.string">Hi</span></p>"#
+    );
+    const COLORED_SVG_HI_HTML: &str = concat!(
+        r#"<svg class="cem-color cem-color-syntax-name" data-role="syntax.name">  "#,
+        r#"<title class="cem-color cem-color-syntax-name" data-role="syntax.name">"#,
+        r#"<span class="cem-color cem-color-syntax-string" data-role="syntax.string">Hi</span></title>"#,
+        "\n</svg>"
+    );
+    const FORMATTED_SVG_HI_XML: &str = "<svg>  <title>Hi</title>\n</svg>";
 
     fn yaml_documents_to_json_value(documents: Vec<yaml_rust2::Yaml>) -> serde_json::Value {
         let mut values = documents
@@ -19750,7 +19789,7 @@ start =
         let written = std::fs::read_to_string(&out_path).unwrap();
         let v: serde_json::Value = serde_json::from_str(&written).unwrap();
         assert_eq!(v["kind"], "cem");
-        assert_eq!(v["content"], "{cem:if @test=\"ready\" | {button | Go}}\n");
+        assert_eq!(v["content"], "{cem:if @test=ready |\n  {button | Go}\n}\n");
     }
 
     #[test]
@@ -19786,7 +19825,7 @@ start =
         assert!(stdout.trim().is_empty());
         let written = std::fs::read_to_string(&out_path).unwrap();
         let v: serde_json::Value = serde_json::from_str(&written).unwrap();
-        assert_eq!(v["content"], "{p Hi}\n");
+        assert_eq!(v["content"], "{p | Hi}\n");
     }
 
     #[test]
@@ -19824,7 +19863,7 @@ start =
         assert!(stdout.trim().is_empty());
         let written = std::fs::read_to_string(&out_path).unwrap();
         let v: serde_json::Value = serde_json::from_str(&written).unwrap();
-        assert_eq!(v["content"], "{p Hi}\n");
+        assert_eq!(v["content"], "{p | Hi}\n");
     }
 
     #[test]
@@ -19865,7 +19904,7 @@ start =
         assert!(stdout.trim().is_empty());
         let written = std::fs::read_to_string(&out_path).unwrap();
         let v: serde_json::Value = serde_json::from_str(&written).unwrap();
-        assert_eq!(v["content"], "{p Hi}\n");
+        assert_eq!(v["content"], "{p | Hi}\n");
     }
 
     #[test]
@@ -19900,7 +19939,7 @@ start =
         assert!(stdout.trim().is_empty());
         let written = std::fs::read_to_string(&out_path).unwrap();
         let v: serde_json::Value = serde_json::from_str(&written).unwrap();
-        assert_eq!(v["content"], "{p Hi}\n");
+        assert_eq!(v["content"], "{p | Hi}\n");
     }
 
     #[test]
@@ -20379,10 +20418,10 @@ start =
 
         let first_written = std::fs::read_to_string(&first_out).unwrap();
         let first_json: serde_json::Value = serde_json::from_str(&first_written).unwrap();
-        assert_eq!(first_json["content"], "{p First}\n");
+        assert_eq!(first_json["content"], "{p | First}\n");
         let second_written = std::fs::read_to_string(&second_out).unwrap();
         let second_json: serde_json::Value = serde_json::from_str(&second_written).unwrap();
-        assert_eq!(second_json["content"], "{p Second}\n");
+        assert_eq!(second_json["content"], "{p | Second}\n");
     }
 
     #[test]
@@ -20821,7 +20860,7 @@ start =
         let written = std::fs::read_to_string(&out_path).unwrap();
         let v: serde_json::Value = serde_json::from_str(&written).unwrap();
         assert_eq!(v["kind"], "cem");
-        assert_eq!(v["content"], "{p Hi}\n");
+        assert_eq!(v["content"], "{p | Hi}\n");
     }
 
     #[test]
@@ -20953,7 +20992,7 @@ start =
         let written = std::fs::read_to_string(&out_path).unwrap();
         let v: serde_json::Value = serde_json::from_str(&written).unwrap();
         assert_eq!(v["kind"], "cem");
-        assert_eq!(v["content"], "{p Hi}\n");
+        assert_eq!(v["content"], "{p | Hi}\n");
     }
 
     #[test]
@@ -20980,7 +21019,7 @@ start =
         let written = std::fs::read_to_string(&out_path).unwrap();
         let v: serde_json::Value = serde_json::from_str(&written).unwrap();
         assert_eq!(v["kind"], "html");
-        assert_eq!(v["content"], "<p>Hi</p>");
+        assert_eq!(v["content"], COLORED_P_HI_HTML);
     }
 
     #[test]
@@ -21012,7 +21051,7 @@ start =
         let written = std::fs::read_to_string(&out_path).unwrap();
         let v: serde_json::Value = serde_json::from_str(&written).unwrap();
         assert_eq!(v["kind"], "html");
-        assert_eq!(v["content"], "<p>Hi</p>");
+        assert_eq!(v["content"], COLORED_P_HI_HTML);
     }
 
     #[test]
@@ -21072,7 +21111,7 @@ start =
         let written = std::fs::read_to_string(&out_path).unwrap();
         let v: serde_json::Value = serde_json::from_str(&written).unwrap();
         assert_eq!(v["kind"], "xml");
-        assert_eq!(v["content"], "<svg><title>Hi</title></svg>");
+        assert_eq!(v["content"], FORMATTED_SVG_HI_XML);
     }
 
     #[test]
@@ -21102,7 +21141,7 @@ start =
         let written = std::fs::read_to_string(&out_path).unwrap();
         let v: serde_json::Value = serde_json::from_str(&written).unwrap();
         assert_eq!(v["kind"], "html");
-        assert_eq!(v["content"], "<p>Hi</p>");
+        assert_eq!(v["content"], COLORED_P_HI_HTML);
     }
 
     #[test]
@@ -22295,7 +22334,7 @@ start =
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(v["kind"], "html");
-        assert_eq!(v["content"], "<p>Hi</p>");
+        assert_eq!(v["content"], COLORED_P_HI_HTML);
     }
 
     #[test]
@@ -22330,7 +22369,7 @@ start =
     }
     {artifact
         @kind="colorizer"
-        @path="colorizers/cem-color-tree.cemt"
+        @path="colorizers/cem-color-tree-none.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="application/cem"
@@ -22339,6 +22378,18 @@ start =
         @function-name="cem.color-tree"
         @function-profile="css-custom-properties"
         @color-profile="none"
+    }
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/cem-color-tree-classes.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="cem.color-tree"
+        @function-profile="css-custom-properties"
+        @color-profile="classes"
     }
 }
 "#,
@@ -22398,7 +22449,7 @@ start =
         )
         .unwrap();
         std::fs::write(
-            colorizer_dir.join("cem-color-tree.cemt"),
+            colorizer_dir.join("cem-color-tree-none.cemt"),
             r#"@doc cem-ml 1
 @ns transform = "https://cem.dev/ns/transform/cem/1"
 @default transform
@@ -22461,6 +22512,81 @@ start =
 "#,
         )
         .unwrap();
+        std::fs::write(
+            colorizer_dir.join("cem-color-tree-classes.cemt"),
+            r#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {color-function
+        @name="cem.color-tree"
+        @category="cem-tree"
+        @subject="cem-tree"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @profile="css-custom-properties"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body |
+            {$ {
+                kind: $subject.kind,
+                contentType: $subject.contentType,
+                schema: $subject.schema,
+                category: $subject.category,
+                mode: $subject.mode,
+                canonical: $subject.canonical,
+                formatterProfile: $subject.formatterProfile,
+                formatNodes: $subject.formatNodes,
+                colored: true,
+                colorProfile: "classes",
+                colorNodes: [
+                    {
+                        kind: "color-marker",
+                        name: "cem.color-tree",
+                        colorizerRole: "colorizer.boundary",
+                        colorProfile: "classes"
+                    },
+                    {
+                        kind: "color-decision",
+                        name: "cli-external-colorizer",
+                        colorizerRole: "colorizer.external-override",
+                        colorProfile: "classes"
+                    }
+                ],
+                nodes: map($subject.nodes, {
+                    kind: $item.kind,
+                    name: $item.name,
+                    writerAttributeNodes: [
+                        {
+                            kind: "writer-attribute",
+                            name: "class",
+                            value: "cli-external-package-color",
+                            colorProfile: "classes",
+                            colorizerOwned: true,
+                            colorizerRole: "colorizer.writer-attribute"
+                        },
+                        {
+                            kind: "writer-attribute",
+                            name: "data-cli-package-stage",
+                            value: "external-cemt",
+                            colorProfile: "classes",
+                            colorizerOwned: true,
+                            colorizerRole: "colorizer.writer-attribute"
+                        }
+                    ],
+                    children: $item.children
+                })
+            } }
+        }
+    }
+}
+"#,
+        )
+        .unwrap();
         let input = root.join("input.cem");
         std::fs::write(&input, "@doc cem-ml 1\n{main}").unwrap();
         let resolver_map = format!("cem+vfs://workspace={}", mirror.display());
@@ -22487,6 +22613,29 @@ start =
             v["content"],
             "{cli-external-widget @data-cli-package-stage=external-cemt}\n"
         );
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-format",
+                "html",
+                "--resolver-read-map",
+                &resolver_map,
+                "--schema-package",
+                "cem+vfs://workspace/packages/cem-ml/v1/package.cem",
+                input.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["kind"], "html");
+        assert_eq!(
+            v["content"],
+            r#"<cli-external-widget class="cli-external-package-color" data-cli-package-stage="external-cemt"></cli-external-widget>"#
+        );
     }
 
     #[test]
@@ -22504,7 +22653,7 @@ start =
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(v["kind"], "html");
-        assert_eq!(v["content"], "<p>Hi</p>");
+        assert_eq!(v["content"], COLORED_P_HI_HTML);
     }
 
     #[test]
@@ -22522,7 +22671,7 @@ start =
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(v["kind"], "html");
-        assert_eq!(v["content"], "<p>Hi</p>");
+        assert_eq!(v["content"], COLORED_P_HI_HTML);
     }
 
     #[test]
@@ -22564,7 +22713,7 @@ start =
         );
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(v["kind"], "xml");
-        assert_eq!(v["content"], "<svg><title>Hi</title></svg>");
+        assert_eq!(v["content"], FORMATTED_SVG_HI_XML);
     }
 
     #[test]
@@ -22577,7 +22726,7 @@ start =
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(v["kind"], "xml");
-        assert_eq!(v["content"], r#"<input required=""/>"#);
+        assert_eq!(v["content"], r#"<input required=""></input>"#);
     }
 
     #[test]
@@ -22620,7 +22769,7 @@ start =
         );
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(v["kind"], "html");
-        assert_eq!(v["content"], "<p>Hi</p>");
+        assert_eq!(v["content"], COLORED_P_HI_HTML);
     }
 
     #[test]
@@ -22645,7 +22794,7 @@ start =
         );
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(v["kind"], "html");
-        assert_eq!(v["content"], "<svg><title>Hi</title></svg>");
+        assert_eq!(v["content"], COLORED_SVG_HI_HTML);
     }
 
     #[test]
@@ -22739,7 +22888,7 @@ start =
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(v["kind"], "html");
-        assert_eq!(v["content"], "<p>Hi</p>");
+        assert_eq!(v["content"], COLORED_P_HI_HTML);
     }
 
     #[test]
@@ -22983,7 +23132,7 @@ start =
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(
             v["content"].as_str().unwrap(),
-            "{cem:if @test=\"not (disabled)\" | {button | Go}}\n"
+            "{cem:if @test=\"not (disabled)\" |\n  {button | Go}\n}\n"
         );
     }
 
@@ -23008,7 +23157,7 @@ start =
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(
             v["content"].as_str().unwrap(),
-            "{cem:if @test=\"ready\" | {button | Go}}\n"
+            "{cem:if @test=ready |\n  {button | Go}\n}\n"
         );
     }
 

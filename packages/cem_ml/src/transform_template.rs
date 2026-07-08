@@ -5523,6 +5523,9 @@ fn transform_template_insert_formatter_whitespace_nodes(
 ) -> Vec<Value> {
     let mut formatted = Vec::with_capacity(nodes.len().saturating_mul(2));
     for node in nodes {
+        if transform_template_cem_tree_value_is_whitespace(&node) {
+            continue;
+        }
         if let Some(previous) = formatted.last() {
             if !transform_template_cem_tree_value_is_whitespace(previous)
                 && !transform_template_cem_tree_value_is_whitespace(&node)
@@ -24888,6 +24891,9 @@ mod tests {
                 {"kind": "element", "name": "title", "sourceMap": child_source_map},
                 {"kind": "element", "name": "body"}
             ]
+        }, {
+            "kind": "whitespace",
+            "data": ""
         }, {
             "kind": "element",
             "name": "footer",

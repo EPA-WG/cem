@@ -6368,7 +6368,7 @@ mod tests {
         template_uri: &'static str,
         template_bytes: &'static [u8],
     ) -> EngineContext {
-        let mut converter_registry = ConversionRegistry::new();
+        let mut converter_registry = ConversionRegistry::with_builtin_converters();
         converter_registry
             .register(ConversionDescriptor {
                 id: "test-dom-to-html-cemt-ready".to_owned(),
@@ -10249,6 +10249,30 @@ mod tests {
     }
 
     #[test]
+    fn convert_target_cem_content_type_keeps_doc_directive_on_own_line() {
+        let req = ConvertRequest {
+            input: input(b"@doc cem-ml 1\n{p | Hi}", "in.cem"),
+            to_format: LayerFormat::DomJson,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: Some(FormatIdentity {
+                content_type: Some("application/cem+xml".to_owned()),
+                ..FormatIdentity::default()
+            }),
+            target_scope: Default::default(),
+            scheduler_scope_id: 0,
+        };
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+        assert_eq!(resp.primary["kind"], "cem");
+        assert_eq!(resp.primary["content"], "@doc cem-ml 1\n{p | Hi}\n");
+        assert!(
+            resp.diagnostics.is_empty(),
+            "unexpected diagnostics: {:?}",
+            resp.diagnostics
+        );
+    }
+
+    #[test]
     fn direct_cem_output_publishes_cemt_writer_failure_without_legacy_formatter() {
         let document = CemDocument {
             nodes: vec![
@@ -10312,7 +10336,7 @@ mod tests {
             scheduler_scope_id: 0,
         };
         let resp = RealCemMlEngine::new().convert(req).unwrap();
-        assert_eq!(resp.primary["kind"], "html");
+        assert_eq!(resp.primary["kind"], "html", "{:?}", resp.diagnostics);
         assert_eq!(
             resp.primary["content"],
             "<p class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\">Hi</span></p>"
@@ -10363,7 +10387,7 @@ mod tests {
 
         let resp = RealCemMlEngine::new().convert(req).unwrap();
 
-        assert_eq!(resp.primary["kind"], "html");
+        assert_eq!(resp.primary["kind"], "html", "{:?}", resp.diagnostics);
         assert_eq!(
             resp.primary["content"],
             "<cemt-ready class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\">document</span></cemt-ready>"
@@ -10464,14 +10488,18 @@ mod tests {
         let resp = RealCemMlEngine::new().convert(req).unwrap();
 
         assert_eq!(resp.primary, Value::Null);
-        assert!(resp.diagnostics.iter().any(|diag| {
-            diag.code == CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE
-                && diag.severity.is_hard_violation()
-                && diag.message.contains("CEMT formatter")
-                && diag
-                    .message
-                    .contains("expected CEM AST object or node array")
-        }));
+        assert!(
+            resp.diagnostics.iter().any(|diag| {
+                diag.code == CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE
+                    && diag.severity.is_hard_violation()
+                    && diag.message.contains("CEMT formatter")
+                    && diag
+                        .message
+                        .contains("expected CEM AST object or node array")
+            }),
+            "{:?}",
+            resp.diagnostics
+        );
         assert!(
             resp.diagnostics
                 .iter()
