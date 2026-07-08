@@ -17229,7 +17229,51 @@ const CEMT_FORMATTER_COLORING_PIPELINE_URI: &str =
 const CEMT_FORMATTER_COLORING_PIPELINE_SOURCE: &str =
     include_str!("../schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.cemt");
 
+struct CemtFormatterColoringPipelineExecution {
+    formatted: Value,
+    colored: Value,
+    writer_output: String,
+    colorizer: String,
+}
+
 pub fn cemt_formatter_coloring_pipeline_fixture_source() -> Result<String, String> {
+    let source_ast = cemt_formatter_coloring_pipeline_showcase_source_ast();
+    let execution = execute_cemt_formatter_coloring_pipeline(source_ast.clone())?;
+    if execution.writer_output.is_empty() {
+        return Err("CEMT pipeline writer output was empty".to_owned());
+    }
+
+    render_cemt_formatter_coloring_pipeline_fixture(
+        &source_ast,
+        &execution.formatted,
+        &execution.colored,
+        &execution.colorizer,
+    )
+}
+
+fn cemt_formatter_coloring_pipeline_showcase_source_ast() -> Value {
+    serde_json::json!({
+        "kind": "element",
+        "name": "article",
+        "sourceMap": null,
+        "attributes": [],
+        "children": [
+            {"kind": "text", "value": "Ready ", "sourceMap": null},
+            {
+                "kind": "element",
+                "name": "strong",
+                "sourceMap": null,
+                "attributes": [],
+                "children": [{"kind": "text", "value": "now", "sourceMap": null}]
+            },
+            {"kind": "text", "value": ".", "sourceMap": null}
+        ]
+    })
+}
+
+fn execute_cemt_formatter_coloring_pipeline(
+    source_ast: Value,
+) -> Result<CemtFormatterColoringPipelineExecution, String> {
     let response = parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
         template: cemt_fixture_template_input(
             CEMT_FORMATTER_COLORING_PIPELINE_URI,
@@ -17249,23 +17293,6 @@ pub fn cemt_formatter_coloring_pipeline_fixture_source() -> Result<String, Strin
         TransformTemplateOutputFunctionRegistry::from_module_options(&response.module_options);
     let host_capabilities = BTreeSet::new();
     let value_bindings = BTreeMap::new();
-    let source_ast = serde_json::json!({
-        "kind": "element",
-        "name": "article",
-        "sourceMap": null,
-        "attributes": [],
-        "children": [
-            {"kind": "text", "value": "Ready ", "sourceMap": null},
-            {
-                "kind": "element",
-                "name": "strong",
-                "sourceMap": null,
-                "attributes": [],
-                "children": [{"kind": "text", "value": "now", "sourceMap": null}]
-            },
-            {"kind": "text", "value": ".", "sourceMap": null}
-        ]
-    });
     let format_request = TransformTemplateEncodeBindingRequest::new(
         source_ast.clone(),
         TransformTemplateEncodingTarget::new(CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, "cem-tree"),
@@ -17351,9 +17378,20 @@ pub fn cemt_formatter_coloring_pipeline_fixture_source() -> Result<String, Strin
     transform_template_writer_cem_tree_artifact_to_text(
         &color_binding.artifact_from_value(colored.clone()),
         &writer_context,
-    )?;
-
-    render_cemt_formatter_coloring_pipeline_fixture(&source_ast, &formatted, &colored, &colorizer)
+    )
+    .and_then(|artifact| {
+        artifact
+            .value
+            .as_str()
+            .map(str::to_owned)
+            .ok_or_else(|| "CEMT pipeline writer output was not text".to_owned())
+    })
+    .map(|writer_output| CemtFormatterColoringPipelineExecution {
+        formatted,
+        colored,
+        writer_output,
+        colorizer,
+    })
 }
 
 fn cemt_fixture_template_input(uri: &str, source: &str) -> TemplateInput {
@@ -21057,6 +21095,114 @@ mod tests {
         assert!(output.contains("<strong class=\"cem-color cem-color-syntax-keyword\""));
         assert!(output.contains("<span class=\"cem-color cem-color-syntax-keyword\""));
         assert!(output.contains(">now</span>"));
+    }
+
+    #[test]
+    fn cemt_formatter_coloring_pipeline_recurses_over_alternate_ast_shape() {
+        let subject_source_map =
+            serde_json::to_value(source_map_stack(240, 9)).expect("subject source map serializes");
+        let subject = json!({
+            "kind": "element",
+            "name": "section",
+            "sourceMap": subject_source_map,
+            "attributes": [],
+            "children": [
+                {
+                    "kind": "element",
+                    "name": "p",
+                    "sourceMap": subject_source_map,
+                    "attributes": [],
+                    "children": [
+                        {"kind": "text", "value": "Alpha", "sourceMap": subject_source_map},
+                        {
+                            "kind": "element",
+                            "name": "strong",
+                            "sourceMap": subject_source_map,
+                            "attributes": [],
+                            "children": [
+                                {"kind": "text", "value": "Beta", "sourceMap": subject_source_map}
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "kind": "element",
+                    "name": "aside",
+                    "sourceMap": subject_source_map,
+                    "attributes": [],
+                    "children": [
+                        {"kind": "text", "value": "Gamma", "sourceMap": subject_source_map}
+                    ]
+                }
+            ]
+        });
+
+        let CemtFormatterColoringPipelineExecution {
+            formatted,
+            colored,
+            writer_output,
+            colorizer,
+        } = execute_cemt_formatter_coloring_pipeline(subject)
+            .expect("showcase formatter/colorizer executes alternate nested AST shape");
+
+        assert_eq!(colorizer, "acme.showcase.color-tree");
+        assert_eq!(formatted["nodes"][0]["name"], "section");
+        assert_eq!(formatted["nodes"][0]["children"][0]["name"], "p");
+        assert_eq!(
+            formatted["nodes"][0]["children"][0]["formatLayout"]["value"],
+            "inline"
+        );
+        assert_eq!(
+            formatted["nodes"][0]["children"][0]["children"][1]["name"],
+            "strong"
+        );
+        assert_eq!(
+            formatted["nodes"][0]["children"][0]["children"][1]["formatLayout"]["value"],
+            "inline-emphasis"
+        );
+        assert_eq!(formatted["nodes"][0]["children"][1]["name"], "aside");
+        assert_eq!(
+            formatted["nodes"][0]["children"][1]["formatLayout"]["formatterRole"],
+            "formatter.layout"
+        );
+
+        let section = &colored["nodes"][0];
+        assert_eq!(section["colorRole"], "syntax.name");
+        assert_eq!(
+            cem_tree_writer_attribute_value(section, "class"),
+            "cem-color cem-color-syntax-name"
+        );
+
+        let paragraph = &section["children"][0];
+        assert_eq!(paragraph["colorRole"], "syntax.name");
+        assert_eq!(
+            cem_tree_writer_attribute_value(paragraph, "class"),
+            "cem-color cem-color-syntax-name"
+        );
+        assert_eq!(paragraph["children"][0]["name"], "span");
+        assert_eq!(paragraph["children"][0]["colorRole"], "syntax.string");
+        assert_eq!(paragraph["children"][0]["children"][0]["value"], "Alpha");
+
+        let strong = &paragraph["children"][1];
+        assert_eq!(strong["colorRole"], "syntax.keyword");
+        assert_eq!(
+            strong["children"][0]["colorWrapperNodes"][1]["value"],
+            "syntax.keyword"
+        );
+        assert_eq!(strong["children"][0]["children"][0]["value"], "Beta");
+
+        let aside = &section["children"][1];
+        assert_eq!(aside["colorRole"], "syntax.name");
+        assert_eq!(aside["children"][0]["colorRole"], "syntax.string");
+        assert_eq!(aside["children"][0]["children"][0]["value"], "Gamma");
+
+        assert!(writer_output.contains("<section class=\"cem-color cem-color-syntax-name\""));
+        assert!(writer_output.contains(
+            "<p class=\"cem-color cem-color-syntax-name\"><span class=\"cem-color cem-color-syntax-string\">Alpha</span><strong class=\"cem-color cem-color-syntax-keyword\"><span class=\"cem-color cem-color-syntax-keyword\">Beta</span></strong></p>"
+        ));
+        assert!(writer_output.contains(
+            "<aside class=\"cem-color cem-color-syntax-name\"><span class=\"cem-color cem-color-syntax-string\">Gamma</span></aside>"
+        ));
     }
 
     #[test]
