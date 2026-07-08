@@ -788,6 +788,12 @@ pub struct FixtureParityArgs {
 #[derive(Args, Debug)]
 pub struct FixtureCemtPipelineArgs {
     #[arg(
+        long = "package-artifacts",
+        help = "Generate through manifest-declared schema-package formatter/colorizer artifacts"
+    )]
+    pub package_artifacts: bool,
+
+    #[arg(
         long,
         value_name = "PATH",
         help = "Write the generated CEM-native fixture to PATH; defaults to stdout"
@@ -1263,6 +1269,7 @@ mod tests {
         try_parse(&["fixture", "roundtrip"]).unwrap();
         try_parse(&["fixture", "cemt-pipeline"]).unwrap();
         try_parse(&["fixture", "cemt-pipeline", "--out", "pipeline.fixture.cem"]).unwrap();
+        try_parse(&["fixture", "cemt-pipeline", "--package-artifacts"]).unwrap();
         try_parse(&["fixture", "validate", "a.cem", "b.cem"]).unwrap();
     }
 

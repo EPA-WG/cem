@@ -75,6 +75,7 @@ CLI validation integration tests.
 | --- | --- | --- |
 | [`basic.cem`](examples/basic.cem) | Minimal persisted CEM-ML document. | Pass |
 | [`nested-handoff.cem`](examples/nested-handoff.cem) | Namespaced content with a `text/html` handoff boundary. | Pass |
+| [`formatter-coloring-pipeline.package-artifacts.fixture.cem`](examples/formatter-coloring-pipeline.package-artifacts.fixture.cem) | Checked stage fixture generated through manifest-declared formatter/colorizer artifacts selected by explicit CEMT aliases. | Pass |
 | [`invalid-unclosed-scope.cem`](examples/invalid-unclosed-scope.cem) | Missing closing scope syntax diagnostic. | Fail with `cem.schema.unclosed_scope` |
 
 Validate an example explicitly against this schema:

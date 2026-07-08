@@ -17467,6 +17467,7 @@ pub fn cemt_formatter_coloring_pipeline_fixture_source() -> Result<String, Strin
     }
 
     render_cemt_formatter_coloring_pipeline_fixture(
+        CEMT_FORMATTER_COLORING_PIPELINE_URI,
         &source_ast,
         &execution.formatted,
         &execution.colored,
@@ -17474,7 +17475,7 @@ pub fn cemt_formatter_coloring_pipeline_fixture_source() -> Result<String, Strin
     )
 }
 
-fn cemt_formatter_coloring_pipeline_showcase_source_ast() -> Value {
+pub(crate) fn cemt_formatter_coloring_pipeline_showcase_source_ast() -> Value {
     serde_json::json!({
         "kind": "element",
         "name": "article",
@@ -17629,7 +17630,8 @@ fn cemt_fixture_template_input(uri: &str, source: &str) -> TemplateInput {
     }
 }
 
-fn render_cemt_formatter_coloring_pipeline_fixture(
+pub(crate) fn render_cemt_formatter_coloring_pipeline_fixture(
+    source_uri: &str,
     source_ast: &Value,
     formatted: &Value,
     colored: &Value,
@@ -17646,7 +17648,7 @@ fn render_cemt_formatter_coloring_pipeline_fixture(
 @default showcase
 
 {{cemt-output-pipeline-fixture
-    @source="{CEMT_FORMATTER_COLORING_PIPELINE_URI}"
+    @source="{source_uri}"
     @formatter="{formatter}"
     @colorizer="{colorizer}"
     @color-profile="{color_profile}" |

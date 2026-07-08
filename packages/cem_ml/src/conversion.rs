@@ -2540,6 +2540,8 @@ pub struct ConversionOutputPipelineExecution {
 
 const CEM_TREE_FORMAT_CEMT_ADAPTER_ID: &str = "cem-tree-format-cemt";
 const CEM_TREE_COLOR_CEMT_ADAPTER_ID: &str = "cem-tree-color-cemt";
+const CEMT_FORMATTER_COLORING_PIPELINE_PACKAGE_SOURCE_URI: &str =
+    "schema-packages/cem-ml/v1/package.cem";
 
 #[derive(Debug, Clone)]
 struct CemTreeCemtOutputStage {
@@ -3171,6 +3173,73 @@ pub fn execute_conversion_output_pipeline(
         converter_id,
         diagnostic_node,
         diagnostic_uri,
+    )
+}
+
+pub fn cemt_formatter_coloring_pipeline_package_fixture_source() -> Result<String, String> {
+    let source_ast =
+        crate::transform_template::cemt_formatter_coloring_pipeline_showcase_source_ast();
+    let mut pipeline = direct_html_output_pipeline();
+    pipeline.cemt_options.formatter = Some("acme.showcase.format-tree".to_owned());
+    pipeline.cemt_options.formatter_profile = Some("acme.showcase.format-tree".to_owned());
+    pipeline.cemt_options.colorizer = Some("acme.showcase.color-tree".to_owned());
+    pipeline.cemt_options.color_profile = Some("classes".to_owned());
+    pipeline.cemt_insertion_context.formatter_profile =
+        Some("acme.showcase.format-tree".to_owned());
+    pipeline.writer_insertion_context.formatter_profile =
+        Some("acme.showcase.format-tree".to_owned());
+
+    let execution = execute_conversion_output_pipeline(
+        &pipeline,
+        source_ast.clone(),
+        None,
+        Vec::new(),
+        "fixture-cemt-pipeline-package-artifacts",
+        Some("output"),
+        Some(CEMT_FORMATTER_COLORING_PIPELINE_PACKAGE_SOURCE_URI),
+    );
+    if !execution.diagnostics.is_empty() {
+        return Err(execution
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>()
+            .join("; "));
+    }
+    let formatted = execution
+        .formatted_cem_tree
+        .as_ref()
+        .ok_or_else(|| "manifest CEMT pipeline did not retain formatted CEM tree".to_owned())?;
+    let colored = execution
+        .colored_cem_tree
+        .as_ref()
+        .ok_or_else(|| "manifest CEMT pipeline did not retain colored CEM tree".to_owned())?;
+    let writer_output = execution
+        .output
+        .as_ref()
+        .and_then(Value::as_str)
+        .ok_or_else(|| "manifest CEMT pipeline writer output was not text".to_owned())?;
+    if writer_output.is_empty() {
+        return Err("manifest CEMT pipeline writer output was empty".to_owned());
+    }
+    let colorizer = match execution.color_execution.as_ref() {
+        Some(ConversionOutputPipelineStageExecution::CemtAdapter { function_name, .. }) => {
+            function_name.as_str()
+        }
+        Some(ConversionOutputPipelineStageExecution::CemtFallback { function_name }) => {
+            return Err(format!(
+                "manifest CEMT pipeline unexpectedly used fallback colorizer `{function_name}`"
+            ));
+        }
+        None => return Err("manifest CEMT pipeline did not execute a colorizer".to_owned()),
+    };
+
+    crate::transform_template::render_cemt_formatter_coloring_pipeline_fixture(
+        CEMT_FORMATTER_COLORING_PIPELINE_PACKAGE_SOURCE_URI,
+        &source_ast,
+        &formatted.value,
+        &colored.value,
+        colorizer,
     )
 }
 
@@ -8825,6 +8894,20 @@ mod tests {
         assert!(output.contains("<strong class=\"cem-color cem-color-syntax-keyword\""));
         assert!(output.contains("Ready "));
         assert!(output.contains(">now<"));
+    }
+
+    #[test]
+    fn cemt_formatter_coloring_pipeline_package_fixture_uses_manifest_artifacts() {
+        let fixture = cemt_formatter_coloring_pipeline_package_fixture_source()
+            .expect("manifest CEMT pipeline fixture");
+
+        assert!(fixture.contains(r#"@source="schema-packages/cem-ml/v1/package.cem""#));
+        assert!(fixture.contains(r#"@formatter="acme.showcase.format-tree""#));
+        assert!(fixture.contains(r#"@colorizer="acme.showcase.color-tree""#));
+        assert!(fixture.contains(r#"@color-profile="classes""#));
+        assert!(fixture.contains(r#"@value="formatted tree before writer""#));
+        assert!(fixture.contains(r#"@value="colored tree before writer""#));
+        assert!(fixture.contains(r#"@value="cem-color cem-color-syntax-keyword""#));
     }
 
     #[test]

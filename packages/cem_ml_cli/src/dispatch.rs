@@ -11872,17 +11872,20 @@ pub fn run_fixture_cemt_pipeline(
     args: cli::FixtureCemtPipelineArgs,
     s: &mut Streams<'_>,
 ) -> Outcome {
-    let fixture =
-        match cem_ml::transform_template::cemt_formatter_coloring_pipeline_fixture_source() {
-            Ok(fixture) => fixture,
-            Err(error) => {
-                let _ = writeln!(
-                    s.stderr,
-                    "cem-ml: failed to generate CEMT pipeline fixture: {error}"
-                );
-                return Outcome::code(EXIT_HARD_FAILURE);
-            }
-        };
+    let fixture = match if args.package_artifacts {
+        cem_ml::conversion::cemt_formatter_coloring_pipeline_package_fixture_source()
+    } else {
+        cem_ml::transform_template::cemt_formatter_coloring_pipeline_fixture_source()
+    } {
+        Ok(fixture) => fixture,
+        Err(error) => {
+            let _ = writeln!(
+                s.stderr,
+                "cem-ml: failed to generate CEMT pipeline fixture: {error}"
+            );
+            return Outcome::code(EXIT_HARD_FAILURE);
+        }
+    };
     if let Some(out) = args.out {
         let context = eng::EngineContext::default();
         if let Err(error) = write_destination(
@@ -21763,6 +21766,21 @@ start =
 
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert_eq!(stdout, checked);
+    }
+
+    #[test]
+    fn fixture_cemt_pipeline_package_artifacts_emits_manifest_stage_fixture() {
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &["fixture", "cemt-pipeline", "--package-artifacts"],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.contains(r#"@source="schema-packages/cem-ml/v1/package.cem""#));
+        assert!(stdout.contains(r#"@formatter="acme.showcase.format-tree""#));
+        assert!(stdout.contains(r#"@colorizer="acme.showcase.color-tree""#));
+        assert!(stdout.contains(r#"@value="formatted tree before writer""#));
+        assert!(stdout.contains(r#"@value="colored tree before writer""#));
     }
 
     #[test]
