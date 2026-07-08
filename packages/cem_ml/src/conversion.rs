@@ -369,6 +369,11 @@ pub enum ConversionManifestError {
         converter_id: String,
         value: String,
     },
+    ArtifactContract {
+        package_id: String,
+        path: String,
+        message: String,
+    },
 }
 
 impl std::fmt::Display for ConversionManifestError {
@@ -439,6 +444,14 @@ impl std::fmt::Display for ConversionManifestError {
             } => write!(
                 f,
                 "converter `{converter_id}` has invalid cost value `{value}`"
+            ),
+            Self::ArtifactContract {
+                package_id,
+                path,
+                message,
+            } => write!(
+                f,
+                "schema package `{package_id}` artifact `{path}` has invalid CEMT contract: {message}"
             ),
         }
     }
@@ -5455,38 +5468,196 @@ pub fn conversion_package_artifacts_from_schema_package(
     element_child_ids_by_local_name(&document, package_node_id, "artifact")
         .into_iter()
         .map(|artifact_node_id| {
-            let attrs = collect_manifest_attrs(&document, artifact_node_id);
-            let kind = required_manifest_attr(&attrs, None, "kind")?.to_owned();
-            let path =
-                package_relative_path(&base_path, required_manifest_attr(&attrs, None, "path")?);
-            let content_type =
-                optional_manifest_attr(&attrs, "content-type").map(content_type_essence);
-            let schema = optional_manifest_attr(&attrs, "schema").map(str::to_owned);
-            let target_content_type =
-                optional_manifest_attr(&attrs, "target-content-type").map(content_type_essence);
-            let target_schema = optional_manifest_attr(&attrs, "target-schema").map(str::to_owned);
-            let target_category =
-                optional_manifest_attr(&attrs, "target-category").map(str::to_owned);
-            let generated = parse_manifest_bool("artifact", &attrs, "generated")?.unwrap_or(false);
-            Ok(ConversionPackageArtifactDescriptor {
-                package_id: package_id.clone(),
-                kind,
-                path,
-                content_type,
-                schema,
-                target_content_type,
-                target_schema,
-                target_category,
-                function_name: optional_manifest_attr(&attrs, "function-name").map(str::to_owned),
-                function_profile: optional_manifest_attr(&attrs, "function-profile")
-                    .map(str::to_owned),
-                formatter_profile: optional_manifest_attr(&attrs, "formatter-profile")
-                    .map(str::to_owned),
-                color_profile: optional_manifest_attr(&attrs, "color-profile").map(str::to_owned),
-                generated,
-            })
+            conversion_package_artifact_from_manifest_node(
+                &document,
+                artifact_node_id,
+                &package_id,
+                &base_path,
+            )
         })
         .collect()
+}
+
+fn conversion_package_artifact_from_manifest_node(
+    document: &CemDocument,
+    node_id: AstNodeId,
+    package_id: &str,
+    base_path: &str,
+) -> Result<ConversionPackageArtifactDescriptor, ConversionManifestError> {
+    let attrs = collect_manifest_attrs(document, node_id);
+    let kind = required_manifest_attr(&attrs, None, "kind")?.to_owned();
+    let path = package_relative_path(base_path, required_manifest_attr(&attrs, None, "path")?);
+    let content_type = optional_manifest_attr(&attrs, "content-type").map(content_type_essence);
+    let schema = optional_manifest_attr(&attrs, "schema").map(str::to_owned);
+    let target_content_type =
+        optional_manifest_attr(&attrs, "target-content-type").map(content_type_essence);
+    let target_schema = optional_manifest_attr(&attrs, "target-schema").map(str::to_owned);
+    let target_category = optional_manifest_attr(&attrs, "target-category").map(str::to_owned);
+    let generated = parse_manifest_bool("artifact", &attrs, "generated")?.unwrap_or(false);
+    let artifact = ConversionPackageArtifactDescriptor {
+        package_id: package_id.to_owned(),
+        kind,
+        path,
+        content_type,
+        schema,
+        target_content_type,
+        target_schema,
+        target_category,
+        function_name: optional_manifest_attr(&attrs, "function-name").map(str::to_owned),
+        function_profile: optional_manifest_attr(&attrs, "function-profile").map(str::to_owned),
+        formatter_profile: optional_manifest_attr(&attrs, "formatter-profile").map(str::to_owned),
+        color_profile: optional_manifest_attr(&attrs, "color-profile").map(str::to_owned),
+        generated,
+    };
+    validate_conversion_package_artifact_cemt_contract(&artifact)?;
+    Ok(artifact)
+}
+
+fn validate_conversion_package_artifact_cemt_contract(
+    artifact: &ConversionPackageArtifactDescriptor,
+) -> Result<(), ConversionManifestError> {
+    let Some(function_name) = artifact.function_name.as_deref() else {
+        return Ok(());
+    };
+    let Some(source) = builtin_schema_package_artifact_source(&artifact.package_id, &artifact.path)
+    else {
+        return Err(conversion_artifact_contract_error(
+            artifact,
+            "referenced CEMT artifact source is not embedded",
+        ));
+    };
+
+    let parse_response =
+        parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+            template: TemplateInput {
+                uri: artifact.path.clone(),
+                bytes: source.source.as_bytes().to_vec(),
+                identity: Some(FormatIdentity {
+                    content_type: artifact.content_type.clone(),
+                    schema: artifact.schema.clone(),
+                    ..FormatIdentity::default()
+                }),
+                root_scope: ScopeConfig::default(),
+            },
+        });
+    if let Some(diagnostic) = parse_response
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return Err(conversion_artifact_contract_error(
+            artifact,
+            format!("CEMT source failed to parse: {}", diagnostic.message),
+        ));
+    }
+
+    let Some(function) = parse_response
+        .module_options
+        .output_functions
+        .iter()
+        .find(|function| function.name == function_name)
+    else {
+        return Err(conversion_artifact_contract_error(
+            artifact,
+            format!("no CEMT output function named `{function_name}` is declared"),
+        ));
+    };
+
+    if let Some(expected_kind) = conversion_artifact_output_function_kind(&artifact.kind) {
+        if function.kind != expected_kind {
+            return Err(conversion_artifact_contract_mismatch(
+                artifact,
+                "function kind",
+                conversion_output_function_kind_name(expected_kind),
+                conversion_output_function_kind_name(function.kind),
+            ));
+        }
+    }
+    validate_conversion_artifact_contract_field(
+        artifact,
+        "target content type",
+        artifact.target_content_type.as_deref(),
+        Some(content_type_essence(&function.content_type).as_str()),
+    )?;
+    validate_conversion_artifact_contract_field(
+        artifact,
+        "target schema",
+        artifact.target_schema.as_deref(),
+        Some(function.schema.as_str()),
+    )?;
+    validate_conversion_artifact_contract_field(
+        artifact,
+        "target category",
+        artifact.target_category.as_deref(),
+        Some(function.category.as_str()),
+    )?;
+    validate_conversion_artifact_contract_field(
+        artifact,
+        "function profile",
+        artifact.function_profile.as_deref(),
+        function.profile.as_deref(),
+    )?;
+    Ok(())
+}
+
+fn validate_conversion_artifact_contract_field(
+    artifact: &ConversionPackageArtifactDescriptor,
+    field: &str,
+    expected: Option<&str>,
+    actual: Option<&str>,
+) -> Result<(), ConversionManifestError> {
+    let Some(expected) = expected else {
+        return Ok(());
+    };
+    let actual = actual.unwrap_or("<none>");
+    if actual == expected {
+        return Ok(());
+    }
+    Err(conversion_artifact_contract_mismatch(
+        artifact, field, expected, actual,
+    ))
+}
+
+fn conversion_artifact_contract_mismatch(
+    artifact: &ConversionPackageArtifactDescriptor,
+    field: &str,
+    expected: &str,
+    actual: &str,
+) -> ConversionManifestError {
+    conversion_artifact_contract_error(
+        artifact,
+        format!("{field} metadata expected `{expected}`, CEMT declares `{actual}`"),
+    )
+}
+
+fn conversion_artifact_contract_error(
+    artifact: &ConversionPackageArtifactDescriptor,
+    message: impl Into<String>,
+) -> ConversionManifestError {
+    ConversionManifestError::ArtifactContract {
+        package_id: artifact.package_id.clone(),
+        path: artifact.path.clone(),
+        message: message.into(),
+    }
+}
+
+fn conversion_artifact_output_function_kind(
+    artifact_kind: &str,
+) -> Option<TransformTemplateOutputFunctionKind> {
+    match artifact_kind.trim() {
+        "formatter" => Some(TransformTemplateOutputFunctionKind::Format),
+        "colorizer" => Some(TransformTemplateOutputFunctionKind::Color),
+        "encoder" => Some(TransformTemplateOutputFunctionKind::Encoding),
+        _ => None,
+    }
+}
+
+fn conversion_output_function_kind_name(kind: TransformTemplateOutputFunctionKind) -> &'static str {
+    match kind {
+        TransformTemplateOutputFunctionKind::Encoding => "encoding",
+        TransformTemplateOutputFunctionKind::Format => "format",
+        TransformTemplateOutputFunctionKind::Color => "color",
+    }
 }
 
 fn conversion_descriptor_from_manifest_node(
@@ -8057,6 +8228,10 @@ mod tests {
         assert_eq!(colorizer.target_schema.as_deref(), Some(CEM_ML_SCHEMA_URI));
         assert_eq!(colorizer.target_category.as_deref(), Some("cem-tree"));
         assert_eq!(colorizer.function_name.as_deref(), Some("cem.color-tree"));
+        assert_eq!(
+            colorizer.function_profile.as_deref(),
+            Some("css-custom-properties")
+        );
         assert_eq!(colorizer.color_profile.as_deref(), Some(color_profile));
         let formatter_source =
             builtin_schema_package_artifact_source(&formatter.package_id, &formatter.path)
@@ -8095,6 +8270,62 @@ mod tests {
         assert!(error.contains("is not owned by schema"));
         assert!(error.contains(HTML_CONTENT_TYPE));
         assert!(error.contains(CEM_ML_SCHEMA_URI));
+    }
+
+    #[test]
+    fn cemt_output_asset_metadata_must_match_referenced_cemt_function() {
+        let package = load_builtin_schema_package(CEM_ML_SCHEMA_URI).expect("CEM-ML package");
+        let manifest = package.manifest_source.replace(
+            r#"@function-name="cem.format-tree""#,
+            r#"@function-name="cem.missing-tree""#,
+        );
+        let package = BuiltinSchemaPackage {
+            manifest_source: Box::leak(manifest.into_boxed_str()),
+            ..package
+        };
+
+        let error = conversion_package_artifacts_from_schema_package(&package)
+            .expect_err("wrong CEMT function name is rejected");
+
+        match error {
+            ConversionManifestError::ArtifactContract { path, message, .. } => {
+                assert_eq!(
+                    path,
+                    "schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt"
+                );
+                assert!(message.contains("no CEMT output function named `cem.missing-tree`"));
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn cemt_output_asset_target_metadata_must_match_referenced_cemt_function() {
+        let package = load_builtin_schema_package(CEM_ML_SCHEMA_URI).expect("CEM-ML package");
+        let manifest = package.manifest_source.replacen(
+            r#"@target-category="cem-tree""#,
+            r#"@target-category="wrong-tree""#,
+            1,
+        );
+        let package = BuiltinSchemaPackage {
+            manifest_source: Box::leak(manifest.into_boxed_str()),
+            ..package
+        };
+
+        let error = conversion_package_artifacts_from_schema_package(&package)
+            .expect_err("wrong CEMT target category is rejected");
+
+        match error {
+            ConversionManifestError::ArtifactContract { path, message, .. } => {
+                assert_eq!(
+                    path,
+                    "schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt"
+                );
+                assert!(message.contains("target category metadata expected `wrong-tree`"));
+                assert!(message.contains("CEMT declares `cem-tree`"));
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
     }
 
     #[test]

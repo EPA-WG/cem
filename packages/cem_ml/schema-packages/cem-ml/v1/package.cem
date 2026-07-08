@@ -76,6 +76,7 @@
         @target-schema="https://cem.dev/ns/cem-ml/1"
         @target-category="cem-tree"
         @function-name="cem.color-tree"
+        @function-profile="css-custom-properties"
         @color-profile="none"
     }
 
@@ -88,6 +89,7 @@
         @target-schema="https://cem.dev/ns/cem-ml/1"
         @target-category="cem-tree"
         @function-name="cem.color-tree"
+        @function-profile="css-custom-properties"
         @color-profile="classes"
     }
 
@@ -100,6 +102,7 @@
         @target-schema="https://cem.dev/ns/cem-ml/1"
         @target-category="cem-tree"
         @function-name="cem.color-tree"
+        @function-profile="css-custom-properties"
         @color-profile="inline-style"
     }
 
@@ -112,6 +115,7 @@
         @target-schema="https://cem.dev/ns/cem-ml/1"
         @target-category="cem-tree"
         @function-name="cem.color-tree"
+        @function-profile="css-custom-properties"
         @color-profile="css-custom-properties"
     }
 }
