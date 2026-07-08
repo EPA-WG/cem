@@ -116,11 +116,10 @@
         },
         "validate-cemt-pipeline-fixture": {
             "executor": "nx:run-commands",
-            "dependsOn": ["build"],
             "options": {
                 "commands": [
                     "mkdir -p packages/cem_ml_cli/dist",
-                    "./dist/target/cem_ml_cli/debug/cem-ml fixture cemt-pipeline --out packages/cem_ml_cli/dist/formatter-coloring-pipeline.generated.fixture.cem",
+                    "cargo run --package cem-ml-cli --target-dir dist/target/cem_ml_cli -- fixture cemt-pipeline --out packages/cem_ml_cli/dist/formatter-coloring-pipeline.generated.fixture.cem",
                     "diff -u packages/cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.fixture.cem packages/cem_ml_cli/dist/formatter-coloring-pipeline.generated.fixture.cem"
                 ],
                 "parallel": false,

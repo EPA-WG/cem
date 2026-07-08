@@ -17254,7 +17254,17 @@ pub fn cemt_formatter_coloring_pipeline_fixture_source() -> Result<String, Strin
         "name": "article",
         "sourceMap": null,
         "attributes": [],
-        "children": [{"kind": "text", "value": "Ready"}]
+        "children": [
+            {"kind": "text", "value": "Ready "},
+            {
+                "kind": "element",
+                "name": "strong",
+                "sourceMap": null,
+                "attributes": [],
+                "children": [{"kind": "text", "value": "now"}]
+            },
+            {"kind": "text", "value": "."}
+        ]
     });
     let format_request = TransformTemplateEncodeBindingRequest::new(
         source_ast.clone(),
@@ -17343,7 +17353,7 @@ pub fn cemt_formatter_coloring_pipeline_fixture_source() -> Result<String, Strin
         &writer_context,
     )?;
 
-    render_cemt_formatter_coloring_pipeline_fixture(&formatted, &colored, &colorizer)
+    render_cemt_formatter_coloring_pipeline_fixture(&source_ast, &formatted, &colored, &colorizer)
 }
 
 fn cemt_fixture_template_input(uri: &str, source: &str) -> TemplateInput {
@@ -17359,12 +17369,14 @@ fn cemt_fixture_template_input(uri: &str, source: &str) -> TemplateInput {
 }
 
 fn render_cemt_formatter_coloring_pipeline_fixture(
+    source_ast: &Value,
     formatted: &Value,
     colored: &Value,
     colorizer: &str,
 ) -> Result<String, String> {
     let formatter = cemt_fixture_required_str(formatted, "formatterProfile")?;
     let color_profile = cemt_fixture_required_str(colored, "colorProfile")?;
+    let source_stage = cemt_fixture_render_node(source_ast, 0)?;
     let formatted_stage = cemt_fixture_render_cem_tree(formatted)?;
     let colored_stage = cemt_fixture_render_cem_tree(colored)?;
     Ok(format!(
@@ -17383,9 +17395,7 @@ fn render_cemt_formatter_coloring_pipeline_fixture(
         @schema="https://cem.dev/ns/cem-ml/1"
         @category="cem-fragment" |
 ```cem
-{{article |
-    {{text | Ready}}
-}}
+{source_stage}
 ```
     }}
 
@@ -20857,7 +20867,17 @@ mod tests {
             "name": "article",
             "sourceMap": subject_source_map,
             "attributes": [],
-            "children": [{"kind": "text", "value": "Ready", "sourceMap": subject_source_map}]
+            "children": [
+                {"kind": "text", "value": "Ready ", "sourceMap": subject_source_map},
+                {
+                    "kind": "element",
+                    "name": "strong",
+                    "sourceMap": subject_source_map,
+                    "attributes": [],
+                    "children": [{"kind": "text", "value": "now", "sourceMap": subject_source_map}]
+                },
+                {"kind": "text", "value": ".", "sourceMap": subject_source_map}
+            ]
         });
 
         let format_request = TransformTemplateEncodeBindingRequest::new(
@@ -20904,6 +20924,15 @@ mod tests {
         assert_eq!(
             cem_tree_format_decision(&formatted, "showcase")["value"],
             "formatted tree before writer"
+        );
+        assert_eq!(formatted["nodes"][0]["children"][1]["name"], "strong");
+        assert_eq!(
+            formatted["nodes"][0]["children"][1]["formatLayout"]["value"],
+            "inline-emphasis"
+        );
+        assert_eq!(
+            formatted["nodes"][0]["children"][1]["formatLayout"]["formatterRole"],
+            "formatter.inline-emphasis"
         );
         assert!(stage_fixture.contains(r#"@formatter="acme.showcase.format-tree""#));
         assert!(stage_fixture.contains(r#"@formatter-profile="acme.showcase.format-tree""#));
@@ -20979,7 +21008,29 @@ mod tests {
             cem_tree_writer_attribute_value(&colored["nodes"][0], "class"),
             "cem-color cem-color-syntax-name"
         );
+        assert_eq!(
+            colored["nodes"][0]["children"][1]["formatLayout"]["value"], "inline-emphasis",
+            "coloring preserves formatter layout metadata on nested nodes"
+        );
+        assert_eq!(
+            colored["nodes"][0]["children"][1]["colorRole"],
+            "syntax.keyword"
+        );
+        assert_eq!(
+            cem_tree_writer_attribute_value(&colored["nodes"][0]["children"][1], "class"),
+            "cem-color cem-color-syntax-keyword"
+        );
+        assert_eq!(
+            colored["nodes"][0]["children"][1]["children"][0]["colorWrapperNodes"][0]
+                ["colorizerRole"],
+            "colorizer.text-wrapper"
+        );
+        assert_eq!(
+            colored["nodes"][0]["children"][1]["children"][0]["colorWrapperNodes"][1]["value"],
+            "syntax.keyword"
+        );
         assert!(stage_fixture.contains(r#"@value="cem-color cem-color-syntax-name""#));
+        assert!(stage_fixture.contains(r#"@value="cem-color cem-color-syntax-keyword""#));
         assert!(stage_fixture.contains(r#"@colorizer-role="colorizer.text-wrapper""#));
         let colored_artifact = color_binding.artifact_from_value(colored);
         let writer_artifact =
@@ -20995,6 +21046,9 @@ mod tests {
             .expect("writer output is text");
         assert!(output.contains("<article class=\"cem-color cem-color-syntax-name\""));
         assert!(output.contains("<span class=\"cem-color cem-color-syntax-string\""));
+        assert!(output.contains("<strong class=\"cem-color cem-color-syntax-keyword\""));
+        assert!(output.contains("<span class=\"cem-color cem-color-syntax-keyword\""));
+        assert!(output.contains(">now</span>"));
     }
 
     #[test]
