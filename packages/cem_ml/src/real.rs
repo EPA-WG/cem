@@ -66,7 +66,7 @@ use crate::transform_template::{
     TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE, TRANSFORM_TEMPLATE_PARAM_TYPE_CODE,
     TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE,
 };
-use crate::validation::{RuleContext, RuleRegistry};
+use crate::validation::{RuleContext, RuleRegistry, RuleResourceRead, RuleResourceReader};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -922,11 +922,49 @@ where
     let content_type = root_scope
         .and_then(|scope| scope.default_content_type.as_deref())
         .or_else(|| context.and_then(|context| context.content_type.as_deref()));
+    let rule_resource_reader = |uri: &str,
+                                base_uri: Option<&str>,
+                                content_type_hint: Option<&str>|
+     -> Result<RuleResourceRead, String> {
+        let context = context
+            .ok_or_else(|| format!("no engine context is available to resolve resource `{uri}`"))?;
+        let read = if let Some(base_uri) = base_uri {
+            let template = TemplateInput {
+                uri: base_uri.to_owned(),
+                bytes: Vec::new(),
+                identity: None,
+                root_scope: ScopeConfig::default(),
+            };
+            read_template_import_source(context, &template, uri, content_type_hint)
+                .map_err(|error| error.to_string())
+        } else if has_uri_scheme(uri) && !is_windows_drive_path(uri) {
+            read_registered_template_import(context, uri, None, content_type_hint)
+                .map_err(|error| error.to_string())?
+                .ok_or_else(|| {
+                    ResolverDiagnostic::UnsupportedResolver {
+                        uri: uri.to_owned(),
+                        purpose: ResolvePurpose::Template,
+                        direction: ResolveDirection::Read,
+                    }
+                    .to_string()
+                })
+        } else {
+            read_local_template_import(uri, PathBuf::from(uri), content_type_hint)
+                .map_err(|error| error.to_string())
+        }?;
+        Ok(RuleResourceRead {
+            uri: read.uri,
+            bytes: read.bytes,
+            content_type: read.content_type,
+        })
+    };
+    let resource_reader = context.map(|_| &rule_resource_reader as &RuleResourceReader<'_>);
     let rule_diags = registry.run(&RuleContext {
         document: &document,
         schema_uri,
         content_type,
         source_uri,
+        resource_reader,
         upstream_diagnostics: &document.diagnostics,
     });
 
@@ -9326,6 +9364,88 @@ mod tests {
             .diagnostics
             .iter()
             .all(|diag| diag.uri.as_deref() == Some("file:///workspace/src/in.cem")));
+    }
+
+    #[test]
+    fn validate_schema_package_artifact_contract_reads_cemt_through_template_resolver() {
+        let mut resolver_registry = ResolverRegistry::new();
+        resolver_registry.register(
+            "cem+vfs",
+            ResolvePurpose::Template,
+            ResolveDirection::Read,
+            MapReadResolver {
+                entries: vec![(
+                    "cem+vfs://packages/demo/v1/formatters/demo.cemt",
+                    br#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {format-function
+        @name="demo.format"
+        @category="cem-tree"
+        @subject="cem-ast-node"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @canonical=true
+        @deterministic=true
+        @streamable=true
+    }
+}
+"#,
+                    Some(CEM_TRANSFORM_CONTENT_TYPE),
+                )],
+            },
+        );
+        let req = ValidateRequest {
+            inputs: vec![input(
+                br#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="demo" @version="1.0.0" |
+    {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+    {content-type @value="application/vnd.example.demo+cem" @primary=true}
+    {artifact
+        @kind="formatter"
+        @path="formatters/demo.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="wrong-tree"
+        @function-name="demo.format"
+        @formatter-profile="cem.format-tree"
+    }
+}
+"#,
+                "cem+vfs://packages/demo/v1/package.cem",
+            )],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: EngineContext {
+                schema: Some(CEM_SCHEMA_PACKAGE_URI.to_owned()),
+                content_type: Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE.to_owned()),
+                resolver_registry,
+                ..ctx()
+            },
+        };
+
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+
+        assert!(resp.report.diagnostics.iter().any(|diag| {
+            diag.code == "cem.schema_package.artifact_function_contract_mismatch"
+                && diag
+                    .message
+                    .contains("target category metadata expected `wrong-tree`")
+                && diag.message.contains("CEMT declares `cem-tree`")
+        }));
+        assert!(!resp
+            .report
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "cem.schema_package.artifact_source_unreadable"));
     }
 
     #[test]

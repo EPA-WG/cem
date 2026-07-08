@@ -38,7 +38,7 @@ use crate::transform_template::{
     TransformTemplateModuleParseRequest,
 };
 use crate::validation::{
-    RuleContext, RuleDescriptor, RuleId, RuleInput, SemanticRule, TriggerLayer,
+    RuleContext, RuleDescriptor, RuleId, RuleInput, RuleResourceRead, SemanticRule, TriggerLayer,
 };
 use std::path::{Path, PathBuf};
 
@@ -1401,29 +1401,16 @@ fn validate_schema_package_artifact(
     else {
         return;
     };
-    let Some(source_path) = resolve_schema_package_artifact_path(ctx.source_uri, path) else {
+    let Some(source) = read_schema_package_artifact_source(ctx, node, path, function_name, out)
+    else {
         return;
-    };
-    let source = match std::fs::read_to_string(&source_path) {
-        Ok(source) => source,
-        Err(error) => {
-            out.push(diag_at(
-                "cem.schema_package.artifact_source_unreadable",
-                Severity::Error,
-                format!(
-                    "artifact `{path}` referenced by CEMT function `{function_name}` could not be read: {error}"
-                ),
-                node,
-            ));
-            return;
-        }
     };
 
     let parse_response =
         parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
             template: TemplateInput {
-                uri: source_path.display().to_string(),
-                bytes: source.into_bytes(),
+                uri: source.uri,
+                bytes: source.bytes,
                 identity: Some(FormatIdentity {
                     content_type: attr_value(ctx.document, node, "content-type")
                         .map(content_type_essence),
@@ -1482,6 +1469,70 @@ fn validate_schema_package_artifact(
         .into_iter()
         .map(|mismatch| schema_package_artifact_contract_mismatch_diag(node, path, mismatch)),
     );
+}
+
+fn read_schema_package_artifact_source(
+    ctx: &RuleContext<'_>,
+    node: &CemAstNode,
+    path: &str,
+    function_name: &str,
+    out: &mut Vec<Diagnostic>,
+) -> Option<RuleResourceRead> {
+    if let Some(source_path) = resolve_schema_package_artifact_path(ctx.source_uri, path) {
+        return match std::fs::read(&source_path) {
+            Ok(bytes) => Some(RuleResourceRead {
+                uri: source_path.display().to_string(),
+                bytes,
+                content_type: attr_value(ctx.document, node, "content-type").map(str::to_owned),
+            }),
+            Err(error) => {
+                out.push(schema_package_artifact_source_unreadable_diag(
+                    node,
+                    path,
+                    function_name,
+                    error.to_string(),
+                ));
+                None
+            }
+        };
+    }
+
+    let Some(resource_reader) = ctx.resource_reader else {
+        return None;
+    };
+    match resource_reader(
+        path,
+        ctx.source_uri,
+        attr_value(ctx.document, node, "content-type"),
+    ) {
+        Ok(source) => Some(source),
+        Err(error) => {
+            out.push(schema_package_artifact_source_unreadable_diag(
+                node,
+                path,
+                function_name,
+                error,
+            ));
+            None
+        }
+    }
+}
+
+fn schema_package_artifact_source_unreadable_diag(
+    node: &CemAstNode,
+    path: &str,
+    function_name: &str,
+    error: impl AsRef<str>,
+) -> Diagnostic {
+    diag_at(
+        "cem.schema_package.artifact_source_unreadable",
+        Severity::Error,
+        format!(
+            "artifact `{path}` referenced by CEMT function `{function_name}` could not be read: {}",
+            error.as_ref()
+        ),
+        node,
+    )
 }
 
 fn resolve_schema_package_artifact_path(
@@ -2080,6 +2131,7 @@ mod tests {
             schema_uri,
             content_type,
             source_uri,
+            resource_reader: None,
             upstream_diagnostics: &upstream,
         })
     }

@@ -97,11 +97,22 @@ pub struct RuleDescriptor {
 }
 
 /// Inputs the registry hands to a rule during a single Document-layer run.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuleResourceRead {
+    pub uri: String,
+    pub bytes: Vec<u8>,
+    pub content_type: Option<String>,
+}
+
+pub type RuleResourceReader<'a> =
+    dyn Fn(&str, Option<&str>, Option<&str>) -> Result<RuleResourceRead, String> + 'a;
+
 pub struct RuleContext<'a> {
     pub document: &'a CemDocument,
     pub schema_uri: Option<&'a str>,
     pub content_type: Option<&'a str>,
     pub source_uri: Option<&'a str>,
+    pub resource_reader: Option<&'a RuleResourceReader<'a>>,
     /// Diagnostics emitted by upstream layers (decoder, tokenizer, schema
     /// machine, AST builder). Rules may consult this list to skip
     /// downstream work when an upstream layer already failed.
@@ -222,6 +233,7 @@ pub fn run(input: &str) -> ValidationReport {
         schema_uri: None,
         content_type: None,
         source_uri: None,
+        resource_reader: None,
         upstream_diagnostics: &document.diagnostics,
     });
 
