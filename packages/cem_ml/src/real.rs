@@ -7,9 +7,12 @@
 
 use crate::conversion::{
     conversion_output_safety_contract, direct_cem_output_pipeline, direct_html_output_pipeline,
-    direct_xml_output_pipeline, execute_conversion_output_pipeline, ConversionExecution,
-    ConversionOutputPipeline, ConversionRustFallbackDescriptor, GenericDataTextConversionOutcome,
-    GenericDataTextDocument, CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE,
+    direct_xml_output_pipeline, execute_conversion_output_pipeline,
+    execute_conversion_output_pipeline_with_environment, ConversionExecution,
+    ConversionOutputPipeline, ConversionOutputPipelineEnvironment,
+    ConversionPackageArtifactDescriptor, ConversionPackageArtifactRead,
+    ConversionRustFallbackDescriptor, GenericDataTextConversionOutcome, GenericDataTextDocument,
+    CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE,
 };
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::*;
@@ -297,7 +300,8 @@ fn render_export_conversion_template(
 
     let output = if let Some(pipeline) = conversion.output_pipeline.as_ref() {
         let output_uri = output.uri.clone();
-        let pipeline_execution = execute_conversion_output_pipeline(
+        let pipeline_execution = execute_conversion_output_pipeline_with_context(
+            Some(context),
             pipeline,
             output.value,
             output.source_map,
@@ -485,6 +489,114 @@ fn read_converter_template(
     })
 }
 
+fn execute_conversion_output_pipeline_with_context(
+    context: Option<&EngineContext>,
+    pipeline: &ConversionOutputPipeline,
+    rendered_value: Value,
+    rendered_source_map: Option<SourceMapStack>,
+    rendered_output_spans: Vec<OutputSpan>,
+    converter_id: &str,
+    diagnostic_node: Option<&str>,
+    diagnostic_uri: Option<&str>,
+) -> crate::conversion::ConversionOutputPipelineExecution {
+    let Some(context) = context else {
+        return execute_conversion_output_pipeline(
+            pipeline,
+            rendered_value,
+            rendered_source_map,
+            rendered_output_spans,
+            converter_id,
+            diagnostic_node,
+            diagnostic_uri,
+        );
+    };
+
+    let package_artifact_reader =
+        |artifact: &ConversionPackageArtifactDescriptor| -> Result<ConversionPackageArtifactRead, String> {
+            read_conversion_package_artifact(context, artifact).map_err(|error| error.to_string())
+        };
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &context.schema_registry,
+        conversion_registry: &context.converter_registry,
+        package_artifact_reader: Some(&package_artifact_reader),
+    };
+    execute_conversion_output_pipeline_with_environment(
+        &environment,
+        pipeline,
+        rendered_value,
+        rendered_source_map,
+        rendered_output_spans,
+        converter_id,
+        diagnostic_node,
+        diagnostic_uri,
+    )
+}
+
+fn read_conversion_package_artifact(
+    context: &EngineContext,
+    artifact: &ConversionPackageArtifactDescriptor,
+) -> Result<ConversionPackageArtifactRead, ResolverDiagnostic> {
+    let content_type_hint = artifact.content_type.as_deref();
+    let uri = artifact.path.as_str();
+    if has_uri_scheme(uri) && !is_windows_drive_path(uri) {
+        if let Some(path) = parse_local_file_uri(uri).transpose().map_err(|error| {
+            ResolverDiagnostic::InvalidFileUri {
+                uri: uri.to_owned(),
+                message: error.to_string(),
+            }
+        })? {
+            return read_local_template_import(uri, path, content_type_hint)
+                .map(conversion_package_artifact_read_from_resolved);
+        }
+        if let Some(read) = read_registered_resource(
+            Some(context),
+            uri,
+            ResolvePurpose::Template,
+            content_type_hint,
+        )? {
+            return Ok(conversion_package_artifact_read_from_resolved(read));
+        }
+        return Err(ResolverDiagnostic::UnsupportedResolver {
+            uri: uri.to_owned(),
+            purpose: ResolvePurpose::Template,
+            direction: ResolveDirection::Read,
+        });
+    }
+
+    let mut last_error = None;
+    for path in converter_template_candidate_paths(uri) {
+        match std::fs::read(&path) {
+            Ok(bytes) => {
+                return Ok(ConversionPackageArtifactRead {
+                    uri: path.to_string_lossy().into_owned(),
+                    bytes,
+                    content_type: content_type_hint.map(str::to_owned),
+                });
+            }
+            Err(error) => {
+                last_error = Some((path, error));
+            }
+        }
+    }
+
+    let (path, error) =
+        last_error.unwrap_or_else(|| (PathBuf::from(uri), std::io::ErrorKind::NotFound.into()));
+    Err(ResolverDiagnostic::Io {
+        uri: path.to_string_lossy().into_owned(),
+        message: error.to_string(),
+    })
+}
+
+fn conversion_package_artifact_read_from_resolved(
+    read: ResolvedRead,
+) -> ConversionPackageArtifactRead {
+    ConversionPackageArtifactRead {
+        uri: read.uri,
+        bytes: read.bytes,
+        content_type: read.content_type,
+    }
+}
+
 fn converter_template_candidate_paths(uri: &str) -> Vec<PathBuf> {
     let direct = PathBuf::from(uri);
     let mut candidates = Vec::new();
@@ -554,12 +666,14 @@ fn convert_primary_from_template_output(
 }
 
 fn convert_primary_to_cem_with_cemt_pipeline(
+    context: Option<&EngineContext>,
     document: &CemDocument,
     from_format: InputFormat,
     diagnostic_uri: Option<&str>,
 ) -> Result<Value, Vec<Diagnostic>> {
     let pipeline = direct_cem_output_pipeline();
-    let pipeline_execution = execute_conversion_output_pipeline(
+    let pipeline_execution = execute_conversion_output_pipeline_with_context(
+        context,
         &pipeline,
         projection::cem_tree_nodes_json_with_source_content_type(
             document,
@@ -611,6 +725,7 @@ fn convert_primary_to_cem_with_cemt_pipeline(
 }
 
 fn convert_primary_to_markup_with_cemt_pipeline(
+    context: Option<&EngineContext>,
     document: &CemDocument,
     from_format: InputFormat,
     pipeline: ConversionOutputPipeline,
@@ -618,7 +733,8 @@ fn convert_primary_to_markup_with_cemt_pipeline(
     converter_id: &str,
     diagnostic_uri: Option<&str>,
 ) -> Result<Value, Vec<Diagnostic>> {
-    let pipeline_execution = execute_conversion_output_pipeline(
+    let pipeline_execution = execute_conversion_output_pipeline_with_context(
+        context,
         &pipeline,
         cem_tree_nodes_for_markup_output(document, from_format),
         None,
@@ -4602,6 +4718,7 @@ impl CemMlEngine for RealCemMlEngine {
             );
             primary = Some(match to_format {
                 LayerFormat::Cem => convert_primary_to_cem_with_cemt_pipeline(
+                    Some(&request.context),
                     &run.document,
                     from_format,
                     Some(&request.input.uri),
@@ -4646,6 +4763,7 @@ impl CemMlEngine for RealCemMlEngine {
                         }
                         Some(ExportConversionTemplateResult::UseDirectPipeline) | None => {
                             convert_primary_to_markup_with_cemt_pipeline(
+                                Some(&request.context),
                                 &run.document,
                                 from_format,
                                 direct_html_output_pipeline(),
@@ -4696,6 +4814,7 @@ impl CemMlEngine for RealCemMlEngine {
                         }
                         Some(ExportConversionTemplateResult::UseDirectPipeline) | None => {
                             convert_primary_to_markup_with_cemt_pipeline(
+                                Some(&request.context),
                                 &run.document,
                                 from_format,
                                 direct_xml_output_pipeline(),
@@ -5609,8 +5728,9 @@ impl CemMlEngine for RealCemMlEngine {
 mod tests {
     use super::*;
     use crate::conversion::{
-        ConversionDescriptor, ConversionEndpoint, ConversionImplementation, ConversionReadiness,
-        ConversionRegistry, ConversionRustFallbackDescriptor, ConversionTemplateDescriptor,
+        ConversionDescriptor, ConversionEndpoint, ConversionImplementation,
+        ConversionPackageArtifactDescriptor, ConversionReadiness, ConversionRegistry,
+        ConversionRustFallbackDescriptor, ConversionTemplateDescriptor,
     };
     use crate::resolver::{ResolverRegistry, ResourceResolver};
     use crate::schema::registry::{CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI};
@@ -9974,6 +10094,7 @@ mod tests {
         };
 
         let diagnostics = convert_primary_to_cem_with_cemt_pipeline(
+            None,
             &document,
             InputFormat::Cem,
             Some("invalid.cem"),
@@ -10223,6 +10344,103 @@ mod tests {
         assert_eq!(
             resp.primary["content"],
             "<p class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\">Hi</span></p>"
+        );
+        assert!(
+            resp.diagnostics.is_empty(),
+            "unexpected diagnostics: {:?}",
+            resp.diagnostics
+        );
+    }
+
+    #[test]
+    fn convert_html_direct_pipeline_reads_cemt_package_artifacts_through_template_resolver() {
+        let formatter_path = "cem+test://packages/cem-ml/v1/formatters/cem-format-tree.cemt";
+        let colorizer_path = "cem+test://packages/cem-ml/v1/colorizers/cem-color-tree.cemt";
+        let formatter_source =
+            crate::schema::package_sources::builtin_schema_package_artifact_source(
+                "cem-ml",
+                "schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt",
+            )
+            .expect("embedded formatter source");
+        let colorizer_source =
+            crate::schema::package_sources::builtin_schema_package_artifact_source(
+                "cem-ml",
+                "schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt",
+            )
+            .expect("embedded colorizer source");
+
+        let mut converter_registry = ConversionRegistry::new();
+        converter_registry.register_package_artifact(ConversionPackageArtifactDescriptor {
+            package_id: "cem-ml".to_owned(),
+            kind: "formatter".to_owned(),
+            path: formatter_path.to_owned(),
+            content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+            schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+            target_content_type: Some(crate::schema::registry::CEM_ML_CONTENT_TYPE.to_owned()),
+            target_schema: Some(crate::schema::registry::CEM_ML_SCHEMA_URI.to_owned()),
+            target_category: Some("cem-tree".to_owned()),
+            function_name: Some("cem.format-tree".to_owned()),
+            function_profile: None,
+            formatter_profile: Some("cem.format-tree".to_owned()),
+            color_profile: None,
+            generated: false,
+        });
+        converter_registry.register_package_artifact(ConversionPackageArtifactDescriptor {
+            package_id: "cem-ml".to_owned(),
+            kind: "colorizer".to_owned(),
+            path: colorizer_path.to_owned(),
+            content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+            schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+            target_content_type: Some(crate::schema::registry::CEM_ML_CONTENT_TYPE.to_owned()),
+            target_schema: Some(crate::schema::registry::CEM_ML_SCHEMA_URI.to_owned()),
+            target_category: Some("cem-tree".to_owned()),
+            function_name: Some("cem.color-tree".to_owned()),
+            function_profile: Some("css-custom-properties".to_owned()),
+            formatter_profile: None,
+            color_profile: Some("classes".to_owned()),
+            generated: false,
+        });
+        let mut resolver_registry = ResolverRegistry::new();
+        resolver_registry.register(
+            "cem+test",
+            ResolvePurpose::Template,
+            ResolveDirection::Read,
+            MapReadResolver {
+                entries: vec![
+                    (
+                        formatter_path,
+                        formatter_source.source.as_bytes(),
+                        Some(CEM_TRANSFORM_CONTENT_TYPE),
+                    ),
+                    (
+                        colorizer_path,
+                        colorizer_source.source.as_bytes(),
+                        Some(CEM_TRANSFORM_CONTENT_TYPE),
+                    ),
+                ],
+            },
+        );
+
+        let req = ConvertRequest {
+            input: input(b"@doc cem-ml 1\n{main | Ready}", "in.cem"),
+            to_format: LayerFormat::Html,
+            preserve_source_offsets: false,
+            context: EngineContext {
+                converter_registry,
+                resolver_registry,
+                ..ctx()
+            },
+            target: None,
+            target_scope: Default::default(),
+            scheduler_scope_id: 0,
+        };
+
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+
+        assert_eq!(resp.primary["kind"], "html");
+        assert_eq!(
+            resp.primary["content"],
+            "<main class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\">Ready</span></main>"
         );
         assert!(
             resp.diagnostics.is_empty(),
