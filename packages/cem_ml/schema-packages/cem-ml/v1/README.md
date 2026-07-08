@@ -41,7 +41,10 @@ Schema-local output transformations live beside the schema package:
 
 The package manifest declares these files as `formatter` and `colorizer`
 artifacts so runtime CEMT stages are tied to schema-owned assets instead of
-inline Rust template strings.
+inline Rust template strings. The artifact entries also declare the target CEM
+tree identity (`application/cem`, `https://cem.dev/ns/cem-ml/1`, `cem-tree`),
+the supplied CEMT function name, and the formatter/color profiles that select
+the asset during output pipeline execution.
 
 ## Validation Examples
 

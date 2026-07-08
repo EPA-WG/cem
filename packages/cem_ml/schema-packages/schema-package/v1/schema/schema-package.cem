@@ -24,7 +24,7 @@
         {element @name="from" @required-attributes="content-type" @optional-attributes="schema"}
         {element @name="to" @required-attributes="content-type" @optional-attributes="schema"}
         {element @name="parity-fixture" @required-attributes="id path" @optional-attributes="content-type schema expected-diagnostics"}
-        {element @name="artifact" @required-attributes="kind path" @optional-attributes="content-type schema generated"}
+        {element @name="artifact" @required-attributes="kind path" @optional-attributes="content-type schema target-content-type target-schema target-category function-name function-profile formatter-profile color-profile generated"}
     }
 
     {attributes |
@@ -59,6 +59,11 @@
         {attribute @name="expected-diagnostics" @type="schema:string"}
         {attribute @name="kind" @type="schema:identifier"}
         {attribute @name="path" @type="schema:path"}
+        {attribute @name="target-content-type" @type="schema:media-type"}
+        {attribute @name="target-schema" @type="schema:uri"}
+        {attribute @name="target-category" @type="schema:identifier"}
+        {attribute @name="function-name" @type="schema:identifier"}
+        {attribute @name="function-profile" @type="schema:identifier"}
         {attribute @name="generated" @type="schema:boolean"}
     }
 
@@ -74,6 +79,7 @@
         {constraint @kind="planned-cemt-rust-fallback" @target="converter" @policy="planned CEMT converters may declare rust-symbol as fallback hook"}
         {constraint @kind="cemt-native-fallback-reason" @target="converter" @policy="CEMT converters that declare rust-symbol fallback hooks must also declare fallback-reason"}
         {constraint @kind="schema-source-metadata-consistency" @target="package schema content-type namespace" @policy="when package source is local, package schema URI, content type claims, and namespace URI claims must match the referenced schema source"}
+        {constraint @kind="artifact-output-stage-contract" @target="artifact" @policy="formatter and colorizer artifacts that provide runtime CEMT output stages should declare target-content-type, target-schema, target-category, function-name, and the applicable formatter-profile or color-profile"}
     }
 
     {diagnostics |

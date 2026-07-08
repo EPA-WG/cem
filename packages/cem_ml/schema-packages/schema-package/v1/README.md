@@ -39,6 +39,13 @@ writer. A missing visual `color-profile` still means a semantic no-color CEM
 tree color stage before the writer. Converter-local `parity-fixture` children
 name package-relative inputs that paired CEMT/native producers must share, plus
 optional input identity and expected diagnostic codes.
+Artifact declarations can also describe runtime output-stage assets. For
+formatter and colorizer CEMT artifacts, `content-type` and `schema` identify the
+artifact source itself, while `target-content-type`, `target-schema`, and
+`target-category` identify the CEM tree the artifact formats or colors.
+`function-name` identifies the CEMT output function supplied by the asset, and
+`formatter-profile` or `color-profile` selects the stage profile when multiple
+assets can serve the same target.
 For local `package.cem` inputs, validation also reads the declared schema
 source and checks that the manifest schema URI, content type claims, and
 namespace URI claims match the referenced `schema/*.cem` file.

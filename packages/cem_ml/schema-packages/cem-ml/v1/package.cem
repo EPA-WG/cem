@@ -60,6 +60,11 @@
         @path="formatters/cem-format-tree.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="cem.format-tree"
+        @formatter-profile="cem.format-tree"
     }
 
     {artifact
@@ -67,5 +72,46 @@
         @path="colorizers/cem-color-tree.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="cem.color-tree"
+        @color-profile="none"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/cem-color-tree.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="cem.color-tree"
+        @color-profile="classes"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/cem-color-tree.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="cem.color-tree"
+        @color-profile="inline-style"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/cem-color-tree.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="cem.color-tree"
+        @color-profile="css-custom-properties"
     }
 }
