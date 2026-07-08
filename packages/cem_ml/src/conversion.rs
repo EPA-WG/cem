@@ -5226,9 +5226,9 @@ fn conversion_cem_tree_pipeline_options(
     color_profile: &str,
 ) -> TransformTemplateEncodeOptions {
     TransformTemplateEncodeOptions {
-        formatter: Some("cem.format-tree".to_owned()),
+        formatter: None,
         formatter_profile: Some(formatter_profile.to_owned()),
-        colorizer: Some("cem.color-tree".to_owned()),
+        colorizer: None,
         color_profile: Some(color_profile.to_owned()),
         mode: writer_options.mode,
         canonical: writer_options.canonical,
@@ -7948,18 +7948,12 @@ mod tests {
             html.pipeline.cemt_produces,
             TransformTemplateOutputProducedKind::CemTree
         );
-        assert_eq!(
-            html.pipeline.cemt_options.formatter.as_deref(),
-            Some("cem.format-tree")
-        );
+        assert_eq!(html.pipeline.cemt_options.formatter.as_deref(), None);
         assert_eq!(
             html.pipeline.cemt_options.formatter_profile.as_deref(),
             Some("cem.format-tree")
         );
-        assert_eq!(
-            html.pipeline.cemt_options.colorizer.as_deref(),
-            Some("cem.color-tree")
-        );
+        assert_eq!(html.pipeline.cemt_options.colorizer.as_deref(), None);
         assert_eq!(
             html.pipeline.cemt_options.color_profile.as_deref(),
             Some("classes")
@@ -8016,10 +8010,7 @@ mod tests {
             TransformTemplateTargetSyntaxKind::Xml
         );
         assert_eq!(xml.insertion_context.color_profile, None);
-        assert_eq!(
-            xml.pipeline.cemt_options.colorizer.as_deref(),
-            Some("cem.color-tree")
-        );
+        assert_eq!(xml.pipeline.cemt_options.colorizer.as_deref(), None);
         assert_eq!(
             xml.pipeline.cemt_options.color_profile.as_deref(),
             Some("none")
