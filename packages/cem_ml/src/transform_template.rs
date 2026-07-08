@@ -9321,6 +9321,14 @@ fn transform_template_render_cem_tree_object_node(
     if syntax != TransformTemplateCemTreeWriterSyntax::Cem {
         return transform_template_render_cem_tree_markup_node(fields, syntax, rendered);
     }
+    if kind == "directive"
+        || transform_template_cem_tree_name(fields).is_some_and(|name| {
+            name.strip_prefix('@')
+                .is_some_and(|stripped| !stripped.trim().is_empty())
+        })
+    {
+        return transform_template_render_cem_tree_directive(fields, rendered);
+    }
     let source_map = transform_template_cem_tree_node_source_map(fields);
     match kind {
         "text" | "content" | "string" => {
@@ -9475,16 +9483,12 @@ fn transform_template_render_cem_tree_element(
     fields: &serde_json::Map<String, Value>,
     rendered: &mut TransformTemplateCemTreeRenderedText,
 ) -> Result<(), String> {
-    let raw_name = fields
-        .get("name")
-        .or_else(|| fields.get("localName"))
-        .or_else(|| fields.get("tag"))
-        .or_else(|| fields.get("tagName"))
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or("node");
-    let name = transform_template_encode_cem_name(raw_name)?;
+    let name = match transform_template_cem_tree_name(fields) {
+        Some("") => String::new(),
+        Some("$") => "$".to_owned(),
+        Some(raw_name) => transform_template_encode_cem_name(raw_name)?,
+        None => "node".to_owned(),
+    };
     let node_source_map = transform_template_cem_tree_node_source_map(fields);
     let writer_source_map = transform_template_cem_tree_color_wrapper_source_map(fields)
         .or_else(|| transform_template_cem_tree_writer_attribute_nodes_source_map(fields));
@@ -9495,13 +9499,19 @@ fn transform_template_render_cem_tree_element(
     rendered.push_mapped("{", tag_source_map);
     rendered.push_mapped(&name, tag_source_map);
     if !attributes.is_empty() {
-        if let Some(format_before_attributes) = fields.get("formatBeforeAttributes") {
-            transform_template_render_cem_tree_format_value(format_before_attributes, rendered)?;
-        } else {
-            rendered.push_mapped(" ", tag_source_map);
-        }
         for (index, attribute) in attributes.iter().enumerate() {
-            if index > 0 {
+            if index == 0 {
+                if !name.is_empty() {
+                    if let Some(format_before_attributes) = fields.get("formatBeforeAttributes") {
+                        transform_template_render_cem_tree_format_value(
+                            format_before_attributes,
+                            rendered,
+                        )?;
+                    } else {
+                        rendered.push_mapped(" ", tag_source_map);
+                    }
+                }
+            } else {
                 if let Some(format_between_attributes) = fields.get("formatBetweenAttributes") {
                     transform_template_render_cem_tree_format_value(
                         format_between_attributes,
@@ -9531,6 +9541,91 @@ fn transform_template_render_cem_tree_element(
     }
     rendered.push_mapped("}", tag_source_map);
     Ok(())
+}
+
+fn transform_template_render_cem_tree_directive(
+    fields: &serde_json::Map<String, Value>,
+    rendered: &mut TransformTemplateCemTreeRenderedText,
+) -> Result<(), String> {
+    let raw_name = transform_template_cem_tree_name(fields)
+        .ok_or_else(|| "CEM directive node missing name".to_owned())?;
+    let name = raw_name.strip_prefix('@').unwrap_or(raw_name).trim();
+    let name = transform_template_encode_cem_name(name)?;
+    let source_map = transform_template_cem_tree_node_source_map(fields);
+    rendered.push_mapped("@", source_map.as_ref());
+    rendered.push_mapped(&name, source_map.as_ref());
+    let body = transform_template_cem_tree_directive_body(fields);
+    if !body.is_empty() {
+        rendered.push_mapped(" ", source_map.as_ref());
+        rendered.push_mapped(&body, source_map.as_ref());
+    }
+    Ok(())
+}
+
+fn transform_template_cem_tree_name<'a>(
+    fields: &'a serde_json::Map<String, Value>,
+) -> Option<&'a str> {
+    fields
+        .get("name")
+        .or_else(|| fields.get("localName"))
+        .or_else(|| fields.get("tag"))
+        .or_else(|| fields.get("tagName"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+}
+
+fn transform_template_cem_tree_directive_body(fields: &serde_json::Map<String, Value>) -> String {
+    let mut parts = Vec::new();
+    if let Some(children) = fields
+        .get("children")
+        .or_else(|| fields.get("nodes"))
+        .or_else(|| fields.get("slots"))
+    {
+        transform_template_collect_cem_tree_directive_text(children, &mut parts);
+    }
+    parts.join(" ")
+}
+
+fn transform_template_collect_cem_tree_directive_text(value: &Value, parts: &mut Vec<String>) {
+    match value {
+        Value::Array(items) => {
+            for item in items {
+                transform_template_collect_cem_tree_directive_text(item, parts);
+            }
+        }
+        Value::Object(fields) => {
+            let kind = fields
+                .get("kind")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .unwrap_or("element");
+            match kind {
+                "text" | "content" | "string" | "raw" | "raw-text" => {
+                    let text = transform_template_cem_tree_node_data(fields).trim();
+                    if !text.is_empty() {
+                        parts.push(text.to_owned());
+                    }
+                }
+                "whitespace" => {}
+                _ => {
+                    if let Some(children) = fields
+                        .get("children")
+                        .or_else(|| fields.get("nodes"))
+                        .or_else(|| fields.get("slots"))
+                    {
+                        transform_template_collect_cem_tree_directive_text(children, parts);
+                    }
+                }
+            }
+        }
+        Value::String(text) => {
+            let text = text.trim();
+            if !text.is_empty() {
+                parts.push(text.to_owned());
+            }
+        }
+        _ => {}
+    }
 }
 
 fn transform_template_render_cem_tree_children(
@@ -27528,6 +27623,43 @@ mod tests {
             .expect("CEM tree renders");
 
         assert_eq!(rendered.text, "{card\t@tone=info\t@size=lg |\tReady}");
+    }
+
+    #[test]
+    fn cem_tree_writer_renders_cem_native_directives_and_special_names() {
+        let tree = json!({
+            "kind": "cem-tree",
+            "nodes": [{
+                "kind": "element",
+                "name": "@doc",
+                "children": [{"kind": "text", "value": "cem-ml 1"}]
+            }, {
+                "kind": "element",
+                "name": "",
+                "attributes": [
+                    {"kind": "attribute", "name": "type", "value": "application/json"}
+                ],
+                "children": [{"kind": "text", "value": "{\"ok\":true}"}]
+            }, {
+                "kind": "element",
+                "name": "$",
+                "children": [{"kind": "text", "value": ".items[0].name"}]
+            }]
+        });
+        let context = TransformTemplateEncodedArtifactInsertionContext::new(
+            CEM_ML_CONTENT_TYPE,
+            CEM_ML_SCHEMA_URI,
+        )
+        .with_category("cem-tree")
+        .with_produces(TransformTemplateOutputProducedKind::Text);
+
+        let rendered = transform_template_cem_tree_value_to_rendered_text(&tree, &context)
+            .expect("CEM tree renders CEM-native special constructs");
+
+        assert_eq!(
+            rendered.text,
+            "@doc cem-ml 1\n{@type=application/json | ```{\"ok\":true}```}\n{$ | .items[0].name}"
+        );
     }
 
     #[test]

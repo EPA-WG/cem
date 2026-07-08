@@ -9,11 +9,11 @@ use crate::conversion::{
     conversion_output_safety_contract, direct_cem_output_pipeline,
     execute_conversion_output_pipeline, ConversionExecution, ConversionOutputPipeline,
     ConversionRustFallbackDescriptor, GenericDataTextConversionOutcome, GenericDataTextDocument,
+    CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE,
 };
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::*;
 use crate::events::cem::CemEventNormalizer;
-use crate::formatter;
 use crate::interpreter::light_dom::LightDomInterpreter;
 use crate::interpreter::xml::XmlInterpreter;
 use crate::interpreter::OutputSpan;
@@ -548,9 +548,8 @@ fn convert_primary_from_template_output(
 fn convert_primary_to_cem_with_cemt_pipeline(
     document: &CemDocument,
     from_format: InputFormat,
-    diagnostics: &mut Vec<Diagnostic>,
     diagnostic_uri: Option<&str>,
-) -> Option<Value> {
+) -> Result<Value, Vec<Diagnostic>> {
     let pipeline = direct_cem_output_pipeline();
     let pipeline_execution = execute_conversion_output_pipeline(
         &pipeline,
@@ -564,15 +563,28 @@ fn convert_primary_to_cem_with_cemt_pipeline(
         Some("output"),
         diagnostic_uri,
     );
-    if pipeline_execution
-        .diagnostics
+    let mut diagnostics = pipeline_execution.diagnostics;
+    if diagnostics
         .iter()
         .any(|diagnostic| diagnostic.severity.is_hard_violation())
     {
-        return None;
+        return Err(diagnostics);
     }
-    diagnostics.extend(pipeline_execution.diagnostics);
-    let mut content = pipeline_execution.output?.as_str()?.to_owned();
+    let Some(output) = pipeline_execution.output else {
+        diagnostics.push(direct_cem_output_pipeline_diagnostic(
+            diagnostic_uri,
+            "CEMT output pipeline produced no writer artifact",
+        ));
+        return Err(diagnostics);
+    };
+    let Some(output) = output.as_str() else {
+        diagnostics.push(direct_cem_output_pipeline_diagnostic(
+            diagnostic_uri,
+            "CEMT output pipeline writer artifact was not text",
+        ));
+        return Err(diagnostics);
+    };
+    let mut content = output.to_owned();
     if !content.is_empty() && !content.ends_with('\n') {
         content.push('\n');
     }
@@ -582,7 +594,7 @@ fn convert_primary_to_cem_with_cemt_pipeline(
         .unwrap_or(Value::Null);
     let output_spans =
         serde_json::to_value(pipeline_execution.output_spans).unwrap_or_else(|_| json!([]));
-    Some(json!({
+    Ok(json!({
         "kind": "cem",
         "content": content,
         "sourceMap": source_map,
@@ -590,20 +602,15 @@ fn convert_primary_to_cem_with_cemt_pipeline(
     }))
 }
 
-fn convert_primary_to_cem_with_legacy_formatter(
-    document: &CemDocument,
-    from_format: InputFormat,
-) -> Value {
-    let formatted = formatter::format_transform(document, input_format_content_type(from_format));
-    json!({
-        "kind": "cem",
-        "content": formatted.rendered,
-        "sourceMap": formatted.source_map,
-        "outputSpans": formatted.output_spans.iter().map(|span| json!({
-            "outputRange": span.output_range,
-            "origin": span.origin,
-        })).collect::<Vec<_>>(),
-    })
+fn direct_cem_output_pipeline_diagnostic(uri: Option<&str>, message: &str) -> Diagnostic {
+    Diagnostic {
+        uri: uri.map(str::to_owned),
+        code: CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE.to_owned(),
+        severity: Severity::Error,
+        message: format!("direct CEM output could not execute CEMT output pipeline: {message}"),
+        node: Some("output".to_owned()),
+        ..Diagnostic::default()
+    }
 }
 
 fn input_format_content_type(from_format: InputFormat) -> &'static str {
@@ -4391,11 +4398,11 @@ impl CemMlEngine for RealCemMlEngine {
                 LayerFormat::Cem => convert_primary_to_cem_with_cemt_pipeline(
                     &run.document,
                     from_format,
-                    &mut diagnostics,
                     Some(&request.input.uri),
                 )
-                .unwrap_or_else(|| {
-                    convert_primary_to_cem_with_legacy_formatter(&run.document, from_format)
+                .unwrap_or_else(|mut cemt_diagnostics| {
+                    diagnostics.append(&mut cemt_diagnostics);
+                    Value::Null
                 }),
                 LayerFormat::Html => {
                     if let Some(primary) = export_conversion.as_ref().and_then(|conversion| {
