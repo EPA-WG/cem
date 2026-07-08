@@ -114,9 +114,33 @@
                 "{projectRoot}/dist/cem-ml.parity.report.md"
             ]
         },
-        "e2e": {
+        "validate-cemt-pipeline-fixture": {
             "executor": "nx:run-commands",
             "dependsOn": ["build"],
+            "options": {
+                "commands": [
+                    "mkdir -p packages/cem_ml_cli/dist",
+                    "./dist/target/cem_ml_cli/debug/cem-ml fixture cemt-pipeline --out packages/cem_ml_cli/dist/formatter-coloring-pipeline.generated.fixture.cem",
+                    "diff -u packages/cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.fixture.cem packages/cem_ml_cli/dist/formatter-coloring-pipeline.generated.fixture.cem"
+                ],
+                "parallel": false,
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*.rs",
+                "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.cemt",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.fixture.cem"
+            ],
+            "outputs": [
+                "{projectRoot}/dist/formatter-coloring-pipeline.generated.fixture.cem"
+            ]
+        },
+        "e2e": {
+            "executor": "nx:run-commands",
+            "dependsOn": ["build", "validate-cemt-pipeline-fixture"],
             "options": {
                 "commands": [
                     "./dist/target/cem_ml_cli/debug/cem-ml fixture validate --zero-hard-violations --quiet --report-json packages/cem_ml_cli/dist --report-md packages/cem_ml_cli/dist",
@@ -150,6 +174,7 @@
                 "{projectRoot}/dist/cem-ml.parity.report.md",
                 "{projectRoot}/dist/cem-ml.roundtrip.report.json",
                 "{projectRoot}/dist/cem-ml.roundtrip.report.md",
+                "{projectRoot}/dist/formatter-coloring-pipeline.generated.fixture.cem",
                 "{projectRoot}/dist/cem-ml.cross-surface.cem.cem",
                 "{projectRoot}/dist/cem-ml.cross-surface.xml.cem",
                 "{projectRoot}/dist/cem-ml.cross-surface.html.cem"
