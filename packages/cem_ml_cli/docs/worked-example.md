@@ -106,6 +106,53 @@ bytes such as the inserted stylesheet link are intentionally unmapped.
 The CSS sidecar maps the extracted stylesheet content after rebasing it
 from the inline `<style>` block into the standalone CSS output.
 
+## CEMT Formatter And Colorizer Run Config
+
+The schema-package CEMT output example uses a checked run-config file plus the
+CEM-native stage fixture command. The stage fixture shows the formatter output
+as a formatted CEM tree and the colorizer output as a colored CEM tree. The
+run-config then selects the same schema-package formatter/colorizer functions
+and writes the final HTML writer output.
+
+```bash
+cem-ml fixture cemt-pipeline \
+  --package-artifacts \
+  --out packages/cem_ml_cli/dist/cemt-output-pipeline.package-artifacts.fixture.cem
+
+cem-ml convert \
+  --config packages/cem_ml_cli/docs/examples/cemt-output-pipeline.run.json
+```
+
+The config at
+[`docs/examples/cemt-output-pipeline.run.json`](examples/cemt-output-pipeline.run.json)
+maps `cem+repo://` to the repository root and selects the embedded
+`cem-ml/v1` schema-package CEMT assets:
+
+- `cemtFormatter`: `acme.showcase.format-tree`
+- `cemtFormatterProfile`: `acme.showcase.format-tree`
+- `cemtColorizer`: `acme.showcase.color-tree`
+- `cemtColorProfile`: `classes`
+
+The built-in CEM-ML package is already embedded in the CLI registry, so the
+example does not load it again through `schemaPackages`. A project-local
+schema package uses the same output `rootScope` selectors and adds its own
+`schemaPackages` entry for the package manifest URI.
+
+The generated fixture remains CEM-native:
+
+```cem
+{cem-tree @content-type="application/cem" @schema="https://cem.dev/ns/cem-ml/1" @category="cem-tree" @mode="fragment" @canonical=true @formatter-profile="acme.showcase.format-tree" |
+```
+
+The generated convert artifact at
+`packages/cem_ml_cli/dist/cemt-output-pipeline.html.json` is the current JSON
+convert envelope. Its `content` field is the final target-native HTML emitted
+by the writer:
+
+```html
+<article class="cem-color cem-color-syntax-name"><span class="cem-color cem-color-syntax-string">Ready </span><strong class="cem-color cem-color-syntax-keyword"><span class="cem-color cem-color-syntax-keyword">now</span></strong><span class="cem-color cem-color-syntax-string">.</span></article>
+```
+
 ## CLI Commands
 
 The CLI surface is wired to the parser-enabled Rust engine for the current

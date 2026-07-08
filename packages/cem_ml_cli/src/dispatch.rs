@@ -21792,6 +21792,82 @@ start =
     }
 
     #[test]
+    fn docs_cemt_output_pipeline_run_config_example_executes() {
+        let workspace = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .canonicalize()
+            .unwrap();
+        let example_config: serde_json::Value = serde_json::from_str(include_str!(
+            "../docs/examples/cemt-output-pipeline.run.json"
+        ))
+        .unwrap();
+        assert!(example_config.get("schemaPackages").is_none());
+        assert_eq!(
+            example_config["outputs"][0]["rootScope"]["cemtFormatter"],
+            "acme.showcase.format-tree"
+        );
+        assert_eq!(
+            example_config["outputs"][0]["rootScope"]["cemtColorizer"],
+            "acme.showcase.color-tree"
+        );
+        assert_eq!(
+            example_config["outputs"][0]["destination"],
+            "cem+repo://packages/cem_ml_cli/dist/cemt-output-pipeline.html.json"
+        );
+
+        let temp_dir = std::env::temp_dir().join("cem-ml-cli-tests/docs-cemt-output-pipeline");
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let html_out = temp_dir.join("cemt-output-pipeline.html.json");
+        let stage_out = temp_dir.join("cemt-output-pipeline.package-artifacts.fixture.cem");
+        let config_path = temp_dir.join("cemt-output-pipeline.run.json");
+        let mut runnable_config = example_config.clone();
+        runnable_config["resolvers"][0]["localRoot"] =
+            serde_json::Value::String(workspace.display().to_string());
+        runnable_config["outputs"][0]["destination"] =
+            serde_json::Value::String(html_out.display().to_string());
+        std::fs::write(
+            &config_path,
+            serde_json::to_string_pretty(&runnable_config).unwrap(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "fixture",
+                "cemt-pipeline",
+                "--package-artifacts",
+                "--out",
+                stage_out.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty(), "{stdout}");
+        let stage_fixture = std::fs::read_to_string(&stage_out).unwrap();
+        assert!(stage_fixture.contains(r#"@source="schema-packages/cem-ml/v1/package.cem""#));
+        assert!(stage_fixture.contains(r#"@formatter="acme.showcase.format-tree""#));
+        assert!(stage_fixture.contains(r#"@colorizer="acme.showcase.color-tree""#));
+        assert!(stage_fixture.contains(r#"@value="formatted tree before writer""#));
+        assert!(stage_fixture.contains(r#"@value="colored tree before writer""#));
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["convert", "--config", config_path.to_str().unwrap()],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty(), "{stdout}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        let html_artifact: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&html_out).unwrap()).unwrap();
+        assert_eq!(html_artifact["kind"], "html");
+        let html = html_artifact["content"].as_str().unwrap();
+        assert!(html.contains(r#"<article class="cem-color cem-color-syntax-name""#));
+        assert!(html.contains(r#"<strong class="cem-color cem-color-syntax-keyword""#));
+        assert!(html.contains(">now<"));
+    }
+
+    #[test]
     fn fixture_cemt_pipeline_writes_output_path() {
         let out = std::env::temp_dir()
             .join("cem-ml-cli-tests")

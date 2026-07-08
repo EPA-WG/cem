@@ -122,7 +122,9 @@
                     "cargo run --package cem-ml-cli --target-dir dist/target/cem_ml_cli -- fixture cemt-pipeline --out packages/cem_ml_cli/dist/formatter-coloring-pipeline.generated.fixture.cem",
                     "diff -u packages/cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.fixture.cem packages/cem_ml_cli/dist/formatter-coloring-pipeline.generated.fixture.cem",
                     "cargo run --package cem-ml-cli --target-dir dist/target/cem_ml_cli -- fixture cemt-pipeline --package-artifacts --out packages/cem_ml_cli/dist/formatter-coloring-pipeline.package-artifacts.generated.fixture.cem",
-                    "diff -u packages/cem_ml/schema-packages/cem-ml/v1/examples/formatter-coloring-pipeline.package-artifacts.fixture.cem packages/cem_ml_cli/dist/formatter-coloring-pipeline.package-artifacts.generated.fixture.cem"
+                    "diff -u packages/cem_ml/schema-packages/cem-ml/v1/examples/formatter-coloring-pipeline.package-artifacts.fixture.cem packages/cem_ml_cli/dist/formatter-coloring-pipeline.package-artifacts.generated.fixture.cem",
+                    "cargo run --package cem-ml-cli --target-dir dist/target/cem_ml_cli -- fixture cemt-pipeline --package-artifacts --out packages/cem_ml_cli/dist/cemt-output-pipeline.package-artifacts.fixture.cem",
+                    "cargo run --package cem-ml-cli --target-dir dist/target/cem_ml_cli -- convert --config packages/cem_ml_cli/docs/examples/cemt-output-pipeline.run.json"
                 ],
                 "parallel": false,
                 "cwd": "{workspaceRoot}"
@@ -137,11 +139,15 @@
                 "{workspaceRoot}/packages/cem_ml/schema-packages/cem-ml/v1/package.cem",
                 "{workspaceRoot}/packages/cem_ml/schema-packages/cem-ml/v1/formatters/formatter-coloring-pipeline.cemt",
                 "{workspaceRoot}/packages/cem_ml/schema-packages/cem-ml/v1/colorizers/formatter-coloring-pipeline.cemt",
-                "{workspaceRoot}/packages/cem_ml/schema-packages/cem-ml/v1/examples/formatter-coloring-pipeline.package-artifacts.fixture.cem"
+                "{workspaceRoot}/packages/cem_ml/schema-packages/cem-ml/v1/examples/formatter-coloring-pipeline.package-artifacts.fixture.cem",
+                "{workspaceRoot}/packages/cem_ml_cli/docs/examples/cemt-output-pipeline.input.cem",
+                "{workspaceRoot}/packages/cem_ml_cli/docs/examples/cemt-output-pipeline.run.json"
             ],
             "outputs": [
                 "{projectRoot}/dist/formatter-coloring-pipeline.generated.fixture.cem",
-                "{projectRoot}/dist/formatter-coloring-pipeline.package-artifacts.generated.fixture.cem"
+                "{projectRoot}/dist/formatter-coloring-pipeline.package-artifacts.generated.fixture.cem",
+                "{projectRoot}/dist/cemt-output-pipeline.package-artifacts.fixture.cem",
+                "{projectRoot}/dist/cemt-output-pipeline.html.json"
             ]
         },
         "e2e": {
@@ -181,6 +187,9 @@
                 "{projectRoot}/dist/cem-ml.roundtrip.report.json",
                 "{projectRoot}/dist/cem-ml.roundtrip.report.md",
                 "{projectRoot}/dist/formatter-coloring-pipeline.generated.fixture.cem",
+                "{projectRoot}/dist/formatter-coloring-pipeline.package-artifacts.generated.fixture.cem",
+                "{projectRoot}/dist/cemt-output-pipeline.package-artifacts.fixture.cem",
+                "{projectRoot}/dist/cemt-output-pipeline.html.json",
                 "{projectRoot}/dist/cem-ml.cross-surface.cem.cem",
                 "{projectRoot}/dist/cem-ml.cross-surface.xml.cem",
                 "{projectRoot}/dist/cem-ml.cross-surface.html.cem"
