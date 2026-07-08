@@ -1740,9 +1740,14 @@ impl fmt::Display for ConversionPackageArtifactSelectionError {
         } else {
             "default profile".to_owned()
         };
+        let selector_hint = match self.kind.as_str() {
+            "formatter" => "set `cemtFormatter` or `--cemt-formatter`",
+            "colorizer" => "set `cemtColorizer` or `--cemt-colorizer`",
+            _ => "set an explicit CEMT output function selector",
+        };
         write!(
             f,
-            "schema package `{}` declares multiple `{}` CEMT artifacts for {}; select one explicitly: {}",
+            "schema package `{}` declares multiple `{}` CEMT artifacts for {}; {selector_hint} to select one explicitly: {}",
             self.package_id,
             self.kind,
             selector,

@@ -108,16 +108,20 @@
           "type": "string"
         },
         "cemtFormatter": {
-          "type": "string"
+          "type": "string",
+          "description": "Explicit CEMT formatter function for formatted CEM tree output. Use this to resolve schema-package ambiguity when more than one formatter artifact matches the selected formatter profile."
         },
         "cemtFormatterProfile": {
-          "type": "string"
+          "type": "string",
+          "description": "Formatter profile expected from the CEMT formatter. If multiple package artifacts provide this profile, set cemtFormatter to select the function explicitly."
         },
         "cemtColorizer": {
-          "type": "string"
+          "type": "string",
+          "description": "Explicit CEMT colorizer function for colored CEM tree output. Use this to resolve schema-package ambiguity when more than one colorizer artifact matches the selected color profile."
         },
         "cemtColorProfile": {
-          "type": "string"
+          "type": "string",
+          "description": "Color profile expected from the CEMT colorizer. If multiple package artifacts provide this profile, set cemtColorizer to select the function explicitly."
         },
         "versionPins": {
           "$ref": "#/$defs/stringMap",

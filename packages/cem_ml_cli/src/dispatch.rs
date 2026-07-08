@@ -22779,6 +22779,281 @@ start =
     }
 
     #[test]
+    fn convert_cemt_profile_ambiguity_reports_and_explicit_selectors_resolve() {
+        fn formatter_source(function_name: &str, element_name: &str) -> String {
+            r#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {format-function
+        @name="__FUNCTION__"
+        @visibility="public"
+        @category="cem-tree"
+        @subject="cem-ast-node"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @extends="cem.format-tree"
+        @profile="acme.ambiguous"
+        @canonical=true
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="json" @required=true}
+        {body |
+            {$ {
+                kind: "cem-tree",
+                contentType: "application/cem",
+                schema: "https://cem.dev/ns/cem-ml/1",
+                category: "cem-tree",
+                mode: "fragment",
+                canonical: true,
+                formatterProfile: "acme.ambiguous",
+                formatNodes: [{
+                    kind: "format-marker",
+                    name: "cem.format-tree",
+                    formatterRole: "formatter.boundary",
+                    formatterProfile: "acme.ambiguous"
+                }, {
+                    kind: "format-decision",
+                    name: "__FUNCTION__",
+                    formatterRole: "formatter.explicit-selector",
+                    formatterProfile: "acme.ambiguous"
+                }],
+                nodes: [{
+                    kind: "element",
+                    name: "__ELEMENT__",
+                    children: []
+                }]
+            } }
+        }
+    }
+}
+"#
+            .replace("__FUNCTION__", function_name)
+            .replace("__ELEMENT__", element_name)
+        }
+
+        fn colorizer_source(function_name: &str, class_name: &str) -> String {
+            r#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {color-function
+        @name="__FUNCTION__"
+        @visibility="public"
+        @category="cem-tree"
+        @subject="cem-tree"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @extends="cem.color-tree"
+        @profile="classes"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body |
+            {$ {
+                kind: $subject.kind,
+                contentType: $subject.contentType,
+                schema: $subject.schema,
+                category: $subject.category,
+                mode: $subject.mode,
+                canonical: $subject.canonical,
+                formatterProfile: $subject.formatterProfile,
+                formatNodes: $subject.formatNodes,
+                colored: true,
+                colorProfile: "classes",
+                colorNodes: [{
+                    kind: "color-marker",
+                    name: "cem.color-tree",
+                    colorizerRole: "colorizer.boundary",
+                    colorProfile: "classes"
+                }, {
+                    kind: "color-decision",
+                    name: "__FUNCTION__",
+                    colorizerRole: "colorizer.explicit-selector",
+                    colorProfile: "classes"
+                }],
+                nodes: map($subject.nodes, {
+                    kind: $item.kind,
+                    name: $item.name,
+                    writerAttributeNodes: [{
+                        kind: "writer-attribute",
+                        name: "class",
+                        value: "__CLASS__",
+                        colorProfile: "classes",
+                        colorizerOwned: true,
+                        colorizerRole: "colorizer.writer-attribute"
+                    }],
+                    children: $item.children
+                })
+            } }
+        }
+    }
+}
+"#
+            .replace("__FUNCTION__", function_name)
+            .replace("__CLASS__", class_name)
+        }
+
+        let root = std::env::temp_dir().join("cem-ml-cli-tests/schema-package-cemt-ambiguity");
+        let mirror = root.join("mirror");
+        let package_dir = mirror.join("packages/cem-ml/v1");
+        let formatter_dir = package_dir.join("formatters");
+        let colorizer_dir = package_dir.join("colorizers");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&formatter_dir).unwrap();
+        std::fs::create_dir_all(&colorizer_dir).unwrap();
+        std::fs::write(
+            package_dir.join("package.cem"),
+            r#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="cem-ml" @version="1.0.0" |
+    {schema @uri="https://cem.dev/ns/cem-ml/1" @source="schema/cem-ml.cem"}
+    {content-type @value="application/cem" @primary=true}
+    {artifact
+        @kind="formatter"
+        @path="formatters/acme-format-a.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="acme.format-a"
+        @function-profile="acme.ambiguous"
+        @formatter-profile="acme.ambiguous"
+    }
+    {artifact
+        @kind="formatter"
+        @path="formatters/acme-format-b.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="acme.format-b"
+        @function-profile="acme.ambiguous"
+        @formatter-profile="acme.ambiguous"
+    }
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/acme-color-a.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="acme.color-a"
+        @function-profile="classes"
+        @color-profile="classes"
+    }
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/acme-color-b.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="acme.color-b"
+        @function-profile="classes"
+        @color-profile="classes"
+    }
+}
+"#,
+        )
+        .unwrap();
+        std::fs::write(
+            formatter_dir.join("acme-format-a.cemt"),
+            formatter_source("acme.format-a", "explicit-a"),
+        )
+        .unwrap();
+        std::fs::write(
+            formatter_dir.join("acme-format-b.cemt"),
+            formatter_source("acme.format-b", "explicit-b"),
+        )
+        .unwrap();
+        std::fs::write(
+            colorizer_dir.join("acme-color-a.cemt"),
+            colorizer_source("acme.color-a", "selected-color-a"),
+        )
+        .unwrap();
+        std::fs::write(
+            colorizer_dir.join("acme-color-b.cemt"),
+            colorizer_source("acme.color-b", "selected-color-b"),
+        )
+        .unwrap();
+        let input = root.join("input.cem");
+        std::fs::write(&input, "@doc cem-ml 1\n{main}").unwrap();
+        let resolver_map = format!("cem+vfs://workspace={}", mirror.display());
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-format",
+                "html",
+                "--resolver-read-map",
+                &resolver_map,
+                "--schema-package",
+                "cem+vfs://workspace/packages/cem-ml/v1/package.cem",
+                "--cemt-formatter-profile",
+                "acme.ambiguous",
+                "--cemt-color-profile",
+                "classes",
+                input.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        assert!(stdout.trim().is_empty(), "{stdout}");
+        assert!(
+            stderr.contains("multiple `formatter` CEMT artifacts"),
+            "{stderr}"
+        );
+        assert!(stderr.contains("profile `acme.ambiguous`"), "{stderr}");
+        assert!(stderr.contains("acme.format-a"), "{stderr}");
+        assert!(stderr.contains("acme.format-b"), "{stderr}");
+        assert!(stderr.contains("--cemt-formatter"), "{stderr}");
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-format",
+                "html",
+                "--resolver-read-map",
+                &resolver_map,
+                "--schema-package",
+                "cem+vfs://workspace/packages/cem-ml/v1/package.cem",
+                "--cemt-formatter",
+                "acme.format-a",
+                "--cemt-formatter-profile",
+                "acme.ambiguous",
+                "--cemt-colorizer",
+                "acme.color-a",
+                "--cemt-color-profile",
+                "classes",
+                input.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["kind"], "html");
+        assert_eq!(
+            v["content"],
+            r#"<explicit-a class="selected-color-a"></explicit-a>"#
+        );
+    }
+
+    #[test]
     fn convert_to_content_type_html_selects_html_export_adapter() {
         let p = write_fixture("convert-target-html.cem", "@doc cem-ml 1\n{p | Hi}");
         let (outcome, stdout, stderr) = run(

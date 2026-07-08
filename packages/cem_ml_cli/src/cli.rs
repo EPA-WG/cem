@@ -550,28 +550,28 @@ pub struct ConvertArgs {
     #[arg(
         long = "cemt-formatter",
         value_name = "NAME",
-        help = "CEMT formatter function for formatted CEM tree output"
+        help = "Explicit CEMT formatter function for formatted CEM tree output; resolves package profile ambiguity"
     )]
     pub cemt_formatter: Option<String>,
 
     #[arg(
         long = "cemt-formatter-profile",
         value_name = "PROFILE",
-        help = "Formatter profile expected from the CEMT formatter"
+        help = "Formatter profile expected from the CEMT formatter; use --cemt-formatter if multiple package artifacts match"
     )]
     pub cemt_formatter_profile: Option<String>,
 
     #[arg(
         long = "cemt-colorizer",
         value_name = "NAME",
-        help = "CEMT colorizer function for colored CEM tree output"
+        help = "Explicit CEMT colorizer function for colored CEM tree output; resolves package profile ambiguity"
     )]
     pub cemt_colorizer: Option<String>,
 
     #[arg(
         long = "cemt-color-profile",
         value_name = "PROFILE",
-        help = "Color profile expected from the CEMT colorizer"
+        help = "Color profile expected from the CEMT colorizer; use --cemt-colorizer if multiple package artifacts match"
     )]
     pub cemt_color_profile: Option<String>,
 
