@@ -1,0 +1,34 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {format-function
+        @name="cem.format-tree"
+        @category="cem-tree"
+        @subject="cem-ast-node"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @canonical=true
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="json" @required=true}
+        {body |
+            {$ applyEdits(
+                appendFormatNode(
+                    call(cem.format-tree.envelope, {
+                        subject: call(cem.format-tree.nodes, { subject: $subject })
+                    }),
+                    {
+                        kind: "format-decision",
+                        name: "cemt-tree-patches",
+                        formatterRole: "formatter.cemt.patch",
+                        value: "applyEdits"
+                    }
+                ),
+                [{ kind: "set", path: "canonical", value: true }]
+            ) }
+        }
+    }
+}

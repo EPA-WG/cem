@@ -1,0 +1,33 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {color-function
+        @name="cem.color-tree"
+        @category="cem-tree"
+        @subject="cem-tree"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @profile="css-custom-properties"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body |
+            {$ applyEdits(
+                appendColorNode(
+                    call(cem.color-tree.apply, { subject: $subject }),
+                    {
+                        kind: "color-decision",
+                        name: "cemt-tree-patches",
+                        colorizerRole: "colorizer.cemt.patch",
+                        value: "applyEdits"
+                    }
+                ),
+                [{ kind: "set", path: "colored", value: true }]
+            ) }
+        }
+    }
+}

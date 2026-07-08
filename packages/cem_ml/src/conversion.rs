@@ -2377,77 +2377,14 @@ pub struct ConversionOutputPipelineExecution {
 
 const CEM_TREE_FORMAT_CEMT_ADAPTER_ID: &str = "cem-tree-format-cemt";
 const CEM_TREE_COLOR_CEMT_ADAPTER_ID: &str = "cem-tree-color-cemt";
-const CEM_TREE_FORMAT_CEMT_TEMPLATE_URI: &str = "builtin:cem.format-tree.cemt";
-const CEM_TREE_COLOR_CEMT_TEMPLATE_URI: &str = "builtin:cem.color-tree.cemt";
-const CEM_TREE_FORMAT_CEMT_TEMPLATE_SOURCE: &str = r#"@doc cem-ml 1
-@ns transform = "https://cem.dev/ns/transform/cem/1"
-@default transform
-
-{module @version="1.0.0" |
-    {format-function
-        @name="cem.format-tree"
-        @category="cem-tree"
-        @subject="cem-ast-node"
-        @produces="cem-tree"
-        @content-type="application/cem"
-        @schema="https://cem.dev/ns/cem-ml/1"
-        @canonical=true
-        @deterministic=true
-        @streamable=true |
-        {param @name="subject" @type="json" @required=true}
-        {body |
-            {$ applyEdits(
-                appendFormatNode(
-                    call(cem.format-tree.envelope, {
-                        subject: call(cem.format-tree.nodes, { subject: $subject })
-                    }),
-                    {
-                        kind: "format-decision",
-                        name: "cemt-tree-patches",
-                        formatterRole: "formatter.cemt.patch",
-                        value: "applyEdits"
-                    }
-                ),
-                [{ kind: "set", path: "canonical", value: true }]
-            ) }
-        }
-    }
-}
-"#;
-const CEM_TREE_COLOR_CEMT_TEMPLATE_SOURCE: &str = r#"@doc cem-ml 1
-@ns transform = "https://cem.dev/ns/transform/cem/1"
-@default transform
-
-{module @version="1.0.0" |
-    {color-function
-        @name="cem.color-tree"
-        @category="cem-tree"
-        @subject="cem-tree"
-        @produces="cem-tree"
-        @content-type="application/cem"
-        @schema="https://cem.dev/ns/cem-ml/1"
-        @profile="css-custom-properties"
-        @canonical=false
-        @deterministic=true
-        @streamable=true |
-        {param @name="subject" @type="object" @required=true}
-        {body |
-            {$ applyEdits(
-                appendColorNode(
-                    call(cem.color-tree.apply, { subject: $subject }),
-                    {
-                        kind: "color-decision",
-                        name: "cemt-tree-patches",
-                        colorizerRole: "colorizer.cemt.patch",
-                        value: "applyEdits"
-                    }
-                ),
-                [{ kind: "set", path: "colored", value: true }]
-            ) }
-        }
-    }
-}
-"#;
+const CEM_TREE_FORMAT_CEMT_TEMPLATE_URI: &str =
+    "schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt";
+const CEM_TREE_COLOR_CEMT_TEMPLATE_URI: &str =
+    "schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt";
+const CEM_TREE_FORMAT_CEMT_TEMPLATE_SOURCE: &str =
+    include_str!("../schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt");
+const CEM_TREE_COLOR_CEMT_TEMPLATE_SOURCE: &str =
+    include_str!("../schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt");
 
 #[derive(Debug, Clone, Copy)]
 struct CemTreeCemtOutputStage {
@@ -7778,6 +7715,33 @@ mod tests {
         assert!(output.contains("<main"));
         assert!(output.contains("cem-color-syntax-name"));
         assert!(output.contains("<span class=\"cem-color cem-color-syntax-string\""));
+    }
+
+    #[test]
+    fn cem_tree_output_templates_are_schema_package_assets() {
+        assert_eq!(
+            CEM_TREE_FORMAT_CEMT_TEMPLATE_URI,
+            "schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt"
+        );
+        assert_eq!(
+            CEM_TREE_COLOR_CEMT_TEMPLATE_URI,
+            "schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt"
+        );
+        assert!(CEM_TREE_FORMAT_CEMT_TEMPLATE_SOURCE.contains("{format-function"));
+        assert!(CEM_TREE_COLOR_CEMT_TEMPLATE_SOURCE.contains("{color-function"));
+        for source in [
+            CEM_TREE_FORMAT_CEMT_TEMPLATE_SOURCE,
+            CEM_TREE_COLOR_CEMT_TEMPLATE_SOURCE,
+        ] {
+            assert!(source.contains(r#"@content-type="application/cem""#));
+            assert!(source.contains(r#"@schema="https://cem.dev/ns/cem-ml/1""#));
+        }
+
+        let package = include_str!("../schema-packages/cem-ml/v1/package.cem");
+        assert!(package.contains(r#"@kind="formatter""#));
+        assert!(package.contains(r#"@path="formatters/cem-format-tree.cemt""#));
+        assert!(package.contains(r#"@kind="colorizer""#));
+        assert!(package.contains(r#"@path="colorizers/cem-color-tree.cemt""#));
     }
 
     #[test]

@@ -54,4 +54,18 @@
         {from @content-type="application/cem" @schema="https://cem.dev/ns/cem-ml/1"}
         {to @content-type="application/vnd.cem.events+cem-bin" @schema="https://cem.dev/ns/projection/events/1"}
     }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/cem-format-tree.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/cem-color-tree.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+    }
 }

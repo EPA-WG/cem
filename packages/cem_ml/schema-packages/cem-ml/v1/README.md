@@ -29,6 +29,20 @@ types:
 The semantic CEM annotation vocabulary remains in `packages/cem_ml/schema/cem-core.md`
 under `https://cem.dev/ns/core/1`.
 
+## CEMT Output Assets
+
+Schema-local output transformations live beside the schema package:
+
+- [`formatters/cem-format-tree.cemt`](formatters/cem-format-tree.cemt)
+  declares `cem.format-tree` for `application/cem` /
+  `https://cem.dev/ns/cem-ml/1`.
+- [`colorizers/cem-color-tree.cemt`](colorizers/cem-color-tree.cemt)
+  declares `cem.color-tree` for formatted CEM trees before the writer phase.
+
+The package manifest declares these files as `formatter` and `colorizer`
+artifacts so runtime CEMT stages are tied to schema-owned assets instead of
+inline Rust template strings.
+
 ## Validation Examples
 
 The schema-owned examples live in [`examples/`](examples/) and are used by the
