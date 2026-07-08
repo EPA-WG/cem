@@ -260,6 +260,14 @@ fn schema_owned_examples_validate_through_cli() {
             ],
         },
         ValidationExample {
+            name: "schema-package invalid artifact contract",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-contract.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.schema_package.artifact_function_contract_mismatch"],
+        },
+        ValidationExample {
             name: "schema-package invalid schema metadata",
             path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-schema-metadata.cem",
             content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,

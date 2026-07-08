@@ -17,7 +17,10 @@
 //! - `EventHandlerAttributeRule`: `on*` event handler attributes.
 
 use crate::diagnostics::{Diagnostic, Severity};
+use crate::engine::{FormatIdentity, TemplateInput};
 use crate::parser::{AstNodeId, CemAstNode};
+use crate::resolver::{has_uri_scheme, is_windows_drive_path, parse_local_file_uri};
+use crate::run_config::ScopeConfig;
 use crate::schema::document_model::{
     load_builtin_document_model_for_identity, validate_document_model,
 };
@@ -28,9 +31,14 @@ use crate::schema::registry::{
     CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI,
 };
 use crate::source_map::FrameSpan;
+use crate::transform_template::{
+    parse_cem_native_template_module_options, TransformTemplateModuleParseRequest,
+    TransformTemplateOutputFunctionKind,
+};
 use crate::validation::{
     RuleContext, RuleDescriptor, RuleId, RuleInput, SemanticRule, TriggerLayer,
 };
+use std::path::{Path, PathBuf};
 
 fn diag_at(code: &str, severity: Severity, message: String, node: &CemAstNode) -> Diagnostic {
     let stack = match node {
@@ -1143,10 +1151,13 @@ impl SemanticRule for SchemaPackageConverterContractRule {
         let registry = SchemaRegistry::with_builtin_schemas();
         let mut out = Vec::new();
         for node in ctx.document.iter() {
-            if element_local_name(node) != Some("converter") {
-                continue;
+            match element_local_name(node) {
+                Some("converter") => {
+                    validate_schema_package_converter(ctx.document, node, &registry, &mut out);
+                }
+                Some("artifact") => validate_schema_package_artifact(ctx, node, &mut out),
+                _ => {}
             }
-            validate_schema_package_converter(ctx.document, node, &registry, &mut out);
         }
         out
     }
@@ -1368,6 +1379,250 @@ fn validate_endpoint_schema_content_type(
             ),
             endpoint,
         ));
+    }
+}
+
+fn validate_schema_package_artifact(
+    ctx: &RuleContext<'_>,
+    node: &CemAstNode,
+    out: &mut Vec<Diagnostic>,
+) {
+    let Some(function_name) = attr_value(ctx.document, node, "function-name")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return;
+    };
+    let Some(path) = attr_value(ctx.document, node, "path")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return;
+    };
+    let Some(source_path) = resolve_schema_package_artifact_path(ctx.source_uri, path) else {
+        return;
+    };
+    let source = match std::fs::read_to_string(&source_path) {
+        Ok(source) => source,
+        Err(error) => {
+            out.push(diag_at(
+                "cem.schema_package.artifact_source_unreadable",
+                Severity::Error,
+                format!(
+                    "artifact `{path}` referenced by CEMT function `{function_name}` could not be read: {error}"
+                ),
+                node,
+            ));
+            return;
+        }
+    };
+
+    let parse_response =
+        parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+            template: TemplateInput {
+                uri: source_path.display().to_string(),
+                bytes: source.into_bytes(),
+                identity: Some(FormatIdentity {
+                    content_type: attr_value(ctx.document, node, "content-type")
+                        .map(content_type_essence),
+                    schema: attr_value(ctx.document, node, "schema")
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())
+                        .map(str::to_owned),
+                    ..FormatIdentity::default()
+                }),
+                root_scope: ScopeConfig::default(),
+            },
+        });
+    if let Some(diagnostic) = parse_response
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        out.push(diag_at(
+            "cem.schema_package.artifact_cemt_invalid",
+            Severity::Error,
+            format!(
+                "artifact `{path}` CEMT source is invalid: {}",
+                diagnostic.message
+            ),
+            node,
+        ));
+        return;
+    }
+
+    let Some(function) = parse_response
+        .module_options
+        .output_functions
+        .iter()
+        .find(|function| function.name == function_name)
+    else {
+        out.push(diag_at(
+            "cem.schema_package.artifact_function_missing",
+            Severity::Error,
+            format!("artifact `{path}` does not declare CEMT output function `{function_name}`"),
+            node,
+        ));
+        return;
+    };
+
+    if let Some(expected_kind) = attr_value(ctx.document, node, "kind")
+        .and_then(schema_package_artifact_output_function_kind)
+    {
+        if function.kind != expected_kind {
+            out.push(schema_package_artifact_contract_mismatch_diag(
+                node,
+                path,
+                "function kind",
+                schema_package_output_function_kind_name(expected_kind),
+                schema_package_output_function_kind_name(function.kind),
+            ));
+        }
+    }
+
+    validate_schema_package_artifact_field(
+        ctx.document,
+        node,
+        path,
+        "target-content-type",
+        "target content type",
+        Some(content_type_essence(&function.content_type).as_str()),
+        out,
+    );
+    validate_schema_package_artifact_field(
+        ctx.document,
+        node,
+        path,
+        "target-schema",
+        "target schema",
+        Some(function.schema.as_str()),
+        out,
+    );
+    validate_schema_package_artifact_field(
+        ctx.document,
+        node,
+        path,
+        "target-category",
+        "target category",
+        Some(function.category.as_str()),
+        out,
+    );
+    validate_schema_package_artifact_field(
+        ctx.document,
+        node,
+        path,
+        "function-profile",
+        "function profile",
+        function.profile.as_deref(),
+        out,
+    );
+}
+
+fn resolve_schema_package_artifact_path(
+    source_uri: Option<&str>,
+    artifact_path: &str,
+) -> Option<PathBuf> {
+    let artifact_path = artifact_path.trim();
+    if artifact_path.is_empty() {
+        return None;
+    }
+    if let Some(parsed) = parse_local_file_uri(artifact_path) {
+        return parsed.ok();
+    }
+    if has_uri_scheme(artifact_path) && !is_windows_drive_path(artifact_path) {
+        return None;
+    }
+    let artifact_path = PathBuf::from(artifact_path);
+    if artifact_path.is_absolute() {
+        return Some(artifact_path);
+    }
+
+    let source_uri = source_uri?;
+    let manifest_path = local_path_from_validation_source_uri(source_uri)?;
+    manifest_path
+        .parent()
+        .map(|parent| parent.join(artifact_path))
+}
+
+fn local_path_from_validation_source_uri(source_uri: &str) -> Option<PathBuf> {
+    match parse_local_file_uri(source_uri) {
+        Some(Ok(path)) => Some(path),
+        Some(Err(_)) => None,
+        None if !has_uri_scheme(source_uri) || is_windows_drive_path(source_uri) => {
+            Some(Path::new(source_uri).to_path_buf())
+        }
+        None => None,
+    }
+}
+
+fn validate_schema_package_artifact_field(
+    doc: &crate::parser::document::CemDocument,
+    node: &CemAstNode,
+    path: &str,
+    attr_name: &str,
+    label: &str,
+    actual: Option<&str>,
+    out: &mut Vec<Diagnostic>,
+) {
+    let Some(expected) = attr_value(doc, node, attr_name)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return;
+    };
+    let expected = if attr_name.ends_with("content-type") {
+        content_type_essence(expected)
+    } else {
+        expected.to_owned()
+    };
+    let actual = actual.unwrap_or("<none>");
+    if actual == expected.as_str() {
+        return;
+    }
+    out.push(schema_package_artifact_contract_mismatch_diag(
+        node,
+        path,
+        label,
+        expected.as_str(),
+        actual,
+    ));
+}
+
+fn schema_package_artifact_contract_mismatch_diag(
+    node: &CemAstNode,
+    path: &str,
+    label: &str,
+    expected: &str,
+    actual: &str,
+) -> Diagnostic {
+    diag_at(
+        "cem.schema_package.artifact_function_contract_mismatch",
+        Severity::Error,
+        format!(
+            "artifact `{path}` {label} metadata expected `{expected}`, CEMT declares `{actual}`"
+        ),
+        node,
+    )
+}
+
+fn schema_package_artifact_output_function_kind(
+    artifact_kind: &str,
+) -> Option<TransformTemplateOutputFunctionKind> {
+    match artifact_kind.trim() {
+        "formatter" => Some(TransformTemplateOutputFunctionKind::Format),
+        "colorizer" => Some(TransformTemplateOutputFunctionKind::Color),
+        "encoder" => Some(TransformTemplateOutputFunctionKind::Encoding),
+        _ => None,
+    }
+}
+
+fn schema_package_output_function_kind_name(
+    kind: TransformTemplateOutputFunctionKind,
+) -> &'static str {
+    match kind {
+        TransformTemplateOutputFunctionKind::Encoding => "encoding",
+        TransformTemplateOutputFunctionKind::Format => "format",
+        TransformTemplateOutputFunctionKind::Color => "color",
     }
 }
 
@@ -1897,6 +2152,15 @@ mod tests {
         schema_uri: Option<&str>,
         content_type: Option<&str>,
     ) -> Vec<Diagnostic> {
+        run_rules_with_identity_and_source_uri(input, schema_uri, content_type, None)
+    }
+
+    fn run_rules_with_identity_and_source_uri(
+        input: &str,
+        schema_uri: Option<&str>,
+        content_type: Option<&str>,
+        source_uri: Option<&str>,
+    ) -> Vec<Diagnostic> {
         let doc = parse(input);
         let upstream: Vec<Diagnostic> = doc.diagnostics.clone();
         let registry = RuleRegistry::with_tier_a_rules();
@@ -1904,6 +2168,7 @@ mod tests {
             document: &doc,
             schema_uri,
             content_type,
+            source_uri,
             upstream_diagnostics: &upstream,
         })
     }
@@ -2308,6 +2573,117 @@ mod tests {
         assert!(diags
             .iter()
             .any(|d| d.code == "cem.schema_package.converter_rust_symbol_missing"));
+    }
+
+    #[test]
+    fn schema_package_artifact_contract_flags_cemt_function_metadata_mismatch() {
+        let dir = schema_package_artifact_contract_fixture_dir(
+            "artifact-contract-mismatch",
+            &[("formatters/demo.cemt", demo_format_cemt_source())],
+        );
+        let package_uri = dir.join("package.cem").display().to_string();
+        let diags = run_rules_with_identity_and_source_uri(
+            r#"{package @id=demo @version="1.0.0" |
+                {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+                {content-type @value="application/vnd.example.demo+cem" @primary=true}
+                {artifact
+                    @kind="formatter"
+                    @path="formatters/demo.cemt"
+                    @content-type="application/vnd.cem.transform+cem"
+                    @schema="https://cem.dev/ns/transform/cem/1"
+                    @target-content-type="application/cem"
+                    @target-schema="https://cem.dev/ns/cem-ml/1"
+                    @target-category="wrong-tree"
+                    @function-name="demo.format"
+                    @formatter-profile="cem.format-tree"
+                }
+            }"#,
+            Some(CEM_SCHEMA_PACKAGE_URI),
+            Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
+            Some(&package_uri),
+        );
+
+        let diagnostic = diags
+            .iter()
+            .find(|d| d.code == "cem.schema_package.artifact_function_contract_mismatch")
+            .expect("artifact function metadata mismatch diagnostic");
+        assert!(diagnostic
+            .message
+            .contains("target category metadata expected `wrong-tree`"));
+        assert!(diagnostic.message.contains("CEMT declares `cem-tree`"));
+    }
+
+    #[test]
+    fn schema_package_artifact_contract_flags_unreadable_cemt_source() {
+        let dir = schema_package_artifact_contract_fixture_dir("artifact-source-missing", &[]);
+        let package_uri = dir.join("package.cem").display().to_string();
+        let diags = run_rules_with_identity_and_source_uri(
+            r#"{package @id=demo @version="1.0.0" |
+                {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+                {content-type @value="application/vnd.example.demo+cem" @primary=true}
+                {artifact
+                    @kind="formatter"
+                    @path="formatters/missing.cemt"
+                    @content-type="application/vnd.cem.transform+cem"
+                    @schema="https://cem.dev/ns/transform/cem/1"
+                    @target-content-type="application/cem"
+                    @target-schema="https://cem.dev/ns/cem-ml/1"
+                    @target-category="cem-tree"
+                    @function-name="demo.format"
+                    @formatter-profile="cem.format-tree"
+                }
+            }"#,
+            Some(CEM_SCHEMA_PACKAGE_URI),
+            Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
+            Some(&package_uri),
+        );
+
+        assert!(diags
+            .iter()
+            .any(|d| d.code == "cem.schema_package.artifact_source_unreadable"));
+    }
+
+    fn schema_package_artifact_contract_fixture_dir(
+        label: &str,
+        files: &[(&str, &str)],
+    ) -> std::path::PathBuf {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system time")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!(
+            "cem-ml-schema-package-{label}-{}-{unique}",
+            std::process::id()
+        ));
+        for (path, source) in files {
+            let path = dir.join(path);
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent).expect("create CEMT fixture directory");
+            }
+            std::fs::write(path, source).expect("write CEMT fixture");
+        }
+        dir
+    }
+
+    fn demo_format_cemt_source() -> &'static str {
+        r#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {format-function
+        @name="demo.format"
+        @category="cem-tree"
+        @subject="cem-ast-node"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @canonical=true
+        @deterministic=true
+        @streamable=true
+    }
+}
+"#
     }
 
     #[test]

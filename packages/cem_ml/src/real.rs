@@ -816,7 +816,7 @@ pub struct PipelineRun {
 }
 
 fn run_pipeline_as(bytes: &[u8], from_format: InputFormat) -> PipelineRun {
-    run_pipeline_as_with_context(bytes, from_format, None, None)
+    run_pipeline_as_with_context(bytes, from_format, None, None, None)
 }
 
 fn run_pipeline_as_scoped(
@@ -824,16 +824,23 @@ fn run_pipeline_as_scoped(
     from_format: InputFormat,
     root_scope: &ScopeConfig,
 ) -> PipelineRun {
-    run_pipeline_as_with_context(bytes, from_format, Some(root_scope), None)
+    run_pipeline_as_with_context(bytes, from_format, Some(root_scope), None, None)
 }
 
-fn run_pipeline_as_scoped_with_context(
+fn run_pipeline_as_scoped_with_context_and_source_uri(
     bytes: &[u8],
     from_format: InputFormat,
     root_scope: &ScopeConfig,
     context: &EngineContext,
+    source_uri: &str,
 ) -> PipelineRun {
-    run_pipeline_as_with_context(bytes, from_format, Some(root_scope), Some(context))
+    run_pipeline_as_with_context(
+        bytes,
+        from_format,
+        Some(root_scope),
+        Some(context),
+        Some(source_uri),
+    )
 }
 
 fn run_pipeline_as_with_context(
@@ -841,11 +848,18 @@ fn run_pipeline_as_with_context(
     from_format: InputFormat,
     root_scope: Option<&ScopeConfig>,
     context: Option<&EngineContext>,
+    source_uri: Option<&str>,
 ) -> PipelineRun {
     match from_format {
-        InputFormat::Cem => run_pipeline_with::<CemTokenizer>(bytes, root_scope, context),
-        InputFormat::Html => run_pipeline_with::<HtmlTokenizer>(bytes, root_scope, context),
-        InputFormat::Xml => run_pipeline_with::<XmlTokenizer>(bytes, root_scope, context),
+        InputFormat::Cem => {
+            run_pipeline_with::<CemTokenizer>(bytes, root_scope, context, source_uri)
+        }
+        InputFormat::Html => {
+            run_pipeline_with::<HtmlTokenizer>(bytes, root_scope, context, source_uri)
+        }
+        InputFormat::Xml => {
+            run_pipeline_with::<XmlTokenizer>(bytes, root_scope, context, source_uri)
+        }
     }
 }
 
@@ -853,6 +867,7 @@ fn run_pipeline_with<T>(
     bytes: &[u8],
     root_scope: Option<&ScopeConfig>,
     context: Option<&EngineContext>,
+    source_uri: Option<&str>,
 ) -> PipelineRun
 where
     T: SchemaTokenizer + FromBytes,
@@ -911,6 +926,7 @@ where
         document: &document,
         schema_uri,
         content_type,
+        source_uri,
         upstream_diagnostics: &document.diagnostics,
     });
 
@@ -1632,11 +1648,12 @@ fn load_transform_data_artifact(
     diagnostics.append(&mut scope_diagnostics);
     let mut loaded = load_input_through_lifecycle(input, context);
     diagnostics.append(&mut loaded.diagnostics);
-    let run = run_pipeline_as_scoped_with_context(
+    let run = run_pipeline_as_scoped_with_context_and_source_uri(
         &loaded.bytes,
         loaded.from_format,
         &input.root_scope,
         context,
+        &input_uri(input, context),
     );
     let value = projection::dom_json(&run.document);
     diagnostics.extend(run.diagnostics);
@@ -3903,11 +3920,12 @@ fn run_scheduled_validation_documents(
                     &loaded.bytes,
                 ));
             } else {
-                let run = run_pipeline_as_scoped_with_context(
+                let run = run_pipeline_as_scoped_with_context_and_source_uri(
                     &loaded.bytes,
                     loaded.from_format,
                     &input.root_scope,
                     context,
+                    &input_uri(input, context),
                 );
                 if is_schema_package_manifest_schema(input, context) {
                     if let Some(manifest_path) = input_local_path(input, context) {
@@ -4334,11 +4352,12 @@ impl CemMlEngine for RealCemMlEngine {
     fn parse(&self, request: ParseRequest) -> EngineResult<ParseResponse> {
         let loaded = load_input_through_lifecycle(&request.input, &request.context);
         let from_format = loaded.from_format;
-        let run = run_pipeline_as_scoped_with_context(
+        let run = run_pipeline_as_scoped_with_context_and_source_uri(
             &loaded.bytes,
             from_format,
             &request.input.root_scope,
             &request.context,
+            &input_uri(&request.input, &request.context),
         );
         let primary = match request.projection {
             ParseProjection::DomJson | ParseProjection::Json => projection::dom_json(&run.document),
@@ -4399,11 +4418,12 @@ impl CemMlEngine for RealCemMlEngine {
         let started_at = Instant::now();
         let loaded = load_input_through_lifecycle(&request.input, &request.context);
         let from_format = loaded.from_format;
-        let run = run_pipeline_as_scoped_with_context(
+        let run = run_pipeline_as_scoped_with_context_and_source_uri(
             &loaded.bytes,
             from_format,
             &request.input.root_scope,
             &request.context,
+            &input_uri(&request.input, &request.context),
         );
         let mut diagnostics = root_scope_execution_diagnostics(
             &request.input.uri,
@@ -4535,11 +4555,12 @@ impl CemMlEngine for RealCemMlEngine {
             );
 
             let from_format = loaded.from_format;
-            let run = run_pipeline_as_scoped_with_context(
+            let run = run_pipeline_as_scoped_with_context_and_source_uri(
                 &loaded.bytes,
                 from_format,
                 &request.input.root_scope,
                 &request.context,
+                &input_uri(&request.input, &request.context),
             );
             primary = Some(match to_format {
                 LayerFormat::Cem => convert_primary_to_cem_with_cemt_pipeline(
@@ -5361,11 +5382,12 @@ impl CemMlEngine for RealCemMlEngine {
                 EngineError::Internal(format!("scheduler trace setup failed: {err}"))
             })?;
         }
-        let run = run_pipeline_as_scoped_with_context(
+        let run = run_pipeline_as_scoped_with_context_and_source_uri(
             &loaded.bytes,
             from_format,
             &request.input.root_scope,
             &request.context,
+            &input_uri(&request.input, &request.context),
         );
         pool.run_to_completion(&abort, |_| {});
         let mut diagnostics = policy_diagnostics;
@@ -5415,11 +5437,12 @@ impl CemMlEngine for RealCemMlEngine {
                 let input = materialized_input(input, &request.context)?;
                 let input_started_at = Instant::now();
                 let loaded = load_input_through_lifecycle(&input, &request.context);
-                let _ = run_pipeline_as_scoped_with_context(
+                let _ = run_pipeline_as_scoped_with_context_and_source_uri(
                     &loaded.bytes,
                     loaded.from_format,
                     &input.root_scope,
                     &request.context,
+                    &input_uri(&input, &request.context),
                 );
                 let mut budget_diags = time_budget_diagnostics(
                     &input.root_scope,
@@ -5475,11 +5498,12 @@ impl CemMlEngine for RealCemMlEngine {
                 root_scope_execution_diagnostics(&input.uri, &input.root_scope, "input");
             let loaded = load_input_through_lifecycle(&input, &request.context);
             input_diags.extend(loaded.diagnostics);
-            let run = run_pipeline_as_scoped_with_context(
+            let run = run_pipeline_as_scoped_with_context_and_source_uri(
                 &loaded.bytes,
                 loaded.from_format,
                 &input.root_scope,
                 &request.context,
+                &input_uri(&input, &request.context),
             );
             input_diags.extend(run.diagnostics);
             input_diags.extend(time_budget_diagnostics(
@@ -5512,11 +5536,12 @@ impl CemMlEngine for RealCemMlEngine {
                 root_scope_execution_diagnostics(&input.uri, &input.root_scope, "input");
             let loaded = load_input_through_lifecycle(&input, &request.context);
             input_diags.extend(loaded.diagnostics);
-            let run = run_pipeline_as_scoped_with_context(
+            let run = run_pipeline_as_scoped_with_context_and_source_uri(
                 &loaded.bytes,
                 loaded.from_format,
                 &input.root_scope,
                 &request.context,
+                &input_uri(&input, &request.context),
             );
             let rendered = LightDomInterpreter::new().render(&run.document);
             artifacts.push(json!({

@@ -101,6 +101,7 @@ pub struct RuleContext<'a> {
     pub document: &'a CemDocument,
     pub schema_uri: Option<&'a str>,
     pub content_type: Option<&'a str>,
+    pub source_uri: Option<&'a str>,
     /// Diagnostics emitted by upstream layers (decoder, tokenizer, schema
     /// machine, AST builder). Rules may consult this list to skip
     /// downstream work when an upstream layer already failed.
@@ -220,6 +221,7 @@ pub fn run(input: &str) -> ValidationReport {
         document: &document,
         schema_uri: None,
         content_type: None,
+        source_uri: None,
         upstream_diagnostics: &document.diagnostics,
     });
 
