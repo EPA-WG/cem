@@ -201,6 +201,16 @@ pub struct ConversionDescriptor {
     pub cost: u32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConversionPackageArtifactDescriptor {
+    pub package_id: String,
+    pub kind: String,
+    pub path: String,
+    pub content_type: Option<String>,
+    pub schema: Option<String>,
+    pub generated: bool,
+}
+
 impl ConversionDescriptor {
     pub fn planning_domain(&self) -> ConversionPlanningDomain {
         if descriptor_is_schema_output_producer(self) {
@@ -1669,6 +1679,7 @@ fn generic_data_diagnostic(
 #[derive(Debug, Clone, Default)]
 pub struct ConversionRegistry {
     descriptors_by_id: BTreeMap<String, ConversionDescriptor>,
+    package_artifacts: Vec<ConversionPackageArtifactDescriptor>,
 }
 
 impl ConversionRegistry {
@@ -1682,6 +1693,9 @@ impl ConversionRegistry {
             registry
                 .register(descriptor)
                 .expect("built-in conversion descriptors must not conflict");
+        }
+        for artifact in builtin_conversion_package_artifacts() {
+            registry.register_package_artifact(artifact);
         }
         registry
     }
@@ -1704,6 +1718,35 @@ impl ConversionRegistry {
 
     pub fn converters(&self) -> impl Iterator<Item = &ConversionDescriptor> {
         self.descriptors_by_id.values()
+    }
+
+    pub fn register_package_artifact(&mut self, artifact: ConversionPackageArtifactDescriptor) {
+        self.package_artifacts.push(artifact);
+    }
+
+    pub fn package_artifacts(&self) -> impl Iterator<Item = &ConversionPackageArtifactDescriptor> {
+        self.package_artifacts.iter()
+    }
+
+    pub fn select_package_artifact(
+        &self,
+        package_id: &str,
+        kind: &str,
+        content_type: Option<&str>,
+        schema: Option<&str>,
+    ) -> Option<&ConversionPackageArtifactDescriptor> {
+        let content_type = content_type.map(content_type_essence);
+        self.package_artifacts.iter().find(|artifact| {
+            artifact.package_id == package_id
+                && artifact.kind == kind
+                && content_type
+                    .as_deref()
+                    .is_none_or(|expected| artifact.content_type.as_deref() == Some(expected))
+                && schema
+                    .map(str::trim)
+                    .filter(|expected| !expected.is_empty())
+                    .is_none_or(|expected| artifact.schema.as_deref() == Some(expected))
+        })
     }
 
     pub fn select_direct_edge<'a>(
@@ -2377,14 +2420,33 @@ pub struct ConversionOutputPipelineExecution {
 
 const CEM_TREE_FORMAT_CEMT_ADAPTER_ID: &str = "cem-tree-format-cemt";
 const CEM_TREE_COLOR_CEMT_ADAPTER_ID: &str = "cem-tree-color-cemt";
-const CEM_TREE_FORMAT_CEMT_TEMPLATE_URI: &str =
-    "schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt";
-const CEM_TREE_COLOR_CEMT_TEMPLATE_URI: &str =
-    "schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt";
-const CEM_TREE_FORMAT_CEMT_TEMPLATE_SOURCE: &str =
-    include_str!("../schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt");
-const CEM_TREE_COLOR_CEMT_TEMPLATE_SOURCE: &str =
-    include_str!("../schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt");
+const CEM_TREE_OUTPUT_PACKAGE_ID: &str = "cem-ml";
+
+#[derive(Debug, Clone, Copy)]
+struct BuiltinConversionPackageArtifactSource {
+    path: &'static str,
+    source: &'static str,
+}
+
+const BUILTIN_CONVERSION_PACKAGE_ARTIFACT_SOURCES: &[BuiltinConversionPackageArtifactSource] = &[
+    BuiltinConversionPackageArtifactSource {
+        path: "schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt",
+        source: include_str!("../schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt"),
+    },
+    BuiltinConversionPackageArtifactSource {
+        path: "schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt",
+        source: include_str!("../schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt"),
+    },
+];
+
+fn builtin_conversion_package_artifact_source(
+    path: &str,
+) -> Option<BuiltinConversionPackageArtifactSource> {
+    BUILTIN_CONVERSION_PACKAGE_ARTIFACT_SOURCES
+        .iter()
+        .copied()
+        .find(|source| source.path == path)
+}
 
 #[derive(Debug, Clone, Copy)]
 struct CemTreeCemtOutputStage {
@@ -2397,25 +2459,79 @@ struct CemTreeCemtOutputStage {
     role: &'static str,
 }
 
-const CEM_TREE_FORMAT_CEMT_STAGE: CemTreeCemtOutputStage = CemTreeCemtOutputStage {
+#[derive(Debug, Clone, Copy)]
+struct CemTreeCemtOutputStageSpec {
+    adapter_id: &'static str,
+    artifact_kind: &'static str,
+    declaration_element: &'static str,
+    function_kind: TransformTemplateOutputFunctionKind,
+    function_name: &'static str,
+    role: &'static str,
+}
+
+const CEM_TREE_FORMAT_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
     adapter_id: CEM_TREE_FORMAT_CEMT_ADAPTER_ID,
-    template_uri: CEM_TREE_FORMAT_CEMT_TEMPLATE_URI,
-    template_source: CEM_TREE_FORMAT_CEMT_TEMPLATE_SOURCE,
+    artifact_kind: "formatter",
     declaration_element: "{format-function",
     function_kind: TransformTemplateOutputFunctionKind::Format,
     function_name: "cem.format-tree",
     role: "formatter",
 };
 
-const CEM_TREE_COLOR_CEMT_STAGE: CemTreeCemtOutputStage = CemTreeCemtOutputStage {
+const CEM_TREE_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
     adapter_id: CEM_TREE_COLOR_CEMT_ADAPTER_ID,
-    template_uri: CEM_TREE_COLOR_CEMT_TEMPLATE_URI,
-    template_source: CEM_TREE_COLOR_CEMT_TEMPLATE_SOURCE,
+    artifact_kind: "colorizer",
     declaration_element: "{color-function",
     function_kind: TransformTemplateOutputFunctionKind::Color,
     function_name: "cem.color-tree",
     role: "colorizer",
 };
+
+fn cem_tree_format_cemt_stage() -> Result<CemTreeCemtOutputStage, String> {
+    cem_tree_cemt_output_stage(CEM_TREE_FORMAT_CEMT_STAGE_SPEC)
+}
+
+fn cem_tree_color_cemt_stage() -> Result<CemTreeCemtOutputStage, String> {
+    cem_tree_cemt_output_stage(CEM_TREE_COLOR_CEMT_STAGE_SPEC)
+}
+
+fn cem_tree_cemt_output_stage(
+    spec: CemTreeCemtOutputStageSpec,
+) -> Result<CemTreeCemtOutputStage, String> {
+    let registry = ConversionRegistry::with_builtin_converters();
+    let artifact = registry
+        .select_package_artifact(
+            CEM_TREE_OUTPUT_PACKAGE_ID,
+            spec.artifact_kind,
+            Some(CEM_TRANSFORM_CONTENT_TYPE),
+            Some(CEM_TRANSFORM_SCHEMA_URI),
+        )
+        .ok_or_else(|| {
+            format!(
+                "schema package `{}` does not declare a `{}` CEMT artifact for `{}` / `{}`",
+                CEM_TREE_OUTPUT_PACKAGE_ID,
+                spec.artifact_kind,
+                CEM_TRANSFORM_CONTENT_TYPE,
+                CEM_TRANSFORM_SCHEMA_URI
+            )
+        })?;
+    let artifact_source =
+        builtin_conversion_package_artifact_source(&artifact.path).ok_or_else(|| {
+            format!(
+                "schema package artifact `{}` has no embedded runtime source",
+                artifact.path
+            )
+        })?;
+    Ok(CemTreeCemtOutputStage {
+        adapter_id: spec.adapter_id,
+        template_uri: artifact_source.path,
+        template_source: artifact_source.source,
+        declaration_element: spec.declaration_element,
+        function_kind: spec.function_kind,
+        function_name: spec.function_name,
+        role: spec.role,
+    })
+}
 
 #[derive(Clone, Debug)]
 struct CemTreeCemtOutputAdapter {
@@ -2658,14 +2774,14 @@ fn execute_conversion_cem_tree_format_stage(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
 ) -> Result<(Value, ConversionOutputPipelineStageExecution), String> {
-    execute_conversion_cem_tree_output_stage(CEM_TREE_FORMAT_CEMT_STAGE, binding, subject)
+    execute_conversion_cem_tree_output_stage(cem_tree_format_cemt_stage()?, binding, subject)
 }
 
 fn execute_conversion_cem_tree_color_stage(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
 ) -> Result<(Value, ConversionOutputPipelineStageExecution), String> {
-    execute_conversion_cem_tree_output_stage(CEM_TREE_COLOR_CEMT_STAGE, binding, subject)
+    execute_conversion_cem_tree_output_stage(cem_tree_color_cemt_stage()?, binding, subject)
 }
 
 fn execute_conversion_cem_tree_output_stage(
@@ -5243,6 +5359,39 @@ pub fn conversion_descriptors_from_schema_package(
     Ok(descriptors)
 }
 
+pub fn conversion_package_artifacts_from_schema_package(
+    package: &BuiltinSchemaPackage,
+) -> Result<Vec<ConversionPackageArtifactDescriptor>, ConversionManifestError> {
+    let document = parse_cem_document(package.manifest_source);
+    let package_id = package_manifest_package_id(package, &document)?;
+    let base_path = package_manifest_base_path(package);
+    let Some(package_node_id) = first_element_id_by_local_name(&document, "package") else {
+        return Err(ConversionManifestError::MissingPackageElement);
+    };
+
+    element_child_ids_by_local_name(&document, package_node_id, "artifact")
+        .into_iter()
+        .map(|artifact_node_id| {
+            let attrs = collect_manifest_attrs(&document, artifact_node_id);
+            let kind = required_manifest_attr(&attrs, None, "kind")?.to_owned();
+            let path =
+                package_relative_path(&base_path, required_manifest_attr(&attrs, None, "path")?);
+            let content_type =
+                optional_manifest_attr(&attrs, "content-type").map(content_type_essence);
+            let schema = optional_manifest_attr(&attrs, "schema").map(str::to_owned);
+            let generated = parse_manifest_bool("artifact", &attrs, "generated")?.unwrap_or(false);
+            Ok(ConversionPackageArtifactDescriptor {
+                package_id: package_id.clone(),
+                kind,
+                path,
+                content_type,
+                schema,
+                generated,
+            })
+        })
+        .collect()
+}
+
 fn conversion_descriptor_from_manifest_node(
     document: &CemDocument,
     node_id: AstNodeId,
@@ -5636,11 +5785,27 @@ pub fn builtin_conversion_descriptors() -> Vec<ConversionDescriptor> {
         .collect()
 }
 
+pub fn builtin_conversion_package_artifacts() -> Vec<ConversionPackageArtifactDescriptor> {
+    builtin_converter_package_schema_uris()
+        .iter()
+        .flat_map(|schema_uri| builtin_package_conversion_package_artifacts(schema_uri))
+        .collect()
+}
+
 fn builtin_package_conversion_descriptors(schema_uri: &str) -> Vec<ConversionDescriptor> {
     let package = load_builtin_schema_package(schema_uri)
         .expect("built-in converter package must have embedded sources");
     conversion_descriptors_from_schema_package(&package)
         .expect("built-in package converter metadata must be valid")
+}
+
+fn builtin_package_conversion_package_artifacts(
+    schema_uri: &str,
+) -> Vec<ConversionPackageArtifactDescriptor> {
+    let package = load_builtin_schema_package(schema_uri)
+        .expect("built-in converter package must have embedded sources");
+    conversion_package_artifacts_from_schema_package(&package)
+        .expect("built-in package artifact metadata must be valid")
 }
 
 fn builtin_converter_package_schema_uris() -> &'static [&'static str] {
@@ -7719,38 +7884,60 @@ mod tests {
 
     #[test]
     fn cem_tree_output_templates_are_schema_package_assets() {
+        let registry = ConversionRegistry::with_builtin_converters();
+        let formatter = registry
+            .select_package_artifact(
+                CEM_TREE_OUTPUT_PACKAGE_ID,
+                "formatter",
+                Some(CEM_TRANSFORM_CONTENT_TYPE),
+                Some(CEM_TRANSFORM_SCHEMA_URI),
+            )
+            .expect("CEM tree formatter package artifact");
+        let colorizer = registry
+            .select_package_artifact(
+                CEM_TREE_OUTPUT_PACKAGE_ID,
+                "colorizer",
+                Some(CEM_TRANSFORM_CONTENT_TYPE),
+                Some(CEM_TRANSFORM_SCHEMA_URI),
+            )
+            .expect("CEM tree colorizer package artifact");
+
         assert_eq!(
-            CEM_TREE_FORMAT_CEMT_TEMPLATE_URI,
+            formatter.path.as_str(),
             "schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt"
         );
         assert_eq!(
-            CEM_TREE_COLOR_CEMT_TEMPLATE_URI,
+            colorizer.path.as_str(),
             "schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt"
         );
-        assert!(CEM_TREE_FORMAT_CEMT_TEMPLATE_SOURCE.contains("{format-function"));
-        assert!(CEM_TREE_COLOR_CEMT_TEMPLATE_SOURCE.contains("{color-function"));
-        for source in [
-            CEM_TREE_FORMAT_CEMT_TEMPLATE_SOURCE,
-            CEM_TREE_COLOR_CEMT_TEMPLATE_SOURCE,
-        ] {
+        let formatter_source = builtin_conversion_package_artifact_source(&formatter.path)
+            .expect("embedded formatter source");
+        let colorizer_source = builtin_conversion_package_artifact_source(&colorizer.path)
+            .expect("embedded colorizer source");
+        assert!(formatter_source.source.contains("{format-function"));
+        assert!(colorizer_source.source.contains("{color-function"));
+        assert_eq!(
+            cem_tree_format_cemt_stage().unwrap().template_uri,
+            formatter.path.as_str()
+        );
+        assert_eq!(
+            cem_tree_color_cemt_stage().unwrap().template_uri,
+            colorizer.path.as_str()
+        );
+        for source in [formatter_source.source, colorizer_source.source] {
             assert!(source.contains(r#"@content-type="application/cem""#));
             assert!(source.contains(r#"@schema="https://cem.dev/ns/cem-ml/1""#));
         }
-
-        let package = include_str!("../schema-packages/cem-ml/v1/package.cem");
-        assert!(package.contains(r#"@kind="formatter""#));
-        assert!(package.contains(r#"@path="formatters/cem-format-tree.cemt""#));
-        assert!(package.contains(r#"@kind="colorizer""#));
-        assert!(package.contains(r#"@path="colorizers/cem-color-tree.cemt""#));
     }
 
     #[test]
     fn builtin_cem_tree_formatter_template_uses_direct_cemt_operations() {
+        let stage = cem_tree_format_cemt_stage().expect("CEM tree formatter stage");
         let response =
             parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
                 template: TemplateInput {
-                    uri: CEM_TREE_FORMAT_CEMT_TEMPLATE_URI.to_owned(),
-                    bytes: CEM_TREE_FORMAT_CEMT_TEMPLATE_SOURCE.as_bytes().to_vec(),
+                    uri: stage.template_uri.to_owned(),
+                    bytes: stage.template_source.as_bytes().to_vec(),
                     identity: Some(FormatIdentity {
                         content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
                         schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
@@ -7797,11 +7984,12 @@ mod tests {
 
     #[test]
     fn builtin_cem_tree_colorizer_template_uses_direct_cemt_operations() {
+        let stage = cem_tree_color_cemt_stage().expect("CEM tree colorizer stage");
         let response =
             parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
                 template: TemplateInput {
-                    uri: CEM_TREE_COLOR_CEMT_TEMPLATE_URI.to_owned(),
-                    bytes: CEM_TREE_COLOR_CEMT_TEMPLATE_SOURCE.as_bytes().to_vec(),
+                    uri: stage.template_uri.to_owned(),
+                    bytes: stage.template_source.as_bytes().to_vec(),
                     identity: Some(FormatIdentity {
                         content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
                         schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
