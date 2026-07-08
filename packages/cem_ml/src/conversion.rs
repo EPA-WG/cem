@@ -4671,6 +4671,58 @@ pub fn direct_cem_output_pipeline() -> ConversionOutputPipeline {
     conversion_output_pipeline(&output_contract, &writer_options, &writer_insertion_context)
 }
 
+pub fn direct_html_output_pipeline() -> ConversionOutputPipeline {
+    direct_markup_output_pipeline(
+        ConversionOutputSyntax::Html,
+        HTML_CONTENT_TYPE,
+        HTML_SCHEMA_URI,
+        "html-document",
+        Some("classes"),
+    )
+}
+
+pub fn direct_xml_output_pipeline() -> ConversionOutputPipeline {
+    direct_markup_output_pipeline(
+        ConversionOutputSyntax::Xml,
+        XML_CONTENT_TYPE,
+        XML_SCHEMA_URI,
+        "xml-document",
+        None,
+    )
+}
+
+fn direct_markup_output_pipeline(
+    output_syntax: ConversionOutputSyntax,
+    content_type: &str,
+    schema: &str,
+    category: &str,
+    color_profile: Option<&str>,
+) -> ConversionOutputPipeline {
+    let output_contract = ConversionOutputContractDescriptor {
+        output_syntax: Some(output_syntax),
+        encoding_category: Some(category.to_owned()),
+        formatter_profile: Some("canonical".to_owned()),
+        color_profile: color_profile.map(str::to_owned),
+        parity: None,
+    };
+    let writer_target = TransformTemplateEncodingTarget::new(content_type, schema, category);
+    let writer_options = TransformTemplateEncodeOptions {
+        formatter_profile: output_contract.formatter_profile.clone(),
+        color_profile: output_contract.color_profile.clone(),
+        mode: TransformTemplateEncodedArtifactMode::Document,
+        canonical: true,
+        source_map_policy: TransformTemplateSourceMapPolicy::Generated,
+        ..TransformTemplateEncodeOptions::default()
+    };
+    let writer_insertion_context = conversion_output_insertion_context(
+        &writer_target,
+        &output_contract,
+        &writer_options,
+        TransformTemplateOutputProducedKind::Text,
+    );
+    conversion_output_pipeline(&output_contract, &writer_options, &writer_insertion_context)
+}
+
 fn conversion_cem_tree_pipeline_options(
     writer_options: &TransformTemplateEncodeOptions,
     formatter_profile: &str,

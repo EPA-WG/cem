@@ -6,10 +6,10 @@
 //! replaces `NotImplementedEngine` in `cem-ml-cli/src/main.rs`.
 
 use crate::conversion::{
-    conversion_output_safety_contract, direct_cem_output_pipeline,
-    execute_conversion_output_pipeline, ConversionExecution, ConversionOutputPipeline,
-    ConversionRustFallbackDescriptor, GenericDataTextConversionOutcome, GenericDataTextDocument,
-    CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE,
+    conversion_output_safety_contract, direct_cem_output_pipeline, direct_html_output_pipeline,
+    direct_xml_output_pipeline, execute_conversion_output_pipeline, ConversionExecution,
+    ConversionOutputPipeline, ConversionRustFallbackDescriptor, GenericDataTextConversionOutcome,
+    GenericDataTextDocument, CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE,
 };
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::*;
@@ -103,6 +103,7 @@ struct ExportConversionExecution {
 #[derive(Debug)]
 enum ExportConversionTemplateResult {
     Rendered(Value),
+    UseDirectPipeline,
     UseRustFallback,
     Failed,
 }
@@ -191,7 +192,7 @@ fn render_export_conversion_template(
         template,
     } = &conversion.execution
     else {
-        return ExportConversionTemplateResult::UseRustFallback;
+        return ExportConversionTemplateResult::UseDirectPipeline;
     };
 
     let mut local_diagnostics = Vec::new();
@@ -609,12 +610,127 @@ fn convert_primary_to_cem_with_cemt_pipeline(
     }))
 }
 
+fn convert_primary_to_markup_with_cemt_pipeline(
+    document: &CemDocument,
+    from_format: InputFormat,
+    pipeline: ConversionOutputPipeline,
+    kind: &str,
+    converter_id: &str,
+    diagnostic_uri: Option<&str>,
+) -> Result<Value, Vec<Diagnostic>> {
+    let pipeline_execution = execute_conversion_output_pipeline(
+        &pipeline,
+        cem_tree_nodes_for_markup_output(document, from_format),
+        None,
+        Vec::new(),
+        converter_id,
+        Some("output"),
+        diagnostic_uri,
+    );
+    let mut diagnostics = pipeline_execution.diagnostics;
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return Err(diagnostics);
+    }
+    let Some(output) = pipeline_execution.output else {
+        diagnostics.push(direct_markup_output_pipeline_diagnostic(
+            diagnostic_uri,
+            kind,
+            "CEMT output pipeline produced no writer artifact",
+        ));
+        return Err(diagnostics);
+    };
+    let Some(output) = output.as_str() else {
+        diagnostics.push(direct_markup_output_pipeline_diagnostic(
+            diagnostic_uri,
+            kind,
+            "CEMT output pipeline writer artifact was not text",
+        ));
+        return Err(diagnostics);
+    };
+    let source_map = pipeline_execution
+        .source_map
+        .and_then(|source_map| serde_json::to_value(source_map).ok())
+        .unwrap_or(Value::Null);
+    let output_spans =
+        serde_json::to_value(pipeline_execution.output_spans).unwrap_or_else(|_| json!([]));
+    Ok(json!({
+        "kind": kind,
+        "content": output,
+        "sourceMap": source_map,
+        "outputSpans": output_spans,
+    }))
+}
+
+fn cem_tree_nodes_for_markup_output(document: &CemDocument, from_format: InputFormat) -> Value {
+    let mut nodes = projection::cem_tree_nodes_json_with_source_content_type(
+        document,
+        Some(input_format_content_type(from_format)),
+    );
+    remove_cem_directive_nodes(&mut nodes);
+    nodes
+}
+
+fn remove_cem_directive_nodes(value: &mut Value) {
+    match value {
+        Value::Array(items) => {
+            items.retain(|item| !is_cem_directive_node(item));
+            for item in items {
+                remove_cem_directive_nodes(item);
+            }
+        }
+        Value::Object(fields) => {
+            for key in ["children", "nodes", "slots"] {
+                if let Some(children) = fields.get_mut(key) {
+                    remove_cem_directive_nodes(children);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn is_cem_directive_node(value: &Value) -> bool {
+    let Value::Object(fields) = value else {
+        return false;
+    };
+    fields
+        .get("kind")
+        .and_then(Value::as_str)
+        .is_some_and(|kind| kind.trim() == "directive")
+        || fields
+            .get("name")
+            .or_else(|| fields.get("localName"))
+            .or_else(|| fields.get("tag"))
+            .or_else(|| fields.get("tagName"))
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .is_some_and(|name| name.starts_with('@'))
+}
+
 fn direct_cem_output_pipeline_diagnostic(uri: Option<&str>, message: &str) -> Diagnostic {
     Diagnostic {
         uri: uri.map(str::to_owned),
         code: CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE.to_owned(),
         severity: Severity::Error,
         message: format!("direct CEM output could not execute CEMT output pipeline: {message}"),
+        node: Some("output".to_owned()),
+        ..Diagnostic::default()
+    }
+}
+
+fn direct_markup_output_pipeline_diagnostic(
+    uri: Option<&str>,
+    kind: &str,
+    message: &str,
+) -> Diagnostic {
+    Diagnostic {
+        uri: uri.map(str::to_owned),
+        code: CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE.to_owned(),
+        severity: Severity::Error,
+        message: format!("direct {kind} output could not execute CEMT output pipeline: {message}"),
         node: Some("output".to_owned()),
         ..Diagnostic::default()
     }
@@ -4448,7 +4564,7 @@ impl CemMlEngine for RealCemMlEngine {
                     }) {
                         Some(ExportConversionTemplateResult::Rendered(primary)) => primary,
                         Some(ExportConversionTemplateResult::Failed) => Value::Null,
-                        _ => {
+                        Some(ExportConversionTemplateResult::UseRustFallback) => {
                             let rendered = LightDomInterpreter::new().render(&run.document);
                             let output_spans = rendered
                                 .output_spans
@@ -4469,6 +4585,20 @@ impl CemMlEngine for RealCemMlEngine {
                                 "outputSpans": output_spans,
                             })
                         }
+                        Some(ExportConversionTemplateResult::UseDirectPipeline) | None => {
+                            convert_primary_to_markup_with_cemt_pipeline(
+                                &run.document,
+                                from_format,
+                                direct_html_output_pipeline(),
+                                "html",
+                                "direct-html-output",
+                                Some(&request.input.uri),
+                            )
+                            .unwrap_or_else(|mut cemt_diagnostics| {
+                                diagnostics.append(&mut cemt_diagnostics);
+                                Value::Null
+                            })
+                        }
                     }
                 }
                 LayerFormat::Xml => {
@@ -4484,7 +4614,7 @@ impl CemMlEngine for RealCemMlEngine {
                     }) {
                         Some(ExportConversionTemplateResult::Rendered(primary)) => primary,
                         Some(ExportConversionTemplateResult::Failed) => Value::Null,
-                        _ => {
+                        Some(ExportConversionTemplateResult::UseRustFallback) => {
                             let rendered = XmlInterpreter::new().render(&run.document);
                             let output_spans = rendered
                                 .output_spans
@@ -4503,6 +4633,20 @@ impl CemMlEngine for RealCemMlEngine {
                                 "content": rendered.rendered,
                                 "sourceMap": source_map,
                                 "outputSpans": output_spans,
+                            })
+                        }
+                        Some(ExportConversionTemplateResult::UseDirectPipeline) | None => {
+                            convert_primary_to_markup_with_cemt_pipeline(
+                                &run.document,
+                                from_format,
+                                direct_xml_output_pipeline(),
+                                "xml",
+                                "direct-xml-output",
+                                Some(&request.input.uri),
+                            )
+                            .unwrap_or_else(|mut cemt_diagnostics| {
+                                diagnostics.append(&mut cemt_diagnostics);
+                                Value::Null
                             })
                         }
                     }
@@ -9711,7 +9855,7 @@ mod tests {
     }
 
     #[test]
-    fn convert_html_layer_renders_light_dom_html() {
+    fn convert_html_layer_uses_direct_cemt_output_pipeline() {
         let req = ConvertRequest {
             input: input(b"@doc cem-ml 1\n{p | Hi}", "in.cem"),
             to_format: LayerFormat::Html,
@@ -9723,7 +9867,32 @@ mod tests {
         };
         let resp = RealCemMlEngine::new().convert(req).unwrap();
         assert_eq!(resp.primary["kind"], "html");
-        assert_eq!(resp.primary["content"], "<p>Hi</p>");
+        assert_eq!(
+            resp.primary["content"],
+            "<p class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\">Hi</span></p>"
+        );
+        assert!(!resp.primary["content"].as_str().unwrap().contains("@doc"));
+        assert!(
+            resp.diagnostics.is_empty(),
+            "unexpected diagnostics: {:?}",
+            resp.diagnostics
+        );
+    }
+
+    #[test]
+    fn convert_xml_layer_uses_direct_cemt_output_pipeline() {
+        let req = ConvertRequest {
+            input: input(b"@doc cem-ml 1\n{p}", "in.cem"),
+            to_format: LayerFormat::Xml,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: None,
+            target_scope: Default::default(),
+            scheduler_scope_id: 0,
+        };
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+        assert_eq!(resp.primary["kind"], "xml");
+        assert_eq!(resp.primary["content"], "<p></p>");
         assert!(
             resp.diagnostics.is_empty(),
             "unexpected diagnostics: {:?}",
@@ -9906,7 +10075,10 @@ mod tests {
         };
         let resp = RealCemMlEngine::new().convert(req).unwrap();
         assert_eq!(resp.primary["kind"], "html");
-        assert_eq!(resp.primary["content"], "<p>Hi</p>");
+        assert_eq!(
+            resp.primary["content"],
+            "<p class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\">Hi</span></p>"
+        );
         assert!(
             resp.diagnostics.is_empty(),
             "unexpected diagnostics: {:?}",
