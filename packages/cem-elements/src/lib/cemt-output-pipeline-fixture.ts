@@ -36,6 +36,7 @@ export type CemTree = {
 
 export type CemtPipelineFixture = {
     cemtSource: string;
+    sourcePaths: string[];
     sourceAst: CemNode;
     formatterName: string;
     colorizerName: string;
@@ -60,11 +61,19 @@ export type CemtPipelineShowcase = {
     coloredTreeCem: string;
 };
 
+export type CemtPipelineSourceInput =
+    | string
+    | readonly {
+          path: string;
+          source: string;
+      }[];
+
 export function createCemtPipelineShowcase(
-    cemtSource: string,
+    cemtSourceInput: CemtPipelineSourceInput,
     stageFixtureSource: string
 ): CemtPipelineShowcase {
-    const fixture = createPipelineFixture(cemtSource);
+    const source = normalizeCemtSourceInput(cemtSourceInput);
+    const fixture = createPipelineFixture(source.analysisSource, source.displaySource, source.sourcePaths);
     const stages = parseStageFixture(stageFixtureSource, fixture);
     const sourceAst = fixture.sourceAst;
     const formattedTree = formatCemTree(fixture);
@@ -96,9 +105,14 @@ export function writeColoredTreeToHtml(tree: CemTree): string {
     return tree.nodes.map(writeNodeToHtml).join('');
 }
 
-function createPipelineFixture(cemtSource: string): CemtPipelineFixture {
+function createPipelineFixture(
+    cemtSource: string,
+    displaySource: string,
+    sourcePaths: string[]
+): CemtPipelineFixture {
     return {
-        cemtSource,
+        cemtSource: displaySource,
+        sourcePaths,
         sourceAst: {
             kind: 'element',
             name: 'article',
@@ -123,6 +137,29 @@ function createPipelineFixture(cemtSource: string): CemtPipelineFixture {
         elementClass: requiredColorClass(cemtSource, 'syntax-name'),
         textClass: requiredColorClass(cemtSource, 'syntax-string'),
         keywordClass: requiredColorClass(cemtSource, 'syntax-keyword'),
+    };
+}
+
+function normalizeCemtSourceInput(input: CemtPipelineSourceInput): {
+    analysisSource: string;
+    displaySource: string;
+    sourcePaths: string[];
+} {
+    if (typeof input === 'string') {
+        return {
+            analysisSource: input,
+            displaySource: input,
+            sourcePaths: [],
+        };
+    }
+
+    const sourcePaths = input.map((file) => file.path);
+    return {
+        analysisSource: input.map((file) => file.source).join('\n\n'),
+        displaySource: input
+            .map((file) => `// ${file.path}\n${file.source.trimEnd()}`)
+            .join('\n\n'),
+        sourcePaths,
     };
 }
 
@@ -355,9 +392,19 @@ function parseStageFixture(source: string, fixture: CemtPipelineFixture): Parsed
 function assertStageFixtureMetadata(source: string, fixture: CemtPipelineFixture): void {
     const fixtureSource = requiredStageFixtureAttribute(source, 'source');
     invariant(
-        fixtureSource.endsWith('formatter-coloring-pipeline.cemt'),
+        fixtureSource.endsWith('formatter-coloring-pipeline.cemt') || fixtureSource.endsWith('/package.cem'),
         `unexpected CEMT pipeline fixture source ${fixtureSource}`
     );
+    if (fixtureSource.endsWith('/package.cem')) {
+        invariant(
+            fixture.sourcePaths.some((path) => path.includes('/formatters/formatter-coloring-pipeline.cemt')),
+            'schema-package CEMT pipeline fixture is missing formatter source path'
+        );
+        invariant(
+            fixture.sourcePaths.some((path) => path.includes('/colorizers/formatter-coloring-pipeline.cemt')),
+            'schema-package CEMT pipeline fixture is missing colorizer source path'
+        );
+    }
     assertEqual(
         requiredStageFixtureAttribute(source, 'formatter'),
         fixture.formatterName,

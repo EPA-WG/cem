@@ -172,6 +172,8 @@ schema-packages/{package-id}/v1/
   schema/{package-id}.cem
   examples/
   converters/
+  formatters/
+  colorizers/
 ```
 
 2. Author `schema/{package-id}.cem` as a schema-definition document. It should
@@ -212,11 +214,18 @@ schema-packages/{package-id}/v1/
    converters must declare `rust-symbol`; CEMT converters that name a Rust
    fallback must also declare `fallback-reason`.
 
-6. Add examples that cover the smallest valid instance, the common production
+6. Add output-stage CEMT assets when the package owns formatted or colored
+   output. Formatter artifacts live under `formatters/`; colorizer artifacts
+   live under `colorizers/`. Formatters convert source AST/projection data into
+   a formatted CEM tree. Colorizers mutate that CEM tree into a colored,
+   writer-ready CEM tree. The writer runs only after coloring and receives the
+   already formatted and colored tree.
+
+7. Add examples that cover the smallest valid instance, the common production
    shape, and at least one invalid contract. Link those examples from the
    package README and keep expected diagnostics explicit.
 
-7. Validate the manifest directly:
+8. Validate the manifest directly:
 
 ```bash
 cargo run -p cem-ml-cli -- validate \
@@ -225,13 +234,58 @@ cargo run -p cem-ml-cli -- validate \
   schema-packages/{package-id}/v1/package.cem
 ```
 
-8. Validate the package folder against source consistency rules. Built-in
+9. Validate the package folder against source consistency rules. Built-in
    packages are covered by the CLI integration test; local packages should run
    the same validator before they are added to a runtime catalog.
 
 Custom packages are not automatically trusted by the built-in runtime. A host
 must explicitly load or embed the package descriptor before its content types,
 namespaces, converters, or schema rules participate in registry resolution.
+
+## Schema-Owned CEMT Output Pipeline
+
+Formatter and colorizer files are schema-package assets, not loose runtime
+overrides. A package that owns output behavior keeps those assets in the same
+versioned hierarchy as its schema:
+
+```text
+schema-packages/{package-id}/v1/
+  package.cem
+  schema/{package-id}.cem
+  formatters/{profile-or-function}.cemt
+  colorizers/{profile-or-function}.cemt
+```
+
+The manifest declares each file with `artifact @kind="formatter"` or
+`artifact @kind="colorizer"`, including the CEMT function name, profile, target
+content type, target schema, and `target-category="cem-tree"`. Runtime
+selection uses an explicit function selector first (`cemtFormatter` /
+`cemtColorizer`, or the matching CLI flags), then profile fallback when that
+profile is unambiguous.
+
+The output pipeline is intentionally staged:
+
+```text
+source AST/projection
+  -> CEMT formatter
+  -> formatted CEM tree
+  -> CEMT colorizer
+  -> colored CEM tree
+  -> writer
+  -> target-native formatted content
+```
+
+The writer is the final phase. It does not choose layout, color roles, or
+writer-owned classes; those decisions must already exist on the colored CEM
+tree. When a decision is between JSON and CEM-native representation for these
+stage fixtures, keep the CEM-native representation and prompt only when the
+target format itself requires another syntax.
+
+The built-in CEM-ML package shows the pattern:
+
+- [`cem-ml/v1/formatters/formatter-coloring-pipeline.cemt`](cem-ml/v1/formatters/formatter-coloring-pipeline.cemt)
+- [`cem-ml/v1/colorizers/formatter-coloring-pipeline.cemt`](cem-ml/v1/colorizers/formatter-coloring-pipeline.cemt)
+- [`cem-ml/v1/examples/formatter-coloring-pipeline.package-artifacts.fixture.cem`](cem-ml/v1/examples/formatter-coloring-pipeline.package-artifacts.fixture.cem)
 
 ## Direct References
 

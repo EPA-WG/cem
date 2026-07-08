@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
+import packagePipelineColorizerSource from '../../../cem_ml/schema-packages/cem-ml/v1/colorizers/formatter-coloring-pipeline.cemt?raw';
+import packagePipelineStageFixture from '../../../cem_ml/schema-packages/cem-ml/v1/examples/formatter-coloring-pipeline.package-artifacts.fixture.cem?raw';
+import packagePipelineFormatterSource from '../../../cem_ml/schema-packages/cem-ml/v1/formatters/formatter-coloring-pipeline.cemt?raw';
 import cemtPipelineStageFixture from '../../../cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.fixture.cem?raw';
 import cemtPipelineSource from '../../../cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.cemt?raw';
 import {
@@ -23,6 +26,39 @@ describe('CEMT output pipeline fixture', () => {
         expect(showcase.formattedTreeCem).toContain('@value="formatted tree before writer"');
         expect(showcase.formattedTreeCem).not.toContain('"formatterProfile"');
         expect(showcase.formattedTreeCem).not.toContain('"kind":');
+    });
+
+    it('shows schema-package formatter and colorizer assets as colocated CEMT files', () => {
+        const showcase = createCemtPipelineShowcase(
+            [
+                {
+                    path: 'schema-packages/cem-ml/v1/formatters/formatter-coloring-pipeline.cemt',
+                    source: packagePipelineFormatterSource,
+                },
+                {
+                    path: 'schema-packages/cem-ml/v1/colorizers/formatter-coloring-pipeline.cemt',
+                    source: packagePipelineColorizerSource,
+                },
+            ],
+            packagePipelineStageFixture
+        );
+
+        expect(showcase.fixture.sourcePaths).toEqual([
+            'schema-packages/cem-ml/v1/formatters/formatter-coloring-pipeline.cemt',
+            'schema-packages/cem-ml/v1/colorizers/formatter-coloring-pipeline.cemt',
+        ]);
+        expect(showcase.fixture.cemtSource).toContain(
+            '// schema-packages/cem-ml/v1/formatters/formatter-coloring-pipeline.cemt'
+        );
+        expect(showcase.fixture.cemtSource).toContain(
+            '// schema-packages/cem-ml/v1/colorizers/formatter-coloring-pipeline.cemt'
+        );
+        expect(showcase.formattedTreeCem).toContain('@formatter-profile="acme.showcase.format-tree"');
+        expect(showcase.coloredTreeCem).toContain('@color-profile="classes"');
+        expect(writerReady(showcase.formattedTree)).toBe(false);
+        expect(writeColoredTreeToHtml(showcase.coloredTree)).toContain(
+            '<article class="cem-color cem-color-syntax-name">'
+        );
     });
 
     it('keeps coloring as a CEM tree mutation before writer output', () => {

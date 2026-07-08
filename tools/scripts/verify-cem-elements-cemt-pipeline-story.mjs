@@ -10,7 +10,19 @@ import { chromium } from 'playwright';
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const storybookRoot = join(repoRoot, 'packages/cem-elements/storybook-static');
 const timeout = 30_000;
-const storyId = 'cem-elements-cemt-output-pipeline--formatter-coloring-writer-stages';
+const stories = [
+    {
+        id: 'cem-elements-cemt-output-pipeline--formatter-coloring-writer-stages',
+        sourceIncludes: [],
+    },
+    {
+        id: 'cem-elements-cemt-output-pipeline--schema-package-formatter-colorizer-assets',
+        sourceIncludes: [
+            'schema-packages/cem-ml/v1/formatters/formatter-coloring-pipeline.cemt',
+            'schema-packages/cem-ml/v1/colorizers/formatter-coloring-pipeline.cemt',
+        ],
+    },
+];
 
 await requireStaticStorybook();
 
@@ -57,20 +69,22 @@ try {
         }
     });
 
-    const storyUrl = `http://127.0.0.1:${port}/iframe.html?id=${storyId}&viewMode=story`;
-    await page.goto(storyUrl, { waitUntil: 'networkidle' });
-    await page.waitForSelector('.cemt-pipeline-showcase', { timeout });
-    await page.waitForSelector('[data-stage="writer"] article.cem-color-syntax-name', { timeout });
+    for (const story of stories) {
+        const storyUrl = `http://127.0.0.1:${port}/iframe.html?id=${story.id}&viewMode=story`;
+        await page.goto(storyUrl, { waitUntil: 'networkidle' });
+        await page.waitForSelector('.cemt-pipeline-showcase', { timeout });
+        await page.waitForSelector('[data-stage="writer"] article.cem-color-syntax-name', { timeout });
 
-    const stageReport = await collectStageReport(page);
-    assertStageReport(stageReport);
+        const stageReport = await collectStageReport(page);
+        assertStageReport(stageReport, story);
 
-    const screenshot = await page.locator('.cemt-pipeline-showcase').screenshot({
-        animations: 'disabled',
-        type: 'png',
-    });
-    const screenshotStats = await screenshotPixelStats(page, screenshot);
-    assertScreenshotStats(screenshotStats);
+        const screenshot = await page.locator('.cemt-pipeline-showcase').screenshot({
+            animations: 'disabled',
+            type: 'png',
+        });
+        const screenshotStats = await screenshotPixelStats(page, screenshot);
+        assertScreenshotStats(screenshotStats, story.id);
+    }
 
     if (pageErrors.length > 0) {
         throw new Error(`CEMT output pipeline story emitted browser errors:\n${pageErrors.map((error) => `- ${error}`).join('\n')}`);
@@ -80,7 +94,7 @@ try {
     await new Promise((resolveClose) => server.close(resolveClose));
 }
 
-console.log('cem-elements CEMT output pipeline Storybook story verified with screenshot pixels.');
+console.log('cem-elements CEMT output pipeline Storybook stories verified with screenshot pixels.');
 
 async function requireStaticStorybook() {
     try {
@@ -138,32 +152,35 @@ async function collectStageReport(page) {
     });
 }
 
-function assertStageReport(report) {
+function assertStageReport(report, story) {
     for (const [stage, state] of Object.entries(report.stages)) {
-        assert(state.visible, `stage ${stage} is not visibly rendered (${state.width}x${state.height})`);
+        assert(state.visible, `${story.id}: stage ${stage} is not visibly rendered (${state.width}x${state.height})`);
     }
 
     const cemtSource = report.stages['cemt-source'].text;
-    assert(cemtSource.includes('@name="acme.showcase.format-tree"'), 'CEMT source stage omits formatter declaration');
-    assert(cemtSource.includes('@name="acme.showcase.color-tree"'), 'CEMT source stage omits colorizer declaration');
+    assert(cemtSource.includes('@name="acme.showcase.format-tree"'), `${story.id}: CEMT source stage omits formatter declaration`);
+    assert(cemtSource.includes('@name="acme.showcase.color-tree"'), `${story.id}: CEMT source stage omits colorizer declaration`);
+    for (const expectedSource of story.sourceIncludes) {
+        assert(cemtSource.includes(expectedSource), `${story.id}: CEMT source stage omits ${expectedSource}`);
+    }
 
     const formatted = report.stages.formatted.text;
-    assert(formatted.includes('formatted tree before writer'), 'formatted stage omits formatter metadata');
-    assert(formatted.includes('@formatter-profile="acme.showcase.format-tree"'), 'formatted stage omits formatter profile');
-    assert(!formatted.includes('colored tree before writer'), 'formatted stage already includes coloring metadata');
-    assert(!formatted.includes('"kind":'), 'formatted stage rendered JSON instead of CEM-native text');
+    assert(formatted.includes('formatted tree before writer'), `${story.id}: formatted stage omits formatter metadata`);
+    assert(formatted.includes('@formatter-profile="acme.showcase.format-tree"'), `${story.id}: formatted stage omits formatter profile`);
+    assert(!formatted.includes('colored tree before writer'), `${story.id}: formatted stage already includes coloring metadata`);
+    assert(!formatted.includes('"kind":'), `${story.id}: formatted stage rendered JSON instead of CEM-native text`);
 
     const colored = report.stages.colored.text;
-    assert(colored.includes('colored tree before writer'), 'colored stage omits colorizer metadata');
-    assert(colored.includes('@colored=true'), 'colored stage omits colored tree marker');
-    assert(colored.includes('@color-role="syntax.keyword"'), 'colored stage omits keyword color role');
+    assert(colored.includes('colored tree before writer'), `${story.id}: colored stage omits colorizer metadata`);
+    assert(colored.includes('@colored=true'), `${story.id}: colored stage omits colored tree marker`);
+    assert(colored.includes('@color-role="syntax.keyword"'), `${story.id}: colored stage omits keyword color role`);
 
-    assert(report.writer.articleText.includes('Ready now.'), 'writer output does not render the formatted content');
-    assert(report.writer.articleClass.includes('cem-color-syntax-name'), 'writer output omits element color class');
-    assert(report.writer.spanClass.includes('cem-color-syntax-string'), 'writer output omits text color class');
-    assert(report.writer.strongClass.includes('cem-color-syntax-keyword'), 'writer output omits keyword color class');
-    assert(report.writer.elementColor !== report.writer.textColor, 'writer element and text colors are not visually distinct');
-    assert(report.writer.keywordColor !== report.writer.textColor, 'writer keyword and text colors are not visually distinct');
+    assert(report.writer.articleText.includes('Ready now.'), `${story.id}: writer output does not render the formatted content`);
+    assert(report.writer.articleClass.includes('cem-color-syntax-name'), `${story.id}: writer output omits element color class`);
+    assert(report.writer.spanClass.includes('cem-color-syntax-string'), `${story.id}: writer output omits text color class`);
+    assert(report.writer.strongClass.includes('cem-color-syntax-keyword'), `${story.id}: writer output omits keyword color class`);
+    assert(report.writer.elementColor !== report.writer.textColor, `${story.id}: writer element and text colors are not visually distinct`);
+    assert(report.writer.keywordColor !== report.writer.textColor, `${story.id}: writer keyword and text colors are not visually distinct`);
 }
 
 async function screenshotPixelStats(page, screenshot) {
@@ -228,18 +245,18 @@ async function screenshotPixelStats(page, screenshot) {
     }, screenshot.toString('base64'));
 }
 
-function assertScreenshotStats(stats) {
-    assert(stats.width >= 900, `Storybook screenshot is too narrow: ${stats.width}px`);
-    assert(stats.height >= 600, `Storybook screenshot is too short: ${stats.height}px`);
+function assertScreenshotStats(stats, storyId) {
+    assert(stats.width >= 900, `${storyId}: Storybook screenshot is too narrow: ${stats.width}px`);
+    assert(stats.height >= 600, `${storyId}: Storybook screenshot is too short: ${stats.height}px`);
     assert(
         stats.nonWhite > stats.samples * 0.02,
-        `Storybook screenshot is visually blank or nearly blank: ${JSON.stringify(stats)}`
+        `${storyId}: Storybook screenshot is visually blank or nearly blank: ${JSON.stringify(stats)}`
     );
-    assert(stats.dark > 80, `Storybook screenshot does not contain enough rendered text pixels: ${JSON.stringify(stats)}`);
-    assert(stats.saturated > 20, `Storybook screenshot does not contain enough colored output pixels: ${JSON.stringify(stats)}`);
+    assert(stats.dark > 80, `${storyId}: Storybook screenshot does not contain enough rendered text pixels: ${JSON.stringify(stats)}`);
+    assert(stats.saturated > 20, `${storyId}: Storybook screenshot does not contain enough colored output pixels: ${JSON.stringify(stats)}`);
     assert(
         stats.colorBuckets >= 12,
-        `Storybook screenshot has too little color variation: ${JSON.stringify(stats)}`
+        `${storyId}: Storybook screenshot has too little color variation: ${JSON.stringify(stats)}`
     );
 }
 
