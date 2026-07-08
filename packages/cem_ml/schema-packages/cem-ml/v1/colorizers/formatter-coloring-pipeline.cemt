@@ -4,7 +4,7 @@
 
 {module @version="1.0.0" |
     {color-function
-        @name="acme.showcase.color-node"
+        @name="cemml.cem-tree.color-node"
         @visibility="private"
         @category="cem-tree-node"
         @subject="object"
@@ -18,17 +18,18 @@
         {param @name="subject" @type="object" @required=true}
         {param @name="role" @type="string" @default="syntax.string"}
         {param @name="className" @type="string" @default="cem-color cem-color-syntax-string"}
+        {param @name="colorProfile" @type="string" @default="classes"}
         {body |
             {$ match($subject.kind, {
-                element: call(acme.showcase.color-element, { subject: $subject }),
-                text: call(acme.showcase.color-text, { subject: $subject, role: $role, className: $className }),
+                element: call("cemml.cem-tree.color-element", { subject: $subject, colorProfile: $colorProfile }),
+                text: call("cemml.cem-tree.color-text", { subject: $subject, role: $role, className: $className, colorProfile: $colorProfile }),
                 default: $subject
             }) }
         }
     }
 
     {color-function
-        @name="acme.showcase.color-element"
+        @name="cemml.cem-tree.color-element"
         @visibility="private"
         @category="cem-tree-node"
         @subject="object"
@@ -40,6 +41,7 @@
         @deterministic=true
         @streamable=true |
         {param @name="subject" @type="object" @required=true}
+        {param @name="colorProfile" @type="string" @default="classes"}
         {body |
             {$ {
                 kind: "element",
@@ -50,7 +52,7 @@
                 colorRole: match($subject.name, { strong: "syntax.keyword", default: "syntax.name" }),
                 style: {
                     colorRole: match($subject.name, { strong: "syntax.keyword", default: "syntax.name" }),
-                    colorProfile: "classes"
+                    colorProfile: $colorProfile
                 },
                 writerAttributeNodes: [{
                     kind: "writer-attribute",
@@ -58,19 +60,20 @@
                     value: match($subject.name, { strong: "cem-color cem-color-syntax-keyword", default: "cem-color cem-color-syntax-name" }),
                     colorizerOwned: true,
                     colorizerRole: "colorizer.writer-attribute",
-                    colorProfile: "classes"
+                    colorProfile: $colorProfile
                 }],
-                children: map($subject.children, call(acme.showcase.color-node, {
+                children: map($subject.children, call("cemml.cem-tree.color-node", {
                     subject: $item,
                     role: match($subject.name, { strong: "syntax.keyword", default: "syntax.string" }),
-                    className: match($subject.name, { strong: "cem-color cem-color-syntax-keyword", default: "cem-color cem-color-syntax-string" })
+                    className: match($subject.name, { strong: "cem-color cem-color-syntax-keyword", default: "cem-color cem-color-syntax-string" }),
+                    colorProfile: $colorProfile
                 }))
             } }
         }
     }
 
     {color-function
-        @name="acme.showcase.color-text"
+        @name="cemml.cem-tree.color-text"
         @visibility="private"
         @category="cem-tree-node"
         @subject="object"
@@ -84,6 +87,7 @@
         {param @name="subject" @type="object" @required=true}
         {param @name="role" @type="string" @required=true}
         {param @name="className" @type="string" @required=true}
+        {param @name="colorProfile" @type="string" @default="classes"}
         {body |
             {$ {
                 kind: "element",
@@ -91,7 +95,7 @@
                 colorRole: $role,
                 style: {
                     colorRole: $role,
-                    colorProfile: "classes"
+                    colorProfile: $colorProfile
                 },
                 writerAttributeNodes: [{
                     kind: "writer-attribute",
@@ -99,7 +103,7 @@
                     value: $className,
                     colorizerOwned: true,
                     colorizerRole: "colorizer.writer-attribute",
-                    colorProfile: "classes"
+                    colorProfile: $colorProfile
                 }],
                 colorWrapperNodes: [
                     {
@@ -107,7 +111,7 @@
                         name: "span",
                         colorizerOwned: true,
                         colorizerRole: "colorizer.text-wrapper",
-                        colorProfile: "classes"
+                        colorProfile: $colorProfile
                     },
                     {
                         kind: "color-decision",
@@ -115,11 +119,63 @@
                         value: $role,
                         colorizerOwned: true,
                         colorizerRole: "colorizer.wrapped-role",
-                        colorProfile: "classes"
+                        colorProfile: $colorProfile
                     }
                 ],
                 children: [$subject]
             } }
+        }
+    }
+
+    {color-function
+        @name="cemml.cem-tree.color-tree-base"
+        @visibility="private"
+        @category="cem-tree"
+        @subject="cem-tree"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @extends="cem.color-tree"
+        @profile="classes"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="colorProfile" @type="string" @default="classes"}
+        {param @name="colorDecision" @type="object" @required=true}
+        {param @name="writerBoundary" @type="object" @required=true}
+        {param @name="queuedEditPath" @type="string" @required=true}
+        {param @name="queuedEditNode" @type="object" @required=true}
+        {body |
+            {$ applyEdits(
+                appendWriterBoundary(
+                    appendColorNode(
+                        merge($subject, {
+                            colored: true,
+                            colorProfile: $colorProfile,
+                            colorNodes: [{
+                                kind: "color-marker",
+                                name: "cem.color-tree",
+                                colorizerRole: "colorizer.boundary",
+                                colorProfile: $colorProfile
+                            }],
+                            nodes: map($subject.nodes, call("cemml.cem-tree.color-node", { subject: $item, colorProfile: $colorProfile }))
+                        }),
+                        $colorDecision
+                    ),
+                    $writerBoundary
+                ),
+                drainQueue(
+                    defer([],
+                        appendEdit(
+                            $queuedEditPath,
+                            $queuedEditNode
+                        )
+                    ),
+                    [],
+                    append($acc, $item)
+                )
+            ) }
         }
     }
 
@@ -138,51 +194,30 @@
         @streamable=true |
         {param @name="subject" @type="object" @required=true}
         {body |
-            {$ applyEdits(
-                appendWriterBoundary(
-                    appendColorNode(
-                        merge($subject, {
-                            colored: true,
-                            colorProfile: "classes",
-                            colorNodes: [{
-                                kind: "color-marker",
-                                name: "cem.color-tree",
-                                colorizerRole: "colorizer.boundary",
-                                colorProfile: "classes"
-                            }],
-                            nodes: map($subject.nodes, call(acme.showcase.color-node, { subject: $item }))
-                        }),
-                        {
-                            kind: "color-decision",
-                            name: "showcase",
-                            colorizerRole: "colorizer.showcase",
-                            value: "colored tree before writer"
-                        }
-                    ),
-                    {
-                        kind: "writer-boundary",
-                        stage: "after-color",
-                        value: "writer consumes colored CEM tree"
-                    }
-                ),
-                drainQueue(
-                    defer([],
-                        appendEdit(
-                            "nodes.0.children.1.children.0.colorWrapperNodes",
-                            {
-                                kind: "color-decision",
-                                name: "queued-edit",
-                                colorizerOwned: true,
-                                colorizerRole: "colorizer.queued-edit",
-                                colorProfile: "classes",
-                                value: "queued edit replay before writer"
-                            }
-                        )
-                    ),
-                    [],
-                    append($acc, $item)
-                )
-            ) }
+            {$ call("cemml.cem-tree.color-tree-base", {
+                subject: $subject,
+                colorProfile: "classes",
+                colorDecision: {
+                    kind: "color-decision",
+                    name: "showcase",
+                    colorizerRole: "colorizer.showcase",
+                    value: "colored tree before writer"
+                },
+                writerBoundary: {
+                    kind: "writer-boundary",
+                    stage: "after-color",
+                    value: "writer consumes colored CEM tree"
+                },
+                queuedEditPath: "nodes.0.children.1.children.0.colorWrapperNodes",
+                queuedEditNode: {
+                    kind: "color-decision",
+                    name: "queued-edit",
+                    colorizerOwned: true,
+                    colorizerRole: "colorizer.queued-edit",
+                    colorProfile: "classes",
+                    value: "queued edit replay before writer"
+                }
+            }) }
         }
     }
 }

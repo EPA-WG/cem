@@ -4,7 +4,7 @@
 
 {module @version="1.0.0" |
     {format-function
-        @name="acme.showcase.format-node"
+        @name="cemml.cem-tree.format-node"
         @visibility="private"
         @category="cem-tree-node"
         @subject="object"
@@ -18,15 +18,15 @@
         {param @name="slot" @type="integer" @default="0"}
         {body |
             {$ match($subject.kind, {
-                element: call(acme.showcase.format-element, { subject: $subject, slot: $slot }),
-                text: call(acme.showcase.format-text, { subject: $subject, slot: $slot }),
+                element: call("cemml.cem-tree.format-element", { subject: $subject, slot: $slot }),
+                text: call("cemml.cem-tree.format-text", { subject: $subject, slot: $slot }),
                 default: $subject
             }) }
         }
     }
 
     {format-function
-        @name="acme.showcase.format-element"
+        @name="cemml.cem-tree.format-element"
         @visibility="private"
         @category="cem-tree-node"
         @subject="object"
@@ -44,7 +44,7 @@
                 name: $subject.name,
                 sourceMap: $subject.sourceMap,
                 attributes: $subject.attributes,
-                children: map($subject.children, call(acme.showcase.format-node, { subject: $item, slot: $index })),
+                children: map($subject.children, call("cemml.cem-tree.format-node", { subject: $item, slot: $index })),
                 formatLayout: {
                     kind: "format-decision",
                     formatterRole: match($subject.name, { strong: "formatter.inline-emphasis", default: "formatter.layout" }),
@@ -55,7 +55,7 @@
     }
 
     {format-function
-        @name="acme.showcase.format-text"
+        @name="cemml.cem-tree.format-text"
         @visibility="private"
         @category="cem-tree-node"
         @subject="object"
@@ -77,6 +77,47 @@
     }
 
     {format-function
+        @name="cemml.cem-tree.format-tree-base"
+        @visibility="private"
+        @category="cem-tree"
+        @subject="cem-ast-node"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @extends="cem.format-tree"
+        @canonical=true
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="json" @required=true}
+        {param @name="formatterProfile" @type="string" @required=true}
+        {param @name="formatDecision" @type="object" @required=true}
+        {body |
+            {$ appendFormatNode(
+                {
+                    kind: "cem-tree",
+                    contentType: "application/cem",
+                    schema: "https://cem.dev/ns/cem-ml/1",
+                    category: "cem-tree",
+                    mode: "fragment",
+                    canonical: true,
+                    formatterProfile: $formatterProfile,
+                    formatNodes: [{
+                        kind: "format-marker",
+                        name: "cem.format-tree",
+                        formatterRole: "formatter.boundary",
+                        formatterProfile: $formatterProfile
+                    }],
+                    nodes: match(exists($subject.kind), {
+                        true: [call("cemml.cem-tree.format-node", { subject: $subject, slot: 0 })],
+                        false: map($subject, call("cemml.cem-tree.format-node", { subject: $item, slot: $index }))
+                    })
+                },
+                $formatDecision
+            ) }
+        }
+    }
+
+    {format-function
         @name="acme.showcase.format-tree"
         @visibility="public"
         @category="cem-tree"
@@ -91,33 +132,16 @@
         @streamable=true |
         {param @name="subject" @type="json" @required=true}
         {body |
-            {$ appendFormatNode(
-                {
-                    kind: "cem-tree",
-                    contentType: "application/cem",
-                    schema: "https://cem.dev/ns/cem-ml/1",
-                    category: "cem-tree",
-                    mode: "fragment",
-                    canonical: true,
-                    formatterProfile: "acme.showcase.format-tree",
-                    formatNodes: [{
-                        kind: "format-marker",
-                        name: "cem.format-tree",
-                        formatterRole: "formatter.boundary",
-                        formatterProfile: "acme.showcase.format-tree"
-                    }],
-                    nodes: match(exists($subject.kind), {
-                        true: [call(acme.showcase.format-node, { subject: $subject, slot: 0 })],
-                        false: map($subject, call(acme.showcase.format-node, { subject: $item, slot: $index }))
-                    })
-                },
-                {
+            {$ call("cemml.cem-tree.format-tree-base", {
+                subject: $subject,
+                formatterProfile: "acme.showcase.format-tree",
+                formatDecision: {
                     kind: "format-decision",
                     name: "showcase",
                     formatterRole: "formatter.showcase",
                     value: "formatted tree before writer"
                 }
-            ) }
+            }) }
         }
     }
 }

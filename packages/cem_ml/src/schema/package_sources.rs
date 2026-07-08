@@ -227,9 +227,15 @@ mod tests {
         assert!(showcase_formatter
             .source
             .contains(r#"@name="acme.showcase.format-tree""#));
+        assert!(showcase_formatter
+            .source
+            .contains(r#"@name="cemml.cem-tree.format-tree-base""#));
         assert!(showcase_colorizer
             .source
             .contains(r#"@name="acme.showcase.color-tree""#));
+        assert!(showcase_colorizer
+            .source
+            .contains(r#"@name="cemml.cem-tree.color-tree-base""#));
         assert!(builtin_schema_package_artifact_sources()
             .iter()
             .any(|source| source.path == formatter.path));

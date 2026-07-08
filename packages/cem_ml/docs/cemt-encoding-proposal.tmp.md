@@ -192,8 +192,11 @@ metadata. They are not opaque host-side string filters.
   values inserted by queued `set`, `replace`, `append`, and `prepend` edits now
   default missing source maps from the patched CEM tree and stamp the active
   formatter/colorizer frame. The formatter/coloring showcase now uses
-  `applyEdits(...)` to replay deferred color metadata before writer output;
-  remaining work is source-map policy integration.
+  `applyEdits(...)` to replay deferred color metadata before writer output, and
+  the schema-package showcase wraps package-owned `cemml.cem-tree.*` helpers
+  instead of copying the full pipeline body into the public formatter/colorizer;
+  remaining work is source-map policy integration and cross-artifact helper
+  loading.
 - Extend first-class diagnostics emitted from formatter/color templates.
   `diagnostic(...)` and `diagnostics(...)` now construct writer-ready diagnostic
   values for unsupported layout, inaccessible color, unsafe raw content,

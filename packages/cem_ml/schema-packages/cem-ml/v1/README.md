@@ -61,6 +61,15 @@ canonical `cem.format-tree` and `cem.color-tree` pipeline stable while allowing
 showcase or schema-specific formatter/colorizer bodies to opt in through the
 same manifest-declared asset path.
 
+The showcase artifacts expose their public `acme.showcase.*` functions as thin
+wrappers over package-owned helpers such as
+`cemml.cem-tree.format-tree-base` and `cemml.cem-tree.color-tree-base`. New
+schema-specific formatter/colorizer functions should pass formatter decisions,
+color decisions, writer boundaries, and queued edits into those helpers instead
+of copying the full pipeline body. Cross-artifact helper loading is still
+future work, so the helpers are currently declared inside each package artifact
+that calls them.
+
 The `formatters/` and `colorizers/` directories are part of the package
 contract. Schema-package validation rejects formatter or colorizer artifacts
 that point outside those package-relative `.cemt` locations, keeping

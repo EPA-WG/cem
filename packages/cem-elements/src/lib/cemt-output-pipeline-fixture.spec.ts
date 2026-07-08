@@ -55,6 +55,8 @@ describe('CEMT output pipeline fixture', () => {
         expect(showcase.fixture.cemtSource).toContain(
             '// schema-packages/cem-ml/v1/colorizers/formatter-coloring-pipeline.cemt'
         );
+        expect(showcase.fixture.cemtSource).toContain('@name="cemml.cem-tree.format-tree-base"');
+        expect(showcase.fixture.cemtSource).toContain('@name="cemml.cem-tree.color-tree-base"');
         expect(showcase.formattedTreeCem).toContain('@formatter-profile="acme.showcase.format-tree"');
         expect(showcase.coloredTreeCem).toContain('@color-profile="classes"');
         expect(writerReady(showcase.formattedTree)).toBe(false);

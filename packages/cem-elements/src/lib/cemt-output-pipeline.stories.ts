@@ -150,6 +150,16 @@ function assertPipelineShowcase(
             `Storybook showcase displays schema-package CEMT source path ${expectedSourcePath}`
         );
     }
+    if (expectedSourcePaths.length > 0) {
+        assert(
+            templatePanel.textContent?.includes('cemml.cem-tree.format-tree-base'),
+            'schema-package formatter exposes reusable CEM tree formatter helper'
+        );
+        assert(
+            templatePanel.textContent?.includes('cemml.cem-tree.color-tree-base'),
+            'schema-package colorizer exposes reusable CEM tree colorizer helper'
+        );
+    }
     assert(
         templatePanel.textContent?.includes('appendFormatNode('),
         'formatter CEMT source shows metadata accumulation'

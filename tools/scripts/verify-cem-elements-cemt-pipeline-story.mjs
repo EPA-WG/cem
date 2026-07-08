@@ -167,6 +167,10 @@ function assertStageReport(report, story) {
     for (const expectedSource of story.sourceIncludes) {
         assert(cemtSource.includes(expectedSource), `${story.id}: CEMT source stage omits ${expectedSource}`);
     }
+    if (story.sourceIncludes.length > 0) {
+        assert(cemtSource.includes('cemml.cem-tree.format-tree-base'), `${story.id}: CEMT source stage omits reusable formatter helper`);
+        assert(cemtSource.includes('cemml.cem-tree.color-tree-base'), `${story.id}: CEMT source stage omits reusable colorizer helper`);
+    }
 
     const formatted = report.stages.formatted.text;
     assert(formatted.includes('formatted tree before writer'), `${story.id}: formatted stage omits formatter metadata`);
