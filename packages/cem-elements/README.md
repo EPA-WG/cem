@@ -26,12 +26,13 @@ That aggregate gate runs:
 - `cem-elements:verify-substrate`
 - `cem-elements:verify-legacy-fixtures`
 - `cem-elements:verify-material-fixtures`
+- `cem-elements:verify-cemt-pipeline-story`
 - `cem-elements:test:unit`
 - `cem-elements:test`
 
 The gate covers file-backed legacy fixtures in `tests/parity/legacy/`, material parity fixtures in
-`tests/parity/material/`, substrate CEM fixtures in `../../examples/cem-elements/`, unit coverage, and Storybook
-browser parity stories.
+`tests/parity/material/`, substrate CEM fixtures in `../../examples/cem-elements/`, unit coverage, Storybook browser
+parity stories, and a Playwright screenshot check for the CEMT formatter/coloring/writer pipeline story.
 
 ## Fixture Locations
 
@@ -62,5 +63,8 @@ Run `yarn nx run cem-elements:build` to build the library.
 ## Testing
 
 Run `yarn nx run cem-elements:test` to execute the runtime stories through Storybook Test.
+
+Run `yarn nx run cem-elements:verify-cemt-pipeline-story` to build Storybook and visually verify the CEMT output
+pipeline story's formatted CEM tree, colored CEM tree, and writer output stages.
 
 Run `yarn nx run cem-elements:storybook` to open the interactive Storybook runtime fixture surface.

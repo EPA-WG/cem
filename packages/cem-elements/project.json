@@ -137,6 +137,29 @@
             ],
             "outputs": []
         },
+        "verify-cemt-pipeline-story": {
+            "cache": false,
+            "executor": "nx:run-commands",
+            "options": {
+                "commands": [
+                    "yarn storybook build --config-dir packages/cem-elements/.storybook --output-dir packages/cem-elements/storybook-static",
+                    "node tools/scripts/verify-cem-elements-cemt-pipeline-story.mjs"
+                ],
+                "parallel": false,
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/verify-cem-elements-cemt-pipeline-story.mjs",
+                "{projectRoot}/.storybook/**/*",
+                "{projectRoot}/src/**/*.ts",
+                "{projectRoot}/package.json",
+                "{workspaceRoot}/package.json",
+                "{workspaceRoot}/yarn.lock",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.cemt",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.fixture.cem"
+            ],
+            "outputs": []
+        },
         "verify-edge-ssr": {
             "executor": "nx:run-commands",
             "dependsOn": [
@@ -159,10 +182,11 @@
                 "verify-edge-ssr",
                 "verify-legacy-fixtures",
                 "verify-material-fixtures",
-                "verify-demo-fixtures"
+                "verify-demo-fixtures",
+                "verify-cemt-pipeline-story"
             ],
             "options": {
-                "command": "echo \"C2.6 verification gate green: cem_ml_cli validate-fixtures + e2e, cem_ml bench, Phase 3.5 Edge/SSR gate, file-backed parity fixtures, executable demo fixtures, and Storybook parity stories all passed.\"",
+                "command": "echo \"C2.6 verification gate green: cem_ml_cli validate-fixtures + e2e, cem_ml bench, Phase 3.5 Edge/SSR gate, file-backed parity fixtures, executable demo fixtures, CEMT pipeline Storybook screenshot, and Storybook parity stories all passed.\"",
                 "cwd": "{workspaceRoot}"
             },
             "outputs": []
