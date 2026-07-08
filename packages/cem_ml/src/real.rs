@@ -6,9 +6,9 @@
 //! replaces `NotImplementedEngine` in `cem-ml-cli/src/main.rs`.
 
 use crate::conversion::{
-    conversion_output_safety_contract, execute_conversion_output_pipeline, ConversionExecution,
-    ConversionOutputPipeline, ConversionRustFallbackDescriptor, GenericDataTextConversionOutcome,
-    GenericDataTextDocument,
+    conversion_output_safety_contract, direct_cem_output_pipeline,
+    execute_conversion_output_pipeline, ConversionExecution, ConversionOutputPipeline,
+    ConversionRustFallbackDescriptor, GenericDataTextConversionOutcome, GenericDataTextDocument,
 };
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::*;
@@ -542,6 +542,75 @@ fn convert_primary_from_template_output(
             Some(Value::Object(object))
         }
         _ => None,
+    }
+}
+
+fn convert_primary_to_cem_with_cemt_pipeline(
+    document: &CemDocument,
+    from_format: InputFormat,
+    diagnostics: &mut Vec<Diagnostic>,
+    diagnostic_uri: Option<&str>,
+) -> Option<Value> {
+    let pipeline = direct_cem_output_pipeline();
+    let pipeline_execution = execute_conversion_output_pipeline(
+        &pipeline,
+        projection::cem_tree_nodes_json_with_source_content_type(
+            document,
+            Some(input_format_content_type(from_format)),
+        ),
+        None,
+        Vec::new(),
+        "direct-cem-output",
+        Some("output"),
+        diagnostic_uri,
+    );
+    if pipeline_execution
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return None;
+    }
+    diagnostics.extend(pipeline_execution.diagnostics);
+    let mut content = pipeline_execution.output?.as_str()?.to_owned();
+    if !content.is_empty() && !content.ends_with('\n') {
+        content.push('\n');
+    }
+    let source_map = pipeline_execution
+        .source_map
+        .and_then(|source_map| serde_json::to_value(source_map).ok())
+        .unwrap_or(Value::Null);
+    let output_spans =
+        serde_json::to_value(pipeline_execution.output_spans).unwrap_or_else(|_| json!([]));
+    Some(json!({
+        "kind": "cem",
+        "content": content,
+        "sourceMap": source_map,
+        "outputSpans": output_spans,
+    }))
+}
+
+fn convert_primary_to_cem_with_legacy_formatter(
+    document: &CemDocument,
+    from_format: InputFormat,
+) -> Value {
+    let formatted = formatter::format_transform(document, input_format_content_type(from_format));
+    json!({
+        "kind": "cem",
+        "content": formatted.rendered,
+        "sourceMap": formatted.source_map,
+        "outputSpans": formatted.output_spans.iter().map(|span| json!({
+            "outputRange": span.output_range,
+            "origin": span.origin,
+        })).collect::<Vec<_>>(),
+    })
+}
+
+fn input_format_content_type(from_format: InputFormat) -> &'static str {
+    match from_format {
+        InputFormat::Cem => "application/cem",
+        InputFormat::Html => "text/html",
+        InputFormat::Xml => "application/xml",
     }
 }
 
@@ -4333,25 +4402,15 @@ impl CemMlEngine for RealCemMlEngine {
                 &request.context,
             );
             primary = Some(match to_format {
-                LayerFormat::Cem => {
-                    let formatted = formatter::format_transform(
-                        &run.document,
-                        match from_format {
-                            InputFormat::Cem => "application/cem",
-                            InputFormat::Html => "text/html",
-                            InputFormat::Xml => "application/xml",
-                        },
-                    );
-                    json!({
-                        "kind": "cem",
-                        "content": formatted.rendered,
-                        "sourceMap": formatted.source_map,
-                        "outputSpans": formatted.output_spans.iter().map(|span| json!({
-                            "outputRange": span.output_range,
-                            "origin": span.origin,
-                        })).collect::<Vec<_>>(),
-                    })
-                }
+                LayerFormat::Cem => convert_primary_to_cem_with_cemt_pipeline(
+                    &run.document,
+                    from_format,
+                    &mut diagnostics,
+                    Some(&request.input.uri),
+                )
+                .unwrap_or_else(|| {
+                    convert_primary_to_cem_with_legacy_formatter(&run.document, from_format)
+                }),
                 LayerFormat::Html => {
                     if let Some(primary) = export_conversion.as_ref().and_then(|conversion| {
                         render_export_conversion_template(

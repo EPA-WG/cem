@@ -4641,6 +4641,36 @@ fn conversion_output_pipeline(
     }
 }
 
+pub fn direct_cem_output_pipeline() -> ConversionOutputPipeline {
+    let output_contract = ConversionOutputContractDescriptor {
+        output_syntax: Some(ConversionOutputSyntax::Text),
+        encoding_category: Some("cem-document".to_owned()),
+        formatter_profile: Some("cem.format-tree".to_owned()),
+        color_profile: Some("none".to_owned()),
+        parity: None,
+    };
+    let writer_target = TransformTemplateEncodingTarget::new(
+        CEM_ML_CONTENT_TYPE,
+        CEM_ML_SCHEMA_URI,
+        "cem-document",
+    );
+    let writer_options = TransformTemplateEncodeOptions {
+        formatter_profile: output_contract.formatter_profile.clone(),
+        color_profile: output_contract.color_profile.clone(),
+        mode: TransformTemplateEncodedArtifactMode::Document,
+        canonical: true,
+        source_map_policy: TransformTemplateSourceMapPolicy::Generated,
+        ..TransformTemplateEncodeOptions::default()
+    };
+    let writer_insertion_context = conversion_output_insertion_context(
+        &writer_target,
+        &output_contract,
+        &writer_options,
+        TransformTemplateOutputProducedKind::Text,
+    );
+    conversion_output_pipeline(&output_contract, &writer_options, &writer_insertion_context)
+}
+
 fn conversion_cem_tree_pipeline_options(
     writer_options: &TransformTemplateEncodeOptions,
     formatter_profile: &str,

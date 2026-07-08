@@ -18,7 +18,7 @@ use crate::schema::registry::{
     CEM_EVENTS_PROJECTION_CONTENT_TYPE, CEM_EVENTS_PROJECTION_SCHEMA_URI,
 };
 use crate::source::{ByteRange, BytesSource, SourceId};
-use crate::source_map::{FrameSpan, SourceMapStack};
+use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 use crate::tokenizer::cem::CemTokenizer;
 use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
@@ -761,6 +761,31 @@ pub fn dom_json(doc: &CemDocument) -> Value {
     }
 }
 
+/// Project root document children as CEM tree formatter input.
+///
+/// This intentionally differs from `dom_json`: it preserves the full
+/// `sourceMap` stacks that the CEMT formatter/colorizer/writer pipeline uses
+/// for output spans, and it emits namespace-qualified names as writer-ready
+/// CEM names.
+pub fn cem_tree_nodes_json(doc: &CemDocument) -> Value {
+    cem_tree_nodes_json_with_source_content_type(doc, None)
+}
+
+pub fn cem_tree_nodes_json_with_source_content_type(
+    doc: &CemDocument,
+    source_content_type: Option<&str>,
+) -> Value {
+    match doc.root() {
+        Some(CemAstNode::Document { root_children, .. }) => Value::Array(
+            root_children
+                .iter()
+                .filter_map(|id| project_cem_tree_node(doc, *id, source_content_type))
+                .collect(),
+        ),
+        _ => Value::Array(Vec::new()),
+    }
+}
+
 fn project_node(doc: &CemDocument, id: AstNodeId) -> Option<Value> {
     let node = doc.get(id)?;
     let value = match node {
@@ -847,6 +872,149 @@ fn project_node(doc: &CemDocument, id: AstNodeId) -> Option<Value> {
         CemAstNode::Attribute { .. } => return None,
     };
     Some(value)
+}
+
+fn project_cem_tree_node(
+    doc: &CemDocument,
+    id: AstNodeId,
+    source_content_type: Option<&str>,
+) -> Option<Value> {
+    let node = doc.get(id)?;
+    let value = match node {
+        CemAstNode::Document {
+            root_children,
+            source,
+            ..
+        } => json!({
+            "kind": "document",
+            "children": root_children.iter().filter_map(|id| project_cem_tree_node(doc, *id, source_content_type)).collect::<Vec<_>>(),
+            "sourceMap": source_map_value(source, source_content_type),
+        }),
+        CemAstNode::Element {
+            expanded_name,
+            attributes,
+            children,
+            source,
+            ..
+        } => {
+            let mut attrs = attributes
+                .iter()
+                .filter_map(|aid| project_cem_tree_node(doc, *aid, source_content_type))
+                .collect::<Vec<_>>();
+            attrs.sort_by(|left, right| {
+                let left_name = left.get("name").and_then(Value::as_str).unwrap_or_default();
+                let right_name = right
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                (left_name.contains(':'), left_name).cmp(&(right_name.contains(':'), right_name))
+            });
+            json!({
+                "kind": "element",
+                "name": projected_expanded_name(expanded_name),
+                "attributes": attrs,
+                "children": children.iter().filter_map(|cid| project_cem_tree_node(doc, *cid, source_content_type)).collect::<Vec<_>>(),
+                "sourceMap": source_map_value(source, source_content_type),
+            })
+        }
+        CemAstNode::Attribute {
+            expanded_name,
+            value,
+            source,
+            ..
+        } => json!({
+            "kind": "attribute",
+            "name": projected_expanded_name(expanded_name),
+            "value": value,
+            "sourceMap": source_map_value(source, source_content_type),
+        }),
+        CemAstNode::Text { data, source, .. } => json!({
+            "kind": "text",
+            "value": data,
+            "sourceMap": source_map_value(source, source_content_type),
+        }),
+        CemAstNode::Whitespace { data, source, .. } => json!({
+            "kind": "whitespace",
+            "data": data,
+            "sourceMap": source_map_value(source, source_content_type),
+        }),
+        CemAstNode::Comment { data, source, .. } => json!({
+            "kind": "comment",
+            "data": data,
+            "sourceMap": source_map_value(source, source_content_type),
+        }),
+        CemAstNode::ProcessingInstruction {
+            target,
+            data,
+            source,
+            ..
+        } => json!({
+            "kind": "processing-instruction",
+            "name": target,
+            "target": target,
+            "data": data,
+            "sourceMap": source_map_value(source, source_content_type),
+        }),
+        CemAstNode::Cdata { data, source, .. } => json!({
+            "kind": "cdata",
+            "data": data,
+            "sourceMap": source_map_value(source, source_content_type),
+        }),
+        CemAstNode::RawText { data, source, .. } => json!({
+            "kind": "raw-text",
+            "data": data,
+            "sourceMap": source_map_value(source, source_content_type),
+        }),
+        CemAstNode::Error { code, source, .. } => json!({
+            "kind": "error",
+            "code": code,
+            "sourceMap": source_map_value(source, source_content_type),
+        }),
+    };
+    Some(value)
+}
+
+fn projected_expanded_name(name: &ExpandedName) -> String {
+    if name.namespace_uri.is_empty() {
+        name.local_name.clone()
+    } else {
+        format!("{}:{}", name.namespace_uri, name.local_name)
+    }
+}
+
+fn source_map_value(source: &SourceMapStack, source_content_type: Option<&str>) -> Value {
+    serde_json::to_value(source_map_with_content_type_transform(
+        source,
+        source_content_type,
+    ))
+    .unwrap_or(Value::Null)
+}
+
+fn source_map_with_content_type_transform(
+    source: &SourceMapStack,
+    source_content_type: Option<&str>,
+) -> SourceMapStack {
+    let Some(content_type) = source_content_type
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return source.clone();
+    };
+    let mut source_map = source.clone();
+    let current = source_map.current().cloned();
+    source_map.push(SourceMapFrame {
+        source_id: current
+            .as_ref()
+            .map(|frame| frame.source_id)
+            .unwrap_or(SourceId(0)),
+        span: current
+            .map(|frame| frame.span)
+            .unwrap_or_else(|| FrameSpan::Single(ByteRange::new(0, 0))),
+        transform: TransformKind::ContentTypeTransform {
+            content_type: content_type.to_owned(),
+        },
+    });
+    source_map
 }
 
 fn stack_origin(stack: &SourceMapStack) -> Option<ByteRange> {
@@ -1010,6 +1178,34 @@ mod tests {
         assert_eq!(attr["name"], "action");
         assert_eq!(attr["namespace"], "cem");
         assert_eq!(attr["value"], "primary");
+    }
+
+    #[test]
+    fn cem_tree_nodes_json_preserves_writer_names_and_source_map_transform() {
+        let doc = parse(r#"{button @cem:action=primary @type=submit | Save}"#);
+        let v = cem_tree_nodes_json_with_source_content_type(&doc, Some("text/html"));
+        let nodes = v.as_array().expect("CEM tree projection is node array");
+        let button = &nodes[0];
+
+        assert_eq!(button["kind"], "element");
+        assert_eq!(button["name"], "button");
+        assert_eq!(button["attributes"][0]["name"], "type");
+        assert_eq!(button["attributes"][1]["name"], "cem:action");
+        let text = button["children"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|child| child["kind"] == "text")
+            .expect("projected text child");
+        assert_eq!(text["value"], "Save");
+        assert!(text["sourceMap"]["frames"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|frame| {
+                frame["transform"]["kind"] == "ContentTypeTransform"
+                    && frame["transform"]["content_type"] == "text/html"
+            }));
     }
 
     #[test]
