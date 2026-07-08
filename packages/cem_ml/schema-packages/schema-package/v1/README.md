@@ -46,7 +46,12 @@ artifact source itself, while `target-content-type`, `target-schema`, and
 `function-name` identifies the CEMT output function supplied by the asset, and
 `function-profile` records the referenced CEMT declaration's own `@profile`
 when present. `formatter-profile` or `color-profile` selects the stage profile
-when multiple assets can serve the same target.
+when multiple assets can serve the same target. Formatter artifacts must use
+package-relative `.cemt` paths under `formatters/`; colorizer artifacts must use
+package-relative `.cemt` paths under `colorizers/`. These directories sit beside
+`schema/` inside the same `schema-packages/{schema-name}/{version}/` hierarchy,
+so schema-owned formatting and coloring travel with the schema package instead
+of a writer-local string filter.
 For local `package.cem` inputs, validation also reads the declared schema
 source and checks that the manifest schema URI, content type claims, and
 namespace URI claims match the referenced `schema/*.cem` file.

@@ -48,6 +48,11 @@ the asset during output pipeline execution. Colorizer artifacts also declare
 the CEMT function profile separately as `function-profile`, because one CEMT
 body can serve multiple output color profiles.
 
+The `formatters/` and `colorizers/` directories are part of the package
+contract. Schema-package validation rejects formatter or colorizer artifacts
+that point outside those package-relative `.cemt` locations, keeping
+formatting, coloring, and schema identity in the same package hierarchy.
+
 ## Validation Examples
 
 The schema-owned examples live in [`examples/`](examples/) and are used by the

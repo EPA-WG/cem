@@ -40,7 +40,7 @@ use crate::transform_template::{
 use crate::validation::{
     RuleContext, RuleDescriptor, RuleId, RuleInput, RuleResourceRead, SemanticRule, TriggerLayer,
 };
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 fn diag_at(code: &str, severity: Severity, message: String, node: &CemAstNode) -> Diagnostic {
     let stack = match node {
@@ -1389,6 +1389,8 @@ fn validate_schema_package_artifact(
     node: &CemAstNode,
     out: &mut Vec<Diagnostic>,
 ) {
+    validate_schema_package_artifact_layout(ctx.document, node, out);
+
     let Some(function_name) = attr_value(ctx.document, node, "function-name")
         .map(str::trim)
         .filter(|value| !value.is_empty())
@@ -1469,6 +1471,75 @@ fn validate_schema_package_artifact(
         .into_iter()
         .map(|mismatch| schema_package_artifact_contract_mismatch_diag(node, path, mismatch)),
     );
+}
+
+fn validate_schema_package_artifact_layout(
+    doc: &crate::parser::document::CemDocument,
+    node: &CemAstNode,
+    out: &mut Vec<Diagnostic>,
+) {
+    let Some(kind) = attr_value(doc, node, "kind")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return;
+    };
+    let Some(expected_dir) = schema_package_artifact_stage_dir(kind) else {
+        return;
+    };
+    let Some(path) = attr_value(doc, node, "path")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return;
+    };
+
+    if schema_package_stage_artifact_path_is_valid(path, expected_dir) {
+        return;
+    }
+
+    out.push(diag_at(
+        "cem.schema_package.artifact_layout_invalid",
+        Severity::Error,
+        format!(
+            "{kind} artifact `{path}` must be a package-relative CEMT file under `{expected_dir}/` in the schema package"
+        ),
+        node,
+    ));
+}
+
+fn schema_package_artifact_stage_dir(kind: &str) -> Option<&'static str> {
+    match kind {
+        "formatter" => Some("formatters"),
+        "colorizer" => Some("colorizers"),
+        _ => None,
+    }
+}
+
+fn schema_package_stage_artifact_path_is_valid(path: &str, expected_dir: &str) -> bool {
+    let path = path.trim();
+    if path.is_empty() || (has_uri_scheme(path) && !is_windows_drive_path(path)) {
+        return false;
+    }
+    let parsed = Path::new(path);
+    if parsed.is_absolute() || parsed.extension().and_then(|ext| ext.to_str()) != Some("cemt") {
+        return false;
+    }
+
+    let mut components = parsed.components();
+    match components.next() {
+        Some(Component::Normal(first)) if first == expected_dir => {}
+        _ => return false,
+    }
+
+    let mut has_artifact_file = false;
+    for component in components {
+        match component {
+            Component::Normal(_) => has_artifact_file = true,
+            _ => return false,
+        }
+    }
+    has_artifact_file
 }
 
 fn read_schema_package_artifact_source(
@@ -2577,6 +2648,96 @@ mod tests {
     }
 
     #[test]
+    fn schema_package_artifact_contract_accepts_stage_artifact_layout_paths() {
+        assert!(schema_package_stage_artifact_path_is_valid(
+            "formatters/demo.cemt",
+            "formatters"
+        ));
+        assert!(schema_package_stage_artifact_path_is_valid(
+            "colorizers/cem/color-tree.cemt",
+            "colorizers"
+        ));
+    }
+
+    #[test]
+    fn schema_package_artifact_contract_rejects_non_package_stage_layout_paths() {
+        for path in [
+            "formatters",
+            "formatters/demo.cem",
+            "colorizers/demo.cemt",
+            "../formatters/demo.cemt",
+            "formatters/../demo.cemt",
+            "/tmp/demo.cemt",
+            "cem+vfs://packages/demo/v1/formatters/demo.cemt",
+        ] {
+            assert!(
+                !schema_package_stage_artifact_path_is_valid(path, "formatters"),
+                "expected invalid formatter artifact path `{path}`"
+            );
+        }
+    }
+
+    #[test]
+    fn schema_package_artifact_contract_flags_formatter_and_colorizer_stage_layouts() {
+        let dir = schema_package_artifact_contract_fixture_dir(
+            "artifact-layout-invalid",
+            &[
+                ("transforms/demo-format.cemt", demo_format_cemt_source()),
+                ("formatters/demo-color.cemt", demo_color_cemt_source()),
+            ],
+        );
+        let package_uri = dir.join("package.cem").display().to_string();
+        let diags = run_rules_with_identity_and_source_uri(
+            r#"{package @id=demo @version="1.0.0" |
+                {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+                {content-type @value="application/vnd.example.demo+cem" @primary=true}
+                {artifact
+                    @kind="formatter"
+                    @path="transforms/demo-format.cemt"
+                    @content-type="application/vnd.cem.transform+cem"
+                    @schema="https://cem.dev/ns/transform/cem/1"
+                    @target-content-type="application/cem"
+                    @target-schema="https://cem.dev/ns/cem-ml/1"
+                    @target-category="cem-tree"
+                    @function-name="demo.format"
+                    @formatter-profile="cem.format-tree"
+                }
+                {artifact
+                    @kind="colorizer"
+                    @path="formatters/demo-color.cemt"
+                    @content-type="application/vnd.cem.transform+cem"
+                    @schema="https://cem.dev/ns/transform/cem/1"
+                    @target-content-type="application/cem"
+                    @target-schema="https://cem.dev/ns/cem-ml/1"
+                    @target-category="cem-tree"
+                    @function-name="demo.color"
+                    @function-profile="classes"
+                    @color-profile="classes"
+                }
+            }"#,
+            Some(CEM_SCHEMA_PACKAGE_URI),
+            Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
+            Some(&package_uri),
+        );
+
+        let layout_diags: Vec<_> = diags
+            .iter()
+            .filter(|d| d.code == "cem.schema_package.artifact_layout_invalid")
+            .collect();
+        assert_eq!(
+            layout_diags.len(),
+            2,
+            "expected formatter and colorizer layout diagnostics: {diags:?}"
+        );
+        assert!(layout_diags.iter().any(|d| d
+            .message
+            .contains("formatter artifact `transforms/demo-format.cemt`")));
+        assert!(layout_diags.iter().any(|d| d
+            .message
+            .contains("colorizer artifact `formatters/demo-color.cemt`")));
+    }
+
+    #[test]
     fn schema_package_artifact_contract_flags_unreadable_cemt_source() {
         let dir = schema_package_artifact_contract_fixture_dir("artifact-source-missing", &[]);
         let package_uri = dir.join("package.cem").display().to_string();
@@ -2642,6 +2803,28 @@ mod tests {
         @content-type="application/cem"
         @schema="https://cem.dev/ns/cem-ml/1"
         @canonical=true
+        @deterministic=true
+        @streamable=true
+    }
+}
+"#
+    }
+
+    fn demo_color_cemt_source() -> &'static str {
+        r#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {color-function
+        @name="demo.color"
+        @category="cem-tree"
+        @subject="cem-tree"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @profile="classes"
+        @canonical=false
         @deterministic=true
         @streamable=true
     }
