@@ -2421,7 +2421,6 @@ pub struct ConversionOutputPipelineExecution {
 
 const CEM_TREE_FORMAT_CEMT_ADAPTER_ID: &str = "cem-tree-format-cemt";
 const CEM_TREE_COLOR_CEMT_ADAPTER_ID: &str = "cem-tree-color-cemt";
-const CEM_TREE_OUTPUT_PACKAGE_ID: &str = "cem-ml";
 
 #[derive(Debug, Clone, Copy)]
 struct CemTreeCemtOutputStage {
@@ -2462,21 +2461,27 @@ const CEM_TREE_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOu
     role: "colorizer",
 };
 
-fn cem_tree_format_cemt_stage() -> Result<CemTreeCemtOutputStage, String> {
-    cem_tree_cemt_output_stage(CEM_TREE_FORMAT_CEMT_STAGE_SPEC)
+fn cem_tree_format_cemt_stage(
+    target: &TransformTemplateEncodingTarget,
+) -> Result<CemTreeCemtOutputStage, String> {
+    cem_tree_cemt_output_stage(CEM_TREE_FORMAT_CEMT_STAGE_SPEC, target)
 }
 
-fn cem_tree_color_cemt_stage() -> Result<CemTreeCemtOutputStage, String> {
-    cem_tree_cemt_output_stage(CEM_TREE_COLOR_CEMT_STAGE_SPEC)
+fn cem_tree_color_cemt_stage(
+    target: &TransformTemplateEncodingTarget,
+) -> Result<CemTreeCemtOutputStage, String> {
+    cem_tree_cemt_output_stage(CEM_TREE_COLOR_CEMT_STAGE_SPEC, target)
 }
 
 fn cem_tree_cemt_output_stage(
     spec: CemTreeCemtOutputStageSpec,
+    target: &TransformTemplateEncodingTarget,
 ) -> Result<CemTreeCemtOutputStage, String> {
+    let package_id = conversion_package_id_for_encoding_target(target)?;
     let registry = ConversionRegistry::with_builtin_converters();
     let artifact = registry
         .select_package_artifact(
-            CEM_TREE_OUTPUT_PACKAGE_ID,
+            &package_id,
             spec.artifact_kind,
             Some(CEM_TRANSFORM_CONTENT_TYPE),
             Some(CEM_TRANSFORM_SCHEMA_URI),
@@ -2484,7 +2489,7 @@ fn cem_tree_cemt_output_stage(
         .ok_or_else(|| {
             format!(
                 "schema package `{}` does not declare a `{}` CEMT artifact for `{}` / `{}`",
-                CEM_TREE_OUTPUT_PACKAGE_ID,
+                package_id,
                 spec.artifact_kind,
                 CEM_TRANSFORM_CONTENT_TYPE,
                 CEM_TRANSFORM_SCHEMA_URI
@@ -2508,6 +2513,30 @@ fn cem_tree_cemt_output_stage(
         function_name: spec.function_name,
         role: spec.role,
     })
+}
+
+fn conversion_package_id_for_encoding_target(
+    target: &TransformTemplateEncodingTarget,
+) -> Result<String, String> {
+    let schema_registry = SchemaRegistry::with_builtin_schemas();
+    let descriptor = schema_registry.schema(&target.schema).ok_or_else(|| {
+        format!(
+            "unknown conversion output target schema `{}`",
+            target.schema
+        )
+    })?;
+    let content_type = content_type_essence(&target.content_type);
+    if !descriptor
+        .content_types
+        .iter()
+        .any(|owned| owned.essence == content_type)
+    {
+        return Err(format!(
+            "conversion output target content type `{}` is not owned by schema `{}`",
+            target.content_type, target.schema
+        ));
+    }
+    Ok(descriptor.package_id.clone())
 }
 
 #[derive(Clone, Debug)]
@@ -2751,14 +2780,22 @@ fn execute_conversion_cem_tree_format_stage(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
 ) -> Result<(Value, ConversionOutputPipelineStageExecution), String> {
-    execute_conversion_cem_tree_output_stage(cem_tree_format_cemt_stage()?, binding, subject)
+    execute_conversion_cem_tree_output_stage(
+        cem_tree_format_cemt_stage(&binding.identity.target)?,
+        binding,
+        subject,
+    )
 }
 
 fn execute_conversion_cem_tree_color_stage(
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
 ) -> Result<(Value, ConversionOutputPipelineStageExecution), String> {
-    execute_conversion_cem_tree_output_stage(cem_tree_color_cemt_stage()?, binding, subject)
+    execute_conversion_cem_tree_output_stage(
+        cem_tree_color_cemt_stage(&binding.identity.target)?,
+        binding,
+        subject,
+    )
 }
 
 fn execute_conversion_cem_tree_output_stage(
@@ -7861,10 +7898,19 @@ mod tests {
 
     #[test]
     fn cem_tree_output_templates_are_schema_package_assets() {
+        let target = TransformTemplateEncodingTarget::new(
+            CEM_ML_CONTENT_TYPE,
+            CEM_ML_SCHEMA_URI,
+            "cem-tree",
+        );
+        let package_id =
+            conversion_package_id_for_encoding_target(&target).expect("CEM tree target package");
+        assert_eq!(package_id, "cem-ml");
+
         let registry = ConversionRegistry::with_builtin_converters();
         let formatter = registry
             .select_package_artifact(
-                CEM_TREE_OUTPUT_PACKAGE_ID,
+                &package_id,
                 "formatter",
                 Some(CEM_TRANSFORM_CONTENT_TYPE),
                 Some(CEM_TRANSFORM_SCHEMA_URI),
@@ -7872,7 +7918,7 @@ mod tests {
             .expect("CEM tree formatter package artifact");
         let colorizer = registry
             .select_package_artifact(
-                CEM_TREE_OUTPUT_PACKAGE_ID,
+                &package_id,
                 "colorizer",
                 Some(CEM_TRANSFORM_CONTENT_TYPE),
                 Some(CEM_TRANSFORM_SCHEMA_URI),
@@ -7896,11 +7942,11 @@ mod tests {
         assert!(formatter_source.source.contains("{format-function"));
         assert!(colorizer_source.source.contains("{color-function"));
         assert_eq!(
-            cem_tree_format_cemt_stage().unwrap().template_uri,
+            cem_tree_format_cemt_stage(&target).unwrap().template_uri,
             formatter.path.as_str()
         );
         assert_eq!(
-            cem_tree_color_cemt_stage().unwrap().template_uri,
+            cem_tree_color_cemt_stage(&target).unwrap().template_uri,
             colorizer.path.as_str()
         );
         for source in [formatter_source.source, colorizer_source.source] {
@@ -7910,8 +7956,26 @@ mod tests {
     }
 
     #[test]
+    fn cemt_output_asset_package_resolution_rejects_target_identity_mismatch() {
+        let target =
+            TransformTemplateEncodingTarget::new(HTML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, "cem-tree");
+
+        let error = conversion_package_id_for_encoding_target(&target)
+            .expect_err("HTML content type is not owned by the CEM-ML schema");
+
+        assert!(error.contains("is not owned by schema"));
+        assert!(error.contains(HTML_CONTENT_TYPE));
+        assert!(error.contains(CEM_ML_SCHEMA_URI));
+    }
+
+    #[test]
     fn builtin_cem_tree_formatter_template_uses_direct_cemt_operations() {
-        let stage = cem_tree_format_cemt_stage().expect("CEM tree formatter stage");
+        let target = TransformTemplateEncodingTarget::new(
+            CEM_ML_CONTENT_TYPE,
+            CEM_ML_SCHEMA_URI,
+            "cem-tree",
+        );
+        let stage = cem_tree_format_cemt_stage(&target).expect("CEM tree formatter stage");
         let response =
             parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
                 template: TemplateInput {
@@ -7963,7 +8027,12 @@ mod tests {
 
     #[test]
     fn builtin_cem_tree_colorizer_template_uses_direct_cemt_operations() {
-        let stage = cem_tree_color_cemt_stage().expect("CEM tree colorizer stage");
+        let target = TransformTemplateEncodingTarget::new(
+            CEM_ML_CONTENT_TYPE,
+            CEM_ML_SCHEMA_URI,
+            "cem-tree",
+        );
+        let stage = cem_tree_color_cemt_stage(&target).expect("CEM tree colorizer stage");
         let response =
             parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
                 template: TemplateInput {
