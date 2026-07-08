@@ -112,6 +112,7 @@ pub struct EngineContext {
     pub scheduler: SchedulerConfig,
     pub schema_registry: SchemaRegistry,
     pub converter_registry: ConversionRegistry,
+    pub schema_package_manifests: Vec<EngineInput>,
     pub resolver_registry: ResolverRegistry,
     pub template_adapter_registry: TransformTemplateAdapterRegistry,
     pub transform_template_encode_registry: TransformTemplateEncodeImplementationRegistry,
@@ -126,6 +127,7 @@ impl Default for EngineContext {
             scheduler: SchedulerConfig::default(),
             schema_registry: SchemaRegistry::with_builtin_schemas(),
             converter_registry: ConversionRegistry::with_builtin_converters(),
+            schema_package_manifests: Vec::new(),
             resolver_registry: ResolverRegistry::default(),
             template_adapter_registry: TransformTemplateAdapterRegistry::with_builtin_adapters(),
             transform_template_encode_registry:

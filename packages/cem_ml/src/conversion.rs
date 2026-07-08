@@ -1775,7 +1775,7 @@ impl ConversionRegistry {
         schema: Option<&str>,
     ) -> Option<&ConversionPackageArtifactDescriptor> {
         let content_type = content_type.map(content_type_essence);
-        self.package_artifacts.iter().find(|artifact| {
+        self.package_artifacts.iter().rev().find(|artifact| {
             artifact.package_id == package_id
                 && artifact.kind == kind
                 && content_type
@@ -1807,7 +1807,7 @@ impl ConversionRegistry {
         let color_profile = color_profile
             .map(str::trim)
             .filter(|profile| !profile.is_empty());
-        self.package_artifacts.iter().find(|artifact| {
+        self.package_artifacts.iter().rev().find(|artifact| {
             artifact.package_id == package_id
                 && artifact.kind == kind
                 && content_type
@@ -5539,9 +5539,21 @@ fn primary_content_type_essence(
 pub fn conversion_descriptors_from_schema_package(
     package: &BuiltinSchemaPackage,
 ) -> Result<Vec<ConversionDescriptor>, ConversionManifestError> {
-    let document = parse_cem_document(package.manifest_source);
-    let package_id = package_manifest_package_id(package, &document)?;
-    let base_path = package_manifest_base_path(package);
+    let base_path = package_manifest_base_path(&package.descriptor);
+    conversion_descriptors_from_schema_package_manifest(
+        &package.descriptor.package_id,
+        package.manifest_source,
+        &base_path,
+    )
+}
+
+pub fn conversion_descriptors_from_schema_package_manifest(
+    package_id_hint: &str,
+    manifest_source: &str,
+    base_path: &str,
+) -> Result<Vec<ConversionDescriptor>, ConversionManifestError> {
+    let document = parse_cem_document(manifest_source);
+    let package_id = package_manifest_package_id(package_id_hint, &document)?;
     let Some(package_node_id) = first_element_id_by_local_name(&document, "package") else {
         return Err(ConversionManifestError::MissingPackageElement);
     };
@@ -5552,7 +5564,7 @@ pub fn conversion_descriptors_from_schema_package(
             &document,
             converter_id,
             &package_id,
-            &base_path,
+            base_path,
         )?);
     }
     Ok(descriptors)
@@ -5561,9 +5573,48 @@ pub fn conversion_descriptors_from_schema_package(
 pub fn conversion_package_artifacts_from_schema_package(
     package: &BuiltinSchemaPackage,
 ) -> Result<Vec<ConversionPackageArtifactDescriptor>, ConversionManifestError> {
-    let document = parse_cem_document(package.manifest_source);
-    let package_id = package_manifest_package_id(package, &document)?;
-    let base_path = package_manifest_base_path(package);
+    let base_path = package_manifest_base_path(&package.descriptor);
+    conversion_package_artifacts_from_schema_package_manifest(
+        &package.descriptor.package_id,
+        package.manifest_source,
+        &base_path,
+    )
+}
+
+pub fn conversion_package_artifacts_from_schema_package_manifest(
+    package_id_hint: &str,
+    manifest_source: &str,
+    base_path: &str,
+) -> Result<Vec<ConversionPackageArtifactDescriptor>, ConversionManifestError> {
+    conversion_package_artifacts_from_schema_package_manifest_inner(
+        package_id_hint,
+        manifest_source,
+        base_path,
+        true,
+    )
+}
+
+pub fn conversion_package_artifacts_from_validated_schema_package_manifest(
+    package_id_hint: &str,
+    manifest_source: &str,
+    base_path: &str,
+) -> Result<Vec<ConversionPackageArtifactDescriptor>, ConversionManifestError> {
+    conversion_package_artifacts_from_schema_package_manifest_inner(
+        package_id_hint,
+        manifest_source,
+        base_path,
+        false,
+    )
+}
+
+fn conversion_package_artifacts_from_schema_package_manifest_inner(
+    package_id_hint: &str,
+    manifest_source: &str,
+    base_path: &str,
+    validate_embedded_artifact_contracts: bool,
+) -> Result<Vec<ConversionPackageArtifactDescriptor>, ConversionManifestError> {
+    let document = parse_cem_document(manifest_source);
+    let package_id = package_manifest_package_id(package_id_hint, &document)?;
     let Some(package_node_id) = first_element_id_by_local_name(&document, "package") else {
         return Err(ConversionManifestError::MissingPackageElement);
     };
@@ -5575,7 +5626,8 @@ pub fn conversion_package_artifacts_from_schema_package(
                 &document,
                 artifact_node_id,
                 &package_id,
-                &base_path,
+                base_path,
+                validate_embedded_artifact_contracts,
             )
         })
         .collect()
@@ -5586,6 +5638,7 @@ fn conversion_package_artifact_from_manifest_node(
     node_id: AstNodeId,
     package_id: &str,
     base_path: &str,
+    validate_embedded_artifact_contracts: bool,
 ) -> Result<ConversionPackageArtifactDescriptor, ConversionManifestError> {
     let attrs = collect_manifest_attrs(document, node_id);
     let kind = required_manifest_attr(&attrs, None, "kind")?.to_owned();
@@ -5612,7 +5665,9 @@ fn conversion_package_artifact_from_manifest_node(
         color_profile: optional_manifest_attr(&attrs, "color-profile").map(str::to_owned),
         generated,
     };
-    validate_conversion_package_artifact_cemt_contract(&artifact)?;
+    if validate_embedded_artifact_contracts {
+        validate_conversion_package_artifact_cemt_contract(&artifact)?;
+    }
     Ok(artifact)
 }
 
@@ -5810,7 +5865,7 @@ fn conversion_descriptor_from_manifest_node(
 }
 
 fn package_manifest_package_id(
-    package: &BuiltinSchemaPackage,
+    package_id_hint: &str,
     document: &CemDocument,
 ) -> Result<String, ConversionManifestError> {
     let Some(package_node_id) = first_element_id_by_local_name(document, "package") else {
@@ -5818,17 +5873,16 @@ fn package_manifest_package_id(
     };
     let attrs = collect_manifest_attrs(document, package_node_id);
     Ok(optional_manifest_attr(&attrs, "id")
-        .unwrap_or(package.descriptor.package_id.as_str())
+        .unwrap_or(package_id_hint)
         .to_owned())
 }
 
-fn package_manifest_base_path(package: &BuiltinSchemaPackage) -> String {
-    package
-        .descriptor
+fn package_manifest_base_path(descriptor: &SchemaDescriptor) -> String {
+    descriptor
         .source
         .split_once("/schema/")
         .map(|(base, _)| base.to_owned())
-        .unwrap_or_else(|| format!("schema-packages/{}/v1", package.descriptor.package_id))
+        .unwrap_or_else(|| format!("schema-packages/{}/v1", descriptor.package_id))
 }
 
 fn package_relative_path(base_path: &str, path: &str) -> String {

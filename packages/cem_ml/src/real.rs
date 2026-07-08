@@ -6,12 +6,14 @@
 //! replaces `NotImplementedEngine` in `cem-ml-cli/src/main.rs`.
 
 use crate::conversion::{
-    conversion_output_safety_contract, direct_cem_output_pipeline, direct_html_output_pipeline,
-    direct_xml_output_pipeline, execute_conversion_output_pipeline,
-    execute_conversion_output_pipeline_with_environment, ConversionExecution,
-    ConversionOutputPipeline, ConversionOutputPipelineEnvironment,
-    ConversionPackageArtifactDescriptor, ConversionPackageArtifactRead,
-    ConversionRustFallbackDescriptor, GenericDataTextConversionOutcome, GenericDataTextDocument,
+    conversion_descriptors_from_schema_package_manifest, conversion_output_safety_contract,
+    conversion_package_artifacts_from_validated_schema_package_manifest,
+    direct_cem_output_pipeline, direct_html_output_pipeline, direct_xml_output_pipeline,
+    execute_conversion_output_pipeline, execute_conversion_output_pipeline_with_environment,
+    ConversionExecution, ConversionManifestError, ConversionOutputPipeline,
+    ConversionOutputPipelineEnvironment, ConversionPackageArtifactDescriptor,
+    ConversionPackageArtifactRead, ConversionRustFallbackDescriptor,
+    GenericDataTextConversionOutcome, GenericDataTextDocument,
     CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE,
 };
 use crate::diagnostics::{Diagnostic, Severity};
@@ -594,6 +596,184 @@ fn conversion_package_artifact_read_from_resolved(
         uri: read.uri,
         bytes: read.bytes,
         content_type: read.content_type,
+    }
+}
+
+fn context_with_loaded_schema_package_manifests(
+    context: &EngineContext,
+) -> EngineResult<(EngineContext, Vec<Diagnostic>)> {
+    if context.schema_package_manifests.is_empty() {
+        return Ok((context.clone(), Vec::new()));
+    }
+
+    let mut enriched = context.clone();
+    enriched.schema_package_manifests.clear();
+    let mut diagnostics = Vec::new();
+    for package_input in &context.schema_package_manifests {
+        diagnostics.extend(load_schema_package_manifest_into_context(
+            &mut enriched,
+            package_input,
+        )?);
+    }
+    Ok((enriched, diagnostics))
+}
+
+fn load_schema_package_manifest_into_context(
+    context: &mut EngineContext,
+    input: &EngineInput,
+) -> EngineResult<Vec<Diagnostic>> {
+    let mut package_input = input.clone();
+    if package_input.from_format.is_none() {
+        package_input.from_format = Some(InputFormat::Cem);
+    }
+    if package_input.identity.is_none() {
+        package_input.identity = Some(schema_package_manifest_identity());
+    }
+    if package_input.root_scope.schema.is_none() {
+        package_input.root_scope.schema = Some(CEM_SCHEMA_PACKAGE_URI.to_owned());
+    }
+    if package_input.root_scope.default_content_type.is_none() {
+        package_input.root_scope.default_content_type =
+            Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE.to_owned());
+    }
+
+    let package_input = materialized_input(&package_input, context)?;
+    let loaded = load_input_through_lifecycle(&package_input, context);
+    let manifest_uri = input_uri(&package_input, context);
+    let run = run_pipeline_as_scoped_with_context_and_source_uri(
+        &loaded.bytes,
+        loaded.from_format,
+        &package_input.root_scope,
+        context,
+        &manifest_uri,
+    );
+
+    let mut diagnostics = loaded.diagnostics;
+    diagnostics.extend(run.diagnostics);
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        project_diagnostic_uris(&mut diagnostics, &package_input, context);
+        return Ok(diagnostics);
+    }
+
+    match std::str::from_utf8(&loaded.bytes) {
+        Ok(manifest_source) => {
+            let mut registration_diagnostics =
+                register_validated_schema_package_manifest(context, manifest_source, &manifest_uri);
+            diagnostics.append(&mut registration_diagnostics);
+        }
+        Err(error) => diagnostics.push(schema_package_load_diagnostic(
+            Some(&manifest_uri),
+            "cem.schema_package.manifest_source_invalid",
+            format!("schema package manifest `{manifest_uri}` is not UTF-8 CEM-ML: {error}"),
+        )),
+    }
+
+    project_diagnostic_uris(&mut diagnostics, &package_input, context);
+    Ok(diagnostics)
+}
+
+fn register_validated_schema_package_manifest(
+    context: &mut EngineContext,
+    manifest_source: &str,
+    manifest_uri: &str,
+) -> Vec<Diagnostic> {
+    let base_path = schema_package_manifest_base_path(manifest_uri);
+    let package_id_hint = "external-schema-package";
+    let mut diagnostics = Vec::new();
+
+    match conversion_descriptors_from_schema_package_manifest(
+        package_id_hint,
+        manifest_source,
+        &base_path,
+    ) {
+        Ok(descriptors) => {
+            for descriptor in descriptors {
+                if let Err(error) = context.converter_registry.register(descriptor) {
+                    diagnostics.push(schema_package_load_diagnostic(
+                        Some(manifest_uri),
+                        "cem.schema_package.converter_registration_failed",
+                        format!("schema package converter could not be registered: {error}"),
+                    ));
+                }
+            }
+        }
+        Err(error) => diagnostics.push(schema_package_manifest_error_diagnostic(
+            manifest_uri,
+            "converter metadata",
+            error,
+        )),
+    }
+
+    match conversion_package_artifacts_from_validated_schema_package_manifest(
+        package_id_hint,
+        manifest_source,
+        &base_path,
+    ) {
+        Ok(artifacts) => {
+            for artifact in artifacts {
+                context
+                    .converter_registry
+                    .register_package_artifact(artifact);
+            }
+        }
+        Err(error) => diagnostics.push(schema_package_manifest_error_diagnostic(
+            manifest_uri,
+            "artifact metadata",
+            error,
+        )),
+    }
+
+    diagnostics
+}
+
+fn schema_package_manifest_identity() -> FormatIdentity {
+    FormatIdentity {
+        content_type: Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE.to_owned()),
+        schema: Some(CEM_SCHEMA_PACKAGE_URI.to_owned()),
+        ..FormatIdentity::default()
+    }
+}
+
+fn schema_package_manifest_base_path(manifest_uri: &str) -> String {
+    let manifest_uri = manifest_uri.trim();
+    manifest_uri
+        .rsplit_once('/')
+        .map(|(base, _)| {
+            if base.is_empty() {
+                ".".to_owned()
+            } else {
+                base.to_owned()
+            }
+        })
+        .unwrap_or_else(|| ".".to_owned())
+}
+
+fn schema_package_manifest_error_diagnostic(
+    uri: &str,
+    subject: &str,
+    error: ConversionManifestError,
+) -> Diagnostic {
+    schema_package_load_diagnostic(
+        Some(uri),
+        "cem.schema_package.manifest_conversion_metadata_invalid",
+        format!("schema package manifest `{uri}` has invalid {subject}: {error}"),
+    )
+}
+
+fn schema_package_load_diagnostic(
+    uri: Option<&str>,
+    code: &str,
+    message: impl Into<String>,
+) -> Diagnostic {
+    Diagnostic {
+        uri: uri.map(str::to_owned),
+        code: code.to_owned(),
+        severity: Severity::Error,
+        message: message.into(),
+        ..Diagnostic::default()
     }
 }
 
@@ -4649,8 +4829,11 @@ impl CemMlEngine for RealCemMlEngine {
         if let Some(response) = maybe_convert_generic_data_text(&request, started_at) {
             return Ok(response);
         }
+        let (context, mut package_diagnostics) =
+            context_with_loaded_schema_package_manifests(&request.context)?;
         let trace = crate::scheduler::SchedulerTrace::new();
         let (policy, mut diagnostics) = scheduler_policy_for_convert(&request);
+        diagnostics.append(&mut package_diagnostics);
         let pool =
             crate::scheduler::WorkerPool::new(request.scheduler_scope_id, policy, trace.clone());
         let abort = crate::scheduler::AbortSignal::new();
@@ -4674,7 +4857,7 @@ impl CemMlEngine for RealCemMlEngine {
                     "input",
                 );
                 diagnostics.append(&mut scope_diagnostics);
-                let mut loaded = registry.load(&request.input, &request.context);
+                let mut loaded = registry.load(&request.input, &context);
                 diagnostics.append(&mut loaded.diagnostics);
                 loaded_input = Some(loaded);
                 return;
@@ -4695,30 +4878,27 @@ impl CemMlEngine for RealCemMlEngine {
 
             let mut loaded = loaded_input
                 .take()
-                .unwrap_or_else(|| registry.load(&request.input, &request.context));
+                .unwrap_or_else(|| registry.load(&request.input, &context));
             diagnostics.append(&mut loaded.diagnostics);
             let mut export = export_selection.take().unwrap_or_else(|| {
                 registry.select_export(request.target.as_ref(), request.to_format)
             });
             diagnostics.append(&mut export.diagnostics);
             let to_format = export.to_format;
-            let export_conversion = resolve_export_conversion_execution(
-                &request.context,
-                to_format,
-                request.target.as_ref(),
-            );
+            let export_conversion =
+                resolve_export_conversion_execution(&context, to_format, request.target.as_ref());
 
             let from_format = loaded.from_format;
             let run = run_pipeline_as_scoped_with_context_and_source_uri(
                 &loaded.bytes,
                 from_format,
                 &request.input.root_scope,
-                &request.context,
-                &input_uri(&request.input, &request.context),
+                &context,
+                &input_uri(&request.input, &context),
             );
             primary = Some(match to_format {
                 LayerFormat::Cem => convert_primary_to_cem_with_cemt_pipeline(
-                    Some(&request.context),
+                    Some(&context),
                     &run.document,
                     from_format,
                     Some(&request.input.uri),
@@ -4730,7 +4910,7 @@ impl CemMlEngine for RealCemMlEngine {
                 LayerFormat::Html => {
                     match export_conversion.as_ref().map(|conversion| {
                         render_export_conversion_template(
-                            &request.context,
+                            &context,
                             conversion,
                             to_format,
                             &run.document,
@@ -4763,7 +4943,7 @@ impl CemMlEngine for RealCemMlEngine {
                         }
                         Some(ExportConversionTemplateResult::UseDirectPipeline) | None => {
                             convert_primary_to_markup_with_cemt_pipeline(
-                                Some(&request.context),
+                                Some(&context),
                                 &run.document,
                                 from_format,
                                 direct_html_output_pipeline(),
@@ -4781,7 +4961,7 @@ impl CemMlEngine for RealCemMlEngine {
                 LayerFormat::Xml => {
                     match export_conversion.as_ref().map(|conversion| {
                         render_export_conversion_template(
-                            &request.context,
+                            &context,
                             conversion,
                             to_format,
                             &run.document,
@@ -4814,7 +4994,7 @@ impl CemMlEngine for RealCemMlEngine {
                         }
                         Some(ExportConversionTemplateResult::UseDirectPipeline) | None => {
                             convert_primary_to_markup_with_cemt_pipeline(
-                                Some(&request.context),
+                                Some(&context),
                                 &run.document,
                                 from_format,
                                 direct_xml_output_pipeline(),
@@ -4869,7 +5049,7 @@ impl CemMlEngine for RealCemMlEngine {
             &["convertms", "converttimebudgetms"],
             elapsed_ns,
         ));
-        project_diagnostic_uris(&mut diagnostics, &request.input, &request.context);
+        project_diagnostic_uris(&mut diagnostics, &request.input, &context);
         Ok(ConvertResponse {
             primary,
             primary_bytes,
@@ -10446,6 +10626,111 @@ mod tests {
             resp.diagnostics.is_empty(),
             "unexpected diagnostics: {:?}",
             resp.diagnostics
+        );
+    }
+
+    #[test]
+    fn convert_loads_context_schema_package_manifest_artifacts_before_output_pipeline() {
+        const PACKAGE_URI: &str = "cem+test://packages/cem-ml/v1/package.cem";
+        const FORMATTER_URI: &str = "cem+test://packages/cem-ml/v1/formatters/cem-format-tree.cemt";
+        const COLORIZER_URI: &str = "cem+test://packages/cem-ml/v1/colorizers/cem-color-tree.cemt";
+        const PACKAGE_MANIFEST: &[u8] = br#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="cem-ml" @version="1.0.0" |
+    {schema @uri="https://cem.dev/ns/cem-ml/1" @source="schema/cem-ml.cem"}
+    {content-type @value="application/cem" @primary=true}
+    {artifact
+        @kind="formatter"
+        @path="formatters/cem-format-tree.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="cem.format-tree"
+        @formatter-profile="cem.format-tree"
+    }
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/cem-color-tree.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="cem.color-tree"
+        @function-profile="css-custom-properties"
+        @color-profile="classes"
+    }
+}
+"#;
+        let formatter_source =
+            crate::schema::package_sources::builtin_schema_package_artifact_source(
+                "cem-ml",
+                "schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt",
+            )
+            .expect("embedded formatter source");
+        let colorizer_source =
+            crate::schema::package_sources::builtin_schema_package_artifact_source(
+                "cem-ml",
+                "schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt",
+            )
+            .expect("embedded colorizer source");
+        let mut resolver_registry = ResolverRegistry::new();
+        resolver_registry.register(
+            "cem+test",
+            ResolvePurpose::Template,
+            ResolveDirection::Read,
+            MapReadResolver {
+                entries: vec![
+                    (
+                        FORMATTER_URI,
+                        formatter_source.source.as_bytes(),
+                        Some(CEM_TRANSFORM_CONTENT_TYPE),
+                    ),
+                    (
+                        COLORIZER_URI,
+                        colorizer_source.source.as_bytes(),
+                        Some(CEM_TRANSFORM_CONTENT_TYPE),
+                    ),
+                ],
+            },
+        );
+
+        let req = ConvertRequest {
+            input: input(b"@doc cem-ml 1\n{main | Ready}", "in.cem"),
+            to_format: LayerFormat::Html,
+            preserve_source_offsets: false,
+            context: EngineContext {
+                schema_package_manifests: vec![EngineInput {
+                    uri: PACKAGE_URI.to_owned(),
+                    bytes: PACKAGE_MANIFEST.to_vec(),
+                    from_format: Some(InputFormat::Cem),
+                    identity: Some(schema_package_manifest_identity()),
+                    root_scope: Default::default(),
+                }],
+                converter_registry: ConversionRegistry::new(),
+                resolver_registry,
+                ..ctx()
+            },
+            target: None,
+            target_scope: Default::default(),
+            scheduler_scope_id: 0,
+        };
+
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+
+        assert!(
+            resp.diagnostics.is_empty(),
+            "unexpected diagnostics: {:?}",
+            resp.diagnostics
+        );
+        assert_eq!(resp.primary["kind"], "html");
+        assert_eq!(
+            resp.primary["content"],
+            "<main class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\">Ready</span></main>"
         );
     }
 
