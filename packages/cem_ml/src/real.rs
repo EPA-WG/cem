@@ -9587,6 +9587,57 @@ mod tests {
     }
 
     #[test]
+    fn direct_cem_output_publishes_cemt_writer_failure_without_legacy_formatter() {
+        let document = CemDocument {
+            nodes: vec![
+                crate::parser::CemAstNode::Document {
+                    node_id: 0,
+                    root_children: vec![1],
+                    source: SourceMapStack::default(),
+                },
+                crate::parser::CemAstNode::Element {
+                    node_id: 1,
+                    expanded_name: crate::parser::ExpandedName {
+                        namespace_uri: String::new(),
+                        local_name: "1invalid".to_owned(),
+                        schema_id: None,
+                    },
+                    attributes: Vec::new(),
+                    children: Vec::new(),
+                    has_explicit_boundary: true,
+                    source: SourceMapStack::default(),
+                },
+            ],
+            ..CemDocument::default()
+        };
+
+        let diagnostics = convert_primary_to_cem_with_cemt_pipeline(
+            &document,
+            InputFormat::Cem,
+            Some("invalid.cem"),
+        )
+        .expect_err("invalid generated CEM tree names must fail through CEMT diagnostics");
+
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.severity.is_hard_violation()
+                    && diagnostic.code
+                        == crate::transform_template::TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_WRITER_ADAPTER_FAILED_CODE
+                    && diagnostic.message.contains("CEM name cannot start with `1`")),
+            "expected hard CEMT writer diagnostic, got: {:?}",
+            diagnostics
+        );
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != "cem.converter.cemt_fallback"),
+            "direct CEM output must not publish converter fallback diagnostics: {:?}",
+            diagnostics
+        );
+    }
+
+    #[test]
     fn convert_html_layer_renders_light_dom_html() {
         let req = ConvertRequest {
             input: input(b"@doc cem-ml 1\n{p | Hi}", "in.cem"),
