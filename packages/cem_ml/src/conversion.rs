@@ -1795,7 +1795,7 @@ impl ConversionRegistry {
         content_type: Option<&str>,
         schema: Option<&str>,
         target: &TransformTemplateEncodingTarget,
-        function_name: &str,
+        canonical_function_name: &str,
         formatter_profile: Option<&str>,
         color_profile: Option<&str>,
     ) -> Option<&ConversionPackageArtifactDescriptor> {
@@ -1820,7 +1820,12 @@ impl ConversionRegistry {
                 && artifact.target_content_type.as_deref() == Some(target_content_type.as_str())
                 && artifact.target_schema.as_deref() == Some(target.schema.as_str())
                 && artifact.target_category.as_deref() == Some(target.category.as_str())
-                && artifact.function_name.as_deref() == Some(function_name)
+                && package_artifact_function_matches_output_stage(
+                    artifact,
+                    canonical_function_name,
+                    formatter_profile,
+                    color_profile,
+                )
                 && formatter_profile
                     .is_none_or(|expected| artifact.formatter_profile.as_deref() == Some(expected))
                 && color_profile
@@ -2095,6 +2100,23 @@ impl ConversionRegistry {
 
         (contracts, diagnostics)
     }
+}
+
+fn package_artifact_function_matches_output_stage(
+    artifact: &ConversionPackageArtifactDescriptor,
+    canonical_function_name: &str,
+    formatter_profile: Option<&str>,
+    color_profile: Option<&str>,
+) -> bool {
+    let Some(function_name) = artifact.function_name.as_deref() else {
+        return false;
+    };
+    if function_name == canonical_function_name {
+        return true;
+    }
+    formatter_profile
+        .is_some_and(|expected| artifact.formatter_profile.as_deref() == Some(expected))
+        || color_profile.is_some_and(|expected| artifact.color_profile.as_deref() == Some(expected))
 }
 
 pub fn conversion_output_safety_contract(
@@ -2507,7 +2529,8 @@ struct CemTreeCemtOutputStage {
     template_bytes: Vec<u8>,
     declaration_element: &'static str,
     function_kind: TransformTemplateOutputFunctionKind,
-    function_name: &'static str,
+    function_name: String,
+    canonical_function_name: &'static str,
     role: &'static str,
 }
 
@@ -2618,13 +2641,19 @@ fn cem_tree_cemt_output_stage(
             )
         })?;
     let artifact_source = read_cem_tree_cemt_output_stage_artifact(environment, artifact)?;
+    let function_name = artifact
+        .function_name
+        .as_deref()
+        .unwrap_or(spec.function_name)
+        .to_owned();
     Ok(CemTreeCemtOutputStage {
         adapter_id: spec.adapter_id,
         template_uri: artifact_source.uri,
         template_bytes: artifact_source.bytes,
         declaration_element: spec.declaration_element,
         function_kind: spec.function_kind,
-        function_name: spec.function_name,
+        function_name,
+        canonical_function_name: spec.function_name,
         role: spec.role,
     })
 }
@@ -2717,8 +2746,7 @@ impl TransformTemplateAdapter for CemTreeCemtOutputAdapter {
                 error.to_string(),
             )
         })?;
-        let name_attr = format!(r#"@name="{}""#, self.stage.function_name);
-        if !template.contains(self.stage.declaration_element) || !template.contains(&name_attr) {
+        if !template.contains(self.stage.declaration_element) {
             return Err(TransformTemplateAdapterError::failed(
                 self.id(),
                 TransformTemplateAdapterExecutionPhase::Compile,
@@ -2728,23 +2756,46 @@ impl TransformTemplateAdapter for CemTreeCemtOutputAdapter {
                 ),
             ));
         }
-        if !request
+        let stage_function = request
             .module_options
             .output_functions
             .iter()
-            .any(|function| {
+            .find(|function| {
                 function.kind == self.stage.function_kind
-                    && function.name == self.stage.function_name
-                    && function.implementation
-                        == TransformTemplateOutputFunctionImplementation::Cemt
+                    && function.name == self.stage.function_name.as_str()
             })
-        {
+            .ok_or_else(|| {
+                TransformTemplateAdapterError::failed(
+                    self.id(),
+                    TransformTemplateAdapterExecutionPhase::Compile,
+                    format!(
+                        "module options do not declare CEMT {} `{}`",
+                        self.stage.role, self.stage.function_name
+                    ),
+                )
+            })?;
+        if stage_function.implementation != TransformTemplateOutputFunctionImplementation::Cemt {
             return Err(TransformTemplateAdapterError::failed(
                 self.id(),
                 TransformTemplateAdapterExecutionPhase::Compile,
                 format!(
                     "module options do not declare CEMT {} `{}`",
                     self.stage.role, self.stage.function_name
+                ),
+            ));
+        }
+        if self.stage.function_name != self.stage.canonical_function_name
+            && stage_function.extends.as_deref() != Some(self.stage.canonical_function_name)
+        {
+            return Err(TransformTemplateAdapterError::failed(
+                self.id(),
+                TransformTemplateAdapterExecutionPhase::Compile,
+                format!(
+                    "CEMT {} `{}` selected for canonical `{}` must extend `{}`",
+                    self.stage.role,
+                    self.stage.function_name,
+                    self.stage.canonical_function_name,
+                    self.stage.canonical_function_name
                 ),
             ));
         }
@@ -2781,7 +2832,7 @@ impl TransformTemplateAdapter for CemTreeCemtOutputAdapter {
                 )
             })?;
         if binding.function.kind != self.stage.function_kind
-            || binding.function.name != self.stage.function_name
+            || binding.function.name.as_str() != self.stage.function_name.as_str()
         {
             return Err(TransformTemplateAdapterError::failed(
                 self.id(),
@@ -2829,7 +2880,7 @@ fn execute_conversion_cem_tree_output_stage_body(
         .module_options
         .encode_expressions
         .iter()
-        .filter(|expression| expression.owner.as_deref() == Some(stage.function_name))
+        .filter(|expression| expression.owner.as_deref() == Some(stage.function_name.as_str()))
         .cloned()
         .collect::<Vec<_>>();
     let registry = TransformTemplateOutputFunctionRegistry::from_module_options(
@@ -2981,19 +3032,19 @@ fn execute_conversion_cem_tree_output_stage(
         .output_functions
         .iter()
         .find(|function| {
-            function.kind == stage.function_kind && function.name == stage.function_name
+            function.kind == stage.function_kind
+                && function.name.as_str() == stage.function_name.as_str()
         })
         .cloned();
     let mut execution_binding = binding.clone();
     if let Some(parsed_function) = parsed_stage_function {
         if parsed_function.body_declared {
-            execution_binding.function.params = parsed_function.params;
-            execution_binding.function.body_declared = parsed_function.body_declared;
-            execution_binding.function.body_expression = parsed_function.body_expression;
+            execution_binding.function = parsed_function;
         }
     }
     module_options.output_functions.retain(|function| {
-        function.kind != stage.function_kind || function.name != stage.function_name
+        function.kind != stage.function_kind
+            || function.name.as_str() != stage.function_name.as_str()
     });
     module_options
         .output_functions
@@ -3001,10 +3052,10 @@ fn execute_conversion_cem_tree_output_stage(
     let body_declared = module_options
         .encode_expressions
         .iter()
-        .any(|expression| expression.owner.as_deref() == Some(stage.function_name))
+        .any(|expression| expression.owner.as_deref() == Some(stage.function_name.as_str()))
         || execution_binding.function.body_expression.is_some();
-    let body_function_name = body_declared.then(|| stage.function_name.to_owned());
-    let entrypoint = TransformTemplateEntrypoint::named(stage.function_name);
+    let body_function_name = body_declared.then(|| stage.function_name.clone());
+    let entrypoint = TransformTemplateEntrypoint::named(stage.function_name.as_str());
     let params = BTreeMap::new();
     let data_bindings = vec!["subject".to_owned()];
     let compile_response = adapter
@@ -3063,7 +3114,7 @@ fn execute_conversion_cem_tree_output_stage(
         render_response.output.value,
         ConversionOutputPipelineStageExecution::CemtAdapter {
             adapter_id: compiled.adapter_id,
-            function_name: binding.function.name.clone(),
+            function_name: execution_binding.function.name.clone(),
             fallback_function_name: None,
             body_function_name,
         },
@@ -8375,6 +8426,181 @@ mod tests {
     }
 
     #[test]
+    fn conversion_output_pipeline_executes_showcase_cemt_artifacts_through_registry() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let mut conversion_registry = ConversionRegistry::new();
+        let formatter_path =
+            "cem+test://packages/cem-ml/v1/formatters/formatter-coloring-pipeline.cemt";
+        let colorizer_path =
+            "cem+test://packages/cem-ml/v1/colorizers/formatter-coloring-pipeline.cemt";
+        conversion_registry.register_package_artifact(ConversionPackageArtifactDescriptor {
+            package_id: "cem-ml".to_owned(),
+            kind: "formatter".to_owned(),
+            path: formatter_path.to_owned(),
+            content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+            schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+            target_content_type: Some(CEM_ML_CONTENT_TYPE.to_owned()),
+            target_schema: Some(CEM_ML_SCHEMA_URI.to_owned()),
+            target_category: Some("cem-tree".to_owned()),
+            function_name: Some("acme.showcase.format-tree".to_owned()),
+            function_profile: None,
+            formatter_profile: Some("acme.showcase.format-tree".to_owned()),
+            color_profile: None,
+            generated: false,
+        });
+        conversion_registry.register_package_artifact(ConversionPackageArtifactDescriptor {
+            package_id: "cem-ml".to_owned(),
+            kind: "colorizer".to_owned(),
+            path: colorizer_path.to_owned(),
+            content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+            schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+            target_content_type: Some(CEM_ML_CONTENT_TYPE.to_owned()),
+            target_schema: Some(CEM_ML_SCHEMA_URI.to_owned()),
+            target_category: Some("cem-tree".to_owned()),
+            function_name: Some("acme.showcase.color-tree".to_owned()),
+            function_profile: Some("classes".to_owned()),
+            formatter_profile: None,
+            color_profile: Some("classes".to_owned()),
+            generated: false,
+        });
+
+        let showcase_source = include_str!(
+            "../schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.cemt"
+        );
+        let reads = std::cell::RefCell::new(Vec::new());
+        let package_artifact_reader =
+            |artifact: &ConversionPackageArtifactDescriptor| -> Result<ConversionPackageArtifactRead, String> {
+                reads.borrow_mut().push(artifact.path.clone());
+                match artifact.path.as_str() {
+                    path if path == formatter_path || path == colorizer_path => {
+                        Ok(ConversionPackageArtifactRead {
+                            uri: artifact.path.clone(),
+                            bytes: showcase_source.as_bytes().to_vec(),
+                            content_type: artifact.content_type.clone(),
+                        })
+                    }
+                    other => Err(format!("unexpected artifact path `{other}`")),
+                }
+            };
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: Some(&package_artifact_reader),
+        };
+
+        let mut pipeline = direct_html_output_pipeline();
+        pipeline.cemt_options.formatter_profile = Some("acme.showcase.format-tree".to_owned());
+        pipeline.cemt_insertion_context.formatter_profile =
+            Some("acme.showcase.format-tree".to_owned());
+        pipeline.writer_insertion_context.formatter_profile =
+            Some("acme.showcase.format-tree".to_owned());
+
+        let execution = execute_conversion_output_pipeline_with_environment(
+            &environment,
+            &pipeline,
+            serde_json::json!({
+                "kind": "element",
+                "name": "article",
+                "sourceMap": null,
+                "attributes": [],
+                "children": [
+                    {"kind": "text", "value": "Ready ", "sourceMap": null},
+                    {
+                        "kind": "element",
+                        "name": "strong",
+                        "sourceMap": null,
+                        "attributes": [],
+                        "children": [{"kind": "text", "value": "now", "sourceMap": null}]
+                    },
+                    {"kind": "text", "value": ".", "sourceMap": null}
+                ]
+            }),
+            None,
+            Vec::new(),
+            "test-storybook-cemt-pipeline",
+            Some("output"),
+            Some("storybook.cem"),
+        );
+
+        assert!(
+            execution.diagnostics.is_empty(),
+            "{:?}",
+            execution.diagnostics
+        );
+        assert_eq!(
+            reads.into_inner(),
+            vec![formatter_path.to_owned(), colorizer_path.to_owned()]
+        );
+        assert_eq!(
+            execution.format_execution,
+            Some(ConversionOutputPipelineStageExecution::CemtAdapter {
+                adapter_id: CEM_TREE_FORMAT_CEMT_ADAPTER_ID.to_owned(),
+                function_name: "acme.showcase.format-tree".to_owned(),
+                body_function_name: Some("acme.showcase.format-tree".to_owned()),
+                fallback_function_name: None,
+            })
+        );
+        assert_eq!(
+            execution.color_execution,
+            Some(ConversionOutputPipelineStageExecution::CemtAdapter {
+                adapter_id: CEM_TREE_COLOR_CEMT_ADAPTER_ID.to_owned(),
+                function_name: "acme.showcase.color-tree".to_owned(),
+                body_function_name: Some("acme.showcase.color-tree".to_owned()),
+                fallback_function_name: None,
+            })
+        );
+
+        let formatted = execution
+            .formatted_cem_tree
+            .as_ref()
+            .expect("formatted CEM tree stage is retained");
+        assert_eq!(
+            formatted.value["formatterProfile"],
+            "acme.showcase.format-tree"
+        );
+        assert!(formatted.value.get("colored").is_none());
+        assert!(formatted.value.get("colorNodes").is_none());
+        assert!(formatted.value["formatNodes"]
+            .as_array()
+            .expect("format nodes")
+            .iter()
+            .any(|node| node.get("value").and_then(Value::as_str)
+                == Some("formatted tree before writer")));
+
+        let colored = execution
+            .colored_cem_tree
+            .as_ref()
+            .expect("colored CEM tree stage is retained");
+        assert_eq!(colored.value["colored"], true);
+        assert_eq!(colored.value["colorProfile"], "classes");
+        assert!(colored.value["colorNodes"]
+            .as_array()
+            .expect("color nodes")
+            .iter()
+            .any(|node| node.get("value").and_then(Value::as_str)
+                == Some("colored tree before writer")));
+        assert_eq!(
+            colored.value["nodes"][0]["writerAttributeNodes"][0]["kind"],
+            "writer-attribute"
+        );
+        assert_eq!(
+            colored.value["nodes"][0]["children"][1]["colorRole"],
+            "syntax.keyword"
+        );
+
+        let output = execution
+            .output
+            .as_ref()
+            .and_then(Value::as_str)
+            .expect("writer output text");
+        assert!(output.contains("<article"));
+        assert!(output.contains("cem-color-syntax-name"));
+        assert!(output.contains("<strong class=\"cem-color cem-color-syntax-keyword\""));
+        assert!(output.contains("Ready "));
+        assert!(output.contains(">now<"));
+    }
+
+    #[test]
     fn cem_tree_output_templates_are_schema_package_assets() {
         let target = TransformTemplateEncodingTarget::new(
             CEM_ML_CONTENT_TYPE,
@@ -8744,7 +8970,8 @@ mod tests {
             .to_vec(),
             declaration_element: "{format-function",
             function_kind: TransformTemplateOutputFunctionKind::Format,
-            function_name: "cem.format-tree",
+            function_name: "cem.format-tree".to_owned(),
+            canonical_function_name: "cem.format-tree",
             role: "formatter",
         };
         let subject = serde_json::json!({
@@ -8834,7 +9061,8 @@ mod tests {
             .to_vec(),
             declaration_element: "{format-function",
             function_kind: TransformTemplateOutputFunctionKind::Format,
-            function_name: "cem.format-tree",
+            function_name: "cem.format-tree".to_owned(),
+            canonical_function_name: "cem.format-tree",
             role: "formatter",
         };
         let subject = serde_json::json!({
@@ -8902,7 +9130,8 @@ mod tests {
             .to_vec(),
             declaration_element: "{format-function",
             function_kind: TransformTemplateOutputFunctionKind::Format,
-            function_name: "cem.format-tree",
+            function_name: "cem.format-tree".to_owned(),
+            canonical_function_name: "cem.format-tree",
             role: "formatter",
         };
         let subject = serde_json::json!({
@@ -8937,6 +9166,75 @@ mod tests {
 
         assert!(error.contains("CEMT formatter `cem.format-tree` requires a direct CEMT body"));
         assert!(error.contains("encode(...) facade attempted to dispatch `cem.format-tree`"));
+    }
+
+    #[test]
+    fn cemt_output_stage_rejects_alias_without_canonical_extends() {
+        let stage = CemTreeCemtOutputStage {
+            adapter_id: "cem-tree-format-alias-cemt",
+            template_uri: "builtin:acme.format-tree.no-extends.cemt".to_owned(),
+            template_bytes: r#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {format-function
+        @name="acme.format-tree"
+        @category="cem-tree"
+        @subject="cem-ast-node"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @canonical=true
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="json" @required=true}
+        {body | {$ $subject } }
+    }
+}
+"#
+            .as_bytes()
+            .to_vec(),
+            declaration_element: "{format-function",
+            function_kind: TransformTemplateOutputFunctionKind::Format,
+            function_name: "acme.format-tree".to_owned(),
+            canonical_function_name: "cem.format-tree",
+            role: "formatter",
+        };
+        let subject = serde_json::json!({
+            "kind": "element",
+            "name": "main",
+            "children": [{"kind": "text", "value": "Ready"}]
+        });
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        registry.register(conversion_cem_tree_format_function_descriptor(
+            "acme.format-tree",
+        ));
+        let request = TransformTemplateEncodeBindingRequest::new(
+            subject.clone(),
+            TransformTemplateEncodingTarget::new(
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                "cem-tree",
+            ),
+        )
+        .with_subject_type("cem-ast-node")
+        .with_options(TransformTemplateEncodeOptions {
+            formatter: Some("cem.format-tree".to_owned()),
+            formatter_profile: Some("acme.format-tree".to_owned()),
+            canonical: true,
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let binding = registry
+            .resolve_format_binding(&request, &BTreeSet::new())
+            .expect("formatter binding resolves");
+
+        let error = execute_conversion_cem_tree_output_stage(stage, &binding, &subject)
+            .expect_err("alias formatter without extends is rejected");
+
+        assert!(error.contains(
+            "CEMT formatter `acme.format-tree` selected for canonical `cem.format-tree` must extend `cem.format-tree`"
+        ));
     }
 
     #[test]
@@ -9003,7 +9301,8 @@ mod tests {
             .to_vec(),
             declaration_element: "{color-function",
             function_kind: TransformTemplateOutputFunctionKind::Color,
-            function_name: "cem.color-tree",
+            function_name: "cem.color-tree".to_owned(),
+            canonical_function_name: "cem.color-tree",
             role: "colorizer",
         };
         let formatted = serde_json::json!({
