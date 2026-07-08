@@ -31,6 +31,7 @@ export type CemTree = {
     colored?: true;
     colorProfile?: string;
     colorNodes?: Array<Record<string, unknown>>;
+    writerBoundaries?: Array<Record<string, unknown>>;
     nodes: CemNode[];
 };
 
@@ -46,6 +47,8 @@ export type CemtPipelineFixture = {
     category: string;
     formattedDecision: string;
     coloredDecision: string;
+    writerBoundaryStage: string;
+    writerBoundaryDecision: string;
     elementClass: string;
     textClass: string;
     keywordClass: string;
@@ -94,6 +97,8 @@ export function writerReady(tree: CemTree): boolean {
         tree.colored === true &&
         tree.colorProfile === 'classes' &&
         Array.isArray(tree.colorNodes) &&
+        Array.isArray(tree.writerBoundaries) &&
+        tree.writerBoundaries.some((boundary) => boundary['stage'] === 'after-color') &&
         tree.nodes.every(nodeWriterReady)
     );
 }
@@ -134,6 +139,8 @@ function createPipelineFixture(
         category: requiredFunctionAttribute(cemtSource, 'format-function', 'category'),
         formattedDecision: requiredValueAfter(cemtSource, 'formatterRole: "formatter.showcase"'),
         coloredDecision: requiredValueAfter(cemtSource, 'colorizerRole: "colorizer.showcase"'),
+        writerBoundaryStage: requiredStringFieldAfter(cemtSource, 'kind: "writer-boundary"', 'stage'),
+        writerBoundaryDecision: requiredStringFieldAfter(cemtSource, 'kind: "writer-boundary"', 'value'),
         elementClass: requiredColorClass(cemtSource, 'syntax-name'),
         textClass: requiredColorClass(cemtSource, 'syntax-string'),
         keywordClass: requiredColorClass(cemtSource, 'syntax-keyword'),
@@ -207,6 +214,13 @@ function colorCemTree(fixture: CemtPipelineFixture, formatted: CemTree): CemTree
                 name: 'showcase',
                 colorizerRole: 'colorizer.showcase',
                 value: fixture.coloredDecision,
+            },
+        ],
+        writerBoundaries: [
+            {
+                kind: 'writer-boundary',
+                stage: fixture.writerBoundaryStage,
+                value: fixture.writerBoundaryDecision,
             },
         ],
         nodes: formatted.nodes.map((node) => colorNode(fixture, node)),
@@ -314,10 +328,14 @@ function requiredFunctionAttribute(source: string, elementName: string, attribut
 }
 
 function requiredValueAfter(source: string, marker: string): string {
+    return requiredStringFieldAfter(source, marker, 'value');
+}
+
+function requiredStringFieldAfter(source: string, marker: string, field: string): string {
     const start = source.indexOf(marker);
     invariant(start >= 0, `missing CEMT marker ${marker}`);
-    const value = source.slice(start).match(/value:\s*"([^"]+)"/)?.[1];
-    invariant(value, `missing value after ${marker}`);
+    const value = source.slice(start).match(new RegExp(String.raw`${field}:\s*"([^"]+)"`))?.[1];
+    invariant(value, `missing ${field} after ${marker}`);
     return value;
 }
 

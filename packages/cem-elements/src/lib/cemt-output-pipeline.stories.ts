@@ -103,12 +103,24 @@ function assertPipelineShowcase(
         !formattedPanel.textContent?.includes('colored tree before writer'),
         'formatted stage does not include color metadata'
     );
+    assert(
+        !formattedPanel.textContent?.includes('writer consumes colored CEM tree'),
+        'formatted stage does not include writer-boundary metadata'
+    );
     assert(!formattedPanel.textContent?.includes('"formatterProfile"'), 'formatted stage is not JSONified');
 
     const coloredPanel = requiredElement(canvasElement, '[data-stage="colored"]');
     assert(
         coloredPanel.textContent?.includes('colored tree before writer'),
         'colored stage shows colorizer metadata'
+    );
+    assert(
+        coloredPanel.textContent?.includes('writer consumes colored CEM tree'),
+        'colored stage shows writer-boundary metadata before writer output'
+    );
+    assert(
+        coloredPanel.textContent?.includes('@stage="after-color"'),
+        'colored stage records the post-color writer boundary'
     );
 
     const templatePanel = requiredElement(canvasElement, '[data-stage="cemt-source"]');
@@ -129,6 +141,10 @@ function assertPipelineShowcase(
     assert(
         templatePanel.textContent?.includes('appendFormatNode('),
         'formatter CEMT source shows metadata accumulation'
+    );
+    assert(
+        templatePanel.textContent?.includes('appendWriterBoundary('),
+        'coloring CEMT source records writer-boundary metadata before writer output'
     );
     assert(
         templatePanel.textContent?.includes('map($subject.nodes'),

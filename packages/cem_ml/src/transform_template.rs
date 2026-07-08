@@ -17721,6 +17721,13 @@ fn cemt_fixture_render_cem_tree(tree: &Value) -> Result<String, String> {
             1,
         )?);
     }
+    if let Some(writer_boundaries) = cemt_fixture_optional_array(tree, "writerBoundaries") {
+        children.push(cemt_fixture_render_metadata_array(
+            "writer-boundaries",
+            writer_boundaries,
+            1,
+        )?);
+    }
     children.push(cemt_fixture_render_node_array(
         "nodes",
         cemt_fixture_required_array(tree, "nodes")?,
@@ -17908,6 +17915,7 @@ fn cemt_fixture_ordered_attributes(
     const ORDER: &[(&str, &str)] = &[
         ("kind", "kind"),
         ("name", "name"),
+        ("stage", "stage"),
         ("value", "value"),
         ("formatterRole", "formatter-role"),
         ("formatterProfile", "formatter-profile"),
@@ -21324,6 +21332,16 @@ mod tests {
         assert!(stage_fixture.contains(r#"@color-profile="classes""#));
         assert!(stage_fixture.contains(r#"@value="colored tree before writer""#));
         assert_eq!(
+            colored["writerBoundaries"][0]["stage"], "after-color",
+            "coloring records the writer boundary after mutating the CEM tree"
+        );
+        assert_eq!(
+            colored["writerBoundaries"][0]["value"],
+            "writer consumes colored CEM tree"
+        );
+        assert!(stage_fixture.contains(r#"@stage="after-color""#));
+        assert!(stage_fixture.contains(r#"@value="writer consumes colored CEM tree""#));
+        assert_eq!(
             cem_tree_writer_attribute_value(&colored["nodes"][0], "class"),
             "cem-color cem-color-syntax-name"
         );
@@ -21446,8 +21464,10 @@ mod tests {
             formatted["nodes"][0]["children"][1]["formatLayout"]["formatterRole"],
             "formatter.layout"
         );
+        assert!(formatted.get("writerBoundaries").is_none());
 
         let section = &colored["nodes"][0];
+        assert_eq!(colored["writerBoundaries"][0]["stage"], "after-color");
         assert_eq!(section["colorRole"], "syntax.name");
         assert_eq!(
             cem_tree_writer_attribute_value(section, "class"),

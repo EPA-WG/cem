@@ -24,6 +24,7 @@ describe('CEMT output pipeline fixture', () => {
         expect(showcase.formattedTreeCem).toContain('@formatter-role="formatter.showcase"');
         expect(showcase.formattedTreeCem).toContain('@formatter-role="formatter.inline-emphasis"');
         expect(showcase.formattedTreeCem).toContain('@value="formatted tree before writer"');
+        expect(showcase.formattedTreeCem).not.toContain('writer consumes colored CEM tree');
         expect(showcase.formattedTreeCem).not.toContain('"formatterProfile"');
         expect(showcase.formattedTreeCem).not.toContain('"kind":');
     });
@@ -70,6 +71,9 @@ describe('CEMT output pipeline fixture', () => {
         expect(showcase.coloredTreeCem).toContain('@color-profile="classes"');
         expect(showcase.coloredTreeCem).toContain('@colorizer-role="colorizer.showcase"');
         expect(showcase.coloredTreeCem).toContain('@value="colored tree before writer"');
+        expect(showcase.coloredTreeCem).toContain('{writer-boundaries |');
+        expect(showcase.coloredTreeCem).toContain('@stage="after-color"');
+        expect(showcase.coloredTreeCem).toContain('@value="writer consumes colored CEM tree"');
         expect(showcase.coloredTreeCem).toContain('@color-role="syntax.string"');
         expect(showcase.coloredTreeCem).toContain('@color-role="syntax.keyword"');
     });
@@ -80,6 +84,12 @@ describe('CEMT output pipeline fixture', () => {
         expect(() => writeColoredTreeToHtml(showcase.formattedTree)).toThrow(
             'colored CEM tree is required before writer output'
         );
+        expect(() =>
+            writeColoredTreeToHtml({
+                ...showcase.coloredTree,
+                writerBoundaries: [],
+            })
+        ).toThrow('colored CEM tree is required before writer output');
         expect(writeColoredTreeToHtml(showcase.coloredTree)).toBe(
             '<article class="cem-color cem-color-syntax-name"><span class="cem-color cem-color-syntax-string">Ready </span><strong class="cem-color cem-color-syntax-keyword"><span class="cem-color cem-color-syntax-keyword">now</span></strong><span class="cem-color cem-color-syntax-string">.</span></article>'
         );

@@ -168,12 +168,15 @@ function assertStageReport(report, story) {
     assert(formatted.includes('formatted tree before writer'), `${story.id}: formatted stage omits formatter metadata`);
     assert(formatted.includes('@formatter-profile="acme.showcase.format-tree"'), `${story.id}: formatted stage omits formatter profile`);
     assert(!formatted.includes('colored tree before writer'), `${story.id}: formatted stage already includes coloring metadata`);
+    assert(!formatted.includes('writer consumes colored CEM tree'), `${story.id}: formatted stage already includes writer-boundary metadata`);
     assert(!formatted.includes('"kind":'), `${story.id}: formatted stage rendered JSON instead of CEM-native text`);
 
     const colored = report.stages.colored.text;
     assert(colored.includes('colored tree before writer'), `${story.id}: colored stage omits colorizer metadata`);
     assert(colored.includes('@colored=true'), `${story.id}: colored stage omits colored tree marker`);
     assert(colored.includes('@color-role="syntax.keyword"'), `${story.id}: colored stage omits keyword color role`);
+    assert(colored.includes('@stage="after-color"'), `${story.id}: colored stage omits post-color writer boundary`);
+    assert(colored.includes('writer consumes colored CEM tree'), `${story.id}: colored stage omits writer-boundary metadata`);
 
     assert(report.writer.articleText.includes('Ready now.'), `${story.id}: writer output does not render the formatted content`);
     assert(report.writer.articleClass.includes('cem-color-syntax-name'), `${story.id}: writer output omits element color class`);

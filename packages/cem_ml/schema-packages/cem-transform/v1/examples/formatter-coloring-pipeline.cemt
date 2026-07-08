@@ -255,23 +255,30 @@
         @streamable=true |
         {param @name="subject" @type="object" @required=true}
         {body |
-            {$ appendColorNode(
-                merge($subject, {
-                    colored: true,
-                    colorProfile: "classes",
-                    colorNodes: [{
-                        kind: "color-marker",
-                        name: "cem.color-tree",
-                        colorizerRole: "colorizer.boundary",
-                        colorProfile: "classes"
-                    }],
-                    nodes: map($subject.nodes, call(acme.showcase.color-node, { subject: $item }))
-                }),
+            {$ appendWriterBoundary(
+                appendColorNode(
+                    merge($subject, {
+                        colored: true,
+                        colorProfile: "classes",
+                        colorNodes: [{
+                            kind: "color-marker",
+                            name: "cem.color-tree",
+                            colorizerRole: "colorizer.boundary",
+                            colorProfile: "classes"
+                        }],
+                        nodes: map($subject.nodes, call(acme.showcase.color-node, { subject: $item }))
+                    }),
+                    {
+                        kind: "color-decision",
+                        name: "showcase",
+                        colorizerRole: "colorizer.showcase",
+                        value: "colored tree before writer"
+                    }
+                ),
                 {
-                    kind: "color-decision",
-                    name: "showcase",
-                    colorizerRole: "colorizer.showcase",
-                    value: "colored tree before writer"
+                    kind: "writer-boundary",
+                    stage: "after-color",
+                    value: "writer consumes colored CEM tree"
                 }
             ) }
         }
