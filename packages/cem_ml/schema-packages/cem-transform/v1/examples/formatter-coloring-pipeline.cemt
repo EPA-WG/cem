@@ -255,31 +255,49 @@
         @streamable=true |
         {param @name="subject" @type="object" @required=true}
         {body |
-            {$ appendWriterBoundary(
-                appendColorNode(
-                    merge($subject, {
-                        colored: true,
-                        colorProfile: "classes",
-                        colorNodes: [{
-                            kind: "color-marker",
-                            name: "cem.color-tree",
-                            colorizerRole: "colorizer.boundary",
-                            colorProfile: "classes"
-                        }],
-                        nodes: map($subject.nodes, call(acme.showcase.color-node, { subject: $item }))
-                    }),
+            {$ applyEdits(
+                appendWriterBoundary(
+                    appendColorNode(
+                        merge($subject, {
+                            colored: true,
+                            colorProfile: "classes",
+                            colorNodes: [{
+                                kind: "color-marker",
+                                name: "cem.color-tree",
+                                colorizerRole: "colorizer.boundary",
+                                colorProfile: "classes"
+                            }],
+                            nodes: map($subject.nodes, call(acme.showcase.color-node, { subject: $item }))
+                        }),
+                        {
+                            kind: "color-decision",
+                            name: "showcase",
+                            colorizerRole: "colorizer.showcase",
+                            value: "colored tree before writer"
+                        }
+                    ),
                     {
-                        kind: "color-decision",
-                        name: "showcase",
-                        colorizerRole: "colorizer.showcase",
-                        value: "colored tree before writer"
+                        kind: "writer-boundary",
+                        stage: "after-color",
+                        value: "writer consumes colored CEM tree"
                     }
                 ),
-                {
-                    kind: "writer-boundary",
-                    stage: "after-color",
-                    value: "writer consumes colored CEM tree"
-                }
+                drainQueue(
+                    defer([], {
+                        kind: "append",
+                        path: "nodes.0.children.1.children.0.colorWrapperNodes",
+                        node: {
+                            kind: "color-decision",
+                            name: "queued-edit",
+                            colorizerOwned: true,
+                            colorizerRole: "colorizer.queued-edit",
+                            colorProfile: "classes",
+                            value: "queued edit replay before writer"
+                        }
+                    }),
+                    [],
+                    append($acc, $item)
+                )
             ) }
         }
     }

@@ -21367,6 +21367,15 @@ mod tests {
             "syntax.keyword"
         );
         assert_eq!(
+            colored["nodes"][0]["children"][1]["children"][0]["colorWrapperNodes"][2]
+                ["colorizerRole"],
+            "colorizer.queued-edit"
+        );
+        assert_eq!(
+            colored["nodes"][0]["children"][1]["children"][0]["colorWrapperNodes"][2]["value"],
+            "queued edit replay before writer"
+        );
+        assert_eq!(
             colored["nodes"][0]["children"][2]["colorRole"], "syntax.string",
             "coloring maps over later text children instead of using fixed child indexes"
         );
@@ -21377,6 +21386,8 @@ mod tests {
         assert!(stage_fixture.contains(r#"@value="cem-color cem-color-syntax-name""#));
         assert!(stage_fixture.contains(r#"@value="cem-color cem-color-syntax-keyword""#));
         assert!(stage_fixture.contains(r#"@colorizer-role="colorizer.text-wrapper""#));
+        assert!(stage_fixture.contains(r#"@colorizer-role="colorizer.queued-edit""#));
+        assert!(stage_fixture.contains(r#"@value="queued edit replay before writer""#));
         let colored_artifact = color_binding.artifact_from_value(colored);
         let writer_artifact =
             transform_template_writer_cem_tree_artifact_to_text(&colored_artifact, &writer_context)
@@ -21495,6 +21506,14 @@ mod tests {
         let aside = &section["children"][1];
         assert_eq!(aside["colorRole"], "syntax.name");
         assert_eq!(aside["children"][0]["colorRole"], "syntax.string");
+        assert_eq!(
+            aside["children"][0]["colorWrapperNodes"][2]["colorizerRole"],
+            "colorizer.queued-edit"
+        );
+        assert_eq!(
+            aside["children"][0]["colorWrapperNodes"][2]["value"],
+            "queued edit replay before writer"
+        );
         assert_eq!(aside["children"][0]["children"][0]["value"], "Gamma");
 
         assert!(writer_output.contains("<section class=\"cem-color cem-color-syntax-name\""));

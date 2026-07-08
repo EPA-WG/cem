@@ -160,6 +160,9 @@ function assertStageReport(report, story) {
     const cemtSource = report.stages['cemt-source'].text;
     assert(cemtSource.includes('@name="acme.showcase.format-tree"'), `${story.id}: CEMT source stage omits formatter declaration`);
     assert(cemtSource.includes('@name="acme.showcase.color-tree"'), `${story.id}: CEMT source stage omits colorizer declaration`);
+    assert(cemtSource.includes('applyEdits('), `${story.id}: CEMT source stage omits queued edit replay`);
+    assert(cemtSource.includes('drainQueue('), `${story.id}: CEMT source stage omits queue draining`);
+    assert(cemtSource.includes('defer([],'), `${story.id}: CEMT source stage omits deferred edit queueing`);
     for (const expectedSource of story.sourceIncludes) {
         assert(cemtSource.includes(expectedSource), `${story.id}: CEMT source stage omits ${expectedSource}`);
     }
@@ -169,6 +172,7 @@ function assertStageReport(report, story) {
     assert(formatted.includes('@formatter-profile="acme.showcase.format-tree"'), `${story.id}: formatted stage omits formatter profile`);
     assert(!formatted.includes('colored tree before writer'), `${story.id}: formatted stage already includes coloring metadata`);
     assert(!formatted.includes('writer consumes colored CEM tree'), `${story.id}: formatted stage already includes writer-boundary metadata`);
+    assert(!formatted.includes('queued edit replay before writer'), `${story.id}: formatted stage already includes queued color edit metadata`);
     assert(!formatted.includes('"kind":'), `${story.id}: formatted stage rendered JSON instead of CEM-native text`);
 
     const colored = report.stages.colored.text;
@@ -177,6 +181,8 @@ function assertStageReport(report, story) {
     assert(colored.includes('@color-role="syntax.keyword"'), `${story.id}: colored stage omits keyword color role`);
     assert(colored.includes('@stage="after-color"'), `${story.id}: colored stage omits post-color writer boundary`);
     assert(colored.includes('writer consumes colored CEM tree'), `${story.id}: colored stage omits writer-boundary metadata`);
+    assert(colored.includes('queued edit replay before writer'), `${story.id}: colored stage omits queued color edit metadata`);
+    assert(colored.includes('colorizer.queued-edit'), `${story.id}: colored stage omits queued color edit role`);
 
     assert(report.writer.articleText.includes('Ready now.'), `${story.id}: writer output does not render the formatted content`);
     assert(report.writer.articleClass.includes('cem-color-syntax-name'), `${story.id}: writer output omits element color class`);

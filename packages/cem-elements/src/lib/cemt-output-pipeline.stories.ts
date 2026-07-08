@@ -107,6 +107,10 @@ function assertPipelineShowcase(
         !formattedPanel.textContent?.includes('writer consumes colored CEM tree'),
         'formatted stage does not include writer-boundary metadata'
     );
+    assert(
+        !formattedPanel.textContent?.includes('queued edit replay before writer'),
+        'formatted stage does not include queued color edit metadata'
+    );
     assert(!formattedPanel.textContent?.includes('"formatterProfile"'), 'formatted stage is not JSONified');
 
     const coloredPanel = requiredElement(canvasElement, '[data-stage="colored"]');
@@ -121,6 +125,14 @@ function assertPipelineShowcase(
     assert(
         coloredPanel.textContent?.includes('@stage="after-color"'),
         'colored stage records the post-color writer boundary'
+    );
+    assert(
+        coloredPanel.textContent?.includes('queued edit replay before writer'),
+        'colored stage shows queued color edit metadata'
+    );
+    assert(
+        coloredPanel.textContent?.includes('colorizer.queued-edit'),
+        'colored stage records the queued color edit role'
     );
 
     const templatePanel = requiredElement(canvasElement, '[data-stage="cemt-source"]');
@@ -145,6 +157,18 @@ function assertPipelineShowcase(
     assert(
         templatePanel.textContent?.includes('appendWriterBoundary('),
         'coloring CEMT source records writer-boundary metadata before writer output'
+    );
+    assert(
+        templatePanel.textContent?.includes('applyEdits('),
+        'coloring CEMT source replays queued edits before writer output'
+    );
+    assert(
+        templatePanel.textContent?.includes('drainQueue('),
+        'coloring CEMT source drains deferred edits before writer output'
+    );
+    assert(
+        templatePanel.textContent?.includes('defer([],'),
+        'coloring CEMT source queues color mutations before replay'
     );
     assert(
         templatePanel.textContent?.includes('map($subject.nodes'),

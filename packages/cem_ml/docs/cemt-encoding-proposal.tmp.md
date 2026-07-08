@@ -163,8 +163,9 @@ metadata. They are not opaque host-side string filters.
   must run after child traversal is complete. `defer(...)`, `queuePush(...)`,
   `queueShift(...)`, `queuePeek(...)`, `queueLength(...)`, and
   `drainQueue(...)` now provide bounded immutable FIFO queues for CEMT bodies;
-  remaining work is richer typed edit helpers, source-map policy integration,
-  and formatter/coloring showcases.
+  remaining work is richer typed edit helpers and source-map policy integration.
+  The formatter/coloring showcase now drains a queued edit into
+  `applyEdits(...)` before writer output.
 - Extend accumulator helpers beyond array `append(...)` for `formatNodes`,
   `colorNodes`, diagnostics, namespace declarations, output spans, and
   writer-boundary metadata. `appendFormatNode(...)`, `appendColorNode(...)`,
@@ -185,8 +186,9 @@ metadata. They are not opaque host-side string filters.
   runtime operations. Queued edits now reject ambiguous value fields, malformed
   paths, null appended/prepended nodes, and non-object wrappers. Wrapper
   insertion now defaults missing wrapper source maps from the wrapped node and
-  stamps the active CEMT transform frame; remaining work is formatter/coloring
-  showcases.
+  stamps the active CEMT transform frame. The formatter/coloring showcase now
+  uses `applyEdits(...)` to replay deferred color metadata before writer output;
+  remaining work is source-map policy integration.
 - Extend first-class diagnostics emitted from formatter/color templates.
   `diagnostic(...)` and `diagnostics(...)` now construct writer-ready diagnostic
   values for unsupported layout, inaccessible color, unsafe raw content,

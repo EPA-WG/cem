@@ -47,6 +47,7 @@ export type CemtPipelineFixture = {
     category: string;
     formattedDecision: string;
     coloredDecision: string;
+    queuedEditDecision: string;
     writerBoundaryStage: string;
     writerBoundaryDecision: string;
     elementClass: string;
@@ -139,6 +140,7 @@ function createPipelineFixture(
         category: requiredFunctionAttribute(cemtSource, 'format-function', 'category'),
         formattedDecision: requiredValueAfter(cemtSource, 'formatterRole: "formatter.showcase"'),
         coloredDecision: requiredValueAfter(cemtSource, 'colorizerRole: "colorizer.showcase"'),
+        queuedEditDecision: requiredValueAfter(cemtSource, 'colorizerRole: "colorizer.queued-edit"'),
         writerBoundaryStage: requiredStringFieldAfter(cemtSource, 'kind: "writer-boundary"', 'stage'),
         writerBoundaryDecision: requiredStringFieldAfter(cemtSource, 'kind: "writer-boundary"', 'value'),
         elementClass: requiredColorClass(cemtSource, 'syntax-name'),
@@ -288,6 +290,18 @@ function colorTextWrapper(fixture: CemtPipelineFixture, child: CemNode, role: st
                 colorizerRole: 'colorizer.wrapped-role',
                 colorProfile: fixture.colorProfile,
             },
+            ...(role === 'syntax.keyword'
+                ? [
+                      {
+                          kind: 'color-decision',
+                          name: 'queued-edit',
+                          value: fixture.queuedEditDecision,
+                          colorizerOwned: true,
+                          colorizerRole: 'colorizer.queued-edit',
+                          colorProfile: fixture.colorProfile,
+                      },
+                  ]
+                : []),
         ],
         children: [cloneNode(child)],
     };

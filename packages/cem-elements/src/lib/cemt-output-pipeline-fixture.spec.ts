@@ -25,6 +25,7 @@ describe('CEMT output pipeline fixture', () => {
         expect(showcase.formattedTreeCem).toContain('@formatter-role="formatter.inline-emphasis"');
         expect(showcase.formattedTreeCem).toContain('@value="formatted tree before writer"');
         expect(showcase.formattedTreeCem).not.toContain('writer consumes colored CEM tree');
+        expect(showcase.formattedTreeCem).not.toContain('queued edit replay before writer');
         expect(showcase.formattedTreeCem).not.toContain('"formatterProfile"');
         expect(showcase.formattedTreeCem).not.toContain('"kind":');
     });
@@ -74,6 +75,8 @@ describe('CEMT output pipeline fixture', () => {
         expect(showcase.coloredTreeCem).toContain('{writer-boundaries |');
         expect(showcase.coloredTreeCem).toContain('@stage="after-color"');
         expect(showcase.coloredTreeCem).toContain('@value="writer consumes colored CEM tree"');
+        expect(showcase.coloredTreeCem).toContain('@colorizer-role="colorizer.queued-edit"');
+        expect(showcase.coloredTreeCem).toContain('@value="queued edit replay before writer"');
         expect(showcase.coloredTreeCem).toContain('@color-role="syntax.string"');
         expect(showcase.coloredTreeCem).toContain('@color-role="syntax.keyword"');
     });

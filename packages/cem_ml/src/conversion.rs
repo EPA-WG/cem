@@ -9011,6 +9011,8 @@ mod tests {
         assert!(fixture.contains(r#"@value="colored tree before writer""#));
         assert!(fixture.contains(r#"@stage="after-color""#));
         assert!(fixture.contains(r#"@value="writer consumes colored CEM tree""#));
+        assert!(fixture.contains(r#"@colorizer-role="colorizer.queued-edit""#));
+        assert!(fixture.contains(r#"@value="queued edit replay before writer""#));
         assert!(fixture.contains(r#"@value="cem-color cem-color-syntax-keyword""#));
     }
 
