@@ -13653,20 +13653,53 @@ fn apply_cemt_tree_patch_operation(
     target: &mut Value,
     operation: CemtTreePatchOperation,
     path: &str,
-    value: Value,
+    mut value: Value,
     owner: &str,
     binding: Option<&TransformTemplateEncodeBinding>,
 ) -> Result<(), String> {
     match operation {
-        CemtTreePatchOperation::Set => set_cemt_value_path_with_owner(target, path, value, owner),
-        CemtTreePatchOperation::Replace => replace_cemt_value_path(target, path, value, owner),
+        CemtTreePatchOperation::Set => {
+            apply_cemt_patch_value_source_map_default(&mut value, target, owner, binding);
+            set_cemt_value_path_with_owner(target, path, value, owner)
+        }
+        CemtTreePatchOperation::Replace => {
+            apply_cemt_patch_value_source_map_default(&mut value, target, owner, binding);
+            replace_cemt_value_path(target, path, value, owner)
+        }
         CemtTreePatchOperation::Append => {
+            apply_cemt_patch_value_source_map_default(&mut value, target, owner, binding);
             insert_cemt_array_value_path(target, path, value, CemtArrayInsertPosition::Back, owner)
         }
         CemtTreePatchOperation::Prepend => {
+            apply_cemt_patch_value_source_map_default(&mut value, target, owner, binding);
             insert_cemt_array_value_path(target, path, value, CemtArrayInsertPosition::Front, owner)
         }
         CemtTreePatchOperation::Wrap => wrap_cemt_value_path(target, path, value, owner, binding),
+    }
+}
+
+fn apply_cemt_patch_value_source_map_default(
+    value: &mut Value,
+    target: &Value,
+    owner: &str,
+    binding: Option<&TransformTemplateEncodeBinding>,
+) {
+    let Value::Object(fields) = value else {
+        return;
+    };
+    if fields.contains_key("sourceMap") {
+        return;
+    }
+    let source_map = transform_template_first_cem_tree_source_map(target)
+        .or_else(|| transform_template_first_cem_tree_source_map(&Value::Object(fields.clone())));
+    let Some(source_map) = source_map else {
+        return;
+    };
+    let function = cemt_tree_patch_source_map_function_name(fields, owner, binding);
+    if let Some(source_map) =
+        transform_template_cem_tree_transform_source_map_value(Some(&source_map), &function)
+    {
+        fields.insert("sourceMap".to_owned(), source_map);
     }
 }
 
@@ -20432,6 +20465,62 @@ mod tests {
                 )
             },
         );
+
+        let appended = resolve_encode_subject_expression_with_binding(
+            r#"applyEdits(
+                $node,
+                [{
+                    kind: "append",
+                    path: "nodes.0.children.0.colorWrapperNodes",
+                    node: {
+                        kind: "color-decision",
+                        name: "queued-edit",
+                        colorizerRole: "colorizer.queued-edit"
+                    }
+                }]
+            )"#,
+            &values,
+            &BTreeMap::new(),
+            &binding,
+        )
+        .expect("applyEdits append resolves")
+        .expect("applyEdits append returns value");
+        assert_cem_tree_source_map_current_transform(
+            &appended["nodes"][0]["children"][0]["colorWrapperNodes"][0]["sourceMap"],
+            |transform| {
+                matches!(
+                    transform,
+                    TransformKind::TemplateTransform { function }
+                        if function == "cem.color-tree"
+                )
+            },
+        );
+
+        let explicit_appended = resolve_encode_subject_expression_with_binding(
+            r#"applyEdits(
+                $node,
+                [{
+                    kind: "append",
+                    path: "nodes.0.children.0.colorWrapperNodes",
+                    node: {
+                        kind: "color-decision",
+                        name: "explicit-edit",
+                        colorizerRole: "colorizer.explicit-edit",
+                        sourceMap: $explicit
+                    }
+                }]
+            )"#,
+            &values,
+            &BTreeMap::new(),
+            &binding,
+        )
+        .expect("explicit applyEdits append resolves")
+        .expect("explicit applyEdits append returns value");
+        assert_eq!(
+            explicit_appended["nodes"][0]["children"][0]["colorWrapperNodes"][0]["sourceMap"],
+            explicit_source_map,
+            "explicit appended node source maps are preserved"
+        );
     }
 
     #[test]
@@ -21339,6 +21428,16 @@ mod tests {
             colored["writerBoundaries"][0]["value"],
             "writer consumes colored CEM tree"
         );
+        assert_cem_tree_source_map_current_transform(
+            &colored["writerBoundaries"][0]["sourceMap"],
+            |transform| {
+                matches!(
+                    transform,
+                    TransformKind::TemplateTransform { function }
+                        if function == "acme.showcase.color-tree"
+                )
+            },
+        );
         assert!(stage_fixture.contains(r#"@stage="after-color""#));
         assert!(stage_fixture.contains(r#"@value="writer consumes colored CEM tree""#));
         assert_eq!(
@@ -21374,6 +21473,16 @@ mod tests {
         assert_eq!(
             colored["nodes"][0]["children"][1]["children"][0]["colorWrapperNodes"][2]["value"],
             "queued edit replay before writer"
+        );
+        assert_cem_tree_source_map_current_transform(
+            &colored["nodes"][0]["children"][1]["children"][0]["colorWrapperNodes"][2]["sourceMap"],
+            |transform| {
+                matches!(
+                    transform,
+                    TransformKind::TemplateTransform { function }
+                        if function == "acme.showcase.color-tree"
+                )
+            },
         );
         assert_eq!(
             colored["nodes"][0]["children"][2]["colorRole"], "syntax.string",

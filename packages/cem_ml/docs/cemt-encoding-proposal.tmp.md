@@ -186,9 +186,12 @@ metadata. They are not opaque host-side string filters.
   runtime operations. Queued edits now reject ambiguous value fields, malformed
   paths, null appended/prepended nodes, and non-object wrappers. Wrapper
   insertion now defaults missing wrapper source maps from the wrapped node and
-  stamps the active CEMT transform frame. The formatter/coloring showcase now
-  uses `applyEdits(...)` to replay deferred color metadata before writer output;
-  remaining work is source-map policy integration.
+  stamps the active CEMT transform frame. Object values inserted by queued
+  `set`, `replace`, `append`, and `prepend` edits now default missing source
+  maps from the patched CEM tree and stamp the active formatter/colorizer frame.
+  The formatter/coloring showcase now uses `applyEdits(...)` to replay deferred
+  color metadata before writer output; remaining work is source-map policy
+  integration.
 - Extend first-class diagnostics emitted from formatter/color templates.
   `diagnostic(...)` and `diagnostics(...)` now construct writer-ready diagnostic
   values for unsupported layout, inaccessible color, unsafe raw content,
@@ -521,9 +524,11 @@ object wrapper before the edit is applied.
 
 When `wrapNode(...)` or an `applyEdits(...)` wrap edit creates a wrapper without
 `sourceMap`, CEMT derives the wrapper map from the wrapped node and appends the
-active transform frame. Formatter bodies therefore produce formatted wrapper
-metadata, coloring bodies produce colored wrapper metadata, and explicit wrapper
-`sourceMap` values are preserved.
+active transform frame. When queued `set`, `replace`, `append`, or `prepend`
+edits insert an object without `sourceMap`, CEMT derives the map from the
+patched CEM tree and appends the active transform frame. Formatter bodies
+therefore produce formatted patch metadata, coloring bodies produce colored
+patch metadata, and explicit `sourceMap` values are preserved.
 
 ```cemt
 {$ applyEdits($formattedTree, [
