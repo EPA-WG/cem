@@ -105,7 +105,10 @@
                         formatterRole: "formatter.boundary",
                         formatterProfile: "acme.showcase.format-tree"
                     }],
-                    nodes: [call(acme.showcase.format-node, { subject: $subject, slot: 0 })]
+                    nodes: match(exists($subject.kind), {
+                        true: [call(acme.showcase.format-node, { subject: $subject, slot: 0 })],
+                        false: map($subject, call(acme.showcase.format-node, { subject: $item, slot: $index }))
+                    })
                 },
                 {
                     kind: "format-decision",

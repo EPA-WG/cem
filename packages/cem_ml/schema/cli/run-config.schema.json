@@ -104,6 +104,21 @@
         "schema": {
           "type": "string"
         },
+        "outputColorType": {
+          "type": "string"
+        },
+        "cemtFormatter": {
+          "type": "string"
+        },
+        "cemtFormatterProfile": {
+          "type": "string"
+        },
+        "cemtColorizer": {
+          "type": "string"
+        },
+        "cemtColorProfile": {
+          "type": "string"
+        },
         "versionPins": {
           "$ref": "#/$defs/stringMap",
           "default": {}

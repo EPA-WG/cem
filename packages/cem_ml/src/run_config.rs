@@ -70,6 +70,14 @@ pub struct ScopeConfig {
     pub schema: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub output_color_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cemt_formatter: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cemt_formatter_profile: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cemt_colorizer: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cemt_color_profile: Option<String>,
     #[serde(default)]
     pub version_pins: BTreeMap<String, String>,
     #[serde(default)]
@@ -424,6 +432,10 @@ fn apply_scope_field(
     match normalized_key {
         "contenttype" | "defaultcontenttype" => scope.default_content_type = Some(value),
         "schema" => scope.schema = Some(value),
+        "cemtformatter" | "formatter" => scope.cemt_formatter = Some(value),
+        "cemtformatterprofile" | "formatterprofile" => scope.cemt_formatter_profile = Some(value),
+        "cemtcolorizer" | "colorizer" => scope.cemt_colorizer = Some(value),
+        "cemtcolorprofile" | "colorprofile" => scope.cemt_color_profile = Some(value),
         "defaultnamespace" | "defaultns" => scope.default_namespace = Some(value),
         "modulemap" => scope.module_map = Some(value),
         "baseuri" => scope.base_uri = Some(value),
@@ -891,7 +903,7 @@ mod tests {
     #[test]
     fn output_spec_record_maps_target_scope() {
         let spec = parse_output_spec_record(
-            "input=src/a.cem,dest=dist/a.cem,contentType=application/cem+xml,schema=core,defaultNs=https://cem.dev/ns/core/1,namespaces=html:http://www.w3.org/1999/xhtml",
+            "input=src/a.cem,dest=dist/a.cem,contentType=application/cem+xml,schema=core,cemtFormatter=acme.showcase.format-tree,cemtFormatterProfile=acme.showcase.format-tree,cemtColorizer=acme.showcase.color-tree,cemtColorProfile=classes,defaultNs=https://cem.dev/ns/core/1,namespaces=html:http://www.w3.org/1999/xhtml",
         )
         .unwrap();
 
@@ -905,6 +917,22 @@ mod tests {
         assert_eq!(
             spec.root_scope.default_namespace.as_deref(),
             Some("https://cem.dev/ns/core/1")
+        );
+        assert_eq!(
+            spec.root_scope.cemt_formatter.as_deref(),
+            Some("acme.showcase.format-tree")
+        );
+        assert_eq!(
+            spec.root_scope.cemt_formatter_profile.as_deref(),
+            Some("acme.showcase.format-tree")
+        );
+        assert_eq!(
+            spec.root_scope.cemt_colorizer.as_deref(),
+            Some("acme.showcase.color-tree")
+        );
+        assert_eq!(
+            spec.root_scope.cemt_color_profile.as_deref(),
+            Some("classes")
         );
         assert_eq!(
             spec.root_scope.namespaces.get("html").map(String::as_str),

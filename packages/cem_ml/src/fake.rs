@@ -104,6 +104,7 @@ impl CemMlEngine for FakeEngine {
             "input": request.input.uri,
             "preserveSourceOffsets": request.preserve_source_offsets,
             "target": request.target,
+            "targetScope": request.target_scope,
         });
         Ok(ConvertResponse {
             primary,

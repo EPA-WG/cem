@@ -547,6 +547,34 @@ pub struct ConvertArgs {
     )]
     pub output_color_type: Option<String>,
 
+    #[arg(
+        long = "cemt-formatter",
+        value_name = "NAME",
+        help = "CEMT formatter function for formatted CEM tree output"
+    )]
+    pub cemt_formatter: Option<String>,
+
+    #[arg(
+        long = "cemt-formatter-profile",
+        value_name = "PROFILE",
+        help = "Formatter profile expected from the CEMT formatter"
+    )]
+    pub cemt_formatter_profile: Option<String>,
+
+    #[arg(
+        long = "cemt-colorizer",
+        value_name = "NAME",
+        help = "CEMT colorizer function for colored CEM tree output"
+    )]
+    pub cemt_colorizer: Option<String>,
+
+    #[arg(
+        long = "cemt-color-profile",
+        value_name = "PROFILE",
+        help = "Color profile expected from the CEMT colorizer"
+    )]
+    pub cemt_color_profile: Option<String>,
+
     #[arg(long, value_name = "FILE")]
     pub out: Option<PathBuf>,
 
@@ -943,6 +971,40 @@ mod tests {
             panic!("expected convert command");
         };
         assert_eq!(args.output_color_type.as_deref(), Some("html-css-vars"));
+    }
+
+    #[test]
+    fn convert_cemt_output_stage_options_parse() {
+        let cli = try_parse(&[
+            "convert",
+            "--cemt-formatter",
+            "acme.showcase.format-tree",
+            "--cemt-formatter-profile",
+            "acme.showcase.format-tree",
+            "--cemt-colorizer",
+            "acme.showcase.color-tree",
+            "--cemt-color-profile",
+            "classes",
+            "in.cem",
+        ])
+        .unwrap();
+
+        let Command::Convert(args) = cli.command else {
+            panic!("expected convert command");
+        };
+        assert_eq!(
+            args.cemt_formatter.as_deref(),
+            Some("acme.showcase.format-tree")
+        );
+        assert_eq!(
+            args.cemt_formatter_profile.as_deref(),
+            Some("acme.showcase.format-tree")
+        );
+        assert_eq!(
+            args.cemt_colorizer.as_deref(),
+            Some("acme.showcase.color-tree")
+        );
+        assert_eq!(args.cemt_color_profile.as_deref(), Some("classes"));
     }
 
     #[test]

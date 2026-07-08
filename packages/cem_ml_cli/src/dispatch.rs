@@ -983,6 +983,10 @@ fn input_scope_defaults(c: &cli::ContextOptions) -> ScopeConfig {
         base_uri: c.base_uri.clone(),
         policy: c.scope_policy.clone(),
         output_color_type: None,
+        cemt_formatter: None,
+        cemt_formatter_profile: None,
+        cemt_colorizer: None,
+        cemt_color_profile: None,
         version_pins: context_key_values(&c.version_pins),
         budgets: context_key_values(&c.scope_budgets),
     }
@@ -998,6 +1002,10 @@ fn output_scope_defaults(args: &cli::ConvertArgs) -> ScopeConfig {
         base_uri: args.context.base_uri.clone(),
         policy: args.context.scope_policy.clone(),
         output_color_type: None,
+        cemt_formatter: args.cemt_formatter.clone(),
+        cemt_formatter_profile: args.cemt_formatter_profile.clone(),
+        cemt_colorizer: args.cemt_colorizer.clone(),
+        cemt_color_profile: args.cemt_color_profile.clone(),
         version_pins: context_key_values(&args.context.version_pins),
         budgets: context_key_values(&args.context.scope_budgets),
     }
@@ -22343,6 +22351,44 @@ start =
     }
 
     #[test]
+    fn convert_passes_cemt_output_stage_options_to_target_scope() {
+        let p = write_fixture("convert-cemt-options.cem", "@doc cem-ml 1\n{p | Hi}");
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "convert",
+                "--to-format",
+                "html",
+                "--cemt-formatter",
+                "acme.showcase.format-tree",
+                "--cemt-formatter-profile",
+                "acme.showcase.format-tree",
+                "--cemt-colorizer",
+                "acme.showcase.color-tree",
+                "--cemt-color-profile",
+                "classes",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(
+            v["targetScope"]["cemtFormatter"],
+            "acme.showcase.format-tree"
+        );
+        assert_eq!(
+            v["targetScope"]["cemtFormatterProfile"],
+            "acme.showcase.format-tree"
+        );
+        assert_eq!(
+            v["targetScope"]["cemtColorizer"],
+            "acme.showcase.color-tree"
+        );
+        assert_eq!(v["targetScope"]["cemtColorProfile"], "classes");
+    }
+
+    #[test]
     fn convert_to_format_html_renders_light_dom_html() {
         let p = write_fixture("convert-html.cem", "@doc cem-ml 1\n{p | Hi}");
         let (outcome, stdout, stderr) = run(
@@ -22353,6 +22399,82 @@ start =
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(v["kind"], "html");
         assert_eq!(v["content"], COLORED_P_HI_HTML);
+    }
+
+    #[test]
+    fn convert_cemt_output_stage_options_select_manifest_aliases() {
+        let p = write_fixture(
+            "convert-cemt-aliases.cem",
+            "@doc cem-ml 1\n{article | Ready {strong | now}.}",
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-format",
+                "html",
+                "--cemt-formatter",
+                "acme.showcase.format-tree",
+                "--cemt-formatter-profile",
+                "acme.showcase.format-tree",
+                "--cemt-colorizer",
+                "acme.showcase.color-tree",
+                "--cemt-color-profile",
+                "classes",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["kind"], "html");
+        let content = v["content"].as_str().unwrap();
+        assert!(content.contains(r#"<article class="cem-color cem-color-syntax-name""#));
+        assert!(content.contains(r#"<strong class="cem-color cem-color-syntax-keyword""#));
+        assert!(content.contains("Ready "));
+        assert!(content.contains(">now<"));
+    }
+
+    #[test]
+    fn convert_config_output_scope_selects_cemt_manifest_aliases() {
+        let p = write_fixture(
+            "convert-config-cemt-aliases.cem",
+            "@doc cem-ml 1\n{article | Ready {strong | now}.}",
+        );
+        let config_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-config-cemt.json");
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{ "uri": p.display().to_string() }],
+                "outputs": [{
+                    "inputRef": p.display().to_string(),
+                    "rootScope": {
+                        "defaultContentType": "text/html",
+                        "schema": cem_ml::schema::registry::HTML_SCHEMA_URI,
+                        "cemtFormatter": "acme.showcase.format-tree",
+                        "cemtFormatterProfile": "acme.showcase.format-tree",
+                        "cemtColorizer": "acme.showcase.color-tree",
+                        "cemtColorProfile": "classes"
+                    }
+                }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["convert", "--config", config_path.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(v["kind"], "html");
+        let content = v["content"].as_str().unwrap();
+        assert!(content.contains(r#"<article class="cem-color cem-color-syntax-name""#));
+        assert!(content.contains(r#"<strong class="cem-color cem-color-syntax-keyword""#));
     }
 
     #[test]

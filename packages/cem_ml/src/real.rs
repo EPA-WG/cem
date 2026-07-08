@@ -113,6 +113,44 @@ enum ExportConversionTemplateResult {
     Failed,
 }
 
+fn trimmed_scope_value(value: Option<&String>) -> Option<&str> {
+    value
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+}
+
+fn apply_cemt_output_scope_overrides(
+    pipeline: &mut ConversionOutputPipeline,
+    target_scope: &ScopeConfig,
+) {
+    if let Some(formatter) = trimmed_scope_value(target_scope.cemt_formatter.as_ref()) {
+        pipeline.cemt_options.formatter = Some(formatter.to_owned());
+    }
+    let formatter_profile = trimmed_scope_value(target_scope.cemt_formatter_profile.as_ref())
+        .or_else(|| trimmed_scope_value(target_scope.cemt_formatter.as_ref()));
+    if let Some(formatter_profile) = formatter_profile {
+        pipeline.cemt_options.formatter_profile = Some(formatter_profile.to_owned());
+        pipeline.cemt_insertion_context.formatter_profile = Some(formatter_profile.to_owned());
+        pipeline.writer_insertion_context.formatter_profile = Some(formatter_profile.to_owned());
+    }
+    if let Some(colorizer) = trimmed_scope_value(target_scope.cemt_colorizer.as_ref()) {
+        pipeline.cemt_options.colorizer = Some(colorizer.to_owned());
+    }
+    if let Some(color_profile) = trimmed_scope_value(target_scope.cemt_color_profile.as_ref()) {
+        pipeline.cemt_options.color_profile = Some(color_profile.to_owned());
+        pipeline.cemt_insertion_context.color_profile = Some(color_profile.to_owned());
+        pipeline.writer_insertion_context.color_profile = Some(color_profile.to_owned());
+    }
+}
+
+fn cemt_output_pipeline_for_scope(
+    mut pipeline: ConversionOutputPipeline,
+    target_scope: &ScopeConfig,
+) -> ConversionOutputPipeline {
+    apply_cemt_output_scope_overrides(&mut pipeline, target_scope);
+    pipeline
+}
+
 fn resolve_export_conversion_execution(
     context: &EngineContext,
     to_format: LayerFormat,
@@ -302,9 +340,10 @@ fn render_export_conversion_template(
 
     let output = if let Some(pipeline) = conversion.output_pipeline.as_ref() {
         let output_uri = output.uri.clone();
+        let pipeline = cemt_output_pipeline_for_scope(pipeline.clone(), target_scope);
         let pipeline_execution = execute_conversion_output_pipeline_with_context(
             Some(context),
-            pipeline,
+            &pipeline,
             output.value,
             output.source_map,
             output.output_spans,
@@ -849,9 +888,10 @@ fn convert_primary_to_cem_with_cemt_pipeline(
     context: Option<&EngineContext>,
     document: &CemDocument,
     from_format: InputFormat,
+    target_scope: &ScopeConfig,
     diagnostic_uri: Option<&str>,
 ) -> Result<Value, Vec<Diagnostic>> {
-    let pipeline = direct_cem_output_pipeline();
+    let pipeline = cemt_output_pipeline_for_scope(direct_cem_output_pipeline(), target_scope);
     let pipeline_execution = execute_conversion_output_pipeline_with_context(
         context,
         &pipeline,
@@ -911,8 +951,10 @@ fn convert_primary_to_markup_with_cemt_pipeline(
     pipeline: ConversionOutputPipeline,
     kind: &str,
     converter_id: &str,
+    target_scope: &ScopeConfig,
     diagnostic_uri: Option<&str>,
 ) -> Result<Value, Vec<Diagnostic>> {
+    let pipeline = cemt_output_pipeline_for_scope(pipeline, target_scope);
     let pipeline_execution = execute_conversion_output_pipeline_with_context(
         context,
         &pipeline,
@@ -4901,6 +4943,7 @@ impl CemMlEngine for RealCemMlEngine {
                     Some(&context),
                     &run.document,
                     from_format,
+                    &request.target_scope,
                     Some(&request.input.uri),
                 )
                 .unwrap_or_else(|mut cemt_diagnostics| {
@@ -4949,6 +4992,7 @@ impl CemMlEngine for RealCemMlEngine {
                                 direct_html_output_pipeline(),
                                 "html",
                                 "direct-html-output",
+                                &request.target_scope,
                                 Some(&request.input.uri),
                             )
                             .unwrap_or_else(|mut cemt_diagnostics| {
@@ -5000,6 +5044,7 @@ impl CemMlEngine for RealCemMlEngine {
                                 direct_xml_output_pipeline(),
                                 "xml",
                                 "direct-xml-output",
+                                &request.target_scope,
                                 Some(&request.input.uri),
                             )
                             .unwrap_or_else(|mut cemt_diagnostics| {
@@ -10301,6 +10346,7 @@ mod tests {
             None,
             &document,
             InputFormat::Cem,
+            &ScopeConfig::default(),
             Some("invalid.cem"),
         )
         .expect_err("invalid generated CEM tree names must fail through CEMT diagnostics");
