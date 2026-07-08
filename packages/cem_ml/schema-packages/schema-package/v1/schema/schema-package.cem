@@ -79,7 +79,7 @@
         {constraint @kind="planned-cemt-rust-fallback" @target="converter" @policy="planned CEMT converters may declare rust-symbol as fallback hook"}
         {constraint @kind="cemt-native-fallback-reason" @target="converter" @policy="CEMT converters that declare rust-symbol fallback hooks must also declare fallback-reason"}
         {constraint @kind="schema-source-metadata-consistency" @target="package schema content-type namespace" @policy="when package source is local, package schema URI, content type claims, and namespace URI claims must match the referenced schema source"}
-        {constraint @kind="artifact-output-stage-contract" @target="artifact" @policy="formatter and colorizer artifacts that provide runtime CEMT output stages must use package-relative CEMT paths under formatters/ or colorizers/, declare target-content-type, target-schema, target-category, function-name, function-profile when the CEMT declaration has a profile, and the applicable formatter-profile or color-profile"}
+        {constraint @kind="artifact-output-stage-contract" @target="artifact" @policy="formatter, colorizer, formatter-helper, and colorizer-helper artifacts that provide runtime CEMT output stages or helpers must use package-relative CEMT paths under formatters/ or colorizers/, declare target-content-type, target-schema, target-category, function-name, function-profile when the CEMT declaration has a profile, and the applicable formatter-profile or color-profile"}
     }
 
     {diagnostics |

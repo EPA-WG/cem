@@ -39,13 +39,20 @@ Schema-local output transformations live beside the schema package:
 - [`formatters/formatter-coloring-pipeline.cemt`](formatters/formatter-coloring-pipeline.cemt)
   declares `acme.showcase.format-tree` as a package-qualified formatter that
   extends `cem.format-tree`.
+- [`formatters/cem-tree-helpers.cemt`](formatters/cem-tree-helpers.cemt)
+  declares private `cemml.cem-tree.*` formatter helpers used by schema-local
+  formatter entrypoints.
 - [`colorizers/cem-color-tree.cemt`](colorizers/cem-color-tree.cemt)
   declares `cem.color-tree` for formatted CEM trees before the writer phase.
 - [`colorizers/formatter-coloring-pipeline.cemt`](colorizers/formatter-coloring-pipeline.cemt)
   declares `acme.showcase.color-tree` as a package-qualified colorizer that
   extends `cem.color-tree`.
+- [`colorizers/cem-tree-helpers.cemt`](colorizers/cem-tree-helpers.cemt)
+  declares private `cemml.cem-tree.*` colorizer helpers used by schema-local
+  colorizer entrypoints.
 
-The package manifest declares these files as `formatter` and `colorizer`
+The package manifest declares entrypoint files as `formatter` and `colorizer`
+artifacts and shared helper files as `formatter-helper` and `colorizer-helper`
 artifacts so runtime CEMT stages are tied to schema-owned assets instead of
 inline Rust template strings. The artifact entries also declare the target CEM
 tree identity (`application/cem`, `https://cem.dev/ns/cem-ml/1`, `cem-tree`),
@@ -66,14 +73,15 @@ wrappers over package-owned helpers such as
 `cemml.cem-tree.format-tree-base` and `cemml.cem-tree.color-tree-base`. New
 schema-specific formatter/colorizer functions should pass formatter decisions,
 color decisions, writer boundaries, and queued edits into those helpers instead
-of copying the full pipeline body. Cross-artifact helper loading is still
-future work, so the helpers are currently declared inside each package artifact
-that calls them.
+of copying the full pipeline body. The runtime loads matching helper artifacts
+for the selected output stage before executing the public formatter/colorizer
+body, so helpers can live in dedicated package `.cemt` files beside their
+entrypoints.
 
 The `formatters/` and `colorizers/` directories are part of the package
-contract. Schema-package validation rejects formatter or colorizer artifacts
-that point outside those package-relative `.cemt` locations, keeping
-formatting, coloring, and schema identity in the same package hierarchy.
+contract. Formatter, colorizer, and helper artifacts stay in those
+package-relative `.cemt` locations, keeping formatting, coloring, and schema
+identity in the same package hierarchy.
 
 ## Validation Examples
 

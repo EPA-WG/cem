@@ -138,7 +138,9 @@
                 "{workspaceRoot}/packages/cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.fixture.cem",
                 "{workspaceRoot}/packages/cem_ml/schema-packages/cem-ml/v1/package.cem",
                 "{workspaceRoot}/packages/cem_ml/schema-packages/cem-ml/v1/formatters/formatter-coloring-pipeline.cemt",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/cem-ml/v1/formatters/cem-tree-helpers.cemt",
                 "{workspaceRoot}/packages/cem_ml/schema-packages/cem-ml/v1/colorizers/formatter-coloring-pipeline.cemt",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/cem-ml/v1/colorizers/cem-tree-helpers.cemt",
                 "{workspaceRoot}/packages/cem_ml/schema-packages/cem-ml/v1/examples/formatter-coloring-pipeline.package-artifacts.fixture.cem",
                 "{workspaceRoot}/packages/cem_ml_cli/docs/examples/cemt-output-pipeline.input.cem",
                 "{workspaceRoot}/packages/cem_ml_cli/docs/examples/cemt-output-pipeline.run.json"

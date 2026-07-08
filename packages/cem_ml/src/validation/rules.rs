@@ -1510,8 +1510,8 @@ fn validate_schema_package_artifact_layout(
 
 fn schema_package_artifact_stage_dir(kind: &str) -> Option<&'static str> {
     match kind {
-        "formatter" => Some("formatters"),
-        "colorizer" => Some("colorizers"),
+        "formatter" | "formatter-helper" => Some("formatters"),
+        "colorizer" | "colorizer-helper" => Some("colorizers"),
         _ => None,
     }
 }
@@ -2703,7 +2703,30 @@ mod tests {
                     @formatter-profile="cem.format-tree"
                 }
                 {artifact
+                    @kind="formatter-helper"
+                    @path="transforms/demo-format.cemt"
+                    @content-type="application/vnd.cem.transform+cem"
+                    @schema="https://cem.dev/ns/transform/cem/1"
+                    @target-content-type="application/cem"
+                    @target-schema="https://cem.dev/ns/cem-ml/1"
+                    @target-category="cem-tree"
+                    @function-name="demo.format"
+                    @formatter-profile="cem.format-tree"
+                }
+                {artifact
                     @kind="colorizer"
+                    @path="formatters/demo-color.cemt"
+                    @content-type="application/vnd.cem.transform+cem"
+                    @schema="https://cem.dev/ns/transform/cem/1"
+                    @target-content-type="application/cem"
+                    @target-schema="https://cem.dev/ns/cem-ml/1"
+                    @target-category="cem-tree"
+                    @function-name="demo.color"
+                    @function-profile="classes"
+                    @color-profile="classes"
+                }
+                {artifact
+                    @kind="colorizer-helper"
                     @path="formatters/demo-color.cemt"
                     @content-type="application/vnd.cem.transform+cem"
                     @schema="https://cem.dev/ns/transform/cem/1"
@@ -2726,15 +2749,21 @@ mod tests {
             .collect();
         assert_eq!(
             layout_diags.len(),
-            2,
-            "expected formatter and colorizer layout diagnostics: {diags:?}"
+            4,
+            "expected formatter/colorizer entrypoint and helper layout diagnostics: {diags:?}"
         );
         assert!(layout_diags.iter().any(|d| d
             .message
             .contains("formatter artifact `transforms/demo-format.cemt`")));
         assert!(layout_diags.iter().any(|d| d
             .message
+            .contains("formatter-helper artifact `transforms/demo-format.cemt`")));
+        assert!(layout_diags.iter().any(|d| d
+            .message
             .contains("colorizer artifact `formatters/demo-color.cemt`")));
+        assert!(layout_diags.iter().any(|d| d
+            .message
+            .contains("colorizer-helper artifact `formatters/demo-color.cemt`")));
     }
 
     #[test]

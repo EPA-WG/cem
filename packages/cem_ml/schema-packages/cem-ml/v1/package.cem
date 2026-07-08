@@ -81,6 +81,18 @@
     }
 
     {artifact
+        @kind="formatter-helper"
+        @path="formatters/cem-tree-helpers.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="cemml.cem-tree.format-tree-base"
+        @formatter-profile="acme.showcase.format-tree"
+    }
+
+    {artifact
         @kind="colorizer"
         @path="colorizers/cem-color-tree.cemt"
         @content-type="application/vnd.cem.transform+cem"
@@ -115,6 +127,19 @@
         @target-schema="https://cem.dev/ns/cem-ml/1"
         @target-category="cem-tree"
         @function-name="acme.showcase.color-tree"
+        @function-profile="classes"
+        @color-profile="classes"
+    }
+
+    {artifact
+        @kind="colorizer-helper"
+        @path="colorizers/cem-tree-helpers.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="cemml.cem-tree.color-tree-base"
         @function-profile="classes"
         @color-profile="classes"
     }

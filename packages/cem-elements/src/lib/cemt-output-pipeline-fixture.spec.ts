@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import packagePipelineColorizerHelperSource from '../../../cem_ml/schema-packages/cem-ml/v1/colorizers/cem-tree-helpers.cemt?raw';
 import packagePipelineColorizerSource from '../../../cem_ml/schema-packages/cem-ml/v1/colorizers/formatter-coloring-pipeline.cemt?raw';
 import packagePipelineStageFixture from '../../../cem_ml/schema-packages/cem-ml/v1/examples/formatter-coloring-pipeline.package-artifacts.fixture.cem?raw';
+import packagePipelineFormatterHelperSource from '../../../cem_ml/schema-packages/cem-ml/v1/formatters/cem-tree-helpers.cemt?raw';
 import packagePipelineFormatterSource from '../../../cem_ml/schema-packages/cem-ml/v1/formatters/formatter-coloring-pipeline.cemt?raw';
 import cemtPipelineStageFixture from '../../../cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.fixture.cem?raw';
 import cemtPipelineSource from '../../../cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.cemt?raw';
@@ -38,8 +40,16 @@ describe('CEMT output pipeline fixture', () => {
                     source: packagePipelineFormatterSource,
                 },
                 {
+                    path: 'schema-packages/cem-ml/v1/formatters/cem-tree-helpers.cemt',
+                    source: packagePipelineFormatterHelperSource,
+                },
+                {
                     path: 'schema-packages/cem-ml/v1/colorizers/formatter-coloring-pipeline.cemt',
                     source: packagePipelineColorizerSource,
+                },
+                {
+                    path: 'schema-packages/cem-ml/v1/colorizers/cem-tree-helpers.cemt',
+                    source: packagePipelineColorizerHelperSource,
                 },
             ],
             packagePipelineStageFixture
@@ -47,13 +57,21 @@ describe('CEMT output pipeline fixture', () => {
 
         expect(showcase.fixture.sourcePaths).toEqual([
             'schema-packages/cem-ml/v1/formatters/formatter-coloring-pipeline.cemt',
+            'schema-packages/cem-ml/v1/formatters/cem-tree-helpers.cemt',
             'schema-packages/cem-ml/v1/colorizers/formatter-coloring-pipeline.cemt',
+            'schema-packages/cem-ml/v1/colorizers/cem-tree-helpers.cemt',
         ]);
         expect(showcase.fixture.cemtSource).toContain(
             '// schema-packages/cem-ml/v1/formatters/formatter-coloring-pipeline.cemt'
         );
         expect(showcase.fixture.cemtSource).toContain(
+            '// schema-packages/cem-ml/v1/formatters/cem-tree-helpers.cemt'
+        );
+        expect(showcase.fixture.cemtSource).toContain(
             '// schema-packages/cem-ml/v1/colorizers/formatter-coloring-pipeline.cemt'
+        );
+        expect(showcase.fixture.cemtSource).toContain(
+            '// schema-packages/cem-ml/v1/colorizers/cem-tree-helpers.cemt'
         );
         expect(showcase.fixture.cemtSource).toContain('@name="cemml.cem-tree.format-tree-base"');
         expect(showcase.fixture.cemtSource).toContain('@name="cemml.cem-tree.color-tree-base"');

@@ -2652,10 +2652,15 @@ const CEM_TREE_FORMAT_CEMT_ADAPTER_ID: &str = "cem-tree-format-cemt";
 const CEM_TREE_COLOR_CEMT_ADAPTER_ID: &str = "cem-tree-color-cemt";
 const CEMT_FORMATTER_COLORING_PIPELINE_PACKAGE_SOURCE_URI: &str =
     "schema-packages/cem-ml/v1/package.cem";
+const CEM_TREE_FORMATTER_HELPER_ARTIFACT_KIND: &str = "formatter-helper";
+const CEM_TREE_COLORIZER_HELPER_ARTIFACT_KIND: &str = "colorizer-helper";
 
 #[derive(Debug, Clone)]
 struct CemTreeCemtOutputStage {
     adapter_id: &'static str,
+    package_id: String,
+    target: TransformTemplateEncodingTarget,
+    stage_profile: Option<String>,
     template_uri: String,
     template_bytes: Vec<u8>,
     declaration_element: &'static str,
@@ -2784,6 +2789,9 @@ fn cem_tree_cemt_output_stage(
         .to_owned();
     Ok(CemTreeCemtOutputStage {
         adapter_id: spec.adapter_id,
+        package_id,
+        target: target.clone(),
+        stage_profile: stage_profile.map(str::to_owned),
         template_uri: artifact_source.uri,
         template_bytes: artifact_source.bytes,
         declaration_element: spec.declaration_element,
@@ -2838,6 +2846,155 @@ fn read_cem_tree_cemt_output_stage_artifact(
         ));
     };
     reader(artifact)
+}
+
+fn package_artifact_matches_cem_tree_target(
+    artifact: &ConversionPackageArtifactDescriptor,
+    package_id: &str,
+    target: &TransformTemplateEncodingTarget,
+) -> bool {
+    let target_content_type = content_type_essence(&target.content_type);
+    artifact.package_id == package_id
+        && artifact.content_type.as_deref() == Some(CEM_TRANSFORM_CONTENT_TYPE)
+        && artifact.schema.as_deref() == Some(CEM_TRANSFORM_SCHEMA_URI)
+        && artifact.target_content_type.as_deref() == Some(target_content_type.as_str())
+        && artifact.target_schema.as_deref() == Some(target.schema.as_str())
+        && artifact.target_category.as_deref() == Some(target.category.as_str())
+}
+
+fn package_artifact_output_function_kind(
+    artifact_kind: &str,
+) -> Option<TransformTemplateOutputFunctionKind> {
+    match artifact_kind.trim() {
+        "formatter" | CEM_TREE_FORMATTER_HELPER_ARTIFACT_KIND => {
+            Some(TransformTemplateOutputFunctionKind::Format)
+        }
+        "colorizer" | CEM_TREE_COLORIZER_HELPER_ARTIFACT_KIND => {
+            Some(TransformTemplateOutputFunctionKind::Color)
+        }
+        _ => None,
+    }
+}
+
+fn cemt_output_stage_helper_artifact_kind(
+    function_kind: TransformTemplateOutputFunctionKind,
+) -> Option<&'static str> {
+    match function_kind {
+        TransformTemplateOutputFunctionKind::Format => {
+            Some(CEM_TREE_FORMATTER_HELPER_ARTIFACT_KIND)
+        }
+        TransformTemplateOutputFunctionKind::Color => Some(CEM_TREE_COLORIZER_HELPER_ARTIFACT_KIND),
+        TransformTemplateOutputFunctionKind::Encoding => None,
+    }
+}
+
+fn parse_cem_tree_cemt_output_artifact_module_options(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    artifact: &ConversionPackageArtifactDescriptor,
+) -> Result<TransformTemplateModuleOptions, String> {
+    let source = read_cem_tree_cemt_output_stage_artifact(environment, artifact)?;
+    let parse_response =
+        parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+            template: TemplateInput {
+                uri: source.uri,
+                bytes: source.bytes,
+                identity: Some(FormatIdentity {
+                    content_type: artifact.content_type.clone(),
+                    schema: artifact.schema.clone(),
+                    ..FormatIdentity::default()
+                }),
+                root_scope: ScopeConfig::default(),
+            },
+        });
+    if let Some(diagnostic) = parse_response
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return Err(diagnostic.message.clone());
+    }
+    Ok(parse_response.module_options)
+}
+
+fn merge_cem_tree_cemt_helper_module_options(
+    module_options: &mut TransformTemplateModuleOptions,
+    helper_options: TransformTemplateModuleOptions,
+    function_kind: TransformTemplateOutputFunctionKind,
+    target: &TransformTemplateEncodingTarget,
+) {
+    let mut registered = module_options
+        .output_functions
+        .iter()
+        .map(|function| {
+            (
+                function.kind,
+                function.name.clone(),
+                function.profile.clone(),
+            )
+        })
+        .collect::<BTreeSet<_>>();
+    let target_content_type = content_type_essence(&target.content_type);
+
+    for function in helper_options.output_functions {
+        if function.kind != function_kind
+            || content_type_essence(&function.content_type) != target_content_type
+            || function.schema != target.schema
+        {
+            continue;
+        }
+        let key = (
+            function.kind,
+            function.name.clone(),
+            function.profile.clone(),
+        );
+        if registered.insert(key) {
+            module_options.output_functions.push(function);
+        }
+    }
+}
+
+fn load_cem_tree_cemt_output_stage_helpers(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    stage: &CemTreeCemtOutputStage,
+    module_options: &mut TransformTemplateModuleOptions,
+) -> Result<(), String> {
+    let Some(helper_kind) = cemt_output_stage_helper_artifact_kind(stage.function_kind) else {
+        return Ok(());
+    };
+    let mut loaded_paths = BTreeSet::new();
+
+    for artifact in environment.conversion_registry.package_artifacts() {
+        let profile_matches = match stage.function_kind {
+            TransformTemplateOutputFunctionKind::Format => artifact
+                .formatter_profile
+                .as_deref()
+                .is_none_or(|profile| Some(profile) == stage.stage_profile.as_deref()),
+            TransformTemplateOutputFunctionKind::Color => artifact
+                .color_profile
+                .as_deref()
+                .is_none_or(|profile| Some(profile) == stage.stage_profile.as_deref()),
+            TransformTemplateOutputFunctionKind::Encoding => true,
+        };
+        if artifact.kind != helper_kind
+            || !package_artifact_matches_cem_tree_target(artifact, &stage.package_id, &stage.target)
+            || !profile_matches
+            || artifact.path == stage.template_uri
+            || !loaded_paths.insert(artifact.path.clone())
+        {
+            continue;
+        }
+
+        let helper_options =
+            parse_cem_tree_cemt_output_artifact_module_options(environment, artifact)?;
+        merge_cem_tree_cemt_helper_module_options(
+            module_options,
+            helper_options,
+            stage.function_kind,
+            &stage.target,
+        );
+    }
+
+    Ok(())
 }
 
 #[derive(Clone, Debug)]
@@ -3105,6 +3262,7 @@ fn execute_conversion_cem_tree_format_stage(
     subject: &Value,
 ) -> Result<(Value, ConversionOutputPipelineStageExecution), String> {
     execute_conversion_cem_tree_output_stage(
+        environment,
         cem_tree_cemt_output_stage(
             environment,
             CEM_TREE_FORMAT_CEMT_STAGE_SPEC,
@@ -3123,6 +3281,7 @@ fn execute_conversion_cem_tree_color_stage(
     subject: &Value,
 ) -> Result<(Value, ConversionOutputPipelineStageExecution), String> {
     execute_conversion_cem_tree_output_stage(
+        environment,
         cem_tree_cemt_output_stage(
             environment,
             CEM_TREE_COLOR_CEMT_STAGE_SPEC,
@@ -3136,6 +3295,7 @@ fn execute_conversion_cem_tree_color_stage(
 }
 
 fn execute_conversion_cem_tree_output_stage(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
     stage: CemTreeCemtOutputStage,
     binding: &TransformTemplateEncodeBinding,
     subject: &Value,
@@ -3166,6 +3326,7 @@ fn execute_conversion_cem_tree_output_stage(
             .join("; "));
     }
     let mut module_options = parse_response.module_options;
+    load_cem_tree_cemt_output_stage_helpers(environment, &stage, &mut module_options)?;
     let parsed_stage_function = module_options
         .output_functions
         .iter()
@@ -3595,47 +3756,61 @@ fn register_package_cem_tree_output_functions(
     ) else {
         return;
     };
-    let target_content_type = content_type_essence(&pipeline.cemt_target.content_type);
     let mut registered = BTreeSet::new();
 
     for artifact in environment.conversion_registry.package_artifacts() {
-        if artifact.package_id != package_id
-            || artifact.content_type.as_deref() != Some(CEM_TRANSFORM_CONTENT_TYPE)
-            || artifact.schema.as_deref() != Some(CEM_TRANSFORM_SCHEMA_URI)
-            || artifact.target_content_type.as_deref() != Some(target_content_type.as_str())
-            || artifact.target_schema.as_deref() != Some(pipeline.cemt_target.schema.as_str())
-            || artifact.target_category.as_deref() != Some(pipeline.cemt_target.category.as_str())
-        {
+        if !package_artifact_matches_cem_tree_target(artifact, &package_id, &pipeline.cemt_target) {
             continue;
         }
 
-        let (expected_kind, canonical_name, requested_function_name) = match artifact.kind.as_str()
-        {
-            "formatter" => (
-                TransformTemplateOutputFunctionKind::Format,
-                CEM_TREE_FORMAT_CEMT_STAGE_SPEC.function_name,
-                pipeline.cemt_options.formatter.as_deref(),
-            ),
-            "colorizer" => (
-                TransformTemplateOutputFunctionKind::Color,
-                CEM_TREE_COLOR_CEMT_STAGE_SPEC.function_name,
-                pipeline.cemt_options.colorizer.as_deref(),
-            ),
-            _ => continue,
-        };
+        let (expected_kind, canonical_name, requested_function_name, helper_artifact) =
+            match artifact.kind.as_str() {
+                "formatter" => (
+                    TransformTemplateOutputFunctionKind::Format,
+                    CEM_TREE_FORMAT_CEMT_STAGE_SPEC.function_name,
+                    pipeline.cemt_options.formatter.as_deref(),
+                    false,
+                ),
+                "colorizer" => (
+                    TransformTemplateOutputFunctionKind::Color,
+                    CEM_TREE_COLOR_CEMT_STAGE_SPEC.function_name,
+                    pipeline.cemt_options.colorizer.as_deref(),
+                    false,
+                ),
+                CEM_TREE_FORMATTER_HELPER_ARTIFACT_KIND => (
+                    TransformTemplateOutputFunctionKind::Format,
+                    CEM_TREE_FORMAT_CEMT_STAGE_SPEC.function_name,
+                    None,
+                    true,
+                ),
+                CEM_TREE_COLORIZER_HELPER_ARTIFACT_KIND => (
+                    TransformTemplateOutputFunctionKind::Color,
+                    CEM_TREE_COLOR_CEMT_STAGE_SPEC.function_name,
+                    None,
+                    true,
+                ),
+                _ => continue,
+            };
         let Some(function_name) = artifact.function_name.as_deref() else {
             continue;
         };
-        let Some(requested_function_name) = requested_function_name
+        let requested_function_name = requested_function_name
             .map(str::trim)
-            .filter(|name| !name.is_empty())
-        else {
-            continue;
-        };
-        if function_name != requested_function_name {
-            continue;
+            .filter(|name| !name.is_empty());
+        if !helper_artifact {
+            let Some(requested_function_name) = requested_function_name else {
+                continue;
+            };
+            if function_name != requested_function_name {
+                continue;
+            }
+            if function_name == canonical_name {
+                continue;
+            }
         }
-        if function_name == canonical_name {
+        if helper_artifact
+            && package_artifact_output_function_kind(&artifact.kind) != Some(expected_kind)
+        {
             continue;
         }
 
@@ -6616,6 +6791,21 @@ mod tests {
         }
     }
 
+    fn execute_test_conversion_cem_tree_output_stage(
+        stage: CemTreeCemtOutputStage,
+        binding: &TransformTemplateEncodeBinding,
+        subject: &Value,
+    ) -> Result<(Value, ConversionOutputPipelineStageExecution), String> {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::new();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+        };
+        execute_conversion_cem_tree_output_stage(&environment, stage, binding, subject)
+    }
+
     fn identity_with_schema(content_type: &str, schema: &str) -> FormatIdentity {
         FormatIdentity {
             content_type: Some(content_type.to_owned()),
@@ -9129,6 +9319,22 @@ mod tests {
             )
             .expect("color profile default selector")
             .expect("color profile default package artifact");
+        let formatter_helper = registry
+            .package_artifacts()
+            .find(|artifact| {
+                artifact.package_id == package_id
+                    && artifact.kind == CEM_TREE_FORMATTER_HELPER_ARTIFACT_KIND
+                    && artifact.path == "schema-packages/cem-ml/v1/formatters/cem-tree-helpers.cemt"
+            })
+            .expect("CEM tree formatter helper artifact");
+        let colorizer_helper = registry
+            .package_artifacts()
+            .find(|artifact| {
+                artifact.package_id == package_id
+                    && artifact.kind == CEM_TREE_COLORIZER_HELPER_ARTIFACT_KIND
+                    && artifact.path == "schema-packages/cem-ml/v1/colorizers/cem-tree-helpers.cemt"
+            })
+            .expect("CEM tree colorizer helper artifact");
 
         assert_eq!(
             formatter.path.as_str(),
@@ -9188,6 +9394,26 @@ mod tests {
             showcase_colorizer.function_profile.as_deref(),
             Some(color_profile)
         );
+        assert_eq!(
+            formatter_helper.function_name.as_deref(),
+            Some("cemml.cem-tree.format-tree-base")
+        );
+        assert_eq!(
+            formatter_helper.formatter_profile.as_deref(),
+            Some("acme.showcase.format-tree")
+        );
+        assert_eq!(
+            colorizer_helper.function_name.as_deref(),
+            Some("cemml.cem-tree.color-tree-base")
+        );
+        assert_eq!(
+            colorizer_helper.function_profile.as_deref(),
+            Some("classes")
+        );
+        assert_eq!(
+            colorizer_helper.color_profile.as_deref(),
+            Some(color_profile)
+        );
         let formatter_source =
             builtin_schema_package_artifact_source(&formatter.package_id, &formatter.path)
                 .expect("embedded formatter source");
@@ -9204,6 +9430,16 @@ mod tests {
             &showcase_colorizer.path,
         )
         .expect("embedded showcase colorizer source");
+        let formatter_helper_source = builtin_schema_package_artifact_source(
+            &formatter_helper.package_id,
+            &formatter_helper.path,
+        )
+        .expect("embedded formatter helper source");
+        let colorizer_helper_source = builtin_schema_package_artifact_source(
+            &colorizer_helper.package_id,
+            &colorizer_helper.path,
+        )
+        .expect("embedded colorizer helper source");
         assert!(formatter_source.source.contains("{format-function"));
         assert!(colorizer_source.source.contains("{color-function"));
         assert!(showcase_formatter_source
@@ -9212,6 +9448,12 @@ mod tests {
         assert!(showcase_colorizer_source
             .source
             .contains(r#"@extends="cem.color-tree""#));
+        assert!(formatter_helper_source
+            .source
+            .contains(r#"@name="cemml.cem-tree.format-tree-base""#));
+        assert!(colorizer_helper_source
+            .source
+            .contains(r#"@name="cemml.cem-tree.color-tree-base""#));
         assert_eq!(
             cem_tree_format_cemt_stage(&target, Some(formatter_profile))
                 .unwrap()
@@ -9533,6 +9775,13 @@ mod tests {
     fn cemt_output_stage_executes_direct_formatter_body_expression() {
         let stage = CemTreeCemtOutputStage {
             adapter_id: "cem-tree-format-direct-cemt",
+            package_id: "cem-ml".to_owned(),
+            target: TransformTemplateEncodingTarget::new(
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                "cem-tree",
+            ),
+            stage_profile: Some("cem.format-tree".to_owned()),
             template_uri: "builtin:cem.format-tree.direct.cemt".to_owned(),
             template_bytes: r#"@doc cem-ml 1
 @ns transform = "https://cem.dev/ns/transform/cem/1"
@@ -9620,7 +9869,7 @@ mod tests {
             .expect("direct formatter binding resolves");
 
         let (formatted, execution) =
-            execute_conversion_cem_tree_output_stage(stage, &binding, &subject)
+            execute_test_conversion_cem_tree_output_stage(stage, &binding, &subject)
                 .expect("direct formatter body runs");
 
         assert_eq!(
@@ -9657,6 +9906,13 @@ mod tests {
     fn cemt_output_stage_rejects_missing_direct_body_instead_of_fallback() {
         let stage = CemTreeCemtOutputStage {
             adapter_id: "cem-tree-format-no-body-cemt",
+            package_id: "cem-ml".to_owned(),
+            target: TransformTemplateEncodingTarget::new(
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                "cem-tree",
+            ),
+            stage_profile: Some("cem.format-tree".to_owned()),
             template_uri: "builtin:cem.format-tree.no-body.cemt".to_owned(),
             template_bytes: r#"@doc cem-ml 1
 @ns transform = "https://cem.dev/ns/transform/cem/1"
@@ -9710,7 +9966,7 @@ mod tests {
             .resolve_format_binding(&request, &BTreeSet::new())
             .expect("formatter binding resolves");
 
-        let error = execute_conversion_cem_tree_output_stage(stage, &binding, &subject)
+        let error = execute_test_conversion_cem_tree_output_stage(stage, &binding, &subject)
             .expect_err("output stage without direct body is rejected");
 
         assert!(error.contains("CEMT formatter `cem.format-tree` requires a direct CEMT body"));
@@ -9721,6 +9977,13 @@ mod tests {
     fn cemt_output_stage_rejects_legacy_encode_facade_body() {
         let stage = CemTreeCemtOutputStage {
             adapter_id: "cem-tree-format-encode-facade-cemt",
+            package_id: "cem-ml".to_owned(),
+            target: TransformTemplateEncodingTarget::new(
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                "cem-tree",
+            ),
+            stage_profile: Some("cem.format-tree".to_owned()),
             template_uri: "builtin:cem.format-tree.encode-facade.cemt".to_owned(),
             template_bytes: r#"@doc cem-ml 1
 @ns transform = "https://cem.dev/ns/transform/cem/1"
@@ -9779,7 +10042,7 @@ mod tests {
             .resolve_format_binding(&request, &BTreeSet::new())
             .expect("formatter binding resolves");
 
-        let error = execute_conversion_cem_tree_output_stage(stage, &binding, &subject)
+        let error = execute_test_conversion_cem_tree_output_stage(stage, &binding, &subject)
             .expect_err("legacy encode facade body is rejected");
 
         assert!(error.contains("CEMT formatter `cem.format-tree` requires a direct CEMT body"));
@@ -9790,6 +10053,13 @@ mod tests {
     fn cemt_output_stage_rejects_alias_without_canonical_extends() {
         let stage = CemTreeCemtOutputStage {
             adapter_id: "cem-tree-format-alias-cemt",
+            package_id: "cem-ml".to_owned(),
+            target: TransformTemplateEncodingTarget::new(
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                "cem-tree",
+            ),
+            stage_profile: Some("acme.format-tree".to_owned()),
             template_uri: "builtin:acme.format-tree.no-extends.cemt".to_owned(),
             template_bytes: r#"@doc cem-ml 1
 @ns transform = "https://cem.dev/ns/transform/cem/1"
@@ -9847,7 +10117,7 @@ mod tests {
             .resolve_format_binding(&request, &BTreeSet::new())
             .expect("formatter binding resolves");
 
-        let error = execute_conversion_cem_tree_output_stage(stage, &binding, &subject)
+        let error = execute_test_conversion_cem_tree_output_stage(stage, &binding, &subject)
             .expect_err("alias formatter without extends is rejected");
 
         assert!(error.contains(
@@ -9859,6 +10129,13 @@ mod tests {
     fn cemt_output_stage_executes_direct_colorizer_body_expression() {
         let stage = CemTreeCemtOutputStage {
             adapter_id: "cem-tree-color-direct-cemt",
+            package_id: "cem-ml".to_owned(),
+            target: TransformTemplateEncodingTarget::new(
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                "cem-tree",
+            ),
+            stage_profile: Some("classes".to_owned()),
             template_uri: "builtin:cem.color-tree.direct.cemt".to_owned(),
             template_bytes: r#"@doc cem-ml 1
 @ns transform = "https://cem.dev/ns/transform/cem/1"
@@ -9975,7 +10252,7 @@ mod tests {
             .into_encode_binding();
 
         let (colored, execution) =
-            execute_conversion_cem_tree_output_stage(stage, &binding, &formatted)
+            execute_test_conversion_cem_tree_output_stage(stage, &binding, &formatted)
                 .expect("direct colorizer body runs");
 
         assert_eq!(

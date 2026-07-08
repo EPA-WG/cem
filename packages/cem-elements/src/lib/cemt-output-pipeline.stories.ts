@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
+import packagePipelineColorizerHelperSource from '../../../cem_ml/schema-packages/cem-ml/v1/colorizers/cem-tree-helpers.cemt?raw';
 import packagePipelineColorizerSource from '../../../cem_ml/schema-packages/cem-ml/v1/colorizers/formatter-coloring-pipeline.cemt?raw';
 import packagePipelineStageFixture from '../../../cem_ml/schema-packages/cem-ml/v1/examples/formatter-coloring-pipeline.package-artifacts.fixture.cem?raw';
+import packagePipelineFormatterHelperSource from '../../../cem_ml/schema-packages/cem-ml/v1/formatters/cem-tree-helpers.cemt?raw';
 import packagePipelineFormatterSource from '../../../cem_ml/schema-packages/cem-ml/v1/formatters/formatter-coloring-pipeline.cemt?raw';
 import cemtPipelineStageFixture from '../../../cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.fixture.cem?raw';
 import cemtPipelineSource from '../../../cem_ml/schema-packages/cem-transform/v1/examples/formatter-coloring-pipeline.cemt?raw';
@@ -22,7 +24,9 @@ type Story = StoryObj;
 
 const pipelineShowcase = createCemtPipelineShowcase(cemtPipelineSource, cemtPipelineStageFixture);
 const packageFormatterPath = 'schema-packages/cem-ml/v1/formatters/formatter-coloring-pipeline.cemt';
+const packageFormatterHelperPath = 'schema-packages/cem-ml/v1/formatters/cem-tree-helpers.cemt';
 const packageColorizerPath = 'schema-packages/cem-ml/v1/colorizers/formatter-coloring-pipeline.cemt';
+const packageColorizerHelperPath = 'schema-packages/cem-ml/v1/colorizers/cem-tree-helpers.cemt';
 const schemaPackagePipelineShowcase = createCemtPipelineShowcase(
     [
         {
@@ -30,8 +34,16 @@ const schemaPackagePipelineShowcase = createCemtPipelineShowcase(
             source: packagePipelineFormatterSource,
         },
         {
+            path: packageFormatterHelperPath,
+            source: packagePipelineFormatterHelperSource,
+        },
+        {
             path: packageColorizerPath,
             source: packagePipelineColorizerSource,
+        },
+        {
+            path: packageColorizerHelperPath,
+            source: packagePipelineColorizerHelperSource,
         },
     ],
     packagePipelineStageFixture
@@ -49,7 +61,9 @@ export const SchemaPackageFormatterColorizerAssets: Story = {
     play: ({ canvasElement }) => {
         assertPipelineShowcase(canvasElement, schemaPackagePipelineShowcase, [
             packageFormatterPath,
+            packageFormatterHelperPath,
             packageColorizerPath,
+            packageColorizerHelperPath,
         ]);
     },
 };

@@ -19,7 +19,9 @@ const stories = [
         id: 'cem-elements-cemt-output-pipeline--schema-package-formatter-colorizer-assets',
         sourceIncludes: [
             'schema-packages/cem-ml/v1/formatters/formatter-coloring-pipeline.cemt',
+            'schema-packages/cem-ml/v1/formatters/cem-tree-helpers.cemt',
             'schema-packages/cem-ml/v1/colorizers/formatter-coloring-pipeline.cemt',
+            'schema-packages/cem-ml/v1/colorizers/cem-tree-helpers.cemt',
         ],
     },
 ];

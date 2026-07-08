@@ -433,8 +433,16 @@ function assertStageFixtureMetadata(source: string, fixture: CemtPipelineFixture
             'schema-package CEMT pipeline fixture is missing formatter source path'
         );
         invariant(
+            fixture.sourcePaths.some((path) => path.includes('/formatters/cem-tree-helpers.cemt')),
+            'schema-package CEMT pipeline fixture is missing formatter helper source path'
+        );
+        invariant(
             fixture.sourcePaths.some((path) => path.includes('/colorizers/formatter-coloring-pipeline.cemt')),
             'schema-package CEMT pipeline fixture is missing colorizer source path'
+        );
+        invariant(
+            fixture.sourcePaths.some((path) => path.includes('/colorizers/cem-tree-helpers.cemt')),
+            'schema-package CEMT pipeline fixture is missing colorizer helper source path'
         );
     }
     assertEqual(
