@@ -4380,20 +4380,6 @@ impl CemMlEngine for RealCemMlEngine {
                 request.target.as_ref(),
             );
 
-            if to_format == LayerFormat::Cem && loaded.from_format == InputFormat::Cem {
-                let mut content = String::from_utf8_lossy(&loaded.bytes).into_owned();
-                if !content.is_empty() && !content.ends_with('\n') {
-                    content.push('\n');
-                }
-                primary = Some(json!({
-                    "kind": "cem",
-                    "content": content,
-                    "sourceMap": null,
-                    "outputSpans": [],
-                }));
-                return;
-            }
-
             let from_format = loaded.from_format;
             let run = run_pipeline_as_scoped_with_context(
                 &loaded.bytes,
@@ -9553,10 +9539,12 @@ mod tests {
         assert_eq!(resp.primary["kind"], "cem");
         assert_eq!(
             resp.primary["content"].as_str().unwrap(),
-            "{cem:if @test=\"not (disabled)\" | {button | Go}}\n"
+            "{cem:if @test=\"not (disabled)\" |\n  {button | Go}\n}\n"
         );
         assert!(
-            resp.diagnostics.is_empty(),
+            resp.diagnostics
+                .iter()
+                .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
             "unexpected diagnostics: {:?}",
             resp.diagnostics
         );
@@ -9565,7 +9553,7 @@ mod tests {
     #[test]
     fn convert_target_cem_content_type_selects_canonical_cem_export() {
         let req = ConvertRequest {
-            input: input(b"{p Hi}", "in.cem"),
+            input: input(b"{p | Hi}", "in.cem"),
             to_format: LayerFormat::DomJson,
             preserve_source_offsets: false,
             context: ctx(),
@@ -9578,7 +9566,12 @@ mod tests {
         };
         let resp = RealCemMlEngine::new().convert(req).unwrap();
         assert_eq!(resp.primary["kind"], "cem");
-        assert_eq!(resp.primary["content"], "{p Hi}\n");
+        assert_eq!(resp.primary["content"], "{p | Hi}\n");
+        assert_ne!(resp.primary["sourceMap"], Value::Null);
+        assert!(
+            !resp.primary["outputSpans"].as_array().unwrap().is_empty(),
+            "CEM output must pass through the CEMT writer pipeline, not the byte-preserving short-circuit"
+        );
         assert!(
             resp.diagnostics.is_empty(),
             "unexpected diagnostics: {:?}",
