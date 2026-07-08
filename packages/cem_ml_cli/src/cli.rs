@@ -578,6 +578,13 @@ pub struct ConvertArgs {
     #[arg(long, value_name = "FILE")]
     pub out: Option<PathBuf>,
 
+    #[arg(
+        long = "artifact-json",
+        value_name = "FILE",
+        help = "Write structured conversion artifact JSON to FILE for debugging"
+    )]
+    pub artifact_json: Option<PathBuf>,
+
     #[arg(long, help = "Preserve absolute source byte offsets in output")]
     pub preserve_source_offsets: bool,
 

@@ -124,7 +124,7 @@
                     "cargo run --package cem-ml-cli --target-dir dist/target/cem_ml_cli -- fixture cemt-pipeline --package-artifacts --out packages/cem_ml_cli/dist/formatter-coloring-pipeline.package-artifacts.generated.fixture.cem",
                     "diff -u packages/cem_ml/schema-packages/cem-ml/v1/examples/formatter-coloring-pipeline.package-artifacts.fixture.cem packages/cem_ml_cli/dist/formatter-coloring-pipeline.package-artifacts.generated.fixture.cem",
                     "cargo run --package cem-ml-cli --target-dir dist/target/cem_ml_cli -- fixture cemt-pipeline --package-artifacts --out packages/cem_ml_cli/dist/cemt-output-pipeline.package-artifacts.fixture.cem",
-                    "cargo run --package cem-ml-cli --target-dir dist/target/cem_ml_cli -- convert --config packages/cem_ml_cli/docs/examples/cemt-output-pipeline.run.json"
+                    "cargo run --package cem-ml-cli --target-dir dist/target/cem_ml_cli -- convert --config packages/cem_ml_cli/docs/examples/cemt-output-pipeline.run.json --artifact-json packages/cem_ml_cli/dist/cemt-output-pipeline.artifact.json"
                 ],
                 "parallel": false,
                 "cwd": "{workspaceRoot}"
@@ -147,7 +147,8 @@
                 "{projectRoot}/dist/formatter-coloring-pipeline.generated.fixture.cem",
                 "{projectRoot}/dist/formatter-coloring-pipeline.package-artifacts.generated.fixture.cem",
                 "{projectRoot}/dist/cemt-output-pipeline.package-artifacts.fixture.cem",
-                "{projectRoot}/dist/cemt-output-pipeline.html.json"
+                "{projectRoot}/dist/cemt-output-pipeline.html",
+                "{projectRoot}/dist/cemt-output-pipeline.artifact.json"
             ]
         },
         "e2e": {
@@ -189,7 +190,8 @@
                 "{projectRoot}/dist/formatter-coloring-pipeline.generated.fixture.cem",
                 "{projectRoot}/dist/formatter-coloring-pipeline.package-artifacts.generated.fixture.cem",
                 "{projectRoot}/dist/cemt-output-pipeline.package-artifacts.fixture.cem",
-                "{projectRoot}/dist/cemt-output-pipeline.html.json",
+                "{projectRoot}/dist/cemt-output-pipeline.html",
+                "{projectRoot}/dist/cemt-output-pipeline.artifact.json",
                 "{projectRoot}/dist/cem-ml.cross-surface.cem.cem",
                 "{projectRoot}/dist/cem-ml.cross-surface.xml.cem",
                 "{projectRoot}/dist/cem-ml.cross-surface.html.cem"

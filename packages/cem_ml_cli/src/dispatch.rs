@@ -2691,6 +2691,15 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
             s,
         );
     }
+    if args.artifact_json.is_some() && config.outputs.len() > 1 {
+        return handle_cli_request_error(
+            CliRequestError::Usage(
+                "convert --artifact-json writes one debug artifact and requires a single output"
+                    .to_owned(),
+            ),
+            s,
+        );
+    }
 
     let engine_context = convert_context_with_config(&args.context, config);
     let inputs = match convert_configured_inputs(&engine_context, args, config, positional_defaults)
@@ -2711,12 +2720,13 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
                     Err(err) => return handle_cli_request_error(err, s),
                 };
                 let input_uri = input.uri.clone();
+                let target = output_target_identity(output);
                 let req = eng::ConvertRequest {
                     input,
                     to_format: to_engine_layer_format(args.to_format),
                     preserve_source_offsets: args.preserve_source_offsets,
                     context: engine_context.clone(),
-                    target: output_target_identity(output),
+                    target: target.clone(),
                     target_scope: output.root_scope.clone(),
                     scheduler_scope_id: index as u32,
                 };
@@ -2746,11 +2756,21 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
                         if let Err(e) = write_convert_primary(
                             &engine_context,
                             &resp,
+                            target.as_ref(),
                             args.out.as_deref(),
                             args.output_color_type.as_deref(),
                             s,
                         ) {
                             let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
+                            return Outcome::code(EXIT_IO);
+                        }
+                        if let Err(e) = write_convert_artifact_json_if_requested(
+                            &engine_context,
+                            &resp,
+                            args.artifact_json.as_deref(),
+                        ) {
+                            let _ =
+                                writeln!(s.stderr, "cem-ml: convert artifact write failure: {e}");
                             return Outcome::code(EXIT_IO);
                         }
                         write_diagnostics(&resp.diagnostics, s);
@@ -2784,12 +2804,13 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
             Err(err) => return handle_cli_request_error(err, s),
         };
         let input_uri = input.uri.clone();
+        let target = output_target_identity(output);
         let req = eng::ConvertRequest {
             input,
             to_format: to_engine_layer_format(args.to_format),
             preserve_source_offsets: args.preserve_source_offsets,
             context: engine_context.clone(),
-            target: output_target_identity(output),
+            target: target.clone(),
             target_scope: output.root_scope.clone(),
             scheduler_scope_id: index as u32,
         };
@@ -2815,11 +2836,20 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
                 if let Err(e) = write_convert_primary(
                     &engine_context,
                     &resp,
+                    target.as_ref(),
                     Some(destination.as_path()),
                     args.output_color_type.as_deref(),
                     s,
                 ) {
                     let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
+                    return Outcome::code(EXIT_IO);
+                }
+                if let Err(e) = write_convert_artifact_json_if_requested(
+                    &engine_context,
+                    &resp,
+                    args.artifact_json.as_deref(),
+                ) {
+                    let _ = writeln!(s.stderr, "cem-ml: convert artifact write failure: {e}");
                     return Outcome::code(EXIT_IO);
                 }
                 write_diagnostics(&resp.diagnostics, s);
@@ -2890,17 +2920,46 @@ fn handle_engine_error(err: EngineError, s: &mut Streams<'_>) -> Outcome {
 fn write_convert_primary(
     context: &eng::EngineContext,
     response: &eng::ConvertResponse,
+    identity: Option<&eng::FormatIdentity>,
     out: Option<&Path>,
     output_color_type: Option<&str>,
     s: &mut Streams<'_>,
 ) -> io::Result<()> {
-    write_primary_with_bytes_with_console_color(
+    if let Some(primary_bytes) = response.primary_bytes.as_ref() {
+        return write_primary_bytes_with_console_color(
+            context,
+            primary_bytes,
+            out,
+            output_color_type,
+            s,
+        );
+    }
+    write_document_primary_with_identity(
         context,
         &response.primary,
-        response.primary_bytes.as_ref(),
+        identity,
         out,
         output_color_type,
         s,
+    )
+}
+
+fn write_convert_artifact_json_if_requested(
+    context: &eng::EngineContext,
+    response: &eng::ConvertResponse,
+    artifact_json: Option<&Path>,
+) -> io::Result<()> {
+    let Some(path) = artifact_json else {
+        return Ok(());
+    };
+    let serialized =
+        serde_json::to_vec_pretty(&response.primary).map_err(invalid_structured_document)?;
+    write_destination(
+        context,
+        path,
+        "conversion artifact JSON destination",
+        ResolvePurpose::Output,
+        &serialized,
     )
 }
 
@@ -11104,7 +11163,7 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
         to_format: to_engine_layer_format(args.to_format),
         preserve_source_offsets: args.preserve_source_offsets,
         context: engine_context.clone(),
-        target,
+        target: target.clone(),
         target_scope,
         scheduler_scope_id: 0,
     };
@@ -11127,11 +11186,20 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
             if let Err(e) = write_convert_primary(
                 &engine_context,
                 &resp,
+                target.as_ref(),
                 out.as_deref(),
                 args.output_color_type.as_deref(),
                 s,
             ) {
                 let _ = writeln!(s.stderr, "cem-ml: write failure: {e}");
+                return Outcome::code(EXIT_IO);
+            }
+            if let Err(e) = write_convert_artifact_json_if_requested(
+                &engine_context,
+                &resp,
+                args.artifact_json.as_deref(),
+            ) {
+                let _ = writeln!(s.stderr, "cem-ml: convert artifact write failure: {e}");
                 return Outcome::code(EXIT_IO);
             }
             write_diagnostics(&resp.diagnostics, s);
@@ -19768,7 +19836,7 @@ start =
             "convert-config-input.html",
             r#"<if test="$ready"><button>Go</button></if>"#,
         );
-        let out_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-config-out.json");
+        let out_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-config-out.cem");
         let config_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-config.json");
         let _ = std::fs::remove_file(&out_path);
         std::fs::write(
@@ -19798,9 +19866,7 @@ start =
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert!(stdout.trim().is_empty());
         let written = std::fs::read_to_string(&out_path).unwrap();
-        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
-        assert_eq!(v["kind"], "cem");
-        assert_eq!(v["content"], "{cem:if @test=ready |\n  {button | Go}\n}\n");
+        assert_eq!(written, "{cem:if @test=ready |\n  {button | Go}\n}\n");
     }
 
     #[test]
@@ -19808,7 +19874,7 @@ start =
         let input = write_fixture("convert-config-relative-dest-input.cem", "{p Hi}");
         let dir = std::env::temp_dir().join("cem-ml-cli-tests/convert-relative-dest");
         let config_path = dir.join("run.json");
-        let out_path = dir.join("dist/out.json");
+        let out_path = dir.join("dist/out.cem");
         std::fs::create_dir_all(&dir).unwrap();
         let _ = std::fs::remove_file(&out_path);
         std::fs::write(
@@ -19818,7 +19884,7 @@ start =
                     "uri": input.display().to_string()
                 }],
                 "outputs": [{
-                    "destination": "dist/out.json",
+                    "destination": "dist/out.cem",
                     "rootScope": {
                         "defaultContentType": "application/cem+xml"
                     }
@@ -19835,8 +19901,7 @@ start =
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert!(stdout.trim().is_empty());
         let written = std::fs::read_to_string(&out_path).unwrap();
-        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
-        assert_eq!(v["content"], "{p | Hi}\n");
+        assert_eq!(written, "{p | Hi}\n");
     }
 
     #[test]
@@ -19844,7 +19909,7 @@ start =
         let input = write_fixture("convert-file-uri-config-relative-dest-input.cem", "{p Hi}");
         let dir = std::env::temp_dir().join("cem-ml-cli-tests/convert-file-uri-config");
         let config_path = dir.join("run.json");
-        let out_path = dir.join("dist/out.json");
+        let out_path = dir.join("dist/out.cem");
         std::fs::create_dir_all(&dir).unwrap();
         let _ = std::fs::remove_file(&out_path);
         std::fs::write(
@@ -19854,7 +19919,7 @@ start =
                     "uri": input.display().to_string()
                 }],
                 "outputs": [{
-                    "destination": "dist/out.json",
+                    "destination": "dist/out.cem",
                     "rootScope": {
                         "defaultContentType": "application/cem+xml"
                     }
@@ -19873,8 +19938,7 @@ start =
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert!(stdout.trim().is_empty());
         let written = std::fs::read_to_string(&out_path).unwrap();
-        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
-        assert_eq!(v["content"], "{p | Hi}\n");
+        assert_eq!(written, "{p | Hi}\n");
     }
 
     #[test]
@@ -19885,7 +19949,7 @@ start =
         );
         let dir = std::env::temp_dir().join("cem-ml-cli-tests/convert-localhost-file-uri-config");
         let config_path = dir.join("run.json");
-        let out_path = dir.join("dist/out.json");
+        let out_path = dir.join("dist/out.cem");
         std::fs::create_dir_all(&dir).unwrap();
         let _ = std::fs::remove_file(&out_path);
         std::fs::write(
@@ -19895,7 +19959,7 @@ start =
                     "uri": input.display().to_string()
                 }],
                 "outputs": [{
-                    "destination": "dist/out.json",
+                    "destination": "dist/out.cem",
                     "rootScope": {
                         "defaultContentType": "application/cem+xml"
                     }
@@ -19914,14 +19978,13 @@ start =
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert!(stdout.trim().is_empty());
         let written = std::fs::read_to_string(&out_path).unwrap();
-        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
-        assert_eq!(v["content"], "{p | Hi}\n");
+        assert_eq!(written, "{p | Hi}\n");
     }
 
     #[test]
     fn convert_config_file_uri_destination_writes_local_output() {
         let input = write_fixture("convert-config-file-uri-dest-input.cem", "{p Hi}");
-        let out_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-file-uri-dest.json");
+        let out_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-file-uri-dest.cem");
         let config_path =
             std::env::temp_dir().join("cem-ml-cli-tests/convert-file-uri-dest-config.json");
         let _ = std::fs::remove_file(&out_path);
@@ -19949,8 +20012,7 @@ start =
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert!(stdout.trim().is_empty());
         let written = std::fs::read_to_string(&out_path).unwrap();
-        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
-        assert_eq!(v["content"], "{p | Hi}\n");
+        assert_eq!(written, "{p | Hi}\n");
     }
 
     #[test]
@@ -20152,6 +20214,7 @@ start =
         write_convert_primary(
             &eng::EngineContext::default(),
             &response,
+            None,
             None,
             None,
             &mut streams,
@@ -20391,9 +20454,11 @@ start =
     fn convert_config_fans_out_multiple_outputs() {
         let first = write_fixture("convert-fanout-first.cem", "{p First}");
         let second = write_fixture("convert-fanout-second.cem", "{p Second}");
-        let first_out = std::env::temp_dir().join("cem-ml-cli-tests/convert-fanout-first.json");
-        let second_out = std::env::temp_dir().join("cem-ml-cli-tests/convert-fanout-second.json");
+        let first_out = std::env::temp_dir().join("cem-ml-cli-tests/convert-fanout-first.out.cem");
+        let second_out =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-fanout-second.out.cem");
         let config_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-fanout.json");
+        std::fs::create_dir_all(first_out.parent().unwrap()).unwrap();
         let _ = std::fs::remove_file(&first_out);
         let _ = std::fs::remove_file(&second_out);
         std::fs::write(
@@ -20428,11 +20493,9 @@ start =
         assert!(stdout.trim().is_empty());
 
         let first_written = std::fs::read_to_string(&first_out).unwrap();
-        let first_json: serde_json::Value = serde_json::from_str(&first_written).unwrap();
-        assert_eq!(first_json["content"], "{p | First}\n");
+        assert_eq!(first_written, "{p | First}\n");
         let second_written = std::fs::read_to_string(&second_out).unwrap();
-        let second_json: serde_json::Value = serde_json::from_str(&second_written).unwrap();
-        assert_eq!(second_json["content"], "{p | Second}\n");
+        assert_eq!(second_written, "{p | Second}\n");
     }
 
     #[test]
@@ -20869,9 +20932,7 @@ start =
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert!(stdout.trim().is_empty());
         let written = std::fs::read_to_string(&out_path).unwrap();
-        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
-        assert_eq!(v["kind"], "cem");
-        assert_eq!(v["content"], "{p | Hi}\n");
+        assert_eq!(written, "{p | Hi}\n");
     }
 
     #[test]
@@ -21001,9 +21062,7 @@ start =
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert!(stdout.trim().is_empty());
         let written = std::fs::read_to_string(&out_path).unwrap();
-        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
-        assert_eq!(v["kind"], "cem");
-        assert_eq!(v["content"], "{p | Hi}\n");
+        assert_eq!(written, "{p | Hi}\n");
     }
 
     #[test]
@@ -21028,9 +21087,7 @@ start =
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert!(stdout.trim().is_empty());
         let written = std::fs::read_to_string(&out_path).unwrap();
-        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
-        assert_eq!(v["kind"], "html");
-        assert_eq!(v["content"], COLORED_P_HI_HTML);
+        assert_eq!(written, COLORED_P_HI_HTML);
     }
 
     #[test]
@@ -21060,9 +21117,7 @@ start =
             "{stderr}"
         );
         let written = std::fs::read_to_string(&out_path).unwrap();
-        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
-        assert_eq!(v["kind"], "html");
-        assert_eq!(v["content"], COLORED_P_HI_HTML);
+        assert_eq!(written, COLORED_P_HI_HTML);
     }
 
     #[test]
@@ -21087,9 +21142,7 @@ start =
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert!(stdout.trim().is_empty());
         let written = std::fs::read_to_string(&out_path).unwrap();
-        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
-        assert_eq!(v["kind"], "xml");
-        assert_eq!(v["content"], r#"<p id="one">Hi</p>"#);
+        assert_eq!(written, r#"<p id="one">Hi</p>"#);
     }
 
     #[test]
@@ -21120,9 +21173,7 @@ start =
             "{stderr}"
         );
         let written = std::fs::read_to_string(&out_path).unwrap();
-        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
-        assert_eq!(v["kind"], "xml");
-        assert_eq!(v["content"], FORMATTED_SVG_HI_XML);
+        assert_eq!(written, FORMATTED_SVG_HI_XML);
     }
 
     #[test]
@@ -21150,9 +21201,7 @@ start =
             "{stderr}"
         );
         let written = std::fs::read_to_string(&out_path).unwrap();
-        let v: serde_json::Value = serde_json::from_str(&written).unwrap();
-        assert_eq!(v["kind"], "html");
-        assert_eq!(v["content"], COLORED_P_HI_HTML);
+        assert_eq!(written, COLORED_P_HI_HTML);
     }
 
     #[test]
@@ -21812,13 +21861,14 @@ start =
         );
         assert_eq!(
             example_config["outputs"][0]["destination"],
-            "cem+repo://packages/cem_ml_cli/dist/cemt-output-pipeline.html.json"
+            "cem+repo://packages/cem_ml_cli/dist/cemt-output-pipeline.html"
         );
 
         let temp_dir = std::env::temp_dir().join("cem-ml-cli-tests/docs-cemt-output-pipeline");
         let _ = std::fs::remove_dir_all(&temp_dir);
         std::fs::create_dir_all(&temp_dir).unwrap();
-        let html_out = temp_dir.join("cemt-output-pipeline.html.json");
+        let html_out = temp_dir.join("cemt-output-pipeline.html");
+        let artifact_out = temp_dir.join("cemt-output-pipeline.artifact.json");
         let stage_out = temp_dir.join("cemt-output-pipeline.package-artifacts.fixture.cem");
         let config_path = temp_dir.join("cemt-output-pipeline.run.json");
         let mut runnable_config = example_config.clone();
@@ -21853,18 +21903,25 @@ start =
 
         let (outcome, stdout, stderr) = run(
             &RealCemMlEngine::new(),
-            &["convert", "--config", config_path.to_str().unwrap()],
+            &[
+                "convert",
+                "--config",
+                config_path.to_str().unwrap(),
+                "--artifact-json",
+                artifact_out.to_str().unwrap(),
+            ],
         );
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert!(stdout.trim().is_empty(), "{stdout}");
         assert!(stderr.trim().is_empty(), "{stderr}");
-        let html_artifact: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(&html_out).unwrap()).unwrap();
-        assert_eq!(html_artifact["kind"], "html");
-        let html = html_artifact["content"].as_str().unwrap();
+        let html = std::fs::read_to_string(&html_out).unwrap();
         assert!(html.contains(r#"<article class="cem-color cem-color-syntax-name""#));
         assert!(html.contains(r#"<strong class="cem-color cem-color-syntax-keyword""#));
         assert!(html.contains(">now<"));
+        let html_artifact: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&artifact_out).unwrap()).unwrap();
+        assert_eq!(html_artifact["kind"], "html");
+        assert_eq!(html_artifact["content"], html);
     }
 
     #[test]
@@ -22401,7 +22458,12 @@ start =
     #[test]
     fn convert_passes_target_identity_to_engine() {
         let p = write_fixture("convert-target.html", "<p>Hi</p>");
-        let (outcome, stdout, _) = run(
+        let out_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-target.cem");
+        let artifact_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-target.artifact.json");
+        let _ = std::fs::remove_file(&out_path);
+        let _ = std::fs::remove_file(&artifact_path);
+        let (outcome, stdout, stderr) = run(
             &FakeEngine,
             &[
                 "convert",
@@ -22415,11 +22477,17 @@ start =
                 "html-css-vars",
                 "--base-uri",
                 "file:///tmp/",
+                "--out",
+                out_path.to_str().unwrap(),
+                "--artifact-json",
+                artifact_path.to_str().unwrap(),
                 p.to_str().unwrap(),
             ],
         );
-        assert_eq!(outcome.exit_code, EXIT_OK);
-        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        let v: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&artifact_path).unwrap()).unwrap();
         assert_eq!(v["toFormat"], "dom-json");
         assert_eq!(v["target"]["contentType"], "application/cem+xml");
         assert_eq!(v["target"]["schema"], "https://cem.dev/ns/core/1");
@@ -22472,9 +22540,7 @@ start =
             &["convert", "--to-format", "html", p.to_str().unwrap()],
         );
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
-        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        assert_eq!(v["kind"], "html");
-        assert_eq!(v["content"], COLORED_P_HI_HTML);
+        assert_eq!(stdout, COLORED_P_HI_HTML);
     }
 
     #[test]
@@ -22503,9 +22569,7 @@ start =
 
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert!(stderr.trim().is_empty(), "{stderr}");
-        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        assert_eq!(v["kind"], "html");
-        let content = v["content"].as_str().unwrap();
+        let content = stdout.as_str();
         assert!(content.contains(r#"<article class="cem-color cem-color-syntax-name""#));
         assert!(content.contains(r#"<strong class="cem-color cem-color-syntax-keyword""#));
         assert!(content.contains("Ready "));
@@ -22546,9 +22610,7 @@ start =
 
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert!(stderr.trim().is_empty(), "{stderr}");
-        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        assert_eq!(v["kind"], "html");
-        let content = v["content"].as_str().unwrap();
+        let content = stdout.as_str();
         assert!(content.contains(r#"<article class="cem-color cem-color-syntax-name""#));
         assert!(content.contains(r#"<strong class="cem-color cem-color-syntax-keyword""#));
     }
@@ -22823,10 +22885,8 @@ start =
 
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert!(stderr.trim().is_empty(), "{stderr}");
-        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        assert_eq!(v["kind"], "cem");
         assert_eq!(
-            v["content"],
+            stdout,
             "{cli-external-widget @data-cli-package-stage=external-cemt}\n"
         );
 
@@ -22846,10 +22906,8 @@ start =
 
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert!(stderr.trim().is_empty(), "{stderr}");
-        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        assert_eq!(v["kind"], "html");
         assert_eq!(
-            v["content"],
+            stdout,
             r#"<cli-external-widget class="cli-external-package-color" data-cli-package-stage="external-cemt"></cli-external-widget>"#
         );
     }
@@ -23121,10 +23179,8 @@ start =
 
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert!(stderr.trim().is_empty(), "{stderr}");
-        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        assert_eq!(v["kind"], "html");
         assert_eq!(
-            v["content"],
+            stdout,
             r#"<explicit-a class="selected-color-a"></explicit-a>"#
         );
     }
@@ -23142,9 +23198,7 @@ start =
             ],
         );
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
-        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        assert_eq!(v["kind"], "html");
-        assert_eq!(v["content"], COLORED_P_HI_HTML);
+        assert_eq!(stdout, COLORED_P_HI_HTML);
     }
 
     #[test]
@@ -23160,9 +23214,7 @@ start =
             ],
         );
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
-        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        assert_eq!(v["kind"], "html");
-        assert_eq!(v["content"], COLORED_P_HI_HTML);
+        assert_eq!(stdout, COLORED_P_HI_HTML);
     }
 
     #[test]
@@ -23178,9 +23230,7 @@ start =
             ],
         );
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
-        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        assert_eq!(v["kind"], "xml");
-        assert_eq!(v["content"], r#"<p id="one">Hi</p>"#);
+        assert_eq!(stdout, r#"<p id="one">Hi</p>"#);
     }
 
     #[test]
@@ -23202,9 +23252,7 @@ start =
             !stderr.contains("cem.lifecycle.target_adapter_unsupported"),
             "{stderr}"
         );
-        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        assert_eq!(v["kind"], "xml");
-        assert_eq!(v["content"], FORMATTED_SVG_HI_XML);
+        assert_eq!(stdout, FORMATTED_SVG_HI_XML);
     }
 
     #[test]
@@ -23215,9 +23263,7 @@ start =
             &["convert", "--to-format", "xml", p.to_str().unwrap()],
         );
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
-        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        assert_eq!(v["kind"], "xml");
-        assert_eq!(v["content"], r#"<input required=""></input>"#);
+        assert_eq!(stdout, r#"<input required=""></input>"#);
     }
 
     #[test]
@@ -23233,9 +23279,7 @@ start =
             ],
         );
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
-        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        assert_eq!(v["kind"], "cem");
-        assert_eq!(v["content"], "@doc cem-ml 1\n{p | Hi}\n");
+        assert_eq!(stdout, "@doc cem-ml 1\n{p | Hi}\n");
     }
 
     #[test]
@@ -23258,9 +23302,7 @@ start =
             !stderr.contains("cem.lifecycle.target_adapter_unsupported"),
             "{stderr}"
         );
-        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        assert_eq!(v["kind"], "html");
-        assert_eq!(v["content"], COLORED_P_HI_HTML);
+        assert_eq!(stdout, COLORED_P_HI_HTML);
     }
 
     #[test]
@@ -23283,9 +23325,7 @@ start =
             !stderr.contains("cem.lifecycle.target_adapter_unsupported"),
             "{stderr}"
         );
-        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        assert_eq!(v["kind"], "html");
-        assert_eq!(v["content"], COLORED_SVG_HI_HTML);
+        assert_eq!(stdout, COLORED_SVG_HI_HTML);
     }
 
     #[test]
@@ -23308,9 +23348,7 @@ start =
             !stderr.contains("cem.lifecycle.target_adapter_unsupported"),
             "{stderr}"
         );
-        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        assert_eq!(v["kind"], "cem");
-        assert_eq!(v["content"], "{p | Hi}\n");
+        assert_eq!(stdout, "{p | Hi}\n");
     }
 
     #[test]
@@ -23333,9 +23371,7 @@ start =
             !stderr.contains("cem.lifecycle.target_adapter_unsupported"),
             "{stderr}"
         );
-        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        assert_eq!(v["kind"], "cem");
-        assert_eq!(v["content"], "{p | Hi}\n");
+        assert_eq!(stdout, "{p | Hi}\n");
     }
 
     #[test]
@@ -23355,9 +23391,7 @@ start =
         );
 
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
-        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        assert_eq!(v["kind"], "cem");
-        assert_eq!(v["content"], "@doc cem-ml 1\n{p | Hi}\n");
+        assert_eq!(stdout, "@doc cem-ml 1\n{p | Hi}\n");
     }
 
     #[test]
@@ -23377,9 +23411,7 @@ start =
         );
 
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
-        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        assert_eq!(v["kind"], "html");
-        assert_eq!(v["content"], COLORED_P_HI_HTML);
+        assert_eq!(stdout, COLORED_P_HI_HTML);
     }
 
     #[test]
@@ -23620,9 +23652,8 @@ start =
             ],
         );
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
-        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(
-            v["content"].as_str().unwrap(),
+            stdout,
             "{cem:if @test=\"not (disabled)\" |\n  {button | Go}\n}\n"
         );
     }
@@ -23645,11 +23676,7 @@ start =
             ],
         );
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
-        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
-        assert_eq!(
-            v["content"].as_str().unwrap(),
-            "{cem:if @test=ready |\n  {button | Go}\n}\n"
-        );
+        assert_eq!(stdout, "{cem:if @test=ready |\n  {button | Go}\n}\n");
     }
 
     #[test]

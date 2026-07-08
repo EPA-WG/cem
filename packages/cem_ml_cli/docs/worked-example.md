@@ -120,7 +120,8 @@ cem-ml fixture cemt-pipeline \
   --out packages/cem_ml_cli/dist/cemt-output-pipeline.package-artifacts.fixture.cem
 
 cem-ml convert \
-  --config packages/cem_ml_cli/docs/examples/cemt-output-pipeline.run.json
+  --config packages/cem_ml_cli/docs/examples/cemt-output-pipeline.run.json \
+  --artifact-json packages/cem_ml_cli/dist/cemt-output-pipeline.artifact.json
 ```
 
 The config at
@@ -144,10 +145,11 @@ The generated fixture remains CEM-native:
 {cem-tree @content-type="application/cem" @schema="https://cem.dev/ns/cem-ml/1" @category="cem-tree" @mode="fragment" @canonical=true @formatter-profile="acme.showcase.format-tree" |
 ```
 
-The generated convert artifact at
-`packages/cem_ml_cli/dist/cemt-output-pipeline.html.json` is the current JSON
-convert envelope. Its `content` field is the final target-native HTML emitted
-by the writer:
+The generated writer output at
+`packages/cem_ml_cli/dist/cemt-output-pipeline.html` is target-native HTML.
+When `--artifact-json` is supplied, the structured convert artifact is written
+separately to `packages/cem_ml_cli/dist/cemt-output-pipeline.artifact.json` for
+debugging; its `content` field mirrors the HTML emitted by the writer.
 
 ```html
 <article class="cem-color cem-color-syntax-name"><span class="cem-color cem-color-syntax-string">Ready </span><strong class="cem-color cem-color-syntax-keyword"><span class="cem-color cem-color-syntax-keyword">now</span></strong><span class="cem-color cem-color-syntax-string">.</span></article>

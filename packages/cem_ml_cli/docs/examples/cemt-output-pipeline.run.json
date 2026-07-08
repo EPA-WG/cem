@@ -19,7 +19,7 @@
   "outputs": [
     {
       "inputRef": "cem+repo://packages/cem_ml_cli/docs/examples/cemt-output-pipeline.input.cem",
-      "destination": "cem+repo://packages/cem_ml_cli/dist/cemt-output-pipeline.html.json",
+      "destination": "cem+repo://packages/cem_ml_cli/dist/cemt-output-pipeline.html",
       "rootScope": {
         "defaultContentType": "text/html",
         "schema": "https://cem.dev/ns/html/1",
