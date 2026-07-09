@@ -14,6 +14,7 @@
       "default": []
     },
     "outputs": {
+      "description": "Output specs for conversion/export routes. A destination receives primary target-native bytes for the selected content type and schema; JSON is primary output only when JSON is the requested target.",
       "type": "array",
       "items": {
         "$ref": "#/$defs/outputSpec"
@@ -63,6 +64,7 @@
           "type": "string"
         },
         "destination": {
+          "description": "Destination path or URI for primary output. The written bytes are in the requested target format; debug JSON artifacts are separate sidecars such as convert --artifact-json.",
           "type": "string"
         },
         "rootScope": {

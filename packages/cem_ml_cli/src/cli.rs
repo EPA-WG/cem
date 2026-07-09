@@ -403,7 +403,7 @@ pub struct RunOptions {
         long = "output-spec",
         value_name = "CSV",
         action = clap::ArgAction::Append,
-        help = "Repeatable output spec record, e.g. input=src/a.cem,dest=dist/a.cem,contentType=application/cem+xml"
+        help = "Repeatable output spec record; dest/destination receives target-native bytes for convert outputs, e.g. input=src/a.cem,dest=dist/a.cem,contentType=application/cem+xml"
     )]
     pub output_specs: Vec<String>,
 }
@@ -1036,6 +1036,10 @@ mod tests {
         assert!(help.contains("debug sidecar"), "{help}");
         assert!(
             help.contains("does not replace target-native stdout/--out"),
+            "{help}"
+        );
+        assert!(
+            help.contains("dest/destination receives target-native bytes"),
             "{help}"
         );
     }

@@ -1156,6 +1156,14 @@ mod tests {
                 .and_then(serde_json::Value::as_str),
             Some("#/$defs/outputSpec")
         );
+        assert!(schema
+            .pointer("/properties/outputs/description")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|description| description.contains("target-native bytes")));
+        assert!(schema
+            .pointer("/$defs/outputSpec/properties/destination/description")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|description| description.contains("debug JSON artifacts")));
         assert_eq!(
             schema
                 .pointer("/properties/schemaPackages/items/$ref")
