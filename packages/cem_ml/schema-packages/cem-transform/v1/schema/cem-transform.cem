@@ -23,13 +23,14 @@
     }
 
     {elements |
-        {element @name="module" @base="template:module" @children="import param template body encoding-function format-function color-function"}
+        {element @name="module" @base="template:module" @children="import param template body function encoding-function format-function color-function"}
         {element @name="import" @base="template:import"}
         {element @name="param" @base="template:param"}
         {element @name="template" @base="template:template" @children="param body"}
         {element @name="body" @base="template:body" @children="*"}
         {element @name="let" @base="template:let"}
         {element @name="call" @base="template:call"}
+        {element @name="function" @required-attributes="name returns" @optional-attributes="visibility nullable deterministic trusted" @children="param body"}
         {element @name="encoding-function" @required-attributes="name category subject produces content-type schema canonical streamable" @optional-attributes="visibility implementation profile extends capability deterministic trusted fallback" @children="param body"}
         {element @name="format-function" @required-attributes="name category subject produces content-type schema canonical streamable" @optional-attributes="visibility implementation profile extends capability deterministic trusted fallback" @children="param body"}
         {element @name="color-function" @required-attributes="name category subject produces content-type schema canonical streamable" @optional-attributes="visibility implementation profile extends capability deterministic trusted fallback" @children="param body"}
@@ -53,6 +54,7 @@
         {attribute @name="required" @base="template:required"}
         {attribute @name="type" @base="template:type"}
         {attribute @name="visibility" @base="template:visibility" @values="private package public"}
+        {attribute @name="returns" @type="schema:identifier" @values="any string boolean number integer array object json"}
         {attribute @name="template" @base="template:template"}
         {attribute @name="from" @base="template:from"}
         {attribute @name="with:*" @base="template:with:*"}
@@ -75,7 +77,8 @@
         {constraint @kind="cemt-primary-implementation" @target="module" @policy="implementation kind cemt"}
         {constraint @kind="streamable-template-preferred" @target="body" @policy="required unless package edge marks non-streamable"}
         {constraint @kind="template-base-schema-compatible" @target="module" @policy="required"}
-        {constraint @kind="function-names-package-qualified" @target="encoding-function format-function color-function" @policy="required for custom public functions"}
+        {constraint @kind="function-names-package-qualified" @target="function encoding-function format-function color-function" @policy="required for custom public functions"}
+        {constraint @kind="function-return-type-required" @target="function" @policy="required"}
         {constraint @kind="function-output-identity-required" @target="encoding-function format-function color-function" @policy="required"}
         {constraint @kind="native-external-function-capability-required" @target="encoding-function format-function color-function" @policy="when implementation is native or external"}
         {constraint @kind="let-value-or-expression" @target="let" @policy="exactly one of value, expr, or expression is required"}

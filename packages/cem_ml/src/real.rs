@@ -2992,6 +2992,7 @@ fn lower_transform_template_module_options(
     module_options
         .encode_expressions
         .extend(overlay_options.encode_expressions);
+    module_options.functions.extend(overlay_options.functions);
     module_options
         .output_functions
         .extend(overlay_options.output_functions);
@@ -3071,6 +3072,7 @@ fn validate_transform_template_module_contract(
         || !module_options.calls.is_empty()
         || !module_options.let_bindings.is_empty()
         || !module_options.encode_expressions.is_empty()
+        || !module_options.functions.is_empty()
         || !module_options.output_functions.is_empty();
     if !has_module_contract {
         return Some(());

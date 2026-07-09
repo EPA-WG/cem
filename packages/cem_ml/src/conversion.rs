@@ -2974,6 +2974,17 @@ fn merge_cem_tree_cemt_helper_module_options(
     function_kind: TransformTemplateOutputFunctionKind,
     target: &TransformTemplateEncodingTarget,
 ) {
+    let mut registered_helpers = module_options
+        .functions
+        .iter()
+        .map(|function| function.name.clone())
+        .collect::<BTreeSet<_>>();
+    for function in helper_options.functions {
+        if registered_helpers.insert(function.name.clone()) {
+            module_options.functions.push(function);
+        }
+    }
+
     let mut registered = module_options
         .output_functions
         .iter()
@@ -10053,20 +10064,28 @@ mod tests {
         assert!(body.contains(r#"call("cem.format-tree.build-envelope""#));
         let build_nodes = helper_response
             .module_options
-            .output_functions
+            .functions
             .iter()
             .find(|function| function.name == "cem.format-tree.build-nodes")
             .expect("CEM tree node builder helper declaration");
+        assert_eq!(
+            build_nodes.return_type,
+            crate::transform_template::TransformTemplateModuleParamType::Array
+        );
         assert!(build_nodes
             .body_expression
             .as_deref()
             .is_some_and(|body| body.contains("call(cem.format-tree.nodes")));
         let build_envelope = helper_response
             .module_options
-            .output_functions
+            .functions
             .iter()
             .find(|function| function.name == "cem.format-tree.build-envelope")
             .expect("CEM tree envelope builder helper declaration");
+        assert_eq!(
+            build_envelope.return_type,
+            crate::transform_template::TransformTemplateModuleParamType::Object
+        );
         assert!(build_envelope
             .body_expression
             .as_deref()

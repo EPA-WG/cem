@@ -35,38 +35,24 @@
         }
     }
 
-    {format-function
+    {function
         @name="cem.format-tree.build-nodes"
         @visibility="private"
-        @category="cem-tree"
-        @subject="cem-ast-node"
-        @produces="cem-tree"
-        @content-type="application/cem"
-        @schema="https://cem.dev/ns/cem-ml/1"
-        @extends="cem.format-tree"
-        @profile="cem.format-tree"
-        @canonical=true
+        @returns="array"
         @deterministic=true
-        @streamable=true |
+        |
         {param @name="subject" @type="json" @required=true}
         {body |
             {$ call(cem.format-tree.nodes, { subject: $subject }) }
         }
     }
 
-    {format-function
+    {function
         @name="cem.format-tree.build-envelope"
         @visibility="private"
-        @category="cem-tree"
-        @subject="array"
-        @produces="cem-tree"
-        @content-type="application/cem"
-        @schema="https://cem.dev/ns/cem-ml/1"
-        @extends="cem.format-tree"
-        @profile="cem.format-tree"
-        @canonical=true
+        @returns="object"
         @deterministic=true
-        @streamable=true |
+        |
         {param @name="subject" @type="array" @required=true}
         {body |
             {$ call(cem.format-tree.envelope, { subject: $subject }) }

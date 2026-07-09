@@ -38,8 +38,9 @@ Schema-local output transformations live beside the schema package:
   `https://cem.dev/ns/cem-ml/1`.
 - [`formatters/cem-format-tree-helpers.cemt`](formatters/cem-format-tree-helpers.cemt)
   declares private canonical formatter helpers used by `cem.format-tree`,
-  including `cem.format-tree.apply-stage`,
-  `cem.format-tree.build-nodes`, and `cem.format-tree.build-envelope`.
+  including the private output-stage wrapper `cem.format-tree.apply-stage`
+  and internal CEMT functions `cem.format-tree.build-nodes` and
+  `cem.format-tree.build-envelope`.
 - [`formatters/formatter-coloring-pipeline.cemt`](formatters/formatter-coloring-pipeline.cemt)
   declares `acme.showcase.format-tree` as a package-qualified formatter that
   extends `cem.format-tree`.
@@ -81,7 +82,9 @@ functions as thin wrappers over package-owned helpers such as
 `cemml.cem-tree.format-tree-base`, and `cemml.cem-tree.color-tree-base`. New
 schema-specific formatter/colorizer functions should pass formatter decisions,
 color decisions, writer boundaries, and queued edits into helper functions
-instead of copying the full pipeline body. The runtime loads matching helper
+instead of copying the full pipeline body. Helpers that do not represent an
+output stage use internal `{function @returns=...}` declarations rather than
+`format-function` or `color-function`. The runtime loads matching helper
 artifacts for the selected output stage before executing the public
 formatter/colorizer body, so helpers can live in dedicated package `.cemt`
 files beside their entrypoints.

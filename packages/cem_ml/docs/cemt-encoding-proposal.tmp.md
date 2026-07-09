@@ -134,6 +134,13 @@ metadata. They are not opaque host-side string filters.
 
 ### Needed For Formatter And Coloring
 
+- Add internal CEMT `{function}` declarations for formatter/coloring helper
+  steps that are not output producers. These declarations now lower with typed
+  params, required `@returns` metadata, deterministic/trusted flags, body
+  expressions, runtime call registration, and return-shape validation. The
+  canonical formatter builder helpers now use this form so node-list building
+  returns an array and envelope assembly returns an object instead of being
+  modeled as output functions.
 - Extend template `call` rendering across imported modules. Runtime body
   `call(name, { ... })` expressions now bind named arguments against target
   function params, apply defaults, validate required/type contracts, and reject
@@ -211,7 +218,10 @@ metadata. They are not opaque host-side string filters.
 ### Sufficient Generic Programming Language Surface
 
 - Typed `param` declarations with required/default/nullable semantics for
-  modules, templates, and output functions.
+  modules, templates, internal functions, and output functions.
+- Internal `{function @name ... @returns ...}` declarations for reusable helper
+  logic that returns JSON-compatible CEMT values without registering as a
+  destination output producer.
 - Named template/function `call` with explicit arguments, lexical parameter
   scope, import-qualified targets, recursion limits, and unknown-call
   diagnostics.

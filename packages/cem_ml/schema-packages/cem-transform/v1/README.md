@@ -117,13 +117,20 @@ functions in CEMT modules. Example encoding declaration shape:
 }
 ```
 
+The v1 schema also supports internal helper declarations:
+`function @name @returns`, with typed `param` children and one executable
+`body` expression. Internal functions are reusable CEMT runtime helpers; they
+return JSON-compatible CEMT values and do not register as destination output
+producers.
+
 The first implementation slice validates this declaration vocabulary
-structurally in the v1 schema: `encoding-function`, `format-function`, and
-`color-function` declarations must carry function identity, subject, produced
-kind, content type, schema, and category metadata. The design intent is
-CEMT-first output producer edges with shared writer primitives and paired native
-producer hooks while the encoder, formatter, and terminal/HTML color output
-surface matures. The temporary proposal remains as an implementation backlog and
+structurally in the v1 schema: `function`, `encoding-function`,
+`format-function`, and `color-function` declarations are distinct. Output
+function declarations must carry function identity, subject, produced kind,
+content type, schema, and category metadata. The design intent is CEMT-first
+output producer edges with shared writer primitives and paired native producer
+hooks while the encoder, formatter, and terminal/HTML color output surface
+matures. The temporary proposal remains as an implementation backlog and
 worked-example source in
 [`../../../docs/cemt-encoding-proposal.tmp.md`](../../../docs/cemt-encoding-proposal.tmp.md).
 
@@ -136,7 +143,7 @@ CLI validation integration tests.
 | --- | --- | --- |
 | [`basic-transform.cemt`](examples/basic-transform.cemt) | Minimal CEMT module with one template body. | Pass |
 | [`module-transform.cemt`](examples/module-transform.cemt) | Converter template module with import metadata, params, nested output, and `with:*` data propagation. | Pass |
-| [`function-declarations.cemt`](examples/function-declarations.cemt) | Encoding, formatting, color, and custom function declarations for CEMT output production. | Pass |
+| [`function-declarations.cemt`](examples/function-declarations.cemt) | Internal helper, encoding, formatting, color, and custom function declarations for CEMT output production. | Pass |
 | [`formatter-coloring-pipeline.cemt`](examples/formatter-coloring-pipeline.cemt) | Executable CEM tree formatter and colorizer bodies that materialize formatted and colored CEM trees before the writer phase. | Pass |
 | [`formatter-coloring-pipeline.fixture.cem`](examples/formatter-coloring-pipeline.fixture.cem) | CEM-native stage fixture paired with the formatter/coloring CEMT example for Storybook and fixture tests. | Pass |
 | [`invalid-missing-required-attribute.cemt`](examples/invalid-missing-required-attribute.cemt) | Template declaration missing the inherited required `name` attribute. | Fail with `cem.schema_model.missing_required_attribute` |

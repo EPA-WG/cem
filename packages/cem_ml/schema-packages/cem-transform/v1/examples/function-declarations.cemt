@@ -3,6 +3,18 @@
 @default transform
 
 {module @version="1.0.0" |
+    {function
+        @name="acme.normalize-callout"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="marker" @type="string" @default="NOTE"}
+        {body |
+            {$ { kind: "callout", marker: $marker, value: $subject.value } }
+        }
+    }
+
     {encoding-function
         @name="html.text"
         @category="html-text"

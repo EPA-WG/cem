@@ -580,6 +580,12 @@ mod tests {
         assert!(call.optional_attributes.contains("with:*"));
         let body = model.element("body").unwrap();
         assert!(body.allow_any_child);
+        let function = model.element("function").unwrap();
+        assert!(function.required_attributes.contains("name"));
+        assert!(function.required_attributes.contains("returns"));
+        assert!(function.optional_attributes.contains("deterministic"));
+        assert!(function.child_elements.contains("param"));
+        assert!(function.child_elements.contains("body"));
         let encoding_function = model.element("encoding-function").unwrap();
         assert!(encoding_function.required_attributes.contains("name"));
         assert!(encoding_function.required_attributes.contains("category"));

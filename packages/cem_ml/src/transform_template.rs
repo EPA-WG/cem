@@ -313,6 +313,34 @@ pub struct TransformTemplateModuleParamDeclaration {
     pub visibility: TransformTemplateModuleVisibility,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformTemplateModuleFunctionDeclaration {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner: Option<String>,
+    pub name: String,
+    #[serde(default)]
+    pub visibility: TransformTemplateModuleVisibility,
+    #[serde(
+        default,
+        rename = "returns",
+        skip_serializing_if = "TransformTemplateModuleParamType::is_any"
+    )]
+    pub return_type: TransformTemplateModuleParamType,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub nullable: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub deterministic: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub trusted: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub params: Vec<TransformTemplateModuleParamDeclaration>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub body_declared: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body_expression: Option<String>,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum TransformTemplateOutputFunctionKind {
@@ -11422,17 +11450,41 @@ const CEMT_RUNTIME_QUEUE_LENGTH_LIMIT: usize = 1024;
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CemtRuntimeFunction {
     params: Vec<TransformTemplateModuleParamDeclaration>,
+    return_type: TransformTemplateModuleParamType,
+    nullable: bool,
     body: String,
 }
 
 pub(crate) fn cemt_runtime_functions_from_module_options(
     options: &TransformTemplateModuleOptions,
 ) -> BTreeMap<String, CemtRuntimeFunction> {
-    options
-        .output_functions
+    let mut functions: BTreeMap<String, CemtRuntimeFunction> = options
+        .functions
         .iter()
-        .filter_map(cemt_runtime_function_from_descriptor)
-        .collect()
+        .filter_map(cemt_runtime_function_from_declaration)
+        .collect();
+    functions.extend(
+        options
+            .output_functions
+            .iter()
+            .filter_map(cemt_runtime_function_from_descriptor),
+    );
+    functions
+}
+
+fn cemt_runtime_function_from_declaration(
+    function: &TransformTemplateModuleFunctionDeclaration,
+) -> Option<(String, CemtRuntimeFunction)> {
+    let body = function.body_expression.as_ref()?;
+    Some((
+        function.name.clone(),
+        CemtRuntimeFunction {
+            params: function.params.clone(),
+            return_type: function.return_type,
+            nullable: function.nullable,
+            body: body.clone(),
+        },
+    ))
 }
 
 fn cemt_runtime_function_from_descriptor(
@@ -11449,6 +11501,8 @@ fn cemt_runtime_function_from_descriptor(
         function.name.clone(),
         CemtRuntimeFunction {
             params: function.params.clone(),
+            return_type: TransformTemplateModuleParamType::Any,
+            nullable: true,
             body: body.clone(),
         },
     ))
@@ -11885,13 +11939,23 @@ fn resolve_cemt_call_expression(
         scoped_bindings.insert(param.name.clone(), value);
     }
 
-    resolve_encode_subject_expression_at_depth(
+    let result = resolve_encode_subject_expression_at_depth(
         &function.body,
         &scoped_bindings,
         runtime_functions,
         binding,
         call_depth + 1,
-    )
+    )?;
+    if let Some(value) = result.as_ref() {
+        if !function.return_type.accepts(value, function.nullable) {
+            return Err(format!(
+                "CEMT function `{function_name}` returned {}, expected {}",
+                json_value_type_name(value),
+                function.return_type.as_contract_name()
+            ));
+        }
+    }
+    Ok(result)
 }
 
 fn resolve_cemt_map_expression(
@@ -15883,6 +15947,8 @@ pub struct TransformTemplateModuleOptions {
     #[serde(default)]
     pub encode_expressions: Vec<TransformTemplateEncodeExpression>,
     #[serde(default)]
+    pub functions: Vec<TransformTemplateModuleFunctionDeclaration>,
+    #[serde(default)]
     pub output_functions: Vec<TransformTemplateOutputFunctionDescriptor>,
     #[serde(default)]
     pub limits: TransformTemplateModuleLimits,
@@ -15896,6 +15962,7 @@ impl TransformTemplateModuleOptions {
             && self.calls.is_empty()
             && self.let_bindings.is_empty()
             && self.encode_expressions.is_empty()
+            && self.functions.is_empty()
             && self.output_functions.is_empty()
             && self.limits == TransformTemplateModuleLimits::default()
     }
@@ -16036,6 +16103,7 @@ impl NativeTemplateModuleLowerer<'_> {
                 "param" => self.lower_param(*child, None),
                 "template" => self.lower_template(*child),
                 "body" => self.collect_body_expressions(*child, None),
+                "function" if self.explicit_transform_schema => self.lower_function(*child),
                 "encoding-function" if self.explicit_transform_schema => self
                     .lower_output_function(*child, TransformTemplateOutputFunctionKind::Encoding),
                 "format-function" if self.explicit_transform_schema => {
@@ -16166,6 +16234,79 @@ impl NativeTemplateModuleLowerer<'_> {
         }
     }
 
+    fn lower_function(&mut self, function_id: AstNodeId) {
+        let element_name = "function";
+        let attrs = template_collect_attrs(self.document, function_id);
+        let Some(name) = required_attr(&attrs, "name") else {
+            self.push_missing_attr(element_name, "name");
+            return;
+        };
+        let Some(returns_raw) = required_attr(&attrs, "returns") else {
+            self.push_missing_attr(element_name, "returns");
+            return;
+        };
+        let visibility =
+            self.parse_visibility(attr_value(&attrs, "", "visibility").as_deref(), true);
+        let return_type = self.parse_value_type(Some(returns_raw.as_str()), "function return");
+        let nullable = parse_bool_attr(attr_value(&attrs, "", "nullable").as_deref())
+            .unwrap_or_else(|message| {
+                self.push_diag(TRANSFORM_TEMPLATE_DECLARATION_INVALID_CODE, message);
+                false
+            });
+        let deterministic = self.parse_bool_decl_attr(&attrs, "deterministic");
+        let trusted = self.parse_bool_decl_attr(&attrs, "trusted");
+
+        let Some(CemAstNode::Element { children, .. }) = self.document.get(function_id) else {
+            return;
+        };
+        let mut params = Vec::new();
+        let mut body_declared = false;
+        let mut body_expression = None;
+        for child in children {
+            let Some(child_name) = template_element_name(self.document, *child) else {
+                continue;
+            };
+            match child_name {
+                "param" => {
+                    if let Some(param) = self.parse_param_declaration(*child) {
+                        self.validate_function_param(*child, element_name, &name, &param);
+                        params.push(param);
+                    }
+                    self.reject_decl_children(*child, "param");
+                }
+                "body" => {
+                    body_declared = true;
+                    body_expression = self.runtime_body_expression(*child, element_name, &name);
+                }
+                other => self.push_diag(
+                    TRANSFORM_TEMPLATE_DECLARATION_UNSUPPORTED_CODE,
+                    format!("`{element_name}` declarations cannot contain `{other}`"),
+                ),
+            }
+        }
+        if !body_declared || body_expression.is_none() {
+            self.push_diag(
+                TRANSFORM_TEMPLATE_DECLARATION_REQUIRED_CODE,
+                format!("CEMT `{element_name}` `{name}` requires one executable body expression"),
+            );
+        }
+
+        self.options
+            .functions
+            .push(TransformTemplateModuleFunctionDeclaration {
+                owner: output_function_owner(&name),
+                name,
+                visibility,
+                return_type,
+                nullable,
+                deterministic,
+                trusted,
+                params,
+                body_declared,
+                body_expression,
+            });
+    }
+
     fn lower_output_function(
         &mut self,
         function_id: AstNodeId,
@@ -16275,8 +16416,7 @@ impl NativeTemplateModuleLowerer<'_> {
                 }
                 "body" => {
                     body_declared = true;
-                    body_expression =
-                        self.output_function_body_expression(*child, element_name, &name);
+                    body_expression = self.runtime_body_expression(*child, element_name, &name);
                     if body_expression.as_deref().is_some_and(|expression| {
                         cemt_expression_starts_with_call(expression, "encode")
                     }) {
@@ -16318,7 +16458,7 @@ impl NativeTemplateModuleLowerer<'_> {
             });
     }
 
-    fn output_function_body_expression(
+    fn runtime_body_expression(
         &mut self,
         body_id: AstNodeId,
         element_name: &str,
@@ -16533,6 +16673,28 @@ impl NativeTemplateModuleLowerer<'_> {
             }
         }
 
+        let mut functions = BTreeSet::new();
+        for function in self.options.functions.clone() {
+            if !output_function_name_is_package_qualified(&function.name) {
+                self.push_diag(
+                    TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_NAME_UNQUALIFIED_CODE,
+                    format!(
+                        "CEMT function `{}` must use a package-qualified name such as `package.function`",
+                        function.name
+                    ),
+                );
+            }
+            if !functions.insert(function.name.clone()) {
+                self.push_diag(
+                    TRANSFORM_TEMPLATE_DECLARATION_DUPLICATE_CODE,
+                    format!(
+                        "CEMT function `{}` is declared more than once",
+                        function.name
+                    ),
+                );
+            }
+        }
+
         let mut output_functions = BTreeSet::new();
         for function in self.options.output_functions.clone() {
             if !output_function_name_is_package_qualified(&function.name) {
@@ -16563,6 +16725,15 @@ impl NativeTemplateModuleLowerer<'_> {
                     format!(
                         "CEMT output function `{}` is declared more than once for category `{}` and subject `{}`",
                         function.name, function.category, function.subject
+                    ),
+                );
+            }
+            if functions.contains(&function.name) {
+                self.push_diag(
+                    TRANSFORM_TEMPLATE_DECLARATION_DUPLICATE_CODE,
+                    format!(
+                        "CEMT output function `{}` conflicts with an internal function of the same name",
+                        function.name
                     ),
                 );
             }
@@ -16750,6 +16921,16 @@ impl NativeTemplateModuleLowerer<'_> {
     }
 
     fn validate_output_function_param(
+        &mut self,
+        param_id: AstNodeId,
+        element_name: &str,
+        function_name: &str,
+        param: &TransformTemplateModuleParamDeclaration,
+    ) {
+        self.validate_function_param(param_id, element_name, function_name, param);
+    }
+
+    fn validate_function_param(
         &mut self,
         param_id: AstNodeId,
         element_name: &str,
@@ -18234,6 +18415,31 @@ mod tests {
         }
     }
 
+    fn cemt_runtime_function(
+        params: Vec<TransformTemplateModuleParamDeclaration>,
+        body: impl Into<String>,
+    ) -> CemtRuntimeFunction {
+        CemtRuntimeFunction {
+            params,
+            return_type: TransformTemplateModuleParamType::Any,
+            nullable: true,
+            body: body.into(),
+        }
+    }
+
+    fn cemt_typed_runtime_function(
+        params: Vec<TransformTemplateModuleParamDeclaration>,
+        return_type: TransformTemplateModuleParamType,
+        body: impl Into<String>,
+    ) -> CemtRuntimeFunction {
+        CemtRuntimeFunction {
+            params,
+            return_type,
+            nullable: false,
+            body: body.into(),
+        }
+    }
+
     fn encoded_html_text_artifact() -> TransformTemplateEncodedArtifact {
         let mut identity = TransformTemplateEncodedArtifactIdentity::new(
             TransformTemplateOutputProducedKind::Text,
@@ -18905,6 +19111,7 @@ mod tests {
             calls: Vec::new(),
             let_bindings: vec![let_binding],
             encode_expressions: Vec::new(),
+            functions: Vec::new(),
             output_functions: Vec::new(),
             limits: TransformTemplateModuleLimits::default(),
         };
@@ -19920,8 +20127,8 @@ mod tests {
         )]);
         let functions = BTreeMap::from([(
             "formatNode".to_owned(),
-            CemtRuntimeFunction {
-                params: vec![
+            cemt_runtime_function(
+                vec![
                     cemt_required_param("node", TransformTemplateModuleParamType::Object),
                     cemt_default_param("slot", TransformTemplateModuleParamType::Integer, json!(0)),
                     cemt_default_param(
@@ -19930,7 +20137,7 @@ mod tests {
                         json!([]),
                     ),
                 ],
-                body: r#"withStack(ancestors, {
+                r#"withStack(ancestors, {
                     name: $node.name,
                     slot: $slot,
                     layout: "block"
@@ -19945,9 +20152,8 @@ mod tests {
                         slot: $index,
                         ancestors: $ancestors
                     }))
-                })"#
-                .to_owned(),
-            },
+                })"#,
+            ),
         )]);
 
         assert_eq!(
@@ -21133,44 +21339,42 @@ mod tests {
         let functions = BTreeMap::from([
             (
                 "formatNode".to_owned(),
-                CemtRuntimeFunction {
-                    params: vec![
+                cemt_runtime_function(
+                    vec![
                         cemt_required_param("node", TransformTemplateModuleParamType::Object),
                         cemt_required_param("slot", TransformTemplateModuleParamType::Integer),
                     ],
-                    body: r#"match($node.kind, {
+                    r#"match($node.kind, {
                         element: call(formatElement, { node: $node, slot: $slot }),
                         text: call(formatText, { node: $node, slot: $slot }),
                         default: { kind: "unknown", slot: $slot }
-                    })"#
-                    .to_owned(),
-                },
+                    })"#,
+                ),
             ),
             (
                 "formatElement".to_owned(),
-                CemtRuntimeFunction {
-                    params: vec![
+                cemt_runtime_function(
+                    vec![
                         cemt_required_param("node", TransformTemplateModuleParamType::Object),
                         cemt_required_param("slot", TransformTemplateModuleParamType::Integer),
                     ],
-                    body: r#"{
+                    r#"{
                         kind: "element",
                         name: $node.name,
                         slot: $slot,
                         children: map($node.children, call(formatNode, { node: $item, slot: $index }))
-                    }"#
-                    .to_owned(),
-                },
+                    }"#,
+                ),
             ),
             (
                 "formatText".to_owned(),
-                CemtRuntimeFunction {
-                    params: vec![
+                cemt_runtime_function(
+                    vec![
                         cemt_required_param("node", TransformTemplateModuleParamType::Object),
                         cemt_required_param("slot", TransformTemplateModuleParamType::Integer),
                     ],
-                    body: r#"{ kind: "text", text: $node.value, slot: $slot }"#.to_owned(),
-                },
+                    r#"{ kind: "text", text: $node.value, slot: $slot }"#,
+                ),
             ),
         ]);
 
@@ -21216,8 +21420,8 @@ mod tests {
         )]);
         let functions = BTreeMap::from([(
             "decorate".to_owned(),
-            CemtRuntimeFunction {
-                params: vec![
+            cemt_runtime_function(
+                vec![
                     cemt_required_param("subject", TransformTemplateModuleParamType::Object),
                     cemt_default_param(
                         "role",
@@ -21230,14 +21434,13 @@ mod tests {
                         json!(0),
                     ),
                 ],
-                body: r#"{
+                r#"{
                     kind: $subject.kind,
                     name: $subject.name,
                     role: $role,
                     depth: $depth
-                }"#
-                .to_owned(),
-            },
+                }"#,
+            ),
         )]);
 
         assert_eq!(
@@ -21299,17 +21502,43 @@ mod tests {
     }
 
     #[test]
+    fn cemt_runtime_call_expression_validates_declared_return_type() {
+        let functions = BTreeMap::from([(
+            "buildNodes".to_owned(),
+            cemt_typed_runtime_function(
+                vec![cemt_required_param(
+                    "subject",
+                    TransformTemplateModuleParamType::Object,
+                )],
+                TransformTemplateModuleParamType::Array,
+                r#"{ kind: $subject.kind }"#,
+            ),
+        )]);
+        let values = BTreeMap::from([("node".to_owned(), json!({"kind": "element"}))]);
+
+        let error = resolve_encode_subject_expression_at_depth(
+            r#"call(buildNodes, { subject: $node })"#,
+            &values,
+            &functions,
+            None,
+            0,
+        )
+        .expect_err("wrong return type is rejected");
+        assert!(error.contains("CEMT function `buildNodes` returned object, expected array"));
+    }
+
+    #[test]
     fn cemt_runtime_call_expression_stops_unbounded_recursion() {
         let values = BTreeMap::from([("node".to_owned(), json!({"kind": "element"}))]);
         let functions = BTreeMap::from([(
             "loop".to_owned(),
-            CemtRuntimeFunction {
-                params: vec![cemt_required_param(
+            cemt_runtime_function(
+                vec![cemt_required_param(
                     "node",
                     TransformTemplateModuleParamType::Object,
                 )],
-                body: r#"call(loop, { node: $node })"#.to_owned(),
-            },
+                r#"call(loop, { node: $node })"#,
+            ),
         )]);
 
         assert_eq!(
@@ -21319,6 +21548,99 @@ mod tests {
                 &functions,
             ),
             None
+        );
+    }
+
+    #[test]
+    fn cemt_module_parser_lowers_internal_function_declarations() {
+        let response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "templates/internal-functions.cemt",
+                    r#"{@doc cem-ml 1}
+{module |
+  {function
+      @name="acme.build-nodes"
+      @visibility="private"
+      @returns="array"
+      @deterministic=true |
+      {param @name="subject" @type="array" @required=true}
+      {body |
+        {$ map($subject, { kind: $item.kind, slot: $index }) }
+      }
+  }
+  {format-function
+      @name="acme.format-root"
+      @category="cem-tree"
+      @subject="array"
+      @produces="cem-tree"
+      @content-type="application/cem"
+      @schema="https://cem.dev/ns/cem-ml/1"
+      @canonical=true
+      @deterministic=true
+      @streamable=true |
+      {param @name="subject" @type="array" @required=true}
+      {body |
+        {$ { kind: "cem-tree", nodes: call("acme.build-nodes", { subject: $subject }) } }
+      }
+  }
+}"#,
+                    Some(FormatIdentity {
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            });
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        let helper = response
+            .module_options
+            .functions
+            .iter()
+            .find(|function| function.name == "acme.build-nodes")
+            .expect("internal helper function declaration");
+        assert_eq!(helper.owner.as_deref(), Some("acme"));
+        assert_eq!(
+            helper.visibility,
+            TransformTemplateModuleVisibility::Private
+        );
+        assert_eq!(helper.return_type, TransformTemplateModuleParamType::Array);
+        assert!(helper.deterministic);
+        assert_eq!(helper.params.len(), 1);
+        assert!(helper
+            .body_expression
+            .as_deref()
+            .is_some_and(|body| body.contains("map($subject")));
+
+        let runtime_functions =
+            cemt_runtime_functions_from_module_options(&response.module_options);
+        assert!(runtime_functions.contains_key("acme.build-nodes"));
+        assert!(runtime_functions.contains_key("acme.format-root"));
+        let values = BTreeMap::from([(
+            "nodes".to_owned(),
+            json!([
+                {"kind": "element"},
+                {"kind": "text"}
+            ]),
+        )]);
+
+        assert_eq!(
+            resolve_encode_subject_expression_with_functions(
+                r#"call("acme.format-root", { subject: $nodes })"#,
+                &values,
+                &runtime_functions,
+            ),
+            Some(json!({
+                "kind": "cem-tree",
+                "nodes": [
+                    {"kind": "element", "slot": 0},
+                    {"kind": "text", "slot": 1}
+                ]
+            }))
         );
     }
 
@@ -21450,6 +21772,22 @@ mod tests {
             response.diagnostics
         );
         assert!(response.module_declared);
+        let normalize_callout = response
+            .module_options
+            .functions
+            .iter()
+            .find(|function| function.name == "acme.normalize-callout")
+            .expect("internal helper function declaration");
+        assert_eq!(normalize_callout.owner.as_deref(), Some("acme"));
+        assert_eq!(
+            normalize_callout.return_type,
+            TransformTemplateModuleParamType::Object
+        );
+        assert!(normalize_callout.deterministic);
+        assert!(normalize_callout
+            .body_expression
+            .as_deref()
+            .is_some_and(|body| body.contains("kind: \"callout\"")));
         assert_eq!(response.module_options.output_functions.len(), 6);
         let html_text = &response.module_options.output_functions[0];
         assert_eq!(

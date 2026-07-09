@@ -296,8 +296,10 @@ The built-in CEM-ML package shows the pattern:
 Those artifacts keep selected public formatter/colorizer functions as wrappers
 over schema-owned helpers named `cem.*` and `cemml.cem-tree.*`, including the
 canonical formatter builder helpers `cem.format-tree.build-nodes` and
-`cem.format-tree.build-envelope`. New
-schema-specific output functions should reuse that wrapper pattern: pass
+`cem.format-tree.build-envelope`. Helpers that do not represent formatter or
+colorizer output stages use internal `{function @returns=...}` declarations
+with typed return contracts. New schema-specific output functions should reuse
+that wrapper pattern: pass
 formatter/color decisions, writer-boundary metadata, and queued edits as
 CEM-native data into the helper instead of copying the whole staged pipeline
 body. Helper functions live in dedicated `formatter-helper` and
