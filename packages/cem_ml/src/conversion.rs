@@ -3130,8 +3130,7 @@ fn cemt_direct_call_function_name(expression: &str) -> Option<String> {
 fn cemt_builtin_runtime_operation_name(name: &str) -> bool {
     matches!(
         name,
-        "cem.format-tree.nodes"
-            | "cem.format-tree.inter-node-whitespace"
+        "cem.format-tree.inter-node-whitespace"
             | "cem.format-tree.block-children"
             | "cem.format-tree.content-boundary"
             | "cem.format-tree.format-nodes"

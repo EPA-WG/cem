@@ -241,6 +241,11 @@ metadata. They are not opaque host-side string filters.
   `cem.format-tree.envelope` is no longer part of the CEMT call surface; the
   native formatter keeps an equivalent envelope builder only as a fallback for
   bindings without a direct CEMT body.
+- Canonical formatter node traversal now lives in the schema-owned
+  `cem.format-tree.build-node-list` and `cem.format-tree.format-node` helpers.
+  The direct native runtime operation `cem.format-tree.nodes` is no longer part
+  of the CEMT call surface; the native formatter keeps equivalent node traversal
+  only as a fallback for bindings without a direct CEMT body.
 - Canonical color traversal now uses schema-owned `cem.color-tree.*` helper
   functions. The direct native runtime operation `cem.color-tree.apply` is no
   longer part of the CEMT call surface; the native colorizer remains only as a

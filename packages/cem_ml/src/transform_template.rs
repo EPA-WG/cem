@@ -4930,11 +4930,7 @@ fn builtin_cem_tree_formatter(
 ) -> Result<Value, String> {
     validate_builtin_cem_tree_formatter_binding(binding)?;
     let nodes = transform_template_cem_tree_nodes(subject)?;
-    let nodes = execute_transform_template_cemt_runtime_operation(
-        TransformTemplateCemtRuntimeOperation::CemFormatTreeNodes,
-        binding,
-        Value::Array(nodes),
-    )?;
+    let nodes = transform_template_cem_tree_formatter_nodes(binding, Value::Array(nodes))?;
     transform_template_cem_tree_formatter_envelope(binding, nodes)
 }
 
@@ -4982,7 +4978,6 @@ fn validate_builtin_cem_tree_formatter_binding(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TransformTemplateCemtRuntimeOperation {
-    CemFormatTreeNodes,
     CemFormatTreeInterNodeWhitespace,
     CemFormatTreeBlockChildren,
     CemFormatTreeContentBoundary,
@@ -4992,7 +4987,6 @@ enum TransformTemplateCemtRuntimeOperation {
 impl TransformTemplateCemtRuntimeOperation {
     fn parse(value: &str) -> Option<Self> {
         match value.trim() {
-            "cem.format-tree.nodes" => Some(Self::CemFormatTreeNodes),
             "cem.format-tree.inter-node-whitespace" => Some(Self::CemFormatTreeInterNodeWhitespace),
             "cem.format-tree.block-children" => Some(Self::CemFormatTreeBlockChildren),
             "cem.format-tree.content-boundary" => Some(Self::CemFormatTreeContentBoundary),
@@ -5003,7 +4997,6 @@ impl TransformTemplateCemtRuntimeOperation {
 
     fn as_str(self) -> &'static str {
         match self {
-            Self::CemFormatTreeNodes => "cem.format-tree.nodes",
             Self::CemFormatTreeInterNodeWhitespace => "cem.format-tree.inter-node-whitespace",
             Self::CemFormatTreeBlockChildren => "cem.format-tree.block-children",
             Self::CemFormatTreeContentBoundary => "cem.format-tree.content-boundary",
@@ -5018,9 +5011,6 @@ fn execute_transform_template_cemt_runtime_operation(
     subject: Value,
 ) -> Result<Value, String> {
     match operation {
-        TransformTemplateCemtRuntimeOperation::CemFormatTreeNodes => {
-            transform_template_cemt_runtime_format_tree_nodes(operation, binding, subject)
-        }
         TransformTemplateCemtRuntimeOperation::CemFormatTreeInterNodeWhitespace => {
             transform_template_cemt_runtime_format_tree_inter_node_whitespace(
                 operation, binding, subject,
@@ -5040,17 +5030,13 @@ fn execute_transform_template_cemt_runtime_operation(
     }
 }
 
-fn transform_template_cemt_runtime_format_tree_nodes(
-    operation: TransformTemplateCemtRuntimeOperation,
+fn transform_template_cem_tree_formatter_nodes(
     binding: &TransformTemplateEncodeBinding,
     subject: Value,
 ) -> Result<Value, String> {
     validate_builtin_cem_tree_formatter_binding(binding)?;
     let nodes = transform_template_cem_tree_nodes(&subject).map_err(|message| {
-        format!(
-            "{} expected CEM tree subject: {message}",
-            operation.as_str()
-        )
+        format!("CEM tree formatter fallback expected CEM tree subject: {message}")
     })?;
     let nodes = nodes
         .into_iter()
@@ -11905,6 +11891,12 @@ fn resolve_cemt_call_expression(
     if function_name == "cem.format-tree.envelope" {
         return Err(
             "CEMT runtime operation `cem.format-tree.envelope` has been removed; use schema-owned `cem.format-tree.build-envelope` helpers"
+                .to_owned(),
+        );
+    }
+    if function_name == "cem.format-tree.nodes" {
+        return Err(
+            "CEMT runtime operation `cem.format-tree.nodes` has been removed; use schema-owned `cem.format-tree.build-node-list` helpers"
                 .to_owned(),
         );
     }
@@ -25666,8 +25658,8 @@ mod tests {
             transform_template_cem_tree_nodes(&subject).expect("subject normalizes to CEM nodes");
 
         assert_eq!(
-            TransformTemplateCemtRuntimeOperation::CemFormatTreeNodes.as_str(),
-            "cem.format-tree.nodes"
+            TransformTemplateCemtRuntimeOperation::parse("cem.format-tree.nodes"),
+            None
         );
         assert_eq!(
             TransformTemplateCemtRuntimeOperation::CemFormatTreeInterNodeWhitespace.as_str(),
@@ -25690,12 +25682,9 @@ mod tests {
             None
         );
 
-        let formatted_nodes = execute_transform_template_cemt_runtime_operation(
-            TransformTemplateCemtRuntimeOperation::CemFormatTreeNodes,
-            &binding,
-            Value::Array(normalized_nodes),
-        )
-        .expect("recursive formatter node operation runs");
+        let formatted_nodes =
+            transform_template_cem_tree_formatter_nodes(&binding, Value::Array(normalized_nodes))
+                .expect("native formatter fallback node helper runs");
         assert_eq!(formatted_nodes[0]["kind"], "element");
         assert_eq!(formatted_nodes[0]["name"], "panel");
         assert_eq!(
@@ -25817,6 +25806,17 @@ mod tests {
             error.contains("CEMT runtime operation `cem.format-tree.envelope` has been removed")
         );
         assert!(error.contains("schema-owned `cem.format-tree.build-envelope` helpers"));
+
+        let error = resolve_encode_subject_expression_at_depth(
+            r#"call(cem.format-tree.nodes, { subject: [] })"#,
+            &BTreeMap::new(),
+            &BTreeMap::new(),
+            Some(&binding),
+            0,
+        )
+        .expect_err("direct CEMT body rejects removed formatter node operation");
+        assert!(error.contains("CEMT runtime operation `cem.format-tree.nodes` has been removed"));
+        assert!(error.contains("schema-owned `cem.format-tree.build-node-list` helpers"));
     }
 
     #[test]
