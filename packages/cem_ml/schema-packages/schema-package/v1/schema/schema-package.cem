@@ -75,6 +75,7 @@
         {constraint @kind="rust-symbol-required" @target="converter" @policy="when implementation is rust"}
         {constraint @kind="converter-cost-positive" @target="converter" @policy="cost, when present, must be a positive integer"}
         {constraint @kind="converter-output-contract" @target="converter" @policy="output-syntax and parity, when present, must use declared values; encoding-category, formatter-profile, and color-profile describe the CEMT tree pipeline and final writer artifact identity"}
+        {constraint @kind="converter-template-output-stage-contract" @target="converter" @policy="CEMT converters that declare formatter-profile or color-profile output stages must reference a readable CEMT template that compiles as a formatted CEM-tree producer before writer output"}
         {constraint @kind="converter-endpoint-schema-content-type-match" @target="from to" @policy="when endpoint schema is known, content-type must be registered by that schema"}
         {constraint @kind="planned-cemt-rust-fallback" @target="converter" @policy="planned CEMT converters may declare rust-symbol as fallback hook"}
         {constraint @kind="cemt-native-fallback-reason" @target="converter" @policy="CEMT converters that declare rust-symbol fallback hooks must also declare fallback-reason"}
@@ -94,7 +95,10 @@
         {diagnostic @code="cem.schema_package.converter_template_missing" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_template_content_type_missing" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_template_content_type_mismatch" @severity="error"}
+        {diagnostic @code="cem.schema_package.converter_template_schema_missing" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_template_schema_mismatch" @severity="error"}
+        {diagnostic @code="cem.schema_package.converter_template_source_unreadable" @severity="error"}
+        {diagnostic @code="cem.schema_package.converter_template_contract_invalid" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_rust_symbol_missing" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_fallback_reason_missing" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_readiness_unknown" @severity="error"}

@@ -36,8 +36,14 @@ Serializer converters may also declare output-contract metadata:
 `parity`. For CEMT schema-output producers, this metadata plans the structured
 pipeline as CEMT transform, CEM tree formatting, CEM tree coloring, then final
 writer. A missing visual `color-profile` still means a semantic no-color CEM
-tree color stage before the writer. Converter-local `parity-fixture` children
-name package-relative inputs that paired CEMT/native producers must share, plus
+tree color stage before the writer. When a CEMT converter declares
+formatter/coloring output profiles, validation reads the referenced template
+through the local package path or template resolver and compiles it as a
+formatted CEM-tree producer before writer output is allowed. A CEMT converter
+that only declares source/target identity, `output-syntax`, or
+`encoding-category` is treated as metadata-only and does not get this executable
+template contract check. Converter-local `parity-fixture` children name
+package-relative inputs that paired CEMT/native producers must share, plus
 optional input identity and expected diagnostic codes.
 Artifact declarations can also describe runtime output-stage assets. For
 formatter and colorizer CEMT artifacts, `content-type` and `schema` identify the
@@ -68,6 +74,7 @@ CLI validation integration tests.
 | [`invalid-unclosed-package.cem`](examples/invalid-unclosed-package.cem) | Missing closing package scope syntax diagnostic. | Fail with `cem.schema.unclosed_scope` |
 | [`invalid-missing-required-attribute.cem`](examples/invalid-missing-required-attribute.cem) | Manifest schema entry missing its required `source` attribute. | Fail with `cem.schema_model.missing_required_attribute` |
 | [`invalid-converter-contract.cem`](examples/invalid-converter-contract.cem) | Converter declaration with missing CEMT template identity, missing target endpoint, invalid cost, and incompatible endpoint schema/content type. | Fail with `cem.schema_package.converter_template_missing`, `cem.schema_package.converter_endpoint_missing`, `cem.schema_package.converter_cost_invalid`, `cem.schema_package.converter_content_type_mismatch` |
+| [`invalid-converter-template-contract.cem`](examples/invalid-converter-template-contract.cem) | CEMT converter declares formatter/coloring output profiles, but its template cannot compile as a formatted CEM-tree producer before writer output. | Fail with `cem.schema_package.converter_template_contract_invalid` |
 | [`invalid-artifact-contract.cem`](examples/invalid-artifact-contract.cem) | Formatter artifact metadata disagrees with the referenced CEMT function declaration. | Fail with `cem.schema_package.artifact_function_contract_mismatch` |
 | [`invalid-artifact-layout.cem`](examples/invalid-artifact-layout.cem) | Formatter and colorizer artifacts point outside their schema-package stage directories. | Fail with `cem.schema_package.artifact_layout_invalid` |
 | [`invalid-schema-metadata.cem`](examples/invalid-schema-metadata.cem) | Manifest schema metadata disagrees with the referenced schema source. | Fail with `cem.schema_package.schema_uri_mismatch`, `cem.schema_package.schema_content_type_mismatch`, `cem.schema_package.schema_namespace_mismatch` |
