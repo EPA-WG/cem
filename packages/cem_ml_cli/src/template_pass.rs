@@ -53,8 +53,11 @@ pub fn run_with_identity(
     if !matches!(from_format, InputFormat::Cem) {
         return Vec::new();
     }
-    if is_template_family_identity(identity) {
-        return run_context_aware_template_pass(bytes, uri);
+    if is_transform_identity(identity) {
+        return run_context_aware_template_pass(bytes, uri, true);
+    }
+    if is_native_template_identity(identity) {
+        return run_context_aware_template_pass(bytes, uri, false);
     }
     run_raw_embedding_pass(bytes, uri)
 }
@@ -73,12 +76,17 @@ fn run_raw_embedding_pass(bytes: &[u8], uri: Option<&str>) -> Vec<Diagnostic> {
     diagnostics
 }
 
-fn run_context_aware_template_pass(bytes: &[u8], uri: Option<&str>) -> Vec<Diagnostic> {
+fn run_context_aware_template_pass(
+    bytes: &[u8],
+    uri: Option<&str>,
+    skip_cemt_function_bodies: bool,
+) -> Vec<Diagnostic> {
     let source = std::str::from_utf8(bytes).unwrap_or("");
     let artifact = compile_template(
         source,
         &CompileTemplateOptions {
             host_bindings: Vec::new(),
+            skip_cemt_function_bodies,
         },
     );
     artifact
@@ -88,18 +96,28 @@ fn run_context_aware_template_pass(bytes: &[u8], uri: Option<&str>) -> Vec<Diagn
         .collect()
 }
 
-fn is_template_family_identity(identity: TemplatePassIdentity<'_>) -> bool {
-    identity.schema.is_some_and(|schema| {
-        matches!(
-            schema.trim(),
-            CEM_NATIVE_TEMPLATE_SCHEMA_URI | CEM_TRANSFORM_SCHEMA_URI
-        )
-    }) || identity.content_type.is_some_and(|content_type| {
-        matches!(
-            content_type_essence(content_type).as_str(),
-            CEM_NATIVE_TEMPLATE_CONTENT_TYPE | CEM_TRANSFORM_CONTENT_TYPE
-        )
-    })
+fn is_native_template_identity(identity: TemplatePassIdentity<'_>) -> bool {
+    identity
+        .schema
+        .is_some_and(|schema| matches!(schema.trim(), CEM_NATIVE_TEMPLATE_SCHEMA_URI))
+        || identity.content_type.is_some_and(|content_type| {
+            matches!(
+                content_type_essence(content_type).as_str(),
+                CEM_NATIVE_TEMPLATE_CONTENT_TYPE
+            )
+        })
+}
+
+fn is_transform_identity(identity: TemplatePassIdentity<'_>) -> bool {
+    identity
+        .schema
+        .is_some_and(|schema| matches!(schema.trim(), CEM_TRANSFORM_SCHEMA_URI))
+        || identity.content_type.is_some_and(|content_type| {
+            matches!(
+                content_type_essence(content_type).as_str(),
+                CEM_TRANSFORM_CONTENT_TYPE
+            )
+        })
 }
 
 fn tokenize(bytes: &[u8]) -> Vec<SchemaToken> {
@@ -169,6 +187,26 @@ mod tests {
         assert!(
             diagnostics.is_empty(),
             "context-aware CEMT validation should accept loop/call bindings: {diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn transform_pass_accepts_cemt_runtime_function_bodies() {
+        let diagnostics = run_with_identity(
+            include_bytes!(
+                "../../cem_ml/schema-packages/cem-transform/v1/examples/function-declarations.cemt"
+            ),
+            InputFormat::Cem,
+            Some("function-declarations.cemt"),
+            TemplatePassIdentity {
+                content_type: Some(CEM_TRANSFORM_CONTENT_TYPE),
+                schema: Some(CEM_TRANSFORM_SCHEMA_URI),
+            },
+        );
+
+        assert!(
+            diagnostics.is_empty(),
+            "CEMT runtime function bodies should not be compiled as CEM-QL render expressions: {diagnostics:?}"
         );
     }
 }

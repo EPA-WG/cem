@@ -17274,12 +17274,24 @@ fn template_call_argument_matches_param(
     argument: &Value,
     param: &TransformTemplateModuleParamDeclaration,
 ) -> bool {
+    if transform_template_call_argument_is_dynamic(argument) {
+        return true;
+    }
+
     match argument {
         Value::String(raw) => {
             parse_template_typed_literal_value(param.value_type, param.nullable, raw).is_some()
         }
         value => param.value_type.accepts(value, param.nullable),
     }
+}
+
+pub(crate) fn transform_template_call_argument_is_dynamic(argument: &Value) -> bool {
+    let Value::String(raw) = argument else {
+        return false;
+    };
+    let trimmed = raw.trim();
+    trimmed.starts_with("{$") && trimmed.ends_with('}')
 }
 
 fn parse_template_typed_literal_value(
@@ -19616,6 +19628,45 @@ mod tests {
                     ("count".to_owned(), json!("2")),
                     ("title".to_owned(), json!(" Ready ")),
                 ]),
+            }]
+        );
+    }
+
+    #[test]
+    fn cem_native_template_module_parser_accepts_dynamic_call_arguments() {
+        let response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: template_input(
+                    "templates/dynamic-calls.cem",
+                    r#"{@doc cem-ml 1}
+{module |
+  {template @name="card" @visibility="public" |
+    {body | {call @template="row" @with:item="{$item}"}}
+  }
+  {template @name="row" |
+    {param @name="item" @type="object" @required="true"}
+    {body | {span | Row}}
+  }
+}"#,
+                    Some(FormatIdentity {
+                        schema: Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                ),
+            });
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        assert_eq!(
+            response.module_options.calls,
+            vec![TransformTemplateModuleCallSite {
+                owner_entrypoint: Some("card".to_owned()),
+                from: None,
+                template: "row".to_owned(),
+                arguments: BTreeMap::from([("item".to_owned(), json!("{$item}"))]),
             }]
         );
     }

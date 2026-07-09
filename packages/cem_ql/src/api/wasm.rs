@@ -35,7 +35,13 @@ pub fn wasm_compile_template(source: &str, host_bindings_json: &str) -> String {
         Ok(bindings) => bindings,
         Err(message) => return error_json("cem.ql.wasm.invalid_host_bindings", message),
     };
-    let artifact = compile_template(source, &CompileTemplateOptions { host_bindings });
+    let artifact = compile_template(
+        source,
+        &CompileTemplateOptions {
+            host_bindings,
+            ..CompileTemplateOptions::default()
+        },
+    );
     let diagnostics = diagnostics_json(&artifact.diagnostics);
     let artifact_id = ARTIFACTS.with(|cell| {
         let mut artifacts = cell.borrow_mut();
@@ -80,6 +86,7 @@ pub fn wasm_render_template_source(source: &str, data_json: &str) -> String {
         source,
         &CompileTemplateOptions {
             host_bindings: data.bindings.keys().cloned().collect(),
+            ..CompileTemplateOptions::default()
         },
     );
     plan_json(&render_compiled_template(&artifact, &data)).to_string()

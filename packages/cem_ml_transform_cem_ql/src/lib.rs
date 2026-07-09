@@ -119,6 +119,7 @@ impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
             source,
             &CompileTemplateOptions {
                 host_bindings: host_bindings.clone(),
+                ..CompileTemplateOptions::default()
             },
         );
         let mut diagnostics =
@@ -254,6 +255,7 @@ impl TransformTemplateAdapter for XsltParityTransformTemplateAdapter {
             &lowered.source,
             &CompileTemplateOptions {
                 host_bindings: host_bindings.clone(),
+                ..CompileTemplateOptions::default()
             },
         );
         diagnostics.extend(diagnostics_with_uri(
@@ -573,6 +575,7 @@ fn compile_preflighted_modules(
                 source,
                 &CompileTemplateOptions {
                     host_bindings: module_host_bindings,
+                    ..CompileTemplateOptions::default()
                 },
             );
             let entrypoints = extract_template_entrypoints(&artifact);
@@ -1357,7 +1360,7 @@ pub fn unsupported_identity_error_message(identity: &FormatIdentity) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cem_ml::engine::CemMlEngine;
+    use cem_ml::engine::{CemMlEngine, EngineContext};
     use cem_ml::engine::{
         ConvertRequest, EngineInput, InputFormat, LayerFormat, TemplateInput,
         TransformExecutionPolicy, TransformGraphExport, TransformGraphImport, TransformGraphJoin,
@@ -1371,7 +1374,15 @@ mod tests {
     use cem_ml::parser::document::CemDocument;
     use cem_ml::projection;
     use cem_ml::real::RealCemMlEngine;
+    use cem_ml::resolver::{
+        has_uri_scheme, ResolveDirection, ResolvePurpose, ResolveRequest, ResolvedRead,
+        ResolvedWrite, ResolverDiagnostic, ResolverRegistry, ResourceResolver,
+    };
     use cem_ml::run_config::ScopeConfig;
+    use cem_ml::schema::package_sources::builtin_schema_package_artifact_sources;
+    use cem_ml::schema::registry::{
+        CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CEM_TRANSFORM_CONTENT_TYPE,
+    };
     use cem_ml::source::{BytesSource, SourceId};
     use cem_ml::tokenizer::{cem::CemTokenizer, xml::XmlTokenizer};
     use cem_ml::transform_template::{
@@ -1413,6 +1424,164 @@ mod tests {
         let tokenizer = XmlTokenizer::from_source(source);
         let events = CemEventNormalizer::new(tokenizer);
         CemAstBuilder::new(events).build()
+    }
+
+    #[derive(Debug)]
+    struct MapReadResolver {
+        entries: Vec<(String, &'static [u8], Option<&'static str>)>,
+    }
+
+    impl ResourceResolver for MapReadResolver {
+        fn read(&self, request: &ResolveRequest) -> Result<ResolvedRead, ResolverDiagnostic> {
+            let uri = resolve_test_uri(request);
+            let Some((resolved_uri, bytes, content_type)) = self
+                .entries
+                .iter()
+                .find(|(entry_uri, _, _)| entry_uri == &uri)
+            else {
+                return Err(ResolverDiagnostic::UnsupportedResolver {
+                    uri: request.uri.clone(),
+                    purpose: request.purpose,
+                    direction: ResolveDirection::Read,
+                });
+            };
+
+            Ok(ResolvedRead {
+                uri: resolved_uri.clone(),
+                bytes: bytes.to_vec(),
+                content_type: content_type.map(str::to_owned),
+            })
+        }
+
+        fn write(
+            &self,
+            request: &ResolveRequest,
+            _bytes: &[u8],
+        ) -> Result<ResolvedWrite, ResolverDiagnostic> {
+            Err(ResolverDiagnostic::UnsupportedResolver {
+                uri: request.uri.clone(),
+                purpose: request.purpose,
+                direction: ResolveDirection::Write,
+            })
+        }
+    }
+
+    fn resolve_test_uri(request: &ResolveRequest) -> String {
+        if has_uri_scheme(&request.uri) {
+            return request.uri.clone();
+        }
+        let Some(base_uri) = request.base_uri.as_deref() else {
+            return request.uri.clone();
+        };
+        let Some((base_dir, _)) = base_uri.rsplit_once('/') else {
+            return request.uri.clone();
+        };
+        format!("{base_dir}/{}", request.uri)
+    }
+
+    fn schema_package_manifest_identity() -> FormatIdentity {
+        FormatIdentity {
+            content_type: Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE.to_owned()),
+            schema: Some(CEM_SCHEMA_PACKAGE_URI.to_owned()),
+            ..FormatIdentity::default()
+        }
+    }
+
+    fn context_with_cem_ml_output_pipeline_artifacts() -> EngineContext {
+        const PACKAGE_URI: &str = "cem+test://packages/cem-ml/v1/package.cem";
+        const PACKAGE_MANIFEST: &[u8] = br#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="cem-ml" @version="1.0.0" |
+    {schema @uri="https://cem.dev/ns/cem-ml/1" @source="schema/cem-ml.cem"}
+    {content-type @value="application/cem" @primary=true}
+    {artifact
+        @kind="formatter"
+        @path="formatters/cem-format-tree.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="cem.format-tree"
+        @formatter-profile="cem.format-tree"
+    }
+    {artifact
+        @kind="formatter-helper"
+        @path="formatters/cem-format-tree-helpers.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="cem.format-tree.apply-stage"
+        @function-profile="cem.format-tree"
+        @formatter-profile="cem.format-tree"
+    }
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/cem-color-tree.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="cem.color-tree"
+        @function-profile="css-custom-properties"
+        @color-profile="classes"
+    }
+    {artifact
+        @kind="colorizer-helper"
+        @path="colorizers/cem-color-tree-helpers.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="cem.color-tree.apply-stage"
+        @function-profile="css-custom-properties"
+    }
+}
+"#;
+
+        let artifact_entries = builtin_schema_package_artifact_sources()
+            .iter()
+            .filter(|source| source.package_id == "cem-ml")
+            .map(|source| {
+                let relative = source
+                    .path
+                    .strip_prefix("schema-packages/cem-ml/v1/")
+                    .expect("CEM-ML artifact path is package-relative");
+                (
+                    format!("cem+test://packages/cem-ml/v1/{relative}"),
+                    source.source.as_bytes(),
+                    Some(CEM_TRANSFORM_CONTENT_TYPE),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let mut resolver_registry = ResolverRegistry::new();
+        resolver_registry.register(
+            "cem+test",
+            ResolvePurpose::Template,
+            ResolveDirection::Read,
+            MapReadResolver {
+                entries: artifact_entries,
+            },
+        );
+
+        EngineContext {
+            schema_package_manifests: vec![EngineInput {
+                uri: PACKAGE_URI.to_owned(),
+                bytes: PACKAGE_MANIFEST.to_vec(),
+                from_format: Some(InputFormat::Cem),
+                identity: Some(schema_package_manifest_identity()),
+                root_scope: ScopeConfig::default(),
+            }],
+            resolver_registry,
+            ..engine_context_with_cem_ql_template_adapter()
+        }
     }
 
     fn render_packaged_dom_projection_converter(
@@ -4478,8 +4647,8 @@ mod tests {
     }
 
     #[test]
-    fn real_engine_convert_uses_ready_packaged_dom_projection_cemt_converters() {
-        for (uri, source, input_format, target_format, expected_kind, expected_content) in [
+    fn real_engine_convert_reports_packaged_dom_projection_cemt_output_pipeline_failure() {
+        for (uri, source, input_format, target_format, _expected_kind, _expected_content) in [
             {
                 let source = include_str!("../../../examples/cem-ml/login.cem");
                 let document = document_from_cem(source);
@@ -4517,15 +4686,27 @@ mod tests {
                     },
                     to_format: target_format,
                     preserve_source_offsets: false,
-                    context: engine_context_with_cem_ql_template_adapter(),
+                    context: context_with_cem_ml_output_pipeline_artifacts(),
                     target: None,
                     target_scope: ScopeConfig::default(),
                     scheduler_scope_id: 0,
                 })
                 .expect("convert request should execute");
 
-            assert_eq!(response.primary["kind"], expected_kind, "{uri}");
-            assert_eq!(response.primary["content"], expected_content, "{uri}");
+            assert_eq!(response.primary, Value::Null, "{uri}");
+            assert!(
+                response.diagnostics.iter().any(|diagnostic| {
+                    diagnostic.code == "cem.converter.output_pipeline_execution"
+                        && diagnostic
+                            .message
+                            .contains("CEMT formatter `cem.format-tree` failed")
+                        && diagnostic
+                            .message
+                            .contains("argument `subject` could not be resolved")
+                }),
+                "{uri}: {:?}",
+                response.diagnostics
+            );
             assert!(
                 !response
                     .diagnostics
@@ -4777,6 +4958,7 @@ mod tests {
                     template_entrypoint: TransformTemplateEntrypoint::implicit(),
                     params: BTreeMap::new(),
                     execution_policy: TransformExecutionPolicy::default(),
+                    target: None,
                     primary_input: "book".to_owned(),
                     secondary_inputs: BTreeMap::new(),
                     scheduler_scope_ids: TransformStageSchedulerScopeIds {
@@ -4796,6 +4978,7 @@ mod tests {
                     template_entrypoint: TransformTemplateEntrypoint::implicit(),
                     params: BTreeMap::new(),
                     execution_policy: TransformExecutionPolicy::default(),
+                    target: None,
                     primary_input: "book".to_owned(),
                     secondary_inputs: BTreeMap::new(),
                     scheduler_scope_ids: TransformStageSchedulerScopeIds {
@@ -4815,6 +4998,7 @@ mod tests {
                         ..FormatIdentity::default()
                     }),
                     target_scope: ScopeConfig::default(),
+                    style_policy: Default::default(),
                     scheduler_scope_id: 25,
                 },
                 TransformGraphExport {
@@ -4826,6 +5010,7 @@ mod tests {
                         ..FormatIdentity::default()
                     }),
                     target_scope: ScopeConfig::default(),
+                    style_policy: Default::default(),
                     scheduler_scope_id: 26,
                 },
             ],
@@ -4896,6 +5081,8 @@ mod tests {
                     input_name: "primary".to_owned(),
                     artifact_id: "html".to_owned(),
                     bindings: BTreeMap::new(),
+                    destination: None,
+                    target: None,
                 }],
                 bindings: BTreeMap::new(),
                 scheduler_scope_id: 33,
@@ -4912,6 +5099,7 @@ mod tests {
                 template_entrypoint: TransformTemplateEntrypoint::implicit(),
                 params: BTreeMap::new(),
                 execution_policy: TransformExecutionPolicy::default(),
+                target: None,
                 primary_input: "book".to_owned(),
                 secondary_inputs: BTreeMap::new(),
                 scheduler_scope_ids: TransformStageSchedulerScopeIds {
@@ -4929,6 +5117,7 @@ mod tests {
                     ..FormatIdentity::default()
                 }),
                 target_scope: ScopeConfig::default(),
+                style_policy: Default::default(),
                 scheduler_scope_id: 34,
             }],
             edges: Vec::new(),
@@ -4983,11 +5172,15 @@ mod tests {
                         input_name: "primary".to_owned(),
                         artifact_id: "html".to_owned(),
                         bindings: BTreeMap::new(),
+                        destination: None,
+                        target: None,
                     },
                     TransformGraphJoinInput {
                         input_name: "primary".to_owned(),
                         artifact_id: "summary".to_owned(),
                         bindings: BTreeMap::new(),
+                        destination: None,
+                        target: None,
                     },
                 ],
                 bindings: BTreeMap::new(),
@@ -5006,6 +5199,7 @@ mod tests {
                     template_entrypoint: TransformTemplateEntrypoint::implicit(),
                     params: BTreeMap::new(),
                     execution_policy: TransformExecutionPolicy::default(),
+                    target: None,
                     primary_input: "book".to_owned(),
                     secondary_inputs: BTreeMap::new(),
                     scheduler_scope_ids: TransformStageSchedulerScopeIds {
@@ -5025,6 +5219,7 @@ mod tests {
                     template_entrypoint: TransformTemplateEntrypoint::implicit(),
                     params: BTreeMap::new(),
                     execution_policy: TransformExecutionPolicy::default(),
+                    target: None,
                     primary_input: "book".to_owned(),
                     secondary_inputs: BTreeMap::new(),
                     scheduler_scope_ids: TransformStageSchedulerScopeIds {
@@ -5043,6 +5238,7 @@ mod tests {
                     ..FormatIdentity::default()
                 }),
                 target_scope: ScopeConfig::default(),
+                style_policy: Default::default(),
                 scheduler_scope_id: 46,
             }],
             edges: Vec::new(),
@@ -5115,6 +5311,7 @@ mod tests {
                 },
                 primary_input: "book".to_owned(),
                 secondary_inputs: BTreeMap::new(),
+                target: None,
                 scheduler_scope_ids: TransformStageSchedulerScopeIds {
                     template_load: 41,
                     execution: 42,
@@ -5130,6 +5327,7 @@ mod tests {
                     ..FormatIdentity::default()
                 }),
                 target_scope: ScopeConfig::default(),
+                style_policy: Default::default(),
                 scheduler_scope_id: 43,
             }],
             edges: Vec::new(),
@@ -5187,6 +5385,7 @@ mod tests {
                     template_entrypoint: TransformTemplateEntrypoint::implicit(),
                     params: BTreeMap::new(),
                     execution_policy: TransformExecutionPolicy::default(),
+                    target: None,
                     primary_input: "book".to_owned(),
                     secondary_inputs: BTreeMap::new(),
                     scheduler_scope_ids: TransformStageSchedulerScopeIds {
@@ -5206,6 +5405,7 @@ mod tests {
                     template_entrypoint: TransformTemplateEntrypoint::implicit(),
                     params: BTreeMap::new(),
                     execution_policy: TransformExecutionPolicy::default(),
+                    target: None,
                     primary_input: "book".to_owned(),
                     secondary_inputs: BTreeMap::from([("stats".to_owned(), "stats".to_owned())]),
                     scheduler_scope_ids: TransformStageSchedulerScopeIds {
@@ -5224,6 +5424,7 @@ mod tests {
                     ..FormatIdentity::default()
                 }),
                 target_scope: ScopeConfig::default(),
+                style_policy: Default::default(),
                 scheduler_scope_id: 35,
             }],
             edges: Vec::new(),

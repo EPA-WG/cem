@@ -111,6 +111,7 @@ fn compiled_template_renders_multiple_snapshots_without_recompile() {
         "{span | {$label}}",
         &CompileTemplateOptions {
             host_bindings: vec!["label".to_owned()],
+            ..CompileTemplateOptions::default()
         },
     );
     assert!(
@@ -133,11 +134,48 @@ fn compiled_template_renders_multiple_snapshots_without_recompile() {
 }
 
 #[test]
+fn compile_template_can_skip_cemt_function_body_expressions() {
+    let source = r#"{module |
+        {function @name="acme.normalize-callout" @returns="object" |
+            {param @name="marker" @type="string"}
+            {body |
+                {$ { kind: "callout", marker: $marker } }
+            }
+        }
+        {template @name="main" |
+            {body | {$marker} }
+        }
+    }"#;
+
+    let unchecked = compile_template(
+        source,
+        &CompileTemplateOptions {
+            host_bindings: vec!["marker".to_owned()],
+            ..CompileTemplateOptions::default()
+        },
+    );
+    assert!(unchecked
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code == "cem.ql.render.compile_failed"));
+
+    let checked = compile_template(
+        source,
+        &CompileTemplateOptions {
+            host_bindings: vec!["marker".to_owned()],
+            skip_cemt_function_bodies: true,
+        },
+    );
+    assert!(checked.diagnostics.is_empty(), "{:?}", checked.diagnostics);
+}
+
+#[test]
 fn render_plan_preserves_structured_nodes_and_source_maps() {
     let artifact = compile_template(
         r#"{button @class="action {$tone}" | {$label}}"#,
         &CompileTemplateOptions {
             host_bindings: vec!["tone".to_owned(), "label".to_owned()],
+            ..CompileTemplateOptions::default()
         },
     );
     let plan = render_compiled_template(

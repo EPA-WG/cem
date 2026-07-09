@@ -51,6 +51,7 @@ impl TemplateData {
 #[derive(Debug, Clone, Default)]
 pub struct CompileTemplateOptions {
     pub host_bindings: Vec<String>,
+    pub skip_cemt_function_bodies: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -233,6 +234,8 @@ pub fn compile_template(source: &str, options: &CompileTemplateOptions) -> Templ
         index: 0,
         compile_context,
         diagnostics: tokenizer.take_diagnostics(),
+        element_stack: Vec::new(),
+        skip_cemt_function_bodies: options.skip_cemt_function_bodies,
     };
     let nodes = compiler.compile_all();
     TemplateArtifact {
@@ -273,6 +276,7 @@ pub fn render_compiled_template(artifact: &TemplateArtifact, data: &TemplateData
 pub fn render_template(source: &str, data: &TemplateData) -> RenderedTemplate {
     let options = CompileTemplateOptions {
         host_bindings: data.bindings.keys().cloned().collect(),
+        ..CompileTemplateOptions::default()
     };
     let artifact = compile_template(source, &options);
     let plan = render_compiled_template(&artifact, data);
@@ -621,6 +625,8 @@ struct TemplateCompiler<'a> {
     index: usize,
     compile_context: CompileContext,
     diagnostics: Vec<Diagnostic>,
+    element_stack: Vec<String>,
+    skip_cemt_function_bodies: bool,
 }
 
 impl TemplateCompiler<'_> {
@@ -743,12 +749,49 @@ impl TemplateCompiler<'_> {
         let tag = name.clone();
         self.index += 1;
         let attributes = self.parse_attributes();
-        let children = self.parse_children(&tag);
+        let children = if self.should_skip_cemt_function_body(&tag) {
+            self.skip_children(&tag);
+            Vec::new()
+        } else {
+            self.element_stack.push(tag.clone());
+            let children = self.parse_children(&tag);
+            self.element_stack.pop();
+            children
+        };
         TemplateNode::Element {
             tag,
             attributes,
             children,
             source_map: frame_for(&start),
+        }
+    }
+
+    fn should_skip_cemt_function_body(&self, tag: &str) -> bool {
+        self.skip_cemt_function_bodies
+            && local_template_name(tag) == "body"
+            && self.element_stack.last().is_some_and(|parent| {
+                is_cemt_runtime_function_declaration_name(local_template_name(parent))
+            })
+    }
+
+    fn skip_children(&mut self, tag: &str) {
+        let mut depth = 0usize;
+        while self.index < self.tokens.len() {
+            match &self.tokens[self.index].kind {
+                SchemaTokenKind::NodeStart { .. } => {
+                    depth += 1;
+                    self.index += 1;
+                }
+                SchemaTokenKind::NodeEnd { name } => {
+                    let closes_current = name.as_deref().map(|end| end == tag).unwrap_or(true);
+                    self.index += 1;
+                    if depth == 0 && closes_current {
+                        break;
+                    }
+                    depth = depth.saturating_sub(1);
+                }
+                _ => self.index += 1,
+            }
         }
     }
 
@@ -1395,7 +1438,8 @@ impl PlanRenderer {
         let preserves_empty_value = match &attribute.value {
             None => true,
             Some(TemplateAttributeValue::Literal(value)) => value.is_empty(),
-            Some(TemplateAttributeValue::Template(_)) | Some(TemplateAttributeValue::Expression(_)) => false,
+            Some(TemplateAttributeValue::Template(_))
+            | Some(TemplateAttributeValue::Expression(_)) => false,
         };
         if value.is_empty()
             && !preserves_empty_value
@@ -1958,6 +2002,13 @@ fn conditional_local_name(name: &str) -> &str {
 
 fn local_template_name(name: &str) -> &str {
     conditional_local_name(name)
+}
+
+fn is_cemt_runtime_function_declaration_name(name: &str) -> bool {
+    matches!(
+        name,
+        "function" | "encoding-function" | "format-function" | "color-function"
+    )
 }
 
 fn is_if_name(name: &str) -> bool {

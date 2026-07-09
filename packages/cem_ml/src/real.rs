@@ -53,8 +53,8 @@ use crate::transform_config::{
 };
 use crate::transform_template::{
     evaluate_transform_template_encode_expressions, parse_cem_native_template_module_options,
-    try_apply_transform_template_let_bindings, TransformTemplateAdapter,
-    TransformTemplateAdapterLookup, TransformTemplateCompileRequest,
+    transform_template_call_argument_is_dynamic, try_apply_transform_template_let_bindings,
+    TransformTemplateAdapter, TransformTemplateAdapterLookup, TransformTemplateCompileRequest,
     TransformTemplateCompiledArtifact, TransformTemplateDataArtifact,
     TransformTemplateEncodeEvaluationContext, TransformTemplateEncodedArtifactInsertionContext,
     TransformTemplateModuleCacheKey, TransformTemplateModuleDependencyKind,
@@ -3528,6 +3528,9 @@ fn validate_transform_template_call_arguments(
             let Some(value) = params.get(name) else {
                 continue;
             };
+            if transform_template_call_argument_is_dynamic(value) {
+                continue;
+            }
             if !declaration.value_type.accepts(value, declaration.nullable) {
                 diagnostics.push(template_module_diagnostic(
                     Some(module_uri),
@@ -8759,6 +8762,45 @@ mod tests {
                     ("options".to_owned(), json!(r#"{"compact":true}"#)),
                     ("title".to_owned(), json!(" Ready ")),
                 ]),
+            }],
+            ..TransformTemplateModuleOptions::default()
+        };
+        let mut diagnostics = Vec::new();
+
+        let validated = validate_transform_template_call_sites(
+            &template,
+            &options,
+            &TransformTemplateModulePreflight::default(),
+            &mut diagnostics,
+        );
+
+        assert!(validated.is_some(), "{diagnostics:?}");
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn template_module_call_validation_defers_dynamic_call_argument_types() {
+        let template = template("main.cem", b"{main}");
+        let options = TransformTemplateModuleOptions {
+            entrypoints: vec![
+                crate::transform_template::TransformTemplateModuleEntrypointDeclaration {
+                    name: "row".to_owned(),
+                    visibility: TransformTemplateModuleVisibility::Private,
+                },
+            ],
+            params: vec![TransformTemplateModuleParamDeclaration {
+                name: "row.item".to_owned(),
+                value_type: TransformTemplateModuleParamType::Object,
+                nullable: false,
+                default_value: None,
+                required: true,
+                visibility: TransformTemplateModuleVisibility::Private,
+            }],
+            calls: vec![crate::transform_template::TransformTemplateModuleCallSite {
+                owner_entrypoint: Some("card".to_owned()),
+                from: None,
+                template: "row".to_owned(),
+                arguments: BTreeMap::from([("item".to_owned(), json!("{$item}"))]),
             }],
             ..TransformTemplateModuleOptions::default()
         };
