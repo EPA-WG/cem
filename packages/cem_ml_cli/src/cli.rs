@@ -154,6 +154,19 @@ pub enum BenchFormat {
 }
 
 #[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
+pub enum ReportFormat {
+    Cem,
+    Json,
+    Md,
+}
+
+impl Default for ReportFormat {
+    fn default() -> Self {
+        Self::Cem
+    }
+}
+
+#[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
 pub enum InspectView {
     Summary,
     Ast,
@@ -356,14 +369,29 @@ pub struct ReportOptions {
     #[arg(
         long,
         value_name = "FILE-OR-DIR",
-        help = "Write JSON report to file or default name in dir"
+        help = "Write report to file or default name in dir; defaults to CEM-ML syntax"
+    )]
+    pub report: Option<PathBuf>,
+
+    #[arg(
+        long = "report-format",
+        value_enum,
+        default_value_t = ReportFormat::Cem,
+        help = "Format for --report (cem|json|md); defaults to cem"
+    )]
+    pub report_format: ReportFormat,
+
+    #[arg(
+        long,
+        value_name = "FILE-OR-DIR",
+        help = "Compatibility alias: write JSON report to file or default name in dir"
     )]
     pub report_json: Option<PathBuf>,
 
     #[arg(
         long,
         value_name = "FILE-OR-DIR",
-        help = "Write Markdown report to file or default name in dir"
+        help = "Compatibility alias: write Markdown report to file or default name in dir"
     )]
     pub report_md: Option<PathBuf>,
 }
@@ -911,6 +939,64 @@ mod tests {
                 "rejected: {fmt}"
             );
         }
+    }
+
+    #[test]
+    fn generic_report_defaults_to_cem_and_accepts_explicit_formats() {
+        let cli = try_parse(&["validate", "--report", "reports", "in.cem"]).unwrap();
+        let Command::Validate(args) = cli.command else {
+            panic!("expected validate command");
+        };
+        assert_eq!(
+            args.report.report.as_deref(),
+            Some(std::path::Path::new("reports"))
+        );
+        assert_eq!(args.report.report_format, ReportFormat::Cem);
+
+        for format in ["cem", "json", "md"] {
+            try_parse(&[
+                "validate",
+                "--report",
+                "reports",
+                "--report-format",
+                format,
+                "in.cem",
+            ])
+            .expect(format);
+        }
+        assert!(try_parse(&[
+            "validate",
+            "--report",
+            "reports",
+            "--report-format",
+            "markdown",
+            "in.cem",
+        ])
+        .is_err());
+    }
+
+    #[test]
+    fn legacy_report_aliases_remain_available() {
+        let cli = try_parse(&[
+            "parse",
+            "--report-json",
+            "report.json",
+            "--report-md",
+            "report.md",
+            "in.cem",
+        ])
+        .unwrap();
+        let Command::Parse(args) = cli.command else {
+            panic!("expected parse command");
+        };
+        assert_eq!(
+            args.report.report_json.as_deref(),
+            Some(std::path::Path::new("report.json"))
+        );
+        assert_eq!(
+            args.report.report_md.as_deref(),
+            Some(std::path::Path::new("report.md"))
+        );
     }
 
     #[test]

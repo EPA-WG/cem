@@ -10292,21 +10292,79 @@ fn write_report_target(
     )
 }
 
+fn report_format_extension(format: cli::ReportFormat) -> &'static str {
+    match format {
+        cli::ReportFormat::Cem => "cem",
+        cli::ReportFormat::Json => "json",
+        cli::ReportFormat::Md => "md",
+    }
+}
+
+fn render_report_format(report: &cem_ml::report::Report, format: cli::ReportFormat) -> String {
+    match format {
+        cli::ReportFormat::Cem => render_report_cem(report),
+        cli::ReportFormat::Json => serde_json::to_string_pretty(report).unwrap_or_default(),
+        cli::ReportFormat::Md => render_report_markdown(report),
+    }
+}
+
+fn write_report_file_for_format(
+    context: &eng::EngineContext,
+    p: &Path,
+    basename: &str,
+    report: &cem_ml::report::Report,
+    format: cli::ReportFormat,
+) -> io::Result<()> {
+    let body = render_report_format(report, format);
+    write_report_target(
+        context,
+        p,
+        basename,
+        report_format_extension(format),
+        body.as_bytes(),
+    )
+}
+
 fn write_report_files(
     context: &eng::EngineContext,
     report: &cem_ml::report::Report,
     report_opts: &cli::ReportOptions,
     basename: &str,
 ) -> io::Result<()> {
-    if let Some(p) = &report_opts.report_json {
-        let body = serde_json::to_string_pretty(report)?;
-        write_report_target(context, p, basename, "json", body.as_bytes())?;
+    if let Some(p) = report_opts.report.as_deref() {
+        write_report_file_for_format(context, p, basename, report, report_opts.report_format)?;
     }
-    if let Some(p) = &report_opts.report_md {
-        let body = render_report_markdown(report);
-        write_report_target(context, p, basename, "md", body.as_bytes())?;
+    if let Some(p) = report_opts.report_json.as_deref() {
+        write_report_file_for_format(context, p, basename, report, cli::ReportFormat::Json)?;
+    }
+    if let Some(p) = report_opts.report_md.as_deref() {
+        write_report_file_for_format(context, p, basename, report, cli::ReportFormat::Md)?;
     }
     Ok(())
+}
+
+fn render_benchmark_report_format(body: &serde_json::Value, format: cli::ReportFormat) -> String {
+    match format {
+        cli::ReportFormat::Cem => render_benchmark_report_cem(body),
+        cli::ReportFormat::Json => serde_json::to_string_pretty(body).unwrap_or_default(),
+        cli::ReportFormat::Md => render_benchmark_report_markdown(body),
+    }
+}
+
+fn write_benchmark_report_file_for_format(
+    context: &eng::EngineContext,
+    p: &Path,
+    body: &serde_json::Value,
+    format: cli::ReportFormat,
+) -> io::Result<()> {
+    let body = render_benchmark_report_format(body, format);
+    write_report_target(
+        context,
+        p,
+        REPORT_BASENAME_BENCH,
+        report_format_extension(format),
+        body.as_bytes(),
+    )
 }
 
 fn write_benchmark_report_files(
@@ -10314,19 +10372,22 @@ fn write_benchmark_report_files(
     body: &serde_json::Value,
     report_opts: &cli::ReportOptions,
 ) -> io::Result<()> {
-    if let Some(p) = &report_opts.report_json {
-        let body = serde_json::to_string_pretty(body)?;
-        write_report_target(context, p, REPORT_BASENAME_BENCH, "json", body.as_bytes())?;
+    if let Some(p) = report_opts.report.as_deref() {
+        write_benchmark_report_file_for_format(context, p, body, report_opts.report_format)?;
     }
-    if let Some(p) = &report_opts.report_md {
-        let body = render_benchmark_report_markdown(body);
-        write_report_target(context, p, REPORT_BASENAME_BENCH, "md", body.as_bytes())?;
+    if let Some(p) = report_opts.report_json.as_deref() {
+        write_benchmark_report_file_for_format(context, p, body, cli::ReportFormat::Json)?;
+    }
+    if let Some(p) = report_opts.report_md.as_deref() {
+        write_benchmark_report_file_for_format(context, p, body, cli::ReportFormat::Md)?;
     }
     Ok(())
 }
 
 fn report_requested(report_opts: &cli::ReportOptions) -> bool {
-    report_opts.report_json.is_some() || report_opts.report_md.is_some()
+    report_opts.report.is_some()
+        || report_opts.report_json.is_some()
+        || report_opts.report_md.is_some()
 }
 
 fn report_options_snapshot(
@@ -10712,6 +10773,277 @@ fn transform_graph_report_from_artifacts(
     }
 }
 
+fn cem_indent(out: &mut String, indent: usize) {
+    for _ in 0..indent {
+        out.push_str("  ");
+    }
+}
+
+fn cem_escape_attr(value: &str) -> String {
+    let mut escaped = String::new();
+    for ch in value.chars() {
+        match ch {
+            '\\' => escaped.push_str("\\\\"),
+            '"' => escaped.push_str("\\\""),
+            '\n' => escaped.push_str("\\n"),
+            '\r' => escaped.push_str("\\r"),
+            '\t' => escaped.push_str("\\t"),
+            _ => escaped.push(ch),
+        }
+    }
+    escaped
+}
+
+fn cem_attr(out: &mut String, name: &str, value: &str) {
+    out.push_str(" @");
+    out.push_str(name);
+    out.push_str("=\"");
+    out.push_str(&cem_escape_attr(value));
+    out.push('"');
+}
+
+fn cem_attr_opt(out: &mut String, name: &str, value: Option<&str>) {
+    if let Some(value) = value {
+        cem_attr(out, name, value);
+    }
+}
+
+fn cem_attr_u64(out: &mut String, name: &str, value: u64) {
+    out.push_str(" @");
+    out.push_str(name);
+    out.push('=');
+    out.push_str(&value.to_string());
+}
+
+fn cem_attr_bool(out: &mut String, name: &str, value: bool) {
+    out.push_str(" @");
+    out.push_str(name);
+    out.push('=');
+    out.push_str(if value { "true" } else { "false" });
+}
+
+fn cem_element_start(out: &mut String, indent: usize, name: &str) {
+    cem_indent(out, indent);
+    out.push('{');
+    out.push_str(name);
+}
+
+fn engine_fail_level_label(level: eng::FailLevel) -> &'static str {
+    match level {
+        eng::FailLevel::Parse => "parse",
+        eng::FailLevel::Validate => "validate",
+        eng::FailLevel::Strict => "strict",
+    }
+}
+
+fn scheduler_event_kind_label(kind: cem_ml::scheduler::trace::SchedulerEventKind) -> &'static str {
+    use cem_ml::scheduler::trace::SchedulerEventKind::*;
+    match kind {
+        Enqueue => "enqueue",
+        Dispatch => "dispatch",
+        Finish => "finish",
+        Abort => "abort",
+        Overflow => "overflow",
+        IoAcquire => "io-acquire",
+        IoRelease => "io-release",
+    }
+}
+
+fn render_report_cem(report: &cem_ml::report::Report) -> String {
+    let mut out = String::new();
+    out.push_str("@doc cem-ml 1\n");
+    cem_element_start(&mut out, 0, "report");
+    cem_attr(&mut out, "generated-at", &report.generated_at);
+    out.push_str(" |\n");
+
+    cem_element_start(&mut out, 1, "inputs");
+    cem_attr_u64(&mut out, "count", report.inputs.len() as u64);
+    out.push_str(" |\n");
+    for input in &report.inputs {
+        cem_element_start(&mut out, 2, "input");
+        cem_attr(&mut out, "uri", input);
+        out.push_str("}\n");
+    }
+    cem_indent(&mut out, 1);
+    out.push_str("}\n");
+
+    cem_element_start(&mut out, 1, "summary");
+    cem_attr_u64(&mut out, "input-count", report.summary.input_count as u64);
+    cem_attr_u64(&mut out, "info-count", report.summary.info_count as u64);
+    cem_attr_u64(
+        &mut out,
+        "warning-count",
+        report.summary.warning_count as u64,
+    );
+    cem_attr_u64(&mut out, "error-count", report.summary.error_count as u64);
+    cem_attr_u64(&mut out, "fatal-count", report.summary.fatal_count as u64);
+    cem_attr_u64(
+        &mut out,
+        "hard-violation-count",
+        report.summary.hard_violation_count as u64,
+    );
+    out.push_str("}\n");
+
+    cem_element_start(&mut out, 1, "options");
+    cem_attr(
+        &mut out,
+        "fail-level",
+        engine_fail_level_label(report.options.fail_level),
+    );
+    cem_attr_opt(&mut out, "schema", report.options.schema.as_deref());
+    cem_attr_opt(
+        &mut out,
+        "content-type",
+        report.options.content_type.as_deref(),
+    );
+    cem_attr_opt(&mut out, "base-uri", report.options.base_uri.as_deref());
+    out.push_str("}\n");
+
+    cem_element_start(&mut out, 1, "diagnostics");
+    cem_attr_u64(&mut out, "count", report.diagnostics.len() as u64);
+    out.push_str(" |\n");
+    for diagnostic in &report.diagnostics {
+        cem_element_start(&mut out, 2, "diagnostic");
+        cem_attr(&mut out, "code", &diagnostic.code);
+        cem_attr(&mut out, "severity", severity_label(diagnostic.severity));
+        cem_attr(&mut out, "message", &diagnostic.message);
+        cem_attr_opt(&mut out, "uri", diagnostic.uri.as_deref());
+        if let Some(line) = diagnostic.line {
+            cem_attr_u64(&mut out, "line", line as u64);
+        }
+        if let Some(column) = diagnostic.column {
+            cem_attr_u64(&mut out, "column", column as u64);
+        }
+        if let Some(byte_offset) = diagnostic.byte_offset {
+            cem_attr_u64(&mut out, "byte-offset", byte_offset);
+        }
+        cem_attr_opt(&mut out, "node", diagnostic.node.as_deref());
+        if diagnostic.source_map.is_some() {
+            cem_attr_bool(&mut out, "has-source-map", true);
+        }
+        out.push_str("}\n");
+    }
+    cem_indent(&mut out, 1);
+    out.push_str("}\n");
+
+    cem_element_start(&mut out, 1, "report-ast");
+    out.push_str(" |\n");
+    render_scheduler_trace_cem(&mut out, 2, &report.report_ast.scheduler_trace);
+    if let Some(convert) = &report.report_ast.convert {
+        render_convert_report_cem(&mut out, 2, convert);
+    }
+    if let Some(transform) = &report.report_ast.transform {
+        render_transform_report_cem(&mut out, 2, transform);
+    }
+    if let Some(transform_graph) = &report.report_ast.transform_graph {
+        render_transform_graph_report_cem(&mut out, 2, transform_graph);
+    }
+    cem_indent(&mut out, 1);
+    out.push_str("}\n");
+
+    out.push_str("}\n");
+    out
+}
+
+fn render_scheduler_trace_cem(
+    out: &mut String,
+    indent: usize,
+    trace: &cem_ml::report::SchedulerTraceReport,
+) {
+    cem_element_start(out, indent, "scheduler-trace");
+    cem_attr_u64(out, "event-count", trace.event_count);
+    out.push_str(" |\n");
+    for event in &trace.events {
+        cem_element_start(out, indent + 1, "event");
+        cem_attr_u64(out, "sequence", event.sequence);
+        cem_attr_u64(out, "scope-id", event.scope_id as u64);
+        cem_attr(out, "kind", scheduler_event_kind_label(event.kind));
+        cem_attr(out, "task", &event.task);
+        out.push_str("}\n");
+    }
+    cem_indent(out, indent);
+    out.push_str("}\n");
+}
+
+fn render_convert_report_cem(
+    out: &mut String,
+    indent: usize,
+    convert: &cem_ml::report::ConvertReport,
+) {
+    cem_element_start(out, indent, "convert");
+    cem_attr_u64(out, "output-count", convert.output_count);
+    out.push_str(" |\n");
+    for output in &convert.outputs {
+        cem_element_start(out, indent + 1, "output");
+        cem_attr(out, "input", &output.input);
+        cem_attr_opt(out, "destination", output.destination.as_deref());
+        cem_attr_opt(out, "content-type", output.content_type.as_deref());
+        cem_attr_opt(out, "schema", output.schema.as_deref());
+        cem_attr(out, "output-kind", &output.output_kind);
+        out.push_str("}\n");
+    }
+    cem_indent(out, indent);
+    out.push_str("}\n");
+}
+
+fn render_transform_report_cem(
+    out: &mut String,
+    indent: usize,
+    transform: &cem_ml::report::TransformReport,
+) {
+    cem_element_start(out, indent, "transform");
+    cem_attr(out, "input", &transform.input);
+    cem_attr_opt(out, "destination", transform.destination.as_deref());
+    cem_attr(out, "output-kind", &transform.output_kind);
+    cem_attr_bool(out, "has-source-map", transform.has_source_map);
+    cem_attr_u64(out, "output-span-count", transform.output_span_count);
+    cem_attr_opt(out, "source-map-ref", transform.source_map_ref.as_deref());
+    out.push_str("}\n");
+}
+
+fn render_transform_graph_report_cem(
+    out: &mut String,
+    indent: usize,
+    transform_graph: &cem_ml::report::TransformGraphReport,
+) {
+    cem_element_start(out, indent, "transform-graph");
+    cem_attr_u64(out, "export-count", transform_graph.export_count);
+    out.push_str(" |\n");
+    for export in &transform_graph.exports {
+        cem_element_start(out, indent + 1, "export");
+        cem_attr(out, "export-id", &export.export_id);
+        cem_attr(out, "input", &export.input);
+        cem_attr_opt(out, "destination", export.destination.as_deref());
+        cem_attr_opt(out, "content-type", export.content_type.as_deref());
+        cem_attr_opt(out, "schema", export.schema.as_deref());
+        cem_attr(out, "output-kind", &export.output_kind);
+        cem_attr_bool(out, "has-source-map", export.has_source_map);
+        cem_attr_u64(out, "output-span-count", export.output_span_count);
+        cem_attr_opt(out, "source-map-ref", export.source_map_ref.as_deref());
+        if export.collection_items.is_empty() {
+            out.push_str("}\n");
+        } else {
+            out.push_str(" |\n");
+            for item in &export.collection_items {
+                cem_element_start(out, indent + 2, "collection-item");
+                cem_attr(out, "input", &item.input);
+                cem_attr(out, "artifact-id", &item.artifact_id);
+                cem_attr_opt(out, "uri", item.uri.as_deref());
+                cem_attr_opt(out, "destination", item.destination.as_deref());
+                cem_attr_opt(out, "content-type", item.content_type.as_deref());
+                cem_attr_opt(out, "schema", item.schema.as_deref());
+                cem_attr_bool(out, "has-source-map", item.has_source_map);
+                cem_attr_u64(out, "output-span-count", item.output_span_count);
+                out.push_str("}\n");
+            }
+            cem_indent(out, indent + 1);
+            out.push_str("}\n");
+        }
+    }
+    cem_indent(out, indent);
+    out.push_str("}\n");
+}
+
 fn render_report_markdown(report: &cem_ml::report::Report) -> String {
     let mut out = String::new();
     out.push_str("# cem-ml report\n\n");
@@ -10869,6 +11201,65 @@ fn render_source_map_summary(
 fn render_benchmark_report_markdown(body: &serde_json::Value) -> String {
     let body = serde_json::to_string_pretty(body).unwrap_or_default();
     format!("# cem-ml benchmark report\n\n```json\n{body}\n```\n")
+}
+
+fn render_benchmark_report_cem(body: &serde_json::Value) -> String {
+    let mut out = String::new();
+    out.push_str("@doc cem-ml 1\n");
+    cem_element_start(&mut out, 0, "benchmark-report");
+    out.push_str(" |\n");
+    render_json_value_cem(&mut out, 1, body);
+    out.push_str("}\n");
+    out
+}
+
+fn render_json_value_cem(out: &mut String, indent: usize, value: &serde_json::Value) {
+    match value {
+        serde_json::Value::Null => {
+            cem_element_start(out, indent, "json-null");
+            out.push_str("}\n");
+        }
+        serde_json::Value::Bool(value) => {
+            cem_element_start(out, indent, "json-boolean");
+            cem_attr_bool(out, "value", *value);
+            out.push_str("}\n");
+        }
+        serde_json::Value::Number(value) => {
+            cem_element_start(out, indent, "json-number");
+            cem_attr(out, "value", &value.to_string());
+            out.push_str("}\n");
+        }
+        serde_json::Value::String(value) => {
+            cem_element_start(out, indent, "json-string");
+            cem_attr(out, "value", value);
+            out.push_str("}\n");
+        }
+        serde_json::Value::Array(values) => {
+            cem_element_start(out, indent, "json-array");
+            cem_attr_u64(out, "count", values.len() as u64);
+            out.push_str(" |\n");
+            for value in values {
+                render_json_value_cem(out, indent + 1, value);
+            }
+            cem_indent(out, indent);
+            out.push_str("}\n");
+        }
+        serde_json::Value::Object(fields) => {
+            cem_element_start(out, indent, "json-object");
+            cem_attr_u64(out, "count", fields.len() as u64);
+            out.push_str(" |\n");
+            for (name, value) in fields {
+                cem_element_start(out, indent + 1, "field");
+                cem_attr(out, "name", name);
+                out.push_str(" |\n");
+                render_json_value_cem(out, indent + 2, value);
+                cem_indent(out, indent + 1);
+                out.push_str("}\n");
+            }
+            cem_indent(out, indent);
+            out.push_str("}\n");
+        }
+    }
 }
 
 fn fail_for_summary(fail_level: cli::FailLevel, report: &cem_ml::report::Report) -> bool {
@@ -12435,6 +12826,18 @@ mod tests {
         let tokenizer = cem_ml::tokenizer::cem::CemTokenizer::from_source(source);
         let normalizer = cem_ml::events::cem::CemEventNormalizer::new(tokenizer);
         cem_ml::parser::builder::CemAstBuilder::new(normalizer).build()
+    }
+
+    fn assert_cem_source_has_no_hard_diagnostics(input: &str) {
+        let document = test_cem_document(input);
+        assert!(
+            document
+                .diagnostics
+                .iter()
+                .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
+            "{:?}",
+            document.diagnostics
+        );
     }
 
     fn local_file_uri(path: &Path) -> String {
@@ -15424,6 +15827,62 @@ mod tests {
         let markdown = std::fs::read_to_string(markdown_path).unwrap();
         assert!(markdown.contains("# cem-ml report"));
         assert!(markdown.contains("- info: 1"));
+    }
+
+    #[test]
+    fn parse_generic_report_defaults_to_cem() {
+        let p = write_fixture("parse-generic-report-cem.cem", "{x}");
+        let report_dir = std::env::temp_dir().join("cem-ml-cli-tests/parse-generic-report-cem");
+        let _ = std::fs::remove_dir_all(&report_dir);
+        let (outcome, stdout, stderr) = run(
+            &FakeEngine,
+            &[
+                "parse",
+                "--report",
+                report_dir.to_str().unwrap(),
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let primary: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(primary["kind"], "fake-parse");
+        let report_path = report_dir.join("cem-ml.report.cem");
+        assert!(report_path.is_file());
+        assert!(!report_dir.join("cem-ml.report.json").exists());
+        assert!(!report_dir.join("cem-ml.report.md").exists());
+        let report = std::fs::read_to_string(report_path).unwrap();
+        assert!(serde_json::from_str::<serde_json::Value>(&report).is_err());
+        assert_cem_source_has_no_hard_diagnostics(&report);
+        assert!(report.starts_with("@doc cem-ml 1\n{report"));
+        assert!(report.contains("{summary @input-count=1"));
+        assert!(report.contains("{diagnostic @code=\"fake.engine.placeholder\""));
+    }
+
+    #[test]
+    fn parse_generic_report_format_json_writes_json_projection() {
+        let p = write_fixture("parse-generic-report-json.cem", "{x}");
+        let report_dir = std::env::temp_dir().join("cem-ml-cli-tests/parse-generic-report-json");
+        let _ = std::fs::remove_dir_all(&report_dir);
+        let (outcome, _, stderr) = run(
+            &FakeEngine,
+            &[
+                "parse",
+                "--report",
+                report_dir.to_str().unwrap(),
+                "--report-format",
+                "json",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let report_path = report_dir.join("cem-ml.report.json");
+        assert!(report_path.is_file());
+        let report: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(report_path).unwrap()).unwrap();
+        assert_eq!(report["summary"]["inputCount"], 1);
+        assert!(report["reportAst"]["schedulerTrace"]["events"].is_array());
     }
 
     #[test]
@@ -20958,6 +21417,43 @@ start =
     }
 
     #[test]
+    fn convert_generic_report_defaults_to_cem() {
+        let input = write_fixture("convert-generic-report-input.cem", "{p Hi}");
+        let out_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-generic-report-output.cem");
+        let report_dir = std::env::temp_dir().join("cem-ml-cli-tests/convert-generic-report");
+        let _ = std::fs::remove_file(&out_path);
+        let _ = std::fs::remove_dir_all(&report_dir);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--out",
+                out_path.to_str().unwrap(),
+                "--report",
+                report_dir.to_str().unwrap(),
+                input.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty());
+        assert!(out_path.is_file());
+        let report_path = report_dir.join("cem-ml.convert.report.cem");
+        assert!(report_path.is_file());
+        let report = std::fs::read_to_string(report_path).unwrap();
+        assert!(serde_json::from_str::<serde_json::Value>(&report).is_err());
+        assert_cem_source_has_no_hard_diagnostics(&report);
+        assert!(report.starts_with("@doc cem-ml 1\n{report"));
+        assert!(report.contains("{convert @output-count=1"));
+        assert!(report.contains(&format!(
+            "@destination=\"{}\"",
+            cem_escape_attr(&out_path.display().to_string())
+        )));
+        assert!(report.contains("@output-kind=\"document\""));
+    }
+
+    #[test]
     fn convert_file_uri_out_destination_writes_local_output() {
         let input = write_fixture("convert-file-uri-out.cem", "{p Hi}");
         let out_path = std::env::temp_dir().join("cem-ml-cli-tests/convert-file-uri-out.json");
@@ -24595,6 +25091,34 @@ start =
         let markdown = std::fs::read_to_string(dir.join("cem-ml.bench.report.md")).unwrap();
         assert!(markdown.contains("# cem-ml benchmark report"));
         assert!(markdown.contains("\"kind\": \"fake-bench\""));
+    }
+
+    #[test]
+    fn bench_generic_report_defaults_to_cem() {
+        let p = write_fixture("bench-generic-report.cem", "{x}");
+        let dir = std::env::temp_dir().join("cem-ml-cli-tests/bench-generic-report");
+        let _ = std::fs::remove_dir_all(&dir);
+        let (outcome, _, stderr) = run(
+            &FakeEngine,
+            &[
+                "bench",
+                "--format",
+                "json",
+                "--report",
+                dir.to_str().unwrap(),
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let report_path = dir.join("cem-ml.bench.report.cem");
+        assert!(report_path.is_file(), "missing bench.report.cem");
+        let report = std::fs::read_to_string(report_path).unwrap();
+        assert!(serde_json::from_str::<serde_json::Value>(&report).is_err());
+        assert_cem_source_has_no_hard_diagnostics(&report);
+        assert!(report.starts_with("@doc cem-ml 1\n{benchmark-report"));
+        assert!(report.contains("{field @name=\"kind\""));
+        assert!(report.contains("{json-string @value=\"fake-bench\""));
     }
 
     #[test]

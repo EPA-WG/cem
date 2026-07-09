@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cem.dev/schema/cli/report.schema.json",
-  "title": "CEM-ML CLI Report",
-  "description": "Canonical JSON report emitted by CEM-ML CLI report projections. This schema covers the stable report tree used by JSON and Markdown renderers, including scheduler trace, convert, single-transform, and transform-graph projections.",
+  "title": "CEM-ML CLI JSON Report Projection",
+  "description": "Explicit JSON projection of the CEM-ML CLI report tree. CEM-ML syntax is the default report format; this schema applies only when report output is explicitly requested as JSON.",
   "type": "object",
   "additionalProperties": false,
   "required": ["generatedAt", "inputs", "summary", "options", "diagnostics", "reportAst"],

@@ -747,8 +747,8 @@ I/O messages, but they must not replace the underlying resolver code or URI.
   ```
 
   It also accepts `--data-schema`, `--template-schema`, `--template-entrypoint`, repeatable
-  `--param NAME=VALUE`, `--to-schema`, shared context options, and
-  `--report-json` / `--report-md`. The current CLI runtime executes the one-to-one CEM-native path and CEM-ML
+  `--param NAME=VALUE`, `--to-schema`, shared context options, `--report`, `--report-format`, and
+  compatibility aliases `--report-json` / `--report-md`. The current CLI runtime executes the one-to-one CEM-native path and CEM-ML
   `--config` graph dispatch for concrete paths plus local and resolver-backed filename import globs, optional `**`
   recursive import glob segments, source-derived output bindings, explicit `join @mode="collect"` aggregation, and
   source-binding `join @mode="group-by" @by="..."` aggregation, and same-binding
@@ -762,7 +762,8 @@ I/O messages, but they must not replace the underlying resolver code or URI.
 - Output format selection for CEM-native, XML, JSON, text, HTML, Markdown, DOM JSON debug view, AST, events, CEM binary projections, and
   tree-shaped output where relevant.
 - Output destination handling for stdout and `--out`.
-- Report destinations for JSON and Markdown reports, including directory destinations with default filenames.
+- Report destinations for default CEM-ML reports plus explicit JSON and Markdown projections, including directory
+  destinations with default filenames.
 - Schema, content-type, namespace, and base-URI option plumbing even before full
   schema resolution exists.
 - Quiet, verbose, and no-color terminal behavior.
@@ -794,9 +795,11 @@ Reports are rendered from the canonical AST-associated report tree. Report event
 - source-map stack at event time
 - visible partial DOM/AST hierarchy at event time
 
-Reports keep deterministic field names:
+Reports default to CEM-ML syntax. JSON is an explicit report projection selected with
+`--report-format json` or the compatibility alias `--report-json`; Markdown is selected with
+`--report-format md` or `--report-md`. The JSON projection keeps deterministic field names:
 
-The checked-in JSON Schema for this report shape is
+The checked-in JSON Schema for this explicit JSON projection is
 `packages/cem_ml/schema/cli/report.schema.json`
 (`https://cem.dev/schema/cli/report.schema.json`). The schema is copied to
 `packages/cem_ml/dist/cli/report.schema.json` by `cem_ml:build:docs`, and
@@ -883,19 +886,17 @@ The deterministic default timestamp for feature tests is `1970-01-01T00:00:00.00
 
 ## Report Ownership
 
-- Fixture validation JSON: `packages/cem_ml_cli/dist/cem-ml.report.json`
-- Fixture validation Markdown: `packages/cem_ml_cli/dist/cem-ml.report.md`
-- Parse JSON (`cem-ml parse`): `packages/cem_ml_cli/dist/cem-ml.report.json`
-- Parse Markdown (`cem-ml parse`): `packages/cem_ml_cli/dist/cem-ml.report.md`
-- Convert JSON (`cem-ml convert`): `packages/cem_ml_cli/dist/cem-ml.convert.report.json`
-- Convert Markdown (`cem-ml convert`): `packages/cem_ml_cli/dist/cem-ml.convert.report.md`
-- Fixture roundtrip JSON: `packages/cem_ml_cli/dist/cem-ml.roundtrip.report.json`
-- Fixture roundtrip Markdown: `packages/cem_ml_cli/dist/cem-ml.roundtrip.report.md`
-- Benchmark JSON (`cem-ml bench`): `packages/cem_ml_cli/dist/cem-ml.bench.report.json`
-- Benchmark Markdown (`cem-ml bench`): `packages/cem_ml_cli/dist/cem-ml.bench.report.md`
+- Fixture validation default CEM-ML: `packages/cem_ml_cli/dist/cem-ml.report.cem`
+- Parse default CEM-ML (`cem-ml parse`): `packages/cem_ml_cli/dist/cem-ml.report.cem`
+- Convert default CEM-ML (`cem-ml convert`): `packages/cem_ml_cli/dist/cem-ml.convert.report.cem`
+- Transform default CEM-ML (`cem-ml transform`): `packages/cem_ml_cli/dist/cem-ml.transform.report.cem`
+- Fixture roundtrip default CEM-ML: `packages/cem_ml_cli/dist/cem-ml.roundtrip.report.cem`
+- Benchmark default CEM-ML (`cem-ml bench`): `packages/cem_ml_cli/dist/cem-ml.bench.report.cem`
+- Explicit JSON replaces the extension with `.json`, e.g. `--report-format json` or `--report-json`.
+- Explicit Markdown replaces the extension with `.md`, e.g. `--report-format md` or `--report-md`.
 
-JSON, XML, and CEM-native reports are structured projections. Text, Markdown, and HTML
-reports are reference-implementation convenience projections.
+CEM-ML reports are the primary structured projection. JSON is a machine-validation projection covered by
+`report.schema.json`. Text, Markdown, and HTML reports are reference-implementation convenience projections.
 
 ## Exit Codes
 
