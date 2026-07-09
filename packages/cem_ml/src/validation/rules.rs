@@ -16,8 +16,11 @@
 //! - `UnsafeInlineContentRule`: inline script/srcdoc/external-DTD hooks.
 //! - `EventHandlerAttributeRule`: `on*` event handler attributes.
 
+use crate::conversion::DomProjectionParityCemtAdapter;
 use crate::diagnostics::{Diagnostic, Severity};
-use crate::engine::{FormatIdentity, TemplateInput};
+use crate::engine::{
+    FormatIdentity, TemplateInput, TransformExecutionPolicy, TransformTemplateEntrypoint,
+};
 use crate::parser::{AstNodeId, CemAstNode};
 use crate::resolver::{has_uri_scheme, is_windows_drive_path, parse_local_file_uri};
 use crate::run_config::ScopeConfig;
@@ -33,13 +36,15 @@ use crate::schema::registry::{
 use crate::source_map::FrameSpan;
 use crate::transform_template::{
     parse_cem_native_template_module_options,
-    validate_transform_template_artifact_function_contract,
+    validate_transform_template_artifact_function_contract, TransformTemplateAdapter,
     TransformTemplateArtifactFunctionContract, TransformTemplateArtifactFunctionContractMismatch,
-    TransformTemplateModuleParseRequest,
+    TransformTemplateCompileRequest, TransformTemplateModuleOptions,
+    TransformTemplateModuleParseRequest, TransformTemplateModulePreflight,
 };
 use crate::validation::{
     RuleContext, RuleDescriptor, RuleId, RuleInput, RuleResourceRead, SemanticRule, TriggerLayer,
 };
+use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
 
 fn diag_at(code: &str, severity: Severity, message: String, node: &CemAstNode) -> Diagnostic {
@@ -1155,7 +1160,7 @@ impl SemanticRule for SchemaPackageConverterContractRule {
         for node in ctx.document.iter() {
             match element_local_name(node) {
                 Some("converter") => {
-                    validate_schema_package_converter(ctx.document, node, &registry, &mut out);
+                    validate_schema_package_converter(ctx, node, &registry, &mut out)
                 }
                 Some("artifact") => validate_schema_package_artifact(ctx, node, &mut out),
                 _ => {}
@@ -1166,11 +1171,12 @@ impl SemanticRule for SchemaPackageConverterContractRule {
 }
 
 fn validate_schema_package_converter(
-    doc: &crate::parser::document::CemDocument,
+    ctx: &RuleContext<'_>,
     node: &CemAstNode,
     registry: &SchemaRegistry,
     out: &mut Vec<Diagnostic>,
 ) {
+    let doc = ctx.document;
     let converter_id = attr_value(doc, node, "id")
         .map(str::trim)
         .filter(|value| !value.is_empty())
@@ -1180,7 +1186,7 @@ fn validate_schema_package_converter(
         .map(str::trim)
         .filter(|value| !value.is_empty())
     {
-        Some("cemt") => validate_cemt_converter_contract(doc, node, converter_id, out),
+        Some("cemt") => validate_cemt_converter_contract(ctx, node, converter_id, out),
         Some("rust") => validate_rust_converter_contract(doc, node, converter_id, out),
         Some(implementation) => out.push(diag_at(
             "cem.schema_package.converter_implementation_unknown",
@@ -1218,12 +1224,16 @@ fn validate_schema_package_converter(
 }
 
 fn validate_cemt_converter_contract(
-    doc: &crate::parser::document::CemDocument,
+    ctx: &RuleContext<'_>,
     node: &CemAstNode,
     converter_id: &str,
     out: &mut Vec<Diagnostic>,
 ) {
-    if !has_manifest_attr(doc, node, "template") {
+    let doc = ctx.document;
+    let template_path = attr_value(doc, node, "template")
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if template_path.is_none() {
         out.push(diag_at(
             "cem.schema_package.converter_template_missing",
             Severity::Error,
@@ -1232,7 +1242,9 @@ fn validate_cemt_converter_contract(
         ));
     }
 
-    let Some(template_content_type) = attr_value(doc, node, "template-content-type").map(str::trim)
+    let Some(template_content_type) = attr_value(doc, node, "template-content-type")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
     else {
         out.push(diag_at(
             "cem.schema_package.converter_template_content_type_missing",
@@ -1242,7 +1254,9 @@ fn validate_cemt_converter_contract(
         ));
         return;
     };
-    if content_type_essence(template_content_type) != CEM_TRANSFORM_CONTENT_TYPE {
+    let template_content_type_valid =
+        content_type_essence(template_content_type) == CEM_TRANSFORM_CONTENT_TYPE;
+    if !template_content_type_valid {
         out.push(diag_at(
             "cem.schema_package.converter_template_content_type_mismatch",
             Severity::Error,
@@ -1253,20 +1267,31 @@ fn validate_cemt_converter_contract(
         ));
     }
 
-    if let Some(template_schema) = attr_value(doc, node, "template-schema")
+    let claims_formatter_coloring_pipeline =
+        cemt_converter_claims_formatter_coloring_output_pipeline(doc, node);
+    let template_schema = attr_value(doc, node, "template-schema")
         .map(str::trim)
-        .filter(|value| !value.is_empty())
-    {
-        if template_schema != CEM_TRANSFORM_SCHEMA_URI {
-            out.push(diag_at(
-                "cem.schema_package.converter_template_schema_mismatch",
-                Severity::Error,
-                format!(
-                    "CEMT converter `{converter_id}` template schema `{template_schema}` must be `{CEM_TRANSFORM_SCHEMA_URI}`"
-                ),
+        .filter(|value| !value.is_empty());
+    let mut template_schema_valid = true;
+    if let Some(template_schema) = template_schema {
+        template_schema_valid = template_schema == CEM_TRANSFORM_SCHEMA_URI;
+        if !template_schema_valid {
+            out.push(cemt_converter_template_schema_mismatch_diag(
                 node,
+                converter_id,
+                template_schema,
             ));
         }
+    } else if claims_formatter_coloring_pipeline {
+        template_schema_valid = false;
+        out.push(diag_at(
+            "cem.schema_package.converter_template_schema_missing",
+            Severity::Error,
+            format!(
+                "CEMT converter `{converter_id}` with a formatter/coloring output pipeline must declare `template-schema=\"{CEM_TRANSFORM_SCHEMA_URI}\"`"
+            ),
+            node,
+        ));
     }
 
     if has_manifest_attr(doc, node, "rust-symbol")
@@ -1284,6 +1309,200 @@ fn validate_cemt_converter_contract(
             node,
         ));
     }
+
+    if claims_formatter_coloring_pipeline && template_content_type_valid && template_schema_valid {
+        validate_cemt_converter_template_source_contract(
+            ctx,
+            node,
+            converter_id,
+            template_path,
+            template_content_type,
+            template_schema,
+            out,
+        );
+    }
+}
+
+fn cemt_converter_claims_formatter_coloring_output_pipeline(
+    doc: &crate::parser::document::CemDocument,
+    node: &CemAstNode,
+) -> bool {
+    attr_value(doc, node, "output-syntax")
+        .map(str::trim)
+        .is_some_and(|value| !value.is_empty())
+        && attr_value(doc, node, "encoding-category")
+            .map(str::trim)
+            .is_some_and(|value| !value.is_empty())
+        && (attr_value(doc, node, "formatter-profile")
+            .map(str::trim)
+            .is_some_and(|value| !value.is_empty())
+            || attr_value(doc, node, "color-profile")
+                .map(str::trim)
+                .is_some_and(|value| !value.is_empty()))
+        && element_child_ids_by_local_name(doc, node, "to")
+            .into_iter()
+            .filter_map(|endpoint_id| doc.get(endpoint_id))
+            .any(|endpoint| {
+                attr_value(doc, endpoint, "schema")
+                    .map(str::trim)
+                    .is_some_and(|value| !value.is_empty())
+            })
+}
+
+fn validate_cemt_converter_template_source_contract(
+    ctx: &RuleContext<'_>,
+    node: &CemAstNode,
+    converter_id: &str,
+    template_path: Option<&str>,
+    template_content_type: &str,
+    template_schema: Option<&str>,
+    out: &mut Vec<Diagnostic>,
+) {
+    let Some(template_path) = template_path else {
+        return;
+    };
+    let Some(source) =
+        read_schema_package_converter_template_source(ctx, node, template_path, converter_id, out)
+    else {
+        return;
+    };
+
+    let template_input = TemplateInput {
+        uri: source.uri,
+        bytes: source.bytes,
+        identity: Some(FormatIdentity {
+            content_type: Some(content_type_essence(template_content_type)),
+            schema: template_schema.map(str::to_owned),
+            ..FormatIdentity::default()
+        }),
+        root_scope: ScopeConfig::default(),
+    };
+    let entrypoint = attr_value(ctx.document, node, "template-entrypoint")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(TransformTemplateEntrypoint::named)
+        .unwrap_or_else(TransformTemplateEntrypoint::implicit);
+    let params = BTreeMap::new();
+    let data_bindings = vec!["input".to_owned()];
+    let adapter = DomProjectionParityCemtAdapter;
+    let compile_response = match adapter.compile(TransformTemplateCompileRequest {
+        template: &template_input,
+        entrypoint: &entrypoint,
+        params: &params,
+        data_bindings: &data_bindings,
+        module_options: TransformTemplateModuleOptions::default(),
+        module_preflight: TransformTemplateModulePreflight::default(),
+        execution_policy: TransformExecutionPolicy::default(),
+    }) {
+        Ok(response) => response,
+        Err(error) => {
+            out.push(diag_at(
+                "cem.schema_package.converter_template_contract_invalid",
+                Severity::Error,
+                format!(
+                    "CEMT converter `{converter_id}` formatter/coloring output pipeline requires a template that can render a formatted CEM tree before the writer: {error}"
+                ),
+                node,
+            ));
+            return;
+        }
+    };
+
+    if let Some(diagnostic) = compile_response
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        out.push(diag_at(
+            "cem.schema_package.converter_template_contract_invalid",
+            Severity::Error,
+            format!(
+                "CEMT converter `{converter_id}` formatter/coloring output pipeline template compile emitted hard diagnostic `{}`",
+                diagnostic.code
+            ),
+            node,
+        ));
+    }
+}
+
+fn read_schema_package_converter_template_source(
+    ctx: &RuleContext<'_>,
+    node: &CemAstNode,
+    template_path: &str,
+    converter_id: &str,
+    out: &mut Vec<Diagnostic>,
+) -> Option<RuleResourceRead> {
+    if let Some(source_path) = resolve_schema_package_resource_path(ctx.source_uri, template_path) {
+        return match std::fs::read(&source_path) {
+            Ok(bytes) => Some(RuleResourceRead {
+                uri: source_path.display().to_string(),
+                bytes,
+                content_type: attr_value(ctx.document, node, "template-content-type")
+                    .map(str::to_owned),
+            }),
+            Err(error) => {
+                out.push(schema_package_converter_template_source_unreadable_diag(
+                    node,
+                    template_path,
+                    converter_id,
+                    error.to_string(),
+                ));
+                None
+            }
+        };
+    }
+
+    let Some(resource_reader) = ctx.resource_reader else {
+        return None;
+    };
+    match resource_reader(
+        template_path,
+        ctx.source_uri,
+        attr_value(ctx.document, node, "template-content-type"),
+    ) {
+        Ok(source) => Some(source),
+        Err(error) => {
+            out.push(schema_package_converter_template_source_unreadable_diag(
+                node,
+                template_path,
+                converter_id,
+                error,
+            ));
+            None
+        }
+    }
+}
+
+fn cemt_converter_template_schema_mismatch_diag(
+    node: &CemAstNode,
+    converter_id: &str,
+    template_schema: &str,
+) -> Diagnostic {
+    diag_at(
+        "cem.schema_package.converter_template_schema_mismatch",
+        Severity::Error,
+        format!(
+            "CEMT converter `{converter_id}` template schema `{template_schema}` must be `{CEM_TRANSFORM_SCHEMA_URI}`"
+        ),
+        node,
+    )
+}
+
+fn schema_package_converter_template_source_unreadable_diag(
+    node: &CemAstNode,
+    template_path: &str,
+    converter_id: &str,
+    error: impl AsRef<str>,
+) -> Diagnostic {
+    diag_at(
+        "cem.schema_package.converter_template_source_unreadable",
+        Severity::Error,
+        format!(
+            "template `{template_path}` referenced by CEMT converter `{converter_id}` could not be read: {}",
+            error.as_ref()
+        ),
+        node,
+    )
 }
 
 fn validate_rust_converter_contract(
@@ -1549,7 +1768,7 @@ fn read_schema_package_artifact_source(
     function_name: &str,
     out: &mut Vec<Diagnostic>,
 ) -> Option<RuleResourceRead> {
-    if let Some(source_path) = resolve_schema_package_artifact_path(ctx.source_uri, path) {
+    if let Some(source_path) = resolve_schema_package_resource_path(ctx.source_uri, path) {
         return match std::fs::read(&source_path) {
             Ok(bytes) => Some(RuleResourceRead {
                 uri: source_path.display().to_string(),
@@ -1606,30 +1825,30 @@ fn schema_package_artifact_source_unreadable_diag(
     )
 }
 
-fn resolve_schema_package_artifact_path(
+fn resolve_schema_package_resource_path(
     source_uri: Option<&str>,
-    artifact_path: &str,
+    resource_path: &str,
 ) -> Option<PathBuf> {
-    let artifact_path = artifact_path.trim();
-    if artifact_path.is_empty() {
+    let resource_path = resource_path.trim();
+    if resource_path.is_empty() {
         return None;
     }
-    if let Some(parsed) = parse_local_file_uri(artifact_path) {
+    if let Some(parsed) = parse_local_file_uri(resource_path) {
         return parsed.ok();
     }
-    if has_uri_scheme(artifact_path) && !is_windows_drive_path(artifact_path) {
+    if has_uri_scheme(resource_path) && !is_windows_drive_path(resource_path) {
         return None;
     }
-    let artifact_path = PathBuf::from(artifact_path);
-    if artifact_path.is_absolute() {
-        return Some(artifact_path);
+    let resource_path = PathBuf::from(resource_path);
+    if resource_path.is_absolute() {
+        return Some(resource_path);
     }
 
     let source_uri = source_uri?;
     let manifest_path = local_path_from_validation_source_uri(source_uri)?;
     manifest_path
         .parent()
-        .map(|parent| parent.join(artifact_path))
+        .map(|parent| parent.join(resource_path))
 }
 
 fn local_path_from_validation_source_uri(source_uri: &str) -> Option<PathBuf> {
@@ -2587,6 +2806,91 @@ mod tests {
                 "missing {code}; diagnostics: {diags:?}"
             );
         }
+    }
+
+    #[test]
+    fn schema_package_converter_contract_flags_unsupported_output_pipeline_template() {
+        let dir = schema_package_artifact_contract_fixture_dir(
+            "converter-template-contract-invalid",
+            &[(
+                "converters/demo-to-html.cemt",
+                r#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {template @name="main" | {text "not a supported DOM converter"}}
+}
+"#,
+            )],
+        );
+        let package_uri = dir.join("package.cem").display().to_string();
+        let diags = run_rules_with_identity_and_source_uri(
+            r#"{package @id=demo @version="1.0.0" |
+                {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+                {content-type @value="application/vnd.example.demo+cem" @primary=true}
+                {converter
+                    @id="demo-to-html"
+                    @implementation="cemt"
+                    @template="converters/demo-to-html.cemt"
+                    @template-content-type="application/vnd.cem.transform+cem"
+                    @template-schema="https://cem.dev/ns/transform/cem/1"
+                    @output-syntax="html"
+                    @encoding-category="html-document"
+                    @formatter-profile="canonical"
+                    @color-profile="classes" |
+                    {from @content-type="application/vnd.example.demo+cem" @schema="https://example.test/ns/demo/1"}
+                    {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+                }
+            }"#,
+            Some(CEM_SCHEMA_PACKAGE_URI),
+            Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
+            Some(&package_uri),
+        );
+
+        let diagnostic = diags
+            .iter()
+            .find(|d| d.code == "cem.schema_package.converter_template_contract_invalid")
+            .expect("converter template contract diagnostic");
+        assert!(diagnostic.message.contains("demo-to-html"));
+        assert!(diagnostic
+            .message
+            .contains("formatted CEM tree before the writer"));
+        assert!(diagnostic
+            .message
+            .contains("supported DOM projection converter"));
+    }
+
+    #[test]
+    fn schema_package_converter_contract_flags_unreadable_output_pipeline_template() {
+        let dir =
+            schema_package_artifact_contract_fixture_dir("converter-template-source-missing", &[]);
+        let package_uri = dir.join("package.cem").display().to_string();
+        let diags = run_rules_with_identity_and_source_uri(
+            r#"{package @id=demo @version="1.0.0" |
+                {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+                {content-type @value="application/vnd.example.demo+cem" @primary=true}
+                {converter
+                    @id="demo-to-html"
+                    @implementation="cemt"
+                    @template="converters/missing.cemt"
+                    @template-content-type="application/vnd.cem.transform+cem"
+                    @template-schema="https://cem.dev/ns/transform/cem/1"
+                    @output-syntax="html"
+                    @encoding-category="html-document"
+                    @formatter-profile="canonical" |
+                    {from @content-type="application/vnd.example.demo+cem" @schema="https://example.test/ns/demo/1"}
+                    {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+                }
+            }"#,
+            Some(CEM_SCHEMA_PACKAGE_URI),
+            Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
+            Some(&package_uri),
+        );
+
+        assert!(diags
+            .iter()
+            .any(|d| d.code == "cem.schema_package.converter_template_source_unreadable"));
     }
 
     #[test]

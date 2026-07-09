@@ -10100,6 +10100,81 @@ mod tests {
     }
 
     #[test]
+    fn validate_schema_package_converter_contract_reads_cemt_through_template_resolver() {
+        let mut resolver_registry = ResolverRegistry::new();
+        resolver_registry.register(
+            "cem+vfs",
+            ResolvePurpose::Template,
+            ResolveDirection::Read,
+            MapReadResolver {
+                entries: vec![(
+                    "cem+vfs://packages/demo/v1/converters/demo-to-html.cemt",
+                    br#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {template @name="main" | {text "not a supported DOM converter"}}
+}
+"#,
+                    Some(CEM_TRANSFORM_CONTENT_TYPE),
+                )],
+            },
+        );
+        let req = ValidateRequest {
+            inputs: vec![input(
+                br#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="demo" @version="1.0.0" |
+    {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+    {content-type @value="application/vnd.example.demo+cem" @primary=true}
+    {converter
+        @id="demo-to-html"
+        @implementation="cemt"
+        @template="converters/demo-to-html.cemt"
+        @template-content-type="application/vnd.cem.transform+cem"
+        @template-schema="https://cem.dev/ns/transform/cem/1"
+        @output-syntax="html"
+        @encoding-category="html-document"
+        @formatter-profile="canonical"
+        @color-profile="classes" |
+        {from @content-type="application/vnd.example.demo+cem" @schema="https://example.test/ns/demo/1"}
+        {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+    }
+}
+"#,
+                "cem+vfs://packages/demo/v1/package.cem",
+            )],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: EngineContext {
+                schema: Some(CEM_SCHEMA_PACKAGE_URI.to_owned()),
+                content_type: Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE.to_owned()),
+                resolver_registry,
+                ..ctx()
+            },
+        };
+
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+
+        assert!(resp.report.diagnostics.iter().any(|diag| {
+            diag.code == "cem.schema_package.converter_template_contract_invalid"
+                && diag.message.contains("demo-to-html")
+                && diag
+                    .message
+                    .contains("formatted CEM tree before the writer")
+                && diag.message.contains("supported DOM projection converter")
+        }));
+        assert!(!resp
+            .report
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "cem.schema_package.converter_template_source_unreadable"));
+    }
+
+    #[test]
     fn input_root_scope_base_uri_overrides_context_base_uri() {
         let mut source = input(b"{unknown}", "src/in.cem");
         source.root_scope.base_uri = Some("file:///scope/".to_owned());
