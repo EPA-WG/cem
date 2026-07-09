@@ -1,0 +1,5 @@
+{
+  "content": "@doc cem-ml 1\n{card @tone=info | Native  {strong | fanout}}\n",
+  "contentType": "application/cem",
+  "schema": "https://cem.dev/ns/cem-ml/1"
+}
