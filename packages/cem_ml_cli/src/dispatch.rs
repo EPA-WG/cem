@@ -12245,7 +12245,37 @@ mod tests {
         output_content_type: &str,
         output_schema: &str,
     ) -> PathBuf {
+        write_single_output_convert_config_with_destination(
+            name,
+            input,
+            input_content_type,
+            input_schema,
+            output_content_type,
+            output_schema,
+            None,
+        )
+    }
+
+    fn write_single_output_convert_config_with_destination(
+        name: &str,
+        input: &Path,
+        input_content_type: &str,
+        input_schema: &str,
+        output_content_type: &str,
+        output_schema: &str,
+        destination: Option<&Path>,
+    ) -> PathBuf {
         let config_path = std::env::temp_dir().join(format!("cem-ml-cli-tests/{name}"));
+        let mut output = serde_json::json!({
+            "inputRef": input.display().to_string(),
+            "rootScope": {
+                "defaultContentType": output_content_type,
+                "schema": output_schema
+            }
+        });
+        if let Some(destination) = destination {
+            output["destination"] = serde_json::Value::String(destination.display().to_string());
+        }
         std::fs::write(
             &config_path,
             serde_json::json!({
@@ -12256,13 +12286,7 @@ mod tests {
                         "schema": input_schema
                     }
                 }],
-                "outputs": [{
-                    "inputRef": input.display().to_string(),
-                    "rootScope": {
-                        "defaultContentType": output_content_type,
-                        "schema": output_schema
-                    }
-                }]
+                "outputs": [output]
             })
             .to_string(),
         )
@@ -22767,6 +22791,104 @@ start =
         assert!(yaml_debug["hash"]
             .as_str()
             .is_some_and(|hash| hash.starts_with("cem-text/1+blake3:")));
+    }
+
+    #[test]
+    fn convert_config_artifact_json_sidecar_preserves_native_file_output() {
+        let cem_input = write_fixture(
+            "convert-config-sidecar-native-output.cem",
+            "@doc cem-ml 1\n{card @tone=info | Native {strong | CEM}}",
+        );
+        let json_input = write_fixture(
+            "convert-config-sidecar-native-output.json",
+            r#"{"service":{"name":"catalog","enabled":true}}"#,
+        );
+        let cem_out =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-config-sidecar-output.cem");
+        let cem_artifact =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-config-sidecar-output.cem.json");
+        let yaml_out =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-config-sidecar-output.yml");
+        let yaml_artifact =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-config-sidecar-output.yml.json");
+        for path in [&cem_out, &cem_artifact, &yaml_out, &yaml_artifact] {
+            let _ = std::fs::remove_file(path);
+        }
+
+        let cem_config = write_single_output_convert_config_with_destination(
+            "convert-config-sidecar-cem.json",
+            &cem_input,
+            cem_ml::schema::registry::CEM_ML_CONTENT_TYPE,
+            cem_ml::schema::registry::CEM_ML_SCHEMA_URI,
+            cem_ml::schema::registry::CEM_ML_CONTENT_TYPE,
+            cem_ml::schema::registry::CEM_ML_SCHEMA_URI,
+            Some(&cem_out),
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "--no-color",
+                "convert",
+                "--config",
+                cem_config.to_str().unwrap(),
+                "--artifact-json",
+                cem_artifact.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty(), "{stdout}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        let cem_output = std::fs::read_to_string(&cem_out).unwrap();
+        assert_eq!(
+            cem_output,
+            "@doc cem-ml 1\n{card @tone=info | Native  {strong | CEM}}\n"
+        );
+        assert!(serde_json::from_str::<serde_json::Value>(&cem_output).is_err());
+        let cem_debug: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&cem_artifact).unwrap()).unwrap();
+        assert_eq!(cem_debug["kind"], "cem");
+        assert_eq!(cem_debug["content"], cem_output);
+
+        let yaml_config = write_single_output_convert_config_with_destination(
+            "convert-config-sidecar-yaml.json",
+            &json_input,
+            cem_ml::schema::registry::JSON_CONTENT_TYPE,
+            cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI,
+            cem_ml::schema::registry::YAML_CONTENT_TYPE,
+            cem_ml::schema::registry::YAML_SCHEMA_URI,
+            Some(&yaml_out),
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "--no-color",
+                "convert",
+                "--config",
+                yaml_config.to_str().unwrap(),
+                "--artifact-json",
+                yaml_artifact.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty(), "{stdout}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        let yaml_output = std::fs::read_to_string(&yaml_out).unwrap();
+        assert!(serde_json::from_str::<serde_json::Value>(&yaml_output).is_err());
+        let documents = yaml_rust2::YamlLoader::load_from_str(&yaml_output).unwrap();
+        let yaml = yaml_documents_to_json_value(documents);
+        assert_eq!(yaml["service"]["name"], "catalog");
+        assert_eq!(yaml["service"]["enabled"], true);
+        let yaml_debug: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&yaml_artifact).unwrap()).unwrap();
+        assert_eq!(yaml_debug["kind"], "document");
+        assert_eq!(
+            yaml_debug["contentType"],
+            cem_ml::schema::registry::YAML_CONTENT_TYPE
+        );
+        assert_eq!(
+            yaml_debug["schema"],
+            cem_ml::schema::registry::YAML_SCHEMA_URI
+        );
     }
 
     #[test]
