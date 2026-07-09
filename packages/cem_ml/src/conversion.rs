@@ -3135,7 +3135,6 @@ fn cemt_builtin_runtime_operation_name(name: &str) -> bool {
             | "cem.format-tree.block-children"
             | "cem.format-tree.content-boundary"
             | "cem.format-tree.format-nodes"
-            | "cem.format-tree.envelope"
     )
 }
 
@@ -10106,7 +10105,11 @@ mod tests {
         assert!(build_envelope
             .body_expression
             .as_deref()
-            .is_some_and(|body| body.contains("call(cem.format-tree.envelope")));
+            .is_some_and(|body| body.contains(r#"kind: "cem-tree""#)
+                && body.contains("mode: $mode")
+                && body.contains("formatterProfile: $formatterProfile")
+                && body.contains("call(cem.format-tree.format-nodes")
+                && !body.contains("cem.format-tree.envelope")));
     }
 
     #[test]

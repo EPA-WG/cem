@@ -21,7 +21,9 @@
             {$ applyEdits(
                 appendFormatNode(
                     call("cem.format-tree.build-envelope", {
-                        subject: call("cem.format-tree.build-nodes", { subject: $subject })
+                        subject: call("cem.format-tree.build-nodes", { subject: $subject }),
+                        mode: $mode,
+                        formatterProfile: $formatterProfile
                     }),
                     {
                         kind: "format-decision",
@@ -355,8 +357,20 @@
         @deterministic=true
         |
         {param @name="subject" @type="array" @required=true}
+        {param @name="mode" @type="string" @required=true}
+        {param @name="formatterProfile" @type="string" @required=true}
         {body |
-            {$ call(cem.format-tree.envelope, { subject: $subject }) }
+            {$ {
+                kind: "cem-tree",
+                contentType: "application/cem",
+                schema: "https://cem.dev/ns/cem-ml/1",
+                category: "cem-tree",
+                mode: $mode,
+                canonical: true,
+                formatterProfile: $formatterProfile,
+                formatNodes: call(cem.format-tree.format-nodes, { subject: $subject }),
+                nodes: $subject
+            } }
         }
     }
 }

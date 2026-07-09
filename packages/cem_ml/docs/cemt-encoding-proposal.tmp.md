@@ -155,7 +155,7 @@ metadata. They are not opaque host-side string filters.
 - Add `match` dispatch over CEM tree node kind, name, attribute presence,
   formatter role, color role, and layout mode.
 - Expose selected output contract metadata to CEMT bodies as immutable runtime
-  bindings. `$colorProfile`, `$formatterProfile`, `$functionName`,
+  bindings. `$mode`, `$colorProfile`, `$formatterProfile`, `$functionName`,
   `$functionProfile`, and `$colorCapability` now allow formatter/colorizer
   helpers to branch on the chosen output profile while keeping conversion data
   in CEM-native tree form.
@@ -234,8 +234,13 @@ metadata. They are not opaque host-side string filters.
   values: null, boolean, number, string, array, object, node, token, chunk, and
   diagnostic.
 - Runtime output-contract bindings for formatter/colorizer bodies:
-  `$functionName`, `$functionProfile`, `$formatterProfile`, `$colorProfile`,
-  and `$colorCapability`.
+  `$functionName`, `$functionProfile`, `$mode`, `$formatterProfile`,
+  `$colorProfile`, and `$colorCapability`.
+- Canonical formatter envelope assembly now lives in the schema-owned
+  `cem.format-tree.build-envelope` helper. The direct native runtime operation
+  `cem.format-tree.envelope` is no longer part of the CEMT call surface; the
+  native formatter keeps an equivalent envelope builder only as a fallback for
+  bindings without a direct CEMT body.
 - Canonical color traversal now uses schema-owned `cem.color-tree.*` helper
   functions. The direct native runtime operation `cem.color-tree.apply` is no
   longer part of the CEMT call surface; the native colorizer remains only as a
