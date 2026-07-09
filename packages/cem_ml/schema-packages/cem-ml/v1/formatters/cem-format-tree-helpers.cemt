@@ -224,13 +224,78 @@
         {param @name="layout" @type="string" @required=true}
         {body |
             {$ match($layout, {
-                block: call(cem.format-tree.block-children, {
-                    subject: {
-                        nodes: map($subject, call("cem.format-tree.format-node", { subject: $item, depth: add($depth, 1) })),
-                        depth: add($depth, 1)
-                    }
+                block: call("cem.format-tree.format-block-children", {
+                    subject: map($subject, call("cem.format-tree.format-node", { subject: $item, depth: add($depth, 1) })),
+                    depth: add($depth, 1),
+                    indent: $indent,
+                    lineEnding: $lineEnding
                 }),
                 default: map($subject, call("cem.format-tree.format-node", { subject: $item, depth: $depth }))
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.format-tree.format-block-children"
+        @visibility="private"
+        @returns="array"
+        @deterministic=true
+        |
+        {param @name="subject" @type="array" @required=true}
+        {param @name="depth" @type="integer" @default="0"}
+        {param @name="indent" @type="string" @required=true}
+        {param @name="lineEnding" @type="string" @required=true}
+        {body |
+            {$ fold($subject, [], match($item.kind, {
+                whitespace: $acc,
+                default: append(
+                    append(
+                        append(
+                            $acc,
+                            call("cem.format-tree.formatter-whitespace", {
+                                subject: $item,
+                                value: repeat($indent, $depth),
+                                formatterRole: "formatter.indent"
+                            })
+                        ),
+                        $item
+                    ),
+                    call("cem.format-tree.formatter-whitespace", {
+                        subject: $item,
+                        value: match($lineEnding, { crlf: "\r\n", default: "\n" }),
+                        formatterRole: "formatter.line-ending"
+                    })
+                )
+            })) }
+        }
+    }
+
+    {function
+        @name="cem.format-tree.formatter-whitespace"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true
+        |
+        {param @name="subject" @type="json" @required=true}
+        {param @name="value" @type="string" @required=true}
+        {param @name="formatterRole" @type="string" @required=true}
+        {body |
+            {$ match(exists($subject.sourceMap), {
+                true: {
+                    kind: "whitespace",
+                    value: $value,
+                    formatterOwned: true,
+                    formatterRole: $formatterRole,
+                    colorRole: "syntax.raw",
+                    sourceMap: $subject.sourceMap
+                },
+                false: {
+                    kind: "whitespace",
+                    value: $value,
+                    formatterOwned: true,
+                    formatterRole: $formatterRole,
+                    colorRole: "syntax.raw"
+                }
             }) }
         }
     }

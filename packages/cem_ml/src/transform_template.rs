@@ -4979,14 +4979,12 @@ fn validate_builtin_cem_tree_formatter_binding(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TransformTemplateCemtRuntimeOperation {
     CemFormatTreeInterNodeWhitespace,
-    CemFormatTreeBlockChildren,
 }
 
 impl TransformTemplateCemtRuntimeOperation {
     fn parse(value: &str) -> Option<Self> {
         match value.trim() {
             "cem.format-tree.inter-node-whitespace" => Some(Self::CemFormatTreeInterNodeWhitespace),
-            "cem.format-tree.block-children" => Some(Self::CemFormatTreeBlockChildren),
             _ => None,
         }
     }
@@ -4994,7 +4992,6 @@ impl TransformTemplateCemtRuntimeOperation {
     fn as_str(self) -> &'static str {
         match self {
             Self::CemFormatTreeInterNodeWhitespace => "cem.format-tree.inter-node-whitespace",
-            Self::CemFormatTreeBlockChildren => "cem.format-tree.block-children",
         }
     }
 }
@@ -5009,9 +5006,6 @@ fn execute_transform_template_cemt_runtime_operation(
             transform_template_cemt_runtime_format_tree_inter_node_whitespace(
                 operation, binding, subject,
             )
-        }
-        TransformTemplateCemtRuntimeOperation::CemFormatTreeBlockChildren => {
-            transform_template_cemt_runtime_format_tree_block_children(operation, binding, subject)
         }
     }
 }
@@ -5051,20 +5045,18 @@ fn transform_template_cemt_runtime_format_tree_inter_node_whitespace(
     ))
 }
 
-fn transform_template_cemt_runtime_format_tree_block_children(
-    operation: TransformTemplateCemtRuntimeOperation,
+fn transform_template_cem_tree_formatter_block_children(
     binding: &TransformTemplateEncodeBinding,
-    subject: Value,
-) -> Result<Value, String> {
-    validate_builtin_cem_tree_formatter_binding(binding)?;
-    let (nodes, depth) = transform_template_cemt_runtime_nodes_depth_subject(operation, subject)?;
-    Ok(Value::Array(
+    nodes: Vec<Value>,
+    depth: usize,
+) -> Value {
+    Value::Array(
         transform_template_insert_formatter_block_child_layout_nodes(
             nodes,
             &binding.options,
             depth,
         ),
-    ))
+    )
 }
 
 fn transform_template_cem_tree_formatter_envelope(
@@ -5105,49 +5097,6 @@ fn transform_template_cemt_runtime_node_array_subject(
             operation.as_str()
         )),
     }
-}
-
-fn transform_template_cemt_runtime_object_subject(
-    operation: TransformTemplateCemtRuntimeOperation,
-    subject: Value,
-) -> Result<serde_json::Map<String, Value>, String> {
-    match subject {
-        Value::Object(fields) => Ok(fields),
-        _ => Err(format!("{} expected object subject", operation.as_str())),
-    }
-}
-
-fn transform_template_cemt_runtime_nodes_depth_subject(
-    operation: TransformTemplateCemtRuntimeOperation,
-    subject: Value,
-) -> Result<(Vec<Value>, usize), String> {
-    let fields = transform_template_cemt_runtime_object_subject(operation, subject)?;
-    let nodes = fields
-        .get("nodes")
-        .and_then(Value::as_array)
-        .cloned()
-        .ok_or_else(|| format!("{} expected `nodes` array subject", operation.as_str()))?;
-    let depth = fields
-        .get("depth")
-        .and_then(Value::as_u64)
-        .map(usize::try_from)
-        .transpose()
-        .map_err(|_| format!("{} expected `depth` to fit usize", operation.as_str()))?
-        .unwrap_or(0);
-    Ok((nodes, depth))
-}
-
-fn transform_template_cemt_runtime_nodes_depth_subject_value(
-    nodes: Vec<Value>,
-    depth: usize,
-) -> Value {
-    let mut fields = serde_json::Map::new();
-    fields.insert("nodes".to_owned(), Value::Array(nodes));
-    fields.insert(
-        "depth".to_owned(),
-        Value::Number(serde_json::Number::from(depth)),
-    );
-    Value::Object(fields)
 }
 
 fn transform_template_cem_tree_nodes(subject: &Value) -> Result<Vec<Value>, String> {
@@ -5320,13 +5269,9 @@ fn transform_template_format_cem_tree_child_value(
                         "formatter.whitespace",
                     ),
                 )),
-                TransformTemplateCemTreeLayout::Block => {
-                    execute_transform_template_cemt_runtime_operation(
-                        TransformTemplateCemtRuntimeOperation::CemFormatTreeBlockChildren,
-                        binding,
-                        transform_template_cemt_runtime_nodes_depth_subject_value(children, depth),
-                    )
-                }
+                TransformTemplateCemTreeLayout::Block => Ok(
+                    transform_template_cem_tree_formatter_block_children(binding, children, depth),
+                ),
             }
         }
         Value::Object(_) | Value::String(_) => {
@@ -5334,14 +5279,11 @@ fn transform_template_format_cem_tree_child_value(
             match layout {
                 TransformTemplateCemTreeLayout::Inline => Ok(child),
                 TransformTemplateCemTreeLayout::Block => {
-                    execute_transform_template_cemt_runtime_operation(
-                        TransformTemplateCemtRuntimeOperation::CemFormatTreeBlockChildren,
+                    Ok(transform_template_cem_tree_formatter_block_children(
                         binding,
-                        transform_template_cemt_runtime_nodes_depth_subject_value(
-                            vec![child],
-                            depth,
-                        ),
-                    )
+                        vec![child],
+                        depth,
+                    ))
                 }
             }
         }
@@ -11376,6 +11318,7 @@ pub struct TransformTemplateWriterDiagnostics {
 const CEMT_RUNTIME_CALL_RECURSION_LIMIT: usize = 64;
 const CEMT_RUNTIME_STACK_DEPTH_LIMIT: usize = 128;
 const CEMT_RUNTIME_QUEUE_LENGTH_LIMIT: usize = 1024;
+const CEMT_RUNTIME_REPEAT_LIMIT: usize = 4096;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CemtRuntimeFunction {
@@ -11703,6 +11646,15 @@ fn resolve_encode_subject_expression_at_depth(
     )? {
         return Ok(Some(value));
     }
+    if let Some(value) = resolve_cemt_repeat_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
     if let Some(value) = resolve_cemt_drain_queue_expression(
         expression,
         value_bindings,
@@ -11844,6 +11796,12 @@ fn resolve_cemt_call_expression(
     if function_name == "cem.format-tree.content-boundary" {
         return Err(
             "CEMT runtime operation `cem.format-tree.content-boundary` has been removed; use schema-owned `cem.format-tree.build-content-boundary` helpers"
+                .to_owned(),
+        );
+    }
+    if function_name == "cem.format-tree.block-children" {
+        return Err(
+            "CEMT runtime operation `cem.format-tree.block-children` has been removed; use schema-owned `cem.format-tree.format-block-children` helpers"
                 .to_owned(),
         );
     }
@@ -13500,10 +13458,69 @@ fn resolve_cemt_add_expression(
     Ok(Some(Value::Number(sum)))
 }
 
+fn resolve_cemt_repeat_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) =
+        parse_cemt_function_call_args(expression, "repeat").map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 2 {
+        return Ok(None);
+    }
+    let Some(value) = resolve_encode_subject_expression_at_depth(
+        &args[0],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some(count) = resolve_encode_subject_expression_at_depth(
+        &args[1],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some(value) = value.as_str() else {
+        return Err(format!(
+            "CEMT repeat expected string value, got {}",
+            json_value_type_name(&value)
+        ));
+    };
+    let count = cemt_usize_number(&count).ok_or_else(|| {
+        format!(
+            "CEMT repeat expected unsigned integer count, got {}",
+            json_value_type_name(&count)
+        )
+    })?;
+    if count > CEMT_RUNTIME_REPEAT_LIMIT {
+        return Err(format!(
+            "CEMT repeat exceeded count limit {CEMT_RUNTIME_REPEAT_LIMIT}"
+        ));
+    }
+    Ok(Some(Value::String(value.repeat(count))))
+}
+
 fn cemt_i64_number(value: &Value) -> Option<i64> {
     value
         .as_i64()
         .or_else(|| value.as_u64().and_then(|value| i64::try_from(value).ok()))
+}
+
+fn cemt_usize_number(value: &Value) -> Option<usize> {
+    value.as_u64().and_then(|value| usize::try_from(value).ok())
 }
 
 fn resolve_cemt_drain_queue_expression(
@@ -14566,6 +14583,7 @@ fn cemt_runtime_expression_is_dynamic(value: &str) -> bool {
         || cemt_expression_starts_with_call(value, "length")
         || cemt_expression_starts_with_call(value, "typeOf")
         || cemt_expression_starts_with_call(value, "add")
+        || cemt_expression_starts_with_call(value, "repeat")
         || cemt_expression_starts_with_call(value, "drainQueue")
         || cemt_expression_starts_with_call(value, "diagnostic")
         || cemt_expression_starts_with_call(value, "diagnostics")
@@ -20696,6 +20714,14 @@ mod tests {
             resolve_encode_subject_expression(r#"add($node.depth, 1)"#, &values),
             Some(json!(3))
         );
+        assert_eq!(
+            resolve_encode_subject_expression(r#"repeat("  ", $node.depth)"#, &values),
+            Some(json!("    "))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(r#"{ value: repeat("  ", $node.depth) }"#, &values),
+            Some(json!({ "value": "    " }))
+        );
 
         let error = resolve_encode_subject_expression_at_depth(
             r#"length(true)"#,
@@ -20716,6 +20742,16 @@ mod tests {
         )
         .expect_err("add rejects non-numeric operands");
         assert!(error.contains("CEMT add expected numeric right operand"));
+
+        let error = resolve_encode_subject_expression_at_depth(
+            r#"repeat($node.label, $node.label)"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("repeat rejects non-numeric count");
+        assert!(error.contains("CEMT repeat expected unsigned integer count"));
     }
 
     #[test]
@@ -25631,8 +25667,8 @@ mod tests {
             "cem.format-tree.inter-node-whitespace"
         );
         assert_eq!(
-            TransformTemplateCemtRuntimeOperation::CemFormatTreeBlockChildren.as_str(),
-            "cem.format-tree.block-children"
+            TransformTemplateCemtRuntimeOperation::parse("cem.format-tree.block-children"),
+            None
         );
         assert_eq!(
             TransformTemplateCemtRuntimeOperation::parse("cem.format-tree.content-boundary"),
@@ -25674,15 +25710,11 @@ mod tests {
         assert_eq!(separated_nodes[1]["value"], "\n");
         assert_eq!(separated_nodes[1]["formatterRole"], "formatter.line-ending");
 
-        let block_children = execute_transform_template_cemt_runtime_operation(
-            TransformTemplateCemtRuntimeOperation::CemFormatTreeBlockChildren,
+        let block_children = transform_template_cem_tree_formatter_block_children(
             &binding,
-            json!({
-                "nodes": [{"kind": "element", "name": "child"}],
-                "depth": 2
-            }),
-        )
-        .expect("block child layout operation runs");
+            vec![json!({"kind": "element", "name": "child"})],
+            2,
+        );
         assert_eq!(block_children[0]["kind"], "whitespace");
         assert_eq!(block_children[0]["value"], "        ");
         assert_eq!(block_children[0]["formatterRole"], "formatter.indent");
@@ -25804,6 +25836,18 @@ mod tests {
             "CEMT runtime operation `cem.format-tree.content-boundary` has been removed"
         ));
         assert!(error.contains("schema-owned `cem.format-tree.build-content-boundary` helpers"));
+
+        let error = resolve_encode_subject_expression_at_depth(
+            r#"call(cem.format-tree.block-children, { subject: { nodes: [], depth: 0 } })"#,
+            &BTreeMap::new(),
+            &BTreeMap::new(),
+            Some(&binding),
+            0,
+        )
+        .expect_err("direct CEMT body rejects removed formatter block children operation");
+        assert!(error
+            .contains("CEMT runtime operation `cem.format-tree.block-children` has been removed"));
+        assert!(error.contains("schema-owned `cem.format-tree.format-block-children` helpers"));
     }
 
     #[test]

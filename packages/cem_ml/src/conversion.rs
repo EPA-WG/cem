@@ -3128,10 +3128,7 @@ fn cemt_direct_call_function_name(expression: &str) -> Option<String> {
 }
 
 fn cemt_builtin_runtime_operation_name(name: &str) -> bool {
-    matches!(
-        name,
-        "cem.format-tree.inter-node-whitespace" | "cem.format-tree.block-children"
-    )
+    matches!(name, "cem.format-tree.inter-node-whitespace")
 }
 
 #[derive(Clone, Debug)]
@@ -10083,6 +10080,36 @@ mod tests {
             .functions
             .iter()
             .any(|function| function.name == "cem.format-tree.format-node"));
+        let format_children = helper_response
+            .module_options
+            .functions
+            .iter()
+            .find(|function| function.name == "cem.format-tree.format-children")
+            .expect("CEM tree child formatter helper declaration");
+        assert!(format_children
+            .body_expression
+            .as_deref()
+            .is_some_and(
+                |body| body.contains(r#"call("cem.format-tree.format-block-children""#)
+                    && !body.contains("cem.format-tree.block-children")
+            ));
+        let format_block_children = helper_response
+            .module_options
+            .functions
+            .iter()
+            .find(|function| function.name == "cem.format-tree.format-block-children")
+            .expect("CEM tree block child formatter helper declaration");
+        assert_eq!(
+            format_block_children.return_type,
+            crate::transform_template::TransformTemplateModuleParamType::Array
+        );
+        assert!(format_block_children
+            .body_expression
+            .as_deref()
+            .is_some_and(|body| body.contains("fold($subject")
+                && body.contains("repeat($indent, $depth)")
+                && body.contains("formatter.indent")
+                && body.contains("formatter.line-ending")));
         assert!(helper_response
             .module_options
             .functions
