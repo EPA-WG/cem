@@ -26465,6 +26465,22 @@ mod tests {
             cem_tree_writer_attribute_value(&css_vars["nodes"][0]["children"][0], "style"),
             "color: var(--cem-color-syntax-string, #067647)"
         );
+        assert_colored_cem_tree_writes_target_native_text(
+            &css_vars,
+            "css-custom-properties",
+            HTML_CONTENT_TYPE,
+            HTML_SCHEMA_URI,
+            "html-fragment",
+            &[
+                "<card",
+                "tone=\"info\"",
+                "class=\"cem-color cem-color-syntax-name cem-color-has-attributes\"",
+                "style=\"color: var(--cem-color-syntax-name, #087990)\"",
+                "<span",
+                "style=\"color: var(--cem-color-syntax-string, #067647)\"",
+                ">Ready</span>",
+            ],
+        );
 
         let classes = encode_colored_cem_tree_with_profile("classes");
         assert_eq!(
@@ -26485,6 +26501,21 @@ mod tests {
             cem_tree_writer_attribute_optional(&classes["nodes"][0]["children"][0], "style")
                 .is_none()
         );
+        assert_colored_cem_tree_writes_target_native_text(
+            &classes,
+            "classes",
+            HTML_CONTENT_TYPE,
+            HTML_SCHEMA_URI,
+            "html-fragment",
+            &[
+                "<card",
+                "tone=\"info\"",
+                "class=\"cem-color cem-color-syntax-name cem-color-has-attributes\"",
+                "data-cem-attribute-roles=\"tone:syntax.attribute\"",
+                "<span class=\"cem-color cem-color-syntax-string\"",
+                ">Ready</span>",
+            ],
+        );
 
         let inline = encode_colored_cem_tree_with_profile("inline-style");
         assert_eq!(
@@ -26503,6 +26534,22 @@ mod tests {
         assert_eq!(
             cem_tree_writer_attribute_value(&inline["nodes"][0]["children"][0], "style"),
             "color: #067647"
+        );
+        assert_colored_cem_tree_writes_target_native_text(
+            &inline,
+            "inline-style",
+            HTML_CONTENT_TYPE,
+            HTML_SCHEMA_URI,
+            "html-fragment",
+            &[
+                "<card",
+                "tone=\"info\"",
+                "class=\"cem-color cem-color-has-attributes\"",
+                "style=\"color: #087990\"",
+                "<span class=\"cem-color\"",
+                "style=\"color: #067647\"",
+                ">Ready</span>",
+            ],
         );
 
         let none = encode_colored_cem_tree_with_profile("none");
@@ -26529,6 +26576,63 @@ mod tests {
         assert!(none["nodes"][0]["children"][0]
             .get("writerAttributes")
             .is_none());
+        assert_colored_cem_tree_writes_target_native_text(
+            &none,
+            "none",
+            CEM_ML_CONTENT_TYPE,
+            CEM_ML_SCHEMA_URI,
+            "cem-tree",
+            &["{card @tone=info | Ready}"],
+        );
+    }
+
+    fn assert_colored_cem_tree_writes_target_native_text(
+        tree: &Value,
+        profile: &str,
+        content_type: &str,
+        schema: &str,
+        category: &str,
+        expected_fragments: &[&str],
+    ) {
+        let mut identity = TransformTemplateEncodedArtifactIdentity::new(
+            TransformTemplateOutputProducedKind::CemTree,
+            TransformTemplateEncodingTarget::new(
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                "cem-tree",
+            ),
+        );
+        identity.color_profile = Some(profile.to_owned());
+        let artifact = TransformTemplateEncodedArtifact::new(identity, tree.clone());
+        let mut writer_context =
+            TransformTemplateEncodedArtifactInsertionContext::new(content_type, schema)
+                .with_category(category)
+                .with_produces(TransformTemplateOutputProducedKind::Text);
+        writer_context.formatter_profile = Some("cem.format-tree".to_owned());
+        writer_context.color_profile = Some(profile.to_owned());
+
+        let writer_artifact =
+            transform_template_writer_cem_tree_artifact_to_text(&artifact, &writer_context)
+                .unwrap_or_else(|error| {
+                    panic!("writer consumes `{profile}` colored CEM tree: {error}")
+                });
+
+        assert_eq!(
+            writer_artifact.identity.produces,
+            TransformTemplateOutputProducedKind::Text
+        );
+        assert_eq!(writer_artifact.identity.target.content_type, content_type);
+        assert_eq!(writer_artifact.identity.target.schema, schema);
+        let output = writer_artifact
+            .value
+            .as_str()
+            .expect("writer output is target-native text");
+        for expected in expected_fragments {
+            assert!(
+                output.contains(expected),
+                "expected `{profile}` writer output to contain `{expected}`, got `{output}`"
+            );
+        }
     }
 
     fn encode_colored_cem_tree_with_profile(profile: &str) -> Value {
