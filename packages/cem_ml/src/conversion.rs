@@ -45,17 +45,18 @@ use crate::transform_template::{
     TransformTemplateEncodeBinding, TransformTemplateEncodeBindingRequest,
     TransformTemplateEncodeEvaluationContext, TransformTemplateEncodeExpression,
     TransformTemplateEncodeImplementationRegistry, TransformTemplateEncodeOptions,
-    TransformTemplateEncodedArtifact, TransformTemplateEncodedArtifactInsertionContext,
-    TransformTemplateEncodedArtifactMode, TransformTemplateEncodingTarget,
-    TransformTemplateEvaluatedEncodeExpression, TransformTemplateHtmlColorMode,
-    TransformTemplateModuleOptions, TransformTemplateModuleParseRequest,
-    TransformTemplateModulePreflight, TransformTemplateModuleVisibility,
-    TransformTemplateOutputArtifact, TransformTemplateOutputFunctionDescriptor,
-    TransformTemplateOutputFunctionImplementation, TransformTemplateOutputFunctionKind,
-    TransformTemplateOutputFunctionRegistry, TransformTemplateOutputProducedKind,
-    TransformTemplateRenderRequest, TransformTemplateRenderResponse,
-    TransformTemplateSourceMapPolicy, TransformTemplateTargetSyntaxKind,
-    TransformTemplateTargetSyntaxRules, TransformTemplateTerminalColorCapability,
+    TransformTemplateEncodedArtifact, TransformTemplateEncodedArtifactIdentity,
+    TransformTemplateEncodedArtifactInsertionContext, TransformTemplateEncodedArtifactMode,
+    TransformTemplateEncodingTarget, TransformTemplateEvaluatedEncodeExpression,
+    TransformTemplateHtmlColorMode, TransformTemplateModuleOptions,
+    TransformTemplateModuleParseRequest, TransformTemplateModulePreflight,
+    TransformTemplateModuleVisibility, TransformTemplateOutputArtifact,
+    TransformTemplateOutputFunctionDescriptor, TransformTemplateOutputFunctionImplementation,
+    TransformTemplateOutputFunctionKind, TransformTemplateOutputFunctionRegistry,
+    TransformTemplateOutputProducedKind, TransformTemplateRenderRequest,
+    TransformTemplateRenderResponse, TransformTemplateSourceMapPolicy,
+    TransformTemplateTargetSyntaxKind, TransformTemplateTargetSyntaxRules,
+    TransformTemplateTerminalColorCapability,
 };
 use serde_json::Value;
 use std::cell::RefCell;
@@ -3740,6 +3741,234 @@ pub fn execute_conversion_output_pipeline_with_environment(
             ..ConversionOutputPipelineExecution::default()
         };
     }
+    execute_conversion_output_pipeline_from_formatted_artifact(
+        environment,
+        pipeline,
+        formatted_artifact,
+        format_execution,
+        diagnostics,
+        converter_id,
+        diagnostic_node,
+        diagnostic_uri,
+    )
+}
+
+pub fn execute_conversion_output_pipeline_from_formatted_cem_tree_with_environment(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    pipeline: &ConversionOutputPipeline,
+    formatted_value: Value,
+    formatted_source_map: Option<SourceMapStack>,
+    formatted_output_spans: Vec<OutputSpan>,
+    converter_id: &str,
+    diagnostic_node: Option<&str>,
+    diagnostic_uri: Option<&str>,
+) -> ConversionOutputPipelineExecution {
+    let local_artifact_cache = ConversionOutputPipelineArtifactCache::default();
+    let cached_environment = if environment.artifact_cache.is_some() {
+        *environment
+    } else {
+        ConversionOutputPipelineEnvironment {
+            schema_registry: environment.schema_registry,
+            conversion_registry: environment.conversion_registry,
+            package_artifact_reader: environment.package_artifact_reader,
+            artifact_cache: Some(&local_artifact_cache),
+        }
+    };
+    let environment = &cached_environment;
+    let mut diagnostics = Vec::new();
+    let formatted_artifact = conversion_output_pipeline_formatted_cem_tree_artifact(
+        pipeline,
+        formatted_value,
+        formatted_source_map,
+        formatted_output_spans,
+    );
+    if let Err(error) = formatted_artifact
+        .validate_insertion(&conversion_cem_tree_format_insertion_context(pipeline))
+    {
+        let mut diagnostic = error.diagnostic(diagnostic_uri);
+        diagnostic.node = diagnostic_node.map(str::to_owned);
+        diagnostics.push(diagnostic);
+        return ConversionOutputPipelineExecution {
+            output: None,
+            diagnostics,
+            ..ConversionOutputPipelineExecution::default()
+        };
+    }
+
+    execute_conversion_output_pipeline_from_formatted_artifact(
+        environment,
+        pipeline,
+        formatted_artifact,
+        None,
+        diagnostics,
+        converter_id,
+        diagnostic_node,
+        diagnostic_uri,
+    )
+}
+
+fn conversion_output_pipeline_formatted_cem_tree_artifact(
+    pipeline: &ConversionOutputPipeline,
+    value: Value,
+    source_map: Option<SourceMapStack>,
+    output_spans: Vec<OutputSpan>,
+) -> TransformTemplateEncodedArtifact {
+    TransformTemplateEncodedArtifact {
+        identity: TransformTemplateEncodedArtifactIdentity::from_options(
+            TransformTemplateOutputProducedKind::CemTree,
+            pipeline.cemt_target.clone(),
+            &pipeline.cemt_options,
+        ),
+        value: conversion_output_pipeline_formatted_cem_tree_value(pipeline, value),
+        source_map,
+        output_spans,
+        encoded: true,
+    }
+}
+
+fn conversion_output_pipeline_formatted_cem_tree_value(
+    pipeline: &ConversionOutputPipeline,
+    value: Value,
+) -> Value {
+    let apply_envelope_defaults = |object: &mut serde_json::Map<String, Value>| {
+        object
+            .entry("contentType".to_owned())
+            .or_insert_with(|| Value::String(pipeline.cemt_target.content_type.clone()));
+        object
+            .entry("schema".to_owned())
+            .or_insert_with(|| Value::String(pipeline.cemt_target.schema.clone()));
+        object
+            .entry("category".to_owned())
+            .or_insert_with(|| Value::String(pipeline.cemt_target.category.clone()));
+        object
+            .entry("mode".to_owned())
+            .or_insert_with(|| Value::String(pipeline.cemt_options.mode.as_str().to_owned()));
+        object
+            .entry("canonical".to_owned())
+            .or_insert_with(|| Value::Bool(pipeline.cemt_options.canonical));
+        if let Some(formatter_profile) = pipeline.cemt_options.formatter_profile.as_ref() {
+            object.insert(
+                "formatterProfile".to_owned(),
+                Value::String(formatter_profile.clone()),
+            );
+            object.entry("formatNodes".to_owned()).or_insert_with(|| {
+                Value::Array(vec![
+                    serde_json::json!({
+                        "kind": "format-marker",
+                        "name": "cem.format-tree",
+                        "formatterRole": "formatter.boundary",
+                        "formatterProfile": formatter_profile,
+                    }),
+                    serde_json::json!({
+                        "kind": "format-decision",
+                        "name": "converter-cemt",
+                        "formatterRole": "formatter.converter",
+                        "formatterProfile": formatter_profile,
+                        "value": "converter CEMT produced formatted tree",
+                    }),
+                ])
+            });
+        }
+    };
+
+    match value {
+        Value::Object(mut object)
+            if object.get("kind").and_then(Value::as_str) == Some("cem-tree") =>
+        {
+            apply_envelope_defaults(&mut object);
+            conversion_output_pipeline_normalize_formatted_cem_tree_nodes(&mut object);
+            Value::Object(object)
+        }
+        Value::Array(nodes) => {
+            let mut object = serde_json::Map::new();
+            object.insert("kind".to_owned(), Value::String("cem-tree".to_owned()));
+            object.insert("nodes".to_owned(), Value::Array(nodes));
+            apply_envelope_defaults(&mut object);
+            conversion_output_pipeline_normalize_formatted_cem_tree_nodes(&mut object);
+            Value::Object(object)
+        }
+        Value::Object(node) => {
+            let mut object = serde_json::Map::new();
+            object.insert("kind".to_owned(), Value::String("cem-tree".to_owned()));
+            object.insert("node".to_owned(), Value::Object(node));
+            apply_envelope_defaults(&mut object);
+            conversion_output_pipeline_normalize_formatted_cem_tree_nodes(&mut object);
+            Value::Object(object)
+        }
+        other => {
+            let mut object = serde_json::Map::new();
+            object.insert("kind".to_owned(), Value::String("cem-tree".to_owned()));
+            object.insert("root".to_owned(), other);
+            apply_envelope_defaults(&mut object);
+            conversion_output_pipeline_normalize_formatted_cem_tree_nodes(&mut object);
+            Value::Object(object)
+        }
+    }
+}
+
+fn conversion_output_pipeline_normalize_formatted_cem_tree_nodes(
+    object: &mut serde_json::Map<String, Value>,
+) {
+    for field in ["nodes", "node", "root"] {
+        if let Some(value) = object.get_mut(field) {
+            conversion_output_pipeline_normalize_formatted_cem_tree_node_value(value);
+        }
+    }
+}
+
+fn conversion_output_pipeline_normalize_formatted_cem_tree_node_value(value: &mut Value) {
+    match value {
+        Value::Array(items) => {
+            for item in items {
+                conversion_output_pipeline_normalize_formatted_cem_tree_node_value(item);
+            }
+        }
+        Value::Object(object) => {
+            let kind = object
+                .get("kind")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned();
+            if !kind.is_empty() {
+                object.entry("sourceMap".to_owned()).or_insert(Value::Null);
+            }
+            if kind == "element" {
+                object
+                    .entry("attributes".to_owned())
+                    .or_insert_with(|| Value::Array(Vec::new()));
+                object
+                    .entry("children".to_owned())
+                    .or_insert_with(|| Value::Array(Vec::new()));
+                object.entry("formatLayout".to_owned()).or_insert_with(|| {
+                    serde_json::json!({
+                        "kind": "format-decision",
+                        "formatterRole": "formatter.layout",
+                        "value": "inline",
+                    })
+                });
+            }
+            for field in ["attributes", "children", "nodes", "node", "root"] {
+                if let Some(child) = object.get_mut(field) {
+                    conversion_output_pipeline_normalize_formatted_cem_tree_node_value(child);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn execute_conversion_output_pipeline_from_formatted_artifact(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    pipeline: &ConversionOutputPipeline,
+    formatted_artifact: TransformTemplateEncodedArtifact,
+    format_execution: Option<ConversionOutputPipelineStageExecution>,
+    mut diagnostics: Vec<Diagnostic>,
+    converter_id: &str,
+    diagnostic_node: Option<&str>,
+    diagnostic_uri: Option<&str>,
+) -> ConversionOutputPipelineExecution {
+    let functions = conversion_cem_tree_output_function_registry(environment, pipeline);
+    let implementations = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
     let formatted_cem_tree = Some(formatted_artifact.clone());
 
     let color_request = TransformTemplateEncodeBindingRequest::new(
@@ -9438,6 +9667,97 @@ mod tests {
         assert!(output.contains("cem-color-syntax-name"));
         assert!(output.contains("<strong class=\"cem-color cem-color-syntax-keyword\""));
         assert!(output.contains("Ready "));
+        assert!(output.contains(">now<"));
+    }
+
+    #[test]
+    fn conversion_output_pipeline_colors_converter_formatted_cem_tree() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let mut pipeline = direct_html_output_pipeline();
+        pipeline.cemt_options.formatter = Some("acme.showcase.format-tree".to_owned());
+        pipeline.cemt_options.formatter_profile = Some("acme.showcase.format-tree".to_owned());
+        pipeline.cemt_options.colorizer = Some("acme.showcase.color-tree".to_owned());
+        pipeline.cemt_options.color_profile = Some("classes".to_owned());
+        pipeline.cemt_insertion_context.formatter_profile =
+            Some("acme.showcase.format-tree".to_owned());
+        pipeline.writer_insertion_context.formatter_profile =
+            Some("acme.showcase.format-tree".to_owned());
+
+        let execution = execute_conversion_output_pipeline_from_formatted_cem_tree_with_environment(
+            &environment,
+            &pipeline,
+            serde_json::json!([
+                {
+                    "kind": "element",
+                    "name": "article",
+                    "children": [
+                        {"kind": "text", "value": "Ready "},
+                        {
+                            "kind": "element",
+                            "name": "strong",
+                            "children": [{"kind": "text", "value": "now"}]
+                        },
+                        {"kind": "text", "value": "."}
+                    ]
+                }
+            ]),
+            None,
+            Vec::new(),
+            "test-converter-formatted-cem-tree",
+            Some("output"),
+            Some("converter.cemt"),
+        );
+
+        assert!(
+            execution.diagnostics.is_empty(),
+            "{:?}",
+            execution.diagnostics
+        );
+        assert_eq!(execution.format_execution, None);
+        assert_eq!(
+            execution.color_execution,
+            Some(ConversionOutputPipelineStageExecution::CemtAdapter {
+                adapter_id: CEM_TREE_COLOR_CEMT_ADAPTER_ID.to_owned(),
+                function_name: "acme.showcase.color-tree".to_owned(),
+                body_function_name: Some("acme.showcase.color-tree".to_owned()),
+                fallback_function_name: None,
+            })
+        );
+        let formatted = execution
+            .formatted_cem_tree
+            .as_ref()
+            .expect("formatted converter CEM tree is retained");
+        assert_eq!(formatted.value["kind"], "cem-tree");
+        assert_eq!(
+            formatted.value["formatterProfile"],
+            "acme.showcase.format-tree"
+        );
+        assert_eq!(formatted.value["nodes"][0]["sourceMap"], Value::Null);
+        assert_eq!(
+            formatted.value["nodes"][0]["attributes"],
+            Value::Array(vec![])
+        );
+        assert!(formatted.value["formatNodes"]
+            .as_array()
+            .expect("format nodes")
+            .iter()
+            .any(|node| node.get("name").and_then(Value::as_str) == Some("converter-cemt")));
+
+        let output = execution
+            .output
+            .as_ref()
+            .and_then(Value::as_str)
+            .expect("writer output text");
+        assert!(output.contains("<article"));
+        assert!(output.contains("cem-color-syntax-name"));
+        assert!(output.contains("<strong class=\"cem-color cem-color-syntax-keyword\""));
         assert!(output.contains(">now<"));
     }
 

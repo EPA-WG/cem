@@ -9,11 +9,12 @@ use crate::conversion::{
     conversion_descriptors_from_schema_package_manifest, conversion_output_safety_contract,
     conversion_package_artifacts_from_validated_schema_package_manifest,
     direct_cem_output_pipeline, direct_html_output_pipeline, direct_xml_output_pipeline,
-    execute_conversion_output_pipeline, execute_conversion_output_pipeline_with_environment,
-    ConversionExecution, ConversionManifestError, ConversionOutputPipeline,
-    ConversionOutputPipelineEnvironment, ConversionPackageArtifactDescriptor,
-    ConversionPackageArtifactRead, ConversionRustFallbackDescriptor,
-    GenericDataTextConversionOutcome, GenericDataTextDocument,
+    execute_conversion_output_pipeline,
+    execute_conversion_output_pipeline_from_formatted_cem_tree_with_environment,
+    execute_conversion_output_pipeline_with_environment, ConversionExecution,
+    ConversionManifestError, ConversionOutputPipeline, ConversionOutputPipelineEnvironment,
+    ConversionPackageArtifactDescriptor, ConversionPackageArtifactRead,
+    ConversionRustFallbackDescriptor, GenericDataTextConversionOutcome, GenericDataTextDocument,
     CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE,
 };
 use crate::diagnostics::{Diagnostic, Severity};
@@ -149,11 +150,6 @@ fn cemt_output_pipeline_for_scope(
 ) -> ConversionOutputPipeline {
     apply_cemt_output_scope_overrides(&mut pipeline, target_scope);
     pipeline
-}
-
-fn target_scope_selects_cemt_output_functions(target_scope: &ScopeConfig) -> bool {
-    trimmed_scope_value(target_scope.cemt_formatter.as_ref()).is_some()
-        || trimmed_scope_value(target_scope.cemt_colorizer.as_ref()).is_some()
 }
 
 fn convert_metadata_for_cemt_converter(
@@ -436,16 +432,17 @@ fn render_export_conversion_template(
     let output = if let Some(pipeline) = conversion.output_pipeline.as_ref() {
         let output_uri = output.uri.clone();
         let pipeline = cemt_output_pipeline_for_scope(pipeline.clone(), target_scope);
-        let pipeline_execution = execute_conversion_output_pipeline_with_context(
-            Some(context),
-            &pipeline,
-            output.value,
-            output.source_map,
-            output.output_spans,
-            &conversion.converter_id,
-            Some("output"),
-            Some(&template_input.uri),
-        );
+        let pipeline_execution =
+            execute_conversion_output_pipeline_from_formatted_cem_tree_with_context(
+                context,
+                &pipeline,
+                output.value,
+                output.source_map,
+                output.output_spans,
+                &conversion.converter_id,
+                Some("output"),
+                Some(&template_input.uri),
+            );
         local_diagnostics.extend(pipeline_execution.diagnostics);
         if local_diagnostics
             .iter()
@@ -663,6 +660,38 @@ fn execute_conversion_output_pipeline_with_context(
         rendered_value,
         rendered_source_map,
         rendered_output_spans,
+        converter_id,
+        diagnostic_node,
+        diagnostic_uri,
+    )
+}
+
+fn execute_conversion_output_pipeline_from_formatted_cem_tree_with_context(
+    context: &EngineContext,
+    pipeline: &ConversionOutputPipeline,
+    formatted_value: Value,
+    formatted_source_map: Option<SourceMapStack>,
+    formatted_output_spans: Vec<OutputSpan>,
+    converter_id: &str,
+    diagnostic_node: Option<&str>,
+    diagnostic_uri: Option<&str>,
+) -> crate::conversion::ConversionOutputPipelineExecution {
+    let package_artifact_reader =
+        |artifact: &ConversionPackageArtifactDescriptor| -> Result<ConversionPackageArtifactRead, String> {
+            read_conversion_package_artifact(context, artifact).map_err(|error| error.to_string())
+        };
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &context.schema_registry,
+        conversion_registry: &context.converter_registry,
+        package_artifact_reader: Some(&package_artifact_reader),
+        artifact_cache: None,
+    };
+    execute_conversion_output_pipeline_from_formatted_cem_tree_with_environment(
+        &environment,
+        pipeline,
+        formatted_value,
+        formatted_source_map,
+        formatted_output_spans,
         converter_id,
         diagnostic_node,
         diagnostic_uri,
@@ -5032,18 +5061,7 @@ impl CemMlEngine for RealCemMlEngine {
             diagnostics.append(&mut export.diagnostics);
             let to_format = export.to_format;
             let export_conversion =
-                if target_scope_selects_cemt_output_functions(&request.target_scope) {
-                    // Explicit formatter/colorizer function selectors are direct output-pipeline
-                    // controls until converter templates and arbitrary CEM tree formatters share
-                    // one input envelope contract.
-                    None
-                } else {
-                    resolve_export_conversion_execution(
-                        &context,
-                        to_format,
-                        request.target.as_ref(),
-                    )
-                };
+                resolve_export_conversion_execution(&context, to_format, request.target.as_ref());
 
             let from_format = loaded.from_format;
             let run = run_pipeline_as_scoped_with_context_and_source_uri(
@@ -10696,6 +10714,60 @@ mod tests {
         }));
         assert!(stages.iter().any(|stage| {
             stage.stage == "writer" && stage.content_type.as_deref() == Some(HTML_CONTENT_TYPE)
+        }));
+        assert!(
+            resp.diagnostics.is_empty(),
+            "unexpected diagnostics: {:?}",
+            resp.diagnostics
+        );
+    }
+
+    #[test]
+    fn convert_html_layer_with_cemt_output_selectors_keeps_packaged_converter_pipeline() {
+        let req = ConvertRequest {
+            input: input(
+                b"@doc cem-ml 1\n{article | Ready {strong | now}.}",
+                "in.cem",
+            ),
+            to_format: LayerFormat::Html,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: None,
+            target_scope: ScopeConfig {
+                cemt_formatter: Some("acme.showcase.format-tree".to_owned()),
+                cemt_formatter_profile: Some("acme.showcase.format-tree".to_owned()),
+                cemt_colorizer: Some("acme.showcase.color-tree".to_owned()),
+                cemt_color_profile: Some("classes".to_owned()),
+                ..ScopeConfig::default()
+            },
+            scheduler_scope_id: 0,
+        };
+
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+
+        assert_eq!(resp.primary["kind"], "html", "{:?}", resp.diagnostics);
+        let content = resp.primary["content"].as_str().expect("HTML content");
+        assert!(content.contains(r#"<article class="cem-color cem-color-syntax-name""#));
+        assert!(content.contains(r#"<strong class="cem-color cem-color-syntax-keyword""#));
+        let conversion = resp.conversion.as_ref().expect("conversion metadata");
+        assert_eq!(
+            conversion.converter_id.as_deref(),
+            Some("cem-dom-projection-to-html-cemt")
+        );
+        assert_eq!(conversion.implementation.as_deref(), Some("cemt"));
+        let stages = &conversion
+            .output_pipeline
+            .as_ref()
+            .expect("conversion output pipeline")
+            .stages;
+        assert!(stages.iter().any(|stage| {
+            stage.stage == "formatter"
+                && stage.function.as_deref() == Some("acme.showcase.format-tree")
+        }));
+        assert!(stages.iter().any(|stage| {
+            stage.stage == "colorizer"
+                && stage.function.as_deref() == Some("acme.showcase.color-tree")
+                && stage.profile.as_deref() == Some("classes")
         }));
         assert!(
             resp.diagnostics.is_empty(),
