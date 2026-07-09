@@ -2817,6 +2817,33 @@ const HTML_VOID_ELEMENTS: &[&str] = &[
     "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source",
     "track", "wbr",
 ];
+const HTML_BOOLEAN_ATTRIBUTES: &[&str] = &[
+    "allowfullscreen",
+    "async",
+    "autofocus",
+    "autoplay",
+    "checked",
+    "controls",
+    "default",
+    "defer",
+    "disabled",
+    "formnovalidate",
+    "hidden",
+    "inert",
+    "ismap",
+    "itemscope",
+    "loop",
+    "multiple",
+    "muted",
+    "nomodule",
+    "novalidate",
+    "open",
+    "playsinline",
+    "readonly",
+    "required",
+    "reversed",
+    "selected",
+];
 const HTML_RAW_TEXT_ELEMENTS: &[&str] = &["style", "iframe", "noembed", "noframes", "xmp"];
 const HTML_RCDATA_ELEMENTS: &[&str] = &["title", "textarea"];
 const HTML_SCRIPT_DATA_ELEMENTS: &[&str] = &["script"];
@@ -9820,6 +9847,13 @@ fn transform_template_cem_tree_markup_name_is_html_void(name: &str) -> bool {
             .any(|void_name| void_name.eq_ignore_ascii_case(name))
 }
 
+fn transform_template_cem_tree_markup_name_is_html_boolean_attribute(name: &str) -> bool {
+    !name.contains(':')
+        && HTML_BOOLEAN_ATTRIBUTES
+            .iter()
+            .any(|boolean_name| boolean_name.eq_ignore_ascii_case(name))
+}
+
 fn transform_template_cem_tree_processing_instruction_target<'a>(
     fields: &'a serde_json::Map<String, Value>,
 ) -> Option<&'a str> {
@@ -9929,6 +9963,12 @@ fn transform_template_cem_tree_markup_attribute_pair_to_text(
     match (syntax, value) {
         (TransformTemplateCemTreeWriterSyntax::Html, Value::Null)
         | (TransformTemplateCemTreeWriterSyntax::Html, Value::Bool(true)) => Ok(name.to_owned()),
+        (TransformTemplateCemTreeWriterSyntax::Html, Value::String(text))
+            if transform_template_cem_tree_markup_name_is_html_boolean_attribute(name)
+                && (text.is_empty() || text.eq_ignore_ascii_case(name)) =>
+        {
+            Ok(name.to_owned())
+        }
         _ => {
             let value = transform_template_cem_tree_markup_attribute_value(value)?;
             Ok(format!(
@@ -29276,7 +29316,9 @@ mod tests {
                     "kind": "element",
                     "name": "input",
                     "attributes": [
-                        {"kind": "attribute", "name": "required", "value": true},
+                        {"kind": "attribute", "name": "required", "value": ""},
+                        {"kind": "attribute", "name": "disabled", "value": "disabled"},
+                        {"kind": "attribute", "name": "value", "value": ""},
                         {"kind": "attribute", "name": "type", "value": "email"}
                     ]
                 }, {
@@ -29290,7 +29332,7 @@ mod tests {
                 .expect("HTML CEM tree renders");
         assert_eq!(
             rendered.text,
-            r#"<main><input required type="email"><section></section></main>"#
+            r#"<main><input required disabled value="" type="email"><section></section></main>"#
         );
 
         let xml_context =
