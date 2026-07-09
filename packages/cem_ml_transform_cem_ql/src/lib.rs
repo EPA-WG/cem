@@ -17,6 +17,7 @@ use cem_ml::legacy_custom_element::{
     UNSUPPORTED_CONSTRUCT_CODE, UNSUPPORTED_FUNCTION_CODE,
 };
 use cem_ml::run_config::ScopeConfig;
+use cem_ml::schema::registry::{CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI};
 use cem_ml::transform_template::{
     parse_cem_native_template_module_options, TransformTemplateAdapter,
     TransformTemplateAdapterCapability, TransformTemplateAdapterError,
@@ -476,6 +477,18 @@ fn render_cem_ql_payload(
         })?;
     let data = template_data_from_artifacts(request.primary_input, request.secondary_inputs);
     let plan = render_payload_template(payload, &data);
+    if target_is_cem_tree(request.target) {
+        return Ok(TransformTemplateRenderResponse {
+            output: TransformTemplateOutputArtifact {
+                uri: None,
+                identity: request.target.cloned(),
+                value: render_plan_to_cem_tree_nodes(&plan),
+                source_map: None,
+                output_spans: Vec::new(),
+            },
+            diagnostics: plan.diagnostics,
+        });
+    }
     let rendered = if target_content_type_is(request.target, "application/xml") {
         render_plan_to_xml_with_source_map(&plan)
     } else {
@@ -500,6 +513,19 @@ fn render_cem_ql_payload(
     })
 }
 
+fn target_is_cem_tree(target: Option<&FormatIdentity>) -> bool {
+    target.is_some_and(|identity| {
+        identity
+            .content_type
+            .as_deref()
+            .is_some_and(|content_type| content_type_essence(content_type) == CEM_ML_CONTENT_TYPE)
+            && identity
+                .schema
+                .as_deref()
+                .is_some_and(|schema| schema.trim() == CEM_ML_SCHEMA_URI)
+    })
+}
+
 fn target_content_type_is(target: Option<&FormatIdentity>, expected: &str) -> bool {
     target
         .and_then(|identity| identity.content_type.as_deref())
@@ -513,6 +539,92 @@ fn content_type_essence(content_type: &str) -> String {
         .unwrap_or(content_type)
         .trim()
         .to_ascii_lowercase()
+}
+
+fn render_plan_to_cem_tree_nodes(plan: &RenderPlan) -> Value {
+    Value::Array(
+        plan.nodes
+            .iter()
+            .filter_map(render_plan_node_to_cem_tree)
+            .collect(),
+    )
+}
+
+fn render_plan_node_to_cem_tree(node: &RenderPlanNode) -> Option<Value> {
+    match node {
+        RenderPlanNode::Element { tag, .. } if tag.trim().is_empty() => None,
+        RenderPlanNode::Element {
+            tag,
+            namespace,
+            attributes,
+            children,
+            source_map,
+        } => Some(json!({
+            "kind": "element",
+            "name": render_plan_cem_tree_name(tag, namespace.as_deref()),
+            "attributes": attributes
+                .iter()
+                .map(render_plan_attribute_to_cem_tree)
+                .collect::<Vec<_>>(),
+            "children": children
+                .iter()
+                .filter_map(render_plan_node_to_cem_tree)
+                .collect::<Vec<_>>(),
+            "sourceMap": render_plan_source_map_value(source_map),
+        })),
+        RenderPlanNode::Text { text, source_map } if text.trim().is_empty() => Some(json!({
+            "kind": "whitespace",
+            "data": text,
+            "sourceMap": render_plan_source_map_value(source_map),
+        })),
+        RenderPlanNode::Text { text, source_map } => Some(json!({
+            "kind": "text",
+            "value": text,
+            "sourceMap": render_plan_source_map_value(source_map),
+        })),
+        RenderPlanNode::Comment { text, source_map } => Some(json!({
+            "kind": "comment",
+            "data": text,
+            "sourceMap": render_plan_source_map_value(source_map),
+        })),
+        RenderPlanNode::Cdata { text, source_map } => Some(json!({
+            "kind": "cdata",
+            "data": text,
+            "sourceMap": render_plan_source_map_value(source_map),
+        })),
+        RenderPlanNode::ProcessingInstruction {
+            target,
+            data,
+            source_map,
+        } => Some(json!({
+            "kind": "processing-instruction",
+            "name": target,
+            "target": target,
+            "data": data,
+            "sourceMap": render_plan_source_map_value(source_map),
+        })),
+    }
+}
+
+fn render_plan_attribute_to_cem_tree(attribute: &RenderPlanAttribute) -> Value {
+    json!({
+        "kind": "attribute",
+        "name": render_plan_cem_tree_name(&attribute.name, attribute.namespace.as_deref()),
+        "value": attribute.value,
+        "sourceMap": render_plan_source_map_value(&attribute.source_map),
+    })
+}
+
+fn render_plan_cem_tree_name(local_name: &str, namespace: Option<&str>) -> String {
+    namespace
+        .map(str::trim)
+        .filter(|namespace| !namespace.is_empty())
+        .map(|namespace| format!("{namespace}:{local_name}"))
+        .unwrap_or_else(|| local_name.to_owned())
+}
+
+fn render_plan_source_map_value(source_map: &cem_ml::source_map::SourceMapStack) -> Value {
+    serde_json::to_value(source_map).unwrap_or(Value::Null)
 }
 
 fn host_binding_names(
@@ -4647,31 +4759,29 @@ mod tests {
     }
 
     #[test]
-    fn real_engine_convert_reports_packaged_dom_projection_cemt_output_pipeline_failure() {
-        for (uri, source, input_format, target_format, _expected_kind, _expected_content) in [
+    fn real_engine_convert_uses_ready_packaged_dom_projection_cemt_converters() {
+        for (uri, source, input_format, target_format, expected_kind, expected_content) in [
             {
                 let source = include_str!("../../../examples/cem-ml/login.cem");
-                let document = document_from_cem(source);
                 (
                     "login.cem",
                     source,
                     InputFormat::Cem,
                     LayerFormat::Html,
                     "html",
-                    LightDomInterpreter::new().render(&document).rendered,
+                    r#"<main aria-labelledby="login-title" cem:screen="login" class="cem-color cem-color-syntax-name" data-role="syntax.name"><h1 id="login-title" class="cem-color cem-color-syntax-name" data-role="syntax.name"><span class="cem-color cem-color-syntax-string" data-role="syntax.string">Sign in</span></h1><form action="/session" method="post" cem:form="sign-in" class="cem-color cem-color-syntax-name" data-role="syntax.name"><label for="email" class="cem-color cem-color-syntax-name" data-role="syntax.name"><span class="cem-color cem-color-syntax-string" data-role="syntax.string">Email</span></label><input autocomplete="email" id="email" name="email" required="" type="email" class="cem-color cem-color-syntax-name" data-role="syntax.name"></input><label for="password" class="cem-color cem-color-syntax-name" data-role="syntax.name"><span class="cem-color cem-color-syntax-string" data-role="syntax.string">Password</span></label><input autocomplete="current-password" id="password" name="password" required="" type="password" class="cem-color cem-color-syntax-name" data-role="syntax.name"></input><button type="submit" cem:action="primary" class="cem-color cem-color-syntax-name" data-role="syntax.name"><span class="cem-color cem-color-syntax-string" data-role="syntax.string">Sign in</span></button></form></main>"#.to_owned(),
                 )
             },
             {
                 let source =
                     include_str!("../../../examples/cem-ml/cross-surface/conversion-rules.xml");
-                let document = document_from_xml(source);
                 (
                     "conversion-rules.xml",
                     source,
                     InputFormat::Xml,
                     LayerFormat::Xml,
                     "xml",
-                    XmlInterpreter::new().render(&document).rendered,
+                    "<?xml version=\"1.0\"?>\n<?DOCTYPE main?>\n<main aria-labelledby=\"title\" xmlns=\"http://www.w3.org/1999/xhtml\" cem:screen=\"conversion\" xmlns:cem=\"https://cem.dev/ns/core/1\"><!-- conversion fixture --><h1 id=\"title\">Conversion fixture</h1><svg xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M2 8h12\"></path></svg><$>.items[0].name</$><button aria-label=\"Hello {.name}\" disabled=\"{.busy}\">Save</button></main>".to_owned(),
                 )
             },
         ] {
@@ -4693,17 +4803,25 @@ mod tests {
                 })
                 .expect("convert request should execute");
 
-            assert_eq!(response.primary, Value::Null, "{uri}");
+            assert_eq!(
+                response.primary["kind"], expected_kind,
+                "{uri}: {:?}",
+                response.diagnostics
+            );
+            assert_eq!(response.primary["content"], expected_content, "{uri}");
             assert!(
-                response.diagnostics.iter().any(|diagnostic| {
-                    diagnostic.code == "cem.converter.output_pipeline_execution"
-                        && diagnostic
-                            .message
-                            .contains("CEMT formatter `cem.format-tree` failed")
-                        && diagnostic
-                            .message
-                            .contains("argument `subject` could not be resolved")
-                }),
+                response
+                    .diagnostics
+                    .iter()
+                    .all(|diagnostic| !diagnostic.severity.is_hard_violation()),
+                "{uri}: {:?}",
+                response.diagnostics
+            );
+            assert!(
+                !response
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == "cem.converter.output_pipeline_execution"),
                 "{uri}: {:?}",
                 response.diagnostics
             );
