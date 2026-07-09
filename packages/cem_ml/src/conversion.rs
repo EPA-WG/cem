@@ -3855,6 +3855,20 @@ pub fn execute_conversion_output_pipeline_from_formatted_cem_tree_with_environme
     };
     let environment = &cached_environment;
     let mut diagnostics = Vec::new();
+    if let Some(diagnostic) = conversion_output_pipeline_claimed_formatted_cem_tree_diagnostic(
+        pipeline,
+        &formatted_value,
+        converter_id,
+        diagnostic_node,
+        diagnostic_uri,
+    ) {
+        diagnostics.push(diagnostic);
+        return ConversionOutputPipelineExecution {
+            output: None,
+            diagnostics,
+            ..ConversionOutputPipelineExecution::default()
+        };
+    }
     let formatted_artifact = conversion_output_pipeline_formatted_cem_tree_artifact(
         pipeline,
         formatted_value,
@@ -3951,11 +3965,7 @@ fn conversion_output_pipeline_formatted_cem_tree_value(
     };
 
     match value {
-        Value::Object(mut object)
-            if object.get("kind").and_then(Value::as_str) == Some("cem-tree") =>
-        {
-            apply_envelope_defaults(&mut object);
-            conversion_output_pipeline_normalize_formatted_cem_tree_nodes(&mut object);
+        Value::Object(object) if object.get("kind").and_then(Value::as_str) == Some("cem-tree") => {
             Value::Object(object)
         }
         Value::Array(nodes) => {
@@ -3983,6 +3993,93 @@ fn conversion_output_pipeline_formatted_cem_tree_value(
             Value::Object(object)
         }
     }
+}
+
+fn conversion_output_pipeline_claimed_formatted_cem_tree_diagnostic(
+    pipeline: &ConversionOutputPipeline,
+    value: &Value,
+    converter_id: &str,
+    diagnostic_node: Option<&str>,
+    diagnostic_uri: Option<&str>,
+) -> Option<Diagnostic> {
+    let object = value.as_object()?;
+    if object.get("kind").and_then(Value::as_str) != Some("cem-tree") {
+        return None;
+    }
+
+    let formatter_profile = object
+        .get("formatterProfile")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let Some(formatter_profile) = formatter_profile else {
+        return Some(conversion_output_pipeline_diagnostic(
+            converter_id,
+            diagnostic_node,
+            diagnostic_uri,
+            "converter output claims formatted CEM tree but omits required formatter metadata `formatterProfile`".to_owned(),
+        ));
+    };
+    if let Some(expected) = pipeline
+        .cemt_options
+        .formatter_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        if formatter_profile != expected {
+            return Some(conversion_output_pipeline_diagnostic(
+                converter_id,
+                diagnostic_node,
+                diagnostic_uri,
+                format!(
+                    "converter output claims formatted CEM tree with formatterProfile `{formatter_profile}` but the output pipeline expects `{expected}`"
+                ),
+            ));
+        }
+    }
+
+    let Some(format_nodes) = object
+        .get("formatNodes")
+        .and_then(Value::as_array)
+        .filter(|nodes| !nodes.is_empty())
+    else {
+        return Some(conversion_output_pipeline_diagnostic(
+            converter_id,
+            diagnostic_node,
+            diagnostic_uri,
+            "converter output claims formatted CEM tree but omits required formatter metadata `formatNodes`".to_owned(),
+        ));
+    };
+    let has_marker = format_nodes.iter().any(|node| {
+        node.get("kind").and_then(Value::as_str) == Some("format-marker")
+            && node.get("name").and_then(Value::as_str) == Some("cem.format-tree")
+    });
+    if !has_marker {
+        return Some(conversion_output_pipeline_diagnostic(
+            converter_id,
+            diagnostic_node,
+            diagnostic_uri,
+            "converter output claims formatted CEM tree but `formatNodes` has no `cem.format-tree` formatter marker".to_owned(),
+        ));
+    }
+    let has_decision = format_nodes.iter().any(|node| {
+        node.get("kind").and_then(Value::as_str) == Some("format-decision")
+            && node
+                .get("formatterRole")
+                .and_then(Value::as_str)
+                .is_some_and(|role| role.starts_with("formatter."))
+    });
+    if !has_decision {
+        return Some(conversion_output_pipeline_diagnostic(
+            converter_id,
+            diagnostic_node,
+            diagnostic_uri,
+            "converter output claims formatted CEM tree but `formatNodes` has no formatter decision node".to_owned(),
+        ));
+    }
+
+    None
 }
 
 fn conversion_output_pipeline_normalize_formatted_cem_tree_nodes(
@@ -9891,6 +9988,50 @@ mod tests {
         assert!(output.contains("cem-color-syntax-name"));
         assert!(output.contains("<strong class=\"cem-color cem-color-syntax-keyword\""));
         assert!(output.contains(">now<"));
+    }
+
+    #[test]
+    fn conversion_output_pipeline_rejects_claimed_formatted_cem_tree_without_formatter_metadata() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+
+        let execution = execute_conversion_output_pipeline_from_formatted_cem_tree_with_environment(
+            &environment,
+            &direct_html_output_pipeline(),
+            serde_json::json!({
+                "kind": "cem-tree",
+                "nodes": [{
+                    "kind": "element",
+                    "name": "main",
+                    "children": [{"kind": "text", "value": "Ready"}]
+                }]
+            }),
+            None,
+            Vec::new(),
+            "test-claimed-formatted-tree",
+            Some("output"),
+            Some("converter.cemt"),
+        );
+
+        assert!(execution.output.is_none());
+        assert!(execution.formatted_cem_tree.is_none());
+        assert_eq!(execution.diagnostics.len(), 1);
+        let diagnostic = &execution.diagnostics[0];
+        assert_eq!(diagnostic.code, CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE);
+        assert_eq!(diagnostic.severity, Severity::Error);
+        assert!(diagnostic.message.contains(
+            "converter `test-claimed-formatted-tree` could not execute CEMT output pipeline"
+        ));
+        assert!(diagnostic
+            .message
+            .contains("claims formatted CEM tree but omits required formatter metadata"));
+        assert!(diagnostic.message.contains("formatterProfile"));
     }
 
     #[test]
