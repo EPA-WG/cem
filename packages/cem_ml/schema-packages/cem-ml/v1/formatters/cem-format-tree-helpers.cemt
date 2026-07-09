@@ -49,8 +49,12 @@
         |
         {param @name="subject" @type="json" @required=true}
         {body |
-            {$ call(cem.format-tree.inter-node-whitespace, {
-                subject: call("cem.format-tree.build-node-list", { subject: $subject })
+            {$ match(typeOf(call("cem.format-tree.build-node-list", { subject: $subject })), {
+                array: call("cem.format-tree.format-inter-node-whitespace", {
+                    subject: call("cem.format-tree.build-node-list", { subject: $subject }),
+                    lineEnding: $lineEnding
+                }),
+                default: call("cem.format-tree.build-node-list", { subject: $subject })
             }) }
         }
     }
@@ -236,6 +240,36 @@
     }
 
     {function
+        @name="cem.format-tree.format-inter-node-whitespace"
+        @visibility="private"
+        @returns="array"
+        @deterministic=true
+        |
+        {param @name="subject" @type="array" @required=true}
+        {param @name="lineEnding" @type="string" @required=true}
+        {body |
+            {$ fold($subject, [], match($item.kind, {
+                whitespace: $acc,
+                default: match(length($acc), {
+                    0: append($acc, $item),
+                    default: append(
+                        append(
+                            $acc,
+                            call("cem.format-tree.formatter-separator-whitespace", {
+                                previous: last($acc),
+                                current: $item,
+                                value: match($lineEnding, { crlf: "\r\n", default: "\n" }),
+                                formatterRole: "formatter.line-ending"
+                            })
+                        ),
+                        $item
+                    )
+                })
+            })) }
+        }
+    }
+
+    {function
         @name="cem.format-tree.format-block-children"
         @visibility="private"
         @returns="array"
@@ -271,6 +305,32 @@
     }
 
     {function
+        @name="cem.format-tree.formatter-separator-whitespace"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true
+        |
+        {param @name="previous" @type="json" @required=true}
+        {param @name="current" @type="json" @required=true}
+        {param @name="value" @type="string" @required=true}
+        {param @name="formatterRole" @type="string" @required=true}
+        {body |
+            {$ match(exists($previous.sourceMap), {
+                true: call("cem.format-tree.formatter-whitespace", {
+                    subject: $previous,
+                    value: $value,
+                    formatterRole: $formatterRole
+                }),
+                false: call("cem.format-tree.formatter-whitespace", {
+                    subject: $current,
+                    value: $value,
+                    formatterRole: $formatterRole
+                })
+            }) }
+        }
+    }
+
+    {function
         @name="cem.format-tree.formatter-whitespace"
         @visibility="private"
         @returns="object"
@@ -287,7 +347,7 @@
                     formatterOwned: true,
                     formatterRole: $formatterRole,
                     colorRole: "syntax.raw",
-                    sourceMap: $subject.sourceMap
+                    sourceMap: sourceMap($subject, "cem.format-tree")
                 },
                 false: {
                     kind: "whitespace",

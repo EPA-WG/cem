@@ -162,9 +162,10 @@ metadata. They are not opaque host-side string filters.
   form.
 - Extend deterministic sequence operations over children, attributes, slots,
   formatter nodes, color nodes, token streams, and chunk plans. `map(...)`,
-  `fold(...)`, `length(...)`, `repeat(...)`, and the array accumulator helper
-  `append(...)` now execute in CEMT bodies; remaining work is richer helpers for
-  object patching, filtering, sorting, flattening, and diagnostics accumulation.
+  `fold(...)`, `length(...)`, `last(...)`, `repeat(...)`, and the array
+  accumulator helper `append(...)` now execute in CEMT bodies; remaining work is
+  richer helpers for object patching, filtering, sorting, flattening, and
+  diagnostics accumulation.
 - Extend scoped traversal stack support for ancestor path, indentation depth,
   namespace scope, inherited layout, source-map frames, semantic style role, and
   active color capability. `withStack(...)`, `stackPush(...)`, `stackPop(...)`,
@@ -263,6 +264,11 @@ metadata. They are not opaque host-side string filters.
   operation `cem.format-tree.block-children` is no longer part of the CEMT call
   surface; the native formatter keeps equivalent block-child layout only as a
   fallback for bindings without a direct CEMT body.
+- Canonical formatter inter-node whitespace now lives in the schema-owned
+  `cem.format-tree.format-inter-node-whitespace` helper. The direct native
+  runtime operation `cem.format-tree.inter-node-whitespace` is no longer part of
+  the CEMT call surface; the native formatter keeps equivalent inter-node
+  layout only as a fallback for bindings without a direct CEMT body.
 - Canonical color traversal now uses schema-owned `cem.color-tree.*` helper
   functions. The direct native runtime operation `cem.color-tree.apply` is no
   longer part of the CEMT call surface; the native colorizer remains only as a
@@ -408,8 +414,11 @@ CEMT body expressions can use deterministic `map(...)` and `fold(...)` over JSON
 arrays. `map(collection, body)` evaluates `body` once for each item with `$item`
 and `$index` in scope. `fold(collection, initial, step)` also provides `$acc`
 and `$accumulator`, updating the accumulator with the resolved `step` value on
-each iteration. `repeat(value, count)` returns a repeated string and is bounded
-by the CEMT runtime repeat limit:
+each iteration. `last(array)` returns the final item or `null` for an empty
+array. `repeat(value, count)` returns a repeated string and is bounded by the
+CEMT runtime repeat limit. `sourceMap(value, functionName)` returns the first
+CEM tree source map found in `value` with a transform frame for `functionName`,
+or `null` when no source map is available:
 
 ```cemt
 {$ fold($subject.children, [], append($acc, {

@@ -3075,9 +3075,7 @@ fn validate_cem_tree_cemt_output_stage_helper_resolution(
     else {
         return Ok(());
     };
-    if helper_name.as_str() == stage.function_name.as_str()
-        || cemt_builtin_runtime_operation_name(&helper_name)
-    {
+    if helper_name.as_str() == stage.function_name.as_str() {
         return Ok(());
     }
     if module_options.output_functions.iter().any(|function| {
@@ -3125,10 +3123,6 @@ fn cemt_direct_call_function_name(expression: &str) -> Option<String> {
         .unwrap_or(rest.len());
     let name = rest[..end].trim();
     (!name.is_empty()).then(|| name.to_owned())
-}
-
-fn cemt_builtin_runtime_operation_name(name: &str) -> bool {
-    matches!(name, "cem.format-tree.inter-node-whitespace")
 }
 
 #[derive(Clone, Debug)]
@@ -10066,10 +10060,27 @@ mod tests {
         assert!(build_nodes
             .body_expression
             .as_deref()
-            .is_some_and(
-                |body| body.contains(r#"call("cem.format-tree.build-node-list""#)
-                    && !body.contains("cem.format-tree.nodes")
-            ));
+            .is_some_and(|body| body
+                .contains(r#"call("cem.format-tree.format-inter-node-whitespace""#)
+                && body.contains(r#"call("cem.format-tree.build-node-list""#)
+                && !body.contains("cem.format-tree.nodes")
+                && !body.contains("cem.format-tree.inter-node-whitespace")));
+        let format_inter_node_whitespace = helper_response
+            .module_options
+            .functions
+            .iter()
+            .find(|function| function.name == "cem.format-tree.format-inter-node-whitespace")
+            .expect("CEM tree inter-node whitespace helper declaration");
+        assert_eq!(
+            format_inter_node_whitespace.return_type,
+            crate::transform_template::TransformTemplateModuleParamType::Array
+        );
+        assert!(format_inter_node_whitespace
+            .body_expression
+            .as_deref()
+            .is_some_and(|body| body.contains("fold($subject")
+                && body.contains("last($acc)")
+                && body.contains("formatter.line-ending")));
         assert!(helper_response
             .module_options
             .functions
@@ -10110,6 +10121,16 @@ mod tests {
                 && body.contains("repeat($indent, $depth)")
                 && body.contains("formatter.indent")
                 && body.contains("formatter.line-ending")));
+        let formatter_whitespace = helper_response
+            .module_options
+            .functions
+            .iter()
+            .find(|function| function.name == "cem.format-tree.formatter-whitespace")
+            .expect("CEM tree formatter whitespace helper declaration");
+        assert!(formatter_whitespace
+            .body_expression
+            .as_deref()
+            .is_some_and(|body| body.contains(r#"sourceMap($subject, "cem.format-tree")"#)));
         assert!(helper_response
             .module_options
             .functions

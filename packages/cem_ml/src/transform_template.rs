@@ -4976,40 +4976,6 @@ fn validate_builtin_cem_tree_formatter_binding(
     Ok(())
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum TransformTemplateCemtRuntimeOperation {
-    CemFormatTreeInterNodeWhitespace,
-}
-
-impl TransformTemplateCemtRuntimeOperation {
-    fn parse(value: &str) -> Option<Self> {
-        match value.trim() {
-            "cem.format-tree.inter-node-whitespace" => Some(Self::CemFormatTreeInterNodeWhitespace),
-            _ => None,
-        }
-    }
-
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::CemFormatTreeInterNodeWhitespace => "cem.format-tree.inter-node-whitespace",
-        }
-    }
-}
-
-fn execute_transform_template_cemt_runtime_operation(
-    operation: TransformTemplateCemtRuntimeOperation,
-    binding: &TransformTemplateEncodeBinding,
-    subject: Value,
-) -> Result<Value, String> {
-    match operation {
-        TransformTemplateCemtRuntimeOperation::CemFormatTreeInterNodeWhitespace => {
-            transform_template_cemt_runtime_format_tree_inter_node_whitespace(
-                operation, binding, subject,
-            )
-        }
-    }
-}
-
 fn transform_template_cem_tree_formatter_nodes(
     binding: &TransformTemplateEncodeBinding,
     subject: Value,
@@ -5022,26 +4988,19 @@ fn transform_template_cem_tree_formatter_nodes(
         .into_iter()
         .map(|node| transform_template_format_cem_tree_node(node, binding, 0))
         .collect::<Result<Vec<_>, _>>()?;
-    execute_transform_template_cemt_runtime_operation(
-        TransformTemplateCemtRuntimeOperation::CemFormatTreeInterNodeWhitespace,
-        binding,
-        Value::Array(nodes),
-    )
+    Ok(transform_template_cem_tree_formatter_inter_node_whitespace(
+        binding, nodes,
+    ))
 }
 
-fn transform_template_cemt_runtime_format_tree_inter_node_whitespace(
-    operation: TransformTemplateCemtRuntimeOperation,
+fn transform_template_cem_tree_formatter_inter_node_whitespace(
     binding: &TransformTemplateEncodeBinding,
-    subject: Value,
-) -> Result<Value, String> {
-    validate_builtin_cem_tree_formatter_binding(binding)?;
-    let nodes = transform_template_cemt_runtime_node_array_subject(operation, subject)?;
-    Ok(Value::Array(
-        transform_template_insert_formatter_whitespace_nodes(
-            nodes,
-            transform_template_cem_tree_formatter_line_ending_data(&binding.options),
-            "formatter.line-ending",
-        ),
+    nodes: Vec<Value>,
+) -> Value {
+    Value::Array(transform_template_insert_formatter_whitespace_nodes(
+        nodes,
+        transform_template_cem_tree_formatter_line_ending_data(&binding.options),
+        "formatter.line-ending",
     ))
 }
 
@@ -5065,7 +5024,7 @@ fn transform_template_cem_tree_formatter_envelope(
 ) -> Result<Value, String> {
     validate_builtin_cem_tree_formatter_binding(binding)?;
     let nodes = transform_template_cemt_runtime_node_array_subject(
-        TransformTemplateCemtRuntimeOperation::CemFormatTreeInterNodeWhitespace,
+        "cem.format-tree.build-envelope",
         subject,
     )?;
     let format_nodes = transform_template_cem_tree_format_nodes(
@@ -5087,14 +5046,13 @@ fn transform_template_cem_tree_formatter_envelope(
 }
 
 fn transform_template_cemt_runtime_node_array_subject(
-    operation: TransformTemplateCemtRuntimeOperation,
+    owner: &str,
     subject: Value,
 ) -> Result<Vec<Value>, String> {
     match subject {
         Value::Array(nodes) => Ok(nodes),
         _ => Err(format!(
-            "{} expected formatted CEM tree node array subject",
-            operation.as_str()
+            "{owner} expected formatted CEM tree node array subject"
         )),
     }
 }
@@ -5144,14 +5102,9 @@ fn transform_template_format_cem_tree_nodes_at_depth(
         .into_iter()
         .map(|node| transform_template_format_cem_tree_node(node, binding, depth))
         .collect::<Result<Vec<_>, _>>()?;
-    let nodes = execute_transform_template_cemt_runtime_operation(
-        TransformTemplateCemtRuntimeOperation::CemFormatTreeInterNodeWhitespace,
-        binding,
-        Value::Array(nodes),
-    )?;
     transform_template_cemt_runtime_node_array_subject(
-        TransformTemplateCemtRuntimeOperation::CemFormatTreeInterNodeWhitespace,
-        nodes,
+        "cem.format-tree.format-nodes",
+        transform_template_cem_tree_formatter_inter_node_whitespace(binding, nodes),
     )
 }
 
@@ -11628,6 +11581,15 @@ fn resolve_encode_subject_expression_at_depth(
     )? {
         return Ok(Some(value));
     }
+    if let Some(value) = resolve_cemt_last_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
     if let Some(value) = resolve_cemt_type_of_expression(
         expression,
         value_bindings,
@@ -11647,6 +11609,15 @@ fn resolve_encode_subject_expression_at_depth(
         return Ok(Some(value));
     }
     if let Some(value) = resolve_cemt_repeat_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
+    if let Some(value) = resolve_cemt_source_map_expression(
         expression,
         value_bindings,
         runtime_functions,
@@ -11799,6 +11770,12 @@ fn resolve_cemt_call_expression(
                 .to_owned(),
         );
     }
+    if function_name == "cem.format-tree.inter-node-whitespace" {
+        return Err(
+            "CEMT runtime operation `cem.format-tree.inter-node-whitespace` has been removed; use schema-owned `cem.format-tree.format-inter-node-whitespace` helpers"
+                .to_owned(),
+        );
+    }
     if function_name == "cem.format-tree.block-children" {
         return Err(
             "CEMT runtime operation `cem.format-tree.block-children` has been removed; use schema-owned `cem.format-tree.format-block-children` helpers"
@@ -11806,34 +11783,6 @@ fn resolve_cemt_call_expression(
         );
     }
     let arguments = parse_cemt_object_literal(&args[1]).map_err(|error| error.to_string())?;
-    if let Some(operation) = TransformTemplateCemtRuntimeOperation::parse(function_name) {
-        if arguments.len() != 1 {
-            return Ok(None);
-        }
-        let Some(subject) = arguments
-            .get("subject")
-            .or_else(|| arguments.get("nodes"))
-            .or_else(|| arguments.get("tree"))
-        else {
-            return Ok(None);
-        };
-        let subject = resolve_cemt_literal_runtime_value(
-            subject,
-            value_bindings,
-            runtime_functions,
-            binding,
-            call_depth,
-        )?;
-        let Some(subject) = subject else {
-            return Ok(None);
-        };
-        let Some(binding) = binding else {
-            return Ok(None);
-        };
-        return execute_transform_template_cemt_runtime_operation(operation, binding, subject)
-            .map(Some);
-    }
-
     let Some(function) = runtime_functions.get(function_name) else {
         return Ok(None);
     };
@@ -13369,6 +13318,40 @@ fn resolve_cemt_length_expression(
     Ok(Some(Value::Number(serde_json::Number::from(length as u64))))
 }
 
+fn resolve_cemt_last_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) =
+        parse_cemt_function_call_args(expression, "last").map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 1 {
+        return Ok(None);
+    }
+    let Some(value) = resolve_encode_subject_expression_at_depth(
+        &args[0],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Value::Array(items) = value else {
+        return Err(format!(
+            "CEMT last expected array, got {}",
+            json_value_type_name(&value)
+        ));
+    };
+    Ok(Some(items.last().cloned().unwrap_or(Value::Null)))
+}
+
 fn resolve_cemt_type_of_expression(
     expression: &str,
     value_bindings: &BTreeMap<String, Value>,
@@ -13511,6 +13494,58 @@ fn resolve_cemt_repeat_expression(
         ));
     }
     Ok(Some(Value::String(value.repeat(count))))
+}
+
+fn resolve_cemt_source_map_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) = parse_cemt_function_call_args(expression, "sourceMap")
+        .map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 2 {
+        return Ok(None);
+    }
+    let Some(value) = resolve_encode_subject_expression_at_depth(
+        &args[0],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some(function_name) = resolve_encode_subject_expression_at_depth(
+        &args[1],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some(function_name) = function_name
+        .as_str()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Err(format!(
+            "CEMT sourceMap expected non-empty string function name, got {}",
+            json_value_type_name(&function_name)
+        ));
+    };
+    let source_map = transform_template_first_cem_tree_source_map(&value);
+    Ok(Some(
+        transform_template_cem_tree_transform_source_map_value(source_map.as_ref(), function_name)
+            .unwrap_or(Value::Null),
+    ))
 }
 
 fn cemt_i64_number(value: &Value) -> Option<i64> {
@@ -14581,9 +14616,11 @@ fn cemt_runtime_expression_is_dynamic(value: &str) -> bool {
         || cemt_expression_starts_with_call(value, "queuePeek")
         || cemt_expression_starts_with_call(value, "queueLength")
         || cemt_expression_starts_with_call(value, "length")
+        || cemt_expression_starts_with_call(value, "last")
         || cemt_expression_starts_with_call(value, "typeOf")
         || cemt_expression_starts_with_call(value, "add")
         || cemt_expression_starts_with_call(value, "repeat")
+        || cemt_expression_starts_with_call(value, "sourceMap")
         || cemt_expression_starts_with_call(value, "drainQueue")
         || cemt_expression_starts_with_call(value, "diagnostic")
         || cemt_expression_starts_with_call(value, "diagnostics")
@@ -20703,6 +20740,14 @@ mod tests {
             Some(json!(5))
         );
         assert_eq!(
+            resolve_encode_subject_expression(r#"last($node.attributes)"#, &values),
+            Some(json!({"name": "size"}))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(r#"last([])"#, &values),
+            Some(Value::Null)
+        );
+        assert_eq!(
             resolve_encode_subject_expression(r#"typeOf($node.attributes)"#, &values),
             Some(json!("array"))
         );
@@ -20721,6 +20766,44 @@ mod tests {
         assert_eq!(
             resolve_encode_subject_expression(r#"{ value: repeat("  ", $node.depth) }"#, &values),
             Some(json!({ "value": "    " }))
+        );
+
+        let source_map =
+            serde_json::to_value(source_map_stack(44, 5)).expect("source map serializes");
+        let source_map_values = BTreeMap::from([(
+            "node".to_owned(),
+            json!({
+                "kind": "element",
+                "name": "card",
+                "sourceMap": source_map
+            }),
+        )]);
+        let resolved_source_map = resolve_encode_subject_expression(
+            r#"sourceMap($node, "cem.format-tree")"#,
+            &source_map_values,
+        )
+        .expect("sourceMap expression resolves");
+        assert_cem_tree_source_map_current_transform(&resolved_source_map, |transform| {
+            matches!(
+                transform,
+                TransformKind::TemplateTransform { function }
+                    if function == "cem.format-tree"
+            )
+        });
+        let object_source_map = resolve_encode_subject_expression(
+            r#"{ sourceMap: sourceMap($node, "cem.format-tree") }"#,
+            &source_map_values,
+        )
+        .expect("sourceMap expression resolves inside object literals");
+        assert_cem_tree_source_map_current_transform(
+            &object_source_map["sourceMap"],
+            |transform| {
+                matches!(
+                    transform,
+                    TransformKind::TemplateTransform { function }
+                        if function == "cem.format-tree"
+                )
+            },
         );
 
         let error = resolve_encode_subject_expression_at_depth(
@@ -20742,6 +20825,16 @@ mod tests {
         )
         .expect_err("add rejects non-numeric operands");
         assert!(error.contains("CEMT add expected numeric right operand"));
+
+        let error = resolve_encode_subject_expression_at_depth(
+            r#"last($node.label)"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("last rejects non-array values");
+        assert!(error.contains("CEMT last expected array"));
 
         let error = resolve_encode_subject_expression_at_depth(
             r#"repeat($node.label, $node.label)"#,
@@ -25658,31 +25751,6 @@ mod tests {
         let normalized_nodes =
             transform_template_cem_tree_nodes(&subject).expect("subject normalizes to CEM nodes");
 
-        assert_eq!(
-            TransformTemplateCemtRuntimeOperation::parse("cem.format-tree.nodes"),
-            None
-        );
-        assert_eq!(
-            TransformTemplateCemtRuntimeOperation::CemFormatTreeInterNodeWhitespace.as_str(),
-            "cem.format-tree.inter-node-whitespace"
-        );
-        assert_eq!(
-            TransformTemplateCemtRuntimeOperation::parse("cem.format-tree.block-children"),
-            None
-        );
-        assert_eq!(
-            TransformTemplateCemtRuntimeOperation::parse("cem.format-tree.content-boundary"),
-            None
-        );
-        assert_eq!(
-            TransformTemplateCemtRuntimeOperation::parse("cem.format-tree.format-nodes"),
-            None
-        );
-        assert_eq!(
-            TransformTemplateCemtRuntimeOperation::parse("cem.format-tree.envelope"),
-            None
-        );
-
         let formatted_nodes =
             transform_template_cem_tree_formatter_nodes(&binding, Value::Array(normalized_nodes))
                 .expect("native formatter fallback node helper runs");
@@ -25697,15 +25765,13 @@ mod tests {
             "raw"
         );
 
-        let separated_nodes = execute_transform_template_cemt_runtime_operation(
-            TransformTemplateCemtRuntimeOperation::CemFormatTreeInterNodeWhitespace,
+        let separated_nodes = transform_template_cem_tree_formatter_inter_node_whitespace(
             &binding,
-            json!([
-                {"kind": "element", "name": "first"},
-                {"kind": "element", "name": "second"}
-            ]),
-        )
-        .expect("top-level formatter whitespace operation runs");
+            vec![
+                json!({"kind": "element", "name": "first"}),
+                json!({"kind": "element", "name": "second"}),
+            ],
+        );
         assert_eq!(separated_nodes[1]["kind"], "whitespace");
         assert_eq!(separated_nodes[1]["value"], "\n");
         assert_eq!(separated_nodes[1]["formatterRole"], "formatter.line-ending");
@@ -25838,6 +25904,21 @@ mod tests {
         assert!(error.contains("schema-owned `cem.format-tree.build-content-boundary` helpers"));
 
         let error = resolve_encode_subject_expression_at_depth(
+            r#"call(cem.format-tree.inter-node-whitespace, { subject: [] })"#,
+            &BTreeMap::new(),
+            &BTreeMap::new(),
+            Some(&binding),
+            0,
+        )
+        .expect_err("direct CEMT body rejects removed formatter inter-node whitespace operation");
+        assert!(error.contains(
+            "CEMT runtime operation `cem.format-tree.inter-node-whitespace` has been removed"
+        ));
+        assert!(
+            error.contains("schema-owned `cem.format-tree.format-inter-node-whitespace` helpers")
+        );
+
+        let error = resolve_encode_subject_expression_at_depth(
             r#"call(cem.format-tree.block-children, { subject: { nodes: [], depth: 0 } })"#,
             &BTreeMap::new(),
             &BTreeMap::new(),
@@ -25875,11 +25956,6 @@ mod tests {
             .resolve_color_binding(&request, &BTreeSet::new())
             .expect("CEM tree colorizer resolves")
             .into_encode_binding();
-
-        assert_eq!(
-            TransformTemplateCemtRuntimeOperation::parse("cem.color-tree.apply"),
-            None
-        );
 
         let colored = implementations
             .encode(&binding, &subject)
