@@ -135,7 +135,10 @@
                     "node tools/scripts/verify-cli-error.mjs packages/cem_ml_cli/docs/examples/multi-output-missing-destination.error.expected.json -- cargo run --package cem-ml-cli --target-dir dist/target/cem_ml_cli --",
                     "cargo run --package cem-ml-cli --target-dir dist/target/cem_ml_cli -- convert --config packages/cem_ml_cli/docs/examples/multi-output-native.run.json",
                     "node tools/scripts/verify-native-output.mjs packages/cem_ml_cli/docs/examples/multi-output-native.expected.json packages/cem_ml_cli/dist/multi-output-native-first.cem",
-                    "node tools/scripts/verify-native-output.mjs packages/cem_ml_cli/docs/examples/multi-output-native.expected.json packages/cem_ml_cli/dist/multi-output-native-second.cem"
+                    "node tools/scripts/verify-native-output.mjs packages/cem_ml_cli/docs/examples/multi-output-native.expected.json packages/cem_ml_cli/dist/multi-output-native-second.cem",
+                    "cargo run --package cem-ml-cli --target-dir dist/target/cem_ml_cli -- convert --config packages/cem_ml_cli/docs/examples/multi-output-mixed-native.run.json",
+                    "node tools/scripts/verify-native-output.mjs packages/cem_ml_cli/docs/examples/native-output-cem.expected.json packages/cem_ml_cli/dist/multi-output-mixed-native.cem",
+                    "node tools/scripts/verify-native-output.mjs packages/cem_ml_cli/docs/examples/native-output-yaml.expected.json packages/cem_ml_cli/dist/multi-output-mixed-native.yml"
                 ],
                 "parallel": false,
                 "cwd": "{workspaceRoot}"
@@ -167,6 +170,7 @@
                 "{workspaceRoot}/packages/cem_ml_cli/docs/examples/multi-output-native.input.cem",
                 "{workspaceRoot}/packages/cem_ml_cli/docs/examples/multi-output-native.run.json",
                 "{workspaceRoot}/packages/cem_ml_cli/docs/examples/multi-output-native.expected.json",
+                "{workspaceRoot}/packages/cem_ml_cli/docs/examples/multi-output-mixed-native.run.json",
                 "{workspaceRoot}/packages/cem_ml_cli/docs/examples/multi-output-missing-destination.run.json",
                 "{workspaceRoot}/packages/cem_ml_cli/docs/examples/multi-output-global-out.error.expected.json",
                 "{workspaceRoot}/packages/cem_ml_cli/docs/examples/multi-output-artifact-json.error.expected.json",
@@ -185,7 +189,9 @@
                 "{projectRoot}/dist/native-output-yaml.yml",
                 "{projectRoot}/dist/native-output-yaml.artifact.json",
                 "{projectRoot}/dist/multi-output-native-first.cem",
-                "{projectRoot}/dist/multi-output-native-second.cem"
+                "{projectRoot}/dist/multi-output-native-second.cem",
+                "{projectRoot}/dist/multi-output-mixed-native.cem",
+                "{projectRoot}/dist/multi-output-mixed-native.yml"
             ]
         },
         "e2e": {
