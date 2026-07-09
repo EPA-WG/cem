@@ -663,6 +663,63 @@ mod tests {
     }
 
     #[test]
+    fn schema_package_schema_exposes_converter_template_validation_metadata() {
+        let source = builtin_schema_package_sources()
+            .iter()
+            .find(|source| source.package_id == "schema-package")
+            .expect("schema-package source");
+        let document = parse_cem_document(source.schema_source);
+        let schema_id = first_element_id_by_local_name(&document, "schema")
+            .expect("schema-package schema root");
+
+        let constraints_id = element_child_ids_by_local_name(&document, schema_id, "constraints")
+            .into_iter()
+            .next()
+            .expect("schema-package constraints");
+        let constraint_kinds =
+            element_child_ids_by_local_name(&document, constraints_id, "constraint")
+                .into_iter()
+                .filter_map(|constraint_id| {
+                    collect_attrs(&document, constraint_id)
+                        .get("kind")
+                        .map(String::to_owned)
+                })
+                .collect::<Vec<_>>();
+
+        assert!(
+            constraint_kinds
+                .iter()
+                .any(|kind| kind == "converter-template-output-stage-contract"),
+            "schema-package schema must publish the CEMT converter template output-stage constraint"
+        );
+
+        let diagnostics_id = element_child_ids_by_local_name(&document, schema_id, "diagnostics")
+            .into_iter()
+            .next()
+            .expect("schema-package diagnostics");
+        let diagnostic_codes =
+            element_child_ids_by_local_name(&document, diagnostics_id, "diagnostic")
+                .into_iter()
+                .filter_map(|diagnostic_id| {
+                    collect_attrs(&document, diagnostic_id)
+                        .get("code")
+                        .map(String::to_owned)
+                })
+                .collect::<Vec<_>>();
+
+        for expected_code in [
+            "cem.schema_package.converter_template_schema_missing",
+            "cem.schema_package.converter_template_source_unreadable",
+            "cem.schema_package.converter_template_contract_invalid",
+        ] {
+            assert!(
+                diagnostic_codes.iter().any(|code| code == expected_code),
+                "schema-package schema must publish diagnostic code {expected_code}"
+            );
+        }
+    }
+
+    #[test]
     fn builtin_registry_resolves_unambiguous_primary_content_types() {
         let registry = SchemaRegistry::with_builtin_schemas();
 
