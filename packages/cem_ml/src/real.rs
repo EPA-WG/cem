@@ -560,6 +560,7 @@ fn execute_conversion_output_pipeline_with_context(
         schema_registry: &context.schema_registry,
         conversion_registry: &context.converter_registry,
         package_artifact_reader: Some(&package_artifact_reader),
+        artifact_cache: None,
     };
     execute_conversion_output_pipeline_with_environment(
         &environment,
