@@ -149,7 +149,10 @@ The generated writer output at
 `packages/cem_ml_cli/dist/cemt-output-pipeline.html` is target-native HTML.
 When `--artifact-json` is supplied, the structured convert artifact is written
 separately to `packages/cem_ml_cli/dist/cemt-output-pipeline.artifact.json` for
-debugging; its `content` field mirrors the HTML emitted by the writer.
+debugging; its `content` field mirrors the HTML emitted by the writer. The
+`cem_ml_cli:validate-cemt-pipeline-fixture` target compares the generated HTML
+bytes with
+[`docs/examples/cemt-output-pipeline.expected.json`](examples/cemt-output-pipeline.expected.json).
 
 ```html
 <article class="cem-color cem-color-syntax-name"><span class="cem-color cem-color-syntax-string">Ready </span><strong class="cem-color cem-color-syntax-keyword"><span class="cem-color cem-color-syntax-keyword">now</span></strong><span class="cem-color cem-color-syntax-string">.</span></article>

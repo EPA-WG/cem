@@ -124,7 +124,8 @@
                     "cargo run --package cem-ml-cli --target-dir dist/target/cem_ml_cli -- fixture cemt-pipeline --package-artifacts --out packages/cem_ml_cli/dist/formatter-coloring-pipeline.package-artifacts.generated.fixture.cem",
                     "diff -u packages/cem_ml/schema-packages/cem-ml/v1/examples/formatter-coloring-pipeline.package-artifacts.fixture.cem packages/cem_ml_cli/dist/formatter-coloring-pipeline.package-artifacts.generated.fixture.cem",
                     "cargo run --package cem-ml-cli --target-dir dist/target/cem_ml_cli -- fixture cemt-pipeline --package-artifacts --out packages/cem_ml_cli/dist/cemt-output-pipeline.package-artifacts.fixture.cem",
-                    "cargo run --package cem-ml-cli --target-dir dist/target/cem_ml_cli -- convert --config packages/cem_ml_cli/docs/examples/cemt-output-pipeline.run.json --artifact-json packages/cem_ml_cli/dist/cemt-output-pipeline.artifact.json"
+                    "cargo run --package cem-ml-cli --target-dir dist/target/cem_ml_cli -- convert --config packages/cem_ml_cli/docs/examples/cemt-output-pipeline.run.json --artifact-json packages/cem_ml_cli/dist/cemt-output-pipeline.artifact.json",
+                    "node tools/scripts/verify-native-output.mjs packages/cem_ml_cli/docs/examples/cemt-output-pipeline.expected.json packages/cem_ml_cli/dist/cemt-output-pipeline.html"
                 ],
                 "parallel": false,
                 "cwd": "{workspaceRoot}"
@@ -145,7 +146,9 @@
                 "{workspaceRoot}/packages/cem_ml/schema-packages/cem-ml/v1/colorizers/cem-tree-helpers.cemt",
                 "{workspaceRoot}/packages/cem_ml/schema-packages/cem-ml/v1/examples/formatter-coloring-pipeline.package-artifacts.fixture.cem",
                 "{workspaceRoot}/packages/cem_ml_cli/docs/examples/cemt-output-pipeline.input.cem",
-                "{workspaceRoot}/packages/cem_ml_cli/docs/examples/cemt-output-pipeline.run.json"
+                "{workspaceRoot}/packages/cem_ml_cli/docs/examples/cemt-output-pipeline.run.json",
+                "{workspaceRoot}/packages/cem_ml_cli/docs/examples/cemt-output-pipeline.expected.json",
+                "{workspaceRoot}/tools/scripts/verify-native-output.mjs"
             ],
             "outputs": [
                 "{projectRoot}/dist/formatter-coloring-pipeline.generated.fixture.cem",
