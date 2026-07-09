@@ -1,0 +1,29 @@
+{
+  "resolvers": [
+    {
+      "uriPrefix": "cem+repo://",
+      "localRoot": ".",
+      "read": true,
+      "write": true
+    }
+  ],
+  "inputs": [
+    {
+      "uri": "cem+repo://packages/cem_ml_cli/docs/examples/native-output-yaml.input.json",
+      "rootScope": {
+        "defaultContentType": "application/json",
+        "schema": "https://cem.dev/ns/data/json/1"
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "inputRef": "cem+repo://packages/cem_ml_cli/docs/examples/native-output-yaml.input.json",
+      "destination": "cem+repo://packages/cem_ml_cli/dist/native-output-yaml.yml",
+      "rootScope": {
+        "defaultContentType": "application/yaml",
+        "schema": "https://cem.dev/ns/data/yaml/1"
+      }
+    }
+  ]
+}

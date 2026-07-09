@@ -1,0 +1,7 @@
+{
+  "service": {
+    "name": "catalog",
+    "enabled": true,
+    "ports": [80, 443]
+  }
+}
