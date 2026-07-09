@@ -12007,7 +12007,7 @@ mod tests {
     use cem_ml::resolver::{ResolvedRead, ResolvedWrite, ResolverRegistry, ResourceResolver};
     use clap::Parser;
     use std::io::Cursor;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex};
 
     const COLORED_P_HI_HTML: &str = concat!(
@@ -12015,12 +12015,12 @@ mod tests {
         r#"<span class="cem-color cem-color-syntax-string" data-role="syntax.string">Hi</span></p>"#
     );
     const COLORED_SVG_HI_HTML: &str = concat!(
-        r#"<svg class="cem-color cem-color-syntax-name" data-role="syntax.name">  "#,
+        r#"<svg class="cem-color cem-color-syntax-name" data-role="syntax.name">"#,
         r#"<title class="cem-color cem-color-syntax-name" data-role="syntax.name">"#,
         r#"<span class="cem-color cem-color-syntax-string" data-role="syntax.string">Hi</span></title>"#,
-        "\n</svg>"
+        "</svg>"
     );
-    const FORMATTED_SVG_HI_XML: &str = "<svg>  <title>Hi</title>\n</svg>";
+    const FORMATTED_SVG_HI_XML: &str = "<svg><title>Hi</title></svg>";
 
     fn yaml_documents_to_json_value(documents: Vec<yaml_rust2::Yaml>) -> serde_json::Value {
         let mut values = documents
@@ -12235,6 +12235,39 @@ mod tests {
         let p = dir.join(name);
         std::fs::write(&p, body).unwrap();
         p
+    }
+
+    fn write_single_output_convert_config(
+        name: &str,
+        input: &Path,
+        input_content_type: &str,
+        input_schema: &str,
+        output_content_type: &str,
+        output_schema: &str,
+    ) -> PathBuf {
+        let config_path = std::env::temp_dir().join(format!("cem-ml-cli-tests/{name}"));
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{
+                    "uri": input.display().to_string(),
+                    "rootScope": {
+                        "defaultContentType": input_content_type,
+                        "schema": input_schema
+                    }
+                }],
+                "outputs": [{
+                    "inputRef": input.display().to_string(),
+                    "rootScope": {
+                        "defaultContentType": output_content_type,
+                        "schema": output_schema
+                    }
+                }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+        config_path
     }
 
     fn strip_ansi_codes(input: &str) -> String {
@@ -22613,6 +22646,127 @@ start =
         let content = stdout.as_str();
         assert!(content.contains(r#"<article class="cem-color cem-color-syntax-name""#));
         assert!(content.contains(r#"<strong class="cem-color cem-color-syntax-keyword""#));
+    }
+
+    #[test]
+    fn convert_config_stdout_uses_target_native_bytes_and_artifact_json_sidecar() {
+        let cem_input = write_fixture(
+            "convert-config-native-stdout.cem",
+            "@doc cem-ml 1\n{p | Hi}",
+        );
+        let json_input = write_fixture(
+            "convert-config-native-stdout.json",
+            r#"{"service":{"name":"catalog","enabled":true}}"#,
+        );
+
+        let html_config = write_single_output_convert_config(
+            "convert-config-native-stdout-html.json",
+            &cem_input,
+            cem_ml::schema::registry::CEM_ML_CONTENT_TYPE,
+            cem_ml::schema::registry::CEM_ML_SCHEMA_URI,
+            cem_ml::schema::registry::HTML_CONTENT_TYPE,
+            cem_ml::schema::registry::HTML_SCHEMA_URI,
+        );
+        let html_artifact =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-config-native-html.artifact.json");
+        let _ = std::fs::remove_file(&html_artifact);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "--no-color",
+                "convert",
+                "--config",
+                html_config.to_str().unwrap(),
+                "--artifact-json",
+                html_artifact.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert_eq!(stdout, COLORED_P_HI_HTML);
+        assert!(serde_json::from_str::<serde_json::Value>(&stdout).is_err());
+        let html_debug: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&html_artifact).unwrap()).unwrap();
+        assert_eq!(html_debug["kind"], "html");
+        assert_eq!(html_debug["content"], COLORED_P_HI_HTML);
+
+        let cem_config = write_single_output_convert_config(
+            "convert-config-native-stdout-cem.json",
+            &cem_input,
+            cem_ml::schema::registry::CEM_ML_CONTENT_TYPE,
+            cem_ml::schema::registry::CEM_ML_SCHEMA_URI,
+            cem_ml::schema::registry::CEM_ML_CONTENT_TYPE,
+            cem_ml::schema::registry::CEM_ML_SCHEMA_URI,
+        );
+        let cem_artifact =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-config-native-cem.artifact.json");
+        let _ = std::fs::remove_file(&cem_artifact);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "--no-color",
+                "convert",
+                "--config",
+                cem_config.to_str().unwrap(),
+                "--artifact-json",
+                cem_artifact.to_str().unwrap(),
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert_eq!(stdout, "@doc cem-ml 1\n{p | Hi}\n");
+        assert!(serde_json::from_str::<serde_json::Value>(&stdout).is_err());
+        let cem_debug: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&cem_artifact).unwrap()).unwrap();
+        assert_eq!(cem_debug["kind"], "cem");
+        assert_eq!(cem_debug["content"], "@doc cem-ml 1\n{p | Hi}\n");
+
+        let yaml_config = write_single_output_convert_config(
+            "convert-config-native-stdout-yaml.json",
+            &json_input,
+            cem_ml::schema::registry::JSON_CONTENT_TYPE,
+            cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI,
+            cem_ml::schema::registry::YAML_CONTENT_TYPE,
+            cem_ml::schema::registry::YAML_SCHEMA_URI,
+        );
+        let yaml_artifact =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-config-native-yaml.artifact.json");
+        let _ = std::fs::remove_file(&yaml_artifact);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "--no-color",
+                "convert",
+                "--config",
+                yaml_config.to_str().unwrap(),
+                "--artifact-json",
+                yaml_artifact.to_str().unwrap(),
+                "--output-color-type",
+                "ansi-256",
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert!(!stdout.contains("\x1b["));
+        assert!(serde_json::from_str::<serde_json::Value>(&stdout).is_err());
+        let documents = yaml_rust2::YamlLoader::load_from_str(&stdout).unwrap();
+        let yaml = yaml_documents_to_json_value(documents);
+        assert_eq!(yaml["service"]["name"], "catalog");
+        assert_eq!(yaml["service"]["enabled"], true);
+        let yaml_debug: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&yaml_artifact).unwrap()).unwrap();
+        assert_eq!(yaml_debug["kind"], "document");
+        assert_eq!(
+            yaml_debug["contentType"],
+            cem_ml::schema::registry::YAML_CONTENT_TYPE
+        );
+        assert_eq!(
+            yaml_debug["schema"],
+            cem_ml::schema::registry::YAML_SCHEMA_URI
+        );
+        assert!(yaml_debug["hash"]
+            .as_str()
+            .is_some_and(|hash| hash.starts_with("cem-text/1+blake3:")));
     }
 
     #[test]
