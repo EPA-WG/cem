@@ -575,13 +575,17 @@ pub struct ConvertArgs {
     )]
     pub cemt_color_profile: Option<String>,
 
-    #[arg(long, value_name = "FILE")]
+    #[arg(
+        long,
+        value_name = "FILE",
+        help = "Write primary target-native output to FILE (stdout if omitted; JSON only when JSON is the requested target)"
+    )]
     pub out: Option<PathBuf>,
 
     #[arg(
         long = "artifact-json",
         value_name = "FILE",
-        help = "Write structured conversion artifact JSON to FILE for debugging"
+        help = "Write structured conversion artifact JSON to FILE as a debug sidecar; does not replace target-native stdout/--out"
     )]
     pub artifact_json: Option<PathBuf>,
 
@@ -1012,6 +1016,28 @@ mod tests {
             Some("acme.showcase.color-tree")
         );
         assert_eq!(args.cemt_color_profile.as_deref(), Some("classes"));
+    }
+
+    #[test]
+    fn convert_help_documents_target_native_output_contract() {
+        let mut command = Cli::command();
+        let convert = command
+            .find_subcommand_mut("convert")
+            .expect("convert subcommand exists");
+        let mut help = Vec::new();
+        convert.write_long_help(&mut help).unwrap();
+        let help = String::from_utf8(help).unwrap();
+
+        assert!(help.contains("primary target-native output"), "{help}");
+        assert!(
+            help.contains("JSON only when JSON is the requested target"),
+            "{help}"
+        );
+        assert!(help.contains("debug sidecar"), "{help}");
+        assert!(
+            help.contains("does not replace target-native stdout/--out"),
+            "{help}"
+        );
     }
 
     #[test]
