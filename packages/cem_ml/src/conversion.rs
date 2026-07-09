@@ -2936,6 +2936,23 @@ fn read_cem_tree_cemt_output_stage_artifact(
     environment: &ConversionOutputPipelineEnvironment<'_>,
     artifact: &ConversionPackageArtifactDescriptor,
 ) -> Result<ConversionPackageArtifactRead, String> {
+    if let Some(reader) = environment.package_artifact_reader {
+        match reader(artifact) {
+            Ok(source) => return Ok(source),
+            Err(error) => {
+                if let Some(source) =
+                    builtin_schema_package_artifact_source(&artifact.package_id, &artifact.path)
+                {
+                    return Ok(ConversionPackageArtifactRead {
+                        uri: source.path.to_owned(),
+                        bytes: source.source.as_bytes().to_vec(),
+                        content_type: artifact.content_type.clone(),
+                    });
+                }
+                return Err(error);
+            }
+        }
+    }
     if let Some(source) =
         builtin_schema_package_artifact_source(&artifact.package_id, &artifact.path)
     {
@@ -12179,6 +12196,16 @@ mod tests {
                     kind: $item.kind,
                     name: $item.name,
                     colorRole: "syntax.name",
+                    writerAttributeNodes: [
+                        {
+                            kind: "writer-attribute",
+                            name: "class",
+                            value: "direct-cemt-color",
+                            colorProfile: "none",
+                            colorizerOwned: true,
+                            colorizerRole: "colorizer.writer-attribute"
+                        }
+                    ],
                     children: $item.children
                 })
             } }
@@ -12269,6 +12296,10 @@ mod tests {
         );
         assert_eq!(colored["nodes"][0]["name"], "main");
         assert_eq!(colored["nodes"][0]["colorRole"], "syntax.name");
+        assert_eq!(
+            colored["nodes"][0]["writerAttributeNodes"][0]["value"],
+            "direct-cemt-color"
+        );
 
         binding
             .artifact_from_value(colored)

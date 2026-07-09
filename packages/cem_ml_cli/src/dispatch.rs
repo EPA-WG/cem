@@ -24091,18 +24091,21 @@ start =
                         colorProfile: "none"
                     }
                 ],
-                nodes: map($subject.nodes, {
-                    kind: $item.kind,
-                    name: $item.name,
-                    attributes: [
-                        {
-                            kind: "attribute",
-                            name: "data-cli-package-stage",
-                            value: "external-cemt"
-                        }
-                    ],
-                    children: $item.children
-                })
+                nodes: map($subject.nodes, match($item.kind, {
+                    element: {
+                        kind: $item.kind,
+                        name: "cli-external-widget",
+                        attributes: [
+                            {
+                                kind: "attribute",
+                                name: "data-cli-package-stage",
+                                value: "external-cemt"
+                            }
+                        ],
+                        children: []
+                    },
+                    default: $item
+                }))
             } }
         }
     }
@@ -24155,29 +24158,32 @@ start =
                         colorProfile: "classes"
                     }
                 ],
-                nodes: map($subject.nodes, {
-                    kind: $item.kind,
-                    name: $item.name,
-                    writerAttributeNodes: [
-                        {
-                            kind: "writer-attribute",
-                            name: "class",
-                            value: "cli-external-package-color",
-                            colorProfile: "classes",
-                            colorizerOwned: true,
-                            colorizerRole: "colorizer.writer-attribute"
-                        },
-                        {
-                            kind: "writer-attribute",
-                            name: "data-cli-package-stage",
-                            value: "external-cemt",
-                            colorProfile: "classes",
-                            colorizerOwned: true,
-                            colorizerRole: "colorizer.writer-attribute"
-                        }
-                    ],
-                    children: $item.children
-                })
+                nodes: map($subject.nodes, match($item.kind, {
+                    element: {
+                        kind: $item.kind,
+                        name: "cli-external-widget",
+                        writerAttributeNodes: [
+                            {
+                                kind: "writer-attribute",
+                                name: "class",
+                                value: "cli-external-package-color",
+                                colorProfile: "classes",
+                                colorizerOwned: true,
+                                colorizerRole: "colorizer.writer-attribute"
+                            },
+                            {
+                                kind: "writer-attribute",
+                                name: "data-cli-package-stage",
+                                value: "external-cemt",
+                                colorProfile: "classes",
+                                colorizerOwned: true,
+                                colorizerRole: "colorizer.writer-attribute"
+                            }
+                        ],
+                        children: []
+                    },
+                    default: $item
+                }))
             } }
         }
     }

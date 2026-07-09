@@ -11536,29 +11536,32 @@ mod tests {
                         colorProfile: "classes"
                     }
                 ],
-                nodes: map($subject.nodes, {
-                    kind: $item.kind,
-                    name: $item.name,
-                    writerAttributeNodes: [
-                        {
-                            kind: "writer-attribute",
-                            name: "class",
-                            value: "external-package-color",
-                            colorProfile: "classes",
-                            colorizerOwned: true,
-                            colorizerRole: "colorizer.writer-attribute"
-                        },
-                        {
-                            kind: "writer-attribute",
-                            name: "data-package-stage",
-                            value: "external-cemt",
-                            colorProfile: "classes",
-                            colorizerOwned: true,
-                            colorizerRole: "colorizer.writer-attribute"
-                        }
-                    ],
-                    children: $item.children
-                })
+                nodes: map($subject.nodes, match($item.kind, {
+                    element: {
+                        kind: $item.kind,
+                        name: "external-widget",
+                        writerAttributeNodes: [
+                            {
+                                kind: "writer-attribute",
+                                name: "class",
+                                value: "external-package-color",
+                                colorProfile: "classes",
+                                colorizerOwned: true,
+                                colorizerRole: "colorizer.writer-attribute"
+                            },
+                            {
+                                kind: "writer-attribute",
+                                name: "data-package-stage",
+                                value: "external-cemt",
+                                colorProfile: "classes",
+                                colorizerOwned: true,
+                                colorizerRole: "colorizer.writer-attribute"
+                            }
+                        ],
+                        children: []
+                    },
+                    default: $item
+                }))
             } }
         }
     }

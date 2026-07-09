@@ -21856,6 +21856,100 @@ mod tests {
     }
 
     #[test]
+    fn cemt_runtime_resolves_colorizer_writer_attribute_node_arrays() {
+        let values = BTreeMap::from([(
+            "subject".to_owned(),
+            json!({
+                "kind": "cem-tree",
+                "contentType": "application/cem",
+                "schema": "https://cem.dev/ns/cem-ml/1",
+                "category": "cem-tree",
+                "mode": "fragment",
+                "canonical": true,
+                "formatterProfile": "cem.format-tree",
+                "formatNodes": [],
+                "nodes": [{
+                    "kind": "element",
+                    "name": "external-widget",
+                    "children": []
+                }]
+            }),
+        )]);
+
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"{
+                    kind: $subject.kind,
+                    contentType: $subject.contentType,
+                    schema: $subject.schema,
+                    category: $subject.category,
+                    mode: $subject.mode,
+                    canonical: $subject.canonical,
+                    formatterProfile: $subject.formatterProfile,
+                    formatNodes: $subject.formatNodes,
+                    colored: true,
+                    colorProfile: "classes",
+                    colorNodes: [
+                        {
+                            kind: "color-marker",
+                            name: "cem.color-tree",
+                            colorizerRole: "colorizer.boundary",
+                            colorProfile: "classes"
+                        }
+                    ],
+                    nodes: map($subject.nodes, {
+                        kind: $item.kind,
+                        name: $item.name,
+                        writerAttributeNodes: [
+                            {
+                                kind: "writer-attribute",
+                                name: "class",
+                                value: "external-package-color",
+                                colorProfile: "classes",
+                                colorizerOwned: true,
+                                colorizerRole: "colorizer.writer-attribute"
+                            }
+                        ],
+                        children: $item.children
+                    })
+                }"#,
+                &values,
+            ),
+            Some(json!({
+                "kind": "cem-tree",
+                "contentType": "application/cem",
+                "schema": "https://cem.dev/ns/cem-ml/1",
+                "category": "cem-tree",
+                "mode": "fragment",
+                "canonical": true,
+                "formatterProfile": "cem.format-tree",
+                "formatNodes": [],
+                "colored": true,
+                "colorProfile": "classes",
+                "colorNodes": [{
+                    "kind": "color-marker",
+                    "name": "cem.color-tree",
+                    "colorizerRole": "colorizer.boundary",
+                    "colorProfile": "classes"
+                }],
+                "nodes": [{
+                    "kind": "element",
+                    "name": "external-widget",
+                    "writerAttributeNodes": [{
+                        "kind": "writer-attribute",
+                        "name": "class",
+                        "value": "external-package-color",
+                        "colorProfile": "classes",
+                        "colorizerOwned": true,
+                        "colorizerRole": "colorizer.writer-attribute"
+                    }],
+                    "children": []
+                }]
+            })),
+        );
+    }
+
+    #[test]
     fn cemt_runtime_call_expression_binds_parameters_for_formatter_helpers() {
         let values = BTreeMap::from([(
             "node".to_owned(),
