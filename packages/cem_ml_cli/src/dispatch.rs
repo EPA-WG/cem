@@ -23552,6 +23552,82 @@ start =
     }
 
     #[test]
+    fn convert_config_uses_packaged_cemt_dom_converter_pipeline_for_native_html() {
+        let input = write_fixture(
+            "convert-config-packaged-cemt-dom-native-html.cem",
+            "@doc cem-ml 1\n{main | {input @aria-label=Email @type=email @required}{button | Send}}",
+        );
+        let config_path = write_single_output_convert_config(
+            "convert-config-packaged-cemt-dom-html.json",
+            &input,
+            cem_ml::schema::registry::CEM_ML_CONTENT_TYPE,
+            cem_ml::schema::registry::CEM_ML_SCHEMA_URI,
+            cem_ml::schema::registry::HTML_CONTENT_TYPE,
+            cem_ml::schema::registry::HTML_SCHEMA_URI,
+        );
+        let artifact_path = std::env::temp_dir()
+            .join("cem-ml-cli-tests/convert-config-packaged-cemt-dom-html.artifact.json");
+        let report_path = std::env::temp_dir()
+            .join("cem-ml-cli-tests/convert-config-packaged-cemt-dom-html.report.json");
+        let _ = std::fs::remove_file(&artifact_path);
+        let _ = std::fs::remove_file(&report_path);
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "--no-color",
+                "convert",
+                "--config",
+                config_path.to_str().unwrap(),
+                "--artifact-json",
+                artifact_path.to_str().unwrap(),
+                "--report-json",
+                report_path.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert!(stdout.starts_with("<main"));
+        assert!(stdout.contains("<input"));
+        assert!(stdout.contains(" required"));
+        assert!(stdout.contains(r#"type="email""#));
+        assert!(
+            !stdout.contains(r#"required="""#),
+            "HTML boolean attributes must stay target-native: {stdout}"
+        );
+        assert!(
+            !stdout.contains("</input>"),
+            "HTML void elements must stay target-native: {stdout}"
+        );
+        assert!(
+            stdout.contains(r#"class="cem-color cem-color-syntax-name""#),
+            "CEMT colorizer output is missing from HTML: {stdout}"
+        );
+        assert!(serde_json::from_str::<serde_json::Value>(&stdout).is_err());
+
+        let artifact: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&artifact_path).unwrap()).unwrap();
+        assert_eq!(artifact["kind"], "html");
+        assert_eq!(artifact["content"], stdout);
+
+        let report: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&report_path).unwrap()).unwrap();
+        let diagnostics = report["diagnostics"].as_array().unwrap();
+        assert!(
+            diagnostics.is_empty(),
+            "packaged CEMT DOM converter pipeline emitted diagnostics: {diagnostics:?}"
+        );
+        assert!(!diagnostics.iter().any(|diagnostic| {
+            matches!(
+                diagnostic["code"].as_str(),
+                Some("cem.converter.cemt_fallback")
+                    | Some("cem.converter.output_pipeline_execution")
+            )
+        }));
+    }
+
+    #[test]
     fn convert_config_stdout_uses_target_native_bytes_and_artifact_json_sidecar() {
         let cem_input = write_fixture(
             "convert-config-native-stdout.cem",
