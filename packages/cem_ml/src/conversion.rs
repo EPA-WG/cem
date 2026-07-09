@@ -3136,7 +3136,6 @@ fn cemt_builtin_runtime_operation_name(name: &str) -> bool {
             | "cem.format-tree.content-boundary"
             | "cem.format-tree.format-nodes"
             | "cem.format-tree.envelope"
-            | "cem.color-tree.apply"
     )
 }
 

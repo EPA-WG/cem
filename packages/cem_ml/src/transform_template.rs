@@ -4992,7 +4992,6 @@ enum TransformTemplateCemtRuntimeOperation {
     CemFormatTreeContentBoundary,
     CemFormatTreeFormatNodes,
     CemFormatTreeEnvelope,
-    CemColorTreeApply,
 }
 
 impl TransformTemplateCemtRuntimeOperation {
@@ -5004,7 +5003,6 @@ impl TransformTemplateCemtRuntimeOperation {
             "cem.format-tree.content-boundary" => Some(Self::CemFormatTreeContentBoundary),
             "cem.format-tree.format-nodes" => Some(Self::CemFormatTreeFormatNodes),
             "cem.format-tree.envelope" => Some(Self::CemFormatTreeEnvelope),
-            "cem.color-tree.apply" => Some(Self::CemColorTreeApply),
             _ => None,
         }
     }
@@ -5017,7 +5015,6 @@ impl TransformTemplateCemtRuntimeOperation {
             Self::CemFormatTreeContentBoundary => "cem.format-tree.content-boundary",
             Self::CemFormatTreeFormatNodes => "cem.format-tree.format-nodes",
             Self::CemFormatTreeEnvelope => "cem.format-tree.envelope",
-            Self::CemColorTreeApply => "cem.color-tree.apply",
         }
     }
 }
@@ -5049,9 +5046,6 @@ fn execute_transform_template_cemt_runtime_operation(
         }
         TransformTemplateCemtRuntimeOperation::CemFormatTreeEnvelope => {
             transform_template_cemt_runtime_format_tree_envelope(operation, binding, subject)
-        }
-        TransformTemplateCemtRuntimeOperation::CemColorTreeApply => {
-            transform_template_cemt_runtime_color_tree_apply(operation, binding, subject)
         }
     }
 }
@@ -5164,16 +5158,6 @@ fn transform_template_cemt_runtime_format_tree_envelope(
         "formatNodes": format_nodes,
         "nodes": nodes,
     }))
-}
-
-fn transform_template_cemt_runtime_color_tree_apply(
-    operation: TransformTemplateCemtRuntimeOperation,
-    binding: &TransformTemplateEncodeBinding,
-    subject: Value,
-) -> Result<Value, String> {
-    validate_builtin_cem_tree_colorizer_binding(binding)?;
-    let tree = transform_template_cemt_runtime_object_subject(operation, subject)?;
-    builtin_cem_tree_colorizer(binding, &Value::Object(tree))
 }
 
 fn transform_template_cemt_runtime_node_array_subject(
@@ -11916,6 +11900,12 @@ fn resolve_cemt_call_expression(
     };
     if function_name.is_empty() {
         return Ok(None);
+    }
+    if function_name == "cem.color-tree.apply" {
+        return Err(
+            "CEMT runtime operation `cem.color-tree.apply` has been removed; use schema-owned `cem.color-tree.apply-stage` helpers"
+                .to_owned(),
+        );
     }
     let arguments = parse_cemt_object_literal(&args[1]).map_err(|error| error.to_string())?;
     if let Some(operation) = TransformTemplateCemtRuntimeOperation::parse(function_name) {
@@ -25826,9 +25816,11 @@ mod tests {
     }
 
     #[test]
-    fn cemt_runtime_operation_applies_cem_tree_colorizer() {
+    fn cemt_runtime_operation_does_not_expose_cem_tree_colorizer_apply() {
         let mut registry = TransformTemplateOutputFunctionRegistry::new();
         registry.register(cem_tree_color_function_descriptor_with_profile("classes"));
+        let implementations =
+            TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
         let subject = formatted_cem_tree_color_subject();
         let request = TransformTemplateEncodeBindingRequest::new(
             subject.clone(),
@@ -25851,19 +25843,12 @@ mod tests {
 
         assert_eq!(
             TransformTemplateCemtRuntimeOperation::parse("cem.color-tree.apply"),
-            Some(TransformTemplateCemtRuntimeOperation::CemColorTreeApply)
-        );
-        assert_eq!(
-            TransformTemplateCemtRuntimeOperation::CemColorTreeApply.as_str(),
-            "cem.color-tree.apply"
+            None
         );
 
-        let colored = execute_transform_template_cemt_runtime_operation(
-            TransformTemplateCemtRuntimeOperation::CemColorTreeApply,
-            &binding,
-            subject,
-        )
-        .expect("color tree operation runs");
+        let colored = implementations
+            .encode(&binding, &subject)
+            .expect("built-in CEM tree colorizer fallback still runs");
 
         assert_eq!(colored["kind"], "cem-tree");
         assert_eq!(colored["colored"], true);
@@ -25888,18 +25873,10 @@ mod tests {
                 ),
             )
             .expect("runtime color operation validates as colored CEM tree output");
-
-        let error = execute_transform_template_cemt_runtime_operation(
-            TransformTemplateCemtRuntimeOperation::CemColorTreeApply,
-            &binding,
-            json!([]),
-        )
-        .expect_err("color tree operation requires object subject");
-        assert!(error.contains("cem.color-tree.apply expected object subject"));
     }
 
     #[test]
-    fn cemt_output_body_reports_intrinsic_runtime_operation_errors() {
+    fn cemt_output_body_rejects_removed_color_apply_runtime_operation() {
         let mut descriptor = cem_tree_color_function_descriptor_with_profile("classes");
         descriptor.params = vec![TransformTemplateModuleParamDeclaration {
             name: "subject".to_owned(),
@@ -25950,11 +25927,11 @@ mod tests {
                 fallback_called = true;
                 Ok(Value::Null)
             })
-            .expect_err("direct CEMT body returns intrinsic operation error");
+            .expect_err("direct CEMT body rejects removed color apply operation");
 
         assert!(!fallback_called);
-        assert!(error.contains("cem.color-tree.apply expected object subject"));
-        assert!(!error.contains("body expression could not be resolved"));
+        assert!(error.contains("CEMT runtime operation `cem.color-tree.apply` has been removed"));
+        assert!(error.contains("schema-owned `cem.color-tree.apply-stage` helpers"));
     }
 
     #[test]

@@ -236,6 +236,10 @@ metadata. They are not opaque host-side string filters.
 - Runtime output-contract bindings for formatter/colorizer bodies:
   `$functionName`, `$functionProfile`, `$formatterProfile`, `$colorProfile`,
   and `$colorCapability`.
+- Canonical color traversal now uses schema-owned `cem.color-tree.*` helper
+  functions. The direct native runtime operation `cem.color-tree.apply` is no
+  longer part of the CEMT call surface; the native colorizer remains only as a
+  registry fallback for bindings without a direct CEMT body.
 - Conditional control flow through `if` and structural `match`, with exhaustive
   or default branches for deterministic output profiles. `typeOf(...)` now
   provides JSON-shape dispatch for helper functions that must distinguish
