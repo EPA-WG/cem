@@ -4981,7 +4981,6 @@ enum TransformTemplateCemtRuntimeOperation {
     CemFormatTreeInterNodeWhitespace,
     CemFormatTreeBlockChildren,
     CemFormatTreeContentBoundary,
-    CemFormatTreeFormatNodes,
 }
 
 impl TransformTemplateCemtRuntimeOperation {
@@ -4990,7 +4989,6 @@ impl TransformTemplateCemtRuntimeOperation {
             "cem.format-tree.inter-node-whitespace" => Some(Self::CemFormatTreeInterNodeWhitespace),
             "cem.format-tree.block-children" => Some(Self::CemFormatTreeBlockChildren),
             "cem.format-tree.content-boundary" => Some(Self::CemFormatTreeContentBoundary),
-            "cem.format-tree.format-nodes" => Some(Self::CemFormatTreeFormatNodes),
             _ => None,
         }
     }
@@ -5000,7 +4998,6 @@ impl TransformTemplateCemtRuntimeOperation {
             Self::CemFormatTreeInterNodeWhitespace => "cem.format-tree.inter-node-whitespace",
             Self::CemFormatTreeBlockChildren => "cem.format-tree.block-children",
             Self::CemFormatTreeContentBoundary => "cem.format-tree.content-boundary",
-            Self::CemFormatTreeFormatNodes => "cem.format-tree.format-nodes",
         }
     }
 }
@@ -5023,9 +5020,6 @@ fn execute_transform_template_cemt_runtime_operation(
             transform_template_cemt_runtime_format_tree_content_boundary(
                 operation, binding, subject,
             )
-        }
-        TransformTemplateCemtRuntimeOperation::CemFormatTreeFormatNodes => {
-            transform_template_cemt_runtime_format_tree_format_nodes(operation, binding, subject)
         }
     }
 }
@@ -5097,34 +5091,20 @@ fn transform_template_cemt_runtime_format_tree_content_boundary(
     ))
 }
 
-fn transform_template_cemt_runtime_format_tree_format_nodes(
-    operation: TransformTemplateCemtRuntimeOperation,
-    binding: &TransformTemplateEncodeBinding,
-    subject: Value,
-) -> Result<Value, String> {
-    validate_builtin_cem_tree_formatter_binding(binding)?;
-    let nodes = transform_template_cemt_runtime_node_array_subject(operation, subject)?;
-    Ok(Value::Array(transform_template_cem_tree_format_nodes(
-        &nodes,
-        binding.identity.formatter_profile.as_deref(),
-        &binding.options,
-    )))
-}
-
 fn transform_template_cem_tree_formatter_envelope(
     binding: &TransformTemplateEncodeBinding,
     subject: Value,
 ) -> Result<Value, String> {
     validate_builtin_cem_tree_formatter_binding(binding)?;
     let nodes = transform_template_cemt_runtime_node_array_subject(
-        TransformTemplateCemtRuntimeOperation::CemFormatTreeFormatNodes,
+        TransformTemplateCemtRuntimeOperation::CemFormatTreeInterNodeWhitespace,
         subject,
     )?;
-    let format_nodes = execute_transform_template_cemt_runtime_operation(
-        TransformTemplateCemtRuntimeOperation::CemFormatTreeFormatNodes,
-        binding,
-        Value::Array(nodes.clone()),
-    )?;
+    let format_nodes = transform_template_cem_tree_format_nodes(
+        &nodes,
+        binding.identity.formatter_profile.as_deref(),
+        &binding.options,
+    );
     Ok(serde_json::json!({
         "kind": "cem-tree",
         "contentType": binding.identity.target.content_type.clone(),
@@ -10590,6 +10570,34 @@ fn cemt_runtime_bind_output_contract_metadata(
     scoped_bindings
         .entry("mode".to_owned())
         .or_insert_with(|| Value::String(binding.identity.mode.as_str().to_owned()));
+    scoped_bindings
+        .entry("lineEnding".to_owned())
+        .or_insert_with(|| {
+            Value::String(transform_template_cem_tree_formatter_line_ending(
+                &binding.options,
+            ))
+        });
+    scoped_bindings
+        .entry("indent".to_owned())
+        .or_insert_with(|| {
+            Value::String(transform_template_cem_tree_formatter_indent(
+                &binding.options,
+            ))
+        });
+    scoped_bindings
+        .entry("ordering".to_owned())
+        .or_insert_with(|| {
+            Value::String(transform_template_cem_tree_formatter_ordering(
+                &binding.options,
+            ))
+        });
+    scoped_bindings
+        .entry("wrapColumn".to_owned())
+        .or_insert_with(|| {
+            Value::String(transform_template_cem_tree_formatter_wrapping(
+                &binding.options,
+            ))
+        });
     if let Some(function_profile) = binding.function.profile.as_deref() {
         scoped_bindings
             .entry("functionProfile".to_owned())
@@ -11900,6 +11908,12 @@ fn resolve_cemt_call_expression(
                 .to_owned(),
         );
     }
+    if function_name == "cem.format-tree.format-nodes" {
+        return Err(
+            "CEMT runtime operation `cem.format-tree.format-nodes` has been removed; use schema-owned `cem.format-tree.add-format-nodes` helpers"
+                .to_owned(),
+        );
+    }
     let arguments = parse_cemt_object_literal(&args[1]).map_err(|error| error.to_string())?;
     if let Some(operation) = TransformTemplateCemtRuntimeOperation::parse(function_name) {
         if arguments.len() != 1 {
@@ -12345,18 +12359,26 @@ fn cemt_optional_metadata_string_field(
         object.remove(field);
         return Ok(None);
     }
-    let Some(value) = value
-        .as_str()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    else {
+    let Some(value) = value.as_str() else {
         return Err(format!(
             "CEMT {} metadata `{field}` expected string, got {}",
             kind.function_name(),
             json_value_type_name(value)
         ));
     };
-    let value = value.to_owned();
+    let value = if field == "value" {
+        value.to_owned()
+    } else {
+        let value = value.trim();
+        if value.is_empty() {
+            return Err(format!(
+                "CEMT {} metadata `{field}` expected non-empty string, got {}",
+                kind.function_name(),
+                json_value_type_name(object.get(field).unwrap_or(&Value::Null))
+            ));
+        }
+        value.to_owned()
+    };
     object.insert(field.to_owned(), Value::String(value.clone()));
     Ok(Some(value))
 }
@@ -20009,7 +20031,8 @@ mod tests {
                                         {
                                             kind: "format-decision",
                                             name: "formatter.block",
-                                            formatterRole: "formatter.block"
+                                            formatterRole: "formatter.block",
+                                            value: "\t"
                                         }
                                     ),
                                     {
@@ -20047,7 +20070,8 @@ mod tests {
                 "formatNodes": [{
                     "kind": "format-decision",
                     "name": "formatter.block",
-                    "formatterRole": "formatter.block"
+                    "formatterRole": "formatter.block",
+                    "value": "\t"
                 }],
                 "colorNodes": [{
                     "kind": "color-decision",
@@ -20770,6 +20794,10 @@ mod tests {
                 functionName: $functionName,
                 functionProfile: $functionProfile,
                 mode: $mode,
+                lineEnding: $lineEnding,
+                indent: $indent,
+                ordering: $ordering,
+                wrapColumn: $wrapColumn,
                 colorProfile: $colorProfile
             }"#
             .to_owned(),
@@ -20829,6 +20857,10 @@ mod tests {
         assert_eq!(value["functionName"], "cem.color-tree");
         assert_eq!(value["functionProfile"], "classes");
         assert_eq!(value["mode"], "document");
+        assert_eq!(value["lineEnding"], "lf");
+        assert_eq!(value["indent"], "  ");
+        assert_eq!(value["ordering"], "source");
+        assert_eq!(value["wrapColumn"], "none");
         assert_eq!(value["colorProfile"], "classes");
     }
 
@@ -25674,8 +25706,8 @@ mod tests {
             "cem.format-tree.content-boundary"
         );
         assert_eq!(
-            TransformTemplateCemtRuntimeOperation::CemFormatTreeFormatNodes.as_str(),
-            "cem.format-tree.format-nodes"
+            TransformTemplateCemtRuntimeOperation::parse("cem.format-tree.format-nodes"),
+            None
         );
         assert_eq!(
             TransformTemplateCemtRuntimeOperation::parse("cem.format-tree.envelope"),
@@ -25747,12 +25779,13 @@ mod tests {
         );
         assert_eq!(content_boundary[2]["value"], "\n");
 
-        let format_nodes = execute_transform_template_cemt_runtime_operation(
-            TransformTemplateCemtRuntimeOperation::CemFormatTreeFormatNodes,
-            &binding,
-            formatted_nodes.clone(),
-        )
-        .expect("formatNodes operation runs");
+        let format_nodes = Value::Array(transform_template_cem_tree_format_nodes(
+            formatted_nodes
+                .as_array()
+                .expect("formatted nodes are an array"),
+            binding.identity.formatter_profile.as_deref(),
+            &binding.options,
+        ));
         assert_eq!(format_nodes[0]["kind"], "format-marker");
         assert_eq!(format_nodes[0]["name"], "cem.format-tree");
         assert_eq!(
@@ -25817,6 +25850,18 @@ mod tests {
         .expect_err("direct CEMT body rejects removed formatter node operation");
         assert!(error.contains("CEMT runtime operation `cem.format-tree.nodes` has been removed"));
         assert!(error.contains("schema-owned `cem.format-tree.build-node-list` helpers"));
+
+        let error = resolve_encode_subject_expression_at_depth(
+            r#"call(cem.format-tree.format-nodes, { subject: [] })"#,
+            &BTreeMap::new(),
+            &BTreeMap::new(),
+            Some(&binding),
+            0,
+        )
+        .expect_err("direct CEMT body rejects removed formatter metadata operation");
+        assert!(error
+            .contains("CEMT runtime operation `cem.format-tree.format-nodes` has been removed"));
+        assert!(error.contains("schema-owned `cem.format-tree.add-format-nodes` helpers"));
     }
 
     #[test]

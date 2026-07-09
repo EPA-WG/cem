@@ -23,7 +23,11 @@
                     call("cem.format-tree.build-envelope", {
                         subject: call("cem.format-tree.build-nodes", { subject: $subject }),
                         mode: $mode,
-                        formatterProfile: $formatterProfile
+                        formatterProfile: $formatterProfile,
+                        lineEnding: $lineEnding,
+                        indent: $indent,
+                        ordering: $ordering,
+                        wrapColumn: $wrapColumn
                     }),
                     {
                         kind: "format-decision",
@@ -359,18 +363,104 @@
         {param @name="subject" @type="array" @required=true}
         {param @name="mode" @type="string" @required=true}
         {param @name="formatterProfile" @type="string" @required=true}
+        {param @name="lineEnding" @type="string" @required=true}
+        {param @name="indent" @type="string" @required=true}
+        {param @name="ordering" @type="string" @required=true}
+        {param @name="wrapColumn" @type="string" @required=true}
         {body |
-            {$ {
-                kind: "cem-tree",
-                contentType: "application/cem",
-                schema: "https://cem.dev/ns/cem-ml/1",
-                category: "cem-tree",
-                mode: $mode,
-                canonical: true,
+            {$ call("cem.format-tree.add-format-nodes", {
+                subject: {
+                    kind: "cem-tree",
+                    contentType: "application/cem",
+                    schema: "https://cem.dev/ns/cem-ml/1",
+                    category: "cem-tree",
+                    mode: $mode,
+                    canonical: true,
+                    formatterProfile: $formatterProfile,
+                    nodes: $subject
+                },
                 formatterProfile: $formatterProfile,
-                formatNodes: call(cem.format-tree.format-nodes, { subject: $subject }),
-                nodes: $subject
-            } }
+                lineEnding: $lineEnding,
+                indent: $indent,
+                ordering: $ordering,
+                wrapColumn: $wrapColumn
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.format-tree.add-format-nodes"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="formatterProfile" @type="string" @required=true}
+        {param @name="lineEnding" @type="string" @required=true}
+        {param @name="indent" @type="string" @required=true}
+        {param @name="ordering" @type="string" @required=true}
+        {param @name="wrapColumn" @type="string" @required=true}
+        {body |
+            {$ appendFormatNode(
+                appendFormatNode(
+                    appendFormatNode(
+                        appendFormatNode(
+                            appendFormatNode(
+                                appendFormatNode(
+                                    $subject,
+                                    {
+                                        kind: "format-marker",
+                                        name: "cem.format-tree",
+                                        formatterRole: "formatter.boundary",
+                                        colorRole: "source.gutter",
+                                        formatterProfile: $formatterProfile
+                                    }
+                                ),
+                                {
+                                    kind: "format-decision",
+                                    name: "line-ending",
+                                    formatterRole: "formatter.line-ending",
+                                    value: $lineEnding,
+                                    colorRole: "source.gutter",
+                                    formatterProfile: $formatterProfile
+                                }
+                            ),
+                            {
+                                kind: "format-decision",
+                                name: "indent",
+                                formatterRole: "formatter.indent",
+                                value: $indent,
+                                colorRole: "source.gutter",
+                                formatterProfile: $formatterProfile
+                            }
+                        ),
+                        {
+                            kind: "format-decision",
+                            name: "ordering",
+                            formatterRole: "formatter.ordering",
+                            value: $ordering,
+                            colorRole: "source.gutter",
+                            formatterProfile: $formatterProfile
+                        }
+                    ),
+                    {
+                        kind: "format-decision",
+                        name: "wrapping",
+                        formatterRole: "formatter.wrapping",
+                        value: $wrapColumn,
+                        colorRole: "source.gutter",
+                        formatterProfile: $formatterProfile
+                    }
+                ),
+                {
+                    kind: "format-decision",
+                    name: "whitespace",
+                    formatterRole: "formatter.whitespace",
+                    value: "formatter-owned",
+                    colorRole: "source.gutter",
+                    formatterProfile: $formatterProfile
+                }
+            ) }
         }
     }
 }

@@ -3133,7 +3133,6 @@ fn cemt_builtin_runtime_operation_name(name: &str) -> bool {
         "cem.format-tree.inter-node-whitespace"
             | "cem.format-tree.block-children"
             | "cem.format-tree.content-boundary"
-            | "cem.format-tree.format-nodes"
     )
 }
 
@@ -10107,8 +10106,14 @@ mod tests {
             .is_some_and(|body| body.contains(r#"kind: "cem-tree""#)
                 && body.contains("mode: $mode")
                 && body.contains("formatterProfile: $formatterProfile")
-                && body.contains("call(cem.format-tree.format-nodes")
+                && body.contains(r#"call("cem.format-tree.add-format-nodes""#)
+                && !body.contains("cem.format-tree.format-nodes")
                 && !body.contains("cem.format-tree.envelope")));
+        assert!(helper_response
+            .module_options
+            .functions
+            .iter()
+            .any(|function| function.name == "cem.format-tree.add-format-nodes"));
     }
 
     #[test]

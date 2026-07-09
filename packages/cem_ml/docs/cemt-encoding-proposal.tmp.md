@@ -155,10 +155,11 @@ metadata. They are not opaque host-side string filters.
 - Add `match` dispatch over CEM tree node kind, name, attribute presence,
   formatter role, color role, and layout mode.
 - Expose selected output contract metadata to CEMT bodies as immutable runtime
-  bindings. `$mode`, `$colorProfile`, `$formatterProfile`, `$functionName`,
-  `$functionProfile`, and `$colorCapability` now allow formatter/colorizer
-  helpers to branch on the chosen output profile while keeping conversion data
-  in CEM-native tree form.
+  bindings. `$mode`, `$lineEnding`, `$indent`, `$ordering`, `$wrapColumn`,
+  `$colorProfile`, `$formatterProfile`, `$functionName`, `$functionProfile`,
+  and `$colorCapability` now allow formatter/colorizer helpers to branch on
+  the chosen output profile while keeping conversion data in CEM-native tree
+  form.
 - Extend deterministic sequence operations over children, attributes, slots,
   formatter nodes, color nodes, token streams, and chunk plans. `map(...)`,
   `fold(...)`, `length(...)`, and the array accumulator helper `append(...)`
@@ -234,8 +235,14 @@ metadata. They are not opaque host-side string filters.
   values: null, boolean, number, string, array, object, node, token, chunk, and
   diagnostic.
 - Runtime output-contract bindings for formatter/colorizer bodies:
-  `$functionName`, `$functionProfile`, `$mode`, `$formatterProfile`,
-  `$colorProfile`, and `$colorCapability`.
+  `$functionName`, `$functionProfile`, `$mode`, `$lineEnding`, `$indent`,
+  `$ordering`, `$wrapColumn`, `$formatterProfile`, `$colorProfile`, and
+  `$colorCapability`.
+- Canonical formatter metadata assembly for `formatNodes` now lives in the
+  schema-owned `cem.format-tree.add-format-nodes` helper. The direct native
+  runtime operation `cem.format-tree.format-nodes` is no longer part of the
+  CEMT call surface; the native formatter keeps equivalent metadata assembly
+  only as a fallback for bindings without a direct CEMT body.
 - Canonical formatter envelope assembly now lives in the schema-owned
   `cem.format-tree.build-envelope` helper. The direct native runtime operation
   `cem.format-tree.envelope` is no longer part of the CEMT call surface; the
