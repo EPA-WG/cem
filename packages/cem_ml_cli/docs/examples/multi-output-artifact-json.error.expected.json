@@ -1,0 +1,28 @@
+{
+  "args": [
+    "--no-color",
+    "convert",
+    "--config",
+    "packages/cem_ml_cli/docs/examples/multi-output-native.run.json",
+    "--artifact-json",
+    "packages/cem_ml_cli/dist/multi-output-artifact-json.debug.json"
+  ],
+  "exitCode": 2,
+  "stdout": "",
+  "stderrIncludes": [
+    "--artifact-json",
+    "debug JSON sidecar",
+    "single output",
+    "target-native `dest`/`destination` outputs"
+  ],
+  "cleanPaths": [
+    "packages/cem_ml_cli/dist/multi-output-artifact-json.debug.json",
+    "packages/cem_ml_cli/dist/multi-output-native-first.cem",
+    "packages/cem_ml_cli/dist/multi-output-native-second.cem"
+  ],
+  "absentPaths": [
+    "packages/cem_ml_cli/dist/multi-output-artifact-json.debug.json",
+    "packages/cem_ml_cli/dist/multi-output-native-first.cem",
+    "packages/cem_ml_cli/dist/multi-output-native-second.cem"
+  ]
+}

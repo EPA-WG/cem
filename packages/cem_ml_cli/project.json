@@ -129,7 +129,10 @@
                     "cargo run --package cem-ml-cli --target-dir dist/target/cem_ml_cli -- convert --config packages/cem_ml_cli/docs/examples/native-output-cem.run.json --artifact-json packages/cem_ml_cli/dist/native-output-cem.artifact.json",
                     "node tools/scripts/verify-native-output.mjs packages/cem_ml_cli/docs/examples/native-output-cem.expected.json packages/cem_ml_cli/dist/native-output-cem.cem",
                     "cargo run --package cem-ml-cli --target-dir dist/target/cem_ml_cli -- convert --config packages/cem_ml_cli/docs/examples/native-output-yaml.run.json --artifact-json packages/cem_ml_cli/dist/native-output-yaml.artifact.json",
-                    "node tools/scripts/verify-native-output.mjs packages/cem_ml_cli/docs/examples/native-output-yaml.expected.json packages/cem_ml_cli/dist/native-output-yaml.yml"
+                    "node tools/scripts/verify-native-output.mjs packages/cem_ml_cli/docs/examples/native-output-yaml.expected.json packages/cem_ml_cli/dist/native-output-yaml.yml",
+                    "node tools/scripts/verify-cli-error.mjs packages/cem_ml_cli/docs/examples/multi-output-global-out.error.expected.json -- cargo run --package cem-ml-cli --target-dir dist/target/cem_ml_cli --",
+                    "node tools/scripts/verify-cli-error.mjs packages/cem_ml_cli/docs/examples/multi-output-artifact-json.error.expected.json -- cargo run --package cem-ml-cli --target-dir dist/target/cem_ml_cli --",
+                    "node tools/scripts/verify-cli-error.mjs packages/cem_ml_cli/docs/examples/multi-output-missing-destination.error.expected.json -- cargo run --package cem-ml-cli --target-dir dist/target/cem_ml_cli --"
                 ],
                 "parallel": false,
                 "cwd": "{workspaceRoot}"
@@ -158,7 +161,14 @@
                 "{workspaceRoot}/packages/cem_ml_cli/docs/examples/native-output-yaml.input.json",
                 "{workspaceRoot}/packages/cem_ml_cli/docs/examples/native-output-yaml.run.json",
                 "{workspaceRoot}/packages/cem_ml_cli/docs/examples/native-output-yaml.expected.json",
-                "{workspaceRoot}/tools/scripts/verify-native-output.mjs"
+                "{workspaceRoot}/packages/cem_ml_cli/docs/examples/multi-output-native.input.cem",
+                "{workspaceRoot}/packages/cem_ml_cli/docs/examples/multi-output-native.run.json",
+                "{workspaceRoot}/packages/cem_ml_cli/docs/examples/multi-output-missing-destination.run.json",
+                "{workspaceRoot}/packages/cem_ml_cli/docs/examples/multi-output-global-out.error.expected.json",
+                "{workspaceRoot}/packages/cem_ml_cli/docs/examples/multi-output-artifact-json.error.expected.json",
+                "{workspaceRoot}/packages/cem_ml_cli/docs/examples/multi-output-missing-destination.error.expected.json",
+                "{workspaceRoot}/tools/scripts/verify-native-output.mjs",
+                "{workspaceRoot}/tools/scripts/verify-cli-error.mjs"
             ],
             "outputs": [
                 "{projectRoot}/dist/formatter-coloring-pipeline.generated.fixture.cem",

@@ -1,0 +1,37 @@
+{
+  "resolvers": [
+    {
+      "uriPrefix": "cem+repo://",
+      "localRoot": ".",
+      "read": true,
+      "write": true
+    }
+  ],
+  "inputs": [
+    {
+      "uri": "cem+repo://packages/cem_ml_cli/docs/examples/multi-output-native.input.cem",
+      "rootScope": {
+        "defaultContentType": "application/cem",
+        "schema": "https://cem.dev/ns/cem-ml/1"
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "inputRef": "cem+repo://packages/cem_ml_cli/docs/examples/multi-output-native.input.cem",
+      "destination": "cem+repo://packages/cem_ml_cli/dist/multi-output-native-first.cem",
+      "rootScope": {
+        "defaultContentType": "application/cem",
+        "schema": "https://cem.dev/ns/cem-ml/1"
+      }
+    },
+    {
+      "inputRef": "cem+repo://packages/cem_ml_cli/docs/examples/multi-output-native.input.cem",
+      "destination": "cem+repo://packages/cem_ml_cli/dist/multi-output-native-second.cem",
+      "rootScope": {
+        "defaultContentType": "application/cem",
+        "schema": "https://cem.dev/ns/cem-ml/1"
+      }
+    }
+  ]
+}

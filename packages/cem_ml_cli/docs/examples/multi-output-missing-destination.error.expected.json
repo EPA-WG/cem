@@ -1,0 +1,22 @@
+{
+  "args": [
+    "--no-color",
+    "convert",
+    "--config",
+    "packages/cem_ml_cli/docs/examples/multi-output-missing-destination.run.json"
+  ],
+  "exitCode": 2,
+  "stdout": "",
+  "stderrIncludes": [
+    "output spec at index 0",
+    "`dest`/`destination`",
+    "multi-output convert",
+    "target-native bytes"
+  ],
+  "cleanPaths": [
+    "packages/cem_ml_cli/dist/multi-output-missing-destination-second.cem"
+  ],
+  "absentPaths": [
+    "packages/cem_ml_cli/dist/multi-output-missing-destination-second.cem"
+  ]
+}
