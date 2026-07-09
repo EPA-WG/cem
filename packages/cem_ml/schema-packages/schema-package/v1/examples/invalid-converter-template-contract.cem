@@ -2,7 +2,7 @@
 @ns pkg = "https://cem.dev/ns/schema-package/1"
 @default pkg
 
-{package @id="note-html" @version="1.0.0" |
+{package @id="bad-converter-template" @version="1.0.0" |
     {schema
         @uri="https://example.test/ns/note-html/1"
         @source="schema/note-html.cem"
@@ -14,14 +14,18 @@
     {namespace @prefix="note" @uri="https://example.test/ns/note-html/1"}
 
     {converter
-        @id="note-to-html"
+        @id="note-to-html-bad-template"
         @implementation="cemt"
-        @template="templates/note-to-html.cemt"
+        @template="converters/invalid-output-pipeline.cemt"
         @template-content-type="application/vnd.cem.transform+cem"
+        @template-schema="https://cem.dev/ns/transform/cem/1"
+        @template-entrypoint="main"
         @streamable=true
         @lossiness="lossless"
         @output-syntax="html"
         @encoding-category="html-document"
+        @formatter-profile="canonical"
+        @color-profile="classes"
         @parity="parse-equivalent"
         @cost=100 |
         {from @content-type="application/vnd.example.note+cem" @schema="https://example.test/ns/note-html/1"}
