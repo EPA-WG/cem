@@ -2685,7 +2685,7 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
     if args.out.is_some() && config.outputs.len() > 1 {
         return handle_cli_request_error(
             CliRequestError::Usage(
-                "convert with multiple --output-spec records requires per-output `dest`, not --out"
+                "convert with multiple configured outputs writes target-native bytes to each per-output `dest`/`destination`; use those destinations instead of global --out"
                     .to_owned(),
             ),
             s,
@@ -2694,7 +2694,7 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
     if args.artifact_json.is_some() && config.outputs.len() > 1 {
         return handle_cli_request_error(
             CliRequestError::Usage(
-                "convert --artifact-json writes one debug artifact and requires a single output"
+                "convert --artifact-json writes one debug JSON sidecar for a single output; multiple configured outputs must use their target-native `dest`/`destination` outputs"
                     .to_owned(),
             ),
             s,
@@ -2792,7 +2792,7 @@ fn run_convert_fanout<E: CemMlEngine + ?Sized>(
             None => {
                 return handle_cli_request_error(
                     CliRequestError::Usage(format!(
-                        "output spec at index {index} requires `dest` for multi-output convert"
+                        "output spec at index {index} requires `dest`/`destination` for multi-output convert; each destination receives target-native bytes"
                     )),
                     s,
                 );
@@ -20553,6 +20553,171 @@ start =
         assert_eq!(first_written, "{p | First}\n");
         let second_written = std::fs::read_to_string(&second_out).unwrap();
         assert_eq!(second_written, "{p | Second}\n");
+    }
+
+    #[test]
+    fn convert_config_multi_output_rejects_global_out_with_native_destination_guidance() {
+        let input = write_fixture("convert-fanout-global-out-input.cem", "{p Hi}");
+        let first_out =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-fanout-global-out-first.cem");
+        let second_out =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-fanout-global-out-second.cem");
+        let global_out =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-fanout-global-out.cem");
+        let config_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-fanout-global-out.json");
+        for path in [&first_out, &second_out, &global_out] {
+            let _ = std::fs::remove_file(path);
+        }
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{ "uri": input.display().to_string() }],
+                "outputs": [
+                    {
+                        "destination": first_out.display().to_string(),
+                        "rootScope": { "defaultContentType": "application/cem+xml" }
+                    },
+                    {
+                        "destination": second_out.display().to_string(),
+                        "rootScope": { "defaultContentType": "application/cem+xml" }
+                    }
+                ]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--config",
+                config_path.to_str().unwrap(),
+                "--out",
+                global_out.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_USAGE_OR_RESERVED);
+        assert!(stdout.trim().is_empty());
+        assert_stderr_contains_all(
+            &stderr,
+            &[
+                "multiple configured outputs",
+                "target-native bytes",
+                "per-output `dest`/`destination`",
+                "instead of global --out",
+            ],
+        );
+        assert!(!global_out.exists());
+        assert!(!first_out.exists());
+        assert!(!second_out.exists());
+    }
+
+    #[test]
+    fn convert_config_multi_output_rejects_global_artifact_json_sidecar() {
+        let input = write_fixture("convert-fanout-artifact-json-input.cem", "{p Hi}");
+        let first_out =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-fanout-artifact-json-first.cem");
+        let second_out =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-fanout-artifact-json-second.cem");
+        let artifact =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-fanout-artifact-json.debug.json");
+        let config_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-fanout-artifact-json.json");
+        for path in [&first_out, &second_out, &artifact] {
+            let _ = std::fs::remove_file(path);
+        }
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{ "uri": input.display().to_string() }],
+                "outputs": [
+                    {
+                        "destination": first_out.display().to_string(),
+                        "rootScope": { "defaultContentType": "application/cem+xml" }
+                    },
+                    {
+                        "destination": second_out.display().to_string(),
+                        "rootScope": { "defaultContentType": "application/cem+xml" }
+                    }
+                ]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--config",
+                config_path.to_str().unwrap(),
+                "--artifact-json",
+                artifact.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_USAGE_OR_RESERVED);
+        assert!(stdout.trim().is_empty());
+        assert_stderr_contains_all(
+            &stderr,
+            &[
+                "--artifact-json",
+                "debug JSON sidecar",
+                "single output",
+                "target-native `dest`/`destination` outputs",
+            ],
+        );
+        assert!(!artifact.exists());
+        assert!(!first_out.exists());
+        assert!(!second_out.exists());
+    }
+
+    #[test]
+    fn convert_config_multi_output_requires_target_native_destination() {
+        let input = write_fixture("convert-fanout-missing-destination-input.cem", "{p Hi}");
+        let second_out = std::env::temp_dir()
+            .join("cem-ml-cli-tests/convert-fanout-missing-destination-second.cem");
+        let config_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-fanout-missing-destination.json");
+        let _ = std::fs::remove_file(&second_out);
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{ "uri": input.display().to_string() }],
+                "outputs": [
+                    {
+                        "rootScope": { "defaultContentType": "application/cem+xml" }
+                    },
+                    {
+                        "destination": second_out.display().to_string(),
+                        "rootScope": { "defaultContentType": "application/cem+xml" }
+                    }
+                ]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["convert", "--config", config_path.to_str().unwrap()],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_USAGE_OR_RESERVED);
+        assert!(stdout.trim().is_empty());
+        assert_stderr_contains_all(
+            &stderr,
+            &[
+                "output spec at index 0",
+                "`dest`/`destination`",
+                "multi-output convert",
+                "target-native bytes",
+            ],
+        );
+        assert!(!second_out.exists());
     }
 
     #[test]
