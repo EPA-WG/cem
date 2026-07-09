@@ -970,11 +970,51 @@ pub struct PrimaryBytes {
     pub bytes: Vec<u8>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ConvertExecutionMetadata {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub converter_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub implementation: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rust_fallback: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_pipeline: Option<ConvertOutputPipelineMetadata>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ConvertOutputPipelineMetadata {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stages: Vec<ConvertOutputPipelineStageMetadata>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ConvertOutputPipelineStageMetadata {
+    pub stage: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub function: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub schema: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub produces: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConvertResponse {
     pub primary: Value,
     #[serde(skip)]
     pub primary_bytes: Option<PrimaryBytes>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conversion: Option<ConvertExecutionMetadata>,
     pub diagnostics: Vec<Diagnostic>,
     #[serde(rename = "schedulerTrace", default)]
     pub scheduler_trace: SchedulerTraceReport,

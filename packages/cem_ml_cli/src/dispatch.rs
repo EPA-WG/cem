@@ -10500,6 +10500,7 @@ fn convert_output_report_from_response(
         content_type,
         schema,
         output_kind: convert_output_kind(response),
+        conversion: response.conversion.clone(),
     }
 }
 
@@ -20835,6 +20836,7 @@ start =
                 hash: "cem-bin/1+blake3:test".to_owned(),
                 bytes: b"CEMPROJ\0native".to_vec(),
             }),
+            conversion: None,
             diagnostics: Vec::new(),
             scheduler_trace: cem_ml::report::SchedulerTraceReport::default(),
         };
@@ -23625,6 +23627,29 @@ start =
                     | Some("cem.converter.output_pipeline_execution")
             )
         }));
+        let output = &report["reportAst"]["convert"]["outputs"][0];
+        assert_eq!(
+            output["conversion"]["converterId"],
+            "cem-dom-projection-to-html-cemt"
+        );
+        assert_eq!(
+            output["conversion"]["implementation"],
+            "direct-cemt-output-pipeline"
+        );
+        let stages = output["conversion"]["outputPipeline"]["stages"]
+            .as_array()
+            .expect("conversion output pipeline stages");
+        assert!(stages.iter().any(|stage| {
+            stage["stage"] == "formatter" && stage["function"] == "cem.format-tree"
+        }));
+        assert!(stages.iter().any(|stage| {
+            stage["stage"] == "colorizer"
+                && stage["function"] == "cem.color-tree"
+                && stage["profile"] == "classes"
+        }));
+        assert!(stages
+            .iter()
+            .any(|stage| { stage["stage"] == "writer" && stage["contentType"] == "text/html" }));
     }
 
     #[test]

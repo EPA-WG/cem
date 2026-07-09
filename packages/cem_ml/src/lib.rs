@@ -349,6 +349,7 @@ mod tests {
                 content_type: Some("application/yaml".into()),
                 schema: Some("https://cem.dev/ns/data/yaml/1".into()),
                 output_kind: "document".into(),
+                conversion: None,
             }],
         });
 

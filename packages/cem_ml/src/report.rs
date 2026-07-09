@@ -126,6 +126,8 @@ pub struct ConvertOutputReport {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub schema: Option<String>,
     pub output_kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub conversion: Option<crate::engine::ConvertExecutionMetadata>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]

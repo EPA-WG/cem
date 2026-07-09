@@ -151,6 +151,96 @@ fn cemt_output_pipeline_for_scope(
     pipeline
 }
 
+fn convert_metadata_for_cemt_converter(
+    conversion: &ExportConversionExecution,
+    pipeline: Option<&ConversionOutputPipeline>,
+) -> ConvertExecutionMetadata {
+    ConvertExecutionMetadata {
+        converter_id: Some(conversion.converter_id.clone()),
+        implementation: Some("cemt".to_owned()),
+        rust_fallback: None,
+        output_pipeline: pipeline.map(convert_output_pipeline_metadata),
+    }
+}
+
+fn convert_metadata_for_rust_fallback(
+    conversion: &ExportConversionExecution,
+) -> ConvertExecutionMetadata {
+    ConvertExecutionMetadata {
+        converter_id: Some(conversion.converter_id.clone()),
+        implementation: Some("rust-fallback".to_owned()),
+        rust_fallback: conversion
+            .rust_fallback
+            .as_ref()
+            .map(|fallback| fallback.rust_symbol.clone()),
+        output_pipeline: None,
+    }
+}
+
+fn convert_metadata_for_direct_output_pipeline(
+    converter_id: &str,
+    pipeline: &ConversionOutputPipeline,
+) -> ConvertExecutionMetadata {
+    ConvertExecutionMetadata {
+        converter_id: Some(converter_id.to_owned()),
+        implementation: Some("direct-cemt-output-pipeline".to_owned()),
+        rust_fallback: None,
+        output_pipeline: Some(convert_output_pipeline_metadata(pipeline)),
+    }
+}
+
+fn convert_output_pipeline_metadata(
+    pipeline: &ConversionOutputPipeline,
+) -> ConvertOutputPipelineMetadata {
+    ConvertOutputPipelineMetadata {
+        stages: vec![
+            ConvertOutputPipelineStageMetadata {
+                stage: "formatter".to_owned(),
+                function: Some(
+                    pipeline
+                        .cemt_options
+                        .formatter
+                        .clone()
+                        .unwrap_or_else(|| "cem.format-tree".to_owned()),
+                ),
+                profile: pipeline.cemt_options.formatter_profile.clone(),
+                content_type: Some(pipeline.cemt_target.content_type.clone()),
+                schema: Some(pipeline.cemt_target.schema.clone()),
+                category: Some(pipeline.cemt_target.category.clone()),
+                produces: Some(pipeline.cemt_produces.as_str().to_owned()),
+            },
+            ConvertOutputPipelineStageMetadata {
+                stage: "colorizer".to_owned(),
+                function: Some(
+                    pipeline
+                        .cemt_options
+                        .colorizer
+                        .clone()
+                        .unwrap_or_else(|| "cem.color-tree".to_owned()),
+                ),
+                profile: pipeline.cemt_options.color_profile.clone(),
+                content_type: Some(pipeline.cemt_target.content_type.clone()),
+                schema: Some(pipeline.cemt_target.schema.clone()),
+                category: Some(pipeline.cemt_target.category.clone()),
+                produces: Some(pipeline.cemt_produces.as_str().to_owned()),
+            },
+            ConvertOutputPipelineStageMetadata {
+                stage: "writer".to_owned(),
+                function: None,
+                profile: pipeline
+                    .writer_insertion_context
+                    .color_profile
+                    .clone()
+                    .or_else(|| pipeline.cemt_options.color_profile.clone()),
+                content_type: Some(pipeline.writer_insertion_context.content_type.clone()),
+                schema: Some(pipeline.writer_insertion_context.schema.clone()),
+                category: pipeline.writer_insertion_context.category.clone(),
+                produces: Some(pipeline.writer_produces.as_str().to_owned()),
+            },
+        ],
+    }
+}
+
 fn resolve_export_conversion_execution(
     context: &EngineContext,
     to_format: LayerFormat,
@@ -4038,6 +4128,7 @@ fn maybe_convert_generic_data_text(
                     "hash": hash,
                 }),
                 primary_bytes: Some(primary_bytes),
+                conversion: None,
                 diagnostics,
                 scheduler_trace: crate::report::SchedulerTraceReport::default(),
             })
@@ -4050,6 +4141,7 @@ fn maybe_convert_generic_data_text(
             Some(ConvertResponse {
                 primary: Value::Null,
                 primary_bytes: None,
+                conversion: None,
                 diagnostics,
                 scheduler_trace: crate::report::SchedulerTraceReport::default(),
             })
@@ -4897,6 +4989,7 @@ impl CemMlEngine for RealCemMlEngine {
         let mut export_selection: Option<ExportSelection> = None;
         let mut primary: Option<Value> = None;
         let mut primary_bytes: Option<PrimaryBytes> = None;
+        let mut conversion: Option<ConvertExecutionMetadata> = None;
         pool.run_to_completion(&abort, |task| {
             if task.ends_with(":lifecycle-load") {
                 let mut scope_diagnostics = root_scope_metadata_diagnostics(
@@ -4945,121 +5038,253 @@ impl CemMlEngine for RealCemMlEngine {
                 &input_uri(&request.input, &context),
             );
             primary = Some(match to_format {
-                LayerFormat::Cem => convert_primary_to_cem_with_cemt_pipeline(
-                    Some(&context),
-                    &run.document,
-                    from_format,
-                    &request.target_scope,
-                    Some(&request.input.uri),
-                )
-                .unwrap_or_else(|mut cemt_diagnostics| {
-                    diagnostics.append(&mut cemt_diagnostics);
-                    Value::Null
-                }),
-                LayerFormat::Html => {
-                    match export_conversion.as_ref().map(|conversion| {
-                        render_export_conversion_template(
+                LayerFormat::Cem => {
+                    let pipeline = cemt_output_pipeline_for_scope(
+                        direct_cem_output_pipeline(),
+                        &request.target_scope,
+                    );
+                    conversion = Some(convert_metadata_for_direct_output_pipeline(
+                        "direct-cem-output",
+                        &pipeline,
+                    ));
+                    convert_primary_to_cem_with_cemt_pipeline(
+                        Some(&context),
+                        &run.document,
+                        from_format,
+                        &request.target_scope,
+                        Some(&request.input.uri),
+                    )
+                    .unwrap_or_else(|mut cemt_diagnostics| {
+                        diagnostics.append(&mut cemt_diagnostics);
+                        Value::Null
+                    })
+                }
+                LayerFormat::Html => match export_conversion.as_ref() {
+                    Some(export_conversion) => {
+                        let render_result = render_export_conversion_template(
                             &context,
-                            conversion,
+                            export_conversion,
                             to_format,
                             &run.document,
                             &request.target_scope,
                             &mut diagnostics,
-                        )
-                    }) {
-                        Some(ExportConversionTemplateResult::Rendered(primary)) => primary,
-                        Some(ExportConversionTemplateResult::Failed) => Value::Null,
-                        Some(ExportConversionTemplateResult::UseRustFallback) => {
-                            let rendered = LightDomInterpreter::new().render(&run.document);
-                            let output_spans = rendered
-                                .output_spans
-                                .iter()
-                                .map(|span| {
-                                    json!({
-                                        "outputRange": span.output_range,
-                                        "origin": span.origin,
-                                    })
-                                })
-                                .collect::<Vec<_>>();
-                            let source_map = rendered.source_map.clone();
-                            diagnostics.extend(rendered.diagnostics);
-                            json!({
-                                "kind": "html",
-                                "content": rendered.rendered,
-                                "sourceMap": source_map,
-                                "outputSpans": output_spans,
-                            })
-                        }
-                        Some(ExportConversionTemplateResult::UseDirectPipeline) | None => {
-                            convert_primary_to_markup_with_cemt_pipeline(
-                                Some(&context),
-                                &run.document,
-                                from_format,
-                                direct_html_output_pipeline(),
-                                "html",
-                                "direct-html-output",
-                                &request.target_scope,
-                                Some(&request.input.uri),
-                            )
-                            .unwrap_or_else(|mut cemt_diagnostics| {
-                                diagnostics.append(&mut cemt_diagnostics);
+                        );
+                        match render_result {
+                            ExportConversionTemplateResult::Rendered(primary) => {
+                                let pipeline =
+                                    export_conversion.output_pipeline.as_ref().map(|pipeline| {
+                                        cemt_output_pipeline_for_scope(
+                                            pipeline.clone(),
+                                            &request.target_scope,
+                                        )
+                                    });
+                                conversion = Some(convert_metadata_for_cemt_converter(
+                                    export_conversion,
+                                    pipeline.as_ref(),
+                                ));
+                                primary
+                            }
+                            ExportConversionTemplateResult::Failed => {
+                                conversion = Some(convert_metadata_for_cemt_converter(
+                                    export_conversion,
+                                    None,
+                                ));
                                 Value::Null
-                            })
+                            }
+                            ExportConversionTemplateResult::UseRustFallback => {
+                                conversion =
+                                    Some(convert_metadata_for_rust_fallback(export_conversion));
+                                let rendered = LightDomInterpreter::new().render(&run.document);
+                                let output_spans = rendered
+                                    .output_spans
+                                    .iter()
+                                    .map(|span| {
+                                        json!({
+                                            "outputRange": span.output_range,
+                                            "origin": span.origin,
+                                        })
+                                    })
+                                    .collect::<Vec<_>>();
+                                let source_map = rendered.source_map.clone();
+                                diagnostics.extend(rendered.diagnostics);
+                                json!({
+                                    "kind": "html",
+                                    "content": rendered.rendered,
+                                    "sourceMap": source_map,
+                                    "outputSpans": output_spans,
+                                })
+                            }
+                            ExportConversionTemplateResult::UseDirectPipeline => {
+                                let pipeline = export_conversion
+                                    .output_pipeline
+                                    .clone()
+                                    .unwrap_or_else(direct_html_output_pipeline);
+                                let pipeline =
+                                    cemt_output_pipeline_for_scope(pipeline, &request.target_scope);
+                                conversion = Some(convert_metadata_for_direct_output_pipeline(
+                                    &export_conversion.converter_id,
+                                    &pipeline,
+                                ));
+                                convert_primary_to_markup_with_cemt_pipeline(
+                                    Some(&context),
+                                    &run.document,
+                                    from_format,
+                                    export_conversion
+                                        .output_pipeline
+                                        .clone()
+                                        .unwrap_or_else(direct_html_output_pipeline),
+                                    "html",
+                                    &export_conversion.converter_id,
+                                    &request.target_scope,
+                                    Some(&request.input.uri),
+                                )
+                                .unwrap_or_else(
+                                    |mut cemt_diagnostics| {
+                                        diagnostics.append(&mut cemt_diagnostics);
+                                        Value::Null
+                                    },
+                                )
+                            }
                         }
                     }
-                }
-                LayerFormat::Xml => {
-                    match export_conversion.as_ref().map(|conversion| {
-                        render_export_conversion_template(
+                    None => {
+                        let pipeline = cemt_output_pipeline_for_scope(
+                            direct_html_output_pipeline(),
+                            &request.target_scope,
+                        );
+                        conversion = Some(convert_metadata_for_direct_output_pipeline(
+                            "direct-html-output",
+                            &pipeline,
+                        ));
+                        convert_primary_to_markup_with_cemt_pipeline(
+                            Some(&context),
+                            &run.document,
+                            from_format,
+                            direct_html_output_pipeline(),
+                            "html",
+                            "direct-html-output",
+                            &request.target_scope,
+                            Some(&request.input.uri),
+                        )
+                        .unwrap_or_else(|mut cemt_diagnostics| {
+                            diagnostics.append(&mut cemt_diagnostics);
+                            Value::Null
+                        })
+                    }
+                },
+                LayerFormat::Xml => match export_conversion.as_ref() {
+                    Some(export_conversion) => {
+                        let render_result = render_export_conversion_template(
                             &context,
-                            conversion,
+                            export_conversion,
                             to_format,
                             &run.document,
                             &request.target_scope,
                             &mut diagnostics,
-                        )
-                    }) {
-                        Some(ExportConversionTemplateResult::Rendered(primary)) => primary,
-                        Some(ExportConversionTemplateResult::Failed) => Value::Null,
-                        Some(ExportConversionTemplateResult::UseRustFallback) => {
-                            let rendered = XmlInterpreter::new().render(&run.document);
-                            let output_spans = rendered
-                                .output_spans
-                                .iter()
-                                .map(|span| {
-                                    json!({
-                                        "outputRange": span.output_range,
-                                        "origin": span.origin,
-                                    })
-                                })
-                                .collect::<Vec<_>>();
-                            let source_map = rendered.source_map.clone();
-                            diagnostics.extend(rendered.diagnostics);
-                            json!({
-                                "kind": "xml",
-                                "content": rendered.rendered,
-                                "sourceMap": source_map,
-                                "outputSpans": output_spans,
-                            })
-                        }
-                        Some(ExportConversionTemplateResult::UseDirectPipeline) | None => {
-                            convert_primary_to_markup_with_cemt_pipeline(
-                                Some(&context),
-                                &run.document,
-                                from_format,
-                                direct_xml_output_pipeline(),
-                                "xml",
-                                "direct-xml-output",
-                                &request.target_scope,
-                                Some(&request.input.uri),
-                            )
-                            .unwrap_or_else(|mut cemt_diagnostics| {
-                                diagnostics.append(&mut cemt_diagnostics);
+                        );
+                        match render_result {
+                            ExportConversionTemplateResult::Rendered(primary) => {
+                                let pipeline =
+                                    export_conversion.output_pipeline.as_ref().map(|pipeline| {
+                                        cemt_output_pipeline_for_scope(
+                                            pipeline.clone(),
+                                            &request.target_scope,
+                                        )
+                                    });
+                                conversion = Some(convert_metadata_for_cemt_converter(
+                                    export_conversion,
+                                    pipeline.as_ref(),
+                                ));
+                                primary
+                            }
+                            ExportConversionTemplateResult::Failed => {
+                                conversion = Some(convert_metadata_for_cemt_converter(
+                                    export_conversion,
+                                    None,
+                                ));
                                 Value::Null
-                            })
+                            }
+                            ExportConversionTemplateResult::UseRustFallback => {
+                                conversion =
+                                    Some(convert_metadata_for_rust_fallback(export_conversion));
+                                let rendered = XmlInterpreter::new().render(&run.document);
+                                let output_spans = rendered
+                                    .output_spans
+                                    .iter()
+                                    .map(|span| {
+                                        json!({
+                                            "outputRange": span.output_range,
+                                            "origin": span.origin,
+                                        })
+                                    })
+                                    .collect::<Vec<_>>();
+                                let source_map = rendered.source_map.clone();
+                                diagnostics.extend(rendered.diagnostics);
+                                json!({
+                                    "kind": "xml",
+                                    "content": rendered.rendered,
+                                    "sourceMap": source_map,
+                                    "outputSpans": output_spans,
+                                })
+                            }
+                            ExportConversionTemplateResult::UseDirectPipeline => {
+                                let pipeline = export_conversion
+                                    .output_pipeline
+                                    .clone()
+                                    .unwrap_or_else(direct_xml_output_pipeline);
+                                let pipeline =
+                                    cemt_output_pipeline_for_scope(pipeline, &request.target_scope);
+                                conversion = Some(convert_metadata_for_direct_output_pipeline(
+                                    &export_conversion.converter_id,
+                                    &pipeline,
+                                ));
+                                convert_primary_to_markup_with_cemt_pipeline(
+                                    Some(&context),
+                                    &run.document,
+                                    from_format,
+                                    export_conversion
+                                        .output_pipeline
+                                        .clone()
+                                        .unwrap_or_else(direct_xml_output_pipeline),
+                                    "xml",
+                                    &export_conversion.converter_id,
+                                    &request.target_scope,
+                                    Some(&request.input.uri),
+                                )
+                                .unwrap_or_else(
+                                    |mut cemt_diagnostics| {
+                                        diagnostics.append(&mut cemt_diagnostics);
+                                        Value::Null
+                                    },
+                                )
+                            }
                         }
                     }
-                }
+                    None => {
+                        let pipeline = cemt_output_pipeline_for_scope(
+                            direct_xml_output_pipeline(),
+                            &request.target_scope,
+                        );
+                        conversion = Some(convert_metadata_for_direct_output_pipeline(
+                            "direct-xml-output",
+                            &pipeline,
+                        ));
+                        convert_primary_to_markup_with_cemt_pipeline(
+                            Some(&context),
+                            &run.document,
+                            from_format,
+                            direct_xml_output_pipeline(),
+                            "xml",
+                            "direct-xml-output",
+                            &request.target_scope,
+                            Some(&request.input.uri),
+                        )
+                        .unwrap_or_else(|mut cemt_diagnostics| {
+                            diagnostics.append(&mut cemt_diagnostics);
+                            Value::Null
+                        })
+                    }
+                },
                 LayerFormat::DomJson => projection::dom_json(&run.document),
                 LayerFormat::Ast => projection::ast_json(&run.document),
                 LayerFormat::Events => projection::events_json_as(&loaded.bytes, from_format),
@@ -5104,6 +5329,7 @@ impl CemMlEngine for RealCemMlEngine {
         Ok(ConvertResponse {
             primary,
             primary_bytes,
+            conversion,
             diagnostics,
             scheduler_trace: crate::report::SchedulerTraceReport::from_trace(&trace),
         })
@@ -10491,6 +10717,28 @@ mod tests {
                 .len(),
             1
         );
+        let conversion = resp.conversion.as_ref().expect("conversion metadata");
+        assert_eq!(
+            conversion.converter_id.as_deref(),
+            Some("test-dom-to-html-cemt-ready")
+        );
+        assert_eq!(conversion.implementation.as_deref(), Some("cemt"));
+        let stages = &conversion
+            .output_pipeline
+            .as_ref()
+            .expect("conversion output pipeline")
+            .stages;
+        assert!(stages.iter().any(|stage| {
+            stage.stage == "formatter" && stage.function.as_deref() == Some("cem.format-tree")
+        }));
+        assert!(stages.iter().any(|stage| {
+            stage.stage == "colorizer"
+                && stage.function.as_deref() == Some("cem.color-tree")
+                && stage.profile.as_deref() == Some("classes")
+        }));
+        assert!(stages.iter().any(|stage| {
+            stage.stage == "writer" && stage.content_type.as_deref() == Some(HTML_CONTENT_TYPE)
+        }));
         assert!(!resp
             .diagnostics
             .iter()
@@ -10585,7 +10833,9 @@ mod tests {
                     && diag.severity.is_hard_violation()
                     && diag.message.contains("CEMT formatter")
                     && diag.message.contains("cem.format-tree.build-envelope")
-                    && diag.message.contains("argument `subject` could not be resolved")
+                    && diag
+                        .message
+                        .contains("argument `subject` could not be resolved")
             }),
             "{:?}",
             resp.diagnostics

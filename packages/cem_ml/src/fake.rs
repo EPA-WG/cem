@@ -109,6 +109,7 @@ impl CemMlEngine for FakeEngine {
         Ok(ConvertResponse {
             primary,
             primary_bytes: None,
+            conversion: None,
             diagnostics: vec![],
             scheduler_trace: SchedulerTraceReport::default(),
         })
