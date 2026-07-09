@@ -45,8 +45,8 @@ mod tests {
     use diagnostics::{Diagnostic, Severity};
     use engine::FailLevel;
     use report::{
-        Report, ReportOptionsSnapshot, TransformGraphExportReport, TransformGraphReport,
-        TransformReport, DETERMINISTIC_TIMESTAMP,
+        ConvertOutputReport, ConvertReport, Report, ReportOptionsSnapshot,
+        TransformGraphExportReport, TransformGraphReport, TransformReport, DETERMINISTIC_TIMESTAMP,
     };
 
     fn diag(sev: Severity) -> Diagnostic {
@@ -271,6 +271,50 @@ mod tests {
         assert_eq!(
             v["reportAst"]["transform"]["sourceMapRef"],
             "out/page.html.map"
+        );
+    }
+
+    #[test]
+    fn report_serializes_optional_convert_projection() {
+        let mut report = Report::deterministic(
+            vec!["data.cem".into()],
+            vec![],
+            ReportOptionsSnapshot {
+                fail_level: FailLevel::Validate,
+                schema: None,
+                content_type: None,
+                base_uri: None,
+            },
+        );
+        report.report_ast.convert = Some(ConvertReport {
+            output_count: 1,
+            outputs: vec![ConvertOutputReport {
+                input: "data.cem".into(),
+                destination: Some("out/data.yml".into()),
+                content_type: Some("application/yaml".into()),
+                schema: Some("https://cem.dev/ns/data/yaml/1".into()),
+                output_kind: "document".into(),
+            }],
+        });
+
+        let v = serde_json::to_value(&report).unwrap();
+        assert_eq!(v["reportAst"]["convert"]["outputCount"], 1);
+        assert_eq!(v["reportAst"]["convert"]["outputs"][0]["input"], "data.cem");
+        assert_eq!(
+            v["reportAst"]["convert"]["outputs"][0]["destination"],
+            "out/data.yml"
+        );
+        assert_eq!(
+            v["reportAst"]["convert"]["outputs"][0]["contentType"],
+            "application/yaml"
+        );
+        assert_eq!(
+            v["reportAst"]["convert"]["outputs"][0]["schema"],
+            "https://cem.dev/ns/data/yaml/1"
+        );
+        assert_eq!(
+            v["reportAst"]["convert"]["outputs"][0]["outputKind"],
+            "document"
         );
     }
 }

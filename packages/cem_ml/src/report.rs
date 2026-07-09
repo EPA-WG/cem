@@ -36,6 +36,8 @@ pub struct ReportOptionsSnapshot {
 pub struct ReportAst {
     #[serde(rename = "schedulerTrace", default)]
     pub scheduler_trace: SchedulerTraceReport,
+    #[serde(rename = "convert", skip_serializing_if = "Option::is_none")]
+    pub convert: Option<ConvertReport>,
     #[serde(rename = "transform", skip_serializing_if = "Option::is_none")]
     pub transform: Option<TransformReport>,
     #[serde(rename = "transformGraph", skip_serializing_if = "Option::is_none")]
@@ -103,6 +105,26 @@ pub struct TransformReport {
     pub output_span_count: u64,
     #[serde(rename = "sourceMapRef", skip_serializing_if = "Option::is_none")]
     pub source_map_ref: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ConvertReport {
+    pub output_count: u64,
+    pub outputs: Vec<ConvertOutputReport>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ConvertOutputReport {
+    pub input: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub destination: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schema: Option<String>,
+    pub output_kind: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
