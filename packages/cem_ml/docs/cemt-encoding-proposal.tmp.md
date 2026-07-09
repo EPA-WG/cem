@@ -253,6 +253,11 @@ metadata. They are not opaque host-side string filters.
   The direct native runtime operation `cem.format-tree.nodes` is no longer part
   of the CEMT call surface; the native formatter keeps equivalent node traversal
   only as a fallback for bindings without a direct CEMT body.
+- Canonical formatter content-boundary assembly now lives in the schema-owned
+  `cem.format-tree.build-content-boundary` helper. The direct native runtime
+  operation `cem.format-tree.content-boundary` is no longer part of the CEMT
+  call surface; the native formatter keeps equivalent boundary assembly only as
+  a fallback for bindings without a direct CEMT body.
 - Canonical color traversal now uses schema-owned `cem.color-tree.*` helper
   functions. The direct native runtime operation `cem.color-tree.apply` is no
   longer part of the CEMT call surface; the native colorizer remains only as a

@@ -3130,9 +3130,7 @@ fn cemt_direct_call_function_name(expression: &str) -> Option<String> {
 fn cemt_builtin_runtime_operation_name(name: &str) -> bool {
     matches!(
         name,
-        "cem.format-tree.inter-node-whitespace"
-            | "cem.format-tree.block-children"
-            | "cem.format-tree.content-boundary"
+        "cem.format-tree.inter-node-whitespace" | "cem.format-tree.block-children"
     )
 }
 
@@ -10090,6 +10088,23 @@ mod tests {
             .functions
             .iter()
             .any(|function| function.name == "cem.format-tree.node-child-layout"));
+        let build_content_boundary = helper_response
+            .module_options
+            .functions
+            .iter()
+            .find(|function| function.name == "cem.format-tree.build-content-boundary")
+            .expect("CEM tree content boundary helper declaration");
+        assert_eq!(
+            build_content_boundary.return_type,
+            crate::transform_template::TransformTemplateModuleParamType::Array
+        );
+        assert!(build_content_boundary
+            .body_expression
+            .as_deref()
+            .is_some_and(|body| body.contains("formatter.content-boundary")
+                && body.contains("formatter.boundary-spacing")
+                && body.contains("formatter.line-ending")
+                && !body.contains("cem.format-tree.content-boundary")));
         let build_envelope = helper_response
             .module_options
             .functions

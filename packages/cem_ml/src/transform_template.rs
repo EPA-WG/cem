@@ -4980,7 +4980,6 @@ fn validate_builtin_cem_tree_formatter_binding(
 enum TransformTemplateCemtRuntimeOperation {
     CemFormatTreeInterNodeWhitespace,
     CemFormatTreeBlockChildren,
-    CemFormatTreeContentBoundary,
 }
 
 impl TransformTemplateCemtRuntimeOperation {
@@ -4988,7 +4987,6 @@ impl TransformTemplateCemtRuntimeOperation {
         match value.trim() {
             "cem.format-tree.inter-node-whitespace" => Some(Self::CemFormatTreeInterNodeWhitespace),
             "cem.format-tree.block-children" => Some(Self::CemFormatTreeBlockChildren),
-            "cem.format-tree.content-boundary" => Some(Self::CemFormatTreeContentBoundary),
             _ => None,
         }
     }
@@ -4997,7 +4995,6 @@ impl TransformTemplateCemtRuntimeOperation {
         match self {
             Self::CemFormatTreeInterNodeWhitespace => "cem.format-tree.inter-node-whitespace",
             Self::CemFormatTreeBlockChildren => "cem.format-tree.block-children",
-            Self::CemFormatTreeContentBoundary => "cem.format-tree.content-boundary",
         }
     }
 }
@@ -5015,11 +5012,6 @@ fn execute_transform_template_cemt_runtime_operation(
         }
         TransformTemplateCemtRuntimeOperation::CemFormatTreeBlockChildren => {
             transform_template_cemt_runtime_format_tree_block_children(operation, binding, subject)
-        }
-        TransformTemplateCemtRuntimeOperation::CemFormatTreeContentBoundary => {
-            transform_template_cemt_runtime_format_tree_content_boundary(
-                operation, binding, subject,
-            )
         }
     }
 }
@@ -5072,22 +5064,6 @@ fn transform_template_cemt_runtime_format_tree_block_children(
             &binding.options,
             depth,
         ),
-    ))
-}
-
-fn transform_template_cemt_runtime_format_tree_content_boundary(
-    operation: TransformTemplateCemtRuntimeOperation,
-    binding: &TransformTemplateEncodeBinding,
-    subject: Value,
-) -> Result<Value, String> {
-    validate_builtin_cem_tree_formatter_binding(binding)?;
-    let fields = transform_template_cemt_runtime_object_subject(operation, subject)?;
-    let layout = transform_template_cemt_runtime_layout_field(operation, &fields)?;
-    let source_map = transform_template_cemt_runtime_optional_source_map(operation, &fields)?;
-    Ok(transform_template_cem_tree_content_boundary_nodes(
-        &binding.options,
-        layout,
-        source_map.as_ref(),
     ))
 }
 
@@ -5161,35 +5137,6 @@ fn transform_template_cemt_runtime_nodes_depth_subject(
     Ok((nodes, depth))
 }
 
-fn transform_template_cemt_runtime_layout_field(
-    operation: TransformTemplateCemtRuntimeOperation,
-    fields: &serde_json::Map<String, Value>,
-) -> Result<TransformTemplateCemTreeLayout, String> {
-    match fields.get("layout").and_then(Value::as_str).map(str::trim) {
-        Some("inline") => Ok(TransformTemplateCemTreeLayout::Inline),
-        Some("block") => Ok(TransformTemplateCemTreeLayout::Block),
-        Some(other) => Err(format!(
-            "{} expected `layout` to be `inline` or `block`, got `{other}`",
-            operation.as_str()
-        )),
-        None => Err(format!("{} expected `layout` string", operation.as_str())),
-    }
-}
-
-fn transform_template_cemt_runtime_optional_source_map(
-    operation: TransformTemplateCemtRuntimeOperation,
-    fields: &serde_json::Map<String, Value>,
-) -> Result<Option<SourceMapStack>, String> {
-    fields
-        .get("sourceMap")
-        .map(|source_map| {
-            serde_json::from_value::<SourceMapStack>(source_map.clone()).map_err(|error| {
-                format!("{} expected valid `sourceMap`: {error}", operation.as_str())
-            })
-        })
-        .transpose()
-}
-
 fn transform_template_cemt_runtime_nodes_depth_subject_value(
     nodes: Vec<Value>,
     depth: usize,
@@ -5200,23 +5147,6 @@ fn transform_template_cemt_runtime_nodes_depth_subject_value(
         "depth".to_owned(),
         Value::Number(serde_json::Number::from(depth)),
     );
-    Value::Object(fields)
-}
-
-fn transform_template_cemt_runtime_content_boundary_subject_value(
-    layout: TransformTemplateCemTreeLayout,
-    source_map: Option<&SourceMapStack>,
-) -> Value {
-    let mut fields = serde_json::Map::new();
-    fields.insert(
-        "layout".to_owned(),
-        Value::String(layout.as_str().to_owned()),
-    );
-    if let Some(source_map) =
-        source_map.and_then(|source_map| serde_json::to_value(source_map).ok())
-    {
-        fields.insert("sourceMap".to_owned(), source_map);
-    }
     Value::Object(fields)
 }
 
@@ -5348,14 +5278,11 @@ fn transform_template_format_cem_tree_object(
         if !fields.contains_key("formatContentBoundary") {
             fields.insert(
                 "formatContentBoundary".to_owned(),
-                execute_transform_template_cemt_runtime_operation(
-                    TransformTemplateCemtRuntimeOperation::CemFormatTreeContentBoundary,
-                    binding,
-                    transform_template_cemt_runtime_content_boundary_subject_value(
-                        layout,
-                        source_map.as_ref(),
-                    ),
-                )?,
+                transform_template_cem_tree_content_boundary_nodes(
+                    &binding.options,
+                    layout,
+                    source_map.as_ref(),
+                ),
             );
         }
         if layout == TransformTemplateCemTreeLayout::Block {
@@ -11911,6 +11838,12 @@ fn resolve_cemt_call_expression(
     if function_name == "cem.format-tree.format-nodes" {
         return Err(
             "CEMT runtime operation `cem.format-tree.format-nodes` has been removed; use schema-owned `cem.format-tree.add-format-nodes` helpers"
+                .to_owned(),
+        );
+    }
+    if function_name == "cem.format-tree.content-boundary" {
+        return Err(
+            "CEMT runtime operation `cem.format-tree.content-boundary` has been removed; use schema-owned `cem.format-tree.build-content-boundary` helpers"
                 .to_owned(),
         );
     }
@@ -25702,8 +25635,8 @@ mod tests {
             "cem.format-tree.block-children"
         );
         assert_eq!(
-            TransformTemplateCemtRuntimeOperation::CemFormatTreeContentBoundary.as_str(),
-            "cem.format-tree.content-boundary"
+            TransformTemplateCemtRuntimeOperation::parse("cem.format-tree.content-boundary"),
+            None
         );
         assert_eq!(
             TransformTemplateCemtRuntimeOperation::parse("cem.format-tree.format-nodes"),
@@ -25755,15 +25688,11 @@ mod tests {
         assert_eq!(block_children[0]["formatterRole"], "formatter.indent");
         assert_eq!(block_children[2]["formatterRole"], "formatter.line-ending");
 
-        let content_boundary = execute_transform_template_cemt_runtime_operation(
-            TransformTemplateCemtRuntimeOperation::CemFormatTreeContentBoundary,
-            &binding,
-            json!({
-                "layout": "block",
-                "sourceMap": subject["sourceMap"].clone()
-            }),
-        )
-        .expect("content boundary operation runs");
+        let content_boundary = transform_template_cem_tree_content_boundary_nodes(
+            &binding.options,
+            TransformTemplateCemTreeLayout::Block,
+            None,
+        );
         assert_eq!(
             content_boundary[0]["formatterRole"],
             "formatter.boundary-spacing"
@@ -25862,6 +25791,19 @@ mod tests {
         assert!(error
             .contains("CEMT runtime operation `cem.format-tree.format-nodes` has been removed"));
         assert!(error.contains("schema-owned `cem.format-tree.add-format-nodes` helpers"));
+
+        let error = resolve_encode_subject_expression_at_depth(
+            r#"call(cem.format-tree.content-boundary, { subject: { layout: "block" } })"#,
+            &BTreeMap::new(),
+            &BTreeMap::new(),
+            Some(&binding),
+            0,
+        )
+        .expect_err("direct CEMT body rejects removed formatter content boundary operation");
+        assert!(error.contains(
+            "CEMT runtime operation `cem.format-tree.content-boundary` has been removed"
+        ));
+        assert!(error.contains("schema-owned `cem.format-tree.build-content-boundary` helpers"));
     }
 
     #[test]

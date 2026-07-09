@@ -204,7 +204,8 @@
                     "formatContentBoundary",
                     call("cem.format-tree.build-content-boundary", {
                         subject: $subject,
-                        layout: $layout
+                        layout: $layout,
+                        lineEnding: $lineEnding
                     })
                 ),
                 layout: $layout
@@ -279,18 +280,110 @@
         |
         {param @name="subject" @type="object" @required=true}
         {param @name="layout" @type="string" @required=true}
+        {param @name="lineEnding" @type="string" @required=true}
         {body |
             {$ match(exists($subject.sourceMap), {
-                true: call(cem.format-tree.content-boundary, {
-                    subject: {
-                        layout: $layout,
-                        sourceMap: $subject.sourceMap
-                    }
+                true: match($layout, {
+                    block: [
+                        {
+                            kind: "whitespace",
+                            value: " ",
+                            formatterOwned: true,
+                            formatterRole: "formatter.boundary-spacing",
+                            colorRole: "syntax.raw",
+                            sourceMap: $subject.sourceMap
+                        },
+                        {
+                            kind: "raw",
+                            value: "|",
+                            formatterOwned: true,
+                            formatterRole: "formatter.content-boundary",
+                            colorRole: "syntax.raw",
+                            sourceMap: $subject.sourceMap
+                        },
+                        {
+                            kind: "whitespace",
+                            value: match($lineEnding, { crlf: "\r\n", default: "\n" }),
+                            formatterOwned: true,
+                            formatterRole: "formatter.line-ending",
+                            colorRole: "syntax.raw",
+                            sourceMap: $subject.sourceMap
+                        }
+                    ],
+                    default: [
+                        {
+                            kind: "whitespace",
+                            value: " ",
+                            formatterOwned: true,
+                            formatterRole: "formatter.boundary-spacing",
+                            colorRole: "syntax.raw",
+                            sourceMap: $subject.sourceMap
+                        },
+                        {
+                            kind: "raw",
+                            value: "|",
+                            formatterOwned: true,
+                            formatterRole: "formatter.content-boundary",
+                            colorRole: "syntax.raw",
+                            sourceMap: $subject.sourceMap
+                        },
+                        {
+                            kind: "whitespace",
+                            value: " ",
+                            formatterOwned: true,
+                            formatterRole: "formatter.boundary-spacing",
+                            colorRole: "syntax.raw",
+                            sourceMap: $subject.sourceMap
+                        }
+                    ]
                 }),
-                false: call(cem.format-tree.content-boundary, {
-                    subject: {
-                        layout: $layout
-                    }
+                false: match($layout, {
+                    block: [
+                        {
+                            kind: "whitespace",
+                            value: " ",
+                            formatterOwned: true,
+                            formatterRole: "formatter.boundary-spacing",
+                            colorRole: "syntax.raw"
+                        },
+                        {
+                            kind: "raw",
+                            value: "|",
+                            formatterOwned: true,
+                            formatterRole: "formatter.content-boundary",
+                            colorRole: "syntax.raw"
+                        },
+                        {
+                            kind: "whitespace",
+                            value: match($lineEnding, { crlf: "\r\n", default: "\n" }),
+                            formatterOwned: true,
+                            formatterRole: "formatter.line-ending",
+                            colorRole: "syntax.raw"
+                        }
+                    ],
+                    default: [
+                        {
+                            kind: "whitespace",
+                            value: " ",
+                            formatterOwned: true,
+                            formatterRole: "formatter.boundary-spacing",
+                            colorRole: "syntax.raw"
+                        },
+                        {
+                            kind: "raw",
+                            value: "|",
+                            formatterOwned: true,
+                            formatterRole: "formatter.content-boundary",
+                            colorRole: "syntax.raw"
+                        },
+                        {
+                            kind: "whitespace",
+                            value: " ",
+                            formatterOwned: true,
+                            formatterRole: "formatter.boundary-spacing",
+                            colorRole: "syntax.raw"
+                        }
+                    ]
                 })
             }) }
         }
