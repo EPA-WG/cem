@@ -6684,18 +6684,22 @@ fn conversion_package_artifacts_from_schema_package_manifest_inner(
         return Err(ConversionManifestError::MissingPackageElement);
     };
 
-    element_child_ids_by_local_name(&document, package_node_id, "artifact")
-        .into_iter()
-        .map(|artifact_node_id| {
-            conversion_package_artifact_from_manifest_node(
-                &document,
-                artifact_node_id,
-                &package_id,
-                base_path,
-                validate_embedded_artifact_contracts,
-            )
-        })
-        .collect()
+    let mut artifacts = Vec::new();
+    for artifact_node_id in element_child_ids_by_local_name(&document, package_node_id, "artifact")
+    {
+        artifacts.push(conversion_package_artifact_from_manifest_node(
+            &document,
+            artifact_node_id,
+            &package_id,
+            base_path,
+        )?);
+    }
+    if validate_embedded_artifact_contracts {
+        for artifact in &artifacts {
+            validate_conversion_package_artifact_cemt_contract(artifact, &artifacts)?;
+        }
+    }
+    Ok(artifacts)
 }
 
 fn conversion_package_artifact_from_manifest_node(
@@ -6703,7 +6707,6 @@ fn conversion_package_artifact_from_manifest_node(
     node_id: AstNodeId,
     package_id: &str,
     base_path: &str,
-    validate_embedded_artifact_contracts: bool,
 ) -> Result<ConversionPackageArtifactDescriptor, ConversionManifestError> {
     let attrs = collect_manifest_attrs(document, node_id);
     let kind = required_manifest_attr(&attrs, None, "kind")?.to_owned();
@@ -6730,14 +6733,12 @@ fn conversion_package_artifact_from_manifest_node(
         color_profile: optional_manifest_attr(&attrs, "color-profile").map(str::to_owned),
         generated,
     };
-    if validate_embedded_artifact_contracts {
-        validate_conversion_package_artifact_cemt_contract(&artifact)?;
-    }
     Ok(artifact)
 }
 
 fn validate_conversion_package_artifact_cemt_contract(
     artifact: &ConversionPackageArtifactDescriptor,
+    package_artifacts: &[ConversionPackageArtifactDescriptor],
 ) -> Result<(), ConversionManifestError> {
     let Some(function_name) = artifact.function_name.as_deref() else {
         return Ok(());
@@ -6806,7 +6807,329 @@ fn validate_conversion_package_artifact_cemt_contract(
             mismatch.actual.as_str(),
         ));
     }
+    validate_conversion_package_artifact_cem_tree_stage_metadata_contract(
+        artifact,
+        function,
+        &parse_response.module_options,
+        package_artifacts,
+    )?;
     Ok(())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CemtStageMetadataContract {
+    Formatter,
+    Colorizer,
+}
+
+fn validate_conversion_package_artifact_cem_tree_stage_metadata_contract(
+    artifact: &ConversionPackageArtifactDescriptor,
+    function: &TransformTemplateOutputFunctionDescriptor,
+    module_options: &TransformTemplateModuleOptions,
+    package_artifacts: &[ConversionPackageArtifactDescriptor],
+) -> Result<(), ConversionManifestError> {
+    let Some(contract) =
+        conversion_package_artifact_cem_tree_stage_metadata_contract(artifact, function)
+    else {
+        return Ok(());
+    };
+
+    match contract {
+        CemtStageMetadataContract::Formatter => {
+            if conversion_trimmed_non_empty(artifact.formatter_profile.as_deref()).is_none() {
+                return Err(conversion_artifact_contract_error(
+                    artifact,
+                    "formatter CEMT artifact must declare `formatter-profile` package metadata",
+                ));
+            }
+        }
+        CemtStageMetadataContract::Colorizer => {
+            if artifact.kind == "colorizer"
+                && conversion_trimmed_non_empty(artifact.color_profile.as_deref()).is_none()
+            {
+                return Err(conversion_artifact_contract_error(
+                    artifact,
+                    "colorizer CEMT artifact must declare `color-profile` package metadata",
+                ));
+            }
+        }
+    }
+
+    let reachable_body = conversion_package_artifact_reachable_cemt_body(
+        artifact,
+        function.name.as_str(),
+        module_options,
+        package_artifacts,
+        contract,
+    )?;
+    let missing = conversion_package_artifact_cem_tree_stage_missing_metadata_terms(
+        contract,
+        &reachable_body,
+    );
+    if !missing.is_empty() {
+        return Err(conversion_artifact_contract_error(
+            artifact,
+            format!(
+                "{} CEMT artifact does not build required {} CEM tree metadata: {}",
+                contract.stage_label(),
+                contract.output_label(),
+                missing.join(", ")
+            ),
+        ));
+    }
+
+    Ok(())
+}
+
+fn conversion_package_artifact_cem_tree_stage_metadata_contract(
+    artifact: &ConversionPackageArtifactDescriptor,
+    function: &TransformTemplateOutputFunctionDescriptor,
+) -> Option<CemtStageMetadataContract> {
+    if !conversion_package_artifact_targets_cem_tree(artifact)
+        || function.produces != TransformTemplateOutputProducedKind::CemTree
+    {
+        return None;
+    }
+
+    match (artifact.kind.as_str(), function.kind) {
+        (
+            "formatter" | CEM_TREE_FORMATTER_HELPER_ARTIFACT_KIND,
+            TransformTemplateOutputFunctionKind::Format,
+        ) => Some(CemtStageMetadataContract::Formatter),
+        (
+            "colorizer" | CEM_TREE_COLORIZER_HELPER_ARTIFACT_KIND,
+            TransformTemplateOutputFunctionKind::Color,
+        ) => Some(CemtStageMetadataContract::Colorizer),
+        _ => None,
+    }
+}
+
+fn conversion_package_artifact_targets_cem_tree(
+    artifact: &ConversionPackageArtifactDescriptor,
+) -> bool {
+    artifact
+        .target_content_type
+        .as_deref()
+        .map(content_type_essence)
+        .as_deref()
+        == Some(CEM_ML_CONTENT_TYPE)
+        && artifact.target_schema.as_deref() == Some(CEM_ML_SCHEMA_URI)
+        && artifact.target_category.as_deref() == Some("cem-tree")
+}
+
+impl CemtStageMetadataContract {
+    fn stage_label(self) -> &'static str {
+        match self {
+            Self::Formatter => "formatter",
+            Self::Colorizer => "colorizer",
+        }
+    }
+
+    fn output_label(self) -> &'static str {
+        match self {
+            Self::Formatter => "formatted",
+            Self::Colorizer => "colored",
+        }
+    }
+}
+
+fn conversion_package_artifact_reachable_cemt_body(
+    artifact: &ConversionPackageArtifactDescriptor,
+    root_function_name: &str,
+    module_options: &TransformTemplateModuleOptions,
+    package_artifacts: &[ConversionPackageArtifactDescriptor],
+    contract: CemtStageMetadataContract,
+) -> Result<String, ConversionManifestError> {
+    let mut bodies = BTreeMap::new();
+    collect_conversion_package_artifact_cemt_bodies(module_options, &mut bodies);
+
+    let mut loaded_artifacts = BTreeSet::new();
+    loaded_artifacts.insert((
+        artifact.package_id.clone(),
+        artifact.path.clone(),
+        artifact.function_name.clone(),
+    ));
+    for related in package_artifacts.iter().filter(|candidate| {
+        conversion_package_artifact_is_related_cem_tree_stage_artifact(
+            artifact, candidate, contract,
+        )
+    }) {
+        if !loaded_artifacts.insert((
+            related.package_id.clone(),
+            related.path.clone(),
+            related.function_name.clone(),
+        )) {
+            continue;
+        }
+        let Some(source) =
+            builtin_schema_package_artifact_source(&related.package_id, &related.path)
+        else {
+            continue;
+        };
+        let parse_response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: TemplateInput {
+                    uri: related.path.clone(),
+                    bytes: source.source.as_bytes().to_vec(),
+                    identity: Some(FormatIdentity {
+                        content_type: related.content_type.clone(),
+                        schema: related.schema.clone(),
+                        ..FormatIdentity::default()
+                    }),
+                    root_scope: ScopeConfig::default(),
+                },
+            });
+        if let Some(diagnostic) = parse_response
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.severity.is_hard_violation())
+        {
+            return Err(conversion_artifact_contract_error(
+                artifact,
+                format!(
+                    "related `{}` CEMT artifact `{}` failed to parse: {}",
+                    related.kind, related.path, diagnostic.message
+                ),
+            ));
+        }
+        collect_conversion_package_artifact_cemt_bodies(
+            &parse_response.module_options,
+            &mut bodies,
+        );
+    }
+
+    let mut reachable = String::new();
+    let mut visited = BTreeSet::new();
+    let mut pending = vec![root_function_name.to_owned()];
+    while let Some(function_name) = pending.pop() {
+        if !visited.insert(function_name.clone()) {
+            continue;
+        }
+        let Some(body) = bodies.get(&function_name) else {
+            continue;
+        };
+        reachable.push('\n');
+        reachable.push_str(body);
+        for called in cemt_call_function_names(body) {
+            if !visited.contains(&called) {
+                pending.push(called);
+            }
+        }
+    }
+    Ok(reachable)
+}
+
+fn collect_conversion_package_artifact_cemt_bodies(
+    module_options: &TransformTemplateModuleOptions,
+    bodies: &mut BTreeMap<String, String>,
+) {
+    for function in &module_options.output_functions {
+        if let Some(body) = function.body_expression.as_deref() {
+            bodies
+                .entry(function.name.clone())
+                .or_insert_with(|| body.to_owned());
+        }
+    }
+    for function in &module_options.functions {
+        if let Some(body) = function.body_expression.as_deref() {
+            bodies
+                .entry(function.name.clone())
+                .or_insert_with(|| body.to_owned());
+        }
+    }
+}
+
+fn conversion_package_artifact_is_related_cem_tree_stage_artifact(
+    root: &ConversionPackageArtifactDescriptor,
+    candidate: &ConversionPackageArtifactDescriptor,
+    contract: CemtStageMetadataContract,
+) -> bool {
+    if root.package_id != candidate.package_id
+        || !conversion_package_artifact_targets_cem_tree(candidate)
+        || candidate.content_type.as_deref() != Some(CEM_TRANSFORM_CONTENT_TYPE)
+        || candidate.schema.as_deref() != Some(CEM_TRANSFORM_SCHEMA_URI)
+    {
+        return false;
+    }
+
+    match contract {
+        CemtStageMetadataContract::Formatter => {
+            matches!(
+                candidate.kind.as_str(),
+                "formatter" | CEM_TREE_FORMATTER_HELPER_ARTIFACT_KIND
+            ) && conversion_package_artifact_profile_matches(
+                root.formatter_profile.as_deref(),
+                candidate.formatter_profile.as_deref(),
+            )
+        }
+        CemtStageMetadataContract::Colorizer => {
+            matches!(
+                candidate.kind.as_str(),
+                "colorizer" | CEM_TREE_COLORIZER_HELPER_ARTIFACT_KIND
+            ) && conversion_package_artifact_profile_matches(
+                root.color_profile.as_deref(),
+                candidate.color_profile.as_deref(),
+            )
+        }
+    }
+}
+
+fn conversion_package_artifact_profile_matches(
+    root_profile: Option<&str>,
+    candidate_profile: Option<&str>,
+) -> bool {
+    let root_profile = conversion_trimmed_non_empty(root_profile);
+    conversion_trimmed_non_empty(candidate_profile)
+        .is_none_or(|profile| Some(profile) == root_profile)
+}
+
+fn conversion_trimmed_non_empty(value: Option<&str>) -> Option<&str> {
+    value.map(str::trim).filter(|value| !value.is_empty())
+}
+
+fn conversion_package_artifact_cem_tree_stage_missing_metadata_terms(
+    contract: CemtStageMetadataContract,
+    body: &str,
+) -> Vec<&'static str> {
+    let required_terms: &[(&str, &[&str])] = match contract {
+        CemtStageMetadataContract::Formatter => &[
+            ("formatterProfile", &["formatterProfile"]),
+            ("formatNodes", &["formatNodes", "appendFormatNode"]),
+            ("cem.format-tree", &["cem.format-tree"]),
+            ("format-marker", &["format-marker"]),
+            ("format-decision", &["format-decision"]),
+            ("formatterRole", &["formatterRole"]),
+        ],
+        CemtStageMetadataContract::Colorizer => &[
+            ("colored", &["colored"]),
+            ("colorProfile", &["colorProfile"]),
+            ("colorNodes", &["colorNodes", "appendColorNode"]),
+            ("cem.color-tree", &["cem.color-tree"]),
+            ("color-marker", &["color-marker"]),
+            ("color-decision", &["color-decision"]),
+            ("colorizerRole", &["colorizerRole"]),
+        ],
+    };
+
+    required_terms
+        .iter()
+        .filter_map(|(label, alternatives)| {
+            (!alternatives.iter().any(|term| body.contains(term))).then_some(*label)
+        })
+        .collect()
+}
+
+fn cemt_call_function_names(expression: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut remainder = expression;
+    while let Some(index) = remainder.find("call(") {
+        let call = &remainder[index..];
+        if let Some(name) = cemt_direct_call_function_name(call) {
+            names.push(name);
+        }
+        remainder = &call["call(".len()..];
+    }
+    names
 }
 
 fn conversion_artifact_contract_mismatch(
@@ -10536,6 +10859,225 @@ mod tests {
                 );
                 assert!(message.contains("target category metadata expected `wrong-tree`"));
                 assert!(message.contains("CEMT declares `cem-tree`"));
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn cemt_formatter_artifact_requires_formatter_profile_metadata() {
+        let package = load_builtin_schema_package(CEM_ML_SCHEMA_URI).expect("CEM-ML package");
+        let manifest = package.manifest_source.replacen(
+            "\n        @formatter-profile=\"cem.format-tree\"",
+            "",
+            1,
+        );
+        let package = BuiltinSchemaPackage {
+            manifest_source: Box::leak(manifest.into_boxed_str()),
+            ..package
+        };
+
+        let error = conversion_package_artifacts_from_schema_package(&package)
+            .expect_err("formatter artifact without formatter-profile is rejected");
+
+        match error {
+            ConversionManifestError::ArtifactContract { path, message, .. } => {
+                assert_eq!(
+                    path,
+                    "schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt"
+                );
+                assert!(message.contains("formatter CEMT artifact"));
+                assert!(message.contains("formatter-profile"));
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn cemt_colorizer_artifact_requires_color_profile_metadata() {
+        let package = load_builtin_schema_package(CEM_ML_SCHEMA_URI).expect("CEM-ML package");
+        let manifest = package
+            .manifest_source
+            .replacen("\n        @color-profile=\"none\"", "", 1);
+        let package = BuiltinSchemaPackage {
+            manifest_source: Box::leak(manifest.into_boxed_str()),
+            ..package
+        };
+
+        let error = conversion_package_artifacts_from_schema_package(&package)
+            .expect_err("colorizer artifact without color-profile is rejected");
+
+        match error {
+            ConversionManifestError::ArtifactContract { path, message, .. } => {
+                assert_eq!(
+                    path,
+                    "schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt"
+                );
+                assert!(message.contains("colorizer CEMT artifact"));
+                assert!(message.contains("color-profile"));
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn cemt_formatter_artifact_body_must_build_formatted_tree_metadata() {
+        let artifact = ConversionPackageArtifactDescriptor {
+            package_id: "cem-ml".to_owned(),
+            kind: "formatter".to_owned(),
+            path: "schema-packages/cem-ml/v1/formatters/bare-tree.cemt".to_owned(),
+            content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+            schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+            target_content_type: Some(CEM_ML_CONTENT_TYPE.to_owned()),
+            target_schema: Some(CEM_ML_SCHEMA_URI.to_owned()),
+            target_category: Some("cem-tree".to_owned()),
+            function_name: Some("acme.bare.format-tree".to_owned()),
+            function_profile: None,
+            formatter_profile: Some("acme.bare.format-tree".to_owned()),
+            color_profile: None,
+            generated: false,
+        };
+        let source = r#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {format-function
+        @name="acme.bare.format-tree"
+        @category="cem-tree"
+        @subject="cem-ast-node"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @canonical=true
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="json" @required=true}
+        {body | {$ { kind: "cem-tree", nodes: [$subject] } } }
+    }
+}
+"#;
+        let parse_response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: TemplateInput {
+                    uri: artifact.path.clone(),
+                    bytes: source.as_bytes().to_vec(),
+                    identity: Some(FormatIdentity {
+                        content_type: artifact.content_type.clone(),
+                        schema: artifact.schema.clone(),
+                        ..FormatIdentity::default()
+                    }),
+                    root_scope: ScopeConfig::default(),
+                },
+            });
+        assert!(
+            parse_response.diagnostics.is_empty(),
+            "{:?}",
+            parse_response.diagnostics
+        );
+        let function = parse_response
+            .module_options
+            .output_functions
+            .iter()
+            .find(|function| function.name == "acme.bare.format-tree")
+            .expect("bare formatter function");
+
+        let error = validate_conversion_package_artifact_cem_tree_stage_metadata_contract(
+            &artifact,
+            function,
+            &parse_response.module_options,
+            &[],
+        )
+        .expect_err("bare formatter body is rejected");
+
+        match error {
+            ConversionManifestError::ArtifactContract { path, message, .. } => {
+                assert_eq!(path, artifact.path);
+                assert!(message.contains("formatted CEM tree metadata"));
+                assert!(message.contains("formatterProfile"));
+                assert!(message.contains("formatNodes"));
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn cemt_colorizer_artifact_body_must_build_colored_tree_metadata() {
+        let artifact = ConversionPackageArtifactDescriptor {
+            package_id: "cem-ml".to_owned(),
+            kind: "colorizer".to_owned(),
+            path: "schema-packages/cem-ml/v1/colorizers/bare-tree.cemt".to_owned(),
+            content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+            schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+            target_content_type: Some(CEM_ML_CONTENT_TYPE.to_owned()),
+            target_schema: Some(CEM_ML_SCHEMA_URI.to_owned()),
+            target_category: Some("cem-tree".to_owned()),
+            function_name: Some("acme.bare.color-tree".to_owned()),
+            function_profile: Some("classes".to_owned()),
+            formatter_profile: None,
+            color_profile: Some("classes".to_owned()),
+            generated: false,
+        };
+        let source = r#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {color-function
+        @name="acme.bare.color-tree"
+        @category="cem-tree"
+        @subject="cem-tree"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @profile="classes"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body | {$ $subject } }
+    }
+}
+"#;
+        let parse_response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: TemplateInput {
+                    uri: artifact.path.clone(),
+                    bytes: source.as_bytes().to_vec(),
+                    identity: Some(FormatIdentity {
+                        content_type: artifact.content_type.clone(),
+                        schema: artifact.schema.clone(),
+                        ..FormatIdentity::default()
+                    }),
+                    root_scope: ScopeConfig::default(),
+                },
+            });
+        assert!(
+            parse_response.diagnostics.is_empty(),
+            "{:?}",
+            parse_response.diagnostics
+        );
+        let function = parse_response
+            .module_options
+            .output_functions
+            .iter()
+            .find(|function| function.name == "acme.bare.color-tree")
+            .expect("bare colorizer function");
+
+        let error = validate_conversion_package_artifact_cem_tree_stage_metadata_contract(
+            &artifact,
+            function,
+            &parse_response.module_options,
+            &[],
+        )
+        .expect_err("bare colorizer body is rejected");
+
+        match error {
+            ConversionManifestError::ArtifactContract { path, message, .. } => {
+                assert_eq!(path, artifact.path);
+                assert!(message.contains("colored CEM tree metadata"));
+                assert!(message.contains("colorProfile"));
+                assert!(message.contains("colorNodes"));
             }
             other => panic!("unexpected error: {other:?}"),
         }
