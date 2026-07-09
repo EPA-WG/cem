@@ -899,15 +899,17 @@ impl TransformTemplateAdapter for DomProjectionParityCemtAdapter {
         request: TransformTemplateRenderRequest<'_>,
     ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
         if conversion_dom_projection_parity_target_is_cem_tree(&request) {
-            let tree =
-                conversion_dom_projection_parity_cem_tree_document(&request.primary_input.value)
-                    .map_err(|message| {
-                        TransformTemplateAdapterError::failed(
-                            self.id(),
-                            TransformTemplateAdapterExecutionPhase::Render,
-                            message,
-                        )
-                    })?;
+            let tree = conversion_dom_projection_parity_cem_tree_document(
+                &request.primary_input.value,
+                request.target_scope,
+            )
+            .map_err(|message| {
+                TransformTemplateAdapterError::failed(
+                    self.id(),
+                    TransformTemplateAdapterExecutionPhase::Render,
+                    message,
+                )
+            })?;
             return Ok(TransformTemplateRenderResponse {
                 output: TransformTemplateOutputArtifact {
                     uri: None,
@@ -1153,7 +1155,10 @@ fn conversion_dom_projection_parity_data(node: &Value) -> &str {
         .unwrap_or_default()
 }
 
-fn conversion_dom_projection_parity_cem_tree_document(input: &Value) -> Result<Value, String> {
+fn conversion_dom_projection_parity_cem_tree_document(
+    input: &Value,
+    target_scope: &ScopeConfig,
+) -> Result<Value, String> {
     let children = input
         .get("children")
         .and_then(Value::as_array)
@@ -1164,7 +1169,43 @@ fn conversion_dom_projection_parity_cem_tree_document(input: &Value) -> Result<V
             nodes.push(node);
         }
     }
-    Ok(Value::Array(nodes))
+    let formatter_profile = conversion_dom_projection_parity_formatter_profile(target_scope);
+    Ok(serde_json::json!({
+        "kind": "cem-tree",
+        "contentType": CEM_ML_CONTENT_TYPE,
+        "schema": CEM_ML_SCHEMA_URI,
+        "category": "cem-tree",
+        "mode": TransformTemplateEncodedArtifactMode::Document.as_str(),
+        "canonical": true,
+        "formatterProfile": formatter_profile,
+        "formatNodes": [
+            {
+                "kind": "format-marker",
+                "name": "cem.format-tree",
+                "formatterRole": "formatter.boundary",
+                "formatterProfile": formatter_profile,
+            },
+            {
+                "kind": "format-decision",
+                "name": "converter-cemt",
+                "formatterRole": "formatter.converter",
+                "formatterProfile": formatter_profile,
+                "value": "converter CEMT produced formatted tree",
+            }
+        ],
+        "nodes": nodes,
+    }))
+}
+
+fn conversion_dom_projection_parity_formatter_profile(target_scope: &ScopeConfig) -> String {
+    target_scope
+        .cemt_formatter_profile
+        .as_deref()
+        .or(target_scope.cemt_formatter.as_deref())
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty())
+        .unwrap_or("cem.format-tree")
+        .to_owned()
 }
 
 fn conversion_dom_projection_parity_cem_tree_node(node: &Value) -> Result<Option<Value>, String> {
@@ -1173,6 +1214,7 @@ fn conversion_dom_projection_parity_cem_tree_node(node: &Value) -> Result<Option
         "text" | "whitespace" | "comment" | "cdata" | "raw-text" => Ok(Some(serde_json::json!({
             "kind": kind,
             "value": conversion_dom_projection_parity_data(node),
+            "sourceMap": conversion_dom_projection_parity_source_map(node),
         }))),
         "processing-instruction" => {
             let name = conversion_dom_projection_parity_name(node)?;
@@ -1185,6 +1227,10 @@ fn conversion_dom_projection_parity_cem_tree_node(node: &Value) -> Result<Option
             fields.insert(
                 "value".to_owned(),
                 Value::String(conversion_dom_projection_parity_data(node).to_owned()),
+            );
+            fields.insert(
+                "sourceMap".to_owned(),
+                conversion_dom_projection_parity_source_map(node),
             );
             Ok(Some(Value::Object(fields)))
         }
@@ -1203,6 +1249,10 @@ fn conversion_dom_projection_parity_cem_tree_element(
     let mut fields = serde_json::Map::new();
     fields.insert("kind".to_owned(), Value::String("element".to_owned()));
     fields.insert("name".to_owned(), Value::String(name.local.to_owned()));
+    fields.insert(
+        "sourceMap".to_owned(),
+        conversion_dom_projection_parity_source_map(node),
+    );
     if !name.namespace.is_empty() {
         fields.insert(
             "namespace".to_owned(),
@@ -1210,27 +1260,32 @@ fn conversion_dom_projection_parity_cem_tree_element(
         );
     }
 
-    if let Some(attributes) = node.get("attributes").and_then(Value::as_array) {
-        let attributes = attributes
-            .iter()
-            .map(conversion_dom_projection_parity_cem_tree_attribute)
-            .collect::<Result<Vec<_>, _>>()?;
-        if !attributes.is_empty() {
-            fields.insert("attributes".to_owned(), Value::Array(attributes));
-        }
-    }
+    let attributes = node
+        .get("attributes")
+        .and_then(Value::as_array)
+        .map(|attributes| {
+            attributes
+                .iter()
+                .map(conversion_dom_projection_parity_cem_tree_attribute)
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .transpose()?
+        .unwrap_or_default();
+    fields.insert("attributes".to_owned(), Value::Array(attributes));
 
+    let mut child_nodes = Vec::new();
     if let Some(children) = node.get("children").and_then(Value::as_array) {
-        let mut child_nodes = Vec::new();
         for child in children {
             if let Some(child_node) = conversion_dom_projection_parity_cem_tree_node(child)? {
                 child_nodes.push(child_node);
             }
         }
-        if !child_nodes.is_empty() {
-            fields.insert("children".to_owned(), Value::Array(child_nodes));
-        }
     }
+    fields.insert("children".to_owned(), Value::Array(child_nodes));
+    fields.insert(
+        "formatLayout".to_owned(),
+        conversion_dom_projection_parity_format_layout(name.local),
+    );
 
     Ok(Some(Value::Object(fields)))
 }
@@ -1250,7 +1305,31 @@ fn conversion_dom_projection_parity_cem_tree_attribute(attribute: &Value) -> Res
         "value".to_owned(),
         attribute.get("value").cloned().unwrap_or(Value::Null),
     );
+    fields.insert(
+        "sourceMap".to_owned(),
+        conversion_dom_projection_parity_source_map(attribute),
+    );
     Ok(Value::Object(fields))
+}
+
+fn conversion_dom_projection_parity_format_layout(local_name: &str) -> Value {
+    if local_name == "strong" {
+        serde_json::json!({
+            "kind": "format-decision",
+            "formatterRole": "formatter.inline-emphasis",
+            "value": "inline-emphasis",
+        })
+    } else {
+        serde_json::json!({
+            "kind": "format-decision",
+            "formatterRole": "formatter.layout",
+            "value": "inline",
+        })
+    }
+}
+
+fn conversion_dom_projection_parity_source_map(node: &Value) -> Value {
+    node.get("sourceMap").cloned().unwrap_or(Value::Null)
 }
 
 #[derive(Debug, Clone)]
@@ -7705,6 +7784,59 @@ mod tests {
         let diagnostics = evaluate_conversion_parity_fixtures(html_contract, &fixtures, &executor);
 
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    #[test]
+    fn dom_projection_cemt_adapter_builds_formatted_cem_tree_envelope() {
+        let tree = conversion_dom_projection_parity_cem_tree_document(
+            &serde_json::json!({
+                "children": [{
+                    "kind": "element",
+                    "name": "article",
+                    "children": [
+                        {"kind": "text", "value": "Ready "},
+                        {
+                            "kind": "element",
+                            "name": "strong",
+                            "children": [{"kind": "text", "value": "now"}]
+                        }
+                    ]
+                }]
+            }),
+            &ScopeConfig {
+                cemt_formatter_profile: Some("acme.showcase.format-tree".to_owned()),
+                ..ScopeConfig::default()
+            },
+        )
+        .expect("DOM CEMT adapter tree");
+
+        assert_eq!(tree["kind"], "cem-tree");
+        assert_eq!(tree["contentType"], CEM_ML_CONTENT_TYPE);
+        assert_eq!(tree["schema"], CEM_ML_SCHEMA_URI);
+        assert_eq!(tree["category"], "cem-tree");
+        assert_eq!(tree["mode"], "document");
+        assert_eq!(tree["canonical"], true);
+        assert_eq!(tree["formatterProfile"], "acme.showcase.format-tree");
+        assert_eq!(tree["formatNodes"][0]["name"], "cem.format-tree");
+        assert_eq!(tree["formatNodes"][1]["name"], "converter-cemt");
+        assert_eq!(
+            tree["formatNodes"][1]["formatterProfile"],
+            "acme.showcase.format-tree"
+        );
+        assert_eq!(tree["nodes"][0]["sourceMap"], Value::Null);
+        assert_eq!(tree["nodes"][0]["attributes"], Value::Array(vec![]));
+        assert_eq!(
+            tree["nodes"][0]["formatLayout"]["formatterRole"],
+            "formatter.layout"
+        );
+        assert_eq!(
+            tree["nodes"][0]["children"][1]["formatLayout"]["formatterRole"],
+            "formatter.inline-emphasis"
+        );
+        assert_eq!(
+            tree["nodes"][0]["children"][1]["children"][0]["sourceMap"],
+            Value::Null
+        );
     }
 
     #[test]
