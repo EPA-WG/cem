@@ -235,6 +235,74 @@
         },
         "outputKind": {
           "type": "string"
+        },
+        "conversion": {
+          "$ref": "#/$defs/convertExecutionMetadata"
+        }
+      }
+    },
+    "convertExecutionMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "converterId": {
+          "type": "string",
+          "description": "Selected converter or direct output-pipeline identifier."
+        },
+        "implementation": {
+          "type": "string",
+          "enum": ["cemt", "rust-fallback", "direct-cemt-output-pipeline"],
+          "description": "`cemt` means the converter template executed; `direct-cemt-output-pipeline` means the selected converter or built-in route supplied the formatter/colorizer/writer output pipeline directly; `rust-fallback` means the selected CEMT converter could not execute and a declared Rust fallback rendered the output."
+        },
+        "rustFallback": {
+          "type": "string",
+          "description": "Rust fallback symbol used when implementation is rust-fallback."
+        },
+        "outputPipeline": {
+          "$ref": "#/$defs/convertOutputPipelineMetadata"
+        }
+      }
+    },
+    "convertOutputPipelineMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stages"],
+      "properties": {
+        "stages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/convertOutputPipelineStageMetadata"
+          }
+        }
+      }
+    },
+    "convertOutputPipelineStageMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stage"],
+      "properties": {
+        "stage": {
+          "type": "string",
+          "enum": ["formatter", "colorizer", "writer"]
+        },
+        "function": {
+          "type": "string"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "contentType": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "produces": {
+          "type": "string",
+          "enum": ["text", "bytes", "cem-tree", "tokens", "chunks", "diagnostics"]
         }
       }
     },

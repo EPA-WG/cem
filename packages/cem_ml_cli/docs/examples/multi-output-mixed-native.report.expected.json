@@ -87,7 +87,41 @@
           "destination": "cem+repo://packages/cem_ml_cli/dist/multi-output-mixed-native.cem",
           "contentType": "application/cem",
           "schema": "https://cem.dev/ns/cem-ml/1",
-          "outputKind": "cem"
+          "outputKind": "cem",
+          "conversion": {
+            "converterId": "direct-cem-output",
+            "implementation": "direct-cemt-output-pipeline",
+            "outputPipeline": {
+              "stages": [
+                {
+                  "stage": "formatter",
+                  "function": "cem.format-tree",
+                  "profile": "cem.format-tree",
+                  "contentType": "application/cem",
+                  "schema": "https://cem.dev/ns/cem-ml/1",
+                  "category": "cem-tree",
+                  "produces": "cem-tree"
+                },
+                {
+                  "stage": "colorizer",
+                  "function": "cem.color-tree",
+                  "profile": "none",
+                  "contentType": "application/cem",
+                  "schema": "https://cem.dev/ns/cem-ml/1",
+                  "category": "cem-tree",
+                  "produces": "cem-tree"
+                },
+                {
+                  "stage": "writer",
+                  "profile": "none",
+                  "contentType": "application/cem",
+                  "schema": "https://cem.dev/ns/cem-ml/1",
+                  "category": "cem-document",
+                  "produces": "text"
+                }
+              ]
+            }
+          }
         },
         {
           "input": "cem+repo://packages/cem_ml_cli/docs/examples/native-output-yaml.input.json",

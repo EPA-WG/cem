@@ -10981,6 +10981,54 @@ fn render_convert_report_cem(
         cem_attr_opt(out, "content-type", output.content_type.as_deref());
         cem_attr_opt(out, "schema", output.schema.as_deref());
         cem_attr(out, "output-kind", &output.output_kind);
+        if let Some(conversion) = output.conversion.as_ref() {
+            out.push_str(" |\n");
+            render_convert_execution_metadata_cem(out, indent + 2, conversion);
+            cem_indent(out, indent + 1);
+            out.push_str("}\n");
+        } else {
+            out.push_str("}\n");
+        }
+    }
+    cem_indent(out, indent);
+    out.push_str("}\n");
+}
+
+fn render_convert_execution_metadata_cem(
+    out: &mut String,
+    indent: usize,
+    conversion: &eng::ConvertExecutionMetadata,
+) {
+    cem_element_start(out, indent, "conversion");
+    cem_attr_opt(out, "converter-id", conversion.converter_id.as_deref());
+    cem_attr_opt(out, "implementation", conversion.implementation.as_deref());
+    cem_attr_opt(out, "rust-fallback", conversion.rust_fallback.as_deref());
+    if let Some(pipeline) = conversion.output_pipeline.as_ref() {
+        out.push_str(" |\n");
+        render_convert_output_pipeline_metadata_cem(out, indent + 1, pipeline);
+        cem_indent(out, indent);
+        out.push_str("}\n");
+    } else {
+        out.push_str("}\n");
+    }
+}
+
+fn render_convert_output_pipeline_metadata_cem(
+    out: &mut String,
+    indent: usize,
+    pipeline: &eng::ConvertOutputPipelineMetadata,
+) {
+    cem_element_start(out, indent, "output-pipeline");
+    out.push_str(" |\n");
+    for stage in &pipeline.stages {
+        cem_element_start(out, indent + 1, "stage");
+        cem_attr(out, "stage", &stage.stage);
+        cem_attr_opt(out, "function", stage.function.as_deref());
+        cem_attr_opt(out, "profile", stage.profile.as_deref());
+        cem_attr_opt(out, "content-type", stage.content_type.as_deref());
+        cem_attr_opt(out, "schema", stage.schema.as_deref());
+        cem_attr_opt(out, "category", stage.category.as_deref());
+        cem_attr_opt(out, "produces", stage.produces.as_deref());
         out.push_str("}\n");
     }
     cem_indent(out, indent);
@@ -11073,7 +11121,18 @@ fn render_report_markdown(report: &cem_ml::report::Report) -> String {
             if let Some(schema) = output.schema.as_deref() {
                 out.push_str(&format!(" [{schema}]"));
             }
-            out.push_str(&format!(" [kind: {}]\n", output.output_kind));
+            out.push_str(&format!(" [kind: {}]", output.output_kind));
+            if let Some(conversion) = output.conversion.as_ref() {
+                let converter_id = conversion.converter_id.as_deref().unwrap_or("<direct>");
+                let implementation = conversion
+                    .implementation
+                    .as_deref()
+                    .unwrap_or("<unspecified>");
+                out.push_str(&format!(
+                    " [conversion: {converter_id} via {implementation}]"
+                ));
+            }
+            out.push('\n');
         }
     }
     if let Some(transform) = &report.report_ast.transform {
@@ -21430,6 +21489,8 @@ start =
             &RealCemMlEngine::new(),
             &[
                 "convert",
+                "--to-format",
+                "cem",
                 "--out",
                 out_path.to_str().unwrap(),
                 "--report",
@@ -21452,7 +21513,13 @@ start =
             "@destination=\"{}\"",
             cem_escape_attr(&out_path.display().to_string())
         )));
-        assert!(report.contains("@output-kind=\"document\""));
+        assert!(report.contains("@output-kind=\"cem\""));
+        assert!(report.contains(
+            "{conversion @converter-id=\"direct-cem-output\" @implementation=\"direct-cemt-output-pipeline\""
+        ));
+        assert!(report.contains("{stage @stage=\"formatter\" @function=\"cem.format-tree\""));
+        assert!(report.contains("{stage @stage=\"colorizer\" @function=\"cem.color-tree\""));
+        assert!(report.contains("{stage @stage=\"writer\""));
     }
 
     #[test]

@@ -835,6 +835,27 @@ outputs and are intentionally not listed here.
 - optional `contentType`
 - optional `schema`
 - `outputKind`
+- optional `conversion`
+
+`conversion` is the selected conversion execution summary. It is report-only
+metadata; it never changes the primary output bytes. It contains:
+
+- optional `converterId`, such as `cem-dom-projection-to-html-cemt`,
+  `direct-cem-output`, or a project-local converter id;
+- optional `implementation`, currently one of:
+  - `cemt`: an executable CEMT converter template rendered, then its output
+    passed through the declared CEMT output pipeline when present;
+  - `direct-cemt-output-pipeline`: the selected converter or built-in route
+    supplied the formatter/colorizer/writer CEMT output pipeline directly;
+  - `rust-fallback`: a selected CEMT converter could not execute and used its
+    declared Rust fallback;
+- optional `rustFallback` when the Rust fallback path was used;
+- optional `outputPipeline.stages[]`.
+
+`outputPipeline.stages[]` is ordered by execution phase. Formatter and colorizer
+stages write CEM trees. The writer stage runs last and writes the requested
+target-native content type. Stage entries can include `stage`, `function`,
+`profile`, `contentType`, `schema`, `category`, and `produces`.
 
 Single transform report entries keep:
 
