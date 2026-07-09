@@ -95,6 +95,7 @@
             },
             "inputs": [
                 "{projectRoot}/schema/cli/run-config.schema.json",
+                "{projectRoot}/schema/cli/report.schema.json",
                 "{projectRoot}/schema/cli/transform-config.md",
                 "{workspaceRoot}/tools/scripts/compile-markdown.mjs",
                 "{workspaceRoot}/tools/scripts/validate-cli-schema-artifacts.mjs"

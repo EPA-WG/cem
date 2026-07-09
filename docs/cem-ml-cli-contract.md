@@ -796,6 +796,12 @@ Reports are rendered from the canonical AST-associated report tree. Report event
 
 Reports keep deterministic field names:
 
+The checked-in JSON Schema for this report shape is
+`packages/cem_ml/schema/cli/report.schema.json`
+(`https://cem.dev/schema/cli/report.schema.json`). The schema is copied to
+`packages/cem_ml/dist/cli/report.schema.json` by `cem_ml:build:docs`, and
+`cem_ml:test:cli-schema-artifacts` verifies the dist copy and schema identity.
+
 - `generatedAt`
 - `inputs`
 - `summary.inputCount`

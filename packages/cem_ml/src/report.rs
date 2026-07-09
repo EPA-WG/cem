@@ -4,6 +4,7 @@ use crate::scheduler::trace::{SchedulerEvent, SchedulerEventKind, SchedulerTrace
 use serde::{Deserialize, Serialize};
 
 pub const DETERMINISTIC_TIMESTAMP: &str = "1970-01-01T00:00:00.000Z";
+pub const CLI_REPORT_JSON_SCHEMA_URI: &str = "https://cem.dev/schema/cli/report.schema.json";
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ReportSummary {

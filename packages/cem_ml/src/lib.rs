@@ -46,7 +46,8 @@ mod tests {
     use engine::FailLevel;
     use report::{
         ConvertOutputReport, ConvertReport, Report, ReportOptionsSnapshot,
-        TransformGraphExportReport, TransformGraphReport, TransformReport, DETERMINISTIC_TIMESTAMP,
+        TransformGraphExportReport, TransformGraphReport, TransformReport,
+        CLI_REPORT_JSON_SCHEMA_URI, DETERMINISTIC_TIMESTAMP,
     };
 
     fn diag(sev: Severity) -> Diagnostic {
@@ -174,6 +175,60 @@ mod tests {
             v.pointer("/reportAst/schedulerTrace/eventCount")
                 .and_then(|v| v.as_u64()),
             Some(0)
+        );
+    }
+
+    #[test]
+    fn cli_report_json_schema_artifact_matches_contract() {
+        let schema: serde_json::Value =
+            serde_json::from_str(include_str!("../schema/cli/report.schema.json"))
+                .expect("CLI report JSON Schema parses");
+
+        assert_eq!(
+            schema.get("$id").and_then(serde_json::Value::as_str),
+            Some(CLI_REPORT_JSON_SCHEMA_URI)
+        );
+        assert_eq!(
+            schema
+                .pointer("/properties/reportAst/$ref")
+                .and_then(serde_json::Value::as_str),
+            Some("#/$defs/reportAst")
+        );
+        assert_eq!(
+            schema
+                .pointer("/$defs/reportAst/properties/convert/$ref")
+                .and_then(serde_json::Value::as_str),
+            Some("#/$defs/convertReport")
+        );
+        assert_eq!(
+            schema
+                .pointer("/$defs/reportAst/properties/transform/$ref")
+                .and_then(serde_json::Value::as_str),
+            Some("#/$defs/transformReport")
+        );
+        assert_eq!(
+            schema
+                .pointer("/$defs/reportAst/properties/transformGraph/$ref")
+                .and_then(serde_json::Value::as_str),
+            Some("#/$defs/transformGraphReport")
+        );
+        assert_eq!(
+            schema
+                .pointer("/$defs/schedulerTraceEvent/properties/kind/enum")
+                .and_then(serde_json::Value::as_array)
+                .map(|values| values
+                    .iter()
+                    .filter_map(serde_json::Value::as_str)
+                    .collect::<Vec<_>>()),
+            Some(vec![
+                "enqueue",
+                "dispatch",
+                "finish",
+                "abort",
+                "overflow",
+                "io-acquire",
+                "io-release",
+            ])
         );
     }
 

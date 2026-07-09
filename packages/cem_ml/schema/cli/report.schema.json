@@ -1,0 +1,354 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cem.dev/schema/cli/report.schema.json",
+  "title": "CEM-ML CLI Report",
+  "description": "Canonical JSON report emitted by CEM-ML CLI report projections. This schema covers the stable report tree used by JSON and Markdown renderers, including scheduler trace, convert, single-transform, and transform-graph projections.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["generatedAt", "inputs", "summary", "options", "diagnostics", "reportAst"],
+  "properties": {
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Report generation timestamp. Deterministic fixtures use 1970-01-01T00:00:00.000Z."
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "summary": {
+      "$ref": "#/$defs/reportSummary"
+    },
+    "options": {
+      "$ref": "#/$defs/reportOptions"
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagnostic"
+      }
+    },
+    "reportAst": {
+      "$ref": "#/$defs/reportAst"
+    }
+  },
+  "$defs": {
+    "nonNegativeInteger": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "reportSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inputCount",
+        "infoCount",
+        "warningCount",
+        "errorCount",
+        "fatalCount",
+        "hardViolationCount"
+      ],
+      "properties": {
+        "inputCount": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "infoCount": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "warningCount": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "errorCount": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "fatalCount": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "hardViolationCount": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        }
+      }
+    },
+    "reportOptions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["failLevel", "schema", "contentType", "baseUri"],
+      "properties": {
+        "failLevel": {
+          "type": "string",
+          "enum": ["parse", "validate", "strict"]
+        },
+        "schema": {
+          "type": ["string", "null"]
+        },
+        "contentType": {
+          "type": ["string", "null"]
+        },
+        "baseUri": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["uri", "line", "column", "byteOffset", "code", "severity", "message"],
+      "properties": {
+        "uri": {
+          "type": ["string", "null"]
+        },
+        "line": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "column": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "byteOffset": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["info", "warning", "error", "fatal"]
+        },
+        "message": {
+          "type": "string"
+        },
+        "node": {
+          "type": "string"
+        },
+        "sourceMap": {
+          "$ref": "#/$defs/sourceMapStack"
+        }
+      }
+    },
+    "sourceMapStack": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["frames"],
+      "properties": {
+        "frames": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      }
+    },
+    "reportAst": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schedulerTrace"],
+      "properties": {
+        "schedulerTrace": {
+          "$ref": "#/$defs/schedulerTrace"
+        },
+        "convert": {
+          "$ref": "#/$defs/convertReport"
+        },
+        "transform": {
+          "$ref": "#/$defs/transformReport"
+        },
+        "transformGraph": {
+          "$ref": "#/$defs/transformGraphReport"
+        }
+      }
+    },
+    "schedulerTrace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["eventCount", "events"],
+      "properties": {
+        "eventCount": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/schedulerTraceEvent"
+          }
+        }
+      }
+    },
+    "schedulerTraceEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sequence", "scopeId", "kind", "task"],
+      "properties": {
+        "sequence": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "scopeId": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["enqueue", "dispatch", "finish", "abort", "overflow", "io-acquire", "io-release"]
+        },
+        "task": {
+          "type": "string"
+        }
+      }
+    },
+    "convertReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outputCount", "outputs"],
+      "properties": {
+        "outputCount": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/convertOutputReport"
+          }
+        }
+      }
+    },
+    "convertOutputReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["input", "outputKind"],
+      "properties": {
+        "input": {
+          "type": "string"
+        },
+        "destination": {
+          "type": "string",
+          "description": "Primary target-native destination. Omitted for stdout outputs."
+        },
+        "contentType": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "string"
+        },
+        "outputKind": {
+          "type": "string"
+        }
+      }
+    },
+    "transformReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["input", "outputKind", "hasSourceMap", "outputSpanCount"],
+      "properties": {
+        "input": {
+          "type": "string"
+        },
+        "destination": {
+          "type": "string"
+        },
+        "outputKind": {
+          "type": "string"
+        },
+        "hasSourceMap": {
+          "type": "boolean"
+        },
+        "outputSpanCount": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "sourceMapRef": {
+          "type": "string"
+        }
+      }
+    },
+    "transformGraphReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exportCount", "exports"],
+      "properties": {
+        "exportCount": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "exports": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/transformGraphExportReport"
+          }
+        }
+      }
+    },
+    "transformGraphExportReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exportId", "input", "outputKind", "hasSourceMap", "outputSpanCount"],
+      "properties": {
+        "exportId": {
+          "type": "string"
+        },
+        "input": {
+          "type": "string"
+        },
+        "destination": {
+          "type": "string"
+        },
+        "contentType": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "string"
+        },
+        "outputKind": {
+          "type": "string"
+        },
+        "hasSourceMap": {
+          "type": "boolean"
+        },
+        "outputSpanCount": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "sourceMapRef": {
+          "type": "string"
+        },
+        "collectionItems": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/transformGraphCollectionItemReport"
+          }
+        }
+      }
+    },
+    "transformGraphCollectionItemReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["input", "artifactId", "hasSourceMap", "outputSpanCount"],
+      "properties": {
+        "input": {
+          "type": "string"
+        },
+        "artifactId": {
+          "type": "string"
+        },
+        "uri": {
+          "type": "string"
+        },
+        "destination": {
+          "type": "string"
+        },
+        "contentType": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "string"
+        },
+        "hasSourceMap": {
+          "type": "boolean"
+        },
+        "outputSpanCount": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        }
+      }
+    }
+  }
+}

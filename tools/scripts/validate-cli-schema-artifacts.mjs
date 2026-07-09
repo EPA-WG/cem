@@ -15,6 +15,12 @@ const artifactPairs = [
     requiredText: 'https://cem.dev/schema/cli/run-config.schema.json',
   },
   {
+    name: 'CLI report JSON Schema',
+    source: 'packages/cem_ml/schema/cli/report.schema.json',
+    dist: 'packages/cem_ml/dist/cli/report.schema.json',
+    requiredText: 'https://cem.dev/schema/cli/report.schema.json',
+  },
+  {
     name: 'transform graph config schema',
     source: 'packages/cem_ml/schema/cli/transform-config.md',
     dist: 'packages/cem_ml/dist/cli/transform-config.md',
@@ -54,6 +60,15 @@ if (fs.existsSync(runConfigDistPath)) {
   if (runConfig.$id !== 'https://cem.dev/schema/cli/run-config.schema.json') {
     failures += 1;
     console.error('RunConfig JSON Schema dist artifact has an unexpected $id');
+  }
+}
+
+const reportSchemaDistPath = path.join(workspaceRoot, 'packages/cem_ml/dist/cli/report.schema.json');
+if (fs.existsSync(reportSchemaDistPath)) {
+  const reportSchema = JSON.parse(fs.readFileSync(reportSchemaDistPath, 'utf8'));
+  if (reportSchema.$id !== 'https://cem.dev/schema/cli/report.schema.json') {
+    failures += 1;
+    console.error('CLI report JSON Schema dist artifact has an unexpected $id');
   }
 }
 
