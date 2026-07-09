@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import Ajv2020 from 'ajv/dist/2020.js';
+
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = path.resolve(scriptDir, '../..');
 
@@ -70,6 +72,7 @@ if (fs.existsSync(reportSchemaDistPath)) {
     failures += 1;
     console.error('CLI report JSON Schema dist artifact has an unexpected $id');
   }
+  failures += validateCheckedReportExamples(reportSchema);
 }
 
 const transformXhtmlPath = path.join(workspaceRoot, 'packages/cem_ml/dist/cli/transform-config.xhtml');
@@ -88,4 +91,34 @@ if (failures > 0) {
   process.exitCode = 1;
 } else {
   console.log('Validated CLI schema dist artifacts.');
+}
+
+function validateCheckedReportExamples(reportSchema) {
+  const examplesDir = path.join(workspaceRoot, 'packages/cem_ml_cli/docs/examples');
+  const reportExamples = fs
+    .readdirSync(examplesDir)
+    .filter((entry) => entry.endsWith('.report.expected.json'))
+    .sort();
+
+  if (reportExamples.length === 0) {
+    console.error('No checked CLI report JSON examples found in packages/cem_ml_cli/docs/examples');
+    return 1;
+  }
+
+  const ajv = new Ajv2020({ allErrors: true, strict: false, validateFormats: false });
+  const validate = ajv.compile(reportSchema);
+  let exampleFailures = 0;
+
+  for (const reportExample of reportExamples) {
+    const relativePath = `packages/cem_ml_cli/docs/examples/${reportExample}`;
+    const reportPath = path.join(examplesDir, reportExample);
+    const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+    if (!validate(report)) {
+      exampleFailures += 1;
+      console.error(`${relativePath} does not validate against CLI report JSON Schema`);
+      console.error(JSON.stringify(validate.errors, null, 2));
+    }
+  }
+
+  return exampleFailures;
 }
