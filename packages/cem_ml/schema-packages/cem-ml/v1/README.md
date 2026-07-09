@@ -37,7 +37,9 @@ Schema-local output transformations live beside the schema package:
   declares `cem.format-tree` for `application/cem` /
   `https://cem.dev/ns/cem-ml/1`.
 - [`formatters/cem-format-tree-helpers.cemt`](formatters/cem-format-tree-helpers.cemt)
-  declares private canonical formatter helpers used by `cem.format-tree`.
+  declares private canonical formatter helpers used by `cem.format-tree`,
+  including `cem.format-tree.apply-stage`,
+  `cem.format-tree.build-nodes`, and `cem.format-tree.build-envelope`.
 - [`formatters/formatter-coloring-pipeline.cemt`](formatters/formatter-coloring-pipeline.cemt)
   declares `acme.showcase.format-tree` as a package-qualified formatter that
   extends `cem.format-tree`.
@@ -74,7 +76,8 @@ same manifest-declared asset path.
 
 The canonical and showcase artifacts expose their public formatter/colorizer
 functions as thin wrappers over package-owned helpers such as
-`cem.format-tree.apply-stage`, `cem.color-tree.apply-stage`,
+`cem.format-tree.apply-stage`, `cem.format-tree.build-nodes`,
+`cem.format-tree.build-envelope`, `cem.color-tree.apply-stage`,
 `cemml.cem-tree.format-tree-base`, and `cemml.cem-tree.color-tree-base`. New
 schema-specific formatter/colorizer functions should pass formatter decisions,
 color decisions, writer boundaries, and queued edits into helper functions

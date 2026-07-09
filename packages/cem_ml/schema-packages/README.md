@@ -294,7 +294,9 @@ The built-in CEM-ML package shows the pattern:
 - [`cem-ml/v1/examples/formatter-coloring-pipeline.package-artifacts.fixture.cem`](cem-ml/v1/examples/formatter-coloring-pipeline.package-artifacts.fixture.cem)
 
 Those artifacts keep selected public formatter/colorizer functions as wrappers
-over schema-owned helpers named `cem.*` and `cemml.cem-tree.*`. New
+over schema-owned helpers named `cem.*` and `cemml.cem-tree.*`, including the
+canonical formatter builder helpers `cem.format-tree.build-nodes` and
+`cem.format-tree.build-envelope`. New
 schema-specific output functions should reuse that wrapper pattern: pass
 formatter/color decisions, writer-boundary metadata, and queued edits as
 CEM-native data into the helper instead of copying the whole staged pipeline

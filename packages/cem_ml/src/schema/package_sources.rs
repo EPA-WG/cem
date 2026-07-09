@@ -271,6 +271,12 @@ mod tests {
         assert!(canonical_formatter_helpers
             .source
             .contains(r#"@name="cem.format-tree.apply-stage""#));
+        assert!(canonical_formatter_helpers
+            .source
+            .contains(r#"@name="cem.format-tree.build-nodes""#));
+        assert!(canonical_formatter_helpers
+            .source
+            .contains(r#"@name="cem.format-tree.build-envelope""#));
         assert!(canonical_colorizer_helpers
             .source
             .contains(r#"@name="cem.color-tree.apply-stage""#));

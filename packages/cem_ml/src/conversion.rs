@@ -10049,7 +10049,28 @@ mod tests {
             .expect("formatter helper body expression");
         assert!(body.contains("appendFormatNode("));
         assert!(body.contains("applyEdits("));
-        assert!(body.contains("call(cem.format-tree.nodes"));
+        assert!(body.contains(r#"call("cem.format-tree.build-nodes""#));
+        assert!(body.contains(r#"call("cem.format-tree.build-envelope""#));
+        let build_nodes = helper_response
+            .module_options
+            .output_functions
+            .iter()
+            .find(|function| function.name == "cem.format-tree.build-nodes")
+            .expect("CEM tree node builder helper declaration");
+        assert!(build_nodes
+            .body_expression
+            .as_deref()
+            .is_some_and(|body| body.contains("call(cem.format-tree.nodes")));
+        let build_envelope = helper_response
+            .module_options
+            .output_functions
+            .iter()
+            .find(|function| function.name == "cem.format-tree.build-envelope")
+            .expect("CEM tree envelope builder helper declaration");
+        assert!(build_envelope
+            .body_expression
+            .as_deref()
+            .is_some_and(|body| body.contains("call(cem.format-tree.envelope")));
     }
 
     #[test]
