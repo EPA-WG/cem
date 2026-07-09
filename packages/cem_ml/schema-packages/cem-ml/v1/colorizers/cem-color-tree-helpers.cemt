@@ -18,18 +18,722 @@
         @streamable=true |
         {param @name="subject" @type="object" @required=true}
         {body |
+            {$ call("cem.color-tree.apply-profile", { subject: $subject, colorProfile: $colorProfile }) }
+        }
+    }
+
+    {function
+        @name="cem.color-tree.apply-profile"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="colorProfile" @type="string" @required=true}
+        {body |
             {$ applyEdits(
                 appendColorNode(
-                    call(cem.color-tree.apply, { subject: $subject }),
+                    call("cem.color-tree.color-tree", { subject: $subject, colorProfile: $colorProfile }),
                     {
                         kind: "color-decision",
                         name: "cemt-tree-patches",
+                        colorProfile: $colorProfile,
                         colorizerRole: "colorizer.cemt.patch",
                         value: "applyEdits"
                     }
                 ),
                 [{ kind: "set", path: "colored", value: true }]
             ) }
+        }
+    }
+
+    {function
+        @name="cem.color-tree.color-tree"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="colorProfile" @type="string" @required=true}
+        {body |
+            {$ call("cem.color-tree.color-color-nodes", {
+                subject: call("cem.color-tree.color-format-nodes", {
+                    subject: call("cem.color-tree.color-root-fields", {
+                        subject: merge($subject, {
+                            colored: true,
+                            colorProfile: $colorProfile,
+                            colorNodes: call("cem.color-tree.color-nodes", { subject: $subject, colorProfile: $colorProfile })
+                        }),
+                        colorProfile: $colorProfile
+                    }),
+                    colorProfile: $colorProfile
+                }),
+                colorProfile: $colorProfile
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.color-tree.color-root-fields"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="colorProfile" @type="string" @required=true}
+        {body |
+            {$ call("cem.color-tree.color-root-field", {
+                subject: call("cem.color-tree.color-root-field", {
+                    subject: call("cem.color-tree.color-root-field", {
+                        subject: $subject,
+                        field: "nodes",
+                        colorProfile: $colorProfile
+                    }),
+                    field: "node",
+                    colorProfile: $colorProfile
+                }),
+                field: "root",
+                colorProfile: $colorProfile
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.color-tree.color-format-nodes"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="colorProfile" @type="string" @required=true}
+        {body |
+            {$ call("cem.color-tree.color-root-field", {
+                subject: $subject,
+                field: "formatNodes",
+                colorProfile: $colorProfile
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.color-tree.color-color-nodes"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="colorProfile" @type="string" @required=true}
+        {body |
+            {$ call("cem.color-tree.color-root-field", {
+                subject: $subject,
+                field: "colorNodes",
+                colorProfile: $colorProfile
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.color-tree.color-root-field"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="field" @type="string" @required=true}
+        {param @name="colorProfile" @type="string" @required=true}
+        {body |
+            {$ match($field, {
+                nodes: match(exists($subject.nodes), {
+                    true: set($subject, "nodes", call("cem.color-tree.color-value", { subject: $subject.nodes, colorProfile: $colorProfile })),
+                    false: $subject
+                }),
+                node: match(exists($subject.node), {
+                    true: set($subject, "node", call("cem.color-tree.color-value", { subject: $subject.node, colorProfile: $colorProfile })),
+                    false: $subject
+                }),
+                root: match(exists($subject.root), {
+                    true: set($subject, "root", call("cem.color-tree.color-value", { subject: $subject.root, colorProfile: $colorProfile })),
+                    false: $subject
+                }),
+                formatNodes: match(exists($subject.formatNodes), {
+                    true: set($subject, "formatNodes", call("cem.color-tree.color-value", { subject: $subject.formatNodes, colorProfile: $colorProfile })),
+                    false: $subject
+                }),
+                colorNodes: match(exists($subject.colorNodes), {
+                    true: set($subject, "colorNodes", call("cem.color-tree.color-value", { subject: $subject.colorNodes, colorProfile: $colorProfile })),
+                    false: $subject
+                }),
+                default: $subject
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.color-tree.color-value"
+        @visibility="private"
+        @returns="json"
+        @deterministic=true
+        |
+        {param @name="subject" @type="json" @required=true}
+        {param @name="colorProfile" @type="string" @required=true}
+        {body |
+            {$ match(typeOf($subject), {
+                array: map($subject, call("cem.color-tree.color-value", { subject: $item, colorProfile: $colorProfile })),
+                object: call("cem.color-tree.color-node", { subject: $subject, colorProfile: $colorProfile }),
+                default: $subject
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.color-tree.color-node"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="colorProfile" @type="string" @required=true}
+        {body |
+            {$ call("cem.color-tree.color-text-wrapper", {
+                subject: call("cem.color-tree.color-node-fields", {
+                    subject: call("cem.color-tree.color-node-core", {
+                        subject: $subject,
+                        role: call("cem.color-tree.node-role", { subject: $subject }),
+                        colorProfile: $colorProfile
+                    }),
+                    colorProfile: $colorProfile
+                }),
+                colorProfile: $colorProfile
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.color-tree.color-node-core"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {param @name="colorProfile" @type="string" @required=true}
+        {body |
+            {$ call("cem.color-tree.add-writer-attributes", {
+                subject: merge($subject, {
+                    colorRole: $role,
+                    style: {
+                        colorRole: $role,
+                        colorProfile: $colorProfile
+                    }
+                }),
+                role: $role,
+                colorProfile: $colorProfile
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.color-tree.color-node-fields"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="colorProfile" @type="string" @required=true}
+        {body |
+            {$ call("cem.color-tree.color-child-field", {
+                subject: call("cem.color-tree.color-child-field", {
+                    subject: call("cem.color-tree.color-child-field", {
+                        subject: call("cem.color-tree.color-child-field", {
+                            subject: call("cem.color-tree.color-child-field", {
+                                subject: call("cem.color-tree.color-child-field", {
+                                    subject: call("cem.color-tree.color-child-field", {
+                                        subject: call("cem.color-tree.color-child-field", {
+                                            subject: call("cem.color-tree.color-child-field", {
+                                                subject: call("cem.color-tree.color-child-field", {
+                                                    subject: $subject,
+                                                    field: "attributes",
+                                                    colorProfile: $colorProfile
+                                                }),
+                                                field: "children",
+                                                colorProfile: $colorProfile
+                                            }),
+                                            field: "slots",
+                                            colorProfile: $colorProfile
+                                        }),
+                                        field: "nodes",
+                                        colorProfile: $colorProfile
+                                    }),
+                                    field: "node",
+                                    colorProfile: $colorProfile
+                                }),
+                                field: "root",
+                                colorProfile: $colorProfile
+                            }),
+                            field: "formatLayout",
+                            colorProfile: $colorProfile
+                        }),
+                        field: "formatBeforeAttributes",
+                        colorProfile: $colorProfile
+                    }),
+                    field: "formatBetweenAttributes",
+                    colorProfile: $colorProfile
+                }),
+                field: "formatContentBoundary",
+                colorProfile: $colorProfile
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.color-tree.color-child-field"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="field" @type="string" @required=true}
+        {param @name="colorProfile" @type="string" @required=true}
+        {body |
+            {$ match($field, {
+                attributes: match(exists($subject.attributes), {
+                    true: set($subject, "attributes", call("cem.color-tree.color-value", { subject: $subject.attributes, colorProfile: $colorProfile })),
+                    false: $subject
+                }),
+                children: match(exists($subject.children), {
+                    true: set($subject, "children", call("cem.color-tree.color-value", { subject: $subject.children, colorProfile: $colorProfile })),
+                    false: $subject
+                }),
+                slots: match(exists($subject.slots), {
+                    true: set($subject, "slots", call("cem.color-tree.color-value", { subject: $subject.slots, colorProfile: $colorProfile })),
+                    false: $subject
+                }),
+                nodes: match(exists($subject.nodes), {
+                    true: set($subject, "nodes", call("cem.color-tree.color-value", { subject: $subject.nodes, colorProfile: $colorProfile })),
+                    false: $subject
+                }),
+                node: match(exists($subject.node), {
+                    true: set($subject, "node", call("cem.color-tree.color-value", { subject: $subject.node, colorProfile: $colorProfile })),
+                    false: $subject
+                }),
+                root: match(exists($subject.root), {
+                    true: set($subject, "root", call("cem.color-tree.color-value", { subject: $subject.root, colorProfile: $colorProfile })),
+                    false: $subject
+                }),
+                formatLayout: match(exists($subject.formatLayout), {
+                    true: set($subject, "formatLayout", call("cem.color-tree.color-value", { subject: $subject.formatLayout, colorProfile: $colorProfile })),
+                    false: $subject
+                }),
+                formatBeforeAttributes: match(exists($subject.formatBeforeAttributes), {
+                    true: set($subject, "formatBeforeAttributes", call("cem.color-tree.color-value", { subject: $subject.formatBeforeAttributes, colorProfile: $colorProfile })),
+                    false: $subject
+                }),
+                formatBetweenAttributes: match(exists($subject.formatBetweenAttributes), {
+                    true: set($subject, "formatBetweenAttributes", call("cem.color-tree.color-value", { subject: $subject.formatBetweenAttributes, colorProfile: $colorProfile })),
+                    false: $subject
+                }),
+                formatContentBoundary: match(exists($subject.formatContentBoundary), {
+                    true: set($subject, "formatContentBoundary", call("cem.color-tree.color-value", { subject: $subject.formatContentBoundary, colorProfile: $colorProfile })),
+                    false: $subject
+                }),
+                default: $subject
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.color-tree.color-text-wrapper"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="colorProfile" @type="string" @required=true}
+        {body |
+            {$ match($colorProfile, {
+                none: $subject,
+                default: match(call("cem.color-tree.is-text-node", { subject: $subject }), {
+                    true: call("cem.color-tree.wrap-text-node", { subject: $subject, colorProfile: $colorProfile }),
+                    false: $subject
+                })
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.color-tree.wrap-text-node"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="colorProfile" @type="string" @required=true}
+        {body |
+            {$ merge(
+                call("cem.color-tree.color-node-core", {
+                    subject: {
+                        kind: "element",
+                        name: "span"
+                    },
+                    role: $subject.colorRole,
+                    colorProfile: $colorProfile
+                }),
+                {
+                    colorWrapperNodes: call("cem.color-tree.wrapper-nodes", {
+                        subject: $subject,
+                        role: $subject.colorRole,
+                        colorProfile: $colorProfile
+                    }),
+                    children: [$subject]
+                }
+            ) }
+        }
+    }
+
+    {function
+        @name="cem.color-tree.is-text-node"
+        @visibility="private"
+        @returns="boolean"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {body |
+            {$ match($subject.kind, {
+                text: true,
+                content: true,
+                string: true,
+                default: false
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.color-tree.node-role"
+        @visibility="private"
+        @returns="string"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {body |
+            {$ match(exists($subject.colorRole), {
+                true: $subject.colorRole,
+                false: match(exists($subject.role), {
+                    true: $subject.role,
+                    false: match($subject.kind, {
+                        element: "syntax.name",
+                        node: "syntax.name",
+                        root: "syntax.name",
+                        attribute: "syntax.attribute",
+                        attr: "syntax.attribute",
+                        text: "syntax.string",
+                        content: "syntax.string",
+                        string: "syntax.string",
+                        comment: "syntax.comment",
+                        "format-marker": "source.gutter",
+                        "format-decision": "source.gutter",
+                        "format-span": "source.gutter",
+                        "color-marker": "source.gutter",
+                        "color-decision": "source.gutter",
+                        "color-span": "source.gutter",
+                        "color-wrapper": "source.gutter",
+                        whitespace: "syntax.raw",
+                        raw: "syntax.raw",
+                        default: "syntax.token"
+                    })
+                })
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.color-tree.color-nodes"
+        @visibility="private"
+        @returns="array"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="colorProfile" @type="string" @required=true}
+        {body |
+            {$ match($colorProfile, {
+                none: [
+                    call("cem.color-tree.color-marker", { colorProfile: $colorProfile }),
+                    call("cem.color-tree.color-decision", { name: "profile", role: "colorizer.profile", value: $colorProfile, colorProfile: $colorProfile }),
+                    call("cem.color-tree.color-decision", { name: "output", role: "colorizer.output", value: "terminal", colorProfile: $colorProfile })
+                ],
+                default: [
+                    call("cem.color-tree.color-marker", { colorProfile: $colorProfile }),
+                    call("cem.color-tree.color-decision", { name: "profile", role: "colorizer.profile", value: $colorProfile, colorProfile: $colorProfile }),
+                    call("cem.color-tree.color-decision", { name: "output", role: "colorizer.output", value: "html", colorProfile: $colorProfile }),
+                    call("cem.color-tree.color-decision", { name: "html-mode", role: "colorizer.html-mode", value: $colorProfile, colorProfile: $colorProfile })
+                ]
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.color-tree.color-marker"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true
+        |
+        {param @name="colorProfile" @type="string" @required=true}
+        {body |
+            {$ {
+                kind: "color-marker",
+                name: "cem.color-tree",
+                colorProfile: $colorProfile,
+                colorRole: "source.gutter",
+                colorizerRole: "colorizer.boundary"
+            } }
+        }
+    }
+
+    {function
+        @name="cem.color-tree.color-decision"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true
+        |
+        {param @name="name" @type="string" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {param @name="value" @type="string" @required=true}
+        {param @name="colorProfile" @type="string" @required=true}
+        {body |
+            {$ {
+                kind: "color-decision",
+                name: $name,
+                value: $value,
+                colorProfile: $colorProfile,
+                colorRole: "source.gutter",
+                colorizerRole: $role
+            } }
+        }
+    }
+
+    {function
+        @name="cem.color-tree.add-writer-attributes"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {param @name="colorProfile" @type="string" @required=true}
+        {body |
+            {$ match($colorProfile, {
+                none: $subject,
+                default: set(
+                    $subject,
+                    "writerAttributeNodes",
+                    call("cem.color-tree.writer-attribute-nodes", {
+                        role: $role,
+                        colorProfile: $colorProfile
+                    })
+                )
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.color-tree.writer-attribute-nodes"
+        @visibility="private"
+        @returns="array"
+        @deterministic=true
+        |
+        {param @name="role" @type="string" @required=true}
+        {param @name="colorProfile" @type="string" @required=true}
+        {body |
+            {$ match($colorProfile, {
+                "inline-style": [
+                    call("cem.color-tree.writer-attribute", { name: "class", value: "cem-color", colorProfile: $colorProfile }),
+                    call("cem.color-tree.writer-attribute", { name: "data-role", value: $role, colorProfile: $colorProfile }),
+                    call("cem.color-tree.writer-attribute", { name: "style", value: call("cem.color-tree.inline-style", { role: $role }), colorProfile: $colorProfile })
+                ],
+                "css-custom-properties": [
+                    call("cem.color-tree.writer-attribute", { name: "class", value: call("cem.color-tree.class-attribute", { role: $role }), colorProfile: $colorProfile }),
+                    call("cem.color-tree.writer-attribute", { name: "data-role", value: $role, colorProfile: $colorProfile }),
+                    call("cem.color-tree.writer-attribute", { name: "style", value: call("cem.color-tree.css-var-style", { role: $role }), colorProfile: $colorProfile })
+                ],
+                default: [
+                    call("cem.color-tree.writer-attribute", { name: "class", value: call("cem.color-tree.class-attribute", { role: $role }), colorProfile: $colorProfile }),
+                    call("cem.color-tree.writer-attribute", { name: "data-role", value: $role, colorProfile: $colorProfile })
+                ]
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.color-tree.writer-attribute"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true
+        |
+        {param @name="name" @type="string" @required=true}
+        {param @name="value" @type="string" @required=true}
+        {param @name="colorProfile" @type="string" @required=true}
+        {body |
+            {$ {
+                kind: "writer-attribute",
+                name: $name,
+                value: $value,
+                colorizerOwned: true,
+                colorizerRole: "colorizer.writer-attribute",
+                colorProfile: $colorProfile,
+                colorRole: "source.gutter",
+                style: {
+                    colorRole: "source.gutter",
+                    colorProfile: $colorProfile
+                }
+            } }
+        }
+    }
+
+    {function
+        @name="cem.color-tree.wrapper-nodes"
+        @visibility="private"
+        @returns="array"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {param @name="colorProfile" @type="string" @required=true}
+        {body |
+            {$ [
+                {
+                    kind: "color-wrapper",
+                    name: "span",
+                    colorizerOwned: true,
+                    colorizerRole: "colorizer.text-wrapper",
+                    colorProfile: $colorProfile,
+                    colorRole: "source.gutter",
+                    style: {
+                        colorRole: "source.gutter",
+                        colorProfile: $colorProfile
+                    }
+                },
+                {
+                    kind: "color-decision",
+                    name: "wrapped-kind",
+                    value: $subject.kind,
+                    colorizerOwned: true,
+                    colorizerRole: "colorizer.wrapped-kind",
+                    colorProfile: $colorProfile,
+                    colorRole: "source.gutter",
+                    style: {
+                        colorRole: "source.gutter",
+                        colorProfile: $colorProfile
+                    }
+                },
+                {
+                    kind: "color-decision",
+                    name: "wrapped-role",
+                    value: $role,
+                    colorizerOwned: true,
+                    colorizerRole: "colorizer.wrapped-role",
+                    colorProfile: $colorProfile,
+                    colorRole: "source.gutter",
+                    style: {
+                        colorRole: "source.gutter",
+                        colorProfile: $colorProfile
+                    }
+                }
+            ] }
+        }
+    }
+
+    {function
+        @name="cem.color-tree.class-attribute"
+        @visibility="private"
+        @returns="string"
+        @deterministic=true
+        |
+        {param @name="role" @type="string" @required=true}
+        {body |
+            {$ match($role, {
+                "diagnostic.error": "cem-color cem-color-diagnostic-error",
+                "diagnostic.warning": "cem-color cem-color-diagnostic-warning",
+                "diagnostic.info": "cem-color cem-color-diagnostic-info",
+                "diagnostic.hint": "cem-color cem-color-diagnostic-hint",
+                "source.gutter": "cem-color cem-color-source-gutter",
+                "source.line-number": "cem-color cem-color-source-line-number",
+                "source.highlight": "cem-color cem-color-source-highlight",
+                "source.secondary-highlight": "cem-color cem-color-source-secondary-highlight",
+                "syntax.keyword": "cem-color cem-color-syntax-keyword",
+                "syntax.name": "cem-color cem-color-syntax-name",
+                "syntax.attribute": "cem-color cem-color-syntax-attribute",
+                "syntax.string": "cem-color cem-color-syntax-string",
+                "syntax.number": "cem-color cem-color-syntax-number",
+                "syntax.comment": "cem-color cem-color-syntax-comment",
+                "syntax.raw": "cem-color cem-color-syntax-raw",
+                "diff.added": "cem-color cem-color-diff-added",
+                "diff.removed": "cem-color cem-color-diff-removed",
+                "diff.changed": "cem-color cem-color-diff-changed",
+                "diff.context": "cem-color cem-color-diff-context",
+                "status.success": "cem-color cem-color-status-success",
+                "status.pending": "cem-color cem-color-status-pending",
+                "status.warning": "cem-color cem-color-status-warning",
+                "status.error": "cem-color cem-color-status-error",
+                "status.info": "cem-color cem-color-status-info",
+                default: "cem-color cem-color-syntax-token"
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.color-tree.inline-style"
+        @visibility="private"
+        @returns="string"
+        @deterministic=true
+        |
+        {param @name="role" @type="string" @required=true}
+        {body |
+            {$ match($role, {
+                "diagnostic.error": "color: #b42318; font-weight: 600",
+                "diagnostic.warning": "color: #a15c00; font-weight: 600",
+                "diagnostic.hint": "color: #667085; font-style: italic",
+                "source.gutter": "color: #667085; font-style: italic",
+                "source.highlight": "background-color: #dbeafe; color: #1e3a8a",
+                "source.secondary-highlight": "background-color: #dbeafe; color: #1e3a8a",
+                "syntax.keyword": "color: #7a4cc2; font-weight: 600",
+                "syntax.name": "color: #087990",
+                "syntax.attribute": "color: #087990",
+                "syntax.string": "color: #067647",
+                "syntax.number": "color: #8a5a00",
+                "syntax.comment": "color: #4e7f4e; font-style: italic",
+                "syntax.raw": "color: #475467",
+                "diff.added": "color: #067647; font-weight: 600",
+                "diff.removed": "color: #b42318; text-decoration: line-through",
+                default: "color: #344054"
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.color-tree.css-var-style"
+        @visibility="private"
+        @returns="string"
+        @deterministic=true
+        |
+        {param @name="role" @type="string" @required=true}
+        {body |
+            {$ match($role, {
+                "diagnostic.error": "color: var(--cem-color-diagnostic-error, #b42318); font-weight: 600",
+                "diagnostic.warning": "color: var(--cem-color-diagnostic-warning, #a15c00); font-weight: 600",
+                "diagnostic.hint": "color: var(--cem-color-diagnostic-hint, #667085); font-style: italic",
+                "source.gutter": "color: var(--cem-color-source-gutter, #667085); font-style: italic",
+                "source.highlight": "background-color: var(--cem-color-source-highlight-background, #dbeafe); color: var(--cem-color-source-highlight, #1e3a8a)",
+                "source.secondary-highlight": "background-color: var(--cem-color-source-secondary-highlight-background, #dbeafe); color: var(--cem-color-source-secondary-highlight, #1e3a8a)",
+                "syntax.keyword": "color: var(--cem-color-syntax-keyword, #7a4cc2); font-weight: 600",
+                "syntax.name": "color: var(--cem-color-syntax-name, #087990)",
+                "syntax.attribute": "color: var(--cem-color-syntax-attribute, #087990)",
+                "syntax.string": "color: var(--cem-color-syntax-string, #067647)",
+                "syntax.number": "color: var(--cem-color-syntax-number, #8a5a00)",
+                "syntax.comment": "color: var(--cem-color-syntax-comment, #4e7f4e); font-style: italic",
+                "syntax.raw": "color: var(--cem-color-syntax-raw, #475467)",
+                "diff.added": "color: var(--cem-color-diff-added, #067647); font-weight: 600",
+                "diff.removed": "color: var(--cem-color-diff-removed, #b42318); text-decoration: line-through",
+                default: "color: var(--cem-color-syntax-token, #344054)"
+            }) }
         }
     }
 }

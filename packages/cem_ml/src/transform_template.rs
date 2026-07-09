@@ -10585,11 +10585,12 @@ fn cemt_runtime_bind_output_function_params(
 ) -> Result<BTreeMap<String, Value>, String> {
     let mut scoped_bindings = value_bindings.clone();
     scoped_bindings.insert("subject".to_owned(), subject.clone());
+    cemt_runtime_bind_output_contract_metadata(binding, &mut scoped_bindings);
 
     for param in &binding.function.params {
         let value = if param.name == "subject" {
             subject.clone()
-        } else if let Some(value) = value_bindings.get(&param.name) {
+        } else if let Some(value) = scoped_bindings.get(&param.name) {
             value.clone()
         } else if let Some(value) = param.default_value.clone() {
             value
@@ -10615,6 +10616,35 @@ fn cemt_runtime_bind_output_function_params(
     }
 
     Ok(scoped_bindings)
+}
+
+fn cemt_runtime_bind_output_contract_metadata(
+    binding: &TransformTemplateEncodeBinding,
+    scoped_bindings: &mut BTreeMap<String, Value>,
+) {
+    scoped_bindings
+        .entry("functionName".to_owned())
+        .or_insert_with(|| Value::String(binding.function.name.clone()));
+    if let Some(function_profile) = binding.function.profile.as_deref() {
+        scoped_bindings
+            .entry("functionProfile".to_owned())
+            .or_insert_with(|| Value::String(function_profile.to_owned()));
+    }
+    if let Some(formatter_profile) = binding.identity.formatter_profile.as_deref() {
+        scoped_bindings
+            .entry("formatterProfile".to_owned())
+            .or_insert_with(|| Value::String(formatter_profile.to_owned()));
+    }
+    if let Some(color_profile) = binding.identity.color_profile.as_deref() {
+        scoped_bindings
+            .entry("colorProfile".to_owned())
+            .or_insert_with(|| Value::String(color_profile.to_owned()));
+    }
+    if let Some(color_capability) = binding.identity.color_capability.as_deref() {
+        scoped_bindings
+            .entry("colorCapability".to_owned())
+            .or_insert_with(|| Value::String(color_capability.to_owned()));
+    }
 }
 
 fn resolve_encode_request_runtime_values(
@@ -20746,6 +20776,75 @@ mod tests {
         )
         .expect_err("add rejects non-numeric operands");
         assert!(error.contains("CEMT add expected numeric right operand"));
+    }
+
+    #[test]
+    fn cemt_output_function_body_receives_binding_contract_metadata() {
+        let mut descriptor = cem_tree_color_function_descriptor_with_profile("classes");
+        descriptor.body_declared = true;
+        descriptor.body_expression = Some(
+            r#"{
+                functionName: $functionName,
+                functionProfile: $functionProfile,
+                colorProfile: $colorProfile
+            }"#
+            .to_owned(),
+        );
+        descriptor.params = vec![TransformTemplateModuleParamDeclaration {
+            name: "subject".to_owned(),
+            value_type: TransformTemplateModuleParamType::Object,
+            nullable: false,
+            default_value: None,
+            required: true,
+            visibility: TransformTemplateModuleVisibility::Public,
+        }];
+
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        registry.register(descriptor);
+        let subject = json!({
+            "kind": "cem-tree",
+            "nodes": []
+        });
+        let request = TransformTemplateEncodeBindingRequest::new(
+            subject.clone(),
+            TransformTemplateEncodingTarget::new(
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                "cem-tree",
+            ),
+        )
+        .with_subject_type("cem-tree")
+        .with_options(TransformTemplateEncodeOptions {
+            colorizer: Some("cem.color-tree".to_owned()),
+            color_profile: Some("classes".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        });
+        let binding = registry
+            .resolve_color_binding(&request, &BTreeSet::new())
+            .expect("CEM tree color binding resolves")
+            .into_encode_binding();
+        let value_bindings = BTreeMap::new();
+        let host_capabilities = BTreeSet::new();
+        let context = TransformTemplateEncodeEvaluationContext {
+            registry: &registry,
+            value_bindings: &value_bindings,
+            host_capabilities: &host_capabilities,
+            output_color_type: None,
+            uri: Some("templates/metadata.cemt"),
+        };
+        let mut fallback_called = false;
+
+        let value =
+            execute_transform_template_encode_binding(&binding, &subject, &context, &mut |_, _| {
+                fallback_called = true;
+                Ok(Value::Null)
+            })
+            .expect("CEMT body reads binding metadata");
+
+        assert!(!fallback_called);
+        assert_eq!(value["functionName"], "cem.color-tree");
+        assert_eq!(value["functionProfile"], "classes");
+        assert_eq!(value["colorProfile"], "classes");
     }
 
     #[test]

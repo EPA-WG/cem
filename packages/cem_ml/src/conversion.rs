@@ -10190,9 +10190,30 @@ mod tests {
             .body_expression
             .as_deref()
             .expect("colorizer helper body expression");
-        assert!(body.contains("appendColorNode("));
-        assert!(body.contains("applyEdits("));
-        assert!(body.contains("call(cem.color-tree.apply"));
+        assert!(body.contains(r#"call("cem.color-tree.apply-profile""#));
+        assert!(!body.contains("call(cem.color-tree.apply"));
+        let apply_profile = helper_response
+            .module_options
+            .functions
+            .iter()
+            .find(|function| function.name == "cem.color-tree.apply-profile")
+            .expect("CEM tree colorizer apply-profile helper declaration");
+        assert!(apply_profile
+            .body_expression
+            .as_deref()
+            .is_some_and(|body| body.contains("appendColorNode(")
+                && body.contains("applyEdits(")
+                && body.contains(r#"call("cem.color-tree.color-tree""#)));
+        assert!(helper_response
+            .module_options
+            .functions
+            .iter()
+            .any(|function| function.name == "cem.color-tree.color-node"));
+        assert!(helper_response
+            .module_options
+            .functions
+            .iter()
+            .any(|function| function.name == "cem.color-tree.writer-attribute-nodes"));
     }
 
     #[test]

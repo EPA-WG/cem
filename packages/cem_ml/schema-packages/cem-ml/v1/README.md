@@ -96,6 +96,12 @@ construction to the registered CEMT runtime primitives until those
 writer-adjacent formatting primitives are also expressed as schema-owned
 helpers.
 
+`cem.color-tree.apply-stage` performs canonical coloring in CEMT over the
+already formatted `cem-tree`. It reads the selected `$colorProfile`, recursively
+annotates `nodes`, `formatNodes`, and `colorNodes`, materializes writer
+attribute nodes and text wrappers for HTML profiles, and leaves the writer as
+the final serialization phase for the colored tree.
+
 The `formatters/` and `colorizers/` directories are part of the package
 contract. Formatter, colorizer, and helper artifacts stay in those
 package-relative `.cemt` locations, keeping formatting, coloring, and schema

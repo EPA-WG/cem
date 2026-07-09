@@ -154,6 +154,11 @@ metadata. They are not opaque host-side string filters.
   formatter/coloring showcases.
 - Add `match` dispatch over CEM tree node kind, name, attribute presence,
   formatter role, color role, and layout mode.
+- Expose selected output contract metadata to CEMT bodies as immutable runtime
+  bindings. `$colorProfile`, `$formatterProfile`, `$functionName`,
+  `$functionProfile`, and `$colorCapability` now allow formatter/colorizer
+  helpers to branch on the chosen output profile while keeping conversion data
+  in CEM-native tree form.
 - Extend deterministic sequence operations over children, attributes, slots,
   formatter nodes, color nodes, token streams, and chunk plans. `map(...)`,
   `fold(...)`, `length(...)`, and the array accumulator helper `append(...)`
@@ -228,6 +233,9 @@ metadata. They are not opaque host-side string filters.
 - Immutable `let` bindings and expression evaluation over JSON-compatible CEMT
   values: null, boolean, number, string, array, object, node, token, chunk, and
   diagnostic.
+- Runtime output-contract bindings for formatter/colorizer bodies:
+  `$functionName`, `$functionProfile`, `$formatterProfile`, `$colorProfile`,
+  and `$colorCapability`.
 - Conditional control flow through `if` and structural `match`, with exhaustive
   or default branches for deterministic output profiles. `typeOf(...)` now
   provides JSON-shape dispatch for helper functions that must distinguish

@@ -295,6 +295,12 @@ mod tests {
         assert!(canonical_colorizer_helpers
             .source
             .contains(r#"@name="cem.color-tree.apply-stage""#));
+        assert!(canonical_colorizer_helpers
+            .source
+            .contains(r#"@name="cem.color-tree.color-node""#));
+        assert!(canonical_colorizer_helpers
+            .source
+            .contains(r#"@name="cem.color-tree.writer-attribute-nodes""#));
         assert!(showcase_formatter
             .source
             .contains(r#"@name="acme.showcase.format-tree""#));
