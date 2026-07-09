@@ -1,4 +1,4 @@
-use crate::conversion::ConversionRegistry;
+use crate::conversion::{ConversionRegistry, DomProjectionParityCemtAdapter};
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::interpreter::OutputSpan;
 use crate::report::{Report, SchedulerTraceReport};
@@ -120,6 +120,10 @@ pub struct EngineContext {
 
 impl Default for EngineContext {
     fn default() -> Self {
+        let mut template_adapter_registry =
+            TransformTemplateAdapterRegistry::with_builtin_adapters();
+        template_adapter_registry.register(DomProjectionParityCemtAdapter);
+
         Self {
             schema: None,
             content_type: None,
@@ -129,7 +133,7 @@ impl Default for EngineContext {
             converter_registry: ConversionRegistry::with_builtin_converters(),
             schema_package_manifests: Vec::new(),
             resolver_registry: ResolverRegistry::default(),
-            template_adapter_registry: TransformTemplateAdapterRegistry::with_builtin_adapters(),
+            template_adapter_registry,
             transform_template_encode_registry:
                 TransformTemplateEncodeImplementationRegistry::with_builtin_encoders(),
         }

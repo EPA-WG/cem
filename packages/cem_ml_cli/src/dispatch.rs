@@ -23699,10 +23699,7 @@ start =
             output["conversion"]["converterId"],
             "cem-dom-projection-to-html-cemt"
         );
-        assert_eq!(
-            output["conversion"]["implementation"],
-            "direct-cemt-output-pipeline"
-        );
+        assert_eq!(output["conversion"]["implementation"], "cemt");
         let stages = output["conversion"]["outputPipeline"]["stages"]
             .as_array()
             .expect("conversion output pipeline stages");

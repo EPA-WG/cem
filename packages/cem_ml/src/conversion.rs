@@ -808,11 +808,11 @@ impl ConversionParityFixtureExecutor for CemtTemplateParityFixtureExecutor<'_> {
     }
 }
 
-/// Executable parity adapter for the packaged DOM-projection CEMT serializers.
+/// Executable bounded adapter for the packaged DOM-projection CEMT serializers.
 ///
-/// This is a bounded adapter for conversion parity verification. It recognizes
-/// the current packaged DOM serializer templates and executes their fixture
-/// behavior; it is not a general-purpose CEMT interpreter.
+/// It recognizes the current packaged DOM serializer templates for normal
+/// conversion and parity verification; it is not a general-purpose CEMT
+/// interpreter.
 #[derive(Clone, Debug, Default)]
 pub struct DomProjectionParityCemtAdapter;
 
@@ -6891,7 +6891,7 @@ fn rust_edge(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engine::TransformTemplateKind;
+    use crate::engine::{EngineContext, TransformTemplateKind};
     use crate::schema::registry::{
         NamespaceClaim, SchemaContentType, SchemaDescriptor, AI_CONTEXT_JSON_CONTENT_TYPE,
         AI_CONTEXT_SCHEMA_URI, CEM_AST_JSON_PROJECTION_CONTENT_TYPE,
@@ -11092,6 +11092,34 @@ mod tests {
                 assert_eq!(*template_adapter_id, Some("cem-native-template"));
             }
             other => panic!("expected Rust fallback execution, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn default_engine_context_resolves_builtin_dom_cemt_converter_as_template() {
+        let context = EngineContext::default();
+
+        let execution = context
+            .converter_registry
+            .resolve_direct_execution(
+                &context.schema_registry,
+                &context.template_adapter_registry,
+                &identity(CEM_DOM_PROJECTION_CONTENT_TYPE),
+                &identity(HTML_CONTENT_TYPE),
+            )
+            .unwrap();
+
+        assert_eq!(execution.descriptor.id, "cem-dom-projection-to-html-cemt");
+        match &execution.execution {
+            ConversionExecution::CemtTemplate {
+                adapter_id,
+                template,
+            } => {
+                assert_eq!(*adapter_id, "dom-projection-parity-cemt");
+                assert_eq!(template.entrypoint.as_deref(), Some("main"));
+                assert!(template.path.ends_with("converters/dom-to-html.cemt"));
+            }
+            other => panic!("expected CEMT template execution, got {other:?}"),
         }
     }
 

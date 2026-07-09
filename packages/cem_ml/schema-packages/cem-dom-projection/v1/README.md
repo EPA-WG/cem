@@ -14,8 +14,10 @@ semantic layer, including the legacy
 
 The package manifest declares CEMT-primary converter edges from the binary DOM
 projection to HTML and XML. The CEMT assets are packaged next to the schema and
-can construct dynamic element and attribute names through the CEM-QL adapter. The
-edges are `ready` after parity coverage against the Rust serializers.
+execute through the built-in bounded DOM-projection CEMT adapter by default.
+The Rust serializers remain fallback implementations if that executable adapter
+is unavailable. The edges are `ready` after parity coverage against the Rust
+serializers.
 
 | Converter | From | To | CEMT asset | Entrypoint | Runtime state | Fallback |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -24,12 +26,12 @@ edges are `ready` after parity coverage against the Rust serializers.
 
 The CLI template pass validates these converter assets with converter input
 bindings, loop bindings, and recursive `@with:*` call parameter bindings.
-CEM-QL adapter parity coverage compares packaged CEMT output against the Rust
-HTML and XML serializers on representative DOM projection fixtures. The
-`package.cem` manifest declares `examples/basic-dom.cem-bin` as the shared
-parity fixture for both CEMT serializer edges. Built-in runtime conversion
-descriptors for these CEMT edges are loaded from this `package.cem` manifest,
-including the declared `main` entrypoint and parity fixture metadata.
+Runtime and parity coverage compare packaged CEMT output against the Rust HTML
+and XML serializers on representative DOM projection fixtures. The `package.cem`
+manifest declares `examples/basic-dom.cem-bin` as the shared parity fixture for
+both CEMT serializer edges. Built-in runtime conversion descriptors for these
+CEMT edges are loaded from this `package.cem` manifest, including the declared
+`main` entrypoint and parity fixture metadata.
 
 ## Validation Examples
 

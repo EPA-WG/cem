@@ -151,6 +151,11 @@ fn cemt_output_pipeline_for_scope(
     pipeline
 }
 
+fn target_scope_selects_cemt_output_functions(target_scope: &ScopeConfig) -> bool {
+    trimmed_scope_value(target_scope.cemt_formatter.as_ref()).is_some()
+        || trimmed_scope_value(target_scope.cemt_colorizer.as_ref()).is_some()
+}
+
 fn convert_metadata_for_cemt_converter(
     conversion: &ExportConversionExecution,
     pipeline: Option<&ConversionOutputPipeline>,
@@ -5027,7 +5032,18 @@ impl CemMlEngine for RealCemMlEngine {
             diagnostics.append(&mut export.diagnostics);
             let to_format = export.to_format;
             let export_conversion =
-                resolve_export_conversion_execution(&context, to_format, request.target.as_ref());
+                if target_scope_selects_cemt_output_functions(&request.target_scope) {
+                    // Explicit formatter/colorizer function selectors are direct output-pipeline
+                    // controls until converter templates and arbitrary CEM tree formatters share
+                    // one input envelope contract.
+                    None
+                } else {
+                    resolve_export_conversion_execution(
+                        &context,
+                        to_format,
+                        request.target.as_ref(),
+                    )
+                };
 
             let from_format = loaded.from_format;
             let run = run_pipeline_as_scoped_with_context_and_source_uri(
@@ -10642,7 +10658,7 @@ mod tests {
     }
 
     #[test]
-    fn convert_html_layer_uses_direct_cemt_output_pipeline() {
+    fn convert_html_layer_executes_packaged_cemt_dom_converter_pipeline() {
         let req = ConvertRequest {
             input: input(b"@doc cem-ml 1\n{p | Hi}", "in.cem"),
             to_format: LayerFormat::Html,
@@ -10659,6 +10675,28 @@ mod tests {
             "<p class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\">Hi</span></p>"
         );
         assert!(!resp.primary["content"].as_str().unwrap().contains("@doc"));
+        let conversion = resp.conversion.as_ref().expect("conversion metadata");
+        assert_eq!(
+            conversion.converter_id.as_deref(),
+            Some("cem-dom-projection-to-html-cemt")
+        );
+        assert_eq!(conversion.implementation.as_deref(), Some("cemt"));
+        let stages = &conversion
+            .output_pipeline
+            .as_ref()
+            .expect("conversion output pipeline")
+            .stages;
+        assert!(stages.iter().any(|stage| {
+            stage.stage == "formatter" && stage.function.as_deref() == Some("cem.format-tree")
+        }));
+        assert!(stages.iter().any(|stage| {
+            stage.stage == "colorizer"
+                && stage.function.as_deref() == Some("cem.color-tree")
+                && stage.profile.as_deref() == Some("classes")
+        }));
+        assert!(stages.iter().any(|stage| {
+            stage.stage == "writer" && stage.content_type.as_deref() == Some(HTML_CONTENT_TYPE)
+        }));
         assert!(
             resp.diagnostics.is_empty(),
             "unexpected diagnostics: {:?}",
@@ -10667,7 +10705,7 @@ mod tests {
     }
 
     #[test]
-    fn convert_xml_layer_uses_direct_cemt_output_pipeline() {
+    fn convert_xml_layer_executes_packaged_cemt_dom_converter_pipeline() {
         let req = ConvertRequest {
             input: input(b"@doc cem-ml 1\n{p}", "in.cem"),
             to_format: LayerFormat::Xml,
@@ -10679,7 +10717,21 @@ mod tests {
         };
         let resp = RealCemMlEngine::new().convert(req).unwrap();
         assert_eq!(resp.primary["kind"], "xml");
-        assert_eq!(resp.primary["content"], "<p></p>");
+        assert_eq!(resp.primary["content"], "<p/>");
+        let conversion = resp.conversion.as_ref().expect("conversion metadata");
+        assert_eq!(
+            conversion.converter_id.as_deref(),
+            Some("cem-dom-projection-to-xml-cemt")
+        );
+        assert_eq!(conversion.implementation.as_deref(), Some("cemt"));
+        let stages = &conversion
+            .output_pipeline
+            .as_ref()
+            .expect("conversion output pipeline")
+            .stages;
+        assert!(stages.iter().any(|stage| {
+            stage.stage == "writer" && stage.content_type.as_deref() == Some(XML_CONTENT_TYPE)
+        }));
         assert!(
             resp.diagnostics.is_empty(),
             "unexpected diagnostics: {:?}",
