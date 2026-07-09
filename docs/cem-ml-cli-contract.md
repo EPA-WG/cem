@@ -810,9 +810,22 @@ Reports keep deterministic field names:
 - `options.baseUri`
 - `reportAst.schedulerTrace.eventCount`
 - `reportAst.schedulerTrace.events[]`
+- optional `reportAst.convert.outputCount`
+- optional `reportAst.convert.outputs[]`
 - optional `reportAst.transform`
 - optional `reportAst.transformGraph.exportCount`
 - optional `reportAst.transformGraph.exports[]`
+
+Convert report output entries keep one item per successfully written primary
+convert output. These entries describe the target-native destination and target
+identity; debug artifacts written with `convert --artifact-json` are not primary
+outputs and are intentionally not listed here.
+
+- `input`
+- optional `destination` (`<stdout>` in Markdown when omitted)
+- optional `contentType`
+- optional `schema`
+- `outputKind`
 
 Single transform report entries keep:
 
@@ -868,6 +881,8 @@ The deterministic default timestamp for feature tests is `1970-01-01T00:00:00.00
 - Fixture validation Markdown: `packages/cem_ml_cli/dist/cem-ml.report.md`
 - Parse JSON (`cem-ml parse`): `packages/cem_ml_cli/dist/cem-ml.report.json`
 - Parse Markdown (`cem-ml parse`): `packages/cem_ml_cli/dist/cem-ml.report.md`
+- Convert JSON (`cem-ml convert`): `packages/cem_ml_cli/dist/cem-ml.convert.report.json`
+- Convert Markdown (`cem-ml convert`): `packages/cem_ml_cli/dist/cem-ml.convert.report.md`
 - Fixture roundtrip JSON: `packages/cem_ml_cli/dist/cem-ml.roundtrip.report.json`
 - Fixture roundtrip Markdown: `packages/cem_ml_cli/dist/cem-ml.roundtrip.report.md`
 - Benchmark JSON (`cem-ml bench`): `packages/cem_ml_cli/dist/cem-ml.bench.report.json`
