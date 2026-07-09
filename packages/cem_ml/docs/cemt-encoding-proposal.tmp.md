@@ -1187,6 +1187,29 @@ lossless, lossy, expandable, or budget-truncated. Compact semantic-token or
 entity-graph artifacts are optimized views over the AST; they do not replace
 canonical AST/DOM/event projections.
 
+## CLI Output Contract
+
+`cem-ml convert` writes the primary output in the requested target content
+format. When no `--out` is supplied, stdout is the target-native byte stream:
+HTML targets write HTML, CEM-ML targets write CEM text, YAML targets write YAML,
+and JSON targets write JSON because JSON is the requested target. When `--out`
+or a config output `destination` is supplied, that file receives the same
+target-native byte stream and stdout remains empty except for diagnostics or
+explicit report commands.
+
+The CLI must not wrap document outputs in a JSON envelope by default. Structured
+JSON for inspection belongs in supplementary debug routes. For `convert`, the
+`--artifact-json` option writes that debug artifact sidecar separately from the
+primary output. Its shape may be the structured artifact content or metadata for
+a byte-backed artifact, but it must never replace stdout or `--out` as the
+primary native output. JSON is primary output only when the target identity is a
+registered JSON content type or an explicit JSON debug/projection route.
+
+The checked-in `convert --config` examples cover this contract with byte-exact
+native output validation for HTML, CEM-native, and YAML outputs. The same target
+also verifies that `--artifact-json` remains a sidecar for the CEMT output
+pipeline artifact.
+
 ## Promotion Checklist
 
 - Add CEMT schema vocabulary for `encoding-function` and `format-function`
@@ -1212,8 +1235,10 @@ canonical AST/DOM/event projections.
 - Add multi-artifact export metadata for AST projections, including per-artifact
   content type/schema, route/destination, extracted subtree selectors, and
   inclusion policy for mixed outputs such as XHTML plus CSS.
-- Add examples for CEM, XML, HTML, terminal color text, HTML color output, JSON,
-  CSV, CSS, AI context projection output, and CEM binary projection output.
+- Add examples for CEM, XML, HTML, YAML, terminal color text, HTML color output,
+  JSON, CSV, CSS, AI context projection output, and CEM binary projection
+  output, with byte-exact native output checks for `convert --config` examples
+  and separate debug sidecar checks where applicable.
 - Add parity tests comparing CEMT producers with native paired producers.
 - Add task fixtures or evals for AI context profiles so compact forms are
   accepted only when they improve retrieval, edit precision, or token budget.
