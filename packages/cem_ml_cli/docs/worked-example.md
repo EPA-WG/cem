@@ -164,9 +164,11 @@ primary target-native bytes to its own `dest` / `destination`. The checked-in
 outputs and compares both files with
 `docs/examples/multi-output-native.expected.json`. The checked-in
 `docs/examples/multi-output-mixed-native.run.json` example writes CEM-native and
-YAML-native outputs in the same fanout and verifies both target byte streams. A
-global `--out` is rejected for multiple configured outputs, and `--artifact-json`
-remains a single-output debug JSON sidecar. The checked-in error specs
+YAML-native outputs in the same fanout and verifies both target byte streams.
+Its checked-in JSON and Markdown report snapshots also verify
+`reportAst.convert.outputs` with both native destinations and target identities.
+A global `--out` is rejected for multiple configured outputs, and
+`--artifact-json` remains a single-output debug JSON sidecar. The checked-in error specs
 `docs/examples/multi-output-global-out.error.expected.json`,
 `docs/examples/multi-output-artifact-json.error.expected.json`, and
 `docs/examples/multi-output-missing-destination.error.expected.json` lock those

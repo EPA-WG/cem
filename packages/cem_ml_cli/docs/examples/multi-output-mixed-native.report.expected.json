@@ -1,0 +1,102 @@
+{
+  "generatedAt": "1970-01-01T00:00:00.000Z",
+  "inputs": [
+    "cem+repo://packages/cem_ml_cli/docs/examples/native-output-cem.input.cem",
+    "cem+repo://packages/cem_ml_cli/docs/examples/native-output-yaml.input.json"
+  ],
+  "summary": {
+    "inputCount": 2,
+    "infoCount": 0,
+    "warningCount": 0,
+    "errorCount": 0,
+    "fatalCount": 0,
+    "hardViolationCount": 0
+  },
+  "options": {
+    "failLevel": "validate",
+    "schema": null,
+    "contentType": null,
+    "baseUri": null
+  },
+  "diagnostics": [],
+  "reportAst": {
+    "schedulerTrace": {
+      "eventCount": 9,
+      "events": [
+        {
+          "sequence": 0,
+          "scopeId": 0,
+          "kind": "enqueue",
+          "task": "cem+repo://packages/cem_ml_cli/docs/examples/native-output-cem.input.cem:lifecycle-load"
+        },
+        {
+          "sequence": 1,
+          "scopeId": 0,
+          "kind": "enqueue",
+          "task": "cem+repo://packages/cem_ml_cli/docs/examples/native-output-cem.input.cem:select-export"
+        },
+        {
+          "sequence": 2,
+          "scopeId": 0,
+          "kind": "enqueue",
+          "task": "cem+repo://packages/cem_ml_cli/docs/examples/native-output-cem.input.cem:convert"
+        },
+        {
+          "sequence": 3,
+          "scopeId": 0,
+          "kind": "dispatch",
+          "task": "cem+repo://packages/cem_ml_cli/docs/examples/native-output-cem.input.cem:lifecycle-load"
+        },
+        {
+          "sequence": 4,
+          "scopeId": 0,
+          "kind": "finish",
+          "task": "cem+repo://packages/cem_ml_cli/docs/examples/native-output-cem.input.cem:lifecycle-load"
+        },
+        {
+          "sequence": 5,
+          "scopeId": 0,
+          "kind": "dispatch",
+          "task": "cem+repo://packages/cem_ml_cli/docs/examples/native-output-cem.input.cem:select-export"
+        },
+        {
+          "sequence": 6,
+          "scopeId": 0,
+          "kind": "finish",
+          "task": "cem+repo://packages/cem_ml_cli/docs/examples/native-output-cem.input.cem:select-export"
+        },
+        {
+          "sequence": 7,
+          "scopeId": 0,
+          "kind": "dispatch",
+          "task": "cem+repo://packages/cem_ml_cli/docs/examples/native-output-cem.input.cem:convert"
+        },
+        {
+          "sequence": 8,
+          "scopeId": 0,
+          "kind": "finish",
+          "task": "cem+repo://packages/cem_ml_cli/docs/examples/native-output-cem.input.cem:convert"
+        }
+      ]
+    },
+    "convert": {
+      "outputCount": 2,
+      "outputs": [
+        {
+          "input": "cem+repo://packages/cem_ml_cli/docs/examples/native-output-cem.input.cem",
+          "destination": "cem+repo://packages/cem_ml_cli/dist/multi-output-mixed-native.cem",
+          "contentType": "application/cem",
+          "schema": "https://cem.dev/ns/cem-ml/1",
+          "outputKind": "cem"
+        },
+        {
+          "input": "cem+repo://packages/cem_ml_cli/docs/examples/native-output-yaml.input.json",
+          "destination": "cem+repo://packages/cem_ml_cli/dist/multi-output-mixed-native.yml",
+          "contentType": "application/yaml",
+          "schema": "https://cem.dev/ns/data/yaml/1",
+          "outputKind": "document"
+        }
+      ]
+    }
+  }
+}
