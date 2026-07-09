@@ -9340,13 +9340,21 @@ fn transform_template_render_cem_tree_markup_node(
             rendered.push_mapped(&text, source_map.as_ref());
             Ok(())
         }
+        "processing-instruction"
+            if transform_template_cem_tree_processing_instruction_target(fields)
+                .is_some_and(|target| target.eq_ignore_ascii_case("DOCTYPE")) =>
+        {
+            let data = transform_template_cem_tree_node_data(fields).trim();
+            let text = if data.is_empty() {
+                "<!DOCTYPE>".to_owned()
+            } else {
+                format!("<!DOCTYPE {data}>")
+            };
+            rendered.push_mapped(&text, source_map.as_ref());
+            Ok(())
+        }
         "processing-instruction" if syntax == TransformTemplateCemTreeWriterSyntax::Xml => {
-            let target = fields
-                .get("target")
-                .or_else(|| fields.get("name"))
-                .and_then(Value::as_str)
-                .map(str::trim)
-                .filter(|target| !target.is_empty())
+            let target = transform_template_cem_tree_processing_instruction_target(fields)
                 .ok_or_else(|| "XML processing-instruction node missing target".to_owned())?;
             let data = transform_template_cem_tree_node_data(fields);
             let text = if data.is_empty() {
@@ -9390,6 +9398,18 @@ fn transform_template_render_cem_tree_markup_element(
             transform_template_cem_tree_markup_attribute_pair_to_text(&name, &value, syntax)?
         );
         rendered.push_mapped(&text, source_map.as_ref().or(tag_source_map));
+    }
+    if syntax == TransformTemplateCemTreeWriterSyntax::Html
+        && transform_template_cem_tree_markup_name_is_html_void(&name)
+    {
+        rendered.push_mapped(">", tag_source_map);
+        return Ok(());
+    }
+    if syntax == TransformTemplateCemTreeWriterSyntax::Xml
+        && !transform_template_cem_tree_has_children(fields)
+    {
+        rendered.push_mapped("/>", tag_source_map);
+        return Ok(());
     }
     rendered.push_mapped(">", tag_source_map);
     transform_template_render_cem_tree_children(fields, syntax, rendered)?;
@@ -9791,6 +9811,24 @@ fn transform_template_cem_tree_markup_name(
     Ok(namespace
         .map(|namespace| format!("{namespace}:{local_name}"))
         .unwrap_or_else(|| local_name.to_owned()))
+}
+
+fn transform_template_cem_tree_markup_name_is_html_void(name: &str) -> bool {
+    !name.contains(':')
+        && HTML_VOID_ELEMENTS
+            .iter()
+            .any(|void_name| void_name.eq_ignore_ascii_case(name))
+}
+
+fn transform_template_cem_tree_processing_instruction_target<'a>(
+    fields: &'a serde_json::Map<String, Value>,
+) -> Option<&'a str> {
+    fields
+        .get("target")
+        .or_else(|| fields.get("name"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|target| !target.is_empty())
 }
 
 fn transform_template_cem_tree_attributes_to_text(
@@ -29219,6 +29257,78 @@ mod tests {
         let rendered = transform_template_cem_tree_value_to_rendered_text(&materialized, &context)
             .expect("CEM tree renders");
         assert_eq!(rendered.text, "<card data-role=\"syntax.name\"></card>");
+    }
+
+    #[test]
+    fn cem_tree_markup_writer_honors_target_element_boundaries_and_doctype() {
+        let html_context = TransformTemplateEncodedArtifactInsertionContext::new(
+            HTML_CONTENT_TYPE,
+            HTML_SCHEMA_URI,
+        )
+        .with_category("html-document")
+        .with_produces(TransformTemplateOutputProducedKind::Text);
+        let html_tree = json!({
+            "kind": "cem-tree",
+            "nodes": [{
+                "kind": "element",
+                "name": "main",
+                "children": [{
+                    "kind": "element",
+                    "name": "input",
+                    "attributes": [
+                        {"kind": "attribute", "name": "required", "value": true},
+                        {"kind": "attribute", "name": "type", "value": "email"}
+                    ]
+                }, {
+                    "kind": "element",
+                    "name": "section"
+                }]
+            }]
+        });
+        let rendered =
+            transform_template_cem_tree_value_to_rendered_text(&html_tree, &html_context)
+                .expect("HTML CEM tree renders");
+        assert_eq!(
+            rendered.text,
+            r#"<main><input required type="email"><section></section></main>"#
+        );
+
+        let xml_context =
+            TransformTemplateEncodedArtifactInsertionContext::new(XML_CONTENT_TYPE, XML_SCHEMA_URI)
+                .with_category("xml-document")
+                .with_produces(TransformTemplateOutputProducedKind::Text);
+        let xml_tree = json!({
+            "kind": "cem-tree",
+            "nodes": [{
+                "kind": "processing-instruction",
+                "target": "xml",
+                "data": "version=\"1.0\""
+            }, {
+                "kind": "whitespace",
+                "value": "\n"
+            }, {
+                "kind": "processing-instruction",
+                "target": "DOCTYPE",
+                "data": "main"
+            }, {
+                "kind": "whitespace",
+                "value": "\n"
+            }, {
+                "kind": "element",
+                "name": "main",
+                "children": [{
+                    "kind": "element",
+                    "name": "path",
+                    "attributes": [{"kind": "attribute", "name": "d", "value": "M2 8h12"}]
+                }]
+            }]
+        });
+        let rendered = transform_template_cem_tree_value_to_rendered_text(&xml_tree, &xml_context)
+            .expect("XML CEM tree renders");
+        assert_eq!(
+            rendered.text,
+            "<?xml version=\"1.0\"?>\n<!DOCTYPE main>\n<main><path d=\"M2 8h12\"/></main>"
+        );
     }
 
     #[test]
