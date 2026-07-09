@@ -10278,11 +10278,63 @@ mod tests {
             .functions
             .iter()
             .any(|function| function.name == "cem.color-tree.color-node"));
+        let color_nodes = helper_response
+            .module_options
+            .functions
+            .iter()
+            .find(|function| function.name == "cem.color-tree.color-nodes")
+            .expect("CEM tree colorizer color-nodes helper declaration");
+        assert!(color_nodes
+            .body_expression
+            .as_deref()
+            .is_some_and(|body| body.contains("source: $subject")
+                && body.contains("cem.color-tree.color-marker")
+                && body.contains("cem.color-tree.color-decision")));
+        let generated_node = helper_response
+            .module_options
+            .functions
+            .iter()
+            .find(|function| function.name == "cem.color-tree.generated-node")
+            .expect("CEM tree colorizer generated node helper declaration");
+        assert_eq!(
+            generated_node.return_type,
+            crate::transform_template::TransformTemplateModuleParamType::Object
+        );
+        assert!(generated_node
+            .body_expression
+            .as_deref()
+            .is_some_and(
+                |body| body.contains(r#"sourceMap($source, "cem.color-tree")"#)
+                    && body.contains(r#"set($subject, "sourceMap""#)
+            ));
         assert!(helper_response
             .module_options
             .functions
             .iter()
             .any(|function| function.name == "cem.color-tree.writer-attribute-nodes"));
+        let writer_attribute = helper_response
+            .module_options
+            .functions
+            .iter()
+            .find(|function| function.name == "cem.color-tree.writer-attribute")
+            .expect("CEM tree colorizer writer attribute helper declaration");
+        assert!(writer_attribute
+            .body_expression
+            .as_deref()
+            .is_some_and(|body| body.contains("cem.color-tree.generated-node")
+                && body.contains("colorizer.writer-attribute")));
+        let wrapper_nodes = helper_response
+            .module_options
+            .functions
+            .iter()
+            .find(|function| function.name == "cem.color-tree.wrapper-nodes")
+            .expect("CEM tree colorizer wrapper nodes helper declaration");
+        assert!(wrapper_nodes
+            .body_expression
+            .as_deref()
+            .is_some_and(|body| body.contains("cem.color-tree.generated-node")
+                && body.contains("colorizer.text-wrapper")
+                && body.contains("colorizer.wrapped-role")));
     }
 
     #[test]

@@ -370,13 +370,16 @@
         {param @name="colorProfile" @type="string" @required=true}
         {body |
             {$ merge(
-                call("cem.color-tree.color-node-core", {
-                    subject: {
-                        kind: "element",
-                        name: "span"
-                    },
-                    role: $subject.colorRole,
-                    colorProfile: $colorProfile
+                call("cem.color-tree.generated-node", {
+                    subject: call("cem.color-tree.color-node-core", {
+                        subject: {
+                            kind: "element",
+                            name: "span"
+                        },
+                        role: $subject.colorRole,
+                        colorProfile: $colorProfile
+                    }),
+                    source: $subject
                 }),
                 {
                     colorWrapperNodes: call("cem.color-tree.wrapper-nodes", {
@@ -456,15 +459,15 @@
         {body |
             {$ match($colorProfile, {
                 none: [
-                    call("cem.color-tree.color-marker", { colorProfile: $colorProfile }),
-                    call("cem.color-tree.color-decision", { name: "profile", role: "colorizer.profile", value: $colorProfile, colorProfile: $colorProfile }),
-                    call("cem.color-tree.color-decision", { name: "output", role: "colorizer.output", value: "terminal", colorProfile: $colorProfile })
+                    call("cem.color-tree.color-marker", { source: $subject, colorProfile: $colorProfile }),
+                    call("cem.color-tree.color-decision", { source: $subject, name: "profile", role: "colorizer.profile", value: $colorProfile, colorProfile: $colorProfile }),
+                    call("cem.color-tree.color-decision", { source: $subject, name: "output", role: "colorizer.output", value: "terminal", colorProfile: $colorProfile })
                 ],
                 default: [
-                    call("cem.color-tree.color-marker", { colorProfile: $colorProfile }),
-                    call("cem.color-tree.color-decision", { name: "profile", role: "colorizer.profile", value: $colorProfile, colorProfile: $colorProfile }),
-                    call("cem.color-tree.color-decision", { name: "output", role: "colorizer.output", value: "html", colorProfile: $colorProfile }),
-                    call("cem.color-tree.color-decision", { name: "html-mode", role: "colorizer.html-mode", value: $colorProfile, colorProfile: $colorProfile })
+                    call("cem.color-tree.color-marker", { source: $subject, colorProfile: $colorProfile }),
+                    call("cem.color-tree.color-decision", { source: $subject, name: "profile", role: "colorizer.profile", value: $colorProfile, colorProfile: $colorProfile }),
+                    call("cem.color-tree.color-decision", { source: $subject, name: "output", role: "colorizer.output", value: "html", colorProfile: $colorProfile }),
+                    call("cem.color-tree.color-decision", { source: $subject, name: "html-mode", role: "colorizer.html-mode", value: $colorProfile, colorProfile: $colorProfile })
                 ]
             }) }
         }
@@ -476,15 +479,19 @@
         @returns="object"
         @deterministic=true
         |
+        {param @name="source" @type="json" @required=true}
         {param @name="colorProfile" @type="string" @required=true}
         {body |
-            {$ {
-                kind: "color-marker",
-                name: "cem.color-tree",
-                colorProfile: $colorProfile,
-                colorRole: "source.gutter",
-                colorizerRole: "colorizer.boundary"
-            } }
+            {$ call("cem.color-tree.generated-node", {
+                source: $source,
+                subject: {
+                    kind: "color-marker",
+                    name: "cem.color-tree",
+                    colorProfile: $colorProfile,
+                    colorRole: "source.gutter",
+                    colorizerRole: "colorizer.boundary"
+                }
+            }) }
         }
     }
 
@@ -494,19 +501,39 @@
         @returns="object"
         @deterministic=true
         |
+        {param @name="source" @type="json" @required=true}
         {param @name="name" @type="string" @required=true}
         {param @name="role" @type="string" @required=true}
         {param @name="value" @type="string" @required=true}
         {param @name="colorProfile" @type="string" @required=true}
         {body |
-            {$ {
-                kind: "color-decision",
-                name: $name,
-                value: $value,
-                colorProfile: $colorProfile,
-                colorRole: "source.gutter",
-                colorizerRole: $role
-            } }
+            {$ call("cem.color-tree.generated-node", {
+                source: $source,
+                subject: {
+                    kind: "color-decision",
+                    name: $name,
+                    value: $value,
+                    colorProfile: $colorProfile,
+                    colorRole: "source.gutter",
+                    colorizerRole: $role
+                }
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.color-tree.generated-node"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="source" @type="json" @required=true}
+        {body |
+            {$ match(typeOf(sourceMap($source, "cem.color-tree")), {
+                null: $subject,
+                default: set($subject, "sourceMap", sourceMap($source, "cem.color-tree"))
+            }) }
         }
     }
 
@@ -526,6 +553,7 @@
                     $subject,
                     "writerAttributeNodes",
                     call("cem.color-tree.writer-attribute-nodes", {
+                        source: $subject,
                         role: $role,
                         colorProfile: $colorProfile
                     })
@@ -540,23 +568,24 @@
         @returns="array"
         @deterministic=true
         |
+        {param @name="source" @type="json" @required=true}
         {param @name="role" @type="string" @required=true}
         {param @name="colorProfile" @type="string" @required=true}
         {body |
             {$ match($colorProfile, {
                 "inline-style": [
-                    call("cem.color-tree.writer-attribute", { name: "class", value: "cem-color", colorProfile: $colorProfile }),
-                    call("cem.color-tree.writer-attribute", { name: "data-role", value: $role, colorProfile: $colorProfile }),
-                    call("cem.color-tree.writer-attribute", { name: "style", value: call("cem.color-tree.inline-style", { role: $role }), colorProfile: $colorProfile })
+                    call("cem.color-tree.writer-attribute", { source: $source, name: "class", value: "cem-color", colorProfile: $colorProfile }),
+                    call("cem.color-tree.writer-attribute", { source: $source, name: "data-role", value: $role, colorProfile: $colorProfile }),
+                    call("cem.color-tree.writer-attribute", { source: $source, name: "style", value: call("cem.color-tree.inline-style", { role: $role }), colorProfile: $colorProfile })
                 ],
                 "css-custom-properties": [
-                    call("cem.color-tree.writer-attribute", { name: "class", value: call("cem.color-tree.class-attribute", { role: $role }), colorProfile: $colorProfile }),
-                    call("cem.color-tree.writer-attribute", { name: "data-role", value: $role, colorProfile: $colorProfile }),
-                    call("cem.color-tree.writer-attribute", { name: "style", value: call("cem.color-tree.css-var-style", { role: $role }), colorProfile: $colorProfile })
+                    call("cem.color-tree.writer-attribute", { source: $source, name: "class", value: call("cem.color-tree.class-attribute", { role: $role }), colorProfile: $colorProfile }),
+                    call("cem.color-tree.writer-attribute", { source: $source, name: "data-role", value: $role, colorProfile: $colorProfile }),
+                    call("cem.color-tree.writer-attribute", { source: $source, name: "style", value: call("cem.color-tree.css-var-style", { role: $role }), colorProfile: $colorProfile })
                 ],
                 default: [
-                    call("cem.color-tree.writer-attribute", { name: "class", value: call("cem.color-tree.class-attribute", { role: $role }), colorProfile: $colorProfile }),
-                    call("cem.color-tree.writer-attribute", { name: "data-role", value: $role, colorProfile: $colorProfile })
+                    call("cem.color-tree.writer-attribute", { source: $source, name: "class", value: call("cem.color-tree.class-attribute", { role: $role }), colorProfile: $colorProfile }),
+                    call("cem.color-tree.writer-attribute", { source: $source, name: "data-role", value: $role, colorProfile: $colorProfile })
                 ]
             }) }
         }
@@ -568,23 +597,27 @@
         @returns="object"
         @deterministic=true
         |
+        {param @name="source" @type="json" @required=true}
         {param @name="name" @type="string" @required=true}
         {param @name="value" @type="string" @required=true}
         {param @name="colorProfile" @type="string" @required=true}
         {body |
-            {$ {
-                kind: "writer-attribute",
-                name: $name,
-                value: $value,
-                colorizerOwned: true,
-                colorizerRole: "colorizer.writer-attribute",
-                colorProfile: $colorProfile,
-                colorRole: "source.gutter",
-                style: {
+            {$ call("cem.color-tree.generated-node", {
+                source: $source,
+                subject: {
+                    kind: "writer-attribute",
+                    name: $name,
+                    value: $value,
+                    colorizerOwned: true,
+                    colorizerRole: "colorizer.writer-attribute",
+                    colorProfile: $colorProfile,
                     colorRole: "source.gutter",
-                    colorProfile: $colorProfile
+                    style: {
+                        colorRole: "source.gutter",
+                        colorProfile: $colorProfile
+                    }
                 }
-            } }
+            }) }
         }
     }
 
@@ -599,44 +632,53 @@
         {param @name="colorProfile" @type="string" @required=true}
         {body |
             {$ [
-                {
-                    kind: "color-wrapper",
-                    name: "span",
-                    colorizerOwned: true,
-                    colorizerRole: "colorizer.text-wrapper",
-                    colorProfile: $colorProfile,
-                    colorRole: "source.gutter",
-                    style: {
+                call("cem.color-tree.generated-node", {
+                    source: $subject,
+                    subject: {
+                        kind: "color-wrapper",
+                        name: "span",
+                        colorizerOwned: true,
+                        colorizerRole: "colorizer.text-wrapper",
+                        colorProfile: $colorProfile,
                         colorRole: "source.gutter",
-                        colorProfile: $colorProfile
+                        style: {
+                            colorRole: "source.gutter",
+                            colorProfile: $colorProfile
+                        }
                     }
-                },
-                {
-                    kind: "color-decision",
-                    name: "wrapped-kind",
-                    value: $subject.kind,
-                    colorizerOwned: true,
-                    colorizerRole: "colorizer.wrapped-kind",
-                    colorProfile: $colorProfile,
-                    colorRole: "source.gutter",
-                    style: {
+                }),
+                call("cem.color-tree.generated-node", {
+                    source: $subject,
+                    subject: {
+                        kind: "color-decision",
+                        name: "wrapped-kind",
+                        value: $subject.kind,
+                        colorizerOwned: true,
+                        colorizerRole: "colorizer.wrapped-kind",
+                        colorProfile: $colorProfile,
                         colorRole: "source.gutter",
-                        colorProfile: $colorProfile
+                        style: {
+                            colorRole: "source.gutter",
+                            colorProfile: $colorProfile
+                        }
                     }
-                },
-                {
-                    kind: "color-decision",
-                    name: "wrapped-role",
-                    value: $role,
-                    colorizerOwned: true,
-                    colorizerRole: "colorizer.wrapped-role",
-                    colorProfile: $colorProfile,
-                    colorRole: "source.gutter",
-                    style: {
+                }),
+                call("cem.color-tree.generated-node", {
+                    source: $subject,
+                    subject: {
+                        kind: "color-decision",
+                        name: "wrapped-role",
+                        value: $role,
+                        colorizerOwned: true,
+                        colorizerRole: "colorizer.wrapped-role",
+                        colorProfile: $colorProfile,
                         colorRole: "source.gutter",
-                        colorProfile: $colorProfile
+                        style: {
+                            colorRole: "source.gutter",
+                            colorProfile: $colorProfile
+                        }
                     }
-                }
+                })
             ] }
         }
     }

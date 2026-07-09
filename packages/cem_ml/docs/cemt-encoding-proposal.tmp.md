@@ -273,6 +273,10 @@ metadata. They are not opaque host-side string filters.
   functions. The direct native runtime operation `cem.color-tree.apply` is no
   longer part of the CEMT call surface; the native colorizer remains only as a
   registry fallback for bindings without a direct CEMT body.
+- Schema-owned color helpers stamp generated color marker, color decision,
+  writer attribute, and wrapper metadata nodes with `sourceMap(...,
+  "cem.color-tree")` when source-map input is available. Coloring remains a CEM
+  tree mutation phase before writer serialization.
 - Conditional control flow through `if` and structural `match`, with exhaustive
   or default branches for deterministic output profiles. `typeOf(...)` now
   provides JSON-shape dispatch for helper functions that must distinguish
