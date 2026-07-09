@@ -45,6 +45,20 @@ pub fn builtin_schema_package_artifact_source(
 
 static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSource] = &[
     BuiltinSchemaPackageArtifactSource {
+        package_id: "cem-dom-projection",
+        path: "schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt",
+        source: include_str!(
+            "../../schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt"
+        ),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "cem-dom-projection",
+        path: "schema-packages/cem-dom-projection/v1/converters/dom-to-xml.cemt",
+        source: include_str!(
+            "../../schema-packages/cem-dom-projection/v1/converters/dom-to-xml.cemt"
+        ),
+    },
+    BuiltinSchemaPackageArtifactSource {
         package_id: "cem-ml",
         path: "schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt",
         source: include_str!("../../schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt"),
@@ -265,9 +279,29 @@ mod tests {
             "schema-packages/cem-ml/v1/colorizers/cem-tree-helpers.cemt",
         )
         .expect("CEM-ML colorizer helper source");
+        let dom_html_converter = builtin_schema_package_artifact_source(
+            "cem-dom-projection",
+            "schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt",
+        )
+        .expect("DOM projection HTML CEMT converter source");
+        let dom_xml_converter = builtin_schema_package_artifact_source(
+            "cem-dom-projection",
+            "schema-packages/cem-dom-projection/v1/converters/dom-to-xml.cemt",
+        )
+        .expect("DOM projection XML CEMT converter source");
 
         assert!(formatter.source.contains(r#"@name="cem.format-tree""#));
         assert!(colorizer.source.contains(r#"@name="cem.color-tree""#));
+        assert!(dom_html_converter
+            .source
+            .contains(r#"{template @name="emit-node""#));
+        assert!(dom_html_converter
+            .source
+            .contains(r#"node.kind = "raw-text""#));
+        assert!(dom_xml_converter
+            .source
+            .contains(r#"{template @name="emit-node""#));
+        assert!(dom_xml_converter.source.contains(r#"node.kind = "cdata""#));
         assert!(canonical_formatter_helpers
             .source
             .contains(r#"@name="cem.format-tree.apply-stage""#));
@@ -337,5 +371,11 @@ mod tests {
         assert!(builtin_schema_package_artifact_sources()
             .iter()
             .any(|source| source.path == colorizer_helpers.path));
+        assert!(builtin_schema_package_artifact_sources()
+            .iter()
+            .any(|source| source.path == dom_html_converter.path));
+        assert!(builtin_schema_package_artifact_sources()
+            .iter()
+            .any(|source| source.path == dom_xml_converter.path));
     }
 }

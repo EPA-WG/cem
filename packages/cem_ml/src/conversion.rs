@@ -16,7 +16,9 @@ use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
 use crate::run_config::ScopeConfig;
 use crate::schema::package_loader::{load_builtin_schema_package, BuiltinSchemaPackage};
-use crate::schema::package_sources::builtin_schema_package_artifact_source;
+use crate::schema::package_sources::{
+    builtin_schema_package_artifact_source, builtin_schema_package_source,
+};
 use crate::schema::registry::{
     content_type_essence, SchemaContentTypeRole, SchemaDescriptor, SchemaRegistry,
     CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
@@ -378,6 +380,12 @@ pub enum ConversionManifestError {
         path: String,
         message: String,
     },
+    ConverterTemplateContract {
+        package_id: String,
+        converter_id: String,
+        path: String,
+        message: String,
+    },
 }
 
 impl std::fmt::Display for ConversionManifestError {
@@ -456,6 +464,15 @@ impl std::fmt::Display for ConversionManifestError {
             } => write!(
                 f,
                 "schema package `{package_id}` artifact `{path}` has invalid CEMT contract: {message}"
+            ),
+            Self::ConverterTemplateContract {
+                package_id,
+                converter_id,
+                path,
+                message,
+            } => write!(
+                f,
+                "schema package `{package_id}` converter `{converter_id}` template `{path}` has invalid CEMT contract: {message}"
             ),
         }
     }
@@ -6617,6 +6634,33 @@ pub fn conversion_descriptors_from_schema_package_manifest(
     manifest_source: &str,
     base_path: &str,
 ) -> Result<Vec<ConversionDescriptor>, ConversionManifestError> {
+    conversion_descriptors_from_schema_package_manifest_inner(
+        package_id_hint,
+        manifest_source,
+        base_path,
+        true,
+    )
+}
+
+pub fn conversion_descriptors_from_validated_schema_package_manifest(
+    package_id_hint: &str,
+    manifest_source: &str,
+    base_path: &str,
+) -> Result<Vec<ConversionDescriptor>, ConversionManifestError> {
+    conversion_descriptors_from_schema_package_manifest_inner(
+        package_id_hint,
+        manifest_source,
+        base_path,
+        false,
+    )
+}
+
+fn conversion_descriptors_from_schema_package_manifest_inner(
+    package_id_hint: &str,
+    manifest_source: &str,
+    base_path: &str,
+    validate_embedded_converter_templates: bool,
+) -> Result<Vec<ConversionDescriptor>, ConversionManifestError> {
     let document = parse_cem_document(manifest_source);
     let package_id = package_manifest_package_id(package_id_hint, &document)?;
     let Some(package_node_id) = first_element_id_by_local_name(&document, "package") else {
@@ -6631,6 +6675,12 @@ pub fn conversion_descriptors_from_schema_package_manifest(
             &package_id,
             base_path,
         )?);
+    }
+    if validate_embedded_converter_templates && builtin_schema_package_source(&package_id).is_some()
+    {
+        for descriptor in &descriptors {
+            validate_conversion_descriptor_cemt_output_template_contract(descriptor)?;
+        }
     }
     Ok(descriptors)
 }
@@ -7151,6 +7201,141 @@ fn conversion_artifact_contract_error(
     ConversionManifestError::ArtifactContract {
         package_id: artifact.package_id.clone(),
         path: artifact.path.clone(),
+        message: message.into(),
+    }
+}
+
+fn validate_conversion_descriptor_cemt_output_template_contract(
+    descriptor: &ConversionDescriptor,
+) -> Result<(), ConversionManifestError> {
+    if !conversion_descriptor_claims_formatted_cem_tree_pipeline(descriptor) {
+        return Ok(());
+    }
+    let Some(template) = descriptor.template.as_ref() else {
+        return Err(conversion_converter_template_contract_error(
+            descriptor,
+            "",
+            "CEMT converter declares a formatter/coloring output pipeline but has no template",
+        ));
+    };
+    if content_type_essence(&template.content_type) != CEM_TRANSFORM_CONTENT_TYPE {
+        return Err(conversion_converter_template_contract_error(
+            descriptor,
+            &template.path,
+            format!(
+                "formatter/coloring output pipeline requires CEMT content type `{}`, manifest declares `{}`",
+                CEM_TRANSFORM_CONTENT_TYPE, template.content_type
+            ),
+        ));
+    }
+    if template.schema.as_deref() != Some(CEM_TRANSFORM_SCHEMA_URI) {
+        return Err(conversion_converter_template_contract_error(
+            descriptor,
+            &template.path,
+            format!(
+                "formatter/coloring output pipeline requires CEMT schema `{}`",
+                CEM_TRANSFORM_SCHEMA_URI
+            ),
+        ));
+    }
+
+    let Some(source) =
+        builtin_schema_package_artifact_source(&descriptor.package_id, &template.path)
+    else {
+        return Err(conversion_converter_template_contract_error(
+            descriptor,
+            &template.path,
+            "built-in CEMT converter declares a formatter/coloring output pipeline, but its template source is not embedded in the schema package source catalog",
+        ));
+    };
+
+    validate_conversion_descriptor_cemt_output_template_source(descriptor, template, source.source)
+}
+
+fn conversion_descriptor_claims_formatted_cem_tree_pipeline(
+    descriptor: &ConversionDescriptor,
+) -> bool {
+    descriptor.implementation == ConversionImplementation::Cemt
+        && descriptor.output_contract.output_syntax.is_some()
+        && conversion_trimmed_non_empty(descriptor.output_contract.encoding_category.as_deref())
+            .is_some()
+        && (conversion_trimmed_non_empty(descriptor.output_contract.formatter_profile.as_deref())
+            .is_some()
+            || conversion_trimmed_non_empty(descriptor.output_contract.color_profile.as_deref())
+                .is_some())
+        && descriptor.to.schema.is_some()
+}
+
+fn validate_conversion_descriptor_cemt_output_template_source(
+    descriptor: &ConversionDescriptor,
+    template: &ConversionTemplateDescriptor,
+    source: &str,
+) -> Result<(), ConversionManifestError> {
+    let template_input = TemplateInput {
+        uri: template.path.clone(),
+        bytes: source.as_bytes().to_vec(),
+        identity: Some(FormatIdentity {
+            content_type: Some(template.content_type.clone()),
+            schema: template.schema.clone(),
+            ..FormatIdentity::default()
+        }),
+        root_scope: ScopeConfig::default(),
+    };
+    let entrypoint = template
+        .entrypoint
+        .as_deref()
+        .map(TransformTemplateEntrypoint::named)
+        .unwrap_or_else(TransformTemplateEntrypoint::implicit);
+    let params = BTreeMap::new();
+    let data_bindings = vec!["input".to_owned()];
+    let adapter = DomProjectionParityCemtAdapter;
+    let compile_response = adapter
+        .compile(TransformTemplateCompileRequest {
+            template: &template_input,
+            entrypoint: &entrypoint,
+            params: &params,
+            data_bindings: &data_bindings,
+            module_options: TransformTemplateModuleOptions::default(),
+            module_preflight: TransformTemplateModulePreflight::default(),
+            execution_policy: TransformExecutionPolicy::default(),
+        })
+        .map_err(|error| {
+            conversion_converter_template_contract_error(
+                descriptor,
+                &template.path,
+                format!(
+                    "formatter/coloring output pipeline requires a CEMT converter template that can render a formatted CEM tree before the writer: {error}"
+                ),
+            )
+        })?;
+
+    if let Some(diagnostic) = compile_response
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return Err(conversion_converter_template_contract_error(
+            descriptor,
+            &template.path,
+            format!(
+                "formatter/coloring output pipeline template compile emitted hard diagnostic `{}`",
+                diagnostic.code
+            ),
+        ));
+    }
+
+    Ok(())
+}
+
+fn conversion_converter_template_contract_error(
+    descriptor: &ConversionDescriptor,
+    path: &str,
+    message: impl Into<String>,
+) -> ConversionManifestError {
+    ConversionManifestError::ConverterTemplateContract {
+        package_id: descriptor.package_id.clone(),
+        converter_id: descriptor.id.clone(),
+        path: path.to_owned(),
         message: message.into(),
     }
 }
@@ -7961,6 +8146,114 @@ mod tests {
         assert_eq!(debug.to.content_type, CEM_DOM_JSON_PROJECTION_CONTENT_TYPE);
         assert_eq!(debug.lossiness.as_deref(), Some("debug-view"));
         assert_eq!(debug.cost, 150);
+    }
+
+    #[test]
+    fn builtin_cemt_output_pipeline_template_must_be_embedded() {
+        let package =
+            load_builtin_schema_package(CEM_DOM_PROJECTION_SCHEMA_URI).expect("DOM package");
+        let manifest = package.manifest_source.replacen(
+            r#"@template="converters/dom-to-html.cemt""#,
+            r#"@template="converters/missing-dom-to-html.cemt""#,
+            1,
+        );
+        let package = BuiltinSchemaPackage {
+            manifest_source: Box::leak(manifest.into_boxed_str()),
+            ..package
+        };
+
+        let error = conversion_descriptors_from_schema_package(&package)
+            .expect_err("built-in CEMT output pipeline template source is required");
+
+        match error {
+            ConversionManifestError::ConverterTemplateContract {
+                converter_id,
+                path,
+                message,
+                ..
+            } => {
+                assert_eq!(converter_id, "cem-dom-projection-to-html-cemt");
+                assert_eq!(
+                    path,
+                    "schema-packages/cem-dom-projection/v1/converters/missing-dom-to-html.cemt"
+                );
+                assert!(message.contains("template source is not embedded"));
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn cemt_output_pipeline_template_must_compile_as_supported_converter() {
+        let descriptor = cemt_edge_with_output_contract(
+            "dom-to-html-cemt",
+            endpoint(HTML_CONTENT_TYPE, HTML_SCHEMA_URI),
+            ConversionOutputContractDescriptor {
+                output_syntax: Some(ConversionOutputSyntax::Html),
+                encoding_category: Some("html-document".to_owned()),
+                formatter_profile: Some("canonical".to_owned()),
+                color_profile: Some("classes".to_owned()),
+                parity: Some(ConversionParityMode::ParseEquivalent),
+            },
+        );
+        let template = descriptor.template.as_ref().expect("template");
+        let source = r#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {template @name="main" | {text "not a supported DOM converter"}}
+}
+"#;
+
+        let error = validate_conversion_descriptor_cemt_output_template_source(
+            &descriptor,
+            template,
+            source,
+        )
+        .expect_err("unsupported CEMT converter template is rejected");
+
+        match error {
+            ConversionManifestError::ConverterTemplateContract {
+                converter_id,
+                path,
+                message,
+                ..
+            } => {
+                assert_eq!(converter_id, "dom-to-html-cemt");
+                assert_eq!(path, template.path);
+                assert!(message.contains("formatted CEM tree before the writer"));
+                assert!(message.contains("supported DOM projection converter"));
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn validated_schema_package_manifest_allows_external_cemt_template_paths() {
+        let package =
+            load_builtin_schema_package(CEM_DOM_PROJECTION_SCHEMA_URI).expect("DOM package");
+        let manifest = package.manifest_source.replacen(
+            r#"@template="converters/dom-to-html.cemt""#,
+            r#"@template="converters/external-dom-to-html.cemt""#,
+            1,
+        );
+
+        let descriptors = conversion_descriptors_from_validated_schema_package_manifest(
+            "cem-dom-projection",
+            &manifest,
+            "schema-packages/cem-dom-projection/v1",
+        )
+        .expect("external validated package descriptors are not tied to embedded sources");
+
+        let descriptor = descriptors
+            .iter()
+            .find(|descriptor| descriptor.id == "cem-dom-projection-to-html-cemt")
+            .expect("HTML CEMT descriptor");
+        assert_eq!(
+            descriptor.template.as_ref().unwrap().path,
+            "schema-packages/cem-dom-projection/v1/converters/external-dom-to-html.cemt"
+        );
     }
 
     #[test]

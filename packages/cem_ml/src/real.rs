@@ -6,7 +6,8 @@
 //! replaces `NotImplementedEngine` in `cem-ml-cli/src/main.rs`.
 
 use crate::conversion::{
-    conversion_descriptors_from_schema_package_manifest, conversion_output_safety_contract,
+    conversion_descriptors_from_validated_schema_package_manifest,
+    conversion_output_safety_contract,
     conversion_package_artifacts_from_validated_schema_package_manifest,
     direct_cem_output_pipeline, direct_html_output_pipeline, direct_xml_output_pipeline,
     execute_conversion_output_pipeline,
@@ -848,7 +849,7 @@ fn register_validated_schema_package_manifest(
     let package_id_hint = "external-schema-package";
     let mut diagnostics = Vec::new();
 
-    match conversion_descriptors_from_schema_package_manifest(
+    match conversion_descriptors_from_validated_schema_package_manifest(
         package_id_hint,
         manifest_source,
         &base_path,
