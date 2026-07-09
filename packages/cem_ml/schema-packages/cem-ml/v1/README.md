@@ -89,6 +89,13 @@ artifacts for the selected output stage before executing the public
 formatter/colorizer body, so helpers can live in dedicated package `.cemt`
 files beside their entrypoints.
 
+`cem.format-tree.build-nodes` performs canonical node traversal in CEMT with
+`typeOf`, `match`, `map`, `length`, numeric depth helpers, and helper calls. It
+still delegates low-level block-child whitespace and content-boundary
+construction to the registered CEMT runtime primitives until those
+writer-adjacent formatting primitives are also expressed as schema-owned
+helpers.
+
 The `formatters/` and `colorizers/` directories are part of the package
 contract. Formatter, colorizer, and helper artifacts stay in those
 package-relative `.cemt` locations, keeping formatting, coloring, and schema

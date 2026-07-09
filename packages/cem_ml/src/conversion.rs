@@ -10075,7 +10075,25 @@ mod tests {
         assert!(build_nodes
             .body_expression
             .as_deref()
-            .is_some_and(|body| body.contains("call(cem.format-tree.nodes")));
+            .is_some_and(
+                |body| body.contains(r#"call("cem.format-tree.build-node-list""#)
+                    && !body.contains("cem.format-tree.nodes")
+            ));
+        assert!(helper_response
+            .module_options
+            .functions
+            .iter()
+            .any(|function| function.name == "cem.format-tree.build-node-list"));
+        assert!(helper_response
+            .module_options
+            .functions
+            .iter()
+            .any(|function| function.name == "cem.format-tree.format-node"));
+        assert!(helper_response
+            .module_options
+            .functions
+            .iter()
+            .any(|function| function.name == "cem.format-tree.node-child-layout"));
         let build_envelope = helper_response
             .module_options
             .functions

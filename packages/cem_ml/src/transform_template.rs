@@ -11746,6 +11746,33 @@ fn resolve_encode_subject_expression_at_depth(
     )? {
         return Ok(Some(value));
     }
+    if let Some(value) = resolve_cemt_length_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
+    if let Some(value) = resolve_cemt_type_of_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
+    if let Some(value) = resolve_cemt_add_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
     if let Some(value) = resolve_cemt_drain_queue_expression(
         expression,
         value_bindings,
@@ -13376,6 +13403,141 @@ fn resolve_cemt_queue_length_expression(
     ))))
 }
 
+fn resolve_cemt_length_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) =
+        parse_cemt_function_call_args(expression, "length").map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 1 {
+        return Ok(None);
+    }
+    let Some(value) = resolve_encode_subject_expression_at_depth(
+        &args[0],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let length = match value {
+        Value::Null => 0,
+        Value::String(value) => value.chars().count(),
+        Value::Array(items) => items.len(),
+        Value::Object(fields) => fields.len(),
+        other => {
+            return Err(format!(
+                "CEMT length expected array, object, string, or null, got {}",
+                json_value_type_name(&other)
+            ));
+        }
+    };
+    Ok(Some(Value::Number(serde_json::Number::from(length as u64))))
+}
+
+fn resolve_cemt_type_of_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) =
+        parse_cemt_function_call_args(expression, "typeOf").map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 1 {
+        return Ok(None);
+    }
+    let Some(value) = resolve_encode_subject_expression_at_depth(
+        &args[0],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    Ok(Some(Value::String(json_value_type_name(&value).to_owned())))
+}
+
+fn resolve_cemt_add_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) =
+        parse_cemt_function_call_args(expression, "add").map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 2 {
+        return Ok(None);
+    }
+    let Some(left) = resolve_encode_subject_expression_at_depth(
+        &args[0],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some(right) = resolve_encode_subject_expression_at_depth(
+        &args[1],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+
+    if let (Some(left), Some(right)) = (cemt_i64_number(&left), cemt_i64_number(&right)) {
+        return left
+            .checked_add(right)
+            .map(|sum| Some(Value::Number(serde_json::Number::from(sum))))
+            .ok_or_else(|| "CEMT add integer overflow".to_owned());
+    }
+
+    let Some(left) = left.as_f64() else {
+        return Err(format!(
+            "CEMT add expected numeric left operand, got {}",
+            json_value_type_name(&left)
+        ));
+    };
+    let Some(right) = right.as_f64() else {
+        return Err(format!(
+            "CEMT add expected numeric right operand, got {}",
+            json_value_type_name(&right)
+        ));
+    };
+    let Some(sum) = serde_json::Number::from_f64(left + right) else {
+        return Err("CEMT add produced a non-finite number".to_owned());
+    };
+    Ok(Some(Value::Number(sum)))
+}
+
+fn cemt_i64_number(value: &Value) -> Option<i64> {
+    value
+        .as_i64()
+        .or_else(|| value.as_u64().and_then(|value| i64::try_from(value).ok()))
+}
+
 fn resolve_cemt_drain_queue_expression(
     expression: &str,
     value_bindings: &BTreeMap<String, Value>,
@@ -14433,6 +14595,9 @@ fn cemt_runtime_expression_is_dynamic(value: &str) -> bool {
         || cemt_expression_starts_with_call(value, "queueShift")
         || cemt_expression_starts_with_call(value, "queuePeek")
         || cemt_expression_starts_with_call(value, "queueLength")
+        || cemt_expression_starts_with_call(value, "length")
+        || cemt_expression_starts_with_call(value, "typeOf")
+        || cemt_expression_starts_with_call(value, "add")
         || cemt_expression_starts_with_call(value, "drainQueue")
         || cemt_expression_starts_with_call(value, "diagnostic")
         || cemt_expression_starts_with_call(value, "diagnostics")
@@ -20517,6 +20682,70 @@ mod tests {
             None,
             "patch helpers return new values without mutating source bindings"
         );
+    }
+
+    #[test]
+    fn cemt_runtime_length_and_add_expressions_support_layout_helpers() {
+        let values = BTreeMap::from([(
+            "node".to_owned(),
+            json!({
+                "attributes": [
+                    {"name": "tone"},
+                    {"name": "size"}
+                ],
+                "metadata": {
+                    "role": "card",
+                    "state": "ready"
+                },
+                "label": "Ready",
+                "depth": 2
+            }),
+        )]);
+
+        assert_eq!(
+            resolve_encode_subject_expression(r#"length($node.attributes)"#, &values),
+            Some(json!(2))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(r#"length($node.metadata)"#, &values),
+            Some(json!(2))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(r#"length($node.label)"#, &values),
+            Some(json!(5))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(r#"typeOf($node.attributes)"#, &values),
+            Some(json!("array"))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(r#"typeOf($node.metadata)"#, &values),
+            Some(json!("object"))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(r#"add($node.depth, 1)"#, &values),
+            Some(json!(3))
+        );
+
+        let error = resolve_encode_subject_expression_at_depth(
+            r#"length(true)"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("length rejects unsupported scalar values");
+        assert!(error.contains("CEMT length expected array, object, string, or null"));
+
+        let error = resolve_encode_subject_expression_at_depth(
+            r#"add($node.depth, $node.label)"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("add rejects non-numeric operands");
+        assert!(error.contains("CEMT add expected numeric right operand"));
     }
 
     #[test]

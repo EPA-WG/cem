@@ -43,7 +43,308 @@
         |
         {param @name="subject" @type="json" @required=true}
         {body |
-            {$ call(cem.format-tree.nodes, { subject: $subject }) }
+            {$ call(cem.format-tree.inter-node-whitespace, {
+                subject: call("cem.format-tree.build-node-list", { subject: $subject })
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.format-tree.build-node-list"
+        @visibility="private"
+        @returns="array"
+        @deterministic=true
+        |
+        {param @name="subject" @type="json" @required=true}
+        {body |
+            {$ match(typeOf($subject), {
+                array: map($subject, call("cem.format-tree.format-node", { subject: $item, depth: 0 })),
+                object: match(exists($subject.kind), {
+                    true: match($subject.kind, {
+                        "cem-tree": call("cem.format-tree.build-tree-nodes", { subject: $subject }),
+                        element: [call("cem.format-tree.format-node", { subject: $subject, depth: 0 })],
+                        text: [call("cem.format-tree.format-node", { subject: $subject, depth: 0 })],
+                        content: [call("cem.format-tree.format-node", { subject: $subject, depth: 0 })],
+                        string: [call("cem.format-tree.format-node", { subject: $subject, depth: 0 })],
+                        directive: [call("cem.format-tree.format-node", { subject: $subject, depth: 0 })],
+                        comment: [call("cem.format-tree.format-node", { subject: $subject, depth: 0 })],
+                        cdata: [call("cem.format-tree.format-node", { subject: $subject, depth: 0 })],
+                        "processing-instruction": [call("cem.format-tree.format-node", { subject: $subject, depth: 0 })],
+                        "raw-text": [call("cem.format-tree.format-node", { subject: $subject, depth: 0 })],
+                        whitespace: [call("cem.format-tree.format-node", { subject: $subject, depth: 0 })],
+                        raw: [call("cem.format-tree.format-node", { subject: $subject, depth: 0 })],
+                        default: $subject.__unsupportedCemAstKind
+                    }),
+                    false: [call("cem.format-tree.format-node", { subject: $subject, depth: 0 })]
+                }),
+                default: $subject.__unsupportedCemAstSubject
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.format-tree.build-tree-nodes"
+        @visibility="private"
+        @returns="array"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {body |
+            {$ match(exists($subject.nodes), {
+                true: map($subject.nodes, call("cem.format-tree.format-node", { subject: $item, depth: 0 })),
+                false: match(exists($subject.node), {
+                    true: [call("cem.format-tree.format-node", { subject: $subject.node, depth: 0 })],
+                    false: match(exists($subject.root), {
+                        true: [call("cem.format-tree.format-node", { subject: $subject.root, depth: 0 })],
+                        false: [call("cem.format-tree.format-node", { subject: $subject, depth: 0 })]
+                    })
+                })
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.format-tree.format-node"
+        @visibility="private"
+        @returns="json"
+        @deterministic=true
+        |
+        {param @name="subject" @type="json" @required=true}
+        {param @name="depth" @type="integer" @default="0"}
+        {body |
+            {$ call("cem.format-tree.format-node-children", {
+                subject: call("cem.format-tree.format-node-attributes", { subject: $subject }),
+                depth: $depth
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.format-tree.format-node-attributes"
+        @visibility="private"
+        @returns="json"
+        @deterministic=true
+        |
+        {param @name="subject" @type="json" @required=true}
+        {body |
+            {$ match(exists($subject.attributes), {
+                true: match(length($subject.attributes), {
+                    0: $subject,
+                    1: set($subject, "formatBeforeAttributes", call("cem.format-tree.attribute-prefix", { subject: $subject })),
+                    default: set(
+                        set($subject, "formatBeforeAttributes", call("cem.format-tree.attribute-prefix", { subject: $subject })),
+                        "formatBetweenAttributes",
+                        call("cem.format-tree.attribute-spacing", { subject: $subject })
+                    )
+                }),
+                false: $subject
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.format-tree.format-node-children"
+        @visibility="private"
+        @returns="json"
+        @deterministic=true
+        |
+        {param @name="subject" @type="json" @required=true}
+        {param @name="depth" @type="integer" @default="0"}
+        {body |
+            {$ match(exists($subject.children), {
+                true: match(length($subject.children), {
+                    0: $subject,
+                    default: call("cem.format-tree.format-node-with-children", {
+                        subject: $subject,
+                        depth: $depth,
+                        layout: call("cem.format-tree.node-child-layout", { subject: $subject })
+                    })
+                }),
+                false: $subject
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.format-tree.format-node-with-children"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="depth" @type="integer" @default="0"}
+        {param @name="layout" @type="string" @required=true}
+        {body |
+            {$ call("cem.format-tree.add-close-format", {
+                subject: set(
+                    set(
+                        set(
+                            $subject,
+                            "children",
+                            call("cem.format-tree.format-children", {
+                                subject: $subject.children,
+                                depth: $depth,
+                                layout: $layout
+                            })
+                        ),
+                        "formatLayout",
+                        {
+                            kind: "format-decision",
+                            name: "layout",
+                            formatterRole: "formatter.layout",
+                            value: $layout
+                        }
+                    ),
+                    "formatContentBoundary",
+                    call("cem.format-tree.build-content-boundary", {
+                        subject: $subject,
+                        layout: $layout
+                    })
+                ),
+                layout: $layout
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.format-tree.format-children"
+        @visibility="private"
+        @returns="array"
+        @deterministic=true
+        |
+        {param @name="subject" @type="array" @required=true}
+        {param @name="depth" @type="integer" @default="0"}
+        {param @name="layout" @type="string" @required=true}
+        {body |
+            {$ match($layout, {
+                block: call(cem.format-tree.block-children, {
+                    subject: {
+                        nodes: map($subject, call("cem.format-tree.format-node", { subject: $item, depth: add($depth, 1) })),
+                        depth: add($depth, 1)
+                    }
+                }),
+                default: map($subject, call("cem.format-tree.format-node", { subject: $item, depth: $depth }))
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.format-tree.node-child-layout"
+        @visibility="private"
+        @returns="string"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {body |
+            {$ match($subject.name, {
+                "cem:if": "block",
+                "cem:for": "block",
+                "cem:choose": "block",
+                default: "inline"
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.format-tree.children-all-text"
+        @visibility="private"
+        @returns="boolean"
+        @deterministic=true
+        |
+        {param @name="subject" @type="array" @required=true}
+        {body |
+            {$ fold($subject, true, match($acc, {
+                true: match($item.kind, {
+                    text: true,
+                    content: true,
+                    string: true,
+                    default: false
+                }),
+                false: false
+            })) }
+        }
+    }
+
+    {function
+        @name="cem.format-tree.build-content-boundary"
+        @visibility="private"
+        @returns="array"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="layout" @type="string" @required=true}
+        {body |
+            {$ match(exists($subject.sourceMap), {
+                true: call(cem.format-tree.content-boundary, {
+                    subject: {
+                        layout: $layout,
+                        sourceMap: $subject.sourceMap
+                    }
+                }),
+                false: call(cem.format-tree.content-boundary, {
+                    subject: {
+                        layout: $layout
+                    }
+                })
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.format-tree.add-close-format"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="layout" @type="string" @required=true}
+        {body |
+            {$ match($layout, {
+                block: set($subject, "formatBeforeClose", {
+                    kind: "whitespace",
+                    value: "",
+                    formatterOwned: true,
+                    formatterRole: "formatter.close-indent",
+                    colorRole: "syntax.raw"
+                }),
+                default: $subject
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.format-tree.attribute-prefix"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true
+        |
+        {param @name="subject" @type="json" @required=true}
+        {body |
+            {$ {
+                kind: "whitespace",
+                value: " ",
+                formatterOwned: true,
+                formatterRole: "formatter.attribute-prefix",
+                colorRole: "syntax.raw"
+            } }
+        }
+    }
+
+    {function
+        @name="cem.format-tree.attribute-spacing"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true
+        |
+        {param @name="subject" @type="json" @required=true}
+        {body |
+            {$ {
+                kind: "whitespace",
+                value: " ",
+                formatterOwned: true,
+                formatterRole: "formatter.attribute-spacing",
+                colorRole: "syntax.raw"
+            } }
         }
     }
 

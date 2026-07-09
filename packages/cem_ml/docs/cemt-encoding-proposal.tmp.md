@@ -156,9 +156,9 @@ metadata. They are not opaque host-side string filters.
   formatter role, color role, and layout mode.
 - Extend deterministic sequence operations over children, attributes, slots,
   formatter nodes, color nodes, token streams, and chunk plans. `map(...)`,
-  `fold(...)`, and the array accumulator helper `append(...)` now execute in
-  CEMT bodies; remaining work is richer helpers for object patching, filtering,
-  sorting, flattening, and diagnostics accumulation.
+  `fold(...)`, `length(...)`, and the array accumulator helper `append(...)`
+  now execute in CEMT bodies; remaining work is richer helpers for object
+  patching, filtering, sorting, flattening, and diagnostics accumulation.
 - Extend scoped traversal stack support for ancestor path, indentation depth,
   namespace scope, inherited layout, source-map frames, semantic style role, and
   active color capability. `withStack(...)`, `stackPush(...)`, `stackPop(...)`,
@@ -229,9 +229,15 @@ metadata. They are not opaque host-side string filters.
   values: null, boolean, number, string, array, object, node, token, chunk, and
   diagnostic.
 - Conditional control flow through `if` and structural `match`, with exhaustive
-  or default branches for deterministic output profiles.
+  or default branches for deterministic output profiles. `typeOf(...)` now
+  provides JSON-shape dispatch for helper functions that must distinguish
+  arrays from objects before traversal.
 - Sequence primitives: `map`, `filter`, `fold`, `flatMap`, stable `sortBy`,
-  `first`, `last`, `isEmpty`, `length`, and `join`.
+  `first`, `last`, `isEmpty`, `length`, and `join`. `length(...)` is now
+  implemented for arrays, objects, strings, and null.
+- Numeric primitives for counters and traversal state. `add(...)` now supports
+  integer-preserving addition for depth calculations and numeric addition for
+  number values.
 - Structured update primitives for immutable object/array/node patching instead
   of arbitrary mutation.
 - Scoped stack, FIFO queue, and accumulator abstractions with deterministic

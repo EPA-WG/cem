@@ -10542,9 +10542,8 @@ mod tests {
                 diag.code == CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE
                     && diag.severity.is_hard_violation()
                     && diag.message.contains("CEMT formatter")
-                    && diag
-                        .message
-                        .contains("expected CEM AST object or node array")
+                    && diag.message.contains("cem.format-tree.build-envelope")
+                    && diag.message.contains("argument `subject` could not be resolved")
             }),
             "{:?}",
             resp.diagnostics

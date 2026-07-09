@@ -307,6 +307,11 @@ body. Helper functions live in dedicated `formatter-helper` and
 runtime loads matching helpers for the selected output stage before executing
 the public formatter/colorizer body.
 
+Canonical formatter node traversal now lives in the schema-owned
+`cem.format-tree.build-nodes` CEMT helper. Native CEMT runtime operations remain
+only for lower-level formatting primitives that still need host-provided
+writer-policy data, such as block-child whitespace and content boundaries.
+
 ## Direct References
 
 Reusable schema relationships are declared inside schema documents with
