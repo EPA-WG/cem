@@ -603,6 +603,91 @@ mod tests {
         }
     }
 
+    fn schema_package_schema_diagnostic_codes() -> BTreeSet<String> {
+        let source = builtin_schema_package_sources()
+            .iter()
+            .find(|source| source.package_id == "schema-package")
+            .expect("schema-package source");
+        let document = parse_cem_document(source.schema_source);
+        let schema_id = first_element_id_by_local_name(&document, "schema")
+            .expect("schema-package schema root");
+        let diagnostics_id = element_child_ids_by_local_name(&document, schema_id, "diagnostics")
+            .into_iter()
+            .next()
+            .expect("schema-package diagnostics");
+
+        element_child_ids_by_local_name(&document, diagnostics_id, "diagnostic")
+            .into_iter()
+            .filter_map(|diagnostic_id| {
+                collect_attrs(&document, diagnostic_id)
+                    .get("code")
+                    .map(String::to_owned)
+            })
+            .collect()
+    }
+
+    fn schema_package_diagnostic_code_literals(source: &str) -> BTreeSet<String> {
+        let source = production_source_for_diagnostic_audit(source);
+        let mut rest = source;
+        let mut codes = BTreeSet::new();
+
+        while let Some(index) = rest.find("\"cem.schema_package.") {
+            rest = &rest[index + 1..];
+            let Some(end_quote) = rest.find('"') else {
+                break;
+            };
+            codes.insert(rest[..end_quote].to_owned());
+            rest = &rest[end_quote + 1..];
+        }
+
+        codes
+    }
+
+    fn schema_package_diagnostic_codes_after_call(source: &str, call: &str) -> BTreeSet<String> {
+        let source = production_source_for_diagnostic_audit(source);
+        let mut rest = source;
+        let mut codes = BTreeSet::new();
+
+        while let Some(index) = rest.find(call) {
+            rest = &rest[index + call.len()..];
+            rest = rest.trim_start();
+            let Some(after_quote) = rest.strip_prefix('"') else {
+                continue;
+            };
+            let Some(end_quote) = after_quote.find('"') else {
+                break;
+            };
+            let code = &after_quote[..end_quote];
+            if code.starts_with("cem.schema_package.") {
+                codes.insert(code.to_owned());
+            }
+            rest = &after_quote[end_quote + 1..];
+        }
+
+        codes
+    }
+
+    fn production_source_for_diagnostic_audit(source: &str) -> &str {
+        source
+            .split("\n#[cfg(test)]\nmod tests")
+            .next()
+            .expect("production source before tests")
+    }
+
+    fn emitted_schema_package_diagnostic_codes() -> BTreeSet<String> {
+        let mut codes = schema_package_diagnostic_codes_after_call(
+            include_str!("../validation/rules.rs"),
+            "diag_at(",
+        );
+        codes.extend(schema_package_diagnostic_code_literals(include_str!(
+            "../real.rs"
+        )));
+        codes.extend(schema_package_diagnostic_code_literals(include_str!(
+            "package_consistency.rs"
+        )));
+        codes
+    }
+
     #[test]
     fn content_type_essence_strips_parameters_and_lowercases() {
         assert_eq!(
@@ -659,6 +744,22 @@ mod tests {
                 CEM_ML_SCHEMA_URI.to_owned(),
                 XML_SCHEMA_URI.to_owned(),
             ]
+        );
+    }
+
+    #[test]
+    fn schema_package_schema_declares_runtime_diagnostic_codes() {
+        let emitted = emitted_schema_package_diagnostic_codes();
+        let declared = schema_package_schema_diagnostic_codes();
+        let missing = emitted.difference(&declared).collect::<Vec<_>>();
+
+        assert!(
+            !emitted.is_empty(),
+            "expected schema-package diagnostics emitted by runtime sources"
+        );
+        assert!(
+            missing.is_empty(),
+            "schema-package schema is missing runtime diagnostic declarations: {missing:?}"
         );
     }
 

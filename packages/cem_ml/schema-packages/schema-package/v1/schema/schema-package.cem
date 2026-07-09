@@ -86,9 +86,12 @@
     {diagnostics |
         {diagnostic @code="cem.schema_package.missing_schema" @severity="error"}
         {diagnostic @code="cem.schema_package.content_type_conflict" @severity="error"}
+        {diagnostic @code="cem.schema_package.manifest_source_invalid" @severity="error"}
+        {diagnostic @code="cem.schema_package.manifest_conversion_metadata_invalid" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_identity_missing" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_identity_mismatch" @severity="error"}
         {diagnostic @code="cem.schema_package.implementation_missing" @severity="error"}
+        {diagnostic @code="cem.schema_package.converter_registration_failed" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_endpoint_missing" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_endpoint_duplicate" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_implementation_unknown" @severity="error"}
