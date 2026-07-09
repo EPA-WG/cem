@@ -16,18 +16,7 @@
         @streamable=true |
         {param @name="subject" @type="object" @required=true}
         {body |
-            {$ applyEdits(
-                appendColorNode(
-                    call(cem.color-tree.apply, { subject: $subject }),
-                    {
-                        kind: "color-decision",
-                        name: "cemt-tree-patches",
-                        colorizerRole: "colorizer.cemt.patch",
-                        value: "applyEdits"
-                    }
-                ),
-                [{ kind: "set", path: "colored", value: true }]
-            ) }
+            {$ call("cem.color-tree.apply-stage", { subject: $subject }) }
         }
     }
 }

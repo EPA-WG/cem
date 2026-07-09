@@ -548,8 +548,8 @@ fn artifact_output_function_kind(
     artifact_kind: &str,
 ) -> Option<TransformTemplateOutputFunctionKind> {
     match artifact_kind.trim() {
-        "formatter" => Some(TransformTemplateOutputFunctionKind::Format),
-        "colorizer" => Some(TransformTemplateOutputFunctionKind::Color),
+        "formatter" | "formatter-helper" => Some(TransformTemplateOutputFunctionKind::Format),
+        "colorizer" | "colorizer-helper" => Some(TransformTemplateOutputFunctionKind::Color),
         "encoder" => Some(TransformTemplateOutputFunctionKind::Encoding),
         _ => None,
     }

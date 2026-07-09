@@ -51,6 +51,13 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "cem-ml",
+        path: "schema-packages/cem-ml/v1/formatters/cem-format-tree-helpers.cemt",
+        source: include_str!(
+            "../../schema-packages/cem-ml/v1/formatters/cem-format-tree-helpers.cemt"
+        ),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "cem-ml",
         path: "schema-packages/cem-ml/v1/formatters/formatter-coloring-pipeline.cemt",
         source: include_str!(
             "../../schema-packages/cem-ml/v1/formatters/formatter-coloring-pipeline.cemt"
@@ -65,6 +72,13 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
         package_id: "cem-ml",
         path: "schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt",
         source: include_str!("../../schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "cem-ml",
+        path: "schema-packages/cem-ml/v1/colorizers/cem-color-tree-helpers.cemt",
+        source: include_str!(
+            "../../schema-packages/cem-ml/v1/colorizers/cem-color-tree-helpers.cemt"
+        ),
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "cem-ml",
@@ -221,6 +235,16 @@ mod tests {
             "schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt",
         )
         .expect("CEM-ML colorizer source");
+        let canonical_formatter_helpers = builtin_schema_package_artifact_source(
+            "cem-ml",
+            "schema-packages/cem-ml/v1/formatters/cem-format-tree-helpers.cemt",
+        )
+        .expect("CEM-ML canonical formatter helper source");
+        let canonical_colorizer_helpers = builtin_schema_package_artifact_source(
+            "cem-ml",
+            "schema-packages/cem-ml/v1/colorizers/cem-color-tree-helpers.cemt",
+        )
+        .expect("CEM-ML canonical colorizer helper source");
         let showcase_formatter = builtin_schema_package_artifact_source(
             "cem-ml",
             "schema-packages/cem-ml/v1/formatters/formatter-coloring-pipeline.cemt",
@@ -244,6 +268,12 @@ mod tests {
 
         assert!(formatter.source.contains(r#"@name="cem.format-tree""#));
         assert!(colorizer.source.contains(r#"@name="cem.color-tree""#));
+        assert!(canonical_formatter_helpers
+            .source
+            .contains(r#"@name="cem.format-tree.apply-stage""#));
+        assert!(canonical_colorizer_helpers
+            .source
+            .contains(r#"@name="cem.color-tree.apply-stage""#));
         assert!(showcase_formatter
             .source
             .contains(r#"@name="acme.showcase.format-tree""#));
@@ -262,6 +292,12 @@ mod tests {
         assert!(builtin_schema_package_artifact_sources()
             .iter()
             .any(|source| source.path == colorizer.path));
+        assert!(builtin_schema_package_artifact_sources()
+            .iter()
+            .any(|source| source.path == canonical_formatter_helpers.path));
+        assert!(builtin_schema_package_artifact_sources()
+            .iter()
+            .any(|source| source.path == canonical_colorizer_helpers.path));
         assert!(builtin_schema_package_artifact_sources()
             .iter()
             .any(|source| source.path == showcase_formatter.path));

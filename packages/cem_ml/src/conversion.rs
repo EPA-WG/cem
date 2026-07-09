@@ -8798,7 +8798,11 @@ mod tests {
         let schema_registry = SchemaRegistry::with_builtin_schemas();
         let mut conversion_registry = ConversionRegistry::new();
         let formatter_path = "cem+test://packages/cem-ml/v1/formatters/cem-format-tree.cemt";
+        let formatter_helper_path =
+            "cem+test://packages/cem-ml/v1/formatters/cem-format-tree-helpers.cemt";
         let colorizer_path = "cem+test://packages/cem-ml/v1/colorizers/cem-color-tree.cemt";
+        let colorizer_helper_path =
+            "cem+test://packages/cem-ml/v1/colorizers/cem-color-tree-helpers.cemt";
         conversion_registry.register_package_artifact(ConversionPackageArtifactDescriptor {
             package_id: "cem-ml".to_owned(),
             kind: "formatter".to_owned(),
@@ -8810,6 +8814,21 @@ mod tests {
             target_category: Some("cem-tree".to_owned()),
             function_name: Some("cem.format-tree".to_owned()),
             function_profile: None,
+            formatter_profile: Some("cem.format-tree".to_owned()),
+            color_profile: None,
+            generated: false,
+        });
+        conversion_registry.register_package_artifact(ConversionPackageArtifactDescriptor {
+            package_id: "cem-ml".to_owned(),
+            kind: CEM_TREE_FORMATTER_HELPER_ARTIFACT_KIND.to_owned(),
+            path: formatter_helper_path.to_owned(),
+            content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+            schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+            target_content_type: Some(CEM_ML_CONTENT_TYPE.to_owned()),
+            target_schema: Some(CEM_ML_SCHEMA_URI.to_owned()),
+            target_category: Some("cem-tree".to_owned()),
+            function_name: Some("cem.format-tree.apply-stage".to_owned()),
+            function_profile: Some("cem.format-tree".to_owned()),
             formatter_profile: Some("cem.format-tree".to_owned()),
             color_profile: None,
             generated: false,
@@ -8829,23 +8848,50 @@ mod tests {
             color_profile: Some("classes".to_owned()),
             generated: false,
         });
+        conversion_registry.register_package_artifact(ConversionPackageArtifactDescriptor {
+            package_id: "cem-ml".to_owned(),
+            kind: CEM_TREE_COLORIZER_HELPER_ARTIFACT_KIND.to_owned(),
+            path: colorizer_helper_path.to_owned(),
+            content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+            schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+            target_content_type: Some(CEM_ML_CONTENT_TYPE.to_owned()),
+            target_schema: Some(CEM_ML_SCHEMA_URI.to_owned()),
+            target_category: Some("cem-tree".to_owned()),
+            function_name: Some("cem.color-tree.apply-stage".to_owned()),
+            function_profile: Some("css-custom-properties".to_owned()),
+            formatter_profile: None,
+            color_profile: None,
+            generated: false,
+        });
         let formatter_source = builtin_schema_package_artifact_source(
             "cem-ml",
             "schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt",
         )
         .expect("embedded formatter source");
+        let formatter_helper_source = builtin_schema_package_artifact_source(
+            "cem-ml",
+            "schema-packages/cem-ml/v1/formatters/cem-format-tree-helpers.cemt",
+        )
+        .expect("embedded formatter helper source");
         let colorizer_source = builtin_schema_package_artifact_source(
             "cem-ml",
             "schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt",
         )
         .expect("embedded colorizer source");
+        let colorizer_helper_source = builtin_schema_package_artifact_source(
+            "cem-ml",
+            "schema-packages/cem-ml/v1/colorizers/cem-color-tree-helpers.cemt",
+        )
+        .expect("embedded colorizer helper source");
         let reads = std::cell::RefCell::new(Vec::new());
         let package_artifact_reader =
             |artifact: &ConversionPackageArtifactDescriptor| -> Result<ConversionPackageArtifactRead, String> {
                 reads.borrow_mut().push(artifact.path.clone());
                 let source = match artifact.path.as_str() {
                     path if path == formatter_path => formatter_source.source,
+                    path if path == formatter_helper_path => formatter_helper_source.source,
                     path if path == colorizer_path => colorizer_source.source,
+                    path if path == colorizer_helper_path => colorizer_helper_source.source,
                     other => return Err(format!("unexpected artifact path `{other}`")),
                 };
                 Ok(ConversionPackageArtifactRead {
@@ -8882,7 +8928,14 @@ mod tests {
         );
         assert_eq!(
             reads.into_inner(),
-            vec![formatter_path.to_owned(), colorizer_path.to_owned()]
+            vec![
+                formatter_helper_path.to_owned(),
+                colorizer_helper_path.to_owned(),
+                formatter_path.to_owned(),
+                formatter_helper_path.to_owned(),
+                colorizer_path.to_owned(),
+                colorizer_helper_path.to_owned()
+            ]
         );
         assert_eq!(
             execution.format_execution,
@@ -9319,6 +9372,24 @@ mod tests {
             )
             .expect("color profile default selector")
             .expect("color profile default package artifact");
+        let canonical_formatter_helper = registry
+            .package_artifacts()
+            .find(|artifact| {
+                artifact.package_id == package_id
+                    && artifact.kind == CEM_TREE_FORMATTER_HELPER_ARTIFACT_KIND
+                    && artifact.path
+                        == "schema-packages/cem-ml/v1/formatters/cem-format-tree-helpers.cemt"
+            })
+            .expect("canonical CEM tree formatter helper artifact");
+        let canonical_colorizer_helper = registry
+            .package_artifacts()
+            .find(|artifact| {
+                artifact.package_id == package_id
+                    && artifact.kind == CEM_TREE_COLORIZER_HELPER_ARTIFACT_KIND
+                    && artifact.path
+                        == "schema-packages/cem-ml/v1/colorizers/cem-color-tree-helpers.cemt"
+            })
+            .expect("canonical CEM tree colorizer helper artifact");
         let formatter_helper = registry
             .package_artifacts()
             .find(|artifact| {
@@ -9355,6 +9426,27 @@ mod tests {
         );
         assert_eq!(default_showcase_formatter.path, showcase_formatter.path);
         assert_eq!(default_colorizer.path, colorizer.path);
+        assert_eq!(
+            canonical_formatter_helper.function_name.as_deref(),
+            Some("cem.format-tree.apply-stage")
+        );
+        assert_eq!(
+            canonical_formatter_helper.function_profile.as_deref(),
+            Some(formatter_profile)
+        );
+        assert_eq!(
+            canonical_formatter_helper.formatter_profile.as_deref(),
+            Some(formatter_profile)
+        );
+        assert_eq!(
+            canonical_colorizer_helper.function_name.as_deref(),
+            Some("cem.color-tree.apply-stage")
+        );
+        assert_eq!(
+            canonical_colorizer_helper.function_profile.as_deref(),
+            Some("css-custom-properties")
+        );
+        assert_eq!(canonical_colorizer_helper.color_profile.as_deref(), None);
         assert_eq!(
             formatter.target_content_type.as_deref(),
             Some(CEM_ML_CONTENT_TYPE)
@@ -9420,6 +9512,16 @@ mod tests {
         let colorizer_source =
             builtin_schema_package_artifact_source(&colorizer.package_id, &colorizer.path)
                 .expect("embedded colorizer source");
+        let canonical_formatter_helper_source = builtin_schema_package_artifact_source(
+            &canonical_formatter_helper.package_id,
+            &canonical_formatter_helper.path,
+        )
+        .expect("embedded canonical formatter helper source");
+        let canonical_colorizer_helper_source = builtin_schema_package_artifact_source(
+            &canonical_colorizer_helper.package_id,
+            &canonical_colorizer_helper.path,
+        )
+        .expect("embedded canonical colorizer helper source");
         let showcase_formatter_source = builtin_schema_package_artifact_source(
             &showcase_formatter.package_id,
             &showcase_formatter.path,
@@ -9442,6 +9544,12 @@ mod tests {
         .expect("embedded colorizer helper source");
         assert!(formatter_source.source.contains("{format-function"));
         assert!(colorizer_source.source.contains("{color-function"));
+        assert!(canonical_formatter_helper_source
+            .source
+            .contains(r#"@name="cem.format-tree.apply-stage""#));
+        assert!(canonical_colorizer_helper_source
+            .source
+            .contains(r#"@name="cem.color-tree.apply-stage""#));
         assert!(showcase_formatter_source
             .source
             .contains(r#"@extends="cem.format-tree""#));
@@ -9656,7 +9764,7 @@ mod tests {
     }
 
     #[test]
-    fn builtin_cem_tree_formatter_template_uses_direct_cemt_operations() {
+    fn builtin_cem_tree_formatter_template_delegates_to_helper_artifact() {
         let target = TransformTemplateEncodingTarget::new(
             CEM_ML_CONTENT_TYPE,
             CEM_ML_SCHEMA_URI,
@@ -9700,21 +9808,48 @@ mod tests {
         );
         assert_eq!(
             formatter.body_expression.as_deref(),
-            Some(
-                "applyEdits(\n                appendFormatNode(\n                    call(cem.format-tree.envelope, {\n                        subject: call(cem.format-tree.nodes, { subject: $subject })\n                    }),\n                    {\n                        kind: \"format-decision\",\n                        name: \"cemt-tree-patches\",\n                        formatterRole: \"formatter.cemt.patch\",\n                        value: \"applyEdits\"\n                    }\n                ),\n                [{ kind: \"set\", path: \"canonical\", value: true }]\n            )"
-            )
+            Some(r#"call("cem.format-tree.apply-stage", { subject: $subject })"#)
         );
-        let body = formatter
+        let helper_source = builtin_schema_package_artifact_source(
+            "cem-ml",
+            "schema-packages/cem-ml/v1/formatters/cem-format-tree-helpers.cemt",
+        )
+        .expect("CEM tree formatter helper source");
+        let helper_response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: TemplateInput {
+                    uri: helper_source.path.to_owned(),
+                    bytes: helper_source.source.as_bytes().to_vec(),
+                    identity: Some(FormatIdentity {
+                        content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                    root_scope: ScopeConfig::default(),
+                },
+            });
+        assert!(
+            helper_response.diagnostics.is_empty(),
+            "{:?}",
+            helper_response.diagnostics
+        );
+        let helper = helper_response
+            .module_options
+            .output_functions
+            .iter()
+            .find(|function| function.name == "cem.format-tree.apply-stage")
+            .expect("CEM tree formatter helper declaration");
+        let body = helper
             .body_expression
             .as_deref()
-            .expect("formatter body expression");
+            .expect("formatter helper body expression");
         assert!(body.contains("appendFormatNode("));
         assert!(body.contains("applyEdits("));
         assert!(body.contains("call(cem.format-tree.nodes"));
     }
 
     #[test]
-    fn builtin_cem_tree_colorizer_template_uses_direct_cemt_operations() {
+    fn builtin_cem_tree_colorizer_template_delegates_to_helper_artifact() {
         let target = TransformTemplateEncodingTarget::new(
             CEM_ML_CONTENT_TYPE,
             CEM_ML_SCHEMA_URI,
@@ -9758,14 +9893,41 @@ mod tests {
         );
         assert_eq!(
             colorizer.body_expression.as_deref(),
-            Some(
-                "applyEdits(\n                appendColorNode(\n                    call(cem.color-tree.apply, { subject: $subject }),\n                    {\n                        kind: \"color-decision\",\n                        name: \"cemt-tree-patches\",\n                        colorizerRole: \"colorizer.cemt.patch\",\n                        value: \"applyEdits\"\n                    }\n                ),\n                [{ kind: \"set\", path: \"colored\", value: true }]\n            )"
-            )
+            Some(r#"call("cem.color-tree.apply-stage", { subject: $subject })"#)
         );
-        let body = colorizer
+        let helper_source = builtin_schema_package_artifact_source(
+            "cem-ml",
+            "schema-packages/cem-ml/v1/colorizers/cem-color-tree-helpers.cemt",
+        )
+        .expect("CEM tree colorizer helper source");
+        let helper_response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: TemplateInput {
+                    uri: helper_source.path.to_owned(),
+                    bytes: helper_source.source.as_bytes().to_vec(),
+                    identity: Some(FormatIdentity {
+                        content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                    root_scope: ScopeConfig::default(),
+                },
+            });
+        assert!(
+            helper_response.diagnostics.is_empty(),
+            "{:?}",
+            helper_response.diagnostics
+        );
+        let helper = helper_response
+            .module_options
+            .output_functions
+            .iter()
+            .find(|function| function.name == "cem.color-tree.apply-stage")
+            .expect("CEM tree colorizer helper declaration");
+        let body = helper
             .body_expression
             .as_deref()
-            .expect("colorizer body expression");
+            .expect("colorizer helper body expression");
         assert!(body.contains("appendColorNode("));
         assert!(body.contains("applyEdits("));
         assert!(body.contains("call(cem.color-tree.apply"));

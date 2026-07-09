@@ -15,20 +15,7 @@
         @streamable=true |
         {param @name="subject" @type="json" @required=true}
         {body |
-            {$ applyEdits(
-                appendFormatNode(
-                    call(cem.format-tree.envelope, {
-                        subject: call(cem.format-tree.nodes, { subject: $subject })
-                    }),
-                    {
-                        kind: "format-decision",
-                        name: "cemt-tree-patches",
-                        formatterRole: "formatter.cemt.patch",
-                        value: "applyEdits"
-                    }
-                ),
-                [{ kind: "set", path: "canonical", value: true }]
-            ) }
+            {$ call("cem.format-tree.apply-stage", { subject: $subject }) }
         }
     }
 }

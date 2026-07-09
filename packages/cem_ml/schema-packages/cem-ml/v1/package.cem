@@ -68,6 +68,19 @@
     }
 
     {artifact
+        @kind="formatter-helper"
+        @path="formatters/cem-format-tree-helpers.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="cem.format-tree.apply-stage"
+        @function-profile="cem.format-tree"
+        @formatter-profile="cem.format-tree"
+    }
+
+    {artifact
         @kind="formatter"
         @path="formatters/formatter-coloring-pipeline.cemt"
         @content-type="application/vnd.cem.transform+cem"
@@ -116,6 +129,18 @@
         @function-name="cem.color-tree"
         @function-profile="css-custom-properties"
         @color-profile="classes"
+    }
+
+    {artifact
+        @kind="colorizer-helper"
+        @path="colorizers/cem-color-tree-helpers.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="cem.color-tree.apply-stage"
+        @function-profile="css-custom-properties"
     }
 
     {artifact

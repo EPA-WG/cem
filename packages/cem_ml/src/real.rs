@@ -10609,19 +10609,35 @@ mod tests {
     #[test]
     fn convert_html_direct_pipeline_reads_cemt_package_artifacts_through_template_resolver() {
         let formatter_path = "cem+test://packages/cem-ml/v1/formatters/cem-format-tree.cemt";
+        let formatter_helper_path =
+            "cem+test://packages/cem-ml/v1/formatters/cem-format-tree-helpers.cemt";
         let colorizer_path = "cem+test://packages/cem-ml/v1/colorizers/cem-color-tree.cemt";
+        let colorizer_helper_path =
+            "cem+test://packages/cem-ml/v1/colorizers/cem-color-tree-helpers.cemt";
         let formatter_source =
             crate::schema::package_sources::builtin_schema_package_artifact_source(
                 "cem-ml",
                 "schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt",
             )
             .expect("embedded formatter source");
+        let formatter_helper_source =
+            crate::schema::package_sources::builtin_schema_package_artifact_source(
+                "cem-ml",
+                "schema-packages/cem-ml/v1/formatters/cem-format-tree-helpers.cemt",
+            )
+            .expect("embedded formatter helper source");
         let colorizer_source =
             crate::schema::package_sources::builtin_schema_package_artifact_source(
                 "cem-ml",
                 "schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt",
             )
             .expect("embedded colorizer source");
+        let colorizer_helper_source =
+            crate::schema::package_sources::builtin_schema_package_artifact_source(
+                "cem-ml",
+                "schema-packages/cem-ml/v1/colorizers/cem-color-tree-helpers.cemt",
+            )
+            .expect("embedded colorizer helper source");
 
         let mut converter_registry = ConversionRegistry::new();
         converter_registry.register_package_artifact(ConversionPackageArtifactDescriptor {
@@ -10641,6 +10657,21 @@ mod tests {
         });
         converter_registry.register_package_artifact(ConversionPackageArtifactDescriptor {
             package_id: "cem-ml".to_owned(),
+            kind: "formatter-helper".to_owned(),
+            path: formatter_helper_path.to_owned(),
+            content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+            schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+            target_content_type: Some(crate::schema::registry::CEM_ML_CONTENT_TYPE.to_owned()),
+            target_schema: Some(crate::schema::registry::CEM_ML_SCHEMA_URI.to_owned()),
+            target_category: Some("cem-tree".to_owned()),
+            function_name: Some("cem.format-tree.apply-stage".to_owned()),
+            function_profile: Some("cem.format-tree".to_owned()),
+            formatter_profile: Some("cem.format-tree".to_owned()),
+            color_profile: None,
+            generated: false,
+        });
+        converter_registry.register_package_artifact(ConversionPackageArtifactDescriptor {
+            package_id: "cem-ml".to_owned(),
             kind: "colorizer".to_owned(),
             path: colorizer_path.to_owned(),
             content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
@@ -10652,6 +10683,21 @@ mod tests {
             function_profile: Some("css-custom-properties".to_owned()),
             formatter_profile: None,
             color_profile: Some("classes".to_owned()),
+            generated: false,
+        });
+        converter_registry.register_package_artifact(ConversionPackageArtifactDescriptor {
+            package_id: "cem-ml".to_owned(),
+            kind: "colorizer-helper".to_owned(),
+            path: colorizer_helper_path.to_owned(),
+            content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+            schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+            target_content_type: Some(crate::schema::registry::CEM_ML_CONTENT_TYPE.to_owned()),
+            target_schema: Some(crate::schema::registry::CEM_ML_SCHEMA_URI.to_owned()),
+            target_category: Some("cem-tree".to_owned()),
+            function_name: Some("cem.color-tree.apply-stage".to_owned()),
+            function_profile: Some("css-custom-properties".to_owned()),
+            formatter_profile: None,
+            color_profile: None,
             generated: false,
         });
         let mut resolver_registry = ResolverRegistry::new();
@@ -10667,8 +10713,18 @@ mod tests {
                         Some(CEM_TRANSFORM_CONTENT_TYPE),
                     ),
                     (
+                        formatter_helper_path,
+                        formatter_helper_source.source.as_bytes(),
+                        Some(CEM_TRANSFORM_CONTENT_TYPE),
+                    ),
+                    (
                         colorizer_path,
                         colorizer_source.source.as_bytes(),
+                        Some(CEM_TRANSFORM_CONTENT_TYPE),
+                    ),
+                    (
+                        colorizer_helper_path,
+                        colorizer_helper_source.source.as_bytes(),
                         Some(CEM_TRANSFORM_CONTENT_TYPE),
                     ),
                 ],
@@ -10707,7 +10763,11 @@ mod tests {
     fn convert_loads_context_schema_package_manifest_artifacts_before_output_pipeline() {
         const PACKAGE_URI: &str = "cem+test://packages/cem-ml/v1/package.cem";
         const FORMATTER_URI: &str = "cem+test://packages/cem-ml/v1/formatters/cem-format-tree.cemt";
+        const FORMATTER_HELPER_URI: &str =
+            "cem+test://packages/cem-ml/v1/formatters/cem-format-tree-helpers.cemt";
         const COLORIZER_URI: &str = "cem+test://packages/cem-ml/v1/colorizers/cem-color-tree.cemt";
+        const COLORIZER_HELPER_URI: &str =
+            "cem+test://packages/cem-ml/v1/colorizers/cem-color-tree-helpers.cemt";
         const PACKAGE_MANIFEST: &[u8] = br#"@doc cem-ml 1
 @ns pkg = "https://cem.dev/ns/schema-package/1"
 @default pkg
@@ -10727,6 +10787,18 @@ mod tests {
         @formatter-profile="cem.format-tree"
     }
     {artifact
+        @kind="formatter-helper"
+        @path="formatters/cem-format-tree-helpers.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="cem.format-tree.apply-stage"
+        @function-profile="cem.format-tree"
+        @formatter-profile="cem.format-tree"
+    }
+    {artifact
         @kind="colorizer"
         @path="colorizers/cem-color-tree.cemt"
         @content-type="application/vnd.cem.transform+cem"
@@ -10738,6 +10810,17 @@ mod tests {
         @function-profile="css-custom-properties"
         @color-profile="classes"
     }
+    {artifact
+        @kind="colorizer-helper"
+        @path="colorizers/cem-color-tree-helpers.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="cem.color-tree.apply-stage"
+        @function-profile="css-custom-properties"
+    }
 }
 "#;
         let formatter_source =
@@ -10746,12 +10829,24 @@ mod tests {
                 "schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt",
             )
             .expect("embedded formatter source");
+        let formatter_helper_source =
+            crate::schema::package_sources::builtin_schema_package_artifact_source(
+                "cem-ml",
+                "schema-packages/cem-ml/v1/formatters/cem-format-tree-helpers.cemt",
+            )
+            .expect("embedded formatter helper source");
         let colorizer_source =
             crate::schema::package_sources::builtin_schema_package_artifact_source(
                 "cem-ml",
                 "schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt",
             )
             .expect("embedded colorizer source");
+        let colorizer_helper_source =
+            crate::schema::package_sources::builtin_schema_package_artifact_source(
+                "cem-ml",
+                "schema-packages/cem-ml/v1/colorizers/cem-color-tree-helpers.cemt",
+            )
+            .expect("embedded colorizer helper source");
         let mut resolver_registry = ResolverRegistry::new();
         resolver_registry.register(
             "cem+test",
@@ -10765,8 +10860,18 @@ mod tests {
                         Some(CEM_TRANSFORM_CONTENT_TYPE),
                     ),
                     (
+                        FORMATTER_HELPER_URI,
+                        formatter_helper_source.source.as_bytes(),
+                        Some(CEM_TRANSFORM_CONTENT_TYPE),
+                    ),
+                    (
                         COLORIZER_URI,
                         colorizer_source.source.as_bytes(),
+                        Some(CEM_TRANSFORM_CONTENT_TYPE),
+                    ),
+                    (
+                        COLORIZER_HELPER_URI,
+                        colorizer_helper_source.source.as_bytes(),
                         Some(CEM_TRANSFORM_CONTENT_TYPE),
                     ),
                 ],

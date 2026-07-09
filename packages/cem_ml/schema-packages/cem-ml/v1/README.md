@@ -36,6 +36,8 @@ Schema-local output transformations live beside the schema package:
 - [`formatters/cem-format-tree.cemt`](formatters/cem-format-tree.cemt)
   declares `cem.format-tree` for `application/cem` /
   `https://cem.dev/ns/cem-ml/1`.
+- [`formatters/cem-format-tree-helpers.cemt`](formatters/cem-format-tree-helpers.cemt)
+  declares private canonical formatter helpers used by `cem.format-tree`.
 - [`formatters/formatter-coloring-pipeline.cemt`](formatters/formatter-coloring-pipeline.cemt)
   declares `acme.showcase.format-tree` as a package-qualified formatter that
   extends `cem.format-tree`.
@@ -44,6 +46,8 @@ Schema-local output transformations live beside the schema package:
   formatter entrypoints.
 - [`colorizers/cem-color-tree.cemt`](colorizers/cem-color-tree.cemt)
   declares `cem.color-tree` for formatted CEM trees before the writer phase.
+- [`colorizers/cem-color-tree-helpers.cemt`](colorizers/cem-color-tree-helpers.cemt)
+  declares private canonical colorizer helpers used by `cem.color-tree`.
 - [`colorizers/formatter-coloring-pipeline.cemt`](colorizers/formatter-coloring-pipeline.cemt)
   declares `acme.showcase.color-tree` as a package-qualified colorizer that
   extends `cem.color-tree`.
@@ -68,15 +72,16 @@ canonical `cem.format-tree` and `cem.color-tree` pipeline stable while allowing
 showcase or schema-specific formatter/colorizer bodies to opt in through the
 same manifest-declared asset path.
 
-The showcase artifacts expose their public `acme.showcase.*` functions as thin
-wrappers over package-owned helpers such as
-`cemml.cem-tree.format-tree-base` and `cemml.cem-tree.color-tree-base`. New
+The canonical and showcase artifacts expose their public formatter/colorizer
+functions as thin wrappers over package-owned helpers such as
+`cem.format-tree.apply-stage`, `cem.color-tree.apply-stage`,
+`cemml.cem-tree.format-tree-base`, and `cemml.cem-tree.color-tree-base`. New
 schema-specific formatter/colorizer functions should pass formatter decisions,
-color decisions, writer boundaries, and queued edits into those helpers instead
-of copying the full pipeline body. The runtime loads matching helper artifacts
-for the selected output stage before executing the public formatter/colorizer
-body, so helpers can live in dedicated package `.cemt` files beside their
-entrypoints.
+color decisions, writer boundaries, and queued edits into helper functions
+instead of copying the full pipeline body. The runtime loads matching helper
+artifacts for the selected output stage before executing the public
+formatter/colorizer body, so helpers can live in dedicated package `.cemt`
+files beside their entrypoints.
 
 The `formatters/` and `colorizers/` directories are part of the package
 contract. Formatter, colorizer, and helper artifacts stay in those

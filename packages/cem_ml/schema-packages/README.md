@@ -283,20 +283,25 @@ target format itself requires another syntax.
 
 The built-in CEM-ML package shows the pattern:
 
+- [`cem-ml/v1/formatters/cem-format-tree.cemt`](cem-ml/v1/formatters/cem-format-tree.cemt)
+- [`cem-ml/v1/formatters/cem-format-tree-helpers.cemt`](cem-ml/v1/formatters/cem-format-tree-helpers.cemt)
 - [`cem-ml/v1/formatters/formatter-coloring-pipeline.cemt`](cem-ml/v1/formatters/formatter-coloring-pipeline.cemt)
 - [`cem-ml/v1/formatters/cem-tree-helpers.cemt`](cem-ml/v1/formatters/cem-tree-helpers.cemt)
+- [`cem-ml/v1/colorizers/cem-color-tree.cemt`](cem-ml/v1/colorizers/cem-color-tree.cemt)
+- [`cem-ml/v1/colorizers/cem-color-tree-helpers.cemt`](cem-ml/v1/colorizers/cem-color-tree-helpers.cemt)
 - [`cem-ml/v1/colorizers/formatter-coloring-pipeline.cemt`](cem-ml/v1/colorizers/formatter-coloring-pipeline.cemt)
 - [`cem-ml/v1/colorizers/cem-tree-helpers.cemt`](cem-ml/v1/colorizers/cem-tree-helpers.cemt)
 - [`cem-ml/v1/examples/formatter-coloring-pipeline.package-artifacts.fixture.cem`](cem-ml/v1/examples/formatter-coloring-pipeline.package-artifacts.fixture.cem)
 
-Those artifacts keep the selected public showcase functions as wrappers over
-schema-owned helpers named `cemml.cem-tree.*`. New schema-specific output
-functions should reuse that wrapper pattern: pass formatter/color decisions,
-writer-boundary metadata, and queued edits as CEM-native data into the helper
-instead of copying the whole staged pipeline body. Helper functions live in
-dedicated `formatter-helper` and `colorizer-helper` artifacts under the same
-schema package hierarchy, and the runtime loads matching helpers for the
-selected output stage before executing the public formatter/colorizer body.
+Those artifacts keep selected public formatter/colorizer functions as wrappers
+over schema-owned helpers named `cem.*` and `cemml.cem-tree.*`. New
+schema-specific output functions should reuse that wrapper pattern: pass
+formatter/color decisions, writer-boundary metadata, and queued edits as
+CEM-native data into the helper instead of copying the whole staged pipeline
+body. Helper functions live in dedicated `formatter-helper` and
+`colorizer-helper` artifacts under the same schema package hierarchy, and the
+runtime loads matching helpers for the selected output stage before executing
+the public formatter/colorizer body.
 
 ## Direct References
 
