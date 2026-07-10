@@ -1,5 +1,7 @@
 # JSON Schema Resource Schema Package
 
+Status: schema, examples, formatter, and colorizer package frame
+
 This package defines registry identity for JSON Schema documents.
 
 JSON Schema source is JSON text, not CEM-ML syntax. The schema package and this
@@ -17,6 +19,12 @@ This package depends on the generic JSON package because JSON Schema documents
 are JSON values first. It does not claim `application/json`; callers should use
 `application/schema+json` or an explicit schema identity when the same bytes are
 intended to be interpreted as a JSON Schema document.
+
+## Output Artifacts
+
+The package declares CEMT formatter and colorizer artifacts in `package.cem`.
+The public formatter profile names are `compact`, `pretty`, and `tabular`.
+The public colorizer profile names are `terminal`, `html`, and `md`.
 
 ## Resource Model
 

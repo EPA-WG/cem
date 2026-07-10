@@ -11,4 +11,110 @@
     {content-type @value="application/schema+json" @primary=true}
 
     {namespace @prefix="jsonschema" @uri="https://cem.dev/ns/data/json-schema/1"}
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/json-schema-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/schema+json"
+        @target-schema="https://cem.dev/ns/data/json-schema/1"
+        @target-category="json-schema-document"
+        @function-name="json-schema.format-document"
+        @formatter-profile="compact"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/json-schema-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/schema+json"
+        @target-schema="https://cem.dev/ns/data/json-schema/1"
+        @target-category="json-schema-document"
+        @function-name="json-schema.format-document"
+        @formatter-profile="pretty"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/json-schema-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/schema+json"
+        @target-schema="https://cem.dev/ns/data/json-schema/1"
+        @target-category="json-schema-document"
+        @function-name="json-schema.format-document"
+        @formatter-profile="tabular"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/json-schema-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/schema+json"
+        @target-schema="https://cem.dev/ns/data/json-schema/1"
+        @target-category="json-schema-document"
+        @function-name="json-schema.color-document"
+        @color-profile="terminal"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/json-schema-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/schema+json"
+        @target-schema="https://cem.dev/ns/data/json-schema/1"
+        @target-category="json-schema-document"
+        @function-name="json-schema.color-document"
+        @color-profile="html"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/json-schema-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/schema+json"
+        @target-schema="https://cem.dev/ns/data/json-schema/1"
+        @target-category="json-schema-document"
+        @function-name="json-schema.color-document"
+        @color-profile="md"
+    }
+
+    {example
+        @id="basic-schema"
+        @path="examples/basic-schema.schema.json"
+        @content-type="application/schema+json"
+        @schema="https://cem.dev/ns/data/json-schema/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="catalog-schema"
+        @path="examples/catalog-schema.schema.json"
+        @content-type="application/schema+json"
+        @schema="https://cem.dev/ns/data/json-schema/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="invalid-unsupported-dialect"
+        @path="examples/invalid-unsupported-dialect.schema.json"
+        @content-type="application/schema+json"
+        @schema="https://cem.dev/ns/data/json-schema/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.json_schema.unsupported_dialect"
+    }
+
+    {example
+        @id="invalid-parse"
+        @path="examples/invalid-parse.schema.json"
+        @content-type="application/schema+json"
+        @schema="https://cem.dev/ns/data/json-schema/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.json_schema.parse_error"
+    }
 }

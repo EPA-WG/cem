@@ -328,7 +328,11 @@ Common structured and authoring formats:
       colorizer selectors are declared over CEMT artifacts, top-level JSON
       examples are declared from `package.cem`, and catalog tests guard JSON
       artifact/example manifest drift.
-- [ ] `json-schema/v1` (`application/schema+json`).
+- [x] `json-schema/v1` (`application/schema+json`). Baseline
+      `compact`/`pretty`/`tabular` formatter and `terminal`/`html`/`md`
+      colorizer selectors are declared over CEMT artifacts, top-level JSON
+      Schema examples are declared from `package.cem`, and catalog tests guard
+      JSON Schema artifact/example manifest drift.
 - [ ] `yaml/v1` (`application/yaml`, YAML aliases).
 - [ ] `csv/v1` (`text/csv`).
 - [ ] `markdown/v1` (`text/markdown`).

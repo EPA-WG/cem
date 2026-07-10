@@ -155,6 +155,20 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
         path: "schema-packages/json/v1/colorizers/json-color-document.cemt",
         source: include_str!("../../schema-packages/json/v1/colorizers/json-color-document.cemt"),
     },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "json-schema",
+        path: "schema-packages/json-schema/v1/formatters/json-schema-format-document.cemt",
+        source: include_str!(
+            "../../schema-packages/json-schema/v1/formatters/json-schema-format-document.cemt"
+        ),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "json-schema",
+        path: "schema-packages/json-schema/v1/colorizers/json-schema-color-document.cemt",
+        source: include_str!(
+            "../../schema-packages/json-schema/v1/colorizers/json-schema-color-document.cemt"
+        ),
+    },
 ];
 
 static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
@@ -317,7 +331,7 @@ mod tests {
         CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI,
         CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
         CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, JSON_CONTENT_TYPE,
-        JSON_VALUE_SCHEMA_URI,
+        JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI,
     };
     use crate::source::{BytesSource, SourceId};
     use crate::tokenizer::cem::CemTokenizer;
@@ -762,6 +776,37 @@ mod tests {
             invalid.expected_diagnostic_codes,
             vec!["cem.json.parse_error".to_owned()]
         );
+    }
+
+    #[test]
+    fn json_schema_package_examples_are_manifest_indexed() {
+        let examples = manifest_indexed_package_examples(
+            "json-schema",
+            JSON_SCHEMA_CONTENT_TYPE,
+            JSON_SCHEMA_SCHEMA_URI,
+            4,
+        );
+
+        for (id, expected_code) in [
+            (
+                "invalid-unsupported-dialect",
+                "cem.json_schema.unsupported_dialect",
+            ),
+            ("invalid-parse", "cem.json_schema.parse_error"),
+        ] {
+            let example = examples
+                .iter()
+                .find(|example| example.id == id)
+                .unwrap_or_else(|| panic!("invalid JSON Schema example `{id}`"));
+            assert_eq!(
+                example.expected_result,
+                SchemaPackageExampleExpectedResult::Fail
+            );
+            assert_eq!(
+                example.expected_diagnostic_codes,
+                vec![expected_code.to_owned()]
+            );
+        }
     }
 
     #[test]
@@ -1218,5 +1263,32 @@ mod tests {
         assert!(colorizer
             .source
             .contains(r#"@content-type="application/json""#));
+    }
+
+    #[test]
+    fn catalog_exposes_json_schema_output_artifact_sources() {
+        let formatter = builtin_schema_package_artifact_source(
+            "json-schema",
+            "schema-packages/json-schema/v1/formatters/json-schema-format-document.cemt",
+        )
+        .expect("JSON Schema formatter source");
+        let colorizer = builtin_schema_package_artifact_source(
+            "json-schema",
+            "schema-packages/json-schema/v1/colorizers/json-schema-color-document.cemt",
+        )
+        .expect("JSON Schema colorizer source");
+
+        assert!(formatter
+            .source
+            .contains(r#"@name="json-schema.format-document""#));
+        assert!(formatter
+            .source
+            .contains(r#"@category="json-schema-document""#));
+        assert!(colorizer
+            .source
+            .contains(r#"@name="json-schema.color-document""#));
+        assert!(colorizer
+            .source
+            .contains(r#"@content-type="application/schema+json""#));
     }
 }
