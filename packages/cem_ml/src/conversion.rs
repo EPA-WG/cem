@@ -6916,6 +6916,28 @@ impl CemtStageMetadataContract {
     fn includes_artifact_kind(self, kind: &str) -> bool {
         self.artifact_kinds().contains(&kind)
     }
+
+    fn required_metadata_terms(self) -> &'static [(&'static str, &'static [&'static str])] {
+        match self {
+            Self::Formatter => &[
+                ("formatterProfile", &["formatterProfile"]),
+                ("formatNodes", &["formatNodes", "appendFormatNode"]),
+                ("cem.format-tree", &["cem.format-tree"]),
+                ("format-marker", &["format-marker"]),
+                ("format-decision", &["format-decision"]),
+                ("formatterRole", &["formatterRole"]),
+            ],
+            Self::Colorizer => &[
+                ("colored", &["colored"]),
+                ("colorProfile", &["colorProfile"]),
+                ("colorNodes", &["colorNodes", "appendColorNode"]),
+                ("cem.color-tree", &["cem.color-tree"]),
+                ("color-marker", &["color-marker"]),
+                ("color-decision", &["color-decision"]),
+                ("colorizerRole", &["colorizerRole"]),
+            ],
+        }
+    }
 }
 
 fn conversion_package_artifact_reachable_cemt_body(
@@ -7072,27 +7094,8 @@ fn conversion_package_artifact_cem_tree_stage_missing_metadata_terms(
     contract: CemtStageMetadataContract,
     body: &str,
 ) -> Vec<&'static str> {
-    let required_terms: &[(&str, &[&str])] = match contract {
-        CemtStageMetadataContract::Formatter => &[
-            ("formatterProfile", &["formatterProfile"]),
-            ("formatNodes", &["formatNodes", "appendFormatNode"]),
-            ("cem.format-tree", &["cem.format-tree"]),
-            ("format-marker", &["format-marker"]),
-            ("format-decision", &["format-decision"]),
-            ("formatterRole", &["formatterRole"]),
-        ],
-        CemtStageMetadataContract::Colorizer => &[
-            ("colored", &["colored"]),
-            ("colorProfile", &["colorProfile"]),
-            ("colorNodes", &["colorNodes", "appendColorNode"]),
-            ("cem.color-tree", &["cem.color-tree"]),
-            ("color-marker", &["color-marker"]),
-            ("color-decision", &["color-decision"]),
-            ("colorizerRole", &["colorizerRole"]),
-        ],
-    };
-
-    required_terms
+    contract
+        .required_metadata_terms()
         .iter()
         .filter_map(|(label, alternatives)| {
             (!alternatives.iter().any(|term| body.contains(term))).then_some(*label)
@@ -7787,6 +7790,16 @@ mod tests {
         values.iter().copied().map(str::to_owned).collect()
     }
 
+    fn cemt_stage_required_metadata_labels(
+        contract: CemtStageMetadataContract,
+    ) -> BTreeSet<String> {
+        contract
+            .required_metadata_terms()
+            .iter()
+            .map(|(label, _)| (*label).to_owned())
+            .collect()
+    }
+
     fn accepted_manifest_values<T>(
         candidates: &[&str],
         parser: impl Fn(&str) -> Option<T>,
@@ -7858,6 +7871,33 @@ mod tests {
         assert_eq!(
             schema_package_field_contract_when_values("artifact-stage-metadata"),
             all_stage_kinds
+        );
+    }
+
+    #[test]
+    fn cemt_artifact_stage_metadata_term_contracts_are_operationally_explicit() {
+        assert_eq!(
+            cemt_stage_required_metadata_labels(CemtStageMetadataContract::Formatter),
+            string_set(&[
+                "formatterProfile",
+                "formatNodes",
+                "cem.format-tree",
+                "format-marker",
+                "format-decision",
+                "formatterRole",
+            ])
+        );
+        assert_eq!(
+            cemt_stage_required_metadata_labels(CemtStageMetadataContract::Colorizer),
+            string_set(&[
+                "colored",
+                "colorProfile",
+                "colorNodes",
+                "cem.color-tree",
+                "color-marker",
+                "color-decision",
+                "colorizerRole",
+            ])
         );
     }
 

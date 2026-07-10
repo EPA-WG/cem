@@ -198,6 +198,9 @@ history belongs in git history and the feature-specific docs linked below.
         conversion manifest materializers are now parity-tested against the
         Rust enum parsers, and formatter/colorizer artifact stage kind groups
         are parity-tested against schema-owned field-contract `@when-values`.
+        Formatter/colorizer CEMT body metadata term checks are centralized on
+        the operational stage contract type and test-pinned; moving those terms
+        into schema needs a schema vocabulary for CEMT body/output assertions.
         Keep expanding that audit for narrow operational `matches!` lists as
         new declarative contracts move into schema.
 
