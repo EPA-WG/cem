@@ -394,6 +394,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     severity,
                     message: "tokenizer-reported error surfaced into schema stream".to_owned(),
                     node: None,
+                    details: None,
                     source_map: None,
                 });
             }
@@ -485,6 +486,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 severity: Severity::Error,
                 message: "close-scope event with no matching open frame".to_owned(),
                 node: None,
+                details: None,
                 source_map: None,
             });
             return;
@@ -598,6 +600,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 disp = decision.disposition
             ),
             node: None,
+            details: None,
             source_map: Some(frame.source_map_stack.clone()),
         });
     }
@@ -628,6 +631,8 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 ),
                 node: None,
                 source_map,
+
+                details: None,
             }),
             Err(error) => self.diagnostics.push(Diagnostic {
                 uri: None,
@@ -642,6 +647,8 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 ),
                 node: None,
                 source_map,
+
+                details: None,
             }),
         }
     }
@@ -683,6 +690,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     "content type `{content_type}` has no Tier A handoff; region is bounded but not interpreted"
                 ),
                 node: None,
+                details: None,
                 source_map: None,
             });
         } else {
@@ -697,6 +705,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     "child parser for `{content_type}` lands in Phase 11; region preserved as opaque text bounded by the parent scope's close"
                 ),
                 node: None,
+                details: None,
                 source_map: None,
             });
         }
@@ -893,6 +902,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     "`cem:schema-src` and `cem:schema-select` are mutually exclusive on the same host"
                         .to_owned(),
                 node: None,
+                details: None,
                 source_map: None,
             });
             return;
@@ -918,6 +928,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 severity: Severity::Error,
                 message: "`cem:schema` element may carry `src` or `select`, not both".to_owned(),
                 node: None,
+                details: None,
                 source_map: None,
             });
             return;
@@ -984,6 +995,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                 message: "`cem:schema` element must declare `cem:name`, `src`, or `select`"
                     .to_owned(),
                 node: None,
+                details: None,
                 source_map: None,
             });
         }
@@ -1048,6 +1060,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                         ann.local
                     ),
                     node: None,
+                    details: None,
                     source_map: None,
                 });
                 return;
@@ -1072,6 +1085,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                             allowed.join(", ")
                         ),
                         node: None,
+                        details: None,
                         source_map: None,
                     });
                 }
@@ -1096,6 +1110,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     state.value
                 ),
                 node: None,
+                details: None,
                 source_map: None,
             });
             return;
@@ -1121,6 +1136,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     def.allowed_states.join(", ")
                 ),
                 node: None,
+                details: None,
                 source_map: None,
             });
         }
@@ -1160,6 +1176,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                         severity: Severity::Error,
                         message: format!("`@ns` directive body could not be parsed: `{body}`"),
                         node: None,
+                        details: None,
                         source_map: None,
                     });
                 }
@@ -1200,6 +1217,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                         message: "`@schema` directive may carry `src` or `select`, not both"
                             .to_owned(),
                         node: None,
+                        details: None,
                         source_map: None,
                     });
                 }
@@ -1213,6 +1231,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                         severity: Severity::Error,
                         message: "`@schema` directive must declare `src` or `select`".to_owned(),
                         node: None,
+                        details: None,
                         source_map: None,
                     });
                 }
@@ -1239,6 +1258,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     None => "anonymous scope did not close before EOF".to_owned(),
                 },
                 node: None,
+                details: None,
                 source_map: None,
             });
         }
@@ -1257,6 +1277,7 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     c.annotation, c.reason, c.kind
                 ),
                 node: None,
+                details: None,
                 source_map: None,
             });
         }

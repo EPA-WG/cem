@@ -143,6 +143,7 @@ impl LifecycleRegistry {
                     code: ADAPTER_AMBIGUOUS_CODE.to_owned(),
                     severity: Severity::Fatal,
                     message: format!("content type matched multiple lifecycle adapters: {ids}"),
+                    details: None,
                     ..Diagnostic::default()
                 });
                 loaded
@@ -181,6 +182,7 @@ impl LifecycleRegistry {
                         code: TARGET_ADAPTER_UNSUPPORTED_CODE.to_owned(),
                         severity: Severity::Warning,
                         message: unsupported_target_content_type_message(identity),
+                        details: None,
                         ..Diagnostic::default()
                     });
                 } else if let Some(schema) = identity.schema.as_deref().map(str::trim) {
@@ -191,6 +193,7 @@ impl LifecycleRegistry {
                             message: format!(
                                 "no lifecycle export adapter matched target schema `{schema}`"
                             ),
+                            details: None,
                             ..Diagnostic::default()
                         });
                     }
@@ -201,6 +204,7 @@ impl LifecycleRegistry {
                         message: format!(
                             "no lifecycle export adapter matched target namespace `{namespace}`"
                         ),
+                        details: None,
                         ..Diagnostic::default()
                     });
                 }
@@ -219,6 +223,7 @@ impl LifecycleRegistry {
                     message: format!(
                         "target identity matched multiple lifecycle export adapters: {ids}"
                     ),
+                    details: None,
                     ..Diagnostic::default()
                 });
                 selection
@@ -390,6 +395,7 @@ fn unsupported_input_identity_diagnostic(
                 code: ADAPTER_UNSUPPORTED_CODE.to_owned(),
                 severity: Severity::Warning,
                 message: unsupported_input_content_type_message(identity),
+                details: None,
                 ..Diagnostic::default()
             });
         }
@@ -405,6 +411,7 @@ fn unsupported_input_identity_diagnostic(
             code: ADAPTER_UNSUPPORTED_CODE.to_owned(),
             severity: Severity::Warning,
             message: format!("no lifecycle input adapter matched schema `{schema}`"),
+            details: None,
             ..Diagnostic::default()
         })
         .or_else(|| {
@@ -413,6 +420,7 @@ fn unsupported_input_identity_diagnostic(
                 code: ADAPTER_UNSUPPORTED_CODE.to_owned(),
                 severity: Severity::Warning,
                 message: format!("no lifecycle input adapter matched namespace `{namespace}`"),
+                details: None,
                 ..Diagnostic::default()
             })
         })

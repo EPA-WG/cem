@@ -527,6 +527,7 @@ impl HtmlTokenizer {
             severity,
             message: message.to_owned(),
             node: None,
+            details: None,
             source_map: None,
         });
     }

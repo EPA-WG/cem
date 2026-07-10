@@ -1385,6 +1385,7 @@ impl TransformTemplateOutputFunctionResolutionError {
                     category.as_deref(),
                     subject.as_deref(),
                 ),
+                details: None,
                 ..Diagnostic::default()
             },
             Self::Ambiguous { function_names } => Diagnostic {
@@ -8309,6 +8310,7 @@ where
             transform_template_parity_summary(native)
         ),
         node,
+        details: None,
         ..Diagnostic::default()
     }
 }
@@ -10078,6 +10080,7 @@ fn diagnostic_for_evaluated_encode_value_type(
             "encoded text artifact expected string value, got {}",
             json_value_type_name(&evaluated.artifact.value)
         ),
+        details: None,
         ..Diagnostic::default()
     };
     attach_evaluated_encode_node(&mut diagnostic, evaluated);
@@ -10099,6 +10102,7 @@ fn diagnostic_for_evaluated_encode_writer_adapter_missing(
             actual.as_str(),
             expected.as_str()
         ),
+        details: None,
         ..Diagnostic::default()
     };
     attach_evaluated_encode_node(&mut diagnostic, evaluated);
@@ -10118,6 +10122,7 @@ fn diagnostic_for_evaluated_encode_writer_adapter_failed(
             "encoded artifact produced `{}` cannot use the default writer adapter: {message}",
             evaluated.artifact.identity.produces.as_str()
         ),
+        details: None,
         ..Diagnostic::default()
     };
     attach_evaluated_encode_node(&mut diagnostic, evaluated);
@@ -10168,6 +10173,7 @@ where
                     "CEMT encode subject expression `{}` could not be resolved",
                     expression.subject
                 ),
+                details: None,
                 ..Diagnostic::default()
             });
             continue;
@@ -10229,6 +10235,7 @@ where
                             "CEMT output function `{}` failed for expression `{}`: {message}",
                             format_binding.function.name, expression.expression
                         ),
+                        details: None,
                         ..Diagnostic::default()
                     });
                     continue;
@@ -10273,6 +10280,7 @@ where
                                 "CEMT output function `{}` failed for expression `{}`: {message}",
                                 color_binding.function.name, expression.expression
                             ),
+                            details: None,
                             ..Diagnostic::default()
                         });
                         continue;
@@ -10342,6 +10350,7 @@ where
                         "CEMT output function `{}` failed for expression `{}`: {message}",
                         binding.function.name, expression.expression
                     ),
+                    details: None,
                     ..Diagnostic::default()
                 });
                 continue;
@@ -10749,6 +10758,7 @@ fn encode_runtime_value_diagnostic(
             .owner
             .clone()
             .or_else(|| Some(expression.expression.clone())),
+        details: None,
         ..Diagnostic::default()
     }
 }
@@ -15658,6 +15668,7 @@ impl TransformTemplateEncodedArtifactError {
             code: self.code().to_owned(),
             severity: Severity::Error,
             message: self.message(),
+            details: None,
             ..Diagnostic::default()
         }
     }
@@ -15671,6 +15682,7 @@ impl TransformTemplateEncodedArtifactError {
                 "encoded artifact insertion is incompatible: {}",
                 self.message()
             ),
+            details: None,
             ..Diagnostic::default()
         }
     }
@@ -17326,6 +17338,7 @@ impl NativeTemplateModuleLowerer<'_> {
             code: code.to_owned(),
             severity: Severity::Fatal,
             message: message.into(),
+            details: None,
             ..Diagnostic::default()
         });
     }
@@ -17342,6 +17355,7 @@ impl NativeTemplateModuleLowerer<'_> {
             code: code.to_owned(),
             severity: Severity::Fatal,
             message: message.into(),
+            details: None,
             source_map: source_map.cloned(),
             ..Diagnostic::default()
         });
@@ -17835,6 +17849,7 @@ impl TransformTemplateAdapterError {
             code: self.code().to_owned(),
             severity: Severity::Fatal,
             message: self.to_string(),
+            details: None,
             ..Diagnostic::default()
         }
     }
@@ -28998,6 +29013,7 @@ mod tests {
             diagnostics: vec![Diagnostic {
                 code: "cem.transform_template.example_warning".to_owned(),
                 message: "CEMT warning".to_owned(),
+                details: None,
                 ..Diagnostic::default()
             }],
         };
@@ -30011,6 +30027,7 @@ mod tests {
                     vec![Diagnostic {
                         code: "cem.writer.example".to_owned(),
                         message: "writer diagnostic".to_owned(),
+                        details: None,
                         ..Diagnostic::default()
                     }],
                 ),
@@ -30130,6 +30147,7 @@ mod tests {
                 code: "cem.writer.example".to_owned(),
                 severity: Severity::Warning,
                 message: "writer warning".to_owned(),
+                details: None,
                 ..Diagnostic::default()
             }],
         );

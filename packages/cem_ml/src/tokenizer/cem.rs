@@ -883,6 +883,7 @@ impl CemTokenizer {
             severity,
             message,
             node: None,
+            details: None,
             source_map: None,
         });
     }

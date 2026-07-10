@@ -124,6 +124,7 @@ impl PluginInvoke for CssSecurityObserver {
                 severity: cem_ml::diagnostics::Severity::Warning,
                 message: "css value contains `javascript:` URL".into(),
                 node: None,
+                details: None,
                 source_map: None,
             });
         }

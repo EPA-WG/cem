@@ -193,6 +193,7 @@ fn diag_at(code: &str, severity: Severity, message: String, node: &CemAstNode) -
         severity,
         message,
         node: None,
+        details: None,
         source_map: Some(stack.clone()),
     }
 }
@@ -3375,6 +3376,37 @@ mod tests {
         assert!(diagnostic.message.contains("schema"));
         assert!(diagnostic.message.contains("target-schema"));
         assert!(diagnostic.message.contains("function-name"));
+        let details = diagnostic.details.as_ref().expect("artifact check details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!(CEM_SCHEMA_PACKAGE_URI)
+        );
+        assert_eq!(details["element"], serde_json::json!("artifact"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("artifact-stage-metadata")
+        );
+        assert_eq!(details["checkKind"], serde_json::json!("required-fields"));
+        assert_eq!(
+            details["requiredFields"],
+            serde_json::json!([
+                "content-type",
+                "function-name",
+                "schema",
+                "target-category",
+                "target-content-type",
+                "target-schema"
+            ])
+        );
+        assert_eq!(
+            details["missingFields"],
+            serde_json::json!(["function-name", "schema", "target-schema"])
+        );
+        assert_eq!(
+            details["actualValues"]["kind"],
+            serde_json::json!("formatter")
+        );
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
         assert!(diags.iter().any(|d| {
             d.code == "cem.schema_package.artifact_check"
                 && d.message.contains("artifact-formatter-profile")

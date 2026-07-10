@@ -2067,6 +2067,7 @@ fn render_diagnostic(
         severity: Severity::Error,
         message,
         node: None,
+        details: None,
         source_map: Some(source_map),
     }
 }

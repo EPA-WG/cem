@@ -467,6 +467,7 @@ mod tests {
                 severity: Severity::Warning,
                 message: "hello".into(),
                 node: None,
+                details: None,
                 source_map: None,
             });
             emit.transform(TransformKind::CemTokenizer, "tokenized", None, None);
@@ -494,6 +495,7 @@ mod tests {
                 severity: Severity::Error,
                 message: "exclusive selectors conflict".into(),
                 node: None,
+                details: None,
                 source_map: None,
             });
             emit.transform(

@@ -235,6 +235,7 @@ fn schema_package_consistency_diagnostic(
         code: code.to_owned(),
         severity: Severity::Error,
         message: message.into(),
+        details: None,
         ..Diagnostic::default()
     }
 }

@@ -28,6 +28,8 @@ pub struct Diagnostic {
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub node: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<serde_json::Value>,
     /// Origin-first source-map stack, projected on demand into `line`/
     /// `column`. Per `cem-ml-cli-contract.md` §Output Shapes the JSON key
     /// is `sourceMap`.
@@ -46,6 +48,7 @@ impl Default for Diagnostic {
             severity: Severity::Info,
             message: String::new(),
             node: None,
+            details: None,
             source_map: None,
         }
     }

@@ -749,6 +749,7 @@ impl<'a> EvalCtx<'a> {
             severity,
             message: message.into(),
             node: None,
+            details: None,
             source_map,
         }
     }

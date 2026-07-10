@@ -938,6 +938,7 @@ fn schema_package_load_diagnostic(
         code: code.to_owned(),
         severity: Severity::Error,
         message: message.into(),
+        details: None,
         ..Diagnostic::default()
     }
 }
@@ -1181,6 +1182,7 @@ fn direct_cem_output_pipeline_diagnostic(uri: Option<&str>, message: &str) -> Di
         severity: Severity::Error,
         message: format!("direct CEM output could not execute CEMT output pipeline: {message}"),
         node: Some("output".to_owned()),
+        details: None,
         ..Diagnostic::default()
     }
 }
@@ -1196,6 +1198,7 @@ fn direct_markup_output_pipeline_diagnostic(
         severity: Severity::Error,
         message: format!("direct {kind} output could not execute CEMT output pipeline: {message}"),
         node: Some("output".to_owned()),
+        details: None,
         ..Diagnostic::default()
     }
 }
@@ -1266,6 +1269,7 @@ fn converter_template_diagnostic(
         code: code.to_owned(),
         severity,
         message: message.into(),
+        details: None,
         ..Diagnostic::default()
     }
 }
@@ -1460,6 +1464,7 @@ fn apply_root_scope_version_pins(document: &mut CemDocument, scope: &ScopeConfig
                     format::SUPPORTED_FORMAT_ID,
                     format::SUPPORTED_CONTENT_TYPE
                 ),
+                details: None,
                 ..Diagnostic::default()
             });
             continue;
@@ -1490,6 +1495,7 @@ fn apply_root_scope_version_pins(document: &mut CemDocument, scope: &ScopeConfig
                         "root-scope version pin `{target}:{constraint}` is invalid: {}",
                         err.message()
                     ),
+                    details: None,
                     ..Diagnostic::default()
                 });
             }
@@ -1609,6 +1615,7 @@ fn unsupported_scope_diagnostic(uri: &str, code: &str, field: &str, direction: &
         message: format!(
             "{direction} root-scope field `{field}` is parsed and preserved, but runtime enforcement is not implemented yet"
         ),
+        details: None,
         ..Diagnostic::default()
     }
 }
@@ -1654,6 +1661,7 @@ fn scope_policy_diagnostic(uri: &str, code: &str, message: String, direction: &s
         code: code.to_owned(),
         severity: Severity::Warning,
         message: format!("{direction} root-scope {message}"),
+        details: None,
         ..Diagnostic::default()
     }
 }
@@ -1743,6 +1751,7 @@ fn load_root_module_map(scope: &ScopeConfig, context: Option<&EngineContext>) ->
                     message: format!(
                         "root-scope moduleMap `{module_map}` is not valid JSON: {error}"
                     ),
+                    details: None,
                     ..Diagnostic::default()
                 }],
                 uri: Some(resolved_uri),
@@ -1761,6 +1770,7 @@ fn load_root_module_map(scope: &ScopeConfig, context: Option<&EngineContext>) ->
                 code: "cem.scope.module_map_invalid".to_owned(),
                 severity: Severity::Warning,
                 message: format!("root-scope moduleMap `{module_map}` is invalid: {message}"),
+                details: None,
                 ..Diagnostic::default()
             }],
             uri: Some(resolved_uri),
@@ -1775,6 +1785,7 @@ fn unreadable_module_map(module_map: &str, error: impl std::fmt::Display) -> Loa
             code: "cem.scope.module_map_unreadable".to_owned(),
             severity: Severity::Warning,
             message: format!("root-scope moduleMap `{module_map}` could not be read: {error}"),
+            details: None,
             ..Diagnostic::default()
         }],
         uri: Some(module_map.to_owned()),
@@ -1791,6 +1802,7 @@ fn unsupported_module_map_resolver(module_map: &str) -> LoadedModuleMap {
                 "root-scope moduleMap `{module_map}` uses a remote/custom URI resolver, \
                  but only local paths and local file:// URIs are supported"
             ),
+            details: None,
             ..Diagnostic::default()
         }],
         uri: Some(module_map.to_owned()),
@@ -1891,6 +1903,7 @@ fn time_budget_diagnostics(
         message: format!(
             "root-scope budget `{field}` exceeded: elapsed {elapsed_ns}ns > budget {budget_ns}ns"
         ),
+        details: None,
         ..Diagnostic::default()
     }]
 }
@@ -2686,6 +2699,7 @@ fn importmap_rewrite_diagnostic(
         code: code.to_owned(),
         severity: Severity::Fatal,
         message: message.into(),
+        details: None,
         ..Diagnostic::default()
     }
 }
@@ -2979,6 +2993,7 @@ fn select_transform_template_adapter(
                         "multiple transform template adapters matched template identity: {}",
                         ids.join(", ")
                     ),
+                    details: None,
                     ..Diagnostic::default()
                 });
                 None
@@ -2989,6 +3004,7 @@ fn select_transform_template_adapter(
                     code: TRANSFORM_TEMPLATE_UNSUPPORTED_CODE.to_owned(),
                     severity: Severity::Fatal,
                     message: "no transform template adapter matched template identity".to_owned(),
+                    details: None,
                     ..Diagnostic::default()
                 });
                 None
@@ -3000,6 +3016,7 @@ fn select_transform_template_adapter(
                 code: TRANSFORM_TEMPLATE_UNSUPPORTED_CODE.to_owned(),
                 severity: Severity::Fatal,
                 message: "transform template identity is required for execution".to_owned(),
+                details: None,
                 ..Diagnostic::default()
             });
             None
@@ -4212,6 +4229,7 @@ fn template_module_diagnostic(
         code: code.to_owned(),
         severity: Severity::Fatal,
         message: message.into(),
+        details: None,
         ..Diagnostic::default()
     }
 }
@@ -4509,6 +4527,7 @@ fn validate_transform_config_document(
             code: error.code.to_owned(),
             severity: Severity::Fatal,
             message: error.message,
+            details: None,
             ..Diagnostic::default()
         }],
     }
@@ -5931,6 +5950,7 @@ impl CemMlEngine for RealCemMlEngine {
                     message:
                         "transform graph stages could not be ordered from their declared inputs"
                             .to_owned(),
+                    details: None,
                     ..Diagnostic::default()
                 });
                 return Ok(TransformGraphResponse {

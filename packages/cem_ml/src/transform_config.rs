@@ -817,6 +817,7 @@ impl GraphLowerer<'_> {
             code: code.to_owned(),
             severity: Severity::Fatal,
             message: message.into(),
+            details: None,
             ..Diagnostic::default()
         });
     }

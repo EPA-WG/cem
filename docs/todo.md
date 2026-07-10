@@ -31,18 +31,19 @@ history belongs in git history and the feature-specific docs linked below.
         required/forbidden fields; it still needs reusable value constraints,
         dependent fields, mutual exclusion, cardinality, defaults, and richer
         case grouping for all schema elements.
-  - [ ] Add structured diagnostic details to the validation/reporting surface
-        before replacing specific metadata diagnostics. A field-check diagnostic
-        needs machine-readable details for schema URI, element, contract name,
-        check kind, expected fields, required fields, optional fields, forbidden
-        fields, missing fields, invalid fields, actual values, and source-map
-        range.
+  - [ ] Extend structured diagnostic details beyond initial required/forbidden
+        field checks. The first generic field-contract evaluator now emits
+        schema URI, element, contract name, check kind, required/optional/
+        forbidden fields, missing/invalid fields, actual values, condition, and
+        source-map range; value, dependency, mutual-exclusion, cardinality, and
+        cross-reference checks need the same schema-owned detail shape.
   - [ ] Extend the generic field-contract evaluator. The first evaluator runs
         from schema URI plus content type, consumes the compiled contract
         model, preserves source-map ranges, and emits contract-declared
         diagnostic families such as `cem.schema_package.artifact_check`; it
-        still needs structured diagnostic details and coverage for value,
-        dependency, mutual-exclusion, and cardinality checks.
+        now emits structured details for required/forbidden field checks and
+        still needs coverage for value, dependency, mutual-exclusion, and
+        cardinality checks.
   - [ ] Move schema-package manifest field rules from Rust conditionals into
         `packages/cem_ml/schema-packages/schema-package/v1/schema/schema-package.cem`.
         Cover `package`, `schema`, `content-type`, `namespace`, `converter`,

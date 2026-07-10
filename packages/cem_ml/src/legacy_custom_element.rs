@@ -111,6 +111,7 @@ impl LegacyConversionDiagnostic {
             code: self.code.clone(),
             severity: Severity::Warning,
             message: self.message.clone(),
+            details: None,
             ..Diagnostic::default()
         }
     }

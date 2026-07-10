@@ -1816,6 +1816,7 @@ fn generic_data_diagnostic(
         code: code.to_owned(),
         severity,
         message: message.into(),
+        details: None,
         ..Diagnostic::default()
     }
 }
@@ -4497,6 +4498,7 @@ fn conversion_output_pipeline_diagnostic(
             "converter `{converter_id}` could not execute CEMT output pipeline: {message}"
         ),
         node: diagnostic_node.map(str::to_owned),
+        details: None,
         ..Diagnostic::default()
     }
 }
@@ -4570,6 +4572,7 @@ fn conversion_parity_fixture_execution_error(
                 descriptor.id, fixture.id, message
             ),
             node: Some(fixture.id.clone()),
+            details: None,
             ..Diagnostic::default()
         }],
     }
@@ -5393,6 +5396,7 @@ fn conversion_parity_fixture_load_diagnostic(
         severity: Severity::Error,
         message: error.to_string(),
         node,
+        details: None,
         ..Diagnostic::default()
     }
 }
@@ -9084,6 +9088,7 @@ mod tests {
             severity,
             line,
             message: message.to_owned(),
+            details: None,
             ..Diagnostic::default()
         }
     }

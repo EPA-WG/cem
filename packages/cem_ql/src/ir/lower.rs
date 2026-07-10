@@ -847,6 +847,7 @@ impl IrLowerer {
             severity,
             message: message.into(),
             node: None,
+            details: None,
             source_map: Some(self.source_map(range, TransformKind::Query)),
         });
     }

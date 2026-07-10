@@ -208,6 +208,7 @@ pub fn spanned(
         severity,
         message: message.into(),
         node: None,
+        details: None,
         source_map: None,
     }
 }

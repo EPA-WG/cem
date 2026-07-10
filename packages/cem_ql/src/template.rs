@@ -302,6 +302,7 @@ fn embedding_diagnostic(embedding: &EmbeddedExpression, code: &str, message: Str
         severity: Severity::Error,
         message: format!("{surface}: {message}"),
         node: None,
+        details: None,
         source_map: Some(stack),
     }
 }

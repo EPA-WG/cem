@@ -60,6 +60,7 @@ mod tests {
             severity: sev,
             message: "x".into(),
             node: None,
+            details: None,
             source_map: None,
         }
     }

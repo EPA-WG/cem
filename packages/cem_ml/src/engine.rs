@@ -688,6 +688,7 @@ fn transform_runtime_diagnostic(
         code: code.to_owned(),
         severity: Severity::Fatal,
         message: message.into(),
+        details: None,
         ..Diagnostic::default()
     }
 }

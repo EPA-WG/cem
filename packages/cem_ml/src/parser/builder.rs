@@ -219,6 +219,7 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
                 severity: Severity::Error,
                 message: "close-scope event with no matching open element".to_owned(),
                 node: None,
+                details: None,
                 source_map: None,
             });
             return;
@@ -452,6 +453,7 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
                     self.stack.len() - 1
                 ),
                 node: None,
+                details: None,
                 source_map: None,
             });
         }
@@ -474,6 +476,7 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
                     slot.target_name
                 ),
                 node: None,
+                details: None,
                 source_map: None,
             });
         }
@@ -524,6 +527,7 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
                     "persisted top-level CEM-ML document must begin with `@doc cem-ml <version>`"
                         .to_owned(),
                 node: None,
+                details: None,
                 source_map: None,
             });
             return;
@@ -550,6 +554,7 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
                     severity: Severity::Info,
                     message,
                     node: None,
+                    details: None,
                     source_map: Some(source_map),
                 });
             }
@@ -563,6 +568,7 @@ impl<E: EventNormalizer> CemAstBuilder<E> {
                     severity: Severity::Error,
                     message: err.message(),
                     node: None,
+                    details: None,
                     source_map: Some(source_map),
                 });
             }

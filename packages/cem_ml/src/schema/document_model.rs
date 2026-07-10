@@ -28,7 +28,7 @@ use crate::schema::registry::{
     CEM_TRANSFORM_SCHEMA_URI,
 };
 use crate::source::{BytesSource, SourceId};
-use crate::source_map::FrameSpan;
+use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack};
 use crate::tokenizer::cem::CemTokenizer;
 
 pub const UNKNOWN_ELEMENT_CODE: &str = "cem.schema_model.unknown_element";
@@ -222,6 +222,7 @@ fn validate_node(
     }
 
     validate_field_contracts(
+        &model.schema_uri,
         local,
         element_model,
         &seen_attributes,
@@ -404,6 +405,7 @@ fn collect_field_contracts(document: &CemDocument, schema_id: AstNodeId) -> Vec<
 }
 
 fn validate_field_contracts(
+    schema_uri: &str,
     element_name: &str,
     element_model: &ElementModel,
     seen_attributes: &BTreeSet<String>,
@@ -442,7 +444,7 @@ fn validate_field_contracts(
                 forbidden.join(", ")
             ));
         }
-        diagnostics.push(diag_at(
+        diagnostics.push(diag_at_with_details(
             contract.diagnostic_code(),
             format!(
                 "element `{element_name}` failed field contract `{}` ({}) with {}",
@@ -451,8 +453,47 @@ fn validate_field_contracts(
                 parts.join("; ")
             ),
             node,
+            field_contract_details(
+                schema_uri,
+                element_name,
+                contract,
+                attribute_values,
+                &missing,
+                &forbidden,
+                node,
+            ),
         ));
     }
+}
+
+fn field_contract_details(
+    schema_uri: &str,
+    element_name: &str,
+    contract: &FieldContract,
+    attribute_values: &BTreeMap<String, String>,
+    missing_fields: &[String],
+    invalid_fields: &[String],
+    node: &CemAstNode,
+) -> serde_json::Value {
+    serde_json::json!({
+        "schemaUri": schema_uri,
+        "element": element_name,
+        "contract": &contract.name,
+        "target": &contract.target,
+        "diagnostic": contract.diagnostic_code(),
+        "checkKind": contract.check_kind(),
+        "requiredFields": &contract.required_attributes,
+        "optionalFields": &contract.optional_attributes,
+        "forbiddenFields": &contract.forbidden_attributes,
+        "missingFields": missing_fields,
+        "invalidFields": invalid_fields,
+        "actualValues": attribute_values,
+        "condition": {
+            "attribute": &contract.when_attribute,
+            "values": &contract.when_values,
+        },
+        "sourceRange": node_source_range_details(node),
+    })
 }
 
 fn collect_schema_uses(document: &CemDocument, schema_id: AstNodeId) -> BTreeMap<String, String> {
@@ -655,8 +696,8 @@ fn should_skip_structural_name(local: &str) -> bool {
     local.is_empty() || local == "$" || local.starts_with('@')
 }
 
-fn diag_at(code: &str, message: String, node: &CemAstNode) -> Diagnostic {
-    let stack = match node {
+fn source_stack_for_node(node: &CemAstNode) -> &SourceMapStack {
+    match node {
         CemAstNode::Document { source, .. }
         | CemAstNode::Element { source, .. }
         | CemAstNode::Attribute { source, .. }
@@ -667,7 +708,59 @@ fn diag_at(code: &str, message: String, node: &CemAstNode) -> Diagnostic {
         | CemAstNode::Cdata { source, .. }
         | CemAstNode::RawText { source, .. }
         | CemAstNode::Error { source, .. } => source,
-    };
+    }
+}
+
+fn node_source_range_details(node: &CemAstNode) -> Option<serde_json::Value> {
+    source_stack_for_node(node)
+        .current()
+        .map(source_frame_range_details)
+}
+
+fn source_frame_range_details(frame: &SourceMapFrame) -> serde_json::Value {
+    serde_json::json!({
+        "sourceId": frame.source_id.0,
+        "span": frame_span_details(&frame.span),
+    })
+}
+
+fn frame_span_details(span: &FrameSpan) -> serde_json::Value {
+    match span {
+        FrameSpan::Single(range) => serde_json::json!({
+            "kind": "single",
+            "start": range.start,
+            "len": range.len,
+            "end": range.end(),
+        }),
+        FrameSpan::Multi(ranges) => serde_json::json!({
+            "kind": "multi",
+            "ranges": ranges
+                .iter()
+                .map(|range| {
+                    serde_json::json!({
+                        "start": range.start,
+                        "len": range.len,
+                        "end": range.end(),
+                    })
+                })
+                .collect::<Vec<_>>(),
+        }),
+    }
+}
+
+fn diag_at_with_details(
+    code: &str,
+    message: String,
+    node: &CemAstNode,
+    details: serde_json::Value,
+) -> Diagnostic {
+    let mut diagnostic = diag_at(code, message, node);
+    diagnostic.details = Some(details);
+    diagnostic
+}
+
+fn diag_at(code: &str, message: String, node: &CemAstNode) -> Diagnostic {
+    let stack = source_stack_for_node(node);
     let byte_offset = stack.frames.first().and_then(|f| match &f.span {
         FrameSpan::Single(r) => Some(r.start),
         FrameSpan::Multi(rs) => rs.first().map(|r| r.start),
@@ -681,6 +774,7 @@ fn diag_at(code: &str, message: String, node: &CemAstNode) -> Diagnostic {
         severity: Severity::Error,
         message,
         node: None,
+        details: None,
         source_map: Some(stack.clone()),
     }
 }
@@ -771,6 +865,28 @@ mod tests {
             .expect("field contract diagnostic");
         assert!(diagnostic.message.contains("kind-a-fields"));
         assert!(diagnostic.message.contains("missing fields: name"));
+        let details = diagnostic.details.as_ref().expect("field contract details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/contracts/1")
+        );
+        assert_eq!(details["element"], serde_json::json!("item"));
+        assert_eq!(details["contract"], serde_json::json!("kind-a-fields"));
+        assert_eq!(details["target"], serde_json::json!("item"));
+        assert_eq!(
+            details["diagnostic"],
+            serde_json::json!("example.item_check")
+        );
+        assert_eq!(details["checkKind"], serde_json::json!("required-fields"));
+        assert_eq!(details["requiredFields"], serde_json::json!(["name"]));
+        assert_eq!(details["optionalFields"], serde_json::json!([]));
+        assert_eq!(details["forbiddenFields"], serde_json::json!([]));
+        assert_eq!(details["missingFields"], serde_json::json!(["name"]));
+        assert_eq!(details["invalidFields"], serde_json::json!([]));
+        assert_eq!(details["actualValues"]["kind"], serde_json::json!("a"));
+        assert_eq!(details["condition"]["attribute"], serde_json::json!("kind"));
+        assert_eq!(details["condition"]["values"], serde_json::json!(["a"]));
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
         assert!(!diagnostics
             .iter()
             .any(|diagnostic| diagnostic.message.contains("kind-b-fields")));
