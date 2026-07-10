@@ -105,7 +105,8 @@ history belongs in git history and the feature-specific docs linked below.
         schema-owned `field-contract` declarations and emit
         `cem.schema_package.example_check`; content type/schema compatibility
         is declared as a schema-owned cross-reference rule and still executes
-        in Rust.
+        in Rust; package example descriptor extraction no longer owns required
+        metadata or `expected-result` value diagnostics.
   - [ ] Continue replacing one-code-per-field diagnostics with contract-family
         diagnostics declared in schema source. Artifact missing-metadata checks
         now emit `cem.schema_package.artifact_check`; converter and example
@@ -147,7 +148,9 @@ history belongs in git history and the feature-specific docs linked below.
         `packages/cem_ml/src/schema/registry.rs` so descriptor extraction runs
         after generic schema validation. Loader errors may remain typed, but
         missing/invalid manifest fields must be diagnosed by schema-owned
-        contracts, not by descriptor parsing.
+        contracts, not by descriptor parsing. `collect_package_examples` now
+        treats invalid example field data as schema-owned and only materializes
+        complete loadable example descriptors.
   - [ ] Update runtime diagnostic declaration tests and CLI example coverage to
         assert generic contract-family codes plus structured details instead of
         schema-package-specific missing-field codes. Add an `rg`-based audit in

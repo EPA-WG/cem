@@ -234,10 +234,6 @@ pub enum SchemaPackageDescriptorError {
         element: &'static str,
         attribute: &'static str,
     },
-    UnknownExampleExpectedResult {
-        example_id: String,
-        expected_result: String,
-    },
     PackageIdMismatch {
         expected: String,
         actual: String,
@@ -256,13 +252,6 @@ impl std::fmt::Display for SchemaPackageDescriptorError {
                     "schema package manifest `{element}` element is missing `{attribute}`"
                 )
             }
-            Self::UnknownExampleExpectedResult {
-                example_id,
-                expected_result,
-            } => write!(
-                f,
-                "schema package example `{example_id}` has unknown expected result `{expected_result}`"
-            ),
             Self::PackageIdMismatch { expected, actual } => write!(
                 f,
                 "embedded schema package source expected package id `{expected}`, got `{actual}`"
@@ -500,46 +489,56 @@ fn collect_package_examples(
     package_id: AstNodeId,
     package_id_attr: &str,
 ) -> Result<Vec<SchemaPackageExampleDescriptor>, SchemaPackageDescriptorError> {
-    element_child_ids_by_local_name(document, package_id, "example")
-        .into_iter()
-        .map(|node_id| {
-            let attrs = collect_attrs(document, node_id);
-            let id = required_attr(&attrs, "example", "id")?.to_owned();
-            let path =
-                package_relative_path(package_id_attr, required_attr(&attrs, "example", "path")?);
-            let content_type =
-                content_type_essence(required_attr(&attrs, "example", "content-type")?);
-            let schema = required_attr(&attrs, "example", "schema")?.to_owned();
-            let expected_result_raw = required_attr(&attrs, "example", "expected-result")?;
-            let expected_result = match expected_result_raw {
-                "pass" => SchemaPackageExampleExpectedResult::Pass,
-                "fail" => SchemaPackageExampleExpectedResult::Fail,
-                other => {
-                    return Err(SchemaPackageDescriptorError::UnknownExampleExpectedResult {
-                        example_id: id,
-                        expected_result: other.to_owned(),
-                    })
-                }
-            };
-            let expected_diagnostic_codes = optional_attr(&attrs, "expected-diagnostics")
-                .map(|value| {
-                    value
-                        .split_whitespace()
-                        .map(str::to_owned)
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
-
-            Ok(SchemaPackageExampleDescriptor {
-                id,
-                path,
-                content_type,
-                schema,
-                expected_result,
-                expected_diagnostic_codes,
+    let mut examples = Vec::new();
+    for node_id in element_child_ids_by_local_name(document, package_id, "example") {
+        let attrs = collect_attrs(document, node_id);
+        let Some(id) = optional_attr(&attrs, "id").map(str::to_owned) else {
+            continue;
+        };
+        let Some(path) =
+            optional_attr(&attrs, "path").map(|path| package_relative_path(package_id_attr, path))
+        else {
+            continue;
+        };
+        let Some(content_type) = optional_attr(&attrs, "content-type").map(content_type_essence)
+        else {
+            continue;
+        };
+        let Some(schema) = optional_attr(&attrs, "schema").map(str::to_owned) else {
+            continue;
+        };
+        let expected_result = optional_attr(&attrs, "expected-result")
+            .and_then(parse_schema_package_example_expected_result)
+            .unwrap_or(SchemaPackageExampleExpectedResult::Pass);
+        let expected_diagnostic_codes = optional_attr(&attrs, "expected-diagnostics")
+            .map(|value| {
+                value
+                    .split_whitespace()
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>()
             })
-        })
-        .collect()
+            .unwrap_or_default();
+
+        examples.push(SchemaPackageExampleDescriptor {
+            id,
+            path,
+            content_type,
+            schema,
+            expected_result,
+            expected_diagnostic_codes,
+        });
+    }
+    Ok(examples)
+}
+
+fn parse_schema_package_example_expected_result(
+    value: &str,
+) -> Option<SchemaPackageExampleExpectedResult> {
+    match value.trim() {
+        "pass" => Some(SchemaPackageExampleExpectedResult::Pass),
+        "fail" => Some(SchemaPackageExampleExpectedResult::Fail),
+        _ => None,
+    }
 }
 
 fn collect_package_namespaces(
@@ -927,6 +926,49 @@ mod tests {
         assert_eq!(
             examples[1].expected_diagnostic_codes,
             vec!["demo.missing_name", "demo.invalid_state"]
+        );
+    }
+
+    #[test]
+    fn schema_package_example_extraction_does_not_own_field_validation() {
+        let examples = schema_package_examples_from_manifest_source(
+            "demo",
+            r#"{package @id=demo @version="1.0.0" |
+                {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+                {content-type @value="application/vnd.example.demo+cem" @primary=true}
+                {example
+                    @id="bad-result"
+                    @path="examples/bad-result.demo"
+                    @content-type="application/vnd.example.demo+cem"
+                    @schema="https://example.test/ns/demo/1"
+                    @expected-result="maybe"
+                }
+                {example
+                    @id="missing-result"
+                    @path="examples/missing-result.demo"
+                    @content-type="application/vnd.example.demo+cem"
+                    @schema="https://example.test/ns/demo/1"
+                }
+                {example
+                    @id="missing-path"
+                    @content-type="application/vnd.example.demo+cem"
+                    @schema="https://example.test/ns/demo/1"
+                    @expected-result="pass"
+                }
+            }"#,
+        )
+        .expect("schema-owned validation reports invalid example fields before extraction");
+
+        assert_eq!(examples.len(), 2);
+        assert_eq!(examples[0].id, "bad-result");
+        assert_eq!(
+            examples[0].expected_result,
+            SchemaPackageExampleExpectedResult::Pass
+        );
+        assert_eq!(examples[1].id, "missing-result");
+        assert_eq!(
+            examples[1].expected_result,
+            SchemaPackageExampleExpectedResult::Pass
         );
     }
 
