@@ -1,5 +1,7 @@
 # YAML Resource Schema Package
 
+Status: schema, examples, formatter, and colorizer package frame
+
 This package defines registry identity for generic YAML resources.
 
 YAML source is not CEM-ML syntax. The schema package and this manifest are
@@ -20,6 +22,12 @@ deprecated aliases that are still seen in deployed systems.
 The `+yaml` structured syntax suffix is a content-type family signal for future
 vendor or domain-specific YAML packages. This generic package owns only the base
 YAML resource schema and common compatibility aliases.
+
+## Output Artifacts
+
+The package declares CEMT formatter and colorizer artifacts in `package.cem`.
+The public formatter profile names are `compact`, `pretty`, and `tabular`.
+The public colorizer profile names are `terminal`, `html`, and `md`.
 
 ## Resource Model
 

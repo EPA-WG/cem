@@ -14,4 +14,110 @@
     {content-type @value="text/x-yaml" @alias=true}
 
     {namespace @prefix="yaml" @uri="https://cem.dev/ns/data/yaml/1"}
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/yaml-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/yaml"
+        @target-schema="https://cem.dev/ns/data/yaml/1"
+        @target-category="yaml-document"
+        @function-name="yaml.format-document"
+        @formatter-profile="compact"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/yaml-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/yaml"
+        @target-schema="https://cem.dev/ns/data/yaml/1"
+        @target-category="yaml-document"
+        @function-name="yaml.format-document"
+        @formatter-profile="pretty"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/yaml-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/yaml"
+        @target-schema="https://cem.dev/ns/data/yaml/1"
+        @target-category="yaml-document"
+        @function-name="yaml.format-document"
+        @formatter-profile="tabular"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/yaml-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/yaml"
+        @target-schema="https://cem.dev/ns/data/yaml/1"
+        @target-category="yaml-document"
+        @function-name="yaml.color-document"
+        @color-profile="terminal"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/yaml-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/yaml"
+        @target-schema="https://cem.dev/ns/data/yaml/1"
+        @target-category="yaml-document"
+        @function-name="yaml.color-document"
+        @color-profile="html"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/yaml-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/yaml"
+        @target-schema="https://cem.dev/ns/data/yaml/1"
+        @target-category="yaml-document"
+        @function-name="yaml.color-document"
+        @color-profile="md"
+    }
+
+    {example
+        @id="basic-document"
+        @path="examples/basic-document.yaml"
+        @content-type="application/yaml"
+        @schema="https://cem.dev/ns/data/yaml/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="nested-stream"
+        @path="examples/nested-stream.yml"
+        @content-type="text/yaml"
+        @schema="https://cem.dev/ns/data/yaml/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="invalid-parse"
+        @path="examples/invalid-parse.yaml"
+        @content-type="application/yaml"
+        @schema="https://cem.dev/ns/data/yaml/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.yaml.parse_error"
+    }
+
+    {example
+        @id="invalid-unsafe-tag"
+        @path="examples/invalid-unsafe-tag.yaml"
+        @content-type="application/x-yaml"
+        @schema="https://cem.dev/ns/data/yaml/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.yaml.unsafe_tag"
+    }
 }

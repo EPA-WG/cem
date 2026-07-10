@@ -169,6 +169,16 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
             "../../schema-packages/json-schema/v1/colorizers/json-schema-color-document.cemt"
         ),
     },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "yaml",
+        path: "schema-packages/yaml/v1/formatters/yaml-format-document.cemt",
+        source: include_str!("../../schema-packages/yaml/v1/formatters/yaml-format-document.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "yaml",
+        path: "schema-packages/yaml/v1/colorizers/yaml-color-document.cemt",
+        source: include_str!("../../schema-packages/yaml/v1/colorizers/yaml-color-document.cemt"),
+    },
 ];
 
 static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
@@ -331,7 +341,8 @@ mod tests {
         CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI,
         CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
         CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, JSON_CONTENT_TYPE,
-        JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI,
+        JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, YAML_CONTENT_TYPE,
+        YAML_SCHEMA_URI,
     };
     use crate::source::{BytesSource, SourceId};
     use crate::tokenizer::cem::CemTokenizer;
@@ -806,6 +817,65 @@ mod tests {
                 example.expected_diagnostic_codes,
                 vec![expected_code.to_owned()]
             );
+        }
+    }
+
+    #[test]
+    fn yaml_package_examples_are_manifest_indexed() {
+        let package = builtin_schema_package_source("yaml").expect("package source");
+        let examples =
+            schema_package_examples_from_package_sources(package).expect("package examples");
+        let declared_paths = examples
+            .iter()
+            .map(|example| example.path.clone())
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(
+            declared_paths,
+            top_level_example_paths("yaml"),
+            "yaml top-level examples must be discoverable from package.cem"
+        );
+        assert_eq!(examples.len(), 4);
+        assert!(examples
+            .iter()
+            .all(|example| example.schema == YAML_SCHEMA_URI));
+
+        for (id, content_type, expected_result, expected_code) in [
+            (
+                "basic-document",
+                YAML_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "nested-stream",
+                "text/yaml",
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "invalid-parse",
+                YAML_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.yaml.parse_error"),
+            ),
+            (
+                "invalid-unsafe-tag",
+                "application/x-yaml",
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.yaml.unsafe_tag"),
+            ),
+        ] {
+            let example = examples
+                .iter()
+                .find(|example| example.id == id)
+                .unwrap_or_else(|| panic!("YAML example `{id}`"));
+            assert_eq!(example.content_type, content_type);
+            assert_eq!(example.expected_result, expected_result);
+            let expected_codes = expected_code
+                .map(|code| vec![code.to_owned()])
+                .unwrap_or_default();
+            assert_eq!(example.expected_diagnostic_codes, expected_codes);
         }
     }
 
@@ -1290,5 +1360,26 @@ mod tests {
         assert!(colorizer
             .source
             .contains(r#"@content-type="application/schema+json""#));
+    }
+
+    #[test]
+    fn catalog_exposes_yaml_output_artifact_sources() {
+        let formatter = builtin_schema_package_artifact_source(
+            "yaml",
+            "schema-packages/yaml/v1/formatters/yaml-format-document.cemt",
+        )
+        .expect("YAML formatter source");
+        let colorizer = builtin_schema_package_artifact_source(
+            "yaml",
+            "schema-packages/yaml/v1/colorizers/yaml-color-document.cemt",
+        )
+        .expect("YAML colorizer source");
+
+        assert!(formatter.source.contains(r#"@name="yaml.format-document""#));
+        assert!(formatter.source.contains(r#"@category="yaml-document""#));
+        assert!(colorizer.source.contains(r#"@name="yaml.color-document""#));
+        assert!(colorizer
+            .source
+            .contains(r#"@content-type="application/yaml""#));
     }
 }
