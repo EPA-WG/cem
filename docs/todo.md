@@ -73,7 +73,9 @@ history belongs in git history and the feature-specific docs linked below.
         `from`, `to`, `parity-fixture`, `artifact`, and `example`.
         `content-type` child `value`, `namespace` child `uri`, and
         content-type `primary` boolean validation now stay in schema-owned
-        validation instead of registry descriptor extraction.
+        validation instead of registry descriptor extraction; `parity-fixture`
+        `id`/`path` requiredness now stays in schema-owned validation instead
+        of conversion descriptor extraction.
   - [ ] Model converter cases in `schema-package.cem`: `implementation=cemt`
         and `implementation=rust` required attribute contracts plus CEMT
         native fallback `fallback-reason` now live in schema-owned
@@ -86,7 +88,9 @@ history belongs in git history and the feature-specific docs linked below.
         is now a schema-owned value-specific forbidden field contract;
         package-specific enum, boolean, cost, fallback-reason, planner-state,
         and endpoint cardinality diagnostics have been retired in favor of
-        generic schema-owned codes.
+        generic schema-owned codes; `parity-fixture` `id`/`path` extraction now
+        skips incomplete schema-invalid rows and materializes only complete
+        runtime fixture descriptors.
   - [ ] Finish artifact cases in `schema-package.cem`. Formatter, colorizer,
         formatter-helper, and colorizer-helper required field metadata now
         lives in schema-owned `field-contract` declarations; formatter/
@@ -131,7 +135,8 @@ history belongs in git history and the feature-specific docs linked below.
         template guard; converter scalar datatype/value checks for readiness,
         streamability, implicit/explicit flags, cost, output syntax, and parity
         now stay in generic schema-model validation instead of descriptor
-        extraction.
+        extraction; parity fixture `id`/`path` field checks now stay in generic
+        schema-model validation instead of descriptor extraction.
   - [ ] Keep Rust validators only for operational execution that cannot be
         represented as field data: resource read failures, parser failures,
         CEMT compilation, CEMT function lookup, host-hook availability, and

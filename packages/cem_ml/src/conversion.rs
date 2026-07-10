@@ -7312,7 +7312,7 @@ fn conversion_descriptor_from_manifest_node(
         color_profile: optional_manifest_attr(&attrs, "color-profile").map(str::to_owned),
         parity: optional_manifest_attr(&attrs, "parity").and_then(parse_manifest_parity_mode),
     };
-    let parity_fixtures = manifest_parity_fixtures(document, node_id, &id, base_path)?;
+    let parity_fixtures = manifest_parity_fixtures(document, node_id, base_path)?;
 
     let template = match implementation {
         ConversionImplementation::Cemt => match (
@@ -7412,39 +7412,41 @@ fn package_relative_path(base_path: &str, path: &str) -> String {
 fn manifest_parity_fixtures(
     document: &CemDocument,
     converter_node_id: AstNodeId,
-    converter_id: &str,
     base_path: &str,
 ) -> Result<Vec<ConversionParityFixtureDescriptor>, ConversionManifestError> {
-    element_child_ids_by_local_name(document, converter_node_id, "parity-fixture")
-        .into_iter()
-        .map(|fixture_node_id| {
-            let attrs = collect_manifest_attrs(document, fixture_node_id);
-            let id = required_manifest_attr(&attrs, Some(converter_id), "id")?.to_owned();
-            let path = package_relative_path(
-                base_path,
-                required_manifest_attr(&attrs, Some(converter_id), "path")?,
-            );
-            let content_type =
-                optional_manifest_attr(&attrs, "content-type").map(content_type_essence);
-            let schema = optional_manifest_attr(&attrs, "schema").map(str::to_owned);
-            let expected_diagnostic_codes = optional_manifest_attr(&attrs, "expected-diagnostics")
-                .map(|value| {
-                    value
-                        .split_whitespace()
-                        .map(str::to_owned)
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
-
-            Ok(ConversionParityFixtureDescriptor {
-                id,
-                path,
-                content_type,
-                schema,
-                expected_diagnostic_codes,
+    let mut parity_fixtures = Vec::new();
+    for fixture_node_id in
+        element_child_ids_by_local_name(document, converter_node_id, "parity-fixture")
+    {
+        let attrs = collect_manifest_attrs(document, fixture_node_id);
+        let Some(id) = optional_manifest_attr(&attrs, "id").map(str::to_owned) else {
+            continue;
+        };
+        let Some(path_attr) = optional_manifest_attr(&attrs, "path") else {
+            continue;
+        };
+        let path = package_relative_path(base_path, path_attr);
+        let content_type = optional_manifest_attr(&attrs, "content-type").map(content_type_essence);
+        let schema = optional_manifest_attr(&attrs, "schema").map(str::to_owned);
+        let expected_diagnostic_codes = optional_manifest_attr(&attrs, "expected-diagnostics")
+            .map(|value| {
+                value
+                    .split_whitespace()
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>()
             })
-        })
-        .collect()
+            .unwrap_or_default();
+
+        parity_fixtures.push(ConversionParityFixtureDescriptor {
+            id,
+            path,
+            content_type,
+            schema,
+            expected_diagnostic_codes,
+        });
+    }
+
+    Ok(parity_fixtures)
 }
 
 fn manifest_endpoint(
@@ -8335,6 +8337,62 @@ mod tests {
             .expect("artifact descriptor");
 
         assert!(!artifact.generated);
+    }
+
+    #[test]
+    fn package_manifest_extraction_does_not_own_parity_fixture_required_fields() {
+        let package = package_source(
+            r#"@doc cem-ml 1
+{package @id="test-dom-projection" @version="1.0.0" |
+    {schema @uri="https://cem.dev/ns/projection/dom/1" @source="schema/cem-dom-projection.cem"}
+    {content-type @value="application/vnd.cem.dom+cem-bin" @primary=true}
+    {converter
+        @id="dom-to-html-cemt"
+        @implementation="cemt"
+        @template="converters/dom-to-html.cemt"
+        @template-content-type="application/vnd.cem.transform+cem"
+        @template-schema="https://cem.dev/ns/transform/cem/1" |
+        {from @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
+        {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+        {parity-fixture @path="examples/missing-id.dom.json"}
+        {parity-fixture @id="missing-path"}
+        {parity-fixture
+            @id="valid"
+            @path="examples/valid.dom.json"
+            @content-type="application/vnd.cem.dom+json"
+            @schema="https://cem.dev/ns/projection/dom/1"
+            @expected-diagnostics="cem.projection.dom.json_shape"}
+    }
+}"#,
+        );
+
+        let descriptors = conversion_descriptors_from_schema_package(&package).expect(
+            "schema-owned validation reports missing parity fixture fields before extraction",
+        );
+        let descriptor = descriptors
+            .iter()
+            .find(|descriptor| descriptor.id == "dom-to-html-cemt")
+            .expect("CEMT descriptor");
+
+        assert_eq!(descriptor.parity_fixtures.len(), 1);
+        let fixture = &descriptor.parity_fixtures[0];
+        assert_eq!(fixture.id, "valid");
+        assert_eq!(
+            fixture.path,
+            "schema-packages/cem-dom-projection/v1/examples/valid.dom.json"
+        );
+        assert_eq!(
+            fixture.content_type.as_deref(),
+            Some(CEM_DOM_JSON_PROJECTION_CONTENT_TYPE)
+        );
+        assert_eq!(
+            fixture.schema.as_deref(),
+            Some(CEM_DOM_PROJECTION_SCHEMA_URI)
+        );
+        assert_eq!(
+            fixture.expected_diagnostic_codes,
+            vec!["cem.projection.dom.json_shape".to_owned()]
+        );
     }
 
     #[test]
