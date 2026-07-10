@@ -8,10 +8,11 @@ history belongs in git history and the feature-specific docs linked below.
 
 - [ ] Implement schema-owned field contracts for every schema-declared field
       before adding more package-specific Rust validation branches. The current
-      implementation only compiles simple `required-attributes`,
-      `optional-attributes`, and `children` from `.cem` in
-      `packages/cem_ml/src/schema/document_model.rs`; schema-package
-      converter, artifact, and example field rules still live in
+      implementation compiles `required-attributes`, `optional-attributes`,
+      child allow-lists, initial field contracts, and exact-one child
+      occurrence from `.cem` in `packages/cem_ml/src/schema/document_model.rs`;
+      remaining schema-package converter, artifact, and example field rules
+      still live in
       `packages/cem_ml/src/validation/rules.rs`, and manifest descriptor
       loading still has Rust-owned `required_attr` checks in
       `packages/cem_ml/src/schema/registry.rs`.
@@ -23,12 +24,13 @@ history belongs in git history and the feature-specific docs linked below.
         `packages/cem_ml/schema-packages/schema/v1/schema/cem-schema.cem`.
         The schema language now models element-bound required/optional/
         forbidden fields, value and presence conditional selectors,
-        value-specific forbidden fields, diagnostic families, and attribute
-        `@values` vocabularies; it still needs accepted children, scalar type
-        validation beyond boolean/integer syntax, RELAX NG-style datatype
-        params beyond `minInclusive` such as `maxInclusive` and `pattern`,
-        defaults, richer dependent-required field groups, RELAX NG-style
-        choice/case groups, and cardinality.
+        value-specific forbidden fields, exact-one child occurrence contracts,
+        diagnostic families, and attribute `@values` vocabularies; it still
+        needs accepted children, scalar type validation beyond boolean/integer
+        syntax, RELAX NG-style datatype params beyond `minInclusive` such as
+        `maxInclusive` and `pattern`, defaults, richer dependent-required
+        field groups, RELAX NG-style choice/case groups, and broader child
+        occurrence ranges.
   - [ ] Extend the compiled Rust schema contract model. `SchemaDocumentModel`
         now compiles initial `field-contract` declarations and evaluates
         required/forbidden fields, attribute `@values` vocabularies, and
@@ -36,8 +38,9 @@ history belongs in git history and the feature-specific docs linked below.
         `cemml:integer` attribute types; it still needs reusable string/path/
         URI/media-type constraints, RELAX NG-style datatype params beyond
         integer `minInclusive`, dependent field groups beyond presence-gated
-        required fields, RELAX NG-style choice/case groups, cardinality,
-        defaults, and richer case grouping for all schema elements.
+        required fields, RELAX NG-style choice/case groups, broader child
+        occurrence ranges, defaults, and richer case grouping for all schema
+        elements.
   - [ ] Extend structured diagnostic details beyond initial required/forbidden
         field checks. The first generic field-contract evaluator now emits
         schema URI, element, contract name, check kind, required/optional/
@@ -46,18 +49,21 @@ history belongs in git history and the feature-specific docs linked below.
         value details; boolean and integer type checks now emit expected/
         actual details; integer `minInclusive` checks emit datatype-param
         details; value-specific forbidden checks emit forbiddenAttributeValues
-        and invalidValues details; string/path/URI/media-type, datatype params
-        beyond `minInclusive`, dependency, choice/case grouping, cardinality,
-        and cross-reference checks need the same schema-owned detail shape.
+        and invalidValues details; child occurrence checks emit required/
+        max-one children, missing/duplicate children, and childCounts details;
+        string/path/URI/media-type, datatype params beyond `minInclusive`,
+        dependency, choice/case grouping, broader child occurrence ranges, and
+        cross-reference checks need the same schema-owned detail shape.
   - [ ] Extend the generic field-contract evaluator. The first evaluator runs
         from schema URI plus content type, consumes the compiled contract
         model, preserves source-map ranges, and emits contract-declared
         diagnostic families such as `cem.schema_package.artifact_check`; it
         now emits structured details for required/forbidden field checks and
         attribute `@values` plus boolean/integer type and integer
-        `minInclusive` datatype-param checks, and still needs coverage for
-        string/path/URI/media-type, datatype params beyond `minInclusive`,
-        dependency, RELAX NG-style choice/case grouping, and cardinality checks.
+        `minInclusive` datatype-param checks, exact-one child occurrence
+        checks, and still needs coverage for string/path/URI/media-type,
+        datatype params beyond `minInclusive`, dependency, RELAX NG-style
+        choice/case grouping, and broader child occurrence ranges.
   - [ ] Move schema-package manifest field rules from Rust conditionals into
         `packages/cem_ml/schema-packages/schema-package/v1/schema/schema-package.cem`.
         Cover `package`, `schema`, `content-type`, `namespace`, `converter`,
@@ -66,14 +72,15 @@ history belongs in git history and the feature-specific docs linked below.
         and `implementation=rust` required attribute contracts plus CEMT
         native fallback `fallback-reason` now live in schema-owned
         `field-contract` declarations and emit
-        `cem.schema_package.converter_check`; `from`/`to` endpoint cardinality
-        is one each; enum fields now use schema-declared `@values` and boolean
-        fields now use `schema:boolean` in the generic document model; `cost`
-        now uses generic integer syntax and RELAX NG-style `minInclusive=1`;
-        `implicit=true` with `explicit-only=true` is now a schema-owned
-        value-specific forbidden field contract; package-specific enum,
-        boolean, cost, fallback-reason, and planner-state diagnostics have been
-        retired in favor of generic schema-owned codes.
+        `cem.schema_package.converter_check`; `from`/`to` exact-one endpoint
+        occurrence is now schema-owned; enum fields now use schema-declared
+        `@values` and boolean fields now use `schema:boolean` in the generic
+        document model; `cost` now uses generic integer syntax and RELAX
+        NG-style `minInclusive=1`; `implicit=true` with `explicit-only=true`
+        is now a schema-owned value-specific forbidden field contract;
+        package-specific enum, boolean, cost, fallback-reason, planner-state,
+        and endpoint cardinality diagnostics have been retired in favor of
+        generic schema-owned codes.
   - [ ] Finish artifact cases in `schema-package.cem`. Formatter, colorizer,
         formatter-helper, and colorizer-helper required field metadata now
         lives in schema-owned `field-contract` declarations; stage directory,
@@ -95,15 +102,15 @@ history belongs in git history and the feature-specific docs linked below.
         CEMT compilation, CEMT function lookup, host-hook availability, and
         source-file I/O. Those checks must still be declared as schema-owned
         constraints/rules in `.cem`, with Rust only as the execution placement.
-  - [ ] Refactor `SchemaPackageConverterContractRule` so it calls the generic
-        field-contract evaluator before operational checks, then removes the
-        remaining Rust-owned endpoint cardinality match blocks. CEMT template
-        identity, Rust symbol, CEMT fallback reason requirements, and
-        converter planner-state conflicts are now schema-owned field
-        contracts; the legacy package-specific enum, boolean, positive-cost,
-        and planner-state branches are now covered by generic `@values`,
-        `schema:boolean`, `minInclusive`, and value-specific forbidden field
-        checks.
+  - [ ] Refactor `SchemaPackageConverterContractRule` toward operational-only
+        checks for template readability/compilation and endpoint
+        schema/content-type compatibility. CEMT template identity, Rust symbol,
+        CEMT fallback reason requirements, converter planner-state conflicts,
+        and converter endpoint occurrence are now schema-owned field contracts;
+        the legacy package-specific enum, boolean, positive-cost,
+        planner-state, and endpoint cardinality branches are now covered by
+        generic `@values`, `schema:boolean`, `minInclusive`,
+        value-specific forbidden field, and child occurrence checks.
   - [ ] Refactor `schema_descriptor_from_package_sources`,
         `collect_package_examples`, and `required_attr` in
         `packages/cem_ml/src/schema/registry.rs` so descriptor extraction runs

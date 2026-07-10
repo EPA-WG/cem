@@ -111,6 +111,8 @@ pub struct FieldContract {
     pub optional_attributes: BTreeSet<String>,
     pub forbidden_attributes: BTreeSet<String>,
     pub forbidden_attribute_values: BTreeMap<String, BTreeSet<String>>,
+    pub required_children: BTreeSet<String>,
+    pub max_one_children: BTreeSet<String>,
     pub when_attribute: Option<String>,
     pub when_values: BTreeSet<String>,
     pub when_present_attributes: BTreeSet<String>,
@@ -267,12 +269,15 @@ fn validate_node(
         }
     }
 
+    let child_counts = child_element_counts(document, children);
+
     validate_field_contracts(
         &model.schema_uri,
         local,
         element_model,
         &seen_attributes,
         &attribute_values,
+        &child_counts,
         node,
         diagnostics,
     );
@@ -733,6 +738,8 @@ fn collect_field_contracts(document: &CemDocument, schema_id: AstNodeId) -> Vec<
                 forbidden_attribute_values: parse_name_value_set(
                     attrs.get("forbidden-attribute-values"),
                 ),
+                required_children: parse_name_set(attrs.get("required-children")),
+                max_one_children: parse_name_set(attrs.get("max-one-children")),
                 when_attribute: optional_non_empty_attr(&attrs, "when-attribute")
                     .map(str::to_owned),
                 when_values: parse_name_set(attrs.get("when-values")),
@@ -749,6 +756,7 @@ fn validate_field_contracts(
     element_model: &ElementModel,
     seen_attributes: &BTreeSet<String>,
     attribute_values: &BTreeMap<String, String>,
+    child_counts: &BTreeMap<String, usize>,
     node: &CemAstNode,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -788,8 +796,24 @@ fn validate_field_contracts(
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
+        let missing_children = contract
+            .required_children
+            .iter()
+            .filter(|name| child_counts.get(*name).copied().unwrap_or_default() == 0)
+            .cloned()
+            .collect::<Vec<_>>();
+        let duplicate_children = contract
+            .max_one_children
+            .iter()
+            .filter(|name| child_counts.get(*name).copied().unwrap_or_default() > 1)
+            .cloned()
+            .collect::<Vec<_>>();
 
-        if missing.is_empty() && invalid_fields.is_empty() {
+        if missing.is_empty()
+            && invalid_fields.is_empty()
+            && missing_children.is_empty()
+            && duplicate_children.is_empty()
+        {
             continue;
         }
 
@@ -813,6 +837,15 @@ fn validate_field_contracts(
                     .join(", ")
             ));
         }
+        if !missing_children.is_empty() {
+            parts.push(format!("missing children: {}", missing_children.join(", ")));
+        }
+        if !duplicate_children.is_empty() {
+            parts.push(format!(
+                "duplicate children: {}",
+                duplicate_children.join(", ")
+            ));
+        }
         diagnostics.push(diag_at_with_details(
             contract.diagnostic_code(),
             format!(
@@ -830,6 +863,9 @@ fn validate_field_contracts(
                 &missing,
                 &invalid_fields,
                 &invalid_values,
+                &missing_children,
+                &duplicate_children,
+                child_counts,
                 node,
             ),
         ));
@@ -844,6 +880,9 @@ fn field_contract_details(
     missing_fields: &[String],
     invalid_fields: &[String],
     invalid_values: &BTreeMap<String, String>,
+    missing_children: &[String],
+    duplicate_children: &[String],
+    child_counts: &BTreeMap<String, usize>,
     node: &CemAstNode,
 ) -> serde_json::Value {
     serde_json::json!({
@@ -857,9 +896,14 @@ fn field_contract_details(
         "optionalFields": &contract.optional_attributes,
         "forbiddenFields": &contract.forbidden_attributes,
         "forbiddenAttributeValues": &contract.forbidden_attribute_values,
+        "requiredChildren": &contract.required_children,
+        "maxOneChildren": &contract.max_one_children,
         "missingFields": missing_fields,
         "invalidFields": invalid_fields,
         "invalidValues": invalid_values,
+        "missingChildren": missing_children,
+        "duplicateChildren": duplicate_children,
+        "childCounts": child_counts,
         "actualValues": attribute_values,
         "condition": {
             "attribute": &contract.when_attribute,
@@ -1107,6 +1151,23 @@ fn parse_name_value_set(value: Option<&String>) -> BTreeMap<String, BTreeSet<Str
     }
 
     pairs
+}
+
+fn child_element_counts(document: &CemDocument, children: &[AstNodeId]) -> BTreeMap<String, usize> {
+    let mut counts = BTreeMap::new();
+    for child_id in children {
+        let Some(child) = document.get(*child_id) else {
+            continue;
+        };
+        let Some(local_name) = element_local_name(child) else {
+            continue;
+        };
+        if should_skip_structural_name(local_name) {
+            continue;
+        }
+        *counts.entry(local_name.to_owned()).or_insert(0) += 1;
+    }
+    counts
 }
 
 fn parse_child_set(value: Option<&String>) -> (BTreeSet<String>, bool) {
@@ -1359,6 +1420,8 @@ mod tests {
 {schema @name="contracts" @namespace="https://example.test/ns/contracts/1" @version="1.0.0" |
     {elements |
         {element @name="item" @required-attributes="kind" @optional-attributes="kind name code mode"}
+        {element @name="group" @children="child"}
+        {element @name="child"}
     }
     {field-contracts |
         {field-contract
@@ -1395,6 +1458,14 @@ mod tests {
             @forbidden-attribute-values="mode=blocked"
             @diagnostic="example.item_check"
             @check-kind="mutual-exclusion"
+        }
+        {field-contract
+            @name="group-exact-child"
+            @target="group"
+            @required-children="child"
+            @max-one-children="child"
+            @diagnostic="example.item_check"
+            @check-kind="child-occurrence"
         }
     }
 }"#,
@@ -1507,6 +1578,64 @@ mod tests {
             details["invalidValues"],
             serde_json::json!({
                 "mode": "blocked",
+            })
+        );
+
+        let document = parse_cem_document(r#"{group}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("group-exact-child")
+            })
+            .expect("missing child field contract diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("missing child field contract details");
+        assert_eq!(details["missingChildren"], serde_json::json!(["child"]));
+        assert_eq!(details["duplicateChildren"], serde_json::json!([]));
+        assert_eq!(details["requiredChildren"], serde_json::json!(["child"]));
+        assert_eq!(details["maxOneChildren"], serde_json::json!(["child"]));
+        assert_eq!(details["childCounts"], serde_json::json!({}));
+
+        let document = parse_cem_document(r#"{group | {child}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        assert!(
+            diagnostics.iter().all(|diagnostic| {
+                diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("contract").and_then(serde_json::Value::as_str))
+                    != Some("group-exact-child")
+            }),
+            "single child should satisfy child occurrence field contract: {diagnostics:?}"
+        );
+
+        let document = parse_cem_document(r#"{group | {child} {child}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("group-exact-child")
+            })
+            .expect("duplicate child field contract diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("duplicate child field contract details");
+        assert_eq!(details["missingChildren"], serde_json::json!([]));
+        assert_eq!(details["duplicateChildren"], serde_json::json!(["child"]));
+        assert_eq!(
+            details["childCounts"],
+            serde_json::json!({
+                "child": 2,
             })
         );
     }

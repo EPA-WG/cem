@@ -49,6 +49,8 @@ attribute is present, require these other attributes".
 Use `forbidden-attribute-values` for value-specific exclusions, such as a
 schema-owned mutual exclusion where one attribute value makes another attribute
 value invalid while leaving other values legal.
+Use `required-children` plus `max-one-children` for exact-one child occurrence
+contracts, such as schema package converter `from`/`to` endpoints.
 
 ## Validation Examples
 

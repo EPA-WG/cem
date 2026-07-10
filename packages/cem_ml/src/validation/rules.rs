@@ -70,14 +70,6 @@ pub(crate) const SCHEMA_PACKAGE_CONVERTER_CONSTRAINT_DIAGNOSTICS: &[(&str, &str)
         "converter-template-output-stage-contract",
     ),
     (
-        "cem.schema_package.converter_endpoint_missing",
-        "converter-from-to-required",
-    ),
-    (
-        "cem.schema_package.converter_endpoint_duplicate",
-        "converter-from-to-required",
-    ),
-    (
         "cem.schema_package.converter_content_type_mismatch",
         "converter-endpoint-schema-content-type-match",
     ),
@@ -1273,8 +1265,15 @@ fn validate_schema_package_converter(
         None => {}
     }
 
-    validate_converter_endpoint_contract(doc, node, converter_id, "from", registry, out);
-    validate_converter_endpoint_contract(doc, node, converter_id, "to", registry, out);
+    validate_converter_endpoint_content_type_contract(
+        doc,
+        node,
+        converter_id,
+        "from",
+        registry,
+        out,
+    );
+    validate_converter_endpoint_content_type_contract(doc, node, converter_id, "to", registry, out);
 }
 
 fn validate_cemt_converter_contract(
@@ -1519,7 +1518,7 @@ fn schema_package_converter_template_source_unreadable_diag(
     )
 }
 
-fn validate_converter_endpoint_contract(
+fn validate_converter_endpoint_content_type_contract(
     doc: &crate::parser::document::CemDocument,
     node: &CemAstNode,
     converter_id: &str,
@@ -1527,27 +1526,7 @@ fn validate_converter_endpoint_contract(
     registry: &SchemaRegistry,
     out: &mut Vec<Diagnostic>,
 ) {
-    let endpoint_ids = element_child_ids_by_local_name(doc, node, endpoint_name);
-    match endpoint_ids.len() {
-        0 => {
-            out.push(diag_at(
-                "cem.schema_package.converter_endpoint_missing",
-                Severity::Error,
-                format!("converter `{converter_id}` must declare one `{endpoint_name}` endpoint"),
-                node,
-            ));
-            return;
-        }
-        1 => {}
-        _ => out.push(diag_at(
-            "cem.schema_package.converter_endpoint_duplicate",
-            Severity::Error,
-            format!("converter `{converter_id}` must declare only one `{endpoint_name}` endpoint"),
-            node,
-        )),
-    }
-
-    for endpoint_id in endpoint_ids {
+    for endpoint_id in element_child_ids_by_local_name(doc, node, endpoint_name) {
         let Some(endpoint) = doc.get(endpoint_id) else {
             continue;
         };
@@ -2697,8 +2676,6 @@ mod tests {
             "cem.schema_package.converter_check",
             "cem.schema_package.converter_template_content_type_mismatch",
             "cem.schema_package.converter_template_schema_mismatch",
-            "cem.schema_package.converter_endpoint_duplicate",
-            "cem.schema_package.converter_endpoint_missing",
             "cem.schema_model.invalid_attribute_type",
             "cem.schema_model.invalid_attribute_value",
             "cem.schema_model.invalid_attribute_datatype_param",
@@ -2723,6 +2700,8 @@ mod tests {
             "cem.schema_package.converter_output_syntax_unknown",
             "cem.schema_package.converter_parity_unknown",
             "cem.schema_package.converter_selection_conflict",
+            "cem.schema_package.converter_endpoint_duplicate",
+            "cem.schema_package.converter_endpoint_missing",
         ] {
             assert!(
                 diags.iter().all(|d| d.code != removed_code),
@@ -2776,6 +2755,33 @@ mod tests {
                 "attribute": "implementation",
                 "values": ["cemt"],
                 "presentAttributes": ["rust-symbol"],
+            })
+        );
+
+        let endpoint_occurrence = diags
+            .iter()
+            .find(|d| {
+                d.code == "cem.schema_package.converter_check"
+                    && d.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("converter-from-to-endpoints")
+            })
+            .expect("schema-owned converter endpoint occurrence field contract diagnostic");
+        let details = endpoint_occurrence
+            .details
+            .as_ref()
+            .expect("converter endpoint occurrence details");
+        assert_eq!(details["missingChildren"], serde_json::json!(["to"]));
+        assert_eq!(details["duplicateChildren"], serde_json::json!(["from"]));
+        assert_eq!(
+            details["requiredChildren"],
+            serde_json::json!(["from", "to"])
+        );
+        assert_eq!(details["maxOneChildren"], serde_json::json!(["from", "to"]));
+        assert_eq!(
+            details["childCounts"],
+            serde_json::json!({
+                "from": 2,
             })
         );
 

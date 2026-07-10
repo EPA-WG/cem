@@ -81,7 +81,7 @@ struct ValidationExample {
 const SCHEMA_PACKAGE_RUNTIME_CONSTRAINT_EXAMPLE_DIAGNOSTICS: &[(&str, &str)] = &[
     (
         "converter-from-to-required",
-        "cem.schema_package.converter_endpoint_missing",
+        "cem.schema_package.converter_check",
     ),
     (
         "converter-implementation-known",
@@ -314,7 +314,6 @@ fn schema_owned_examples_validate_through_cli() {
             expected_diagnostics: &[
                 "cem.schema_package.converter_check",
                 "cem.schema_package.converter_template_content_type_mismatch",
-                "cem.schema_package.converter_endpoint_missing",
                 "cem.schema_model.invalid_attribute_datatype_param",
                 "cem.schema_package.converter_content_type_mismatch",
             ],
