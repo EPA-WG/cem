@@ -295,7 +295,10 @@ Bootstrap and self-hosting packages:
       examples are declared from `package.cem` with source path, content type,
       schema URL, expected result, and expected diagnostics, and catalog tests
       guard CEM-ML example manifest drift.
-- [ ] `schema/v1` (`application/vnd.cem.schema+cem`).
+- [x] `schema/v1` (`application/vnd.cem.schema+cem`). Top-level schema
+      examples are declared from `package.cem` with source path, content type,
+      schema URL, expected result, and expected diagnostics, and catalog tests
+      guard schema example manifest drift.
 - [ ] `schema-package/v1` (`application/vnd.cem.schema-package+cem`).
 - [ ] `cem-native-template/v1` (`application/vnd.cem.template+cem`; CEM source
       aliases).

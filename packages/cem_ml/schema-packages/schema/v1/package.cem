@@ -11,4 +11,38 @@
     {content-type @value="application/vnd.cem.schema+cem" @primary=true}
 
     {namespace @prefix="schema" @uri="https://cem.dev/ns/schema/1"}
+
+    {example
+        @id="basic-schema"
+        @path="examples/basic-schema.cem"
+        @content-type="application/vnd.cem.schema+cem"
+        @schema="https://cem.dev/ns/schema/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="typed-resource-schema"
+        @path="examples/typed-resource-schema.cem"
+        @content-type="application/vnd.cem.schema+cem"
+        @schema="https://cem.dev/ns/schema/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="invalid-missing-required-attribute"
+        @path="examples/invalid-missing-required-attribute.cem"
+        @content-type="application/vnd.cem.schema+cem"
+        @schema="https://cem.dev/ns/schema/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_model.missing_required_attribute"
+    }
+
+    {example
+        @id="invalid-unclosed-schema"
+        @path="examples/invalid-unclosed-schema.cem"
+        @content-type="application/vnd.cem.schema+cem"
+        @schema="https://cem.dev/ns/schema/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.ast.unclosed_scope"
+    }
 }

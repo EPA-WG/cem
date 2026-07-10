@@ -265,7 +265,7 @@ mod tests {
     use crate::parser::{AstNodeId, CemAstNode};
     use crate::schema::registry::{
         schema_package_examples_from_package_sources, SchemaPackageExampleExpectedResult,
-        CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI,
+        CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_URI,
     };
     use crate::source::{BytesSource, SourceId};
     use crate::tokenizer::cem::CemTokenizer;
@@ -475,11 +475,15 @@ mod tests {
         }
     }
 
-    #[test]
-    fn cem_ml_package_examples_are_manifest_indexed() {
-        let package = builtin_schema_package_source("cem-ml").expect("CEM-ML package source");
+    fn manifest_indexed_package_examples(
+        package_id: &str,
+        content_type: &str,
+        schema_uri: &str,
+        expected_count: usize,
+    ) -> Vec<crate::schema::registry::SchemaPackageExampleDescriptor> {
+        let package = builtin_schema_package_source(package_id).expect("package source");
         let examples =
-            schema_package_examples_from_package_sources(package).expect("CEM-ML examples");
+            schema_package_examples_from_package_sources(package).expect("package examples");
         let declared_paths = examples
             .iter()
             .map(|example| example.path.clone())
@@ -487,17 +491,21 @@ mod tests {
 
         assert_eq!(
             declared_paths,
-            top_level_example_paths("cem-ml"),
-            "CEM-ML top-level examples must be discoverable from package.cem"
+            top_level_example_paths(package_id),
+            "{package_id} top-level examples must be discoverable from package.cem"
         );
-        assert_eq!(examples.len(), 4);
+        assert_eq!(examples.len(), expected_count);
         assert!(examples
             .iter()
-            .all(|example| example.content_type == CEM_ML_CONTENT_TYPE));
-        assert!(examples
-            .iter()
-            .all(|example| example.schema == CEM_ML_SCHEMA_URI));
+            .all(|example| example.content_type == content_type));
+        assert!(examples.iter().all(|example| example.schema == schema_uri));
+        examples
+    }
 
+    #[test]
+    fn cem_ml_package_examples_are_manifest_indexed() {
+        let examples =
+            manifest_indexed_package_examples("cem-ml", CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, 4);
         let invalid = examples
             .iter()
             .find(|example| example.id == "invalid-unclosed-scope")
@@ -508,6 +516,37 @@ mod tests {
         );
         assert_eq!(
             invalid.expected_diagnostic_codes,
+            vec!["cem.ast.unclosed_scope".to_owned()]
+        );
+    }
+
+    #[test]
+    fn schema_package_examples_are_manifest_indexed() {
+        let examples =
+            manifest_indexed_package_examples("schema", CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_URI, 4);
+        let missing_required = examples
+            .iter()
+            .find(|example| example.id == "invalid-missing-required-attribute")
+            .expect("invalid missing required schema example");
+        assert_eq!(
+            missing_required.expected_result,
+            SchemaPackageExampleExpectedResult::Fail
+        );
+        assert_eq!(
+            missing_required.expected_diagnostic_codes,
+            vec!["cem.schema_model.missing_required_attribute".to_owned()]
+        );
+
+        let unclosed = examples
+            .iter()
+            .find(|example| example.id == "invalid-unclosed-schema")
+            .expect("invalid unclosed schema example");
+        assert_eq!(
+            unclosed.expected_result,
+            SchemaPackageExampleExpectedResult::Fail
+        );
+        assert_eq!(
+            unclosed.expected_diagnostic_codes,
             vec!["cem.ast.unclosed_scope".to_owned()]
         );
     }
