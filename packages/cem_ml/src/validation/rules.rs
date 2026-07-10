@@ -21,6 +21,9 @@ use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::{
     FormatIdentity, TemplateInput, TransformExecutionPolicy, TransformTemplateEntrypoint,
 };
+use crate::events::cem::CemEventNormalizer;
+use crate::parser::builder::CemAstBuilder;
+use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
 use crate::resolver::{has_uri_scheme, is_windows_drive_path, parse_local_file_uri};
 use crate::run_config::ScopeConfig;
@@ -31,9 +34,16 @@ use crate::schema::registry::{
     content_type_essence, SchemaRegistry, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI,
     CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
     CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
-    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI,
+    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
+    MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE, SVG_CONTENT_TYPE,
+    SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
+    XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI,
 };
+use crate::source::{BytesSource, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack};
+use crate::tokenizer::cem::CemTokenizer;
+use crate::tokenizer::html::HtmlTokenizer;
+use crate::tokenizer::xml::XmlTokenizer;
 use crate::transform_template::{
     parse_cem_native_template_module_options,
     validate_transform_template_artifact_function_contract, TransformTemplateAdapter,
@@ -1250,9 +1260,7 @@ impl SemanticRule for SchemaPackageConverterContractRule {
                     validate_schema_package_converter(ctx, node, &registry, &mut out)
                 }
                 Some("artifact") => validate_schema_package_artifact(ctx, node, &mut out),
-                Some("example") => {
-                    validate_schema_package_example(ctx.document, node, &registry, &mut out)
-                }
+                Some("example") => validate_schema_package_example(ctx, node, &registry, &mut out),
                 _ => {}
             }
         }
@@ -2020,11 +2028,12 @@ fn artifact_contract_mismatch_field_name(field: &str) -> Option<&'static str> {
 }
 
 fn validate_schema_package_example(
-    doc: &crate::parser::document::CemDocument,
+    ctx: &RuleContext<'_>,
     node: &CemAstNode,
     registry: &SchemaRegistry,
     out: &mut Vec<Diagnostic>,
 ) {
+    let doc = ctx.document;
     let example_id = attr_value(doc, node, "id")
         .map(str::trim)
         .filter(|value| !value.is_empty())
@@ -2062,7 +2071,249 @@ fn validate_schema_package_example(
             schema_uri,
             &allowed_content_types,
         ));
+        return;
     }
+
+    let Some(path) = attr_value(doc, node, "path")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return;
+    };
+    validate_schema_package_example_source_contract(
+        ctx, node, example_id, path, &essence, schema_uri, out,
+    );
+}
+
+fn validate_schema_package_example_source_contract(
+    ctx: &RuleContext<'_>,
+    node: &CemAstNode,
+    example_id: &str,
+    path: &str,
+    content_type: &str,
+    schema_uri: &str,
+    out: &mut Vec<Diagnostic>,
+) {
+    let Some(source) = read_schema_package_example_source(ctx, node, path, example_id, out) else {
+        return;
+    };
+    let Some(diagnostics) =
+        validate_schema_package_example_source_bytes(&source.bytes, content_type, schema_uri)
+    else {
+        return;
+    };
+    let hard_diagnostics = diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.severity.is_hard_violation())
+        .map(|diagnostic| diagnostic.code.clone())
+        .collect::<Vec<_>>();
+    let expected_result = attr_value(ctx.document, node, "expected-result")
+        .map(str::trim)
+        .unwrap_or("pass");
+    let expected_fail = expected_result == "fail";
+    let expected_diagnostics = attr_value(ctx.document, node, "expected-diagnostics")
+        .map(|value| {
+            value
+                .split_whitespace()
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    match (expected_fail, hard_diagnostics.is_empty()) {
+        (false, false) => out.push(schema_package_example_source_result_diag(
+            ctx.document,
+            node,
+            example_id,
+            path,
+            content_type,
+            schema_uri,
+            "pass",
+            "fail",
+            &expected_diagnostics,
+            &hard_diagnostics,
+        )),
+        (true, true) => out.push(schema_package_example_source_result_diag(
+            ctx.document,
+            node,
+            example_id,
+            path,
+            content_type,
+            schema_uri,
+            "fail",
+            "pass",
+            &expected_diagnostics,
+            &hard_diagnostics,
+        )),
+        (true, false) => {
+            let missing = expected_diagnostics
+                .iter()
+                .filter(|expected| !hard_diagnostics.iter().any(|actual| actual == *expected))
+                .cloned()
+                .collect::<Vec<_>>();
+            if !missing.is_empty() {
+                out.push(schema_package_example_expected_diagnostics_diag(
+                    ctx.document,
+                    node,
+                    example_id,
+                    path,
+                    content_type,
+                    schema_uri,
+                    &missing,
+                    &expected_diagnostics,
+                    &hard_diagnostics,
+                ));
+            }
+        }
+        (false, true) => {}
+    }
+}
+
+fn read_schema_package_example_source(
+    ctx: &RuleContext<'_>,
+    node: &CemAstNode,
+    path: &str,
+    example_id: &str,
+    out: &mut Vec<Diagnostic>,
+) -> Option<RuleResourceRead> {
+    if let Some(source_path) = resolve_schema_package_resource_path(ctx.source_uri, path) {
+        return match std::fs::read(&source_path) {
+            Ok(bytes) => Some(RuleResourceRead {
+                uri: source_path.display().to_string(),
+                bytes,
+                content_type: attr_value(ctx.document, node, "content-type").map(str::to_owned),
+            }),
+            Err(error) => {
+                out.push(schema_package_example_source_read_failed_diag(
+                    ctx.document,
+                    node,
+                    path,
+                    example_id,
+                    error.to_string(),
+                ));
+                None
+            }
+        };
+    }
+
+    let Some(resource_reader) = ctx.resource_reader else {
+        return None;
+    };
+    match resource_reader(
+        path,
+        ctx.source_uri,
+        attr_value(ctx.document, node, "content-type"),
+    ) {
+        Ok(source) => Some(source),
+        Err(error) => {
+            out.push(schema_package_example_source_read_failed_diag(
+                ctx.document,
+                node,
+                path,
+                example_id,
+                error,
+            ));
+            None
+        }
+    }
+}
+
+fn validate_schema_package_example_source_bytes(
+    bytes: &[u8],
+    content_type: &str,
+    schema_uri: &str,
+) -> Option<Vec<Diagnostic>> {
+    let mut document = match schema_package_example_tokenizer(content_type, schema_uri)? {
+        SchemaPackageExampleTokenizer::Cem => parse_example_cem_document(bytes),
+        SchemaPackageExampleTokenizer::Html => parse_example_html_document(bytes),
+        SchemaPackageExampleTokenizer::Xml => parse_example_xml_document(bytes),
+    };
+    if let Some(model) =
+        load_builtin_document_model_for_identity(Some(schema_uri), Some(content_type))
+    {
+        let model_diagnostics = validate_document_model(&document, &model);
+        document.diagnostics.extend(model_diagnostics);
+    }
+    Some(document.diagnostics)
+}
+
+#[derive(Debug, Clone, Copy)]
+enum SchemaPackageExampleTokenizer {
+    Cem,
+    Html,
+    Xml,
+}
+
+fn schema_package_example_tokenizer(
+    content_type: &str,
+    schema_uri: &str,
+) -> Option<SchemaPackageExampleTokenizer> {
+    let content_type = content_type_essence(content_type);
+    if content_type == HTML_CONTENT_TYPE || schema_uri == HTML_SCHEMA_URI {
+        return Some(SchemaPackageExampleTokenizer::Html);
+    }
+    if matches!(
+        content_type.as_str(),
+        XML_CONTENT_TYPE
+            | XHTML_CONTENT_TYPE
+            | SVG_CONTENT_TYPE
+            | MATHML_CONTENT_TYPE
+            | XSLT_CONTENT_TYPE
+            | RELAX_NG_XML_CONTENT_TYPE
+    ) || matches!(
+        schema_uri,
+        XML_SCHEMA_URI | XHTML_SCHEMA_URI | SVG_SCHEMA_URI | MATHML_SCHEMA_URI | XSLT_SCHEMA_URI
+    ) {
+        return Some(SchemaPackageExampleTokenizer::Xml);
+    }
+    if matches!(
+        content_type.as_str(),
+        CEM_ML_CONTENT_TYPE
+            | CEM_SCHEMA_CONTENT_TYPE
+            | CEM_SCHEMA_PACKAGE_CONTENT_TYPE
+            | CEM_NATIVE_TEMPLATE_CONTENT_TYPE
+            | CEM_TRANSFORM_CONTENT_TYPE
+    ) || matches!(
+        schema_uri,
+        CEM_ML_SCHEMA_URI
+            | CEM_SCHEMA_URI
+            | CEM_SCHEMA_PACKAGE_URI
+            | CEM_NATIVE_TEMPLATE_SCHEMA_URI
+            | CEM_TRANSFORM_SCHEMA_URI
+    ) {
+        return Some(SchemaPackageExampleTokenizer::Cem);
+    }
+    None
+}
+
+fn parse_example_cem_document(bytes: &[u8]) -> CemDocument {
+    let src = BytesSource::new(SourceId(1), bytes.to_vec());
+    let mut tok = CemTokenizer::from_source(src);
+    let tok_diags = tok.take_diagnostics();
+    let normalizer = CemEventNormalizer::new(tok);
+    let mut document = CemAstBuilder::new(normalizer).build();
+    document.diagnostics.extend(tok_diags);
+    document
+}
+
+fn parse_example_html_document(bytes: &[u8]) -> CemDocument {
+    let src = BytesSource::new(SourceId(1), bytes.to_vec());
+    let mut tok = HtmlTokenizer::from_source(src);
+    let tok_diags = tok.take_diagnostics();
+    let normalizer = CemEventNormalizer::new(tok);
+    let mut document = CemAstBuilder::new(normalizer).build();
+    document.diagnostics.extend(tok_diags);
+    document
+}
+
+fn parse_example_xml_document(bytes: &[u8]) -> CemDocument {
+    let src = BytesSource::new(SourceId(1), bytes.to_vec());
+    let mut tok = XmlTokenizer::from_source(src);
+    let tok_diags = tok.take_diagnostics();
+    let normalizer = CemEventNormalizer::new(tok);
+    let mut document = CemAstBuilder::new(normalizer).build();
+    document.diagnostics.extend(tok_diags);
+    document
 }
 
 fn schema_package_example_schema_content_type_failed_diag(
@@ -2096,6 +2347,119 @@ fn schema_package_example_schema_content_type_failed_diag(
             "invalidValues": {
                 "content-type": content_type,
             },
+            "actualValues": element_attribute_values(doc, node),
+            "sourceRange": node_source_range_details(node),
+        }),
+    )
+}
+
+fn schema_package_example_source_read_failed_diag(
+    doc: &crate::parser::document::CemDocument,
+    node: &CemAstNode,
+    path: &str,
+    example_id: &str,
+    error: impl AsRef<str>,
+) -> Diagnostic {
+    diag_at_with_details(
+        "cem.schema_package.example_check",
+        Severity::Error,
+        format!(
+            "schema-package example `{example_id}` source `{path}` could not be read: {}",
+            error.as_ref()
+        ),
+        node,
+        serde_json::json!({
+            "schemaUri": CEM_SCHEMA_PACKAGE_URI,
+            "element": "example",
+            "contract": "example-contract",
+            "target": "example",
+            "diagnostic": "cem.schema_package.example_check",
+            "checkKind": "example-source-readable",
+            "exampleId": example_id,
+            "invalidFields": ["path"],
+            "invalidValues": {
+                "path": path,
+            },
+            "error": error.as_ref(),
+            "actualValues": element_attribute_values(doc, node),
+            "sourceRange": node_source_range_details(node),
+        }),
+    )
+}
+
+fn schema_package_example_source_result_diag(
+    doc: &crate::parser::document::CemDocument,
+    node: &CemAstNode,
+    example_id: &str,
+    path: &str,
+    content_type: &str,
+    schema_uri: &str,
+    expected_result: &str,
+    actual_result: &str,
+    expected_diagnostics: &[String],
+    actual_diagnostics: &[String],
+) -> Diagnostic {
+    diag_at_with_details(
+        "cem.schema_package.example_check",
+        Severity::Error,
+        format!(
+            "schema-package example `{example_id}` expected `{expected_result}` but validation of `{path}` produced `{actual_result}`"
+        ),
+        node,
+        serde_json::json!({
+            "schemaUri": CEM_SCHEMA_PACKAGE_URI,
+            "element": "example",
+            "contract": "example-contract",
+            "target": "example",
+            "diagnostic": "cem.schema_package.example_check",
+            "checkKind": "example-source-validation",
+            "exampleId": example_id,
+            "path": path,
+            "contentType": content_type,
+            "schema": schema_uri,
+            "expectedResult": expected_result,
+            "actualResult": actual_result,
+            "expectedDiagnostics": expected_diagnostics,
+            "actualDiagnostics": actual_diagnostics,
+            "actualValues": element_attribute_values(doc, node),
+            "sourceRange": node_source_range_details(node),
+        }),
+    )
+}
+
+fn schema_package_example_expected_diagnostics_diag(
+    doc: &crate::parser::document::CemDocument,
+    node: &CemAstNode,
+    example_id: &str,
+    path: &str,
+    content_type: &str,
+    schema_uri: &str,
+    missing_diagnostics: &[String],
+    expected_diagnostics: &[String],
+    actual_diagnostics: &[String],
+) -> Diagnostic {
+    diag_at_with_details(
+        "cem.schema_package.example_check",
+        Severity::Error,
+        format!(
+            "schema-package example `{example_id}` validation of `{path}` did not emit expected diagnostics: {}",
+            missing_diagnostics.join(", ")
+        ),
+        node,
+        serde_json::json!({
+            "schemaUri": CEM_SCHEMA_PACKAGE_URI,
+            "element": "example",
+            "contract": "example-contract",
+            "target": "example",
+            "diagnostic": "cem.schema_package.example_check",
+            "checkKind": "example-expected-diagnostics",
+            "exampleId": example_id,
+            "path": path,
+            "contentType": content_type,
+            "schema": schema_uri,
+            "missingDiagnostics": missing_diagnostics,
+            "expectedDiagnostics": expected_diagnostics,
+            "actualDiagnostics": actual_diagnostics,
             "actualValues": element_attribute_values(doc, node),
             "sourceRange": node_source_range_details(node),
         }),
@@ -3192,6 +3556,154 @@ mod tests {
             serde_json::json!({
                 "content-type": "text/html",
             })
+        );
+    }
+
+    #[test]
+    fn schema_package_example_contract_loads_source_with_declared_identity() {
+        let dir = schema_package_artifact_contract_fixture_dir(
+            "example-source-declared-identity",
+            &[(
+                "examples/invalid.html",
+                r#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="broken" @version="1.0.0" |
+    {schema @uri="https://example.test/ns/broken/1"}
+    {content-type @value="application/vnd.example.broken+cem" @primary=true}
+}"#,
+            )],
+        );
+        let package_uri = dir.join("package.cem").display().to_string();
+        let diags = run_rules_with_identity_and_source_uri(
+            r#"{package @id=demo @version="1.0.0" |
+                {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+                {content-type @value="application/vnd.example.demo+cem" @primary=true}
+                {example
+                    @id="invalid-schema-package"
+                    @path="examples/invalid.html"
+                    @content-type="application/vnd.cem.schema-package+cem"
+                    @schema="https://cem.dev/ns/schema-package/1"
+                    @expected-result="fail"
+                    @expected-diagnostics="cem.schema_model.missing_required_attribute"
+                }
+            }"#,
+            Some(CEM_SCHEMA_PACKAGE_URI),
+            Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
+            Some(&package_uri),
+        );
+
+        assert!(
+            diags.iter().all(|d| {
+                d.details.as_ref().and_then(|details| {
+                    details.get("checkKind").and_then(serde_json::Value::as_str)
+                }) != Some("example-source-validation")
+                    && d.details.as_ref().and_then(|details| {
+                        details.get("checkKind").and_then(serde_json::Value::as_str)
+                    }) != Some("example-expected-diagnostics")
+            }),
+            "declared CEM schema-package identity should validate the .html source as CEM and match expected diagnostics: {diags:?}"
+        );
+    }
+
+    #[test]
+    fn schema_package_example_contract_reports_source_result_and_diagnostic_mismatch() {
+        let dir = schema_package_artifact_contract_fixture_dir(
+            "example-source-mismatch",
+            &[
+                (
+                    "examples/valid.html",
+                    r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="note" @namespace="https://example.test/ns/note/1" @version="1.0.0" |
+    {content-types |
+        {content-type @value="application/vnd.example.note+cem" @primary=true}
+    }
+}"#,
+                ),
+                (
+                    "examples/invalid.html",
+                    r#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="broken" @version="1.0.0" |
+    {schema @uri="https://example.test/ns/broken/1"}
+    {content-type @value="application/vnd.example.broken+cem" @primary=true}
+}"#,
+                ),
+            ],
+        );
+        let package_uri = dir.join("package.cem").display().to_string();
+        let diags = run_rules_with_identity_and_source_uri(
+            r#"{package @id=demo @version="1.0.0" |
+                {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+                {content-type @value="application/vnd.example.demo+cem" @primary=true}
+                {example
+                    @id="expected-fail-but-passes"
+                    @path="examples/valid.html"
+                    @content-type="application/vnd.cem.schema+cem"
+                    @schema="https://cem.dev/ns/schema/1"
+                    @expected-result="fail"
+                    @expected-diagnostics="cem.schema_model.missing_required_attribute"
+                }
+                {example
+                    @id="wrong-expected-diagnostic"
+                    @path="examples/invalid.html"
+                    @content-type="application/vnd.cem.schema-package+cem"
+                    @schema="https://cem.dev/ns/schema-package/1"
+                    @expected-result="fail"
+                    @expected-diagnostics="cem.schema_model.invalid_child_element"
+                }
+            }"#,
+            Some(CEM_SCHEMA_PACKAGE_URI),
+            Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
+            Some(&package_uri),
+        );
+
+        let result_mismatch = diags
+            .iter()
+            .find(|d| {
+                d.code == "cem.schema_package.example_check"
+                    && d.details.as_ref().and_then(|details| {
+                        details.get("checkKind").and_then(serde_json::Value::as_str)
+                    }) == Some("example-source-validation")
+            })
+            .expect("example source result mismatch diagnostic");
+        let details = result_mismatch
+            .details
+            .as_ref()
+            .expect("source result details");
+        assert_eq!(details["expectedResult"], serde_json::json!("fail"));
+        assert_eq!(details["actualResult"], serde_json::json!("pass"));
+        assert_eq!(
+            details["contentType"],
+            serde_json::json!("application/vnd.cem.schema+cem")
+        );
+
+        let diagnostic_mismatch = diags
+            .iter()
+            .find(|d| {
+                d.code == "cem.schema_package.example_check"
+                    && d.details.as_ref().and_then(|details| {
+                        details.get("checkKind").and_then(serde_json::Value::as_str)
+                    }) == Some("example-expected-diagnostics")
+            })
+            .expect("example expected diagnostics mismatch diagnostic");
+        let details = diagnostic_mismatch
+            .details
+            .as_ref()
+            .expect("expected diagnostics details");
+        assert_eq!(
+            details["missingDiagnostics"],
+            serde_json::json!(["cem.schema_model.invalid_child_element"])
+        );
+        assert_eq!(
+            details["actualDiagnostics"],
+            serde_json::json!(["cem.schema_model.missing_required_attribute"])
         );
     }
 

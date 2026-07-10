@@ -241,9 +241,13 @@ history belongs in git history and the feature-specific docs linked below.
         indexed by `package.cem`, and any declared output-stage profile set
         must include baseline formatter profiles `compact`, `pretty`,
         `tabular` or colorizer profiles `terminal`, `html`, and `md`.
-  - [ ] Require example loading to resolve the declared content type plus schema
+  - [x] Require example loading to resolve the declared content type plus schema
         URL and validate the source bytes against that schema; filename
-        extension inference is only a fallback hint.
+        extension inference is only a fallback hint. Declared schema-package
+        examples are now read from their manifest-relative `@path`, parsed by
+        declared content type/schema instead of extension, validated against
+        the built-in document model when available, and checked against
+        `expected-result` plus `expected-diagnostics`.
   - [ ] Expand example coverage from representative constraint-kind coverage to
         finer diagnostic coverage, starting with schema-package source
         read/invalid cases and artifact source/parse/function-missing cases.
