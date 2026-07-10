@@ -123,7 +123,7 @@
         {param @name="depth" @type="integer" @default="0"}
         {body |
             {$ call("cem.format-tree.format-node-children", {
-                subject: call("cem.format-tree.format-node-attributes", { subject: $subject }),
+                subject: call("cem.format-tree.format-node-attributes", { subject: $subject, depth: $depth }),
                 depth: $depth
             }) }
         }
@@ -136,15 +136,16 @@
         @deterministic=true
         |
         {param @name="subject" @type="json" @required=true}
+        {param @name="depth" @type="integer" @default="0"}
         {body |
             {$ match(exists($subject.attributes), {
                 true: match(length($subject.attributes), {
                     0: $subject,
-                    1: set($subject, "formatBeforeAttributes", call("cem.format-tree.attribute-prefix", { subject: $subject })),
+                    1: set($subject, "formatBeforeAttributes", call("cem.format-tree.attribute-prefix", { subject: $subject, depth: $depth })),
                     default: set(
-                        set($subject, "formatBeforeAttributes", call("cem.format-tree.attribute-prefix", { subject: $subject })),
+                        set($subject, "formatBeforeAttributes", call("cem.format-tree.attribute-prefix", { subject: $subject, depth: $depth })),
                         "formatBetweenAttributes",
-                        call("cem.format-tree.attribute-spacing", { subject: $subject })
+                        call("cem.format-tree.attribute-spacing", { subject: $subject, depth: $depth })
                     )
                 }),
                 false: $subject
@@ -368,11 +369,21 @@
         |
         {param @name="subject" @type="object" @required=true}
         {body |
-            {$ match($subject.name, {
-                "cem:if": "block",
-                "cem:for": "block",
-                "cem:choose": "block",
-                default: "inline"
+            {$ match($formatterProfile, {
+                pretty: match(call("cem.format-tree.children-all-text", { subject: $subject.children }), {
+                    true: "inline",
+                    default: "block"
+                }),
+                tabular: match(call("cem.format-tree.children-all-text", { subject: $subject.children }), {
+                    true: "inline",
+                    default: "block"
+                }),
+                default: match($subject.name, {
+                    "cem:if": "block",
+                    "cem:for": "block",
+                    "cem:choose": "block",
+                    default: "inline"
+                })
             }) }
         }
     }
@@ -539,36 +550,77 @@
     {function
         @name="cem.format-tree.attribute-prefix"
         @visibility="private"
-        @returns="object"
+        @returns="json"
         @deterministic=true
         |
         {param @name="subject" @type="json" @required=true}
+        {param @name="depth" @type="integer" @default="0"}
         {body |
-            {$ {
-                kind: "whitespace",
-                value: " ",
-                formatterOwned: true,
-                formatterRole: "formatter.attribute-prefix",
-                colorRole: "syntax.raw"
-            } }
+            {$ match($formatterProfile, {
+                tabular: call("cem.format-tree.attribute-tabular-spacing", {
+                    subject: $subject,
+                    depth: $depth,
+                    formatterRole: "formatter.attribute-prefix"
+                }),
+                default: {
+                    kind: "whitespace",
+                    value: " ",
+                    formatterOwned: true,
+                    formatterRole: "formatter.attribute-prefix",
+                    colorRole: "syntax.raw"
+                }
+            }) }
         }
     }
 
     {function
         @name="cem.format-tree.attribute-spacing"
         @visibility="private"
-        @returns="object"
+        @returns="json"
         @deterministic=true
         |
         {param @name="subject" @type="json" @required=true}
+        {param @name="depth" @type="integer" @default="0"}
         {body |
-            {$ {
-                kind: "whitespace",
-                value: " ",
-                formatterOwned: true,
-                formatterRole: "formatter.attribute-spacing",
-                colorRole: "syntax.raw"
-            } }
+            {$ match($formatterProfile, {
+                tabular: call("cem.format-tree.attribute-tabular-spacing", {
+                    subject: $subject,
+                    depth: $depth,
+                    formatterRole: "formatter.attribute-spacing"
+                }),
+                default: {
+                    kind: "whitespace",
+                    value: " ",
+                    formatterOwned: true,
+                    formatterRole: "formatter.attribute-spacing",
+                    colorRole: "syntax.raw"
+                }
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.format-tree.attribute-tabular-spacing"
+        @visibility="private"
+        @returns="array"
+        @deterministic=true
+        |
+        {param @name="subject" @type="json" @required=true}
+        {param @name="depth" @type="integer" @default="0"}
+        {param @name="formatterRole" @type="string" @required=true}
+        {body |
+            {$ [
+                call("cem.format-tree.formatter-whitespace", {
+                    subject: $subject,
+                    value: match($lineEnding, { crlf: "\r\n", default: "\n" }),
+                    formatterRole: $formatterRole
+                }),
+                call("cem.format-tree.formatter-whitespace", {
+                    subject: $subject,
+                    value: repeat($indent, add($depth, 1)),
+                    formatterRole: "formatter.attribute-indent"
+                })
+            ] }
         }
     }
 

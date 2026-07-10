@@ -1125,7 +1125,12 @@ fn conversion_dom_projection_parity_formatter_profile(target_scope: &ScopeConfig
         .or(target_scope.cemt_formatter.as_deref())
         .map(str::trim)
         .filter(|profile| !profile.is_empty())
-        .unwrap_or("cem.format-tree")
+        .map(|profile| match profile {
+            "compact" | "pretty" | "tabular" => profile,
+            "format-tree" | "cem.format-tree" | "canonical" => "compact",
+            _ => profile,
+        })
+        .unwrap_or("compact")
         .to_owned()
 }
 
@@ -4219,7 +4224,7 @@ fn conversion_cem_tree_output_function_registry(
             .cemt_options
             .formatter_profile
             .as_deref()
-            .unwrap_or("cem.format-tree"),
+            .unwrap_or("compact"),
     ));
     let mut profiles = BTreeSet::new();
     profiles.insert("classes".to_owned());
@@ -5902,7 +5907,7 @@ pub fn direct_cem_output_pipeline() -> ConversionOutputPipeline {
     let output_contract = ConversionOutputContractDescriptor {
         output_syntax: Some(ConversionOutputSyntax::Text),
         encoding_category: Some("cem-document".to_owned()),
-        formatter_profile: Some("cem.format-tree".to_owned()),
+        formatter_profile: Some("compact".to_owned()),
         color_profile: Some("none".to_owned()),
         parity: None,
     };
@@ -6025,10 +6030,10 @@ fn conversion_cem_tree_formatter_profile(
         .filter(|profile| !profile.is_empty())
         .map(|profile| match profile {
             "compact" | "pretty" | "tabular" => profile,
-            "format-tree" | "cem.format-tree" => "cem.format-tree",
-            _ => "cem.format-tree",
+            "format-tree" | "cem.format-tree" | "canonical" => "compact",
+            _ => "compact",
         })
-        .unwrap_or("cem.format-tree")
+        .unwrap_or("compact")
         .to_owned()
 }
 
@@ -9814,7 +9819,7 @@ mod tests {
         assert_eq!(html.pipeline.cemt_options.formatter.as_deref(), None);
         assert_eq!(
             html.pipeline.cemt_options.formatter_profile.as_deref(),
-            Some("cem.format-tree")
+            Some("compact")
         );
         assert_eq!(html.pipeline.cemt_options.colorizer.as_deref(), None);
         assert_eq!(
@@ -9830,7 +9835,7 @@ mod tests {
                 .cemt_insertion_context
                 .formatter_profile
                 .as_deref(),
-            Some("cem.format-tree")
+            Some("compact")
         );
         assert_eq!(
             html.pipeline
@@ -10270,18 +10275,18 @@ mod tests {
                 "category": "cem-tree",
                 "mode": "document",
                 "canonical": true,
-                "formatterProfile": "cem.format-tree",
+                "formatterProfile": "compact",
                 "formatNodes": [{
                     "kind": "format-marker",
                     "name": "cem.format-tree",
                     "formatterRole": "formatter.boundary",
-                    "formatterProfile": "cem.format-tree"
+                    "formatterProfile": "compact"
                 }, {
                     "kind": "format-decision",
                     "name": "line-ending",
                     "formatterRole": "formatter.line-ending",
                     "value": "lf",
-                    "formatterProfile": "cem.format-tree"
+                    "formatterProfile": "compact"
                 }],
                 "colored": true,
                 "colorProfile": "classes",
@@ -10384,7 +10389,7 @@ mod tests {
             TransformTemplateOutputProducedKind::CemTree
         );
         assert_eq!(formatted.value["kind"], "cem-tree");
-        assert_eq!(formatted.value["formatterProfile"], "cem.format-tree");
+        assert_eq!(formatted.value["formatterProfile"], "compact");
         assert!(formatted.value.get("formatNodes").is_some());
         assert!(formatted.value.get("colored").is_none());
         assert!(formatted.value.get("colorNodes").is_none());
@@ -10424,6 +10429,106 @@ mod tests {
     }
 
     #[test]
+    fn conversion_output_pipeline_applies_literal_baseline_formatter_profiles() {
+        let mut pretty_pipeline = direct_cem_output_pipeline();
+        pretty_pipeline.cemt_options.formatter_profile = Some("pretty".to_owned());
+        pretty_pipeline.cemt_insertion_context.formatter_profile = Some("pretty".to_owned());
+        pretty_pipeline.writer_insertion_context.formatter_profile = Some("pretty".to_owned());
+        let pretty_execution = execute_conversion_output_pipeline(
+            &pretty_pipeline,
+            serde_json::json!({
+                "kind": "element",
+                "name": "card",
+                "children": [
+                    {"kind": "element", "name": "title", "children": [{"kind": "text", "value": "Ready"}]},
+                    {"kind": "element", "name": "body", "children": [{"kind": "text", "value": "Now"}]}
+                ]
+            }),
+            None,
+            Vec::new(),
+            "test-pretty-cem-output",
+            Some("pretty-dom"),
+            Some("converter.cemt"),
+        );
+
+        assert!(
+            pretty_execution.diagnostics.is_empty(),
+            "{:?}",
+            pretty_execution.diagnostics
+        );
+        let pretty_formatted = pretty_execution
+            .formatted_cem_tree
+            .as_ref()
+            .expect("pretty formatted tree");
+        assert_eq!(pretty_formatted.value["formatterProfile"], "pretty");
+        assert_eq!(
+            pretty_formatted.value["nodes"][0]["formatLayout"]["value"],
+            "block"
+        );
+        let pretty_output = pretty_execution
+            .output
+            .as_ref()
+            .and_then(Value::as_str)
+            .expect("pretty writer output");
+        assert!(pretty_output.contains("\n  {title"));
+
+        let mut tabular_pipeline = direct_cem_output_pipeline();
+        tabular_pipeline.cemt_options.formatter_profile = Some("tabular".to_owned());
+        tabular_pipeline.cemt_insertion_context.formatter_profile = Some("tabular".to_owned());
+        tabular_pipeline.writer_insertion_context.formatter_profile = Some("tabular".to_owned());
+        let tabular_execution = execute_conversion_output_pipeline(
+            &tabular_pipeline,
+            serde_json::json!({
+                "kind": "element",
+                "name": "card",
+                "attributes": [
+                    {"kind": "attribute", "name": "tone", "value": "info"},
+                    {"kind": "attribute", "name": "size", "value": "lg"}
+                ],
+                "children": [{"kind": "text", "value": "Ready"}]
+            }),
+            None,
+            Vec::new(),
+            "test-tabular-cem-output",
+            Some("tabular-dom"),
+            Some("converter.cemt"),
+        );
+
+        assert!(
+            tabular_execution.diagnostics.is_empty(),
+            "{:?}",
+            tabular_execution.diagnostics
+        );
+        let tabular_formatted = tabular_execution
+            .formatted_cem_tree
+            .as_ref()
+            .expect("tabular formatted tree");
+        assert_eq!(tabular_formatted.value["formatterProfile"], "tabular");
+        assert_eq!(
+            tabular_formatted.value["nodes"][0]["formatBeforeAttributes"][0]["value"],
+            "\n"
+        );
+        assert_eq!(
+            tabular_formatted.value["nodes"][0]["formatBeforeAttributes"][1]["value"],
+            "  "
+        );
+        assert_eq!(
+            tabular_formatted.value["nodes"][0]["formatBetweenAttributes"][0]["formatterRole"],
+            "formatter.attribute-spacing"
+        );
+        assert_eq!(
+            tabular_formatted.value["nodes"][0]["formatBetweenAttributes"][1]["formatterRole"],
+            "formatter.attribute-indent"
+        );
+        let tabular_output = tabular_execution
+            .output
+            .as_ref()
+            .and_then(Value::as_str)
+            .expect("tabular writer output");
+        assert!(tabular_output.contains("{card\n  @tone=info\n  @size=lg"));
+    }
+
+    #[test]
     fn conversion_output_pipeline_reads_cemt_artifacts_through_environment_reader() {
         let schema_registry = SchemaRegistry::with_builtin_schemas();
         let mut conversion_registry = ConversionRegistry::new();
@@ -10444,7 +10549,7 @@ mod tests {
             target_category: Some("cem-tree".to_owned()),
             function_name: Some("cem.format-tree".to_owned()),
             function_profile: None,
-            formatter_profile: Some("cem.format-tree".to_owned()),
+            formatter_profile: Some("compact".to_owned()),
             color_profile: None,
             generated: false,
         });
@@ -10459,7 +10564,7 @@ mod tests {
             target_category: Some("cem-tree".to_owned()),
             function_name: Some("cem.format-tree.apply-stage".to_owned()),
             function_profile: Some("cem.format-tree".to_owned()),
-            formatter_profile: Some("cem.format-tree".to_owned()),
+            formatter_profile: Some("compact".to_owned()),
             color_profile: None,
             generated: false,
         });
@@ -10609,7 +10714,7 @@ mod tests {
             target_category: Some("cem-tree".to_owned()),
             function_name: Some("cem.format-tree".to_owned()),
             function_profile: None,
-            formatter_profile: Some("cem.format-tree".to_owned()),
+            formatter_profile: Some("compact".to_owned()),
             color_profile: None,
             generated: false,
         });
@@ -11101,7 +11206,7 @@ mod tests {
             CEM_ML_SCHEMA_URI,
             "cem-tree",
         );
-        let formatter_profile = "cem.format-tree";
+        let formatter_profile = "compact";
         let color_profile = "classes";
         let schema_registry = SchemaRegistry::with_builtin_schemas();
         let package_id = conversion_package_id_for_encoding_target(&schema_registry, &target)
@@ -11267,7 +11372,7 @@ mod tests {
         );
         assert_eq!(
             canonical_formatter_helper.function_profile.as_deref(),
-            Some(formatter_profile)
+            Some("cem.format-tree")
         );
         assert_eq!(
             canonical_formatter_helper.formatter_profile.as_deref(),
@@ -11786,8 +11891,8 @@ mod tests {
             CEM_ML_SCHEMA_URI,
             "cem-tree",
         );
-        let stage = cem_tree_format_cemt_stage(&target, Some("cem.format-tree"))
-            .expect("CEM tree formatter stage");
+        let stage =
+            cem_tree_format_cemt_stage(&target, Some("compact")).expect("CEM tree formatter stage");
         let response =
             parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
                 template: TemplateInput {
@@ -12163,7 +12268,7 @@ mod tests {
                 CEM_ML_SCHEMA_URI,
                 "cem-tree",
             ),
-            stage_profile: Some("cem.format-tree".to_owned()),
+            stage_profile: Some("compact".to_owned()),
             template_uri: "builtin:cem.format-tree.direct.cemt".to_owned(),
             template_bytes: r#"@doc cem-ml 1
 @ns transform = "https://cem.dev/ns/transform/cem/1"
@@ -12189,20 +12294,20 @@ mod tests {
                 category: "cem-tree",
                 mode: "document",
                 canonical: true,
-                formatterProfile: "cem.format-tree",
+                formatterProfile: "compact",
                 formatNodes: [
                     {
                         kind: "format-marker",
                         name: "cem.format-tree",
                         formatterRole: "formatter.boundary",
-                        formatterProfile: "cem.format-tree"
+                        formatterProfile: "compact"
                     },
                     {
                         kind: "format-decision",
                         name: "layout",
                         formatterRole: "formatter.layout",
                         value: "direct-cemt",
-                        formatterProfile: "cem.format-tree"
+                        formatterProfile: "compact"
                     }
                 ],
                 nodes: [{
@@ -12229,9 +12334,7 @@ mod tests {
             "children": [{"kind": "text", "value": "Ready"}]
         });
         let mut registry = TransformTemplateOutputFunctionRegistry::new();
-        registry.register(conversion_cem_tree_format_function_descriptor(
-            "cem.format-tree",
-        ));
+        registry.register(conversion_cem_tree_format_function_descriptor("compact"));
         let request = TransformTemplateEncodeBindingRequest::new(
             subject.clone(),
             TransformTemplateEncodingTarget::new(
@@ -12264,7 +12367,7 @@ mod tests {
             }
         );
         assert_eq!(formatted["kind"], "cem-tree");
-        assert_eq!(formatted["formatterProfile"], "cem.format-tree");
+        assert_eq!(formatted["formatterProfile"], "compact");
         assert_eq!(formatted["formatNodes"][0]["name"], "cem.format-tree");
         assert_eq!(
             formatted["formatNodes"][1]["formatterRole"],
@@ -12294,7 +12397,7 @@ mod tests {
                 CEM_ML_SCHEMA_URI,
                 "cem-tree",
             ),
-            stage_profile: Some("cem.format-tree".to_owned()),
+            stage_profile: Some("compact".to_owned()),
             template_uri: "builtin:cem.format-tree.no-body.cemt".to_owned(),
             template_bytes: r#"@doc cem-ml 1
 @ns transform = "https://cem.dev/ns/transform/cem/1"
@@ -12365,7 +12468,7 @@ mod tests {
                 CEM_ML_SCHEMA_URI,
                 "cem-tree",
             ),
-            stage_profile: Some("cem.format-tree".to_owned()),
+            stage_profile: Some("compact".to_owned()),
             template_uri: "builtin:cem.format-tree.encode-facade.cemt".to_owned(),
             template_bytes: r#"@doc cem-ml 1
 @ns transform = "https://cem.dev/ns/transform/cem/1"
@@ -12599,20 +12702,20 @@ mod tests {
             "category": "cem-tree",
             "mode": "document",
             "canonical": true,
-            "formatterProfile": "cem.format-tree",
+            "formatterProfile": "compact",
             "formatNodes": [
                 {
                     "kind": "format-marker",
                     "name": "cem.format-tree",
                     "formatterRole": "formatter.boundary",
-                    "formatterProfile": "cem.format-tree"
+                    "formatterProfile": "compact"
                 },
                 {
                     "kind": "format-decision",
                     "name": "layout",
                     "formatterRole": "formatter.layout",
                     "value": "direct-cemt",
-                    "formatterProfile": "cem.format-tree"
+                    "formatterProfile": "compact"
                 }
             ],
             "nodes": [{

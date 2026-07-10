@@ -3560,10 +3560,10 @@ fn transform_template_canonical_formatter_profile_selector(
             _ => None,
         },
         TransformTemplateTargetSyntaxKind::Cemt => match selector {
-            "format-tree" | "cem.format-tree" => Some("cem.format-tree"),
-            "pretty" | "cem.pretty" => Some("cem.pretty"),
-            "canonical" | "cem.canonical" => Some("cem.canonical"),
-            "preserve" | "cem.preserve" => Some("cem.preserve"),
+            "compact" | "format-tree" | "cem.format-tree" | "canonical" => Some("compact"),
+            "pretty" => Some("pretty"),
+            "tabular" => Some("tabular"),
+            "preserve" => Some("preserve"),
             _ => None,
         },
         _ => None,
@@ -19224,7 +19224,7 @@ mod tests {
             TransformTemplateOutputProducedKind::CemTree,
             target.clone(),
         );
-        identity.formatter_profile = Some("cem.format-tree".to_owned());
+        identity.formatter_profile = Some("compact".to_owned());
         identity.color_profile = Some("css-custom-properties".to_owned());
         identity.mode = TransformTemplateEncodedArtifactMode::Fragment;
         identity.canonical = true;
@@ -21885,7 +21885,7 @@ mod tests {
                 "category": "cem-tree",
                 "mode": "fragment",
                 "canonical": true,
-                "formatterProfile": "cem.format-tree",
+                "formatterProfile": "compact",
                 "formatNodes": [],
                 "nodes": [{
                     "kind": "element",
@@ -21941,7 +21941,7 @@ mod tests {
                 "category": "cem-tree",
                 "mode": "fragment",
                 "canonical": true,
-                "formatterProfile": "cem.format-tree",
+                "formatterProfile": "compact",
                 "formatNodes": [],
                 "colored": true,
                 "colorProfile": "classes",
@@ -24879,14 +24879,14 @@ mod tests {
         assert!(schema_error.contains(&format!("expected schema `{CEM_TRANSFORM_SCHEMA_URI}`")));
 
         let mut unsupported_formatter = cem_binding.clone();
-        unsupported_formatter.options.formatter = Some("cem.pretty".to_owned());
+        unsupported_formatter.options.formatter = Some("pretty".to_owned());
         let formatter_error = registry
             .encode(
                 &unsupported_formatter,
                 &Value::String("{element @name=\"note\"}".to_owned()),
             )
             .expect_err("unsupported CEM source formatter is rejected");
-        assert!(formatter_error.contains("unsupported CEM source formatter `cem.pretty`"));
+        assert!(formatter_error.contains("unsupported CEM source formatter `pretty`"));
     }
 
     #[test]
@@ -25870,7 +25870,7 @@ mod tests {
         );
         assert_eq!(
             binding.identity.formatter_profile.as_deref(),
-            Some("cem.format-tree")
+            Some("compact")
         );
         assert!(binding.identity.canonical);
 
@@ -25879,7 +25879,7 @@ mod tests {
             .expect("CEM tree formatter runs");
         assert_eq!(formatted["kind"], "cem-tree");
         assert_eq!(formatted["contentType"], CEM_ML_CONTENT_TYPE);
-        assert_eq!(formatted["formatterProfile"], "cem.format-tree");
+        assert_eq!(formatted["formatterProfile"], "compact");
         assert_eq!(formatted["formatNodes"][0]["kind"], "format-marker");
         assert_eq!(formatted["formatNodes"][0]["name"], "cem.format-tree");
         assert_eq!(
@@ -25887,10 +25887,7 @@ mod tests {
             "formatter.boundary"
         );
         assert_eq!(formatted["formatNodes"][0]["colorRole"], "source.gutter");
-        assert_eq!(
-            formatted["formatNodes"][0]["formatterProfile"],
-            "cem.format-tree"
-        );
+        assert_eq!(formatted["formatNodes"][0]["formatterProfile"], "compact");
         assert_cem_tree_source_map_current_transform(
             &formatted["formatNodes"][0]["sourceMap"],
             |transform| {
@@ -26074,7 +26071,7 @@ mod tests {
                 .expect("native formatter fallback envelope helper runs");
         assert_eq!(envelope["kind"], "cem-tree");
         assert_eq!(envelope["canonical"], true);
-        assert_eq!(envelope["formatterProfile"], "cem.format-tree");
+        assert_eq!(envelope["formatterProfile"], "compact");
         assert_eq!(envelope["formatNodes"], format_nodes);
         assert_eq!(envelope["nodes"], formatted_nodes);
         assert_eq!(
@@ -26850,7 +26847,7 @@ mod tests {
             TransformTemplateEncodedArtifactInsertionContext::new(content_type, schema)
                 .with_category(category)
                 .with_produces(TransformTemplateOutputProducedKind::Text);
-        writer_context.formatter_profile = Some("cem.format-tree".to_owned());
+        writer_context.formatter_profile = Some("compact".to_owned());
         writer_context.color_profile = Some(profile.to_owned());
 
         let writer_artifact =
@@ -26921,7 +26918,7 @@ mod tests {
             "contentType": CEM_ML_CONTENT_TYPE,
             "schema": CEM_ML_SCHEMA_URI,
             "category": "cem-tree",
-            "formatterProfile": "cem.format-tree",
+            "formatterProfile": "compact",
             "formatNodes": format_nodes,
             "nodes": [{
                 "kind": "element",
@@ -26943,7 +26940,7 @@ mod tests {
         let nodes = vec![json!({ "sourceMap": source_map })];
         Value::Array(transform_template_cem_tree_format_nodes(
             &nodes,
-            Some("cem.format-tree"),
+            Some("compact"),
             &TransformTemplateEncodeOptions::default(),
         ))
     }
@@ -29233,7 +29230,7 @@ mod tests {
         assert_eq!(artifact.identity.target.category, "cem-tree");
         assert_eq!(
             artifact.identity.formatter_profile.as_deref(),
-            Some("cem.format-tree")
+            Some("compact")
         );
         assert_eq!(
             artifact.identity.color_profile.as_deref(),
@@ -30385,7 +30382,7 @@ mod tests {
             TransformTemplateOutputProducedKind::CemTree,
             target,
         );
-        identity.formatter_profile = Some("cem.format-tree".to_owned());
+        identity.formatter_profile = Some("compact".to_owned());
         identity.color_profile = Some("css-custom-properties".to_owned());
 
         let mut missing_writer_nodes =

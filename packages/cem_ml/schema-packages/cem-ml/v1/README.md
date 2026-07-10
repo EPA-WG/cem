@@ -72,9 +72,11 @@ color profiles.
 The baseline package-frame selectors are declared in `package.cem`:
 `compact`, `pretty`, and `tabular` select the canonical `cem.format-tree`
 formatter asset and matching helper asset; `terminal`, `html`, and `md` select
-the canonical `cem.color-tree` colorizer asset. The current formatter aliases
-share the same CEMT body while the distinct pretty/tabular layout rules are
-implemented. The `html` colorizer selector maps to the class-based HTML mode,
+the canonical `cem.color-tree` colorizer asset. The formatter profiles use one
+CEMT body with profile-aware layout: `compact` keeps minimal deterministic
+spacing, `pretty` expands non-text child groups into block layout, and `tabular`
+also lays attributes out vertically with formatter-owned line-ending and indent
+nodes. The `html` colorizer selector maps to the class-based HTML mode,
 `terminal` records terminal output metadata without HTML writer attributes, and
 `md` records Markdown output metadata without HTML writer attributes.
 

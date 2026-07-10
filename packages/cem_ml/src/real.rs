@@ -121,6 +121,14 @@ fn trimmed_scope_value(value: Option<&String>) -> Option<&str> {
         .filter(|value| !value.is_empty())
 }
 
+fn canonical_cemt_formatter_profile_selector(selector: &str) -> String {
+    match selector.trim() {
+        "compact" | "pretty" | "tabular" => selector.trim().to_owned(),
+        "format-tree" | "cem.format-tree" | "canonical" => "compact".to_owned(),
+        other => other.to_owned(),
+    }
+}
+
 fn apply_cemt_output_scope_overrides(
     pipeline: &mut ConversionOutputPipeline,
     target_scope: &ScopeConfig,
@@ -131,9 +139,10 @@ fn apply_cemt_output_scope_overrides(
     let formatter_profile = trimmed_scope_value(target_scope.cemt_formatter_profile.as_ref())
         .or_else(|| trimmed_scope_value(target_scope.cemt_formatter.as_ref()));
     if let Some(formatter_profile) = formatter_profile {
-        pipeline.cemt_options.formatter_profile = Some(formatter_profile.to_owned());
-        pipeline.cemt_insertion_context.formatter_profile = Some(formatter_profile.to_owned());
-        pipeline.writer_insertion_context.formatter_profile = Some(formatter_profile.to_owned());
+        let formatter_profile = canonical_cemt_formatter_profile_selector(formatter_profile);
+        pipeline.cemt_options.formatter_profile = Some(formatter_profile.clone());
+        pipeline.cemt_insertion_context.formatter_profile = Some(formatter_profile.clone());
+        pipeline.writer_insertion_context.formatter_profile = Some(formatter_profile);
     }
     if let Some(colorizer) = trimmed_scope_value(target_scope.cemt_colorizer.as_ref()) {
         pipeline.cemt_options.colorizer = Some(colorizer.to_owned());
@@ -10087,7 +10096,7 @@ mod tests {
         @target-schema="https://cem.dev/ns/cem-ml/1"
         @target-category="wrong-tree"
         @function-name="demo.format"
-        @formatter-profile="cem.format-tree"
+        @formatter-profile="compact"
     }
 }
 "#,
@@ -11057,13 +11066,13 @@ mod tests {
         assert_eq!(resp.primary, Value::Null);
         assert!(
             resp.diagnostics.iter().any(|diag| {
-                diag.code == CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE
+                diag.code
+                    == crate::transform_template::TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_VALUE_TYPE_CODE
                     && diag.severity.is_hard_violation()
-                    && diag.message.contains("CEMT formatter")
-                    && diag.message.contains("cem.format-tree.build-envelope")
                     && diag
                         .message
-                        .contains("argument `subject` could not be resolved")
+                        .contains("expected object with `kind: \"cem-tree\"`")
+                    && diag.message.contains("got `root` string")
             }),
             "{:?}",
             resp.diagnostics
@@ -11173,7 +11182,7 @@ mod tests {
             target_category: Some("cem-tree".to_owned()),
             function_name: Some("cem.format-tree".to_owned()),
             function_profile: None,
-            formatter_profile: Some("cem.format-tree".to_owned()),
+            formatter_profile: Some("compact".to_owned()),
             color_profile: None,
             generated: false,
         });
@@ -11188,7 +11197,7 @@ mod tests {
             target_category: Some("cem-tree".to_owned()),
             function_name: Some("cem.format-tree.apply-stage".to_owned()),
             function_profile: Some("cem.format-tree".to_owned()),
-            formatter_profile: Some("cem.format-tree".to_owned()),
+            formatter_profile: Some("compact".to_owned()),
             color_profile: None,
             generated: false,
         });
@@ -11306,7 +11315,7 @@ mod tests {
         @target-schema="https://cem.dev/ns/cem-ml/1"
         @target-category="cem-tree"
         @function-name="cem.format-tree"
-        @formatter-profile="cem.format-tree"
+        @formatter-profile="compact"
     }
     {artifact
         @kind="formatter-helper"
@@ -11318,7 +11327,7 @@ mod tests {
         @target-category="cem-tree"
         @function-name="cem.format-tree.apply-stage"
         @function-profile="cem.format-tree"
-        @formatter-profile="cem.format-tree"
+        @formatter-profile="compact"
     }
     {artifact
         @kind="colorizer"
@@ -11456,7 +11465,7 @@ mod tests {
         @target-schema="https://cem.dev/ns/cem-ml/1"
         @target-category="cem-tree"
         @function-name="cem.format-tree"
-        @formatter-profile="cem.format-tree"
+        @formatter-profile="compact"
     }
     {artifact
         @kind="colorizer"
@@ -11496,19 +11505,19 @@ mod tests {
                 category: "cem-tree",
                 mode: "fragment",
                 canonical: true,
-                formatterProfile: "cem.format-tree",
+                formatterProfile: "compact",
                 formatNodes: [
                     {
                         kind: "format-marker",
                         name: "cem.format-tree",
                         formatterRole: "formatter.boundary",
-                        formatterProfile: "cem.format-tree"
+                        formatterProfile: "compact"
                     },
                     {
                         kind: "format-decision",
                         name: "external-formatter",
                         formatterRole: "formatter.external-override",
-                        formatterProfile: "cem.format-tree"
+                        formatterProfile: "compact"
                     }
                 ],
                 nodes: [{

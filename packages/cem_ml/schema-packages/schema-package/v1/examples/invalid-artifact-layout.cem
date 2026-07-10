@@ -21,7 +21,7 @@
         @target-schema="https://cem.dev/ns/cem-ml/1"
         @target-category="cem-tree"
         @function-name="bad.layout.format"
-        @formatter-profile="cem.format-tree"
+        @formatter-profile="compact"
     }
 
     {artifact

@@ -19,6 +19,6 @@
         @target-schema="https://cem.dev/ns/cem-ml/1"
         @target-category="wrong-tree"
         @function-name="bad.format"
-        @formatter-profile="cem.format-tree"
+        @formatter-profile="compact"
     }
 }

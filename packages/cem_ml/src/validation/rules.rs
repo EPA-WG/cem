@@ -3433,7 +3433,7 @@ mod tests {
                     @target-schema="https://cem.dev/ns/cem-ml/1"
                     @target-category="wrong-tree"
                     @function-name="demo.format"
-                    @formatter-profile="cem.format-tree"
+                    @formatter-profile="compact"
                 }
             }"#,
             Some(CEM_SCHEMA_PACKAGE_URI),
@@ -3512,7 +3512,7 @@ mod tests {
                     @target-schema="https://cem.dev/ns/cem-ml/1"
                     @target-category="cem-tree"
                     @function-name="demo.format"
-                    @formatter-profile="cem.format-tree"
+                    @formatter-profile="compact"
                 }
                 {artifact
                     @kind="formatter-helper"
@@ -3523,7 +3523,7 @@ mod tests {
                     @target-schema="https://cem.dev/ns/cem-ml/1"
                     @target-category="cem-tree"
                     @function-name="demo.format"
-                    @formatter-profile="cem.format-tree"
+                    @formatter-profile="compact"
                 }
                 {artifact
                     @kind="colorizer"
@@ -3757,7 +3757,7 @@ mod tests {
                     @target-schema="https://cem.dev/ns/cem-ml/1"
                     @target-category="cem-tree"
                     @function-name="demo.format"
-                    @formatter-profile="cem.format-tree"
+                    @formatter-profile="compact"
                 }
             }"#,
             Some(CEM_SCHEMA_PACKAGE_URI),
@@ -3818,7 +3818,7 @@ mod tests {
                     @target-schema="https://cem.dev/ns/cem-ml/1"
                     @target-category="cem-tree"
                     @function-name="demo.format"
-                    @formatter-profile="cem.format-tree"
+                    @formatter-profile="compact"
                 }
             }"#,
             Some(CEM_SCHEMA_PACKAGE_URI),
@@ -3875,7 +3875,7 @@ mod tests {
                     @target-schema="https://cem.dev/ns/cem-ml/1"
                     @target-category="cem-tree"
                     @function-name="demo.missing"
-                    @formatter-profile="cem.format-tree"
+                    @formatter-profile="compact"
                 }
             }"#,
             Some(CEM_SCHEMA_PACKAGE_URI),

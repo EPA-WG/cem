@@ -240,17 +240,16 @@ history belongs in git history and the feature-specific docs linked below.
         colorizer asset folders are checked against `package.cem`, and
         `cem-ml/v1` declares runtime-selectable baseline formatter profiles
         `compact`, `pretty`, `tabular` plus colorizer profiles `terminal`,
-        `html`, and `md` over the canonical CEMT assets. Remaining work is to
-        implement distinct pretty/tabular formatter behavior, deeper terminal/
-        Markdown color output behavior, and then enforce profile completeness
-        across each package as those profiles are added.
+        `html`, and `md` over the canonical CEMT assets. Remaining work is
+        deeper terminal/Markdown color output behavior and then enforcing
+        profile completeness across each package as those profiles are added.
   - [ ] Require example loading to resolve the declared content type plus schema
         URL and validate the source bytes against that schema; filename
         extension inference is only a fallback hint.
   - [ ] Expand example coverage from representative constraint-kind coverage to
         finer diagnostic coverage, starting with schema-package source
         read/invalid cases and artifact source/parse/function-missing cases.
-  - [ ] Implement reusable baseline formatter profiles:
+  - [x] Implement reusable baseline formatter profiles:
         `compact` as default, `pretty`, and `tabular`; each profile is a CEMT
         transform that preserves source-map ranges.
   - [ ] Implement reusable baseline colorizer profiles: `terminal`, `html`,
@@ -274,8 +273,8 @@ Bootstrap and self-hosting packages:
 - [ ] `cem-ml/v1` (`application/cem`; aliases: `text/cem-ml`, `text/cem`,
       `application/cem+xml`). Baseline formatter/colorizer selectors are
       declared and runtime-selectable over canonical CEMT assets; remaining
-      work is distinct pretty/tabular layout semantics, deeper terminal/
-      Markdown color output semantics, and example validation expansion.
+      work is deeper terminal/Markdown color output semantics and example
+      validation expansion.
 - [ ] `schema/v1` (`application/vnd.cem.schema+cem`).
 - [ ] `schema-package/v1` (`application/vnd.cem.schema-package+cem`).
 - [ ] `cem-native-template/v1` (`application/vnd.cem.template+cem`; CEM source
