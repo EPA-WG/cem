@@ -9252,11 +9252,54 @@ enum TransformTemplateCemTreeWriterSyntax {
 struct TransformTemplateCemTreeRenderedText {
     text: String,
     output_spans: Vec<OutputSpan>,
+    terminal_color_profile: Option<TransformTemplateColorOutputProfile>,
 }
 
 impl TransformTemplateCemTreeRenderedText {
+    fn with_terminal_color_profile(
+        terminal_color_profile: Option<TransformTemplateColorOutputProfile>,
+    ) -> Self {
+        Self {
+            terminal_color_profile,
+            ..Self::default()
+        }
+    }
+
     fn push_unmapped(&mut self, text: &str) {
         self.text.push_str(text);
+    }
+
+    fn push_colored_mapped(
+        &mut self,
+        text: &str,
+        source_map: Option<&SourceMapStack>,
+        role: Option<&str>,
+    ) {
+        if text.is_empty() {
+            return;
+        }
+        let sgr = self
+            .terminal_color_profile
+            .as_ref()
+            .filter(|profile| !profile.no_color)
+            .and_then(|profile| {
+                let role = role?;
+                profile
+                    .supports_role(role)
+                    .then(|| {
+                        transform_template_terminal_sgr_for_role(role, profile.terminal_capability)
+                    })
+                    .flatten()
+            })
+            .map(str::to_owned);
+
+        if let Some(sgr) = sgr {
+            self.push_unmapped(&format!("\u{1b}[{sgr}m"));
+            self.push_mapped(text, source_map);
+            self.push_unmapped("\u{1b}[0m");
+        } else {
+            self.push_mapped(text, source_map);
+        }
     }
 
     fn push_mapped(&mut self, text: &str, source_map: Option<&SourceMapStack>) {
@@ -9284,6 +9327,16 @@ impl TransformTemplateCemTreeRenderedText {
             origin,
         });
     }
+
+    fn finish_terminal_color_boundary(&mut self) {
+        if self.terminal_color_profile.as_ref().is_some_and(|profile| {
+            profile.reset_at_artifact_boundaries
+                && profile.terminal_capability != TransformTemplateTerminalColorCapability::None
+                && !self.text.is_empty()
+        }) {
+            self.push_unmapped("\u{1b}[0m");
+        }
+    }
 }
 
 fn transform_template_cem_tree_value_to_rendered_text(
@@ -9291,16 +9344,24 @@ fn transform_template_cem_tree_value_to_rendered_text(
     writer_boundary_context: &TransformTemplateEncodedArtifactInsertionContext,
 ) -> Result<TransformTemplateCemTreeRenderedText, String> {
     let syntax = transform_template_cem_tree_writer_syntax(writer_boundary_context);
+    let terminal_color_profile = transform_template_cem_tree_writer_terminal_color_profile(
+        value,
+        writer_boundary_context,
+        syntax,
+    );
     let object = value
         .as_object()
         .ok_or_else(|| "CEM tree writer expected object value".to_owned())?;
-    let mut rendered = TransformTemplateCemTreeRenderedText::default();
+    let mut rendered =
+        TransformTemplateCemTreeRenderedText::with_terminal_color_profile(terminal_color_profile);
     if let Some(nodes) = object.get("nodes").and_then(Value::as_array) {
         transform_template_render_cem_tree_nodes(nodes, syntax, &mut rendered)?;
+        rendered.finish_terminal_color_boundary();
         return Ok(rendered);
     }
     if let Some(node) = object.get("node") {
         transform_template_render_cem_tree_node(node, syntax, &mut rendered)?;
+        rendered.finish_terminal_color_boundary();
         return Ok(rendered);
     }
     if let Some(root) = object.get("root") {
@@ -9318,6 +9379,7 @@ fn transform_template_cem_tree_value_to_rendered_text(
                 ))
             }
         }
+        rendered.finish_terminal_color_boundary();
         return Ok(rendered);
     }
     Err("CEM tree writer expected `nodes`, `node`, or `root`".to_owned())
@@ -9396,6 +9458,7 @@ fn transform_template_render_cem_tree_object_node(
         return transform_template_render_cem_tree_directive(fields, rendered);
     }
     let source_map = transform_template_cem_tree_node_source_map(fields);
+    let color_role = transform_template_cem_tree_render_color_role(fields);
     match kind {
         "text" | "content" | "string" => {
             let text = fields
@@ -9406,16 +9469,18 @@ fn transform_template_render_cem_tree_object_node(
                 .ok_or_else(|| {
                     "CEM text node missing string `value`, `text`, or `data`".to_owned()
                 })?;
-            rendered.push_mapped(
+            rendered.push_colored_mapped(
                 &transform_template_encode_cem_content_text(text)?,
                 source_map.as_ref(),
+                color_role.as_deref(),
             );
             Ok(())
         }
         "whitespace" => {
-            rendered.push_mapped(
+            rendered.push_colored_mapped(
                 transform_template_cem_tree_node_data(fields),
                 source_map.as_ref(),
+                color_role.as_deref(),
             );
             Ok(())
         }
@@ -9427,13 +9492,14 @@ fn transform_template_render_cem_tree_object_node(
                     "CEM comment value"
                 )?
             );
-            rendered.push_mapped(&text, source_map.as_ref());
+            rendered.push_colored_mapped(&text, source_map.as_ref(), color_role.as_deref());
             Ok(())
         }
         "attribute" | "attr" => {
-            rendered.push_mapped(
+            rendered.push_colored_mapped(
                 &transform_template_cem_tree_attribute_to_text(fields)?,
                 source_map.as_ref(),
+                color_role.as_deref(),
             );
             Ok(())
         }
@@ -9579,11 +9645,13 @@ fn transform_template_render_cem_tree_element(
     let writer_source_map = transform_template_cem_tree_color_wrapper_source_map(fields)
         .or_else(|| transform_template_cem_tree_writer_attribute_nodes_source_map(fields));
     let tag_source_map = writer_source_map.as_ref().or(node_source_map.as_ref());
-    let attributes = transform_template_cem_tree_attributes_to_text(fields.get("attributes"))?;
+    let color_role = transform_template_cem_tree_render_color_role(fields);
+    let attributes =
+        transform_template_cem_tree_attributes_to_text_entries(fields.get("attributes"))?;
     let has_children = transform_template_cem_tree_has_children(fields);
 
-    rendered.push_mapped("{", tag_source_map);
-    rendered.push_mapped(&name, tag_source_map);
+    rendered.push_colored_mapped("{", tag_source_map, color_role.as_deref());
+    rendered.push_colored_mapped(&name, tag_source_map, color_role.as_deref());
     if !attributes.is_empty() {
         for (index, attribute) in attributes.iter().enumerate() {
             if index == 0 {
@@ -9607,7 +9675,11 @@ fn transform_template_render_cem_tree_element(
                     rendered.push_mapped(" ", tag_source_map);
                 }
             }
-            rendered.push_mapped(attribute, tag_source_map);
+            rendered.push_colored_mapped(
+                &attribute.text,
+                attribute.source_map.as_ref().or(tag_source_map),
+                attribute.color_role.as_deref().or(Some("syntax.attribute")),
+            );
         }
     }
     if has_children {
@@ -9625,7 +9697,7 @@ fn transform_template_render_cem_tree_element(
             transform_template_render_cem_tree_format_value(format_before_close, rendered)?;
         }
     }
-    rendered.push_mapped("}", tag_source_map);
+    rendered.push_colored_mapped("}", tag_source_map, color_role.as_deref());
     Ok(())
 }
 
@@ -9638,12 +9710,13 @@ fn transform_template_render_cem_tree_directive(
     let name = raw_name.strip_prefix('@').unwrap_or(raw_name).trim();
     let name = transform_template_encode_cem_name(name)?;
     let source_map = transform_template_cem_tree_node_source_map(fields);
-    rendered.push_mapped("@", source_map.as_ref());
-    rendered.push_mapped(&name, source_map.as_ref());
+    let color_role = transform_template_cem_tree_render_color_role(fields);
+    rendered.push_colored_mapped("@", source_map.as_ref(), color_role.as_deref());
+    rendered.push_colored_mapped(&name, source_map.as_ref(), color_role.as_deref());
     let body = transform_template_cem_tree_directive_body(fields);
     if !body.is_empty() {
         rendered.push_mapped(" ", source_map.as_ref());
-        rendered.push_mapped(&body, source_map.as_ref());
+        rendered.push_colored_mapped(&body, source_map.as_ref(), color_role.as_deref());
     }
     Ok(())
 }
@@ -9936,6 +10009,44 @@ fn transform_template_cem_tree_writer_syntax(
     }
 }
 
+fn transform_template_cem_tree_writer_terminal_color_profile(
+    value: &Value,
+    writer_boundary_context: &TransformTemplateEncodedArtifactInsertionContext,
+    syntax: TransformTemplateCemTreeWriterSyntax,
+) -> Option<TransformTemplateColorOutputProfile> {
+    if syntax != TransformTemplateCemTreeWriterSyntax::Cem {
+        return None;
+    }
+    if trimmed_value_string_field(value, "colorOutput").is_some_and(|output| output != "terminal") {
+        return None;
+    }
+    let selector = trimmed_optional_str(writer_boundary_context.color_capability.as_deref())
+        .or_else(|| trimmed_value_string_field(value, "colorCapability"))
+        .or_else(|| trimmed_optional_str(writer_boundary_context.color_profile.as_deref()))
+        .or_else(|| trimmed_value_string_field(value, "colorProfile"))?;
+    let profile = TransformTemplateColorOutputProfile::terminal_from_selector(selector).ok()?;
+    (!profile.no_color
+        && profile.output == TransformTemplateColorOutputKind::Terminal
+        && profile.terminal_capability != TransformTemplateTerminalColorCapability::None)
+        .then_some(profile)
+}
+
+fn transform_template_cem_tree_render_color_role(
+    fields: &serde_json::Map<String, Value>,
+) -> Option<String> {
+    fields
+        .get("colorRole")
+        .or_else(|| {
+            fields
+                .get("style")
+                .and_then(Value::as_object)
+                .and_then(|style| style.get("colorRole"))
+        })
+        .and_then(Value::as_str)
+        .map(transform_template_canonical_color_role)
+        .filter(|role| transform_template_is_color_role(role))
+}
+
 fn transform_template_cem_tree_markup_name(
     fields: &serde_json::Map<String, Value>,
 ) -> Result<String, String> {
@@ -9984,9 +10095,15 @@ fn transform_template_cem_tree_processing_instruction_target<'a>(
         .filter(|target| !target.is_empty())
 }
 
-fn transform_template_cem_tree_attributes_to_text(
+struct TransformTemplateCemTreeTextEntry {
+    text: String,
+    source_map: Option<SourceMapStack>,
+    color_role: Option<String>,
+}
+
+fn transform_template_cem_tree_attributes_to_text_entries(
     attributes: Option<&Value>,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<TransformTemplateCemTreeTextEntry>, String> {
     let Some(attributes) = attributes else {
         return Ok(Vec::new());
     };
@@ -9994,14 +10111,18 @@ fn transform_template_cem_tree_attributes_to_text(
         Value::Array(items) => items
             .iter()
             .map(|item| {
-                item.as_object()
-                    .ok_or_else(|| {
-                        format!(
-                            "CEM tree writer expected attribute object, got {}",
-                            json_value_type_name(item)
-                        )
-                    })
-                    .and_then(transform_template_cem_tree_attribute_to_text)
+                let fields = item.as_object().ok_or_else(|| {
+                    format!(
+                        "CEM tree writer expected attribute object, got {}",
+                        json_value_type_name(item)
+                    )
+                })?;
+                Ok(TransformTemplateCemTreeTextEntry {
+                    text: transform_template_cem_tree_attribute_to_text(fields)?,
+                    source_map: transform_template_cem_tree_node_source_map(fields),
+                    color_role: transform_template_cem_tree_render_color_role(fields)
+                        .or_else(|| Some("syntax.attribute".to_owned())),
+                })
             })
             .collect(),
         Value::Object(map) => {
@@ -10009,7 +10130,14 @@ fn transform_template_cem_tree_attributes_to_text(
             keys.sort();
             keys.into_iter()
                 .map(|key| {
-                    transform_template_cem_tree_attribute_pair_to_text(key, map.get(key).unwrap())
+                    Ok(TransformTemplateCemTreeTextEntry {
+                        text: transform_template_cem_tree_attribute_pair_to_text(
+                            key,
+                            map.get(key).unwrap(),
+                        )?,
+                        source_map: None,
+                        color_role: Some("syntax.attribute".to_owned()),
+                    })
                 })
                 .collect()
         }
@@ -26970,7 +27098,12 @@ mod tests {
             CEM_ML_CONTENT_TYPE,
             CEM_ML_SCHEMA_URI,
             "cem-tree",
-            &["{card @tone=info | Ready}"],
+            &[
+                "\u{1b}[38;5;81mcard\u{1b}[0m",
+                "\u{1b}[38;5;81m@tone=info\u{1b}[0m",
+                "\u{1b}[38;5;76mReady\u{1b}[0m",
+                "\u{1b}[0m",
+            ],
         );
 
         let html = encode_colored_cem_tree_with_profile("html");
@@ -27068,6 +27201,17 @@ mod tests {
                 output.contains(expected),
                 "expected `{profile}` writer output to contain `{expected}`, got `{output}`"
             );
+        }
+        if output.contains('\u{1b}') {
+            for span in &writer_artifact.output_spans {
+                let start = span.output_range.start as usize;
+                let end = span.output_range.end() as usize;
+                assert!(
+                    !output[start..end].contains('\u{1b}'),
+                    "expected `{profile}` source-mapped output span to exclude terminal escapes, got `{}` in `{output}`",
+                    &output[start..end]
+                );
+            }
         }
     }
 

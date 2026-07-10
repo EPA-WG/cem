@@ -261,7 +261,7 @@ history belongs in git history and the feature-specific docs linked below.
     - [x] Materialize `colorOutput`, terminal `colorCapability`, and
           profile-specific per-node style metadata from the CEMT colorizer
           helper while keeping HTML writer attributes restricted to `html`.
-    - [ ] Add terminal writer rendering for capability-aware ANSI/SGR output
+    - [x] Add terminal writer rendering for capability-aware ANSI/SGR output
           from colored CEM-tree ranges.
     - [ ] Add Markdown-safe rendered color output forms for `md` without
           losing source-map ranges.

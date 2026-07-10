@@ -10576,7 +10576,12 @@ mod tests {
                 .as_ref()
                 .and_then(Value::as_str)
                 .expect("writer output");
-            assert!(output.contains("{card"));
+            if profile == "terminal" {
+                assert!(output.contains("\u{1b}[38;5;81mcard\u{1b}[0m"));
+                assert!(output.contains("\u{1b}[38;5;76mReady\u{1b}[0m"));
+            } else {
+                assert!(output.contains("{card"));
+            }
         }
 
         let mut html_pipeline = direct_html_output_pipeline();
