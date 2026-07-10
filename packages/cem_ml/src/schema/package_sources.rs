@@ -263,6 +263,10 @@ mod tests {
     use crate::parser::builder::CemAstBuilder;
     use crate::parser::document::CemDocument;
     use crate::parser::{AstNodeId, CemAstNode};
+    use crate::schema::registry::{
+        schema_package_examples_from_package_sources, SchemaPackageExampleExpectedResult,
+        CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI,
+    };
     use crate::source::{BytesSource, SourceId};
     use crate::tokenizer::cem::CemTokenizer;
     use std::collections::{BTreeMap, BTreeSet};
@@ -410,6 +414,24 @@ mod tests {
             .collect()
     }
 
+    fn top_level_example_paths(package_id: &str) -> BTreeSet<String> {
+        let root = package_root(package_id).join("examples");
+        let Ok(entries) = std::fs::read_dir(root) else {
+            return BTreeSet::new();
+        };
+        entries
+            .filter_map(Result::ok)
+            .map(|entry| entry.path())
+            .filter(|path| path.is_file())
+            .filter_map(|path| {
+                let file_name = path.file_name()?.to_str()?;
+                Some(format!(
+                    "schema-packages/{package_id}/v1/examples/{file_name}"
+                ))
+            })
+            .collect()
+    }
+
     fn artifact_profiles(
         artifacts: &[BTreeMap<String, String>],
         kind: &str,
@@ -451,6 +473,43 @@ mod tests {
             "colorizer" | "colorizer-helper" => Some("colorizers"),
             _ => None,
         }
+    }
+
+    #[test]
+    fn cem_ml_package_examples_are_manifest_indexed() {
+        let package = builtin_schema_package_source("cem-ml").expect("CEM-ML package source");
+        let examples =
+            schema_package_examples_from_package_sources(package).expect("CEM-ML examples");
+        let declared_paths = examples
+            .iter()
+            .map(|example| example.path.clone())
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(
+            declared_paths,
+            top_level_example_paths("cem-ml"),
+            "CEM-ML top-level examples must be discoverable from package.cem"
+        );
+        assert_eq!(examples.len(), 4);
+        assert!(examples
+            .iter()
+            .all(|example| example.content_type == CEM_ML_CONTENT_TYPE));
+        assert!(examples
+            .iter()
+            .all(|example| example.schema == CEM_ML_SCHEMA_URI));
+
+        let invalid = examples
+            .iter()
+            .find(|example| example.id == "invalid-unclosed-scope")
+            .expect("invalid CEM-ML example");
+        assert_eq!(
+            invalid.expected_result,
+            SchemaPackageExampleExpectedResult::Fail
+        );
+        assert_eq!(
+            invalid.expected_diagnostic_codes,
+            vec!["cem.ast.unclosed_scope".to_owned()]
+        );
     }
 
     #[test]

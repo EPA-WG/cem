@@ -283,4 +283,37 @@
         @function-profile="css-custom-properties"
         @color-profile="css-custom-properties"
     }
+
+    {example
+        @id="basic"
+        @path="examples/basic.cem"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="nested-handoff"
+        @path="examples/nested-handoff.cem"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="formatter-coloring-pipeline-package-artifacts"
+        @path="examples/formatter-coloring-pipeline.package-artifacts.fixture.cem"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="invalid-unclosed-scope"
+        @path="examples/invalid-unclosed-scope.cem"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.ast.unclosed_scope"
+    }
 }

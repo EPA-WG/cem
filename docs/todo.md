@@ -288,11 +288,13 @@ formats, then XML/markup families, then projection/debug formats.
 
 Bootstrap and self-hosting packages:
 
-- [ ] `cem-ml/v1` (`application/cem`; aliases: `text/cem-ml`, `text/cem`,
+- [x] `cem-ml/v1` (`application/cem`; aliases: `text/cem-ml`, `text/cem`,
       `application/cem+xml`). Baseline formatter/colorizer selectors are
       declared and runtime-selectable over canonical CEMT assets; terminal and
-      Markdown rendered color output preserve source-map ranges. Remaining
-      work is example validation expansion.
+      Markdown rendered color output preserve source-map ranges. Top-level
+      examples are declared from `package.cem` with source path, content type,
+      schema URL, expected result, and expected diagnostics, and catalog tests
+      guard CEM-ML example manifest drift.
 - [ ] `schema/v1` (`application/vnd.cem.schema+cem`).
 - [ ] `schema-package/v1` (`application/vnd.cem.schema-package+cem`).
 - [ ] `cem-native-template/v1` (`application/vnd.cem.template+cem`; CEM source
