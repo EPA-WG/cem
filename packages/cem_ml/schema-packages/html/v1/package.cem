@@ -17,6 +17,138 @@
     {namespace @prefix="svg" @uri="http://www.w3.org/2000/svg"}
     {namespace @prefix="mathml" @uri="http://www.w3.org/1998/Math/MathML"}
 
+    {artifact
+        @kind="formatter"
+        @path="formatters/html-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/html"
+        @target-schema="https://cem.dev/ns/data/html/1"
+        @target-category="html-document"
+        @function-name="html.format-document"
+        @formatter-profile="compact"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/html-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/html"
+        @target-schema="https://cem.dev/ns/data/html/1"
+        @target-category="html-document"
+        @function-name="html.format-document"
+        @formatter-profile="pretty"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/html-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/html"
+        @target-schema="https://cem.dev/ns/data/html/1"
+        @target-category="html-document"
+        @function-name="html.format-document"
+        @formatter-profile="tabular"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/html-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/html"
+        @target-schema="https://cem.dev/ns/data/html/1"
+        @target-category="html-document"
+        @function-name="html.color-document"
+        @color-profile="terminal"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/html-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/html"
+        @target-schema="https://cem.dev/ns/data/html/1"
+        @target-category="html-document"
+        @function-name="html.color-document"
+        @color-profile="html"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/html-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/html"
+        @target-schema="https://cem.dev/ns/data/html/1"
+        @target-category="html-document"
+        @function-name="html.color-document"
+        @color-profile="md"
+    }
+
+    {example
+        @id="basic-document"
+        @path="examples/basic-document.html"
+        @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="fragment"
+        @path="examples/fragment.html"
+        @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="svg-mathml-islands"
+        @path="examples/svg-mathml-islands.html"
+        @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="invalid-script"
+        @path="examples/invalid-script.html"
+        @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.html.script_rejected"
+    }
+
+    {example
+        @id="invalid-external-resource"
+        @path="examples/invalid-external-resource.html"
+        @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.html.external_resource_rejected"
+    }
+
+    {example
+        @id="invalid-custom-element"
+        @path="examples/invalid-custom-element.html"
+        @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.html.custom_element_name_invalid"
+    }
+
+    {example
+        @id="encoding-conflict"
+        @path="examples/encoding-conflict.html"
+        @content-type="text/html; charset=windows-1252"
+        @schema="https://cem.dev/ns/data/html/1"
+        @expected-result="pass"
+        @expected-diagnostics="cem.html.encoding_conflict"
+    }
+
     {converter
         @id="html-to-cem-dom-projection-rust"
         @implementation="rust"

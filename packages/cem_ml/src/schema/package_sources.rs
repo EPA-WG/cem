@@ -214,6 +214,16 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
         source: include_str!("../../schema-packages/css/v1/colorizers/css-color-document.cemt"),
     },
     BuiltinSchemaPackageArtifactSource {
+        package_id: "html",
+        path: "schema-packages/html/v1/formatters/html-format-document.cemt",
+        source: include_str!("../../schema-packages/html/v1/formatters/html-format-document.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "html",
+        path: "schema-packages/html/v1/colorizers/html-color-document.cemt",
+        source: include_str!("../../schema-packages/html/v1/colorizers/html-color-document.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
         package_id: "xml",
         path: "schema-packages/xml/v1/formatters/xml-format-document.cemt",
         source: include_str!("../../schema-packages/xml/v1/formatters/xml-format-document.cemt"),
@@ -385,8 +395,8 @@ mod tests {
         CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI,
         CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
         CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSS_CONTENT_TYPE,
-        CSS_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI, JSON_CONTENT_TYPE,
-        JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI,
+        CSS_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
+        JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI,
         MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
         YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
     };
@@ -1076,6 +1086,56 @@ mod tests {
     }
 
     #[test]
+    fn html_package_examples_are_manifest_indexed() {
+        let examples =
+            manifest_indexed_package_examples("html", HTML_CONTENT_TYPE, HTML_SCHEMA_URI, 7);
+
+        for (id, expected_result, expected_code) in [
+            (
+                "basic-document",
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            ("fragment", SchemaPackageExampleExpectedResult::Pass, None),
+            (
+                "svg-mathml-islands",
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "invalid-script",
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.html.script_rejected"),
+            ),
+            (
+                "invalid-external-resource",
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.html.external_resource_rejected"),
+            ),
+            (
+                "invalid-custom-element",
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.html.custom_element_name_invalid"),
+            ),
+            (
+                "encoding-conflict",
+                SchemaPackageExampleExpectedResult::Pass,
+                Some("cem.html.encoding_conflict"),
+            ),
+        ] {
+            let example = examples
+                .iter()
+                .find(|example| example.id == id)
+                .unwrap_or_else(|| panic!("HTML example `{id}`"));
+            assert_eq!(example.expected_result, expected_result);
+            let expected_codes = expected_code
+                .map(|code| vec![code.to_owned()])
+                .unwrap_or_default();
+            assert_eq!(example.expected_diagnostic_codes, expected_codes);
+        }
+    }
+
+    #[test]
     fn xml_package_examples_are_manifest_indexed() {
         let package = builtin_schema_package_source("xml").expect("package source");
         let examples =
@@ -1707,6 +1767,25 @@ mod tests {
         assert!(formatter.source.contains(r#"@category="css-document""#));
         assert!(colorizer.source.contains(r#"@name="css.color-document""#));
         assert!(colorizer.source.contains(r#"@content-type="text/css""#));
+    }
+
+    #[test]
+    fn catalog_exposes_html_output_artifact_sources() {
+        let formatter = builtin_schema_package_artifact_source(
+            "html",
+            "schema-packages/html/v1/formatters/html-format-document.cemt",
+        )
+        .expect("HTML formatter source");
+        let colorizer = builtin_schema_package_artifact_source(
+            "html",
+            "schema-packages/html/v1/colorizers/html-color-document.cemt",
+        )
+        .expect("HTML colorizer source");
+
+        assert!(formatter.source.contains(r#"@name="html.format-document""#));
+        assert!(formatter.source.contains(r#"@category="html-document""#));
+        assert!(colorizer.source.contains(r#"@name="html.color-document""#));
+        assert!(colorizer.source.contains(r#"@content-type="text/html""#));
     }
 
     #[test]

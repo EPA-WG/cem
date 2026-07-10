@@ -1,5 +1,7 @@
 # HTML schema package v1
 
+Status: schema, examples, formatter, colorizer, and converter package frame
+
 This package defines the CEM schema identity for HTML resources.
 
 - Schema URL: `https://cem.dev/ns/data/html/1`
@@ -16,6 +18,12 @@ XHTML remains a separate XML-backed package for `application/xhtml+xml`. In
 `text/html`, HTML, SVG, and MathML are all parser-default DOM namespaces: SVG
 and MathML tags switch into their own namespaces while remaining associated with
 their registered schema packages.
+
+## Output Artifacts
+
+The package declares CEMT formatter and colorizer artifacts in `package.cem`.
+The public formatter profile names are `compact`, `pretty`, and `tabular`.
+The public colorizer profile names are `terminal`, `html`, and `md`.
 
 ## Validation
 

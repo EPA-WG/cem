@@ -363,7 +363,13 @@ XML and markup family formats:
       examples are declared from `package.cem`, including text XML alias
       content type metadata, and catalog tests guard XML artifact/example
       manifest drift while preserving the Rust XML-to-DOM converter metadata.
-- [ ] `html/v1` (`text/html`).
+- [x] `html/v1` (`text/html`). Baseline `compact`/`pretty`/`tabular`
+      formatter and `terminal`/`html`/`md` colorizer selectors are declared
+      over CEMT artifacts, top-level HTML examples are declared from
+      `package.cem`, including parser-recovery pass cases, SVG/MathML islands,
+      executable script/resource/custom-element failures, and charset conflict
+      warning metadata, with catalog tests guarding HTML artifact/example
+      manifest drift while preserving the Rust HTML-to-DOM converter metadata.
 - [ ] `relax-ng/v1` (`application/relax-ng+xml`,
       `application/relax-ng-compact-syntax`).
 - [ ] `xhtml/v1` (`application/xhtml+xml`).
