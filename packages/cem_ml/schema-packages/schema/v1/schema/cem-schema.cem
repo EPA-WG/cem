@@ -17,7 +17,7 @@
     }
 
     {elements |
-        {element @name="schema" @required-attributes="name namespace version" @children="summary uses content-types namespaces elements attributes directives nodes lexical types namespace-semantics constraints diagnostics open-content compatibility"}
+        {element @name="schema" @required-attributes="name namespace version" @children="summary uses content-types namespaces elements attributes directives nodes lexical types namespace-semantics field-contracts constraints diagnostics open-content compatibility"}
         {element @name="summary" @children="text"}
         {element @name="text"}
         {element @name="uses" @children="use"}
@@ -42,6 +42,8 @@
         {element @name="binding" @required-attributes="directive scope"}
         {element @name="resolution" @required-attributes="target mode"}
         {element @name="handoff" @required-attributes="attribute target"}
+        {element @name="field-contracts" @children="field-contract"}
+        {element @name="field-contract" @required-attributes="name target" @optional-attributes="diagnostic check-kind required-attributes optional-attributes forbidden-attributes when-attribute when-values"}
         {element @name="constraints" @children="constraint"}
         {element @name="constraint" @required-attributes="kind" @optional-attributes="target value policy"}
         {element @name="diagnostics" @children="diagnostic"}
@@ -64,6 +66,7 @@
         {attribute @name="alias" @type="cemml:boolean"}
         {attribute @name="required-attributes" @type="cemml:name-list"}
         {attribute @name="optional-attributes" @type="cemml:name-list"}
+        {attribute @name="forbidden-attributes" @type="cemml:name-list"}
         {attribute @name="children" @type="schema:content-model"}
         {attribute @name="type" @type="schema:type-reference"}
         {attribute @name="required" @type="schema:boolean-or-policy"}
@@ -83,6 +86,10 @@
         {attribute @name="scope" @type="cemml:string"}
         {attribute @name="mode" @type="cemml:identifier"}
         {attribute @name="attribute" @type="cemml:identifier"}
+        {attribute @name="diagnostic" @type="cemml:identifier"}
+        {attribute @name="check-kind" @type="cemml:identifier"}
+        {attribute @name="when-attribute" @type="cemml:identifier"}
+        {attribute @name="when-values" @type="cemml:name-list"}
     }
 
     {types |

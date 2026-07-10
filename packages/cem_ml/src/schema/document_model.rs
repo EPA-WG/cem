@@ -8,9 +8,10 @@
 //! - required and optional attributes per element;
 //! - direct child element allow-lists.
 //! - built-in base element references through schema `{uses}` aliases.
+//! - schema-owned field contracts for element-bound conditional checks.
 //!
-//! Cardinality, ordering, scalar type checks, and semantic constraints remain
-//! follow-up work.
+//! Cardinality, ordering, scalar type checks beyond declared field contracts,
+//! and semantic constraints remain follow-up work.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -58,6 +59,7 @@ pub struct ElementModel {
     pub optional_attributes: BTreeSet<String>,
     pub child_elements: BTreeSet<String>,
     pub allow_any_child: bool,
+    pub field_contracts: Vec<FieldContract>,
 }
 
 impl ElementModel {
@@ -70,6 +72,48 @@ impl ElementModel {
 
     fn allows_child(&self, local_name: &str) -> bool {
         self.allow_any_child || self.child_elements.contains(local_name)
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct FieldContract {
+    pub name: String,
+    pub target: String,
+    pub diagnostic: Option<String>,
+    pub check_kind: Option<String>,
+    pub required_attributes: BTreeSet<String>,
+    pub optional_attributes: BTreeSet<String>,
+    pub forbidden_attributes: BTreeSet<String>,
+    pub when_attribute: Option<String>,
+    pub when_values: BTreeSet<String>,
+}
+
+impl FieldContract {
+    fn applies_to(&self, attributes: &BTreeMap<String, String>) -> bool {
+        let Some(when_attribute) = self.when_attribute.as_deref() else {
+            return true;
+        };
+        let Some(value) = attributes
+            .get(when_attribute)
+            .map(String::as_str)
+            .map(str::trim)
+        else {
+            return false;
+        };
+        if self.when_values.is_empty() {
+            return !value.is_empty();
+        }
+        self.when_values.contains(value)
+    }
+
+    fn diagnostic_code(&self) -> &str {
+        self.diagnostic
+            .as_deref()
+            .unwrap_or(MISSING_REQUIRED_ATTRIBUTE_CODE)
+    }
+
+    fn check_kind(&self) -> &str {
+        self.check_kind.as_deref().unwrap_or("field-contract")
     }
 }
 
@@ -152,14 +196,19 @@ fn validate_node(
     };
 
     let mut seen_attributes = BTreeSet::new();
+    let mut attribute_values = BTreeMap::new();
     for attr_id in attributes {
         let Some(attr) = document.get(*attr_id) else {
             continue;
         };
-        let Some((attr_prefix, attr_local)) = attribute_name_parts(attr) else {
+        let Some((attr_prefix, attr_local, attr_value)) = attribute_parts(attr) else {
             continue;
         };
         seen_attributes.insert(attr_local.to_owned());
+        attribute_values.insert(
+            attr_local.to_owned(),
+            attr_value.unwrap_or_default().to_owned(),
+        );
         if !element_model.allows_attribute(attr_prefix, attr_local) {
             diagnostics.push(diag_at(
                 UNKNOWN_ATTRIBUTE_CODE,
@@ -171,6 +220,15 @@ fn validate_node(
             ));
         }
     }
+
+    validate_field_contracts(
+        local,
+        element_model,
+        &seen_attributes,
+        &attribute_values,
+        node,
+        diagnostics,
+    );
 
     for required in &element_model.required_attributes {
         if !seen_attributes.contains(required) {
@@ -265,6 +323,12 @@ fn compile_document_model_with_seen(
         }
     }
 
+    for contract in collect_field_contracts(&document, schema_id) {
+        if let Some(element_model) = model.elements.get_mut(&contract.target) {
+            element_model.field_contracts.push(contract);
+        }
+    }
+
     seen_schema_uris.remove(schema_uri);
     model
 }
@@ -300,6 +364,95 @@ fn compile_element_model(
     }
 
     Some(element_model)
+}
+
+fn collect_field_contracts(document: &CemDocument, schema_id: AstNodeId) -> Vec<FieldContract> {
+    let mut contracts = Vec::new();
+    for contracts_id in element_child_ids_by_local_name(document, schema_id, "field-contracts") {
+        let Some(CemAstNode::Element { children, .. }) = document.get(contracts_id) else {
+            continue;
+        };
+        for child_id in children {
+            if document.get(*child_id).and_then(element_local_name) != Some("field-contract") {
+                continue;
+            }
+            let attrs = collect_attrs(document, *child_id);
+            let Some(name) = attrs.get("name").map(String::as_str).map(str::trim) else {
+                continue;
+            };
+            let Some(target) = attrs.get("target").map(String::as_str).map(str::trim) else {
+                continue;
+            };
+            if name.is_empty() || target.is_empty() {
+                continue;
+            }
+            contracts.push(FieldContract {
+                name: name.to_owned(),
+                target: target.to_owned(),
+                diagnostic: optional_non_empty_attr(&attrs, "diagnostic").map(str::to_owned),
+                check_kind: optional_non_empty_attr(&attrs, "check-kind").map(str::to_owned),
+                required_attributes: parse_name_set(attrs.get("required-attributes")),
+                optional_attributes: parse_name_set(attrs.get("optional-attributes")),
+                forbidden_attributes: parse_name_set(attrs.get("forbidden-attributes")),
+                when_attribute: optional_non_empty_attr(&attrs, "when-attribute")
+                    .map(str::to_owned),
+                when_values: parse_name_set(attrs.get("when-values")),
+            });
+        }
+    }
+    contracts
+}
+
+fn validate_field_contracts(
+    element_name: &str,
+    element_model: &ElementModel,
+    seen_attributes: &BTreeSet<String>,
+    attribute_values: &BTreeMap<String, String>,
+    node: &CemAstNode,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for contract in &element_model.field_contracts {
+        if !contract.applies_to(attribute_values) {
+            continue;
+        }
+        let missing = contract
+            .required_attributes
+            .iter()
+            .filter(|name| !seen_attributes.contains(*name))
+            .cloned()
+            .collect::<Vec<_>>();
+        let forbidden = contract
+            .forbidden_attributes
+            .iter()
+            .filter(|name| seen_attributes.contains(*name))
+            .cloned()
+            .collect::<Vec<_>>();
+
+        if missing.is_empty() && forbidden.is_empty() {
+            continue;
+        }
+
+        let mut parts = Vec::new();
+        if !missing.is_empty() {
+            parts.push(format!("missing fields: {}", missing.join(", ")));
+        }
+        if !forbidden.is_empty() {
+            parts.push(format!(
+                "forbidden fields present: {}",
+                forbidden.join(", ")
+            ));
+        }
+        diagnostics.push(diag_at(
+            contract.diagnostic_code(),
+            format!(
+                "element `{element_name}` failed field contract `{}` ({}) with {}",
+                contract.name,
+                contract.check_kind(),
+                parts.join("; ")
+            ),
+            node,
+        ));
+    }
 }
 
 fn collect_schema_uses(document: &CemDocument, schema_id: AstNodeId) -> BTreeMap<String, String> {
@@ -393,6 +546,14 @@ fn collect_attrs(document: &CemDocument, node_id: AstNodeId) -> BTreeMap<String,
     attrs
 }
 
+fn optional_non_empty_attr<'a>(attrs: &'a BTreeMap<String, String>, name: &str) -> Option<&'a str> {
+    attrs
+        .get(name)
+        .map(String::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
 fn parse_name_set(value: Option<&String>) -> BTreeSet<String> {
     value
         .map(|value| {
@@ -475,11 +636,16 @@ fn element_local_name(node: &CemAstNode) -> Option<&str> {
     }
 }
 
-fn attribute_name_parts(node: &CemAstNode) -> Option<(&str, &str)> {
+fn attribute_parts(node: &CemAstNode) -> Option<(&str, &str, Option<&str>)> {
     match node {
-        CemAstNode::Attribute { expanded_name, .. } => Some((
+        CemAstNode::Attribute {
+            expanded_name,
+            value,
+            ..
+        } => Some((
             expanded_name.namespace_uri.as_str(),
             expanded_name.local_name.as_str(),
+            value.as_deref(),
         )),
         _ => None,
     }
@@ -552,6 +718,62 @@ mod tests {
         let package = model.element("package").unwrap();
         assert!(package.required_attributes.contains("id"));
         assert!(package.child_elements.contains("converter"));
+        let artifact = model.element("artifact").unwrap();
+        assert!(artifact
+            .field_contracts
+            .iter()
+            .any(|contract| contract.name == "artifact-stage-metadata"
+                && contract.diagnostic.as_deref() == Some("cem.schema_package.artifact_check")
+                && contract.required_attributes.contains("target-schema")));
+    }
+
+    #[test]
+    fn schema_field_contracts_drive_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="contracts" @namespace="https://example.test/ns/contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @required-attributes="kind" @optional-attributes="kind name code"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="kind-a-fields"
+            @target="item"
+            @when-attribute="kind"
+            @when-values="a"
+            @required-attributes="name"
+            @diagnostic="example.item_check"
+            @check-kind="required-fields"
+        }
+        {field-contract
+            @name="kind-b-fields"
+            @target="item"
+            @when-attribute="kind"
+            @when-values="b"
+            @required-attributes="code"
+            @diagnostic="example.item_check"
+            @check-kind="required-fields"
+        }
+    }
+}"#,
+        );
+        let document = parse_cem_document(r#"{item @kind=a}"#);
+
+        let diagnostics = validate_document_model(&document, &model);
+
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.item_check")
+            .expect("field contract diagnostic");
+        assert!(diagnostic.message.contains("kind-a-fields"));
+        assert!(diagnostic.message.contains("missing fields: name"));
+        assert!(!diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("kind-b-fields")));
     }
 
     #[test]

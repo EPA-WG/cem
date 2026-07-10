@@ -69,6 +69,36 @@
         {attribute @name="generated" @type="schema:boolean"}
     }
 
+    {field-contracts |
+        {field-contract
+            @name="artifact-stage-metadata"
+            @target="artifact"
+            @when-attribute="kind"
+            @when-values="formatter colorizer formatter-helper colorizer-helper"
+            @required-attributes="content-type schema target-content-type target-schema target-category function-name"
+            @diagnostic="cem.schema_package.artifact_check"
+            @check-kind="required-fields"
+        }
+        {field-contract
+            @name="artifact-formatter-profile"
+            @target="artifact"
+            @when-attribute="kind"
+            @when-values="formatter"
+            @required-attributes="formatter-profile"
+            @diagnostic="cem.schema_package.artifact_check"
+            @check-kind="required-fields"
+        }
+        {field-contract
+            @name="artifact-colorizer-profile"
+            @target="artifact"
+            @when-attribute="kind"
+            @when-values="colorizer"
+            @required-attributes="color-profile"
+            @diagnostic="cem.schema_package.artifact_check"
+            @check-kind="required-fields"
+        }
+    }
+
     {constraints |
         {constraint @kind="single-primary-content-type" @target="package" @policy="required"}
         {constraint @kind="schema-source-required" @target="schema" @policy="required"}
@@ -121,7 +151,7 @@
         {diagnostic @code="cem.schema_package.artifact_cemt_invalid" @severity="error"}
         {diagnostic @code="cem.schema_package.artifact_function_missing" @severity="error"}
         {diagnostic @code="cem.schema_package.artifact_layout_invalid" @severity="error"}
-        {diagnostic @code="cem.schema_package.artifact_metadata_missing" @severity="error"}
+        {diagnostic @code="cem.schema_package.artifact_check" @severity="error"}
         {diagnostic @code="cem.schema_package.artifact_function_contract_mismatch" @severity="error"}
         {diagnostic @code="cem.schema_package.example_result_unknown" @severity="error"}
         {diagnostic @code="cem.schema_package.example_expected_diagnostics_missing" @severity="error"}

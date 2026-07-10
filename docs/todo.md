@@ -6,7 +6,7 @@ history belongs in git history and the feature-specific docs linked below.
 
 ## Immediate Tasks
 
-- [ ] Implement schema-owned field contracts fcommit and pushor every schema-declared field
+- [ ] Implement schema-owned field contracts for every schema-declared field
       before adding more package-specific Rust validation branches. The current
       implementation only compiles simple `required-attributes`,
       `optional-attributes`, and `children` from `.cem` in
@@ -19,29 +19,30 @@ history belongs in git history and the feature-specific docs linked below.
         `rules.rs`, and the CLI schema examples: changing a field contract in a
         `.cem` schema must change validation behavior without adding or editing
         a package-specific Rust branch.
-  - [ ] Extend `packages/cem_ml/schema-packages/schema/v1/schema/cem-schema.cem`
-        with generic field-contract vocabulary. The schema language must model
-        element-bound contracts for required fields, optional fields, forbidden
-        fields, accepted children, value types, value vocabularies, defaults,
-        dependent-required fields, mutually exclusive fields, conditional cases,
-        cardinality, and the diagnostic family used for failed checks.
-  - [ ] Compile the new vocabulary into a Rust schema contract model, either by
-        extending `SchemaDocumentModel` / `ElementModel` or by adding a
-        dedicated `schema/field_contract.rs` module consumed by
-        `SchemaDocumentModelRule`. The compiled model must represent contracts
-        for all schema elements, not only `package.cem` metadata.
+  - [ ] Expand the initial `field-contracts` vocabulary in
+        `packages/cem_ml/schema-packages/schema/v1/schema/cem-schema.cem`.
+        The schema language now models element-bound required/optional/
+        forbidden fields, conditional selectors, and diagnostic families; it
+        still needs accepted children, value types, value vocabularies,
+        defaults, dependent-required fields, mutually exclusive fields,
+        conditional case groups, and cardinality.
+  - [ ] Extend the compiled Rust schema contract model. `SchemaDocumentModel`
+        now compiles initial `field-contract` declarations and evaluates
+        required/forbidden fields; it still needs reusable value constraints,
+        dependent fields, mutual exclusion, cardinality, defaults, and richer
+        case grouping for all schema elements.
   - [ ] Add structured diagnostic details to the validation/reporting surface
         before replacing specific metadata diagnostics. A field-check diagnostic
         needs machine-readable details for schema URI, element, contract name,
         check kind, expected fields, required fields, optional fields, forbidden
         fields, missing fields, invalid fields, actual values, and source-map
         range.
-  - [ ] Implement a generic field-contract evaluator that runs from schema URI
-        plus content type, consumes the compiled contract model, preserves
-        source-map ranges, and emits the contract's declared diagnostic family.
-        This evaluator should cover current `cem.schema_model.*` checks and be
-        able to emit package-level families such as
-        `cem.schema_package.artifact_check` with structured details.
+  - [ ] Extend the generic field-contract evaluator. The first evaluator runs
+        from schema URI plus content type, consumes the compiled contract
+        model, preserves source-map ranges, and emits contract-declared
+        diagnostic families such as `cem.schema_package.artifact_check`; it
+        still needs structured diagnostic details and coverage for value,
+        dependency, mutual-exclusion, and cardinality checks.
   - [ ] Move schema-package manifest field rules from Rust conditionals into
         `packages/cem_ml/schema-packages/schema-package/v1/schema/schema-package.cem`.
         Cover `package`, `schema`, `content-type`, `namespace`, `converter`,
@@ -52,22 +53,22 @@ history belongs in git history and the feature-specific docs linked below.
         `from`/`to` endpoint cardinality is one each; boolean and enum fields
         use schema-declared values; `implicit` and `explicit-only` are mutually
         exclusive; and `cost` is a positive integer.
-  - [ ] Model artifact cases in `schema-package.cem`: formatter, colorizer,
-        formatter-helper, and colorizer-helper kinds declare their required and
-        optional fields, stage directory, `.cemt` source-path constraint,
-        target identity fields, target category, function name, function
-        profile, and formatter/colorizer profile requirements.
+  - [ ] Finish artifact cases in `schema-package.cem`. Formatter, colorizer,
+        formatter-helper, and colorizer-helper required field metadata now
+        lives in schema-owned `field-contract` declarations; stage directory,
+        `.cemt` source-path, target identity compatibility, target category,
+        function profile, and formatter/colorizer profile consistency still
+        need schema-owned field/rule declarations instead of Rust conditionals.
   - [ ] Model example cases in `schema-package.cem`: examples require `id`,
         `path`, `content-type`, `schema`, and `expected-result`; failing
         examples require `expected-diagnostics`; content type/schema
         compatibility is declared as a schema-owned cross-reference rule.
-  - [ ] Replace one-code-per-field diagnostics with contract-family
-        diagnostics declared in schema source. Start by replacing
-        `cem.schema_package.artifact_metadata_missing` with
-        `cem.schema_package.artifact_check`; then consolidate converter and
-        example field diagnostics into schema-declared `converter_check` and
-        `example_check` families where the only distinction is field contract
-        detail.
+  - [ ] Continue replacing one-code-per-field diagnostics with contract-family
+        diagnostics declared in schema source. Artifact missing-metadata checks
+        now emit `cem.schema_package.artifact_check`; next consolidate
+        converter and example field diagnostics into schema-declared
+        `converter_check` and `example_check` families where the only
+        distinction is field contract detail.
   - [ ] Keep Rust validators only for operational execution that cannot be
         represented as field data: resource read failures, parser failures,
         CEMT compilation, CEMT function lookup, host-hook availability, and

@@ -146,7 +146,7 @@ pub(crate) const SCHEMA_PACKAGE_CONVERTER_CONSTRAINT_DIAGNOSTICS: &[(&str, &str)
         "artifact-output-stage-contract",
     ),
     (
-        "cem.schema_package.artifact_metadata_missing",
+        "cem.schema_package.artifact_check",
         "artifact-output-stage-contract",
     ),
     (
@@ -1732,7 +1732,6 @@ fn validate_schema_package_artifact(
     out: &mut Vec<Diagnostic>,
 ) {
     validate_schema_package_artifact_layout(ctx.document, node, out);
-    validate_schema_package_artifact_required_metadata(ctx.document, node, out);
 
     let Some(function_name) = attr_value(ctx.document, node, "function-name")
         .map(str::trim)
@@ -1814,63 +1813,6 @@ fn validate_schema_package_artifact(
         .into_iter()
         .map(|mismatch| schema_package_artifact_contract_mismatch_diag(node, path, mismatch)),
     );
-}
-
-fn validate_schema_package_artifact_required_metadata(
-    doc: &crate::parser::document::CemDocument,
-    node: &CemAstNode,
-    out: &mut Vec<Diagnostic>,
-) {
-    let Some(kind) = attr_value(doc, node, "kind")
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    else {
-        return;
-    };
-    if schema_package_artifact_stage_dir(kind).is_none() {
-        return;
-    }
-
-    let mut required = vec![
-        "content-type",
-        "schema",
-        "target-content-type",
-        "target-schema",
-        "target-category",
-        "function-name",
-    ];
-    match kind {
-        "formatter" => required.push("formatter-profile"),
-        "colorizer" => required.push("color-profile"),
-        _ => {}
-    }
-
-    let missing = required
-        .into_iter()
-        .filter(|attr_name| {
-            attr_value(doc, node, attr_name)
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .is_none()
-        })
-        .collect::<Vec<_>>();
-    if missing.is_empty() {
-        return;
-    }
-
-    let path = attr_value(doc, node, "path")
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or("<missing>");
-    out.push(diag_at(
-        "cem.schema_package.artifact_metadata_missing",
-        Severity::Error,
-        format!(
-            "{kind} artifact `{path}` is missing required package metadata: {}",
-            missing.join(", ")
-        ),
-        node,
-    ));
 }
 
 fn validate_schema_package_artifact_layout(
@@ -3402,7 +3344,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_package_artifact_contract_flags_missing_stage_metadata() {
+    fn schema_package_artifact_contract_flags_missing_stage_metadata_from_schema_contract() {
         let dir = schema_package_artifact_contract_fixture_dir(
             "artifact-metadata-missing",
             &[("formatters/demo.cemt", demo_format_cemt_source())],
@@ -3427,12 +3369,17 @@ mod tests {
 
         let diagnostic = diags
             .iter()
-            .find(|d| d.code == "cem.schema_package.artifact_metadata_missing")
-            .expect("artifact metadata diagnostic");
+            .find(|d| d.code == "cem.schema_package.artifact_check")
+            .expect("artifact check diagnostic");
+        assert!(diagnostic.message.contains("artifact-stage-metadata"));
         assert!(diagnostic.message.contains("schema"));
         assert!(diagnostic.message.contains("target-schema"));
         assert!(diagnostic.message.contains("function-name"));
-        assert!(diagnostic.message.contains("formatter-profile"));
+        assert!(diags.iter().any(|d| {
+            d.code == "cem.schema_package.artifact_check"
+                && d.message.contains("artifact-formatter-profile")
+                && d.message.contains("formatter-profile")
+        }));
     }
 
     #[test]
