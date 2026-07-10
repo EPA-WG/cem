@@ -11,4 +11,110 @@
     {content-type @value="text/markdown" @primary=true}
 
     {namespace @prefix="markdown" @uri="https://cem.dev/ns/data/markdown/1"}
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/markdown-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/markdown"
+        @target-schema="https://cem.dev/ns/data/markdown/1"
+        @target-category="markdown-document"
+        @function-name="markdown.format-document"
+        @formatter-profile="compact"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/markdown-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/markdown"
+        @target-schema="https://cem.dev/ns/data/markdown/1"
+        @target-category="markdown-document"
+        @function-name="markdown.format-document"
+        @formatter-profile="pretty"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/markdown-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/markdown"
+        @target-schema="https://cem.dev/ns/data/markdown/1"
+        @target-category="markdown-document"
+        @function-name="markdown.format-document"
+        @formatter-profile="tabular"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/markdown-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/markdown"
+        @target-schema="https://cem.dev/ns/data/markdown/1"
+        @target-category="markdown-document"
+        @function-name="markdown.color-document"
+        @color-profile="terminal"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/markdown-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/markdown"
+        @target-schema="https://cem.dev/ns/data/markdown/1"
+        @target-category="markdown-document"
+        @function-name="markdown.color-document"
+        @color-profile="html"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/markdown-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/markdown"
+        @target-schema="https://cem.dev/ns/data/markdown/1"
+        @target-category="markdown-document"
+        @function-name="markdown.color-document"
+        @color-profile="md"
+    }
+
+    {example
+        @id="basic-document"
+        @path="examples/basic-document.md"
+        @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+        @schema="https://cem.dev/ns/data/markdown/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="gfm-worklog"
+        @path="examples/gfm-worklog.md"
+        @content-type="text/markdown; charset=utf-8; variant=GFM"
+        @schema="https://cem.dev/ns/data/markdown/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="invalid-embedded-html"
+        @path="examples/invalid-embedded-html.md"
+        @content-type="text/markdown; charset=utf-8; variant=CommonMark"
+        @schema="https://cem.dev/ns/data/markdown/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.markdown.embedded_html_rejected"
+    }
+
+    {example
+        @id="unknown-variant"
+        @path="examples/unknown-variant.md"
+        @content-type="text/markdown; charset=utf-8; variant=CustomWiki"
+        @schema="https://cem.dev/ns/data/markdown/1"
+        @expected-result="pass"
+        @expected-diagnostics="cem.markdown.unknown_variant"
+    }
 }

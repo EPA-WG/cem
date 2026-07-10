@@ -343,7 +343,12 @@ Common structured and authoring formats:
       over CEMT artifacts, top-level CSV examples are declared from
       `package.cem`, including pass-with-warning diagnostics, and catalog tests
       guard CSV artifact/example manifest drift.
-- [ ] `markdown/v1` (`text/markdown`).
+- [x] `markdown/v1` (`text/markdown`). Baseline
+      `compact`/`pretty`/`tabular` formatter and `terminal`/`html`/`md`
+      colorizer selectors are declared over CEMT artifacts, top-level Markdown
+      examples are declared from `package.cem`, including parameterized
+      content types and pass-with-warning diagnostics, and catalog tests guard
+      Markdown artifact/example manifest drift.
 - [ ] `css/v1` (`text/css`).
 
 XML and markup family formats:

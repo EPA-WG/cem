@@ -1,5 +1,7 @@
 # Markdown Resource Schema Package
 
+Status: schema, examples, formatter, and colorizer package frame
+
 This package defines registry identity for generic Markdown resources.
 
 Markdown source is not CEM-ML syntax. The schema package and this manifest are
@@ -15,6 +17,12 @@ parsed by a Markdown parser or adapter.
 RFC 7763 registers `text/markdown` with required `charset` and optional
 `variant` parameters. RFC 7764 defines Markdown variant registration and local
 storage guidance.
+
+## Output Artifacts
+
+The package declares CEMT formatter and colorizer artifacts in `package.cem`.
+The public formatter profile names are `compact`, `pretty`, and `tabular`.
+The public colorizer profile names are `terminal`, `html`, and `md`.
 
 ## Resource Model
 

@@ -1,0 +1,18 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {color-function
+        @name="markdown.color-document"
+        @category="markdown-document"
+        @subject="tokens"
+        @produces="tokens"
+        @content-type="text/markdown"
+        @schema="https://cem.dev/ns/data/markdown/1"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="array" @required=true}
+    }
+}

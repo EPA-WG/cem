@@ -189,6 +189,20 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
         path: "schema-packages/csv/v1/colorizers/csv-color-document.cemt",
         source: include_str!("../../schema-packages/csv/v1/colorizers/csv-color-document.cemt"),
     },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "markdown",
+        path: "schema-packages/markdown/v1/formatters/markdown-format-document.cemt",
+        source: include_str!(
+            "../../schema-packages/markdown/v1/formatters/markdown-format-document.cemt"
+        ),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "markdown",
+        path: "schema-packages/markdown/v1/colorizers/markdown-color-document.cemt",
+        source: include_str!(
+            "../../schema-packages/markdown/v1/colorizers/markdown-color-document.cemt"
+        ),
+    },
 ];
 
 static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
@@ -352,7 +366,8 @@ mod tests {
         CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
         CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSV_CONTENT_TYPE,
         CSV_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI,
-        JSON_VALUE_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+        JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, YAML_CONTENT_TYPE,
+        YAML_SCHEMA_URI,
     };
     use crate::source::{BytesSource, SourceId};
     use crate::tokenizer::cem::CemTokenizer;
@@ -922,6 +937,65 @@ mod tests {
     }
 
     #[test]
+    fn markdown_package_examples_are_manifest_indexed() {
+        let package = builtin_schema_package_source("markdown").expect("package source");
+        let examples =
+            schema_package_examples_from_package_sources(package).expect("package examples");
+        let declared_paths = examples
+            .iter()
+            .map(|example| example.path.clone())
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(
+            declared_paths,
+            top_level_example_paths("markdown"),
+            "markdown top-level examples must be discoverable from package.cem"
+        );
+        assert_eq!(examples.len(), 4);
+        assert!(examples
+            .iter()
+            .all(|example| example.schema == MARKDOWN_SCHEMA_URI));
+
+        for (id, content_type, expected_result, expected_code) in [
+            (
+                "basic-document",
+                MARKDOWN_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "gfm-worklog",
+                MARKDOWN_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "invalid-embedded-html",
+                MARKDOWN_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.markdown.embedded_html_rejected"),
+            ),
+            (
+                "unknown-variant",
+                MARKDOWN_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                Some("cem.markdown.unknown_variant"),
+            ),
+        ] {
+            let example = examples
+                .iter()
+                .find(|example| example.id == id)
+                .unwrap_or_else(|| panic!("Markdown example `{id}`"));
+            assert_eq!(example.content_type, content_type);
+            assert_eq!(example.expected_result, expected_result);
+            let expected_codes = expected_code
+                .map(|code| vec![code.to_owned()])
+                .unwrap_or_default();
+            assert_eq!(example.expected_diagnostic_codes, expected_codes);
+        }
+    }
+
+    #[test]
     fn builtin_schema_package_catalog_matches_core_folder_frame() {
         for source in builtin_schema_package_sources() {
             let root = package_root(source.package_id);
@@ -1442,5 +1516,32 @@ mod tests {
         assert!(formatter.source.contains(r#"@category="csv-document""#));
         assert!(colorizer.source.contains(r#"@name="csv.color-document""#));
         assert!(colorizer.source.contains(r#"@content-type="text/csv""#));
+    }
+
+    #[test]
+    fn catalog_exposes_markdown_output_artifact_sources() {
+        let formatter = builtin_schema_package_artifact_source(
+            "markdown",
+            "schema-packages/markdown/v1/formatters/markdown-format-document.cemt",
+        )
+        .expect("Markdown formatter source");
+        let colorizer = builtin_schema_package_artifact_source(
+            "markdown",
+            "schema-packages/markdown/v1/colorizers/markdown-color-document.cemt",
+        )
+        .expect("Markdown colorizer source");
+
+        assert!(formatter
+            .source
+            .contains(r#"@name="markdown.format-document""#));
+        assert!(formatter
+            .source
+            .contains(r#"@category="markdown-document""#));
+        assert!(colorizer
+            .source
+            .contains(r#"@name="markdown.color-document""#));
+        assert!(colorizer
+            .source
+            .contains(r#"@content-type="text/markdown""#));
     }
 }
