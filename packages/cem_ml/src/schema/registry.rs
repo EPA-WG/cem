@@ -121,6 +121,22 @@ impl NamespaceClaim {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SchemaPackageExampleExpectedResult {
+    Pass,
+    Fail,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SchemaPackageExampleDescriptor {
+    pub id: String,
+    pub path: String,
+    pub content_type: String,
+    pub schema: String,
+    pub expected_result: SchemaPackageExampleExpectedResult,
+    pub expected_diagnostic_codes: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SchemaDescriptor {
     pub package_id: String,
@@ -218,6 +234,10 @@ pub enum SchemaPackageDescriptorError {
         element: &'static str,
         attribute: &'static str,
     },
+    UnknownExampleExpectedResult {
+        example_id: String,
+        expected_result: String,
+    },
     PackageIdMismatch {
         expected: String,
         actual: String,
@@ -236,6 +256,13 @@ impl std::fmt::Display for SchemaPackageDescriptorError {
                     "schema package manifest `{element}` element is missing `{attribute}`"
                 )
             }
+            Self::UnknownExampleExpectedResult {
+                example_id,
+                expected_result,
+            } => write!(
+                f,
+                "schema package example `{example_id}` has unknown expected result `{expected_result}`"
+            ),
             Self::PackageIdMismatch { expected, actual } => write!(
                 f,
                 "embedded schema package source expected package id `{expected}`, got `{actual}`"
@@ -431,6 +458,24 @@ pub fn schema_descriptor_from_package_sources(
     })
 }
 
+pub fn schema_package_examples_from_package_sources(
+    source: &BuiltinSchemaPackageSource,
+) -> Result<Vec<SchemaPackageExampleDescriptor>, SchemaPackageDescriptorError> {
+    schema_package_examples_from_manifest_source(source.package_id, source.manifest_source)
+}
+
+pub fn schema_package_examples_from_manifest_source(
+    package_id_hint: &str,
+    manifest_source: &str,
+) -> Result<Vec<SchemaPackageExampleDescriptor>, SchemaPackageDescriptorError> {
+    let manifest = parse_cem_document(manifest_source);
+    let package_id = first_element_id_by_local_name(&manifest, "package")
+        .ok_or(SchemaPackageDescriptorError::MissingElement { element: "package" })?;
+    let package_attrs = collect_attrs(&manifest, package_id);
+    let package_id_attr = optional_attr(&package_attrs, "id").unwrap_or(package_id_hint);
+    collect_package_examples(&manifest, package_id, package_id_attr)
+}
+
 fn collect_package_content_types(
     document: &CemDocument,
     package_id: AstNodeId,
@@ -446,6 +491,53 @@ fn collect_package_content_types(
                 SchemaContentTypeRole::Alias
             };
             Ok(SchemaContentType::new(value, role))
+        })
+        .collect()
+}
+
+fn collect_package_examples(
+    document: &CemDocument,
+    package_id: AstNodeId,
+    package_id_attr: &str,
+) -> Result<Vec<SchemaPackageExampleDescriptor>, SchemaPackageDescriptorError> {
+    element_child_ids_by_local_name(document, package_id, "example")
+        .into_iter()
+        .map(|node_id| {
+            let attrs = collect_attrs(document, node_id);
+            let id = required_attr(&attrs, "example", "id")?.to_owned();
+            let path =
+                package_relative_path(package_id_attr, required_attr(&attrs, "example", "path")?);
+            let content_type =
+                content_type_essence(required_attr(&attrs, "example", "content-type")?);
+            let schema = required_attr(&attrs, "example", "schema")?.to_owned();
+            let expected_result_raw = required_attr(&attrs, "example", "expected-result")?;
+            let expected_result = match expected_result_raw {
+                "pass" => SchemaPackageExampleExpectedResult::Pass,
+                "fail" => SchemaPackageExampleExpectedResult::Fail,
+                other => {
+                    return Err(SchemaPackageDescriptorError::UnknownExampleExpectedResult {
+                        example_id: id,
+                        expected_result: other.to_owned(),
+                    })
+                }
+            };
+            let expected_diagnostic_codes = optional_attr(&attrs, "expected-diagnostics")
+                .map(|value| {
+                    value
+                        .split_whitespace()
+                        .map(str::to_owned)
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+
+            Ok(SchemaPackageExampleDescriptor {
+                id,
+                path,
+                content_type,
+                schema,
+                expected_result,
+                expected_diagnostic_codes,
+            })
         })
         .collect()
 }
@@ -781,6 +873,60 @@ mod tests {
                 CEM_ML_SCHEMA_URI.to_owned(),
                 XML_SCHEMA_URI.to_owned(),
             ]
+        );
+    }
+
+    #[test]
+    fn schema_package_examples_are_loaded_from_manifest_metadata() {
+        let examples = schema_package_examples_from_manifest_source(
+            "demo",
+            r#"{package @id=demo @version="1.0.0" |
+                {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+                {content-type @value="application/vnd.example.demo+cem" @primary=true}
+                {example
+                    @id="basic"
+                    @path="examples/basic.demo"
+                    @content-type="Application/Vnd.Example.Demo+CEM; charset=utf-8"
+                    @schema="https://example.test/ns/demo/1"
+                    @expected-result="pass"
+                }
+                {example
+                    @id="invalid"
+                    @path="./examples/invalid.demo"
+                    @content-type="application/vnd.example.demo+cem"
+                    @schema="https://example.test/ns/demo/1"
+                    @expected-result="fail"
+                    @expected-diagnostics="demo.missing_name demo.invalid_state"
+                }
+            }"#,
+        )
+        .expect("manifest examples parse");
+
+        assert_eq!(examples.len(), 2);
+        assert_eq!(examples[0].id, "basic");
+        assert_eq!(
+            examples[0].path,
+            "schema-packages/demo/v1/examples/basic.demo"
+        );
+        assert_eq!(examples[0].content_type, "application/vnd.example.demo+cem");
+        assert_eq!(examples[0].schema, "https://example.test/ns/demo/1");
+        assert_eq!(
+            examples[0].expected_result,
+            SchemaPackageExampleExpectedResult::Pass
+        );
+        assert!(examples[0].expected_diagnostic_codes.is_empty());
+        assert_eq!(examples[1].id, "invalid");
+        assert_eq!(
+            examples[1].path,
+            "schema-packages/demo/v1/examples/invalid.demo"
+        );
+        assert_eq!(
+            examples[1].expected_result,
+            SchemaPackageExampleExpectedResult::Fail
+        );
+        assert_eq!(
+            examples[1].expected_diagnostic_codes,
+            vec!["demo.missing_name", "demo.invalid_state"]
         );
     }
 

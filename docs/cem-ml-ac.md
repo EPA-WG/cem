@@ -483,6 +483,18 @@ are deferred.
 - **AC-S-9 [A] MUST** define CEM annotations as schema-qualified names, not HTML
   `data-*` attributes. HTML `data-*` resolves to synthetic HTML-data metadata and does
   not become CEM-owned unless a schema rule maps it.
+- **AC-S-10 [A] MUST** make field contracts schema-owned for every schema-declared
+  construct, not only package metadata. Required, optional, and forbidden fields or
+  attributes; accepted children; value types and vocabularies; defaults; dependent
+  fields; mutually exclusive groups; conditional rules; open-content policy; and the
+  diagnostic contract for failed checks MUST be declared in the CEM-native schema
+  source. Runtime code may compile and evaluate those declarations, and may perform
+  operational checks such as resolver, I/O, parser, or host-hook failures, but it MUST
+  NOT own package-specific lists of required fields, optional fields, or conditional
+  field rules. Diagnostics for these checks SHOULD use stable generic contract-family
+  codes, with structured details for target, check kind, expected fields, missing
+  fields, invalid fields, forbidden fields, and actual values, instead of one diagnostic
+  code per individual schema field.
 
 ### Verification
 
@@ -504,6 +516,12 @@ are deferred.
   schema-invalid input emits an AC-V-1-shaped diagnostic with the same code/severity
   surface as inline validation and a source-map frame derived from the caller's
   invocation site.
+- **AC-S-V-6** — schema-owned field contracts: changing a required, optional,
+  forbidden, dependent, or conditional field rule in a `.cem` schema changes validation
+  behavior without adding or editing package-specific Rust conditionals. Verified with
+  at least one ordinary schema element and one `schema-package` manifest artifact, and
+  by asserting the emitted diagnostic uses a generic contract-family code with
+  structured field-check details.
 
 ## 3. Validation & Strict Typing
 

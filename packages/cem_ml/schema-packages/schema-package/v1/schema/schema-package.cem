@@ -16,7 +16,7 @@
     }
 
     {elements |
-        {element @name="package" @required-attributes="id version" @children="schema content-type namespace converter artifact"}
+        {element @name="package" @required-attributes="id version" @children="schema content-type namespace converter artifact example"}
         {element @name="schema" @required-attributes="uri source" @optional-attributes="version"}
         {element @name="content-type" @required-attributes="value" @optional-attributes="primary alias"}
         {element @name="namespace" @required-attributes="uri" @optional-attributes="prefix"}
@@ -25,6 +25,7 @@
         {element @name="to" @required-attributes="content-type" @optional-attributes="schema"}
         {element @name="parity-fixture" @required-attributes="id path" @optional-attributes="content-type schema expected-diagnostics"}
         {element @name="artifact" @required-attributes="kind path" @optional-attributes="content-type schema target-content-type target-schema target-category function-name function-profile formatter-profile color-profile generated"}
+        {element @name="example" @required-attributes="id path content-type schema expected-result" @optional-attributes="expected-diagnostics"}
     }
 
     {attributes |
@@ -57,6 +58,7 @@
         {attribute @name="content-type" @type="schema:media-type"}
         {attribute @name="schema" @type="schema:uri"}
         {attribute @name="expected-diagnostics" @type="schema:string"}
+        {attribute @name="expected-result" @type="schema:identifier" @values="pass fail"}
         {attribute @name="kind" @type="schema:identifier"}
         {attribute @name="path" @type="schema:path"}
         {attribute @name="target-content-type" @type="schema:media-type"}
@@ -83,6 +85,7 @@
         {constraint @kind="cemt-native-fallback-reason" @target="converter" @policy="CEMT converters that declare rust-symbol fallback hooks must also declare fallback-reason"}
         {constraint @kind="schema-source-metadata-consistency" @target="package schema content-type namespace" @policy="when package source is local, package schema URI, content type claims, and namespace URI claims must match the referenced schema source"}
         {constraint @kind="artifact-output-stage-contract" @target="artifact" @policy="formatter, colorizer, formatter-helper, and colorizer-helper artifacts that provide runtime CEMT output stages or helpers must use package-relative CEMT paths under formatters/ or colorizers/, declare target-content-type, target-schema, target-category, function-name, function-profile when the CEMT declaration has a profile, and the applicable formatter-profile or color-profile"}
+        {constraint @kind="example-contract" @target="example" @policy="schema-package examples must declare source path, content type, schema URL, pass/fail result, and expected diagnostics for failing examples; when example schema is known, content type must be registered by that schema"}
     }
 
     {diagnostics |
@@ -118,7 +121,11 @@
         {diagnostic @code="cem.schema_package.artifact_cemt_invalid" @severity="error"}
         {diagnostic @code="cem.schema_package.artifact_function_missing" @severity="error"}
         {diagnostic @code="cem.schema_package.artifact_layout_invalid" @severity="error"}
+        {diagnostic @code="cem.schema_package.artifact_metadata_missing" @severity="error"}
         {diagnostic @code="cem.schema_package.artifact_function_contract_mismatch" @severity="error"}
+        {diagnostic @code="cem.schema_package.example_result_unknown" @severity="error"}
+        {diagnostic @code="cem.schema_package.example_expected_diagnostics_missing" @severity="error"}
+        {diagnostic @code="cem.schema_package.example_content_type_mismatch" @severity="error"}
         {diagnostic @code="cem.schema_package.schema_source_unreadable" @severity="error"}
         {diagnostic @code="cem.schema_package.schema_source_invalid" @severity="error"}
         {diagnostic @code="cem.schema_package.schema_uri_mismatch" @severity="error"}

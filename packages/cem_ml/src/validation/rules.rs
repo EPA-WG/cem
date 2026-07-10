@@ -146,8 +146,24 @@ pub(crate) const SCHEMA_PACKAGE_CONVERTER_CONSTRAINT_DIAGNOSTICS: &[(&str, &str)
         "artifact-output-stage-contract",
     ),
     (
+        "cem.schema_package.artifact_metadata_missing",
+        "artifact-output-stage-contract",
+    ),
+    (
         "cem.schema_package.artifact_function_contract_mismatch",
         "artifact-output-stage-contract",
+    ),
+    (
+        "cem.schema_package.example_result_unknown",
+        "example-contract",
+    ),
+    (
+        "cem.schema_package.example_expected_diagnostics_missing",
+        "example-contract",
+    ),
+    (
+        "cem.schema_package.example_content_type_mismatch",
+        "example-contract",
     ),
 ];
 
@@ -1267,6 +1283,9 @@ impl SemanticRule for SchemaPackageConverterContractRule {
                     validate_schema_package_converter(ctx, node, &registry, &mut out)
                 }
                 Some("artifact") => validate_schema_package_artifact(ctx, node, &mut out),
+                Some("example") => {
+                    validate_schema_package_example(ctx.document, node, &registry, &mut out)
+                }
                 _ => {}
             }
         }
@@ -1713,6 +1732,7 @@ fn validate_schema_package_artifact(
     out: &mut Vec<Diagnostic>,
 ) {
     validate_schema_package_artifact_layout(ctx.document, node, out);
+    validate_schema_package_artifact_required_metadata(ctx.document, node, out);
 
     let Some(function_name) = attr_value(ctx.document, node, "function-name")
         .map(str::trim)
@@ -1794,6 +1814,63 @@ fn validate_schema_package_artifact(
         .into_iter()
         .map(|mismatch| schema_package_artifact_contract_mismatch_diag(node, path, mismatch)),
     );
+}
+
+fn validate_schema_package_artifact_required_metadata(
+    doc: &crate::parser::document::CemDocument,
+    node: &CemAstNode,
+    out: &mut Vec<Diagnostic>,
+) {
+    let Some(kind) = attr_value(doc, node, "kind")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return;
+    };
+    if schema_package_artifact_stage_dir(kind).is_none() {
+        return;
+    }
+
+    let mut required = vec![
+        "content-type",
+        "schema",
+        "target-content-type",
+        "target-schema",
+        "target-category",
+        "function-name",
+    ];
+    match kind {
+        "formatter" => required.push("formatter-profile"),
+        "colorizer" => required.push("color-profile"),
+        _ => {}
+    }
+
+    let missing = required
+        .into_iter()
+        .filter(|attr_name| {
+            attr_value(doc, node, attr_name)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .is_none()
+        })
+        .collect::<Vec<_>>();
+    if missing.is_empty() {
+        return;
+    }
+
+    let path = attr_value(doc, node, "path")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("<missing>");
+    out.push(diag_at(
+        "cem.schema_package.artifact_metadata_missing",
+        Severity::Error,
+        format!(
+            "{kind} artifact `{path}` is missing required package metadata: {}",
+            missing.join(", ")
+        ),
+        node,
+    ));
 }
 
 fn validate_schema_package_artifact_layout(
@@ -1980,6 +2057,78 @@ fn schema_package_artifact_contract_mismatch_diag(
         ),
         node,
     )
+}
+
+fn validate_schema_package_example(
+    doc: &crate::parser::document::CemDocument,
+    node: &CemAstNode,
+    registry: &SchemaRegistry,
+    out: &mut Vec<Diagnostic>,
+) {
+    let example_id = attr_value(doc, node, "id")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("<missing>");
+
+    let expected_result = attr_value(doc, node, "expected-result")
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    match expected_result {
+        Some("pass") => {}
+        Some("fail") => {
+            if attr_value(doc, node, "expected-diagnostics")
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .is_none()
+            {
+                out.push(diag_at(
+                    "cem.schema_package.example_expected_diagnostics_missing",
+                    Severity::Error,
+                    format!(
+                        "failing schema-package example `{example_id}` must declare `expected-diagnostics`"
+                    ),
+                    node,
+                ));
+            }
+        }
+        Some(result) => out.push(diag_at(
+            "cem.schema_package.example_result_unknown",
+            Severity::Error,
+            format!("schema-package example `{example_id}` has unknown expected result `{result}`"),
+            node,
+        )),
+        None => {}
+    }
+
+    let Some(content_type) = attr_value(doc, node, "content-type")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return;
+    };
+    let Some(schema_uri) = attr_value(doc, node, "schema")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return;
+    };
+    let Some(schema) = registry.schema(schema_uri) else {
+        return;
+    };
+    let essence = content_type_essence(content_type);
+    if !schema
+        .content_type_essences()
+        .any(|allowed| allowed == essence)
+    {
+        out.push(diag_at(
+            "cem.schema_package.example_content_type_mismatch",
+            Severity::Error,
+            format!(
+                "schema-package example `{example_id}` content type `{content_type}` is not declared by schema `{schema_uri}`"
+            ),
+            node,
+        ));
+    }
 }
 
 fn validate_schema_package_bool_attr(
@@ -2913,6 +3062,84 @@ mod tests {
     }
 
     #[test]
+    fn schema_package_example_contract_accepts_valid_examples() {
+        let diags = run_rules_with_identity(
+            r#"{package @id=demo @version="1.0.0" |
+                {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+                {content-type @value="application/vnd.example.demo+cem" @primary=true}
+                {example
+                    @id="basic"
+                    @path="examples/basic.html"
+                    @content-type="text/html"
+                    @schema="https://cem.dev/ns/data/html/1"
+                    @expected-result="pass"
+                }
+                {example
+                    @id="invalid"
+                    @path="examples/invalid.html"
+                    @content-type="text/html"
+                    @schema="https://cem.dev/ns/data/html/1"
+                    @expected-result="fail"
+                    @expected-diagnostics="cem.html.script_rejected"
+                }
+            }"#,
+            Some(CEM_SCHEMA_PACKAGE_URI),
+            Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
+        );
+
+        assert!(
+            diags
+                .iter()
+                .all(|d| !d.code.starts_with("cem.schema_package.example_")),
+            "unexpected example diagnostics: {diags:?}"
+        );
+    }
+
+    #[test]
+    fn schema_package_example_contract_flags_invalid_metadata() {
+        let diags = run_rules_with_identity(
+            r#"{package @id=demo @version="1.0.0" |
+                {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+                {content-type @value="application/vnd.example.demo+cem" @primary=true}
+                {example
+                    @id="wrong-result"
+                    @path="examples/wrong-result.html"
+                    @content-type="text/html"
+                    @schema="https://cem.dev/ns/data/html/1"
+                    @expected-result="maybe"
+                }
+                {example
+                    @id="wrong-content-type"
+                    @path="examples/wrong-content-type.html"
+                    @content-type="text/html"
+                    @schema="https://cem.dev/ns/data/xml/1"
+                    @expected-result="pass"
+                }
+                {example
+                    @id="missing-diagnostics"
+                    @path="examples/missing-diagnostics.html"
+                    @content-type="text/html"
+                    @schema="https://cem.dev/ns/data/html/1"
+                    @expected-result="fail"
+                }
+            }"#,
+            Some(CEM_SCHEMA_PACKAGE_URI),
+            Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
+        );
+
+        for code in [
+            "cem.schema_package.example_result_unknown",
+            "cem.schema_package.example_content_type_mismatch",
+            "cem.schema_package.example_expected_diagnostics_missing",
+        ] {
+            assert!(
+                diags.iter().any(|d| d.code == code),
+                "missing {code}; diagnostics: {diags:?}"
+            );
+        }
+    }
+
+    #[test]
     fn schema_package_converter_contract_flags_unsupported_output_pipeline_template() {
         let dir = schema_package_artifact_contract_fixture_dir(
             "converter-template-contract-invalid",
@@ -3172,6 +3399,40 @@ mod tests {
         assert!(layout_diags.iter().any(|d| d
             .message
             .contains("colorizer-helper artifact `formatters/demo-color.cemt`")));
+    }
+
+    #[test]
+    fn schema_package_artifact_contract_flags_missing_stage_metadata() {
+        let dir = schema_package_artifact_contract_fixture_dir(
+            "artifact-metadata-missing",
+            &[("formatters/demo.cemt", demo_format_cemt_source())],
+        );
+        let package_uri = dir.join("package.cem").display().to_string();
+        let diags = run_rules_with_identity_and_source_uri(
+            r#"{package @id=demo @version="1.0.0" |
+                {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+                {content-type @value="application/vnd.example.demo+cem" @primary=true}
+                {artifact
+                    @kind="formatter"
+                    @path="formatters/demo.cemt"
+                    @content-type="application/vnd.cem.transform+cem"
+                    @target-content-type="application/cem"
+                    @target-category="cem-tree"
+                }
+            }"#,
+            Some(CEM_SCHEMA_PACKAGE_URI),
+            Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
+            Some(&package_uri),
+        );
+
+        let diagnostic = diags
+            .iter()
+            .find(|d| d.code == "cem.schema_package.artifact_metadata_missing")
+            .expect("artifact metadata diagnostic");
+        assert!(diagnostic.message.contains("schema"));
+        assert!(diagnostic.message.contains("target-schema"));
+        assert!(diagnostic.message.contains("function-name"));
+        assert!(diagnostic.message.contains("formatter-profile"));
     }
 
     #[test]

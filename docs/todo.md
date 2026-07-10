@@ -6,6 +6,91 @@ history belongs in git history and the feature-specific docs linked below.
 
 ## Immediate Tasks
 
+- [ ] Implement schema-owned field contracts fcommit and pushor every schema-declared field
+      before adding more package-specific Rust validation branches. The current
+      implementation only compiles simple `required-attributes`,
+      `optional-attributes`, and `children` from `.cem` in
+      `packages/cem_ml/src/schema/document_model.rs`; schema-package
+      converter, artifact, and example field rules still live in
+      `packages/cem_ml/src/validation/rules.rs`, and manifest descriptor
+      loading still has Rust-owned `required_attr` checks in
+      `packages/cem_ml/src/schema/registry.rs`.
+  - [ ] Add failing tests first for the principle in `document_model.rs`,
+        `rules.rs`, and the CLI schema examples: changing a field contract in a
+        `.cem` schema must change validation behavior without adding or editing
+        a package-specific Rust branch.
+  - [ ] Extend `packages/cem_ml/schema-packages/schema/v1/schema/cem-schema.cem`
+        with generic field-contract vocabulary. The schema language must model
+        element-bound contracts for required fields, optional fields, forbidden
+        fields, accepted children, value types, value vocabularies, defaults,
+        dependent-required fields, mutually exclusive fields, conditional cases,
+        cardinality, and the diagnostic family used for failed checks.
+  - [ ] Compile the new vocabulary into a Rust schema contract model, either by
+        extending `SchemaDocumentModel` / `ElementModel` or by adding a
+        dedicated `schema/field_contract.rs` module consumed by
+        `SchemaDocumentModelRule`. The compiled model must represent contracts
+        for all schema elements, not only `package.cem` metadata.
+  - [ ] Add structured diagnostic details to the validation/reporting surface
+        before replacing specific metadata diagnostics. A field-check diagnostic
+        needs machine-readable details for schema URI, element, contract name,
+        check kind, expected fields, required fields, optional fields, forbidden
+        fields, missing fields, invalid fields, actual values, and source-map
+        range.
+  - [ ] Implement a generic field-contract evaluator that runs from schema URI
+        plus content type, consumes the compiled contract model, preserves
+        source-map ranges, and emits the contract's declared diagnostic family.
+        This evaluator should cover current `cem.schema_model.*` checks and be
+        able to emit package-level families such as
+        `cem.schema_package.artifact_check` with structured details.
+  - [ ] Move schema-package manifest field rules from Rust conditionals into
+        `packages/cem_ml/schema-packages/schema-package/v1/schema/schema-package.cem`.
+        Cover `package`, `schema`, `content-type`, `namespace`, `converter`,
+        `from`, `to`, `parity-fixture`, `artifact`, and `example`.
+  - [ ] Model converter cases in `schema-package.cem`: `implementation=cemt`
+        requires CEMT template identity fields; `implementation=rust` requires
+        `rust-symbol`; CEMT native fallback requires `fallback-reason`;
+        `from`/`to` endpoint cardinality is one each; boolean and enum fields
+        use schema-declared values; `implicit` and `explicit-only` are mutually
+        exclusive; and `cost` is a positive integer.
+  - [ ] Model artifact cases in `schema-package.cem`: formatter, colorizer,
+        formatter-helper, and colorizer-helper kinds declare their required and
+        optional fields, stage directory, `.cemt` source-path constraint,
+        target identity fields, target category, function name, function
+        profile, and formatter/colorizer profile requirements.
+  - [ ] Model example cases in `schema-package.cem`: examples require `id`,
+        `path`, `content-type`, `schema`, and `expected-result`; failing
+        examples require `expected-diagnostics`; content type/schema
+        compatibility is declared as a schema-owned cross-reference rule.
+  - [ ] Replace one-code-per-field diagnostics with contract-family
+        diagnostics declared in schema source. Start by replacing
+        `cem.schema_package.artifact_metadata_missing` with
+        `cem.schema_package.artifact_check`; then consolidate converter and
+        example field diagnostics into schema-declared `converter_check` and
+        `example_check` families where the only distinction is field contract
+        detail.
+  - [ ] Keep Rust validators only for operational execution that cannot be
+        represented as field data: resource read failures, parser failures,
+        CEMT compilation, CEMT function lookup, host-hook availability, and
+        source-file I/O. Those checks must still be declared as schema-owned
+        constraints/rules in `.cem`, with Rust only as the execution placement.
+  - [ ] Refactor `SchemaPackageConverterContractRule` so it calls the generic
+        field-contract evaluator before operational checks, then removes the
+        Rust-owned lists and match blocks for required fields, enum values,
+        boolean spellings, dependent fields, mutual exclusion, and positive
+        integer checks.
+  - [ ] Refactor `schema_descriptor_from_package_sources`,
+        `collect_package_examples`, and `required_attr` in
+        `packages/cem_ml/src/schema/registry.rs` so descriptor extraction runs
+        after generic schema validation. Loader errors may remain typed, but
+        missing/invalid manifest fields must be diagnosed by schema-owned
+        contracts, not by descriptor parsing.
+  - [ ] Update runtime diagnostic declaration tests and CLI example coverage to
+        assert generic contract-family codes plus structured details instead of
+        schema-package-specific missing-field codes. Add an `rg`-based audit in
+        tests or docs for remaining field-rule anti-patterns such as
+        hard-coded required field vectors, enum `matches!` lists, and
+        field-specific `*_missing` diagnostics.
+
 - [ ] Complete the schema-package folder frame for
       `packages/cem_ml/schema-packages`: every `{package-id}/vN/` folder must be
       discoverable from `package.cem` with a `.cem` schema source, example

@@ -1,0 +1,36 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="bad-examples" @version="1.0.0" |
+    {schema
+        @uri="https://example.test/ns/bad-examples/1"
+        @source="schema/bad-examples.cem"
+    }
+
+    {content-type @value="application/vnd.example.bad-examples+cem" @primary=true}
+
+    {example
+        @id="wrong-result"
+        @path="examples/wrong-result.html"
+        @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @expected-result="maybe"
+    }
+
+    {example
+        @id="wrong-content-type"
+        @path="examples/wrong-content-type.html"
+        @content-type="text/html"
+        @schema="https://cem.dev/ns/data/xml/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="missing-diagnostics"
+        @path="examples/missing-diagnostics.html"
+        @content-type="text/html"
+        @schema="https://cem.dev/ns/data/html/1"
+        @expected-result="fail"
+    }
+}

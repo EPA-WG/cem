@@ -21,6 +21,27 @@ Schema source files are ordinary CEM-ML documents using this namespace for the
 schema-authoring vocabulary. The target schema being described is carried by the
 `schema @namespace` attribute.
 
+## Field Contract Requirement
+
+The schema definition language owns field contracts for every schema-declared
+construct. A schema must be able to declare required, optional, and forbidden
+fields or attributes; accepted children; value types and vocabularies; defaults;
+dependent fields; mutually exclusive groups; conditional rules; open-content
+policy; and the diagnostic contract for failed checks.
+
+This follows the same separation of concerns used by established schema systems:
+RELAX NG patterns own structure, XSD owns complex types and attribute use,
+JSON Schema owns `properties`, `required`, `dependentRequired`, and
+`if`/`then`, and SHACL owns shape constraints. In CEM, the `.cem` schema source
+is the authority. Rust validators compile and evaluate the schema declarations
+and perform operational checks, but they must not be the source of
+package-specific required-field lists or conditional field rules.
+
+Field-check diagnostics should identify the contract family and carry structured
+details such as target, check kind, expected fields, missing fields, invalid
+fields, forbidden fields, and actual values. They should not require one
+diagnostic code per individual metadata or schema field.
+
 ## Validation Examples
 
 The schema-owned examples live in [`examples/`](examples/) and are used by the

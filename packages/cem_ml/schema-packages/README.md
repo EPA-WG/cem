@@ -154,6 +154,11 @@ The relationship is layered validation, not broad inheritance:
 - A package manifest does not inherit arbitrary schema-definition elements such
   as `element`, `attribute`, or `constraint` unless the package manifest schema
   explicitly permits them.
+- Field contracts are schema-owned for all schemas. Required, optional, and
+  forbidden fields, accepted children, value constraints, dependent fields,
+  mutually exclusive groups, conditional rules, open-content policy, and
+  diagnostic details must be declared in `.cem` schema source and evaluated
+  generically by the runtime, not encoded as package-specific Rust field lists.
 
 Schema dependencies should be resolved by schema URL and content type, not by
 filesystem path. Filesystem layout is a distribution detail for local packages.
