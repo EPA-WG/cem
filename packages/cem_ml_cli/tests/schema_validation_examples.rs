@@ -89,12 +89,9 @@ const SCHEMA_PACKAGE_RUNTIME_CONSTRAINT_EXAMPLE_DIAGNOSTICS: &[(&str, &str)] = &
     ),
     (
         "cemt-template-identity-required",
-        "cem.schema_package.converter_template_missing",
+        "cem.schema_package.converter_check",
     ),
-    (
-        "rust-symbol-required",
-        "cem.schema_package.converter_rust_symbol_missing",
-    ),
+    ("rust-symbol-required", "cem.schema_package.converter_check"),
     (
         "converter-planner-state-contract",
         "cem.schema_package.converter_selection_conflict",
@@ -315,7 +312,7 @@ fn schema_owned_examples_validate_through_cli() {
             schema_uri: CEM_SCHEMA_PACKAGE_URI,
             expected_exit: EXIT_HARD_FAILURE,
             expected_diagnostics: &[
-                "cem.schema_package.converter_template_missing",
+                "cem.schema_package.converter_check",
                 "cem.schema_package.converter_template_content_type_mismatch",
                 "cem.schema_package.converter_endpoint_missing",
                 "cem.schema_model.invalid_attribute_datatype_param",
@@ -335,7 +332,7 @@ fn schema_owned_examples_validate_through_cli() {
                 "cem.schema_model.invalid_attribute_type",
                 "cem.schema_model.invalid_attribute_value",
                 "cem.schema_package.converter_selection_conflict",
-                "cem.schema_package.converter_rust_symbol_missing",
+                "cem.schema_package.converter_check",
             ],
         },
         ValidationExample {

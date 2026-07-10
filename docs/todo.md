@@ -61,15 +61,16 @@ history belongs in git history and the feature-specific docs linked below.
         Cover `package`, `schema`, `content-type`, `namespace`, `converter`,
         `from`, `to`, `parity-fixture`, `artifact`, and `example`.
   - [ ] Model converter cases in `schema-package.cem`: `implementation=cemt`
-        requires CEMT template identity fields; `implementation=rust` requires
-        `rust-symbol`; CEMT native fallback requires `fallback-reason`;
-        `from`/`to` endpoint cardinality is one each; enum fields now use
-        schema-declared `@values` and boolean fields now use `schema:boolean`
-        in the generic document model; `cost` now uses generic integer syntax
-        and RELAX NG-style `minInclusive=1`; package-specific enum,
-        boolean, and cost diagnostics have been retired in favor of generic
-        schema-model codes; `implicit` and `explicit-only` are mutually
-        exclusive.
+        and `implementation=rust` required attribute contracts now live in
+        schema-owned `field-contract` declarations and emit
+        `cem.schema_package.converter_check`; CEMT native fallback still
+        requires `fallback-reason` from a Rust conditional; `from`/`to`
+        endpoint cardinality is one each; enum fields now use schema-declared
+        `@values` and boolean fields now use `schema:boolean` in the generic
+        document model; `cost` now uses generic integer syntax and RELAX
+        NG-style `minInclusive=1`; package-specific enum, boolean, and cost
+        diagnostics have been retired in favor of generic schema-model codes;
+        `implicit` and `explicit-only` are mutually exclusive.
   - [ ] Finish artifact cases in `schema-package.cem`. Formatter, colorizer,
         formatter-helper, and colorizer-helper required field metadata now
         lives in schema-owned `field-contract` declarations; stage directory,
@@ -93,10 +94,12 @@ history belongs in git history and the feature-specific docs linked below.
         constraints/rules in `.cem`, with Rust only as the execution placement.
   - [ ] Refactor `SchemaPackageConverterContractRule` so it calls the generic
         field-contract evaluator before operational checks, then removes the
-        Rust-owned lists and match blocks for required fields, dependent
-        fields, and mutual exclusion. The legacy package-specific enum,
-        boolean, and positive-cost branches are now covered by generic
-        `@values`, `schema:boolean`, and `minInclusive` checks.
+        remaining Rust-owned match blocks for dependent fields, endpoint
+        cardinality, and mutual exclusion. CEMT template identity and Rust
+        symbol requirements are now schema-owned field contracts; the legacy
+        package-specific enum, boolean, and positive-cost branches are now
+        covered by generic `@values`, `schema:boolean`, and `minInclusive`
+        checks.
   - [ ] Refactor `schema_descriptor_from_package_sources`,
         `collect_package_examples`, and `required_attr` in
         `packages/cem_ml/src/schema/registry.rs` so descriptor extraction runs

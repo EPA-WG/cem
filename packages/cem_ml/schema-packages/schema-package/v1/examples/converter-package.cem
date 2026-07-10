@@ -18,6 +18,7 @@
         @implementation="cemt"
         @template="templates/note-to-html.cemt"
         @template-content-type="application/vnd.cem.transform+cem"
+        @template-schema="https://cem.dev/ns/transform/cem/1"
         @streamable=true
         @lossiness="lossless"
         @output-syntax="html"

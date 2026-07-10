@@ -58,20 +58,8 @@ pub(crate) const SCHEMA_PACKAGE_CONVERTER_CONSTRAINT_DIAGNOSTICS: &[(&str, &str)
         "converter-planner-state-contract",
     ),
     (
-        "cem.schema_package.converter_template_missing",
-        "cemt-template-identity-required",
-    ),
-    (
-        "cem.schema_package.converter_template_content_type_missing",
-        "cemt-template-identity-required",
-    ),
-    (
         "cem.schema_package.converter_template_content_type_mismatch",
         "cemt-template-identity-required",
-    ),
-    (
-        "cem.schema_package.converter_template_schema_missing",
-        "converter-template-output-stage-contract",
     ),
     (
         "cem.schema_package.converter_template_schema_mismatch",
@@ -88,10 +76,6 @@ pub(crate) const SCHEMA_PACKAGE_CONVERTER_CONSTRAINT_DIAGNOSTICS: &[(&str, &str)
     (
         "cem.schema_package.converter_fallback_reason_missing",
         "cemt-native-fallback-reason",
-    ),
-    (
-        "cem.schema_package.converter_rust_symbol_missing",
-        "rust-symbol-required",
     ),
     (
         "cem.schema_package.converter_endpoint_missing",
@@ -1287,7 +1271,7 @@ fn validate_schema_package_converter(
         .filter(|value| !value.is_empty())
     {
         Some("cemt") => validate_cemt_converter_contract(ctx, node, converter_id, out),
-        Some("rust") => validate_rust_converter_contract(doc, node, converter_id, out),
+        Some("rust") => {}
         Some(implementation) => out.push(diag_at(
             "cem.schema_package.converter_implementation_unknown",
             Severity::Error,
@@ -1324,25 +1308,11 @@ fn validate_cemt_converter_contract(
     let template_path = attr_value(doc, node, "template")
         .map(str::trim)
         .filter(|value| !value.is_empty());
-    if template_path.is_none() {
-        out.push(diag_at(
-            "cem.schema_package.converter_template_missing",
-            Severity::Error,
-            format!("CEMT converter `{converter_id}` must declare `template`"),
-            node,
-        ));
-    }
 
     let Some(template_content_type) = attr_value(doc, node, "template-content-type")
         .map(str::trim)
         .filter(|value| !value.is_empty())
     else {
-        out.push(diag_at(
-            "cem.schema_package.converter_template_content_type_missing",
-            Severity::Error,
-            format!("CEMT converter `{converter_id}` must declare `template-content-type`"),
-            node,
-        ));
         return;
     };
     let template_content_type_valid =
@@ -1363,7 +1333,7 @@ fn validate_cemt_converter_contract(
     let template_schema = attr_value(doc, node, "template-schema")
         .map(str::trim)
         .filter(|value| !value.is_empty());
-    let mut template_schema_valid = true;
+    let mut template_schema_valid = false;
     if let Some(template_schema) = template_schema {
         template_schema_valid = template_schema == CEM_TRANSFORM_SCHEMA_URI;
         if !template_schema_valid {
@@ -1373,16 +1343,6 @@ fn validate_cemt_converter_contract(
                 template_schema,
             ));
         }
-    } else if claims_formatter_coloring_pipeline {
-        template_schema_valid = false;
-        out.push(diag_at(
-            "cem.schema_package.converter_template_schema_missing",
-            Severity::Error,
-            format!(
-                "CEMT converter `{converter_id}` with a formatter/coloring output pipeline must declare `template-schema=\"{CEM_TRANSFORM_SCHEMA_URI}\"`"
-            ),
-            node,
-        ));
     }
 
     if has_manifest_attr(doc, node, "rust-symbol")
@@ -1594,22 +1554,6 @@ fn schema_package_converter_template_source_unreadable_diag(
         ),
         node,
     )
-}
-
-fn validate_rust_converter_contract(
-    doc: &crate::parser::document::CemDocument,
-    node: &CemAstNode,
-    converter_id: &str,
-    out: &mut Vec<Diagnostic>,
-) {
-    if !has_manifest_attr(doc, node, "rust-symbol") {
-        out.push(diag_at(
-            "cem.schema_package.converter_rust_symbol_missing",
-            Severity::Error,
-            format!("Rust converter `{converter_id}` must declare `rust-symbol`"),
-            node,
-        ));
-    }
 }
 
 fn validate_converter_endpoint_contract(
@@ -2809,7 +2753,7 @@ mod tests {
         );
 
         for code in [
-            "cem.schema_package.converter_template_missing",
+            "cem.schema_package.converter_check",
             "cem.schema_package.converter_template_content_type_mismatch",
             "cem.schema_package.converter_template_schema_mismatch",
             "cem.schema_package.converter_fallback_reason_missing",
@@ -2830,6 +2774,10 @@ mod tests {
         for removed_code in [
             "cem.schema_package.converter_boolean_invalid",
             "cem.schema_package.converter_cost_invalid",
+            "cem.schema_package.converter_template_missing",
+            "cem.schema_package.converter_template_content_type_missing",
+            "cem.schema_package.converter_template_schema_missing",
+            "cem.schema_package.converter_rust_symbol_missing",
             "cem.schema_package.converter_readiness_unknown",
             "cem.schema_package.converter_lossiness_unknown",
             "cem.schema_package.converter_output_syntax_unknown",
@@ -2840,6 +2788,28 @@ mod tests {
                 "legacy converter diagnostic `{removed_code}` should be covered by generic schema-model validation: {diags:?}"
             );
         }
+
+        let cemt_identity = diags
+            .iter()
+            .find(|d| {
+                d.code == "cem.schema_package.converter_check"
+                    && d.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("converter-cemt-template-identity")
+            })
+            .expect("schema-owned CEMT template identity field contract diagnostic");
+        let details = cemt_identity
+            .details
+            .as_ref()
+            .expect("CEMT template identity details");
+        assert_eq!(details["missingFields"], serde_json::json!(["template"]));
+        assert_eq!(
+            details["condition"],
+            serde_json::json!({
+                "attribute": "implementation",
+                "values": ["cemt"],
+            })
+        );
 
         for attribute_name in ["readiness", "lossiness", "output-syntax", "parity"] {
             assert!(
@@ -3034,7 +3004,23 @@ mod tests {
 
         assert!(diags
             .iter()
-            .any(|d| d.code == "cem.schema_package.converter_rust_symbol_missing"));
+            .any(|d| d.code == "cem.schema_package.converter_check"));
+        assert!(diags
+            .iter()
+            .all(|d| d.code != "cem.schema_package.converter_rust_symbol_missing"));
+        let diagnostic = diags
+            .iter()
+            .find(|d| {
+                d.code == "cem.schema_package.converter_check"
+                    && d.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("converter-rust-symbol")
+            })
+            .expect("schema-owned Rust symbol field contract diagnostic");
+        assert_eq!(
+            diagnostic.details.as_ref().expect("Rust symbol details")["missingFields"],
+            serde_json::json!(["rust-symbol"])
+        );
     }
 
     #[test]
