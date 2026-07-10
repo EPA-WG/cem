@@ -7,6 +7,7 @@
 #[derive(Debug, Clone, Copy)]
 pub struct BuiltinSchemaPackageSource {
     pub package_id: &'static str,
+    pub schema_path: &'static str,
     pub manifest_source: &'static str,
     pub schema_source: &'static str,
 }
@@ -111,16 +112,19 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
 static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
     BuiltinSchemaPackageSource {
         package_id: "cem-ml",
+        schema_path: "schema-packages/cem-ml/v1/schema/cem-ml-generic.cem",
         manifest_source: include_str!("../../schema-packages/cem-ml/v1/package.cem"),
         schema_source: include_str!("../../schema-packages/cem-ml/v1/schema/cem-ml-generic.cem"),
     },
     BuiltinSchemaPackageSource {
         package_id: "schema",
+        schema_path: "schema-packages/schema/v1/schema/cem-schema.cem",
         manifest_source: include_str!("../../schema-packages/schema/v1/package.cem"),
         schema_source: include_str!("../../schema-packages/schema/v1/schema/cem-schema.cem"),
     },
     BuiltinSchemaPackageSource {
         package_id: "schema-package",
+        schema_path: "schema-packages/schema-package/v1/schema/schema-package.cem",
         manifest_source: include_str!("../../schema-packages/schema-package/v1/package.cem"),
         schema_source: include_str!(
             "../../schema-packages/schema-package/v1/schema/schema-package.cem"
@@ -128,6 +132,7 @@ static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
     },
     BuiltinSchemaPackageSource {
         package_id: "cem-native-template",
+        schema_path: "schema-packages/cem-native-template/v1/schema/cem-native-template.cem",
         manifest_source: include_str!("../../schema-packages/cem-native-template/v1/package.cem"),
         schema_source: include_str!(
             "../../schema-packages/cem-native-template/v1/schema/cem-native-template.cem"
@@ -135,6 +140,7 @@ static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
     },
     BuiltinSchemaPackageSource {
         package_id: "cem-transform",
+        schema_path: "schema-packages/cem-transform/v1/schema/cem-transform.cem",
         manifest_source: include_str!("../../schema-packages/cem-transform/v1/package.cem"),
         schema_source: include_str!(
             "../../schema-packages/cem-transform/v1/schema/cem-transform.cem"
@@ -142,76 +148,91 @@ static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
     },
     BuiltinSchemaPackageSource {
         package_id: "cem-ql",
+        schema_path: "schema-packages/cem-ql/v1/schema/cem-ql.cem",
         manifest_source: include_str!("../../schema-packages/cem-ql/v1/package.cem"),
         schema_source: include_str!("../../schema-packages/cem-ql/v1/schema/cem-ql.cem"),
     },
     BuiltinSchemaPackageSource {
         package_id: "json",
+        schema_path: "schema-packages/json/v1/schema/json.cem",
         manifest_source: include_str!("../../schema-packages/json/v1/package.cem"),
         schema_source: include_str!("../../schema-packages/json/v1/schema/json.cem"),
     },
     BuiltinSchemaPackageSource {
         package_id: "yaml",
+        schema_path: "schema-packages/yaml/v1/schema/yaml.cem",
         manifest_source: include_str!("../../schema-packages/yaml/v1/package.cem"),
         schema_source: include_str!("../../schema-packages/yaml/v1/schema/yaml.cem"),
     },
     BuiltinSchemaPackageSource {
         package_id: "csv",
+        schema_path: "schema-packages/csv/v1/schema/csv.cem",
         manifest_source: include_str!("../../schema-packages/csv/v1/package.cem"),
         schema_source: include_str!("../../schema-packages/csv/v1/schema/csv.cem"),
     },
     BuiltinSchemaPackageSource {
         package_id: "markdown",
+        schema_path: "schema-packages/markdown/v1/schema/markdown.cem",
         manifest_source: include_str!("../../schema-packages/markdown/v1/package.cem"),
         schema_source: include_str!("../../schema-packages/markdown/v1/schema/markdown.cem"),
     },
     BuiltinSchemaPackageSource {
         package_id: "xml",
+        schema_path: "schema-packages/xml/v1/schema/xml.cem",
         manifest_source: include_str!("../../schema-packages/xml/v1/package.cem"),
         schema_source: include_str!("../../schema-packages/xml/v1/schema/xml.cem"),
     },
     BuiltinSchemaPackageSource {
         package_id: "relax-ng",
+        schema_path: "schema-packages/relax-ng/v1/schema/relax-ng.cem",
         manifest_source: include_str!("../../schema-packages/relax-ng/v1/package.cem"),
         schema_source: include_str!("../../schema-packages/relax-ng/v1/schema/relax-ng.cem"),
     },
     BuiltinSchemaPackageSource {
         package_id: "xhtml",
+        schema_path: "schema-packages/xhtml/v1/schema/xhtml.cem",
         manifest_source: include_str!("../../schema-packages/xhtml/v1/package.cem"),
         schema_source: include_str!("../../schema-packages/xhtml/v1/schema/xhtml.cem"),
     },
     BuiltinSchemaPackageSource {
         package_id: "svg",
+        schema_path: "schema-packages/svg/v1/schema/svg.cem",
         manifest_source: include_str!("../../schema-packages/svg/v1/package.cem"),
         schema_source: include_str!("../../schema-packages/svg/v1/schema/svg.cem"),
     },
     BuiltinSchemaPackageSource {
         package_id: "mathml",
+        schema_path: "schema-packages/mathml/v1/schema/mathml.cem",
         manifest_source: include_str!("../../schema-packages/mathml/v1/package.cem"),
         schema_source: include_str!("../../schema-packages/mathml/v1/schema/mathml.cem"),
     },
     BuiltinSchemaPackageSource {
         package_id: "xslt",
+        schema_path: "schema-packages/xslt/v1/schema/xslt.cem",
         manifest_source: include_str!("../../schema-packages/xslt/v1/package.cem"),
         schema_source: include_str!("../../schema-packages/xslt/v1/schema/xslt.cem"),
     },
     BuiltinSchemaPackageSource {
         package_id: "html",
+        schema_path: "schema-packages/html/v1/schema/html.cem",
         manifest_source: include_str!("../../schema-packages/html/v1/package.cem"),
         schema_source: include_str!("../../schema-packages/html/v1/schema/html.cem"),
     },
     BuiltinSchemaPackageSource {
         package_id: "css",
+        schema_path: "schema-packages/css/v1/schema/css.cem",
         manifest_source: include_str!("../../schema-packages/css/v1/package.cem"),
         schema_source: include_str!("../../schema-packages/css/v1/schema/css.cem"),
     },
     BuiltinSchemaPackageSource {
         package_id: "json-schema",
+        schema_path: "schema-packages/json-schema/v1/schema/json-schema.cem",
         manifest_source: include_str!("../../schema-packages/json-schema/v1/package.cem"),
         schema_source: include_str!("../../schema-packages/json-schema/v1/schema/json-schema.cem"),
     },
     BuiltinSchemaPackageSource {
         package_id: "cem-dom-projection",
+        schema_path: "schema-packages/cem-dom-projection/v1/schema/cem-dom-projection.cem",
         manifest_source: include_str!("../../schema-packages/cem-dom-projection/v1/package.cem"),
         schema_source: include_str!(
             "../../schema-packages/cem-dom-projection/v1/schema/cem-dom-projection.cem"
@@ -219,6 +240,7 @@ static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
     },
     BuiltinSchemaPackageSource {
         package_id: "cem-ast-projection",
+        schema_path: "schema-packages/cem-ast-projection/v1/schema/cem-ast-projection.cem",
         manifest_source: include_str!("../../schema-packages/cem-ast-projection/v1/package.cem"),
         schema_source: include_str!(
             "../../schema-packages/cem-ast-projection/v1/schema/cem-ast-projection.cem"
@@ -226,6 +248,7 @@ static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
     },
     BuiltinSchemaPackageSource {
         package_id: "cem-events-projection",
+        schema_path: "schema-packages/cem-events-projection/v1/schema/cem-events-projection.cem",
         manifest_source: include_str!("../../schema-packages/cem-events-projection/v1/package.cem"),
         schema_source: include_str!(
             "../../schema-packages/cem-events-projection/v1/schema/cem-events-projection.cem"

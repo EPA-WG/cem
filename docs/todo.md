@@ -80,7 +80,10 @@ history belongs in git history and the feature-specific docs linked below.
         conversion artifact descriptor extraction; converter `id`/
         `implementation`, implementation value, endpoint occurrence, and
         endpoint `content-type` requiredness now stay in schema-owned
-        validation instead of conversion descriptor extraction.
+        validation instead of conversion descriptor extraction; top-level
+        package `id`/`version` and schema `uri`/`source` descriptor fields now
+        use schema-root/catalog fallbacks so missing manifest field diagnostics
+        stay schema-owned.
   - [ ] Model converter cases in `schema-package.cem`: `implementation=cemt`
         and `implementation=rust` required attribute contracts plus CEMT
         native fallback `fallback-reason` now live in schema-owned
@@ -150,7 +153,9 @@ history belongs in git history and the feature-specific docs linked below.
         field checks now stay in generic schema-model validation instead of
         descriptor extraction; stale converter manifest field-specific
         `MissingAttribute`, `MissingEndpoint`, and `UnknownImplementation`
-        extraction errors have been removed.
+        extraction errors have been removed; schema descriptor top-level
+        `MissingAttribute` extraction errors have been removed for package/
+        schema metadata.
   - [ ] Keep Rust validators only for operational execution that cannot be
         represented as field data: resource read failures, parser failures,
         CEMT compilation, CEMT function lookup, host-hook availability, and
@@ -174,7 +179,10 @@ history belongs in git history and the feature-specific docs linked below.
         treats invalid example field data as schema-owned and only materializes
         complete loadable example descriptors; content-type and namespace
         child extraction now skips incomplete schema-invalid rows instead of
-        owning field diagnostics.
+        owning field diagnostics; top-level package/schema descriptor
+        extraction now falls back to the embedded package id, schema root
+        namespace/version, and embedded schema path instead of owning missing
+        manifest field diagnostics, and `required_attr` has been removed.
   - [ ] Update runtime diagnostic declaration tests and CLI example coverage to
         assert generic contract-family codes plus structured details instead of
         schema-package-specific missing-field codes. Add an `rg`-based audit in

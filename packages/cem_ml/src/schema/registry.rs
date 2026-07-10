@@ -227,17 +227,8 @@ impl std::error::Error for SchemaLookupError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SchemaPackageDescriptorError {
-    MissingElement {
-        element: &'static str,
-    },
-    MissingAttribute {
-        element: &'static str,
-        attribute: &'static str,
-    },
-    PackageIdMismatch {
-        expected: String,
-        actual: String,
-    },
+    MissingElement { element: &'static str },
+    PackageIdMismatch { expected: String, actual: String },
 }
 
 impl std::fmt::Display for SchemaPackageDescriptorError {
@@ -245,12 +236,6 @@ impl std::fmt::Display for SchemaPackageDescriptorError {
         match self {
             Self::MissingElement { element } => {
                 write!(f, "schema package manifest is missing `{element}` element")
-            }
-            Self::MissingAttribute { element, attribute } => {
-                write!(
-                    f,
-                    "schema package manifest `{element}` element is missing `{attribute}`"
-                )
             }
             Self::PackageIdMismatch { expected, actual } => write!(
                 f,
@@ -418,29 +403,38 @@ pub fn schema_descriptor_from_package_sources(
     let package_id = first_element_id_by_local_name(&manifest, "package")
         .ok_or(SchemaPackageDescriptorError::MissingElement { element: "package" })?;
     let package_attrs = collect_attrs(&manifest, package_id);
-    let package_id_attr = required_attr(&package_attrs, "package", "id")?;
-    if package_id_attr != source.package_id {
+    let package_id_attr = optional_attr(&package_attrs, "id").unwrap_or(source.package_id);
+    if optional_attr(&package_attrs, "id").is_some_and(|id| id != source.package_id) {
         return Err(SchemaPackageDescriptorError::PackageIdMismatch {
             expected: source.package_id.to_owned(),
             actual: package_id_attr.to_owned(),
         });
     }
 
-    let package_version = required_attr(&package_attrs, "package", "version")?;
-    let schema_id = element_child_ids_by_local_name(&manifest, package_id, "schema")
+    let schema_root_attrs = first_element_id_by_local_name(&schema, "schema")
+        .map(|schema_id| collect_attrs(&schema, schema_id))
+        .unwrap_or_default();
+    let schema_attrs = element_child_ids_by_local_name(&manifest, package_id, "schema")
         .into_iter()
         .next()
-        .ok_or(SchemaPackageDescriptorError::MissingElement { element: "schema" })?;
-    let schema_attrs = collect_attrs(&manifest, schema_id);
-    let schema_uri = required_attr(&schema_attrs, "schema", "uri")?;
-    let schema_source = required_attr(&schema_attrs, "schema", "source")?;
-    let version = optional_attr(&schema_attrs, "version").unwrap_or(package_version);
+        .map(|schema_id| collect_attrs(&manifest, schema_id))
+        .unwrap_or_default();
+    let schema_uri = optional_attr(&schema_attrs, "uri")
+        .or_else(|| optional_attr(&schema_root_attrs, "namespace"))
+        .unwrap_or_default();
+    let version = optional_attr(&schema_attrs, "version")
+        .or_else(|| optional_attr(&package_attrs, "version"))
+        .or_else(|| optional_attr(&schema_root_attrs, "version"))
+        .unwrap_or_default();
+    let descriptor_source = optional_attr(&schema_attrs, "source")
+        .map(|schema_source| package_relative_path(package_id_attr, schema_source))
+        .unwrap_or_else(|| source.schema_path.to_owned());
 
     Ok(SchemaDescriptor {
         package_id: package_id_attr.to_owned(),
         schema_uri: schema_uri.to_owned(),
         version: version.to_owned(),
-        source: package_relative_path(package_id_attr, schema_source),
+        source: descriptor_source,
         content_types: collect_package_content_types(&manifest, package_id)?,
         namespaces: collect_package_namespaces(&manifest, package_id)?,
         uses: collect_schema_uses(&schema),
@@ -596,15 +590,6 @@ fn manifest_bool_attr(attrs: &BTreeMap<String, String>, name: &str) -> bool {
         attrs.get(name).map(String::as_str).map(str::trim),
         Some("") | Some("true") | Some("1")
     )
-}
-
-fn required_attr<'a>(
-    attrs: &'a BTreeMap<String, String>,
-    element: &'static str,
-    attribute: &'static str,
-) -> Result<&'a str, SchemaPackageDescriptorError> {
-    optional_attr(attrs, attribute)
-        .ok_or(SchemaPackageDescriptorError::MissingAttribute { element, attribute })
 }
 
 fn optional_attr<'a>(attrs: &'a BTreeMap<String, String>, attribute: &str) -> Option<&'a str> {
@@ -881,6 +866,7 @@ mod tests {
     fn schema_descriptor_extraction_does_not_own_child_field_validation() {
         let source = BuiltinSchemaPackageSource {
             package_id: "demo",
+            schema_path: "schema-packages/demo/v1/schema/demo.cem",
             manifest_source: r#"{package @id=demo @version="1.0.0" |
                 {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
                 {content-type}
@@ -908,6 +894,33 @@ mod tests {
         assert_eq!(
             descriptor.namespaces[0],
             NamespaceClaim::new(Some("demo"), "https://example.test/ns/demo/1")
+        );
+    }
+
+    #[test]
+    fn schema_descriptor_extraction_does_not_own_top_level_field_validation() {
+        let source = BuiltinSchemaPackageSource {
+            package_id: "demo",
+            schema_path: "schema-packages/demo/v1/schema/demo.cem",
+            manifest_source: r#"{package |
+                {schema}
+                {content-type @value="application/vnd.example.demo+cem" @primary=true}
+            }"#,
+            schema_source: r#"{schema @name=demo @namespace="https://example.test/ns/demo/1" @version="2.0.0"}"#,
+        };
+
+        let descriptor = schema_descriptor_from_package_sources(&source).expect(
+            "schema-owned validation reports missing package/schema metadata before extraction",
+        );
+
+        assert_eq!(descriptor.package_id, "demo");
+        assert_eq!(descriptor.schema_uri, "https://example.test/ns/demo/1");
+        assert_eq!(descriptor.version, "2.0.0");
+        assert_eq!(descriptor.source, "schema-packages/demo/v1/schema/demo.cem");
+        assert_eq!(descriptor.content_types.len(), 1);
+        assert_eq!(
+            descriptor.content_types[0],
+            SchemaContentType::primary("application/vnd.example.demo+cem")
         );
     }
 
