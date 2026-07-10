@@ -323,7 +323,11 @@ Bootstrap and self-hosting packages:
 
 Common structured and authoring formats:
 
-- [ ] `json/v1` (`application/json`, `text/json`).
+- [x] `json/v1` (`application/json`, `text/json`). Baseline
+      `compact`/`pretty`/`tabular` formatter and `terminal`/`html`/`md`
+      colorizer selectors are declared over CEMT artifacts, top-level JSON
+      examples are declared from `package.cem`, and catalog tests guard JSON
+      artifact/example manifest drift.
 - [ ] `json-schema/v1` (`application/schema+json`).
 - [ ] `yaml/v1` (`application/yaml`, YAML aliases).
 - [ ] `csv/v1` (`text/csv`).

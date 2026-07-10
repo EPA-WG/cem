@@ -145,6 +145,16 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
         path: "schema-packages/cem-ql/v1/colorizers/cem-ql-color-tree.cemt",
         source: include_str!("../../schema-packages/cem-ql/v1/colorizers/cem-ql-color-tree.cemt"),
     },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "json",
+        path: "schema-packages/json/v1/formatters/json-format-document.cemt",
+        source: include_str!("../../schema-packages/json/v1/formatters/json-format-document.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "json",
+        path: "schema-packages/json/v1/colorizers/json-color-document.cemt",
+        source: include_str!("../../schema-packages/json/v1/colorizers/json-color-document.cemt"),
+    },
 ];
 
 static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
@@ -306,7 +316,8 @@ mod tests {
         CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
         CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI,
         CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
-        CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI,
+        CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, JSON_CONTENT_TYPE,
+        JSON_VALUE_SCHEMA_URI,
     };
     use crate::source::{BytesSource, SourceId};
     use crate::tokenizer::cem::CemTokenizer;
@@ -733,6 +744,24 @@ mod tests {
                 vec![expected_code.to_owned()]
             );
         }
+    }
+
+    #[test]
+    fn json_package_examples_are_manifest_indexed() {
+        let examples =
+            manifest_indexed_package_examples("json", JSON_CONTENT_TYPE, JSON_VALUE_SCHEMA_URI, 3);
+        let invalid = examples
+            .iter()
+            .find(|example| example.id == "invalid-trailing-comma")
+            .expect("invalid JSON example");
+        assert_eq!(
+            invalid.expected_result,
+            SchemaPackageExampleExpectedResult::Fail
+        );
+        assert_eq!(
+            invalid.expected_diagnostic_codes,
+            vec!["cem.json.parse_error".to_owned()]
+        );
     }
 
     #[test]
@@ -1168,5 +1197,26 @@ mod tests {
         assert!(colorizer
             .source
             .contains(r#"@schema="https://cem.dev/ns/query/cem-ql/1""#));
+    }
+
+    #[test]
+    fn catalog_exposes_json_output_artifact_sources() {
+        let formatter = builtin_schema_package_artifact_source(
+            "json",
+            "schema-packages/json/v1/formatters/json-format-document.cemt",
+        )
+        .expect("JSON formatter source");
+        let colorizer = builtin_schema_package_artifact_source(
+            "json",
+            "schema-packages/json/v1/colorizers/json-color-document.cemt",
+        )
+        .expect("JSON colorizer source");
+
+        assert!(formatter.source.contains(r#"@name="json.format-document""#));
+        assert!(formatter.source.contains(r#"@category="json-document""#));
+        assert!(colorizer.source.contains(r#"@name="json.color-document""#));
+        assert!(colorizer
+            .source
+            .contains(r#"@content-type="application/json""#));
     }
 }

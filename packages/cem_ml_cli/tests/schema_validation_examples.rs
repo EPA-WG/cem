@@ -94,11 +94,11 @@ const SCHEMA_PACKAGE_RUNTIME_CONSTRAINT_EXAMPLE_DIAGNOSTICS: &[(&str, &str)] = &
     ),
     (
         "converter-template-output-stage-contract",
-        "cem.schema_package.converter_template_contract_invalid",
+        "cem.schema_package.converter_check",
     ),
     (
         "converter-endpoint-schema-content-type-match",
-        "cem.schema_package.converter_content_type_mismatch",
+        "cem.schema_package.converter_check",
     ),
     (
         "cemt-native-fallback-reason",
@@ -306,9 +306,8 @@ fn schema_owned_examples_validate_through_cli() {
             expected_exit: EXIT_HARD_FAILURE,
             expected_diagnostics: &[
                 "cem.schema_package.converter_check",
-                "cem.schema_package.converter_template_content_type_mismatch",
+                "cem.schema_model.invalid_attribute_value",
                 "cem.schema_model.invalid_attribute_datatype_param",
-                "cem.schema_package.converter_content_type_mismatch",
             ],
         },
         ValidationExample {
@@ -318,7 +317,6 @@ fn schema_owned_examples_validate_through_cli() {
             schema_uri: CEM_SCHEMA_PACKAGE_URI,
             expected_exit: EXIT_HARD_FAILURE,
             expected_diagnostics: &[
-                "cem.schema_package.converter_template_schema_mismatch",
                 "cem.schema_model.invalid_attribute_type",
                 "cem.schema_model.invalid_attribute_value",
                 "cem.schema_package.converter_check",
@@ -330,7 +328,7 @@ fn schema_owned_examples_validate_through_cli() {
             content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
             schema_uri: CEM_SCHEMA_PACKAGE_URI,
             expected_exit: EXIT_HARD_FAILURE,
-            expected_diagnostics: &["cem.schema_package.converter_template_contract_invalid"],
+            expected_diagnostics: &["cem.schema_package.converter_check"],
         },
         ValidationExample {
             name: "schema-package invalid artifact contract",
@@ -368,7 +366,6 @@ fn schema_owned_examples_validate_through_cli() {
             expected_exit: EXIT_HARD_FAILURE,
             expected_diagnostics: &[
                 "cem.schema_model.invalid_attribute_value",
-                "cem.schema_package.example_content_type_mismatch",
                 "cem.schema_package.example_check",
             ],
         },

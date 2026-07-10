@@ -12,4 +12,101 @@
     {content-type @value="text/json" @alias=true}
 
     {namespace @prefix="json" @uri="https://cem.dev/ns/data/json/1"}
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/json-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/json"
+        @target-schema="https://cem.dev/ns/data/json/1"
+        @target-category="json-document"
+        @function-name="json.format-document"
+        @formatter-profile="compact"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/json-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/json"
+        @target-schema="https://cem.dev/ns/data/json/1"
+        @target-category="json-document"
+        @function-name="json.format-document"
+        @formatter-profile="pretty"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/json-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/json"
+        @target-schema="https://cem.dev/ns/data/json/1"
+        @target-category="json-document"
+        @function-name="json.format-document"
+        @formatter-profile="tabular"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/json-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/json"
+        @target-schema="https://cem.dev/ns/data/json/1"
+        @target-category="json-document"
+        @function-name="json.color-document"
+        @color-profile="terminal"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/json-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/json"
+        @target-schema="https://cem.dev/ns/data/json/1"
+        @target-category="json-document"
+        @function-name="json.color-document"
+        @color-profile="html"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/json-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/json"
+        @target-schema="https://cem.dev/ns/data/json/1"
+        @target-category="json-document"
+        @function-name="json.color-document"
+        @color-profile="md"
+    }
+
+    {example
+        @id="basic-object"
+        @path="examples/basic-object.json"
+        @content-type="application/json"
+        @schema="https://cem.dev/ns/data/json/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="nested-data"
+        @path="examples/nested-data.json"
+        @content-type="application/json"
+        @schema="https://cem.dev/ns/data/json/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="invalid-trailing-comma"
+        @path="examples/invalid-trailing-comma.json"
+        @content-type="application/json"
+        @schema="https://cem.dev/ns/data/json/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.json.parse_error"
+    }
 }
