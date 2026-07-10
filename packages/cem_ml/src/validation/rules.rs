@@ -106,10 +106,6 @@ pub(crate) const SCHEMA_PACKAGE_CONVERTER_CONSTRAINT_DIAGNOSTICS: &[(&str, &str)
         "converter-endpoint-schema-content-type-match",
     ),
     (
-        "cem.schema_package.converter_boolean_invalid",
-        "converter-planner-state-contract",
-    ),
-    (
         "cem.schema_package.converter_readiness_unknown",
         "converter-planner-state-contract",
     ),
@@ -124,10 +120,6 @@ pub(crate) const SCHEMA_PACKAGE_CONVERTER_CONSTRAINT_DIAGNOSTICS: &[(&str, &str)
     (
         "cem.schema_package.converter_parity_unknown",
         "converter-output-contract",
-    ),
-    (
-        "cem.schema_package.converter_cost_invalid",
-        "converter-cost-positive",
     ),
     (
         "cem.schema_package.artifact_source_unreadable",
@@ -1324,14 +1316,10 @@ fn validate_schema_package_converter(
     validate_converter_endpoint_contract(doc, node, converter_id, "from", registry, out);
     validate_converter_endpoint_contract(doc, node, converter_id, "to", registry, out);
 
-    for attr_name in ["streamable", "implicit", "explicit-only"] {
-        validate_schema_package_bool_attr(doc, node, converter_id, attr_name, out);
-    }
     validate_schema_package_readiness(doc, node, converter_id, out);
     validate_schema_package_lossiness(doc, node, converter_id, out);
     validate_schema_package_output_syntax(doc, node, converter_id, out);
     validate_schema_package_parity(doc, node, converter_id, out);
-    validate_schema_package_cost(doc, node, converter_id, out);
 
     if manifest_bool_value(doc, node, "explicit-only") == Some(true)
         && manifest_bool_value(doc, node, "implicit") == Some(true)
@@ -2074,27 +2062,6 @@ fn validate_schema_package_example(
     }
 }
 
-fn validate_schema_package_bool_attr(
-    doc: &crate::parser::document::CemDocument,
-    node: &CemAstNode,
-    converter_id: &str,
-    attr_name: &str,
-    out: &mut Vec<Diagnostic>,
-) {
-    let Some(raw) = attr_value(doc, node, attr_name).map(str::trim) else {
-        return;
-    };
-    if matches!(raw, "" | "true" | "false") {
-        return;
-    }
-    out.push(diag_at(
-        "cem.schema_package.converter_boolean_invalid",
-        Severity::Error,
-        format!("converter `{converter_id}` has invalid boolean `{attr_name}` value `{raw}`"),
-        node,
-    ));
-}
-
 fn validate_schema_package_readiness(
     doc: &crate::parser::document::CemDocument,
     node: &CemAstNode,
@@ -2192,26 +2159,6 @@ fn validate_schema_package_parity(
         format!("converter `{converter_id}` has unknown parity mode `{parity}`"),
         node,
     ));
-}
-
-fn validate_schema_package_cost(
-    doc: &crate::parser::document::CemDocument,
-    node: &CemAstNode,
-    converter_id: &str,
-    out: &mut Vec<Diagnostic>,
-) {
-    let Some(cost) = attr_value(doc, node, "cost").map(str::trim) else {
-        return;
-    };
-    match cost.parse::<u32>() {
-        Ok(value) if value > 0 => {}
-        _ => out.push(diag_at(
-            "cem.schema_package.converter_cost_invalid",
-            Severity::Error,
-            format!("converter `{converter_id}` has invalid cost value `{cost}`"),
-            node,
-        )),
-    }
 }
 
 fn manifest_bool_value(
@@ -2988,18 +2935,28 @@ mod tests {
             "cem.schema_package.converter_fallback_reason_missing",
             "cem.schema_package.converter_endpoint_duplicate",
             "cem.schema_package.converter_endpoint_missing",
-            "cem.schema_package.converter_boolean_invalid",
+            "cem.schema_model.invalid_attribute_type",
             "cem.schema_package.converter_readiness_unknown",
             "cem.schema_package.converter_lossiness_unknown",
             "cem.schema_package.converter_output_syntax_unknown",
             "cem.schema_package.converter_parity_unknown",
-            "cem.schema_package.converter_cost_invalid",
+            "cem.schema_model.invalid_attribute_datatype_param",
             "cem.schema_package.converter_selection_conflict",
             "cem.schema_package.converter_content_type_mismatch",
         ] {
             assert!(
                 diags.iter().any(|d| d.code == code),
                 "missing {code}; diagnostics: {diags:?}"
+            );
+        }
+
+        for removed_code in [
+            "cem.schema_package.converter_boolean_invalid",
+            "cem.schema_package.converter_cost_invalid",
+        ] {
+            assert!(
+                diags.iter().all(|d| d.code != removed_code),
+                "legacy converter diagnostic `{removed_code}` should be covered by generic schema-model validation: {diags:?}"
             );
         }
     }

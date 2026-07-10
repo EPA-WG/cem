@@ -66,10 +66,9 @@ history belongs in git history and the feature-specific docs linked below.
         `from`/`to` endpoint cardinality is one each; enum fields now use
         schema-declared `@values` and boolean fields now use `schema:boolean`
         in the generic document model; `cost` now uses generic integer syntax
-        and RELAX NG-style `minInclusive=1`, while package-specific
-        boolean/cost diagnostic branches still need to be retired after CLI
-        expectations move to generic schema-model codes; `implicit` and
-        `explicit-only` are mutually exclusive.
+        and RELAX NG-style `minInclusive=1`; package-specific boolean/cost
+        diagnostics have been retired in favor of generic schema-model codes;
+        `implicit` and `explicit-only` are mutually exclusive.
   - [ ] Finish artifact cases in `schema-package.cem`. Formatter, colorizer,
         formatter-helper, and colorizer-helper required field metadata now
         lives in schema-owned `field-contract` declarations; stage directory,
@@ -94,9 +93,9 @@ history belongs in git history and the feature-specific docs linked below.
   - [ ] Refactor `SchemaPackageConverterContractRule` so it calls the generic
         field-contract evaluator before operational checks, then removes the
         Rust-owned lists and match blocks for required fields, enum values,
-        dependent fields, mutual exclusion, the legacy package-specific
-        positive-cost branch now covered by generic `minInclusive`, and the
-        package-specific boolean diagnostic branch now covered generically.
+        dependent fields, and mutual exclusion. The legacy package-specific
+        boolean and positive-cost branches are now covered by generic
+        `schema:boolean` and `minInclusive` checks.
   - [ ] Refactor `schema_descriptor_from_package_sources`,
         `collect_package_examples`, and `required_attr` in
         `packages/cem_ml/src/schema/registry.rs` so descriptor extraction runs

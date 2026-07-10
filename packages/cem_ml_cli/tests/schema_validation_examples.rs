@@ -96,12 +96,8 @@ const SCHEMA_PACKAGE_RUNTIME_CONSTRAINT_EXAMPLE_DIAGNOSTICS: &[(&str, &str)] = &
         "cem.schema_package.converter_rust_symbol_missing",
     ),
     (
-        "converter-cost-positive",
-        "cem.schema_package.converter_cost_invalid",
-    ),
-    (
         "converter-planner-state-contract",
-        "cem.schema_package.converter_boolean_invalid",
+        "cem.schema_package.converter_selection_conflict",
     ),
     (
         "converter-output-contract",
@@ -326,7 +322,7 @@ fn schema_owned_examples_validate_through_cli() {
                 "cem.schema_package.converter_template_missing",
                 "cem.schema_package.converter_template_content_type_mismatch",
                 "cem.schema_package.converter_endpoint_missing",
-                "cem.schema_package.converter_cost_invalid",
+                "cem.schema_model.invalid_attribute_datatype_param",
                 "cem.schema_package.converter_content_type_mismatch",
             ],
         },
@@ -340,7 +336,7 @@ fn schema_owned_examples_validate_through_cli() {
                 "cem.schema_package.converter_implementation_unknown",
                 "cem.schema_package.converter_template_schema_mismatch",
                 "cem.schema_package.converter_fallback_reason_missing",
-                "cem.schema_package.converter_boolean_invalid",
+                "cem.schema_model.invalid_attribute_type",
                 "cem.schema_package.converter_readiness_unknown",
                 "cem.schema_package.converter_lossiness_unknown",
                 "cem.schema_package.converter_output_syntax_unknown",

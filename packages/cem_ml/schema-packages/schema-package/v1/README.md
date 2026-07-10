@@ -29,8 +29,9 @@ converter can declare a Rust implementation hook or CEMT template, source and
 target content identities, fallback hook, readiness, and planner `cost`.
 Validation enforces the implementation-specific contract: CEMT converters must
 name a CEMT template identity, Rust converters must name a `rust-symbol`, each
-converter must have exactly one `from` and `to` endpoint, planner cost must be
-positive, and known endpoint schemas must own the declared content type.
+converter must have exactly one `from` and `to` endpoint, planner cost is
+validated by the schema-owned integer `minInclusive` contract, and known
+endpoint schemas must own the declared content type.
 Serializer converters may also declare output-contract metadata:
 `output-syntax`, `encoding-category`, `formatter-profile`, `color-profile`, and
 `parity`. For CEMT schema-output producers, this metadata plans the structured
@@ -73,8 +74,8 @@ CLI validation integration tests.
 | [`converter-package.cem`](examples/converter-package.cem) | Package manifest with aliases and a CEMT converter declaration. | Pass |
 | [`invalid-unclosed-package.cem`](examples/invalid-unclosed-package.cem) | Missing closing package scope syntax diagnostic. | Fail with `cem.schema.unclosed_scope` |
 | [`invalid-missing-required-attribute.cem`](examples/invalid-missing-required-attribute.cem) | Manifest schema entry missing its required `source` attribute. | Fail with `cem.schema_model.missing_required_attribute` |
-| [`invalid-converter-contract.cem`](examples/invalid-converter-contract.cem) | Converter declaration with missing CEMT template identity, missing target endpoint, invalid cost, and incompatible endpoint schema/content type. | Fail with `cem.schema_package.converter_template_missing`, `cem.schema_package.converter_endpoint_missing`, `cem.schema_package.converter_cost_invalid`, `cem.schema_package.converter_content_type_mismatch` |
-| [`invalid-converter-runtime-constraints.cem`](examples/invalid-converter-runtime-constraints.cem) | Converter declarations with unknown implementation, invalid planner metadata, missing native fallback reason, invalid output metadata, and missing Rust symbol. | Fail with `cem.schema_package.converter_implementation_unknown`, `cem.schema_package.converter_boolean_invalid`, `cem.schema_package.converter_output_syntax_unknown`, `cem.schema_package.converter_fallback_reason_missing`, `cem.schema_package.converter_rust_symbol_missing` |
+| [`invalid-converter-contract.cem`](examples/invalid-converter-contract.cem) | Converter declaration with missing CEMT template identity, missing target endpoint, invalid cost, and incompatible endpoint schema/content type. | Fail with `cem.schema_package.converter_template_missing`, `cem.schema_package.converter_endpoint_missing`, `cem.schema_model.invalid_attribute_datatype_param`, `cem.schema_package.converter_content_type_mismatch` |
+| [`invalid-converter-runtime-constraints.cem`](examples/invalid-converter-runtime-constraints.cem) | Converter declarations with unknown implementation, invalid planner metadata, missing native fallback reason, invalid output metadata, and missing Rust symbol. | Fail with `cem.schema_package.converter_implementation_unknown`, `cem.schema_model.invalid_attribute_type`, `cem.schema_package.converter_output_syntax_unknown`, `cem.schema_package.converter_fallback_reason_missing`, `cem.schema_package.converter_rust_symbol_missing` |
 | [`invalid-converter-template-contract.cem`](examples/invalid-converter-template-contract.cem) | CEMT converter declares formatter/coloring output profiles, but its template cannot compile as a formatted CEM-tree producer before writer output. | Fail with `cem.schema_package.converter_template_contract_invalid` |
 | [`invalid-artifact-contract.cem`](examples/invalid-artifact-contract.cem) | Formatter artifact metadata disagrees with the referenced CEMT function declaration. | Fail with `cem.schema_package.artifact_function_contract_mismatch` |
 | [`invalid-artifact-layout.cem`](examples/invalid-artifact-layout.cem) | Formatter and colorizer artifacts point outside their schema-package stage directories. | Fail with `cem.schema_package.artifact_layout_invalid` |
