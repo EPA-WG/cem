@@ -1,0 +1,21 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {color-function
+        @name="template.color-tree"
+        @category="cem-tree"
+        @subject="cem-tree"
+        @produces="cem-tree"
+        @content-type="application/vnd.cem.template+cem"
+        @schema="https://cem.dev/ns/template/cem-native/1"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="object" @required=true}
+        {body |
+            {$ call("cem.color-tree.apply-stage", { subject: $subject }) }
+        }
+    }
+}

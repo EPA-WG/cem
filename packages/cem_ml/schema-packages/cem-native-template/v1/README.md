@@ -1,6 +1,6 @@
 # CEM-Native Template Schema Package
 
-Status: initial source package
+Status: schema, examples, formatter, and colorizer package frame
 
 This package defines the CEM-native template module language used by template
 adapters. It is a schema package for authored template modules, not for CLI
@@ -20,6 +20,12 @@ application/vnd.cem.template+cem
 
 Current runtime aliases are also declared so callers can keep using generic
 CEM-ML source content types with an explicit template schema.
+
+## Output Artifacts
+
+The package declares CEMT formatter and colorizer artifacts in `package.cem`.
+The public formatter profile names are `compact`, `pretty`, and `tabular`.
+The public colorizer profile names are `terminal`, `html`, and `md`.
 
 ## Validation Examples
 

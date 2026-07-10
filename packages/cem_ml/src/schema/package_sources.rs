@@ -107,6 +107,20 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
         path: "schema-packages/cem-ml/v1/colorizers/cem-tree-helpers.cemt",
         source: include_str!("../../schema-packages/cem-ml/v1/colorizers/cem-tree-helpers.cemt"),
     },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "cem-native-template",
+        path: "schema-packages/cem-native-template/v1/formatters/template-format-tree.cemt",
+        source: include_str!(
+            "../../schema-packages/cem-native-template/v1/formatters/template-format-tree.cemt"
+        ),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "cem-native-template",
+        path: "schema-packages/cem-native-template/v1/colorizers/template-color-tree.cemt",
+        source: include_str!(
+            "../../schema-packages/cem-native-template/v1/colorizers/template-color-tree.cemt"
+        ),
+    },
 ];
 
 static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
@@ -265,8 +279,9 @@ mod tests {
     use crate::parser::{AstNodeId, CemAstNode};
     use crate::schema::registry::{
         schema_package_examples_from_package_sources, SchemaPackageExampleExpectedResult,
-        CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
-        CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
+        CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
+        CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+        CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
     };
     use crate::source::{BytesSource, SourceId};
     use crate::tokenizer::cem::CemTokenizer;
@@ -591,6 +606,28 @@ mod tests {
                 vec![expected_code.to_owned()]
             );
         }
+    }
+
+    #[test]
+    fn cem_native_template_package_examples_are_manifest_indexed() {
+        let examples = manifest_indexed_package_examples(
+            "cem-native-template",
+            CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
+            CEM_NATIVE_TEMPLATE_SCHEMA_URI,
+            3,
+        );
+        let missing_required = examples
+            .iter()
+            .find(|example| example.id == "invalid-missing-required-attribute")
+            .expect("invalid missing required native template example");
+        assert_eq!(
+            missing_required.expected_result,
+            SchemaPackageExampleExpectedResult::Fail
+        );
+        assert_eq!(
+            missing_required.expected_diagnostic_codes,
+            vec!["cem.schema_model.missing_required_attribute".to_owned()]
+        );
     }
 
     #[test]
@@ -955,5 +992,28 @@ mod tests {
         assert!(builtin_schema_package_artifact_sources()
             .iter()
             .any(|source| source.path == dom_xml_converter.path));
+    }
+
+    #[test]
+    fn catalog_exposes_cem_native_template_output_artifact_sources() {
+        let formatter = builtin_schema_package_artifact_source(
+            "cem-native-template",
+            "schema-packages/cem-native-template/v1/formatters/template-format-tree.cemt",
+        )
+        .expect("CEM-native template formatter source");
+        let colorizer = builtin_schema_package_artifact_source(
+            "cem-native-template",
+            "schema-packages/cem-native-template/v1/colorizers/template-color-tree.cemt",
+        )
+        .expect("CEM-native template colorizer source");
+
+        assert!(formatter.source.contains(r#"@name="template.format-tree""#));
+        assert!(formatter
+            .source
+            .contains(r#"@content-type="application/vnd.cem.template+cem""#));
+        assert!(colorizer.source.contains(r#"@name="template.color-tree""#));
+        assert!(colorizer
+            .source
+            .contains(r#"@schema="https://cem.dev/ns/template/cem-native/1""#));
     }
 }

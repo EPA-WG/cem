@@ -304,8 +304,11 @@ Bootstrap and self-hosting packages:
       source path, content type, schema URL, expected result, and expected
       diagnostics, and catalog tests guard schema-package example manifest
       drift.
-- [ ] `cem-native-template/v1` (`application/vnd.cem.template+cem`; CEM source
-      aliases).
+- [x] `cem-native-template/v1` (`application/vnd.cem.template+cem`; CEM
+      source aliases). Baseline `compact`/`pretty`/`tabular` formatter and
+      `terminal`/`html`/`md` colorizer selectors are declared over CEMT
+      artifacts, top-level examples are declared from `package.cem`, and
+      catalog tests guard native-template artifact/example manifest drift.
 - [ ] `cem-transform/v1` (`application/vnd.cem.transform+cem`, `.cemt`).
 - [ ] `cem-ql/v1` (`application/vnd.cem.query+cem-ql`, `text/cem-ql`, query
       artifact aliases).
