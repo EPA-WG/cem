@@ -29,7 +29,7 @@
         {element @name="elements" @children="element"}
         {element @name="element" @required-attributes="name" @optional-attributes="base required-attributes optional-attributes children"}
         {element @name="attributes" @children="attribute"}
-        {element @name="attribute" @required-attributes="name" @optional-attributes="base type required values"}
+        {element @name="attribute" @required-attributes="name" @optional-attributes="base type required values minInclusive"}
         {element @name="directives" @children="directive"}
         {element @name="directive" @required-attributes="name" @optional-attributes="required value"}
         {element @name="nodes" @children="node"}
@@ -90,6 +90,7 @@
         {attribute @name="check-kind" @type="cemml:identifier"}
         {attribute @name="when-attribute" @type="cemml:identifier"}
         {attribute @name="when-values" @type="cemml:name-list"}
+        {attribute @name="minInclusive" @type="schema:integer"}
     }
 
     {types |
@@ -97,6 +98,7 @@
         {type @name="qualified-name" @base="cemml:qualified-name"}
         {type @name="string" @base="cemml:string"}
         {type @name="boolean" @base="cemml:boolean"}
+        {type @name="integer" @base="cemml:integer"}
         {type @name="uri" @base="cemml:uri"}
         {type @name="semver" @base="cemml:semver"}
         {type @name="media-type" @base="cemml:media-type"}

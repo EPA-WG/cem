@@ -24,34 +24,38 @@ history belongs in git history and the feature-specific docs linked below.
         The schema language now models element-bound required/optional/
         forbidden fields, conditional selectors, diagnostic families, and
         attribute `@values` vocabularies; it still needs accepted children,
-        scalar type validation beyond boolean/integer syntax, numeric range
-        constraints, defaults, dependent-required fields, mutually exclusive
+        scalar type validation beyond boolean/integer syntax, RELAX NG-style
+        datatype params beyond `minInclusive` such as `maxInclusive` and
+        `pattern`, defaults, dependent-required fields, mutually exclusive
         fields, conditional case groups, and cardinality.
   - [ ] Extend the compiled Rust schema contract model. `SchemaDocumentModel`
         now compiles initial `field-contract` declarations and evaluates
         required/forbidden fields, attribute `@values` vocabularies, and
         `schema:boolean`/`cemml:boolean` plus `schema:integer`/
         `cemml:integer` attribute types; it still needs reusable string/path/
-        URI/media-type constraints, numeric range constraints, dependent
-        fields, mutual exclusion, cardinality, defaults, and richer case
-        grouping for all schema elements.
+        URI/media-type constraints, RELAX NG-style datatype params beyond
+        integer `minInclusive`, dependent fields, mutual exclusion,
+        cardinality, defaults, and richer case grouping for all schema
+        elements.
   - [ ] Extend structured diagnostic details beyond initial required/forbidden
         field checks. The first generic field-contract evaluator now emits
         schema URI, element, contract name, check kind, required/optional/
         forbidden fields, missing/invalid fields, actual values, condition, and
         source-map range, and attribute `@values` checks emit expected/actual
         value details; boolean and integer type checks now emit expected/
-        actual details; string/path/URI/media-type, numeric range, dependency,
-        mutual-exclusion, cardinality, and cross-reference checks need the same
-        schema-owned detail shape.
+        actual details; integer `minInclusive` checks emit datatype-param
+        details; string/path/URI/media-type, datatype params beyond
+        `minInclusive`, dependency, mutual-exclusion, cardinality, and
+        cross-reference checks need the same schema-owned detail shape.
   - [ ] Extend the generic field-contract evaluator. The first evaluator runs
         from schema URI plus content type, consumes the compiled contract
         model, preserves source-map ranges, and emits contract-declared
         diagnostic families such as `cem.schema_package.artifact_check`; it
         now emits structured details for required/forbidden field checks and
-        attribute `@values` plus boolean/integer type checks, and still needs
-        coverage for string/path/URI/media-type, numeric range, dependency,
-        mutual-exclusion, and cardinality checks.
+        attribute `@values` plus boolean/integer type and integer
+        `minInclusive` datatype-param checks, and still needs coverage for
+        string/path/URI/media-type, datatype params beyond `minInclusive`,
+        dependency, mutual-exclusion, and cardinality checks.
   - [ ] Move schema-package manifest field rules from Rust conditionals into
         `packages/cem_ml/schema-packages/schema-package/v1/schema/schema-package.cem`.
         Cover `package`, `schema`, `content-type`, `namespace`, `converter`,
@@ -62,7 +66,7 @@ history belongs in git history and the feature-specific docs linked below.
         `from`/`to` endpoint cardinality is one each; enum fields now use
         schema-declared `@values` and boolean fields now use `schema:boolean`
         in the generic document model; `cost` now uses generic integer syntax
-        validation, while the positive range constraint and package-specific
+        and RELAX NG-style `minInclusive=1`, while package-specific
         boolean/cost diagnostic branches still need to be retired after CLI
         expectations move to generic schema-model codes; `implicit` and
         `explicit-only` are mutually exclusive.
@@ -90,7 +94,8 @@ history belongs in git history and the feature-specific docs linked below.
   - [ ] Refactor `SchemaPackageConverterContractRule` so it calls the generic
         field-contract evaluator before operational checks, then removes the
         Rust-owned lists and match blocks for required fields, enum values,
-        dependent fields, mutual exclusion, positive integer checks, and the
+        dependent fields, mutual exclusion, the legacy package-specific
+        positive-cost branch now covered by generic `minInclusive`, and the
         package-specific boolean diagnostic branch now covered generically.
   - [ ] Refactor `schema_descriptor_from_package_sources`,
         `collect_package_examples`, and `required_attr` in

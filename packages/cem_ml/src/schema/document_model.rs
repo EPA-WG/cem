@@ -9,10 +9,12 @@
 //! - direct child element allow-lists.
 //! - built-in base element references through schema `{uses}` aliases.
 //! - schema-owned field contracts for element-bound conditional checks.
-//! - schema-owned attribute `@values`, boolean type, and integer type checks.
+//! - schema-owned attribute `@values`, boolean/integer type checks, and
+//!   integer `minInclusive` datatype-param checks.
 //!
 //! Cardinality, ordering, scalar type checks beyond boolean/integer syntax,
-//! and semantic constraints remain follow-up work.
+//! datatype params beyond `minInclusive`, and semantic constraints remain
+//! follow-up work.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -37,6 +39,8 @@ pub const UNKNOWN_ATTRIBUTE_CODE: &str = "cem.schema_model.unknown_attribute";
 pub const MISSING_REQUIRED_ATTRIBUTE_CODE: &str = "cem.schema_model.missing_required_attribute";
 pub const INVALID_ATTRIBUTE_VALUE_CODE: &str = "cem.schema_model.invalid_attribute_value";
 pub const INVALID_ATTRIBUTE_TYPE_CODE: &str = "cem.schema_model.invalid_attribute_type";
+pub const INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE: &str =
+    "cem.schema_model.invalid_attribute_datatype_param";
 pub const INVALID_CHILD_ELEMENT_CODE: &str = "cem.schema_model.invalid_child_element";
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -84,6 +88,7 @@ pub struct AttributeModel {
     pub name: String,
     pub value_type: Option<String>,
     pub allowed_values: BTreeSet<String>,
+    pub min_inclusive: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -316,7 +321,7 @@ fn validate_attribute_contracts(
     node: &CemAstNode,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    validate_attribute_type(
+    let type_valid = validate_attribute_type(
         schema_uri,
         element_name,
         attribute_name,
@@ -326,6 +331,18 @@ fn validate_attribute_contracts(
         node,
         diagnostics,
     );
+    if type_valid {
+        validate_attribute_datatype_params(
+            schema_uri,
+            element_name,
+            attribute_name,
+            value,
+            attribute_model,
+            attribute_values,
+            node,
+            diagnostics,
+        );
+    }
     validate_attribute_value(
         schema_uri,
         element_name,
@@ -347,9 +364,9 @@ fn validate_attribute_type(
     attribute_values: &BTreeMap<String, String>,
     node: &CemAstNode,
     diagnostics: &mut Vec<Diagnostic>,
-) {
+) -> bool {
     let Some(value_type) = attribute_model.value_type.as_deref() else {
-        return;
+        return true;
     };
     let value = value.trim();
     let violation = if is_boolean_type_reference(value_type) {
@@ -374,7 +391,7 @@ fn validate_attribute_type(
         None
     };
     let Some(violation) = violation else {
-        return;
+        return true;
     };
 
     diagnostics.push(diag_at_with_details(
@@ -395,6 +412,7 @@ fn validate_attribute_type(
             node,
         ),
     ));
+    false
 }
 
 fn is_boolean_type_reference(value_type: &str) -> bool {
@@ -417,6 +435,91 @@ fn is_signed_decimal_integer(value: &str) -> bool {
     let value = value.trim();
     let digits = value.strip_prefix(['+', '-']).unwrap_or(value);
     !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())
+}
+
+fn validate_attribute_datatype_params(
+    schema_uri: &str,
+    element_name: &str,
+    attribute_name: &str,
+    value: &str,
+    attribute_model: &AttributeModel,
+    attribute_values: &BTreeMap<String, String>,
+    node: &CemAstNode,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(min_inclusive) = attribute_model.min_inclusive.as_deref() else {
+        return;
+    };
+    let Some(value_type) = attribute_model.value_type.as_deref() else {
+        return;
+    };
+    if !is_integer_type_reference(value_type) {
+        return;
+    }
+    let value = value.trim();
+    if decimal_integer_cmp(value, min_inclusive) != Some(std::cmp::Ordering::Less) {
+        return;
+    }
+
+    diagnostics.push(diag_at_with_details(
+        INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE,
+        format!(
+            "attribute `{attribute_name}` on element `{element_name}` has value `{value}` below minInclusive `{min_inclusive}`"
+        ),
+        node,
+        attribute_datatype_param_details(
+            schema_uri,
+            element_name,
+            attribute_name,
+            value,
+            attribute_model,
+            "minInclusive",
+            min_inclusive,
+            attribute_values,
+            node,
+        ),
+    ));
+}
+
+fn decimal_integer_cmp(left: &str, right: &str) -> Option<std::cmp::Ordering> {
+    let left = normalize_decimal_integer(left)?;
+    let right = normalize_decimal_integer(right)?;
+    Some(compare_normalized_decimal_integer(&left, &right))
+}
+
+fn normalize_decimal_integer(value: &str) -> Option<(bool, String)> {
+    let value = value.trim();
+    let (negative, digits) = if let Some(rest) = value.strip_prefix('-') {
+        (true, rest)
+    } else if let Some(rest) = value.strip_prefix('+') {
+        (false, rest)
+    } else {
+        (false, value)
+    };
+    if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    let digits = digits.trim_start_matches('0');
+    let digits = if digits.is_empty() { "0" } else { digits };
+    Some((negative && digits != "0", digits.to_owned()))
+}
+
+fn compare_normalized_decimal_integer(
+    left: &(bool, String),
+    right: &(bool, String),
+) -> std::cmp::Ordering {
+    let (left_negative, left_digits) = left;
+    let (right_negative, right_digits) = right;
+    match (*left_negative, *right_negative) {
+        (true, false) => std::cmp::Ordering::Less,
+        (false, true) => std::cmp::Ordering::Greater,
+        (false, false) => compare_positive_decimal_digits(left_digits, right_digits),
+        (true, true) => compare_positive_decimal_digits(right_digits, left_digits),
+    }
+}
+
+fn compare_positive_decimal_digits(left: &str, right: &str) -> std::cmp::Ordering {
+    left.len().cmp(&right.len()).then_with(|| left.cmp(right))
 }
 
 fn validate_attribute_value(
@@ -581,6 +684,8 @@ fn collect_attribute_models(
                     name: name.to_owned(),
                     value_type: optional_non_empty_attr(&attrs, "type").map(str::to_owned),
                     allowed_values: parse_value_set(attrs.get("values")),
+                    min_inclusive: optional_non_empty_attr(&attrs, "minInclusive")
+                        .map(str::to_owned),
                 },
             );
         }
@@ -768,6 +873,43 @@ fn attribute_type_details(
         "expectedValues": violation.expected_values,
         "expectedPattern": violation.expected_pattern,
         "allowsEmpty": violation.allows_empty,
+        "actualValue": actual_value,
+        "requiredFields": [],
+        "optionalFields": [],
+        "forbiddenFields": [],
+        "missingFields": [],
+        "invalidFields": [attribute_name],
+        "actualValues": attribute_values,
+        "sourceRange": node_source_range_details(node),
+    })
+}
+
+fn attribute_datatype_param_details(
+    schema_uri: &str,
+    element_name: &str,
+    attribute_name: &str,
+    actual_value: &str,
+    attribute_model: &AttributeModel,
+    param_name: &str,
+    param_value: &str,
+    attribute_values: &BTreeMap<String, String>,
+    node: &CemAstNode,
+) -> serde_json::Value {
+    let expected_type = attribute_model.value_type.as_deref().unwrap_or_default();
+    serde_json::json!({
+        "schemaUri": schema_uri,
+        "element": element_name,
+        "attribute": attribute_name,
+        "contract": format!("attribute-datatype-param:{attribute_name}:{param_name}"),
+        "type": type_reference_local_name(expected_type),
+        "checkKind": format!("datatype-param:{param_name}"),
+        "datatypeParam": param_name,
+        "paramName": param_name,
+        "paramValue": param_value,
+        "valueType": expected_type,
+        "expectedType": expected_type,
+        "expectedPattern": "signed decimal integer",
+        "minInclusive": param_value,
         "actualValue": actual_value,
         "requiredFields": [],
         "optionalFields": [],
@@ -1123,6 +1265,15 @@ mod tests {
                 .as_deref(),
             Some("schema:integer")
         );
+        assert_eq!(
+            model
+                .attributes
+                .get("cost")
+                .expect("cost attribute model")
+                .min_inclusive
+                .as_deref(),
+            Some("1")
+        );
     }
 
     #[test]
@@ -1392,6 +1543,83 @@ mod tests {
         assert_eq!(details["actualValue"], serde_json::json!("1.5"));
         assert_eq!(details["invalidFields"], serde_json::json!(["count"]));
         assert_eq!(details["actualValues"]["count"], serde_json::json!("1.5"));
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
+    fn schema_min_inclusive_datatype_param_drives_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/datatype-param-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="datatype-param-contracts" @namespace="https://example.test/ns/datatype-param-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="count"}
+    }
+    {attributes |
+        {attribute @name="count" @type="schema:integer" @minInclusive=1}
+    }
+}"#,
+        );
+        for source in [
+            r#"{item @count=1}"#,
+            r#"{item @count=+1}"#,
+            r#"{item @count=120000000000000000000000000000}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "valid minInclusive source produced diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        for source in [r#"{item @count=0}"#, r#"{item @count=-12}"#] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "invalid minInclusive source did not produce diagnostic: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{item @count=0}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("attribute datatype param diagnostic");
+        assert!(diagnostic.message.contains("count"));
+        assert!(diagnostic.message.contains("minInclusive"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("attribute datatype param details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/datatype-param-contracts/1")
+        );
+        assert_eq!(details["element"], serde_json::json!("item"));
+        assert_eq!(details["attribute"], serde_json::json!("count"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:count:minInclusive")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:minInclusive")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("minInclusive"));
+        assert_eq!(details["minInclusive"], serde_json::json!("1"));
+        assert_eq!(details["actualValue"], serde_json::json!("0"));
+        assert_eq!(details["invalidFields"], serde_json::json!(["count"]));
+        assert_eq!(details["actualValues"]["count"], serde_json::json!("0"));
         assert!(details["sourceRange"]["span"]["start"].is_u64());
     }
 

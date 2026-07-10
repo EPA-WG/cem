@@ -54,7 +54,7 @@
         {attribute @name="explicit-only" @type="schema:boolean"}
         {attribute @name="readiness" @type="schema:identifier" @values="ready planned"}
         {attribute @name="fallback-reason" @type="schema:string"}
-        {attribute @name="cost" @type="schema:integer"}
+        {attribute @name="cost" @type="schema:integer" @minInclusive=1}
         {attribute @name="content-type" @type="schema:media-type"}
         {attribute @name="schema" @type="schema:uri"}
         {attribute @name="expected-diagnostics" @type="schema:string"}
