@@ -843,6 +843,19 @@ mod tests {
             "example_result_unknown",
             "example_expected_diagnostics_missing",
         ];
+        let disallowed_diagnostic_suffixes = [
+            "_missing",
+            "_unknown",
+            "_invalid",
+            "_duplicate",
+            "_conflict",
+        ];
+        let operational_diagnostic_codes = [
+            "cem.schema_package.manifest_source_invalid",
+            "cem.schema_package.manifest_conversion_metadata_invalid",
+            "cem.schema_package.schema_source_invalid",
+            "cem.schema_package.converter_template_contract_invalid",
+        ];
         let mut findings = Vec::new();
 
         for (source_name, source) in sources {
@@ -853,7 +866,11 @@ mod tests {
                 }
             }
             for code in schema_package_diagnostic_code_literals(production_source) {
-                if code.ends_with("_missing") {
+                if disallowed_diagnostic_suffixes
+                    .iter()
+                    .any(|suffix| code.ends_with(suffix))
+                    && !operational_diagnostic_codes.contains(&code.as_str())
+                {
                     findings.push(format!("{source_name}: {code}"));
                 }
             }
@@ -1097,7 +1114,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_package_production_sources_do_not_emit_field_specific_missing_diagnostics() {
+    fn schema_package_production_sources_do_not_emit_field_specific_diagnostics() {
         let findings = schema_package_field_rule_antipatterns();
 
         assert!(
