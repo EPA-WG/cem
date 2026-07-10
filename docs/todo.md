@@ -119,7 +119,11 @@ history belongs in git history and the feature-specific docs linked below.
         instead of conversion descriptor extraction; Rust converter
         `rust-symbol` requirements now also stay in schema-owned
         `converter_check` contracts, with runtime execution retaining only the
-        operational missing-symbol guard.
+        operational missing-symbol guard; CEMT converter `template`,
+        `template-content-type`, and `template-schema` identity requirements
+        now stay in the schema-owned `converter-cemt-template-identity`
+        contract, with runtime execution retaining only the operational missing
+        template guard.
   - [ ] Keep Rust validators only for operational execution that cannot be
         represented as field data: resource read failures, parser failures,
         CEMT compilation, CEMT function lookup, host-hook availability, and

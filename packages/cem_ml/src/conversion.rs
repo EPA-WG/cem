@@ -7377,18 +7377,22 @@ fn conversion_descriptor_from_manifest_node(
     let parity_fixtures = manifest_parity_fixtures(document, node_id, &id, base_path)?;
 
     let template = match implementation {
-        ConversionImplementation::Cemt => {
-            let template_path = required_manifest_attr(&attrs, Some(&id), "template")?;
-            let template_content_type =
-                required_manifest_attr(&attrs, Some(&id), "template-content-type")?;
-            Some(ConversionTemplateDescriptor {
-                path: package_relative_path(base_path, template_path),
-                content_type: content_type_essence(template_content_type),
-                schema: optional_manifest_attr(&attrs, "template-schema").map(str::to_owned),
-                entrypoint: optional_manifest_attr(&attrs, "template-entrypoint")
-                    .map(str::to_owned),
-            })
-        }
+        ConversionImplementation::Cemt => match (
+            optional_manifest_attr(&attrs, "template"),
+            optional_manifest_attr(&attrs, "template-content-type"),
+            optional_manifest_attr(&attrs, "template-schema"),
+        ) {
+            (Some(template_path), Some(template_content_type), Some(template_schema)) => {
+                Some(ConversionTemplateDescriptor {
+                    path: package_relative_path(base_path, template_path),
+                    content_type: content_type_essence(template_content_type),
+                    schema: Some(template_schema.to_owned()),
+                    entrypoint: optional_manifest_attr(&attrs, "template-entrypoint")
+                        .map(str::to_owned),
+                })
+            }
+            _ => None,
+        },
         ConversionImplementation::Rust => None,
     };
 
@@ -8314,6 +8318,55 @@ mod tests {
 
         assert_eq!(descriptor.implementation, ConversionImplementation::Rust);
         assert_eq!(descriptor.rust_symbol, None);
+    }
+
+    #[test]
+    fn package_manifest_extraction_does_not_own_cemt_template_identity_requirement() {
+        let package = package_source(
+            r#"@doc cem-ml 1
+{package @id="test-dom-projection" @version="1.0.0" |
+    {schema @uri="https://cem.dev/ns/projection/dom/1" @source="schema/cem-dom-projection.cem"}
+    {content-type @value="application/vnd.cem.dom+cem-bin" @primary=true}
+    {converter
+        @id="dom-to-html-cemt"
+        @implementation="cemt"
+        @template="converters/dom-to-html.cemt" |
+        {from @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
+        {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+    }
+}"#,
+        );
+
+        let descriptors = conversion_descriptors_from_schema_package(&package)
+            .expect("schema-owned validation reports incomplete CEMT template identity");
+        let descriptor = descriptors
+            .iter()
+            .find(|descriptor| descriptor.id == "dom-to-html-cemt")
+            .expect("CEMT descriptor");
+
+        assert_eq!(descriptor.implementation, ConversionImplementation::Cemt);
+        assert_eq!(descriptor.template, None);
+    }
+
+    #[test]
+    fn cemt_execution_keeps_missing_template_operational_guard() {
+        let mut descriptor = cemt_edge_with_output_contract(
+            "dom-to-html-cemt",
+            endpoint(HTML_CONTENT_TYPE, HTML_SCHEMA_URI),
+            ConversionOutputContractDescriptor::default(),
+        );
+        descriptor.template = None;
+
+        let template_adapters = TransformTemplateAdapterRegistry::new();
+        let error = resolve_descriptor_execution(&descriptor, &template_adapters)
+            .expect_err("CEMT execution still requires a template descriptor");
+
+        assert_eq!(
+            error,
+            ConversionExecutionError::MissingTemplate {
+                converter_id: "dom-to-html-cemt".to_owned()
+            }
+        );
     }
 
     #[test]
