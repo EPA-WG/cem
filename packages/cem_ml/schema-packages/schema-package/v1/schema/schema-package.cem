@@ -25,7 +25,7 @@
         {element @name="to" @required-attributes="content-type" @optional-attributes="schema"}
         {element @name="parity-fixture" @required-attributes="id path" @optional-attributes="content-type schema expected-diagnostics"}
         {element @name="artifact" @required-attributes="kind path" @optional-attributes="content-type schema target-content-type target-schema target-category function-name function-profile formatter-profile color-profile generated"}
-        {element @name="example" @required-attributes="id path content-type schema expected-result" @optional-attributes="expected-diagnostics"}
+        {element @name="example" @optional-attributes="id path content-type schema expected-result expected-diagnostics"}
     }
 
     {attributes |
@@ -142,6 +142,22 @@
             @diagnostic="cem.schema_package.artifact_check"
             @check-kind="required-fields"
         }
+        {field-contract
+            @name="example-required-metadata"
+            @target="example"
+            @required-attributes="id path content-type schema expected-result"
+            @diagnostic="cem.schema_package.example_check"
+            @check-kind="required-fields"
+        }
+        {field-contract
+            @name="example-failing-diagnostics"
+            @target="example"
+            @when-attribute="expected-result"
+            @when-values="fail"
+            @required-attributes="expected-diagnostics"
+            @diagnostic="cem.schema_package.example_check"
+            @check-kind="dependent-required-fields"
+        }
     }
 
     {constraints |
@@ -184,8 +200,7 @@
         {diagnostic @code="cem.schema_package.artifact_layout_invalid" @severity="error"}
         {diagnostic @code="cem.schema_package.artifact_check" @severity="error"}
         {diagnostic @code="cem.schema_package.artifact_function_contract_mismatch" @severity="error"}
-        {diagnostic @code="cem.schema_package.example_result_unknown" @severity="error"}
-        {diagnostic @code="cem.schema_package.example_expected_diagnostics_missing" @severity="error"}
+        {diagnostic @code="cem.schema_package.example_check" @severity="error"}
         {diagnostic @code="cem.schema_package.example_content_type_mismatch" @severity="error"}
         {diagnostic @code="cem.schema_package.schema_source_unreadable" @severity="error"}
         {diagnostic @code="cem.schema_package.schema_source_invalid" @severity="error"}

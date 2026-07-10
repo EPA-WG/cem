@@ -98,14 +98,6 @@ pub(crate) const SCHEMA_PACKAGE_CONVERTER_CONSTRAINT_DIAGNOSTICS: &[(&str, &str)
         "artifact-output-stage-contract",
     ),
     (
-        "cem.schema_package.example_result_unknown",
-        "example-contract",
-    ),
-    (
-        "cem.schema_package.example_expected_diagnostics_missing",
-        "example-contract",
-    ),
-    (
         "cem.schema_package.example_content_type_mismatch",
         "example-contract",
     ),
@@ -1866,36 +1858,6 @@ fn validate_schema_package_example(
         .filter(|value| !value.is_empty())
         .unwrap_or("<missing>");
 
-    let expected_result = attr_value(doc, node, "expected-result")
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
-    match expected_result {
-        Some("pass") => {}
-        Some("fail") => {
-            if attr_value(doc, node, "expected-diagnostics")
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .is_none()
-            {
-                out.push(diag_at(
-                    "cem.schema_package.example_expected_diagnostics_missing",
-                    Severity::Error,
-                    format!(
-                        "failing schema-package example `{example_id}` must declare `expected-diagnostics`"
-                    ),
-                    node,
-                ));
-            }
-        }
-        Some(result) => out.push(diag_at(
-            "cem.schema_package.example_result_unknown",
-            Severity::Error,
-            format!("schema-package example `{example_id}` has unknown expected result `{result}`"),
-            node,
-        )),
-        None => {}
-    }
-
     let Some(content_type) = attr_value(doc, node, "content-type")
         .map(str::trim)
         .filter(|value| !value.is_empty())
@@ -2895,21 +2857,80 @@ mod tests {
                     @schema="https://cem.dev/ns/data/html/1"
                     @expected-result="fail"
                 }
+                {example
+                    @id="missing-required"
+                    @expected-result="pass"
+                }
             }"#,
             Some(CEM_SCHEMA_PACKAGE_URI),
             Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
         );
 
         for code in [
-            "cem.schema_package.example_result_unknown",
+            "cem.schema_model.invalid_attribute_value",
             "cem.schema_package.example_content_type_mismatch",
-            "cem.schema_package.example_expected_diagnostics_missing",
+            "cem.schema_package.example_check",
         ] {
             assert!(
                 diags.iter().any(|d| d.code == code),
                 "missing {code}; diagnostics: {diags:?}"
             );
         }
+
+        for removed_code in [
+            "cem.schema_package.example_result_unknown",
+            "cem.schema_package.example_expected_diagnostics_missing",
+        ] {
+            assert!(
+                diags.iter().all(|d| d.code != removed_code),
+                "legacy example diagnostic `{removed_code}` should be covered by generic schema-owned validation: {diags:?}"
+            );
+        }
+
+        let missing_required = diags
+            .iter()
+            .find(|d| {
+                d.code == "cem.schema_package.example_check"
+                    && d.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("example-required-metadata")
+            })
+            .expect("schema-owned example required metadata field contract diagnostic");
+        let details = missing_required
+            .details
+            .as_ref()
+            .expect("example required metadata details");
+        assert_eq!(
+            details["missingFields"],
+            serde_json::json!(["content-type", "path", "schema"])
+        );
+        assert_eq!(details["checkKind"], serde_json::json!("required-fields"));
+
+        let failing_diagnostics = diags
+            .iter()
+            .find(|d| {
+                d.code == "cem.schema_package.example_check"
+                    && d.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("example-failing-diagnostics")
+            })
+            .expect("schema-owned failing example diagnostics field contract diagnostic");
+        let details = failing_diagnostics
+            .details
+            .as_ref()
+            .expect("failing example diagnostics details");
+        assert_eq!(
+            details["missingFields"],
+            serde_json::json!(["expected-diagnostics"])
+        );
+        assert_eq!(
+            details["condition"],
+            serde_json::json!({
+                "attribute": "expected-result",
+                "values": ["fail"],
+                "presentAttributes": [],
+            })
+        );
     }
 
     #[test]

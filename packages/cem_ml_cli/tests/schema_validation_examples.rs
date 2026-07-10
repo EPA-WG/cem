@@ -116,10 +116,7 @@ const SCHEMA_PACKAGE_RUNTIME_CONSTRAINT_EXAMPLE_DIAGNOSTICS: &[(&str, &str)] = &
         "artifact-output-stage-contract",
         "cem.schema_package.artifact_layout_invalid",
     ),
-    (
-        "example-contract",
-        "cem.schema_package.example_result_unknown",
-    ),
+    ("example-contract", "cem.schema_package.example_check"),
 ];
 
 fn cem_ml(args: &[&str]) -> Output {
@@ -375,9 +372,9 @@ fn schema_owned_examples_validate_through_cli() {
             schema_uri: CEM_SCHEMA_PACKAGE_URI,
             expected_exit: EXIT_HARD_FAILURE,
             expected_diagnostics: &[
-                "cem.schema_package.example_result_unknown",
+                "cem.schema_model.invalid_attribute_value",
                 "cem.schema_package.example_content_type_mismatch",
-                "cem.schema_package.example_expected_diagnostics_missing",
+                "cem.schema_package.example_check",
             ],
         },
         ValidationExample {

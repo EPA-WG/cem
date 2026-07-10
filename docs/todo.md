@@ -11,8 +11,8 @@ history belongs in git history and the feature-specific docs linked below.
       implementation compiles `required-attributes`, `optional-attributes`,
       child allow-lists, initial field contracts, and exact-one child
       occurrence from `.cem` in `packages/cem_ml/src/schema/document_model.rs`;
-      remaining schema-package converter, artifact, and example field rules
-      still live in
+      remaining schema-package converter/artifact field rules and example
+      schema/content-type cross-reference execution still live in
       `packages/cem_ml/src/validation/rules.rs`, and manifest descriptor
       loading still has Rust-owned `required_attr` checks in
       `packages/cem_ml/src/schema/registry.rs`.
@@ -87,16 +87,18 @@ history belongs in git history and the feature-specific docs linked below.
         `.cemt` source-path, target identity compatibility, target category,
         function profile, and formatter/colorizer profile consistency still
         need schema-owned field/rule declarations instead of Rust conditionals.
-  - [ ] Model example cases in `schema-package.cem`: examples require `id`,
-        `path`, `content-type`, `schema`, and `expected-result`; failing
-        examples require `expected-diagnostics`; content type/schema
-        compatibility is declared as a schema-owned cross-reference rule.
+  - [ ] Model example cases in `schema-package.cem`: required example
+        metadata and failing-example `expected-diagnostics` now live in
+        schema-owned `field-contract` declarations and emit
+        `cem.schema_package.example_check`; content type/schema compatibility
+        is declared as a schema-owned cross-reference rule and still executes
+        in Rust.
   - [ ] Continue replacing one-code-per-field diagnostics with contract-family
         diagnostics declared in schema source. Artifact missing-metadata checks
-        now emit `cem.schema_package.artifact_check`; next consolidate
-        converter and example field diagnostics into schema-declared
-        `converter_check` and `example_check` families where the only
-        distinction is field contract detail.
+        now emit `cem.schema_package.artifact_check`; converter and example
+        field diagnostics now emit schema-declared `converter_check` and
+        `example_check` families where the only distinction is field contract
+        detail.
   - [ ] Keep Rust validators only for operational execution that cannot be
         represented as field data: resource read failures, parser failures,
         CEMT compilation, CEMT function lookup, host-hook availability, and
