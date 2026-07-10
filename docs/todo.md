@@ -185,10 +185,11 @@ history belongs in git history and the feature-specific docs linked below.
         manifest field diagnostics, and `required_attr` has been removed.
   - [ ] Update runtime diagnostic declaration tests and CLI example coverage to
         assert generic contract-family codes plus structured details instead of
-        schema-package-specific missing-field codes. Add an `rg`-based audit in
-        tests or docs for remaining field-rule anti-patterns such as
-        hard-coded required field vectors, enum `matches!` lists, and
-        field-specific `*_missing` diagnostics.
+        schema-package-specific missing-field codes. A production-source audit
+        now guards against reintroducing schema-package field-specific
+        `*_missing` diagnostics and retired descriptor parsing helpers/errors;
+        keep expanding that audit for hard-coded required field vectors and
+        enum `matches!` lists as new declarative contracts move into schema.
 
 - [ ] Complete the schema-package folder frame for
       `packages/cem_ml/schema-packages`: every `{package-id}/vN/` folder must be

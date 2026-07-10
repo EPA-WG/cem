@@ -803,6 +803,54 @@ mod tests {
         codes
     }
 
+    fn schema_package_field_rule_antipatterns() -> Vec<String> {
+        let sources = [
+            ("schema/registry.rs", include_str!("registry.rs")),
+            (
+                "schema/package_consistency.rs",
+                include_str!("package_consistency.rs"),
+            ),
+            (
+                "validation/rules.rs",
+                include_str!("../validation/rules.rs"),
+            ),
+            ("conversion.rs", include_str!("../conversion.rs")),
+            ("real.rs", include_str!("../real.rs")),
+        ];
+        let disallowed_tokens = [
+            "required_manifest_attr",
+            "required_attr(",
+            "MissingAttribute",
+            "MissingEndpoint",
+            "UnknownImplementation",
+            "artifact_metadata_missing",
+            "converter_template_missing",
+            "converter_template_content_type_missing",
+            "converter_template_schema_missing",
+            "converter_rust_symbol_missing",
+            "converter_fallback_reason_missing",
+            "converter_endpoint_missing",
+            "example_expected_diagnostics_missing",
+        ];
+        let mut findings = Vec::new();
+
+        for (source_name, source) in sources {
+            let production_source = production_source_for_diagnostic_audit(source);
+            for token in disallowed_tokens {
+                if production_source.contains(token) {
+                    findings.push(format!("{source_name}: {token}"));
+                }
+            }
+            for code in schema_package_diagnostic_code_literals(production_source) {
+                if code.ends_with("_missing") {
+                    findings.push(format!("{source_name}: {code}"));
+                }
+            }
+        }
+
+        findings
+    }
+
     #[test]
     fn content_type_essence_strips_parameters_and_lowercases() {
         assert_eq!(
@@ -1034,6 +1082,16 @@ mod tests {
         assert!(
             missing.is_empty(),
             "schema-package schema is missing runtime diagnostic declarations: {missing:?}"
+        );
+    }
+
+    #[test]
+    fn schema_package_production_sources_do_not_emit_field_specific_missing_diagnostics() {
+        let findings = schema_package_field_rule_antipatterns();
+
+        assert!(
+            findings.is_empty(),
+            "schema-package field validation must stay schema-owned; production source still contains field-rule anti-patterns: {findings:?}"
         );
     }
 
