@@ -80,8 +80,12 @@ CLI validation integration tests.
 | [`invalid-converter-template-contract.cem`](examples/invalid-converter-template-contract.cem) | CEMT converter declares formatter/coloring output profiles, but its template cannot compile as a formatted CEM-tree producer before writer output. | Fail with `cem.schema_package.converter_check` |
 | [`invalid-artifact-contract.cem`](examples/invalid-artifact-contract.cem) | Formatter artifact metadata disagrees with the referenced CEMT function declaration. | Fail with `cem.schema_package.artifact_check` |
 | [`invalid-artifact-layout.cem`](examples/invalid-artifact-layout.cem) | Formatter and colorizer artifacts point outside their schema-package stage directories. | Fail with `cem.schema_package.artifact_check` |
+| [`invalid-artifact-source-unreadable.cem`](examples/invalid-artifact-source-unreadable.cem) | Formatter artifact references a missing CEMT source file. | Fail with `cem.schema_package.artifact_check` |
+| [`invalid-artifact-source-parse.cem`](examples/invalid-artifact-source-parse.cem) | Formatter artifact references a CEMT source file that cannot be parsed. | Fail with `cem.schema_package.artifact_check` |
+| [`invalid-artifact-function-missing.cem`](examples/invalid-artifact-function-missing.cem) | Formatter artifact references a CEMT source file that does not declare the requested output function. | Fail with `cem.schema_package.artifact_check` |
 | [`invalid-schema-metadata.cem`](examples/invalid-schema-metadata.cem) | Manifest schema metadata disagrees with the referenced schema source. | Fail with `cem.schema_package.schema_uri_mismatch`, `cem.schema_package.schema_content_type_mismatch`, `cem.schema_package.schema_namespace_mismatch` |
 | [`invalid-example-contract.cem`](examples/invalid-example-contract.cem) | Example metadata has an invalid expected result, incompatible schema/content type, and a failing example without expected diagnostics. | Fail with `cem.schema_model.invalid_attribute_value`, `cem.schema_package.example_check` |
+| [`invalid-example-source-contract.cem`](examples/invalid-example-source-contract.cem) | Example declarations cover unreadable source files, source validation result mismatches, and expected diagnostic mismatches. | Fail with `cem.schema_package.example_check` |
 
 Validate an example explicitly against this schema:
 

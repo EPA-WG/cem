@@ -248,9 +248,15 @@ history belongs in git history and the feature-specific docs linked below.
         declared content type/schema instead of extension, validated against
         the built-in document model when available, and checked against
         `expected-result` plus `expected-diagnostics`.
-  - [ ] Expand example coverage from representative constraint-kind coverage to
+  - [x] Expand example coverage from representative constraint-kind coverage to
         finer diagnostic coverage, starting with schema-package source
         read/invalid cases and artifact source/parse/function-missing cases.
+        Schema-package example fixtures now cover unreadable example sources,
+        loaded example result mismatches, expected diagnostic mismatches,
+        unreadable artifact CEMT sources, invalid artifact CEMT sources, and
+        missing artifact CEMT function declarations through generic
+        `cem.schema_package.example_check` and
+        `cem.schema_package.artifact_check` diagnostics.
   - [x] Implement reusable baseline formatter profiles:
         `compact` as default, `pretty`, and `tabular`; each profile is a CEMT
         transform that preserves source-map ranges.

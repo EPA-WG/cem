@@ -1,0 +1,8 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="broken-example-source" @version="1.0.0" |
+    {schema @uri="https://example.test/ns/broken-example-source/1"}
+    {content-type @value="application/vnd.example.broken-example-source+cem" @primary=true}
+}

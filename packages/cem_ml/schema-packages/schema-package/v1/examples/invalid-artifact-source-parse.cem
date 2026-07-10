@@ -1,0 +1,24 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="bad-artifact-source-parse" @version="1.0.0" |
+    {schema
+        @uri="https://example.test/ns/note/1"
+        @source="schema/note.cem"
+    }
+
+    {content-type @value="application/vnd.example.note+cem" @primary=true}
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/invalid-artifact-source-parse.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="bad.invalid"
+        @formatter-profile="compact"
+    }
+}

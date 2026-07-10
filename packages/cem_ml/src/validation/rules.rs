@@ -3708,6 +3708,59 @@ mod tests {
     }
 
     #[test]
+    fn schema_package_examples_cover_source_and_artifact_diagnostics() {
+        let cases: &[(&str, &str, &[&str])] = &[
+            (
+                "invalid-example-source-contract.cem",
+                "cem.schema_package.example_check",
+                &[
+                    "example-source-readable",
+                    "example-source-validation",
+                    "example-expected-diagnostics",
+                ],
+            ),
+            (
+                "invalid-artifact-source-unreadable.cem",
+                "cem.schema_package.artifact_check",
+                &["artifact-source-readable"],
+            ),
+            (
+                "invalid-artifact-source-parse.cem",
+                "cem.schema_package.artifact_check",
+                &["artifact-cemt-valid"],
+            ),
+            (
+                "invalid-artifact-function-missing.cem",
+                "cem.schema_package.artifact_check",
+                &["artifact-function-declared"],
+            ),
+        ];
+
+        for (fixture, code, check_kinds) in cases {
+            let path = schema_package_example_fixture_path(fixture);
+            let source = std::fs::read_to_string(&path).expect("read schema-package example");
+            let diags = run_rules_with_identity_and_source_uri(
+                &source,
+                Some(CEM_SCHEMA_PACKAGE_URI),
+                Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
+                Some(path.to_str().expect("UTF-8 schema-package example path")),
+            );
+
+            for check_kind in *check_kinds {
+                assert!(
+                    diags.iter().any(|diagnostic| {
+                        diagnostic.code == *code
+                            && diagnostic.details.as_ref().and_then(|details| {
+                                details.get("checkKind").and_then(serde_json::Value::as_str)
+                            }) == Some(*check_kind)
+                    }),
+                    "fixture `{fixture}` should emit {code} checkKind `{check_kind}`; diagnostics: {diags:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn schema_package_converter_contract_flags_unsupported_output_pipeline_template() {
         let dir = schema_package_artifact_contract_fixture_dir(
             "converter-template-contract-invalid",
@@ -4447,6 +4500,12 @@ mod tests {
             std::fs::write(path, source).expect("write CEMT fixture");
         }
         dir
+    }
+
+    fn schema_package_example_fixture_path(file_name: &str) -> std::path::PathBuf {
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("schema-packages/schema-package/v1/examples")
+            .join(file_name)
     }
 
     fn demo_format_cemt_source() -> &'static str {
