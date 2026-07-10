@@ -2661,8 +2661,18 @@ const CEM_TREE_FORMAT_CEMT_ADAPTER_ID: &str = "cem-tree-format-cemt";
 const CEM_TREE_COLOR_CEMT_ADAPTER_ID: &str = "cem-tree-color-cemt";
 const CEMT_FORMATTER_COLORING_PIPELINE_PACKAGE_SOURCE_URI: &str =
     "schema-packages/cem-ml/v1/package.cem";
+const CEM_TREE_FORMATTER_ARTIFACT_KIND: &str = "formatter";
+const CEM_TREE_COLORIZER_ARTIFACT_KIND: &str = "colorizer";
 const CEM_TREE_FORMATTER_HELPER_ARTIFACT_KIND: &str = "formatter-helper";
 const CEM_TREE_COLORIZER_HELPER_ARTIFACT_KIND: &str = "colorizer-helper";
+const CEM_TREE_FORMATTER_STAGE_ARTIFACT_KINDS: &[&str] = &[
+    CEM_TREE_FORMATTER_ARTIFACT_KIND,
+    CEM_TREE_FORMATTER_HELPER_ARTIFACT_KIND,
+];
+const CEM_TREE_COLORIZER_STAGE_ARTIFACT_KINDS: &[&str] = &[
+    CEM_TREE_COLORIZER_ARTIFACT_KIND,
+    CEM_TREE_COLORIZER_HELPER_ARTIFACT_KIND,
+];
 
 #[derive(Debug, Clone)]
 struct CemTreeCemtOutputStage {
@@ -6851,15 +6861,19 @@ fn conversion_package_artifact_cem_tree_stage_metadata_contract(
         return None;
     }
 
-    match (artifact.kind.as_str(), function.kind) {
-        (
-            "formatter" | CEM_TREE_FORMATTER_HELPER_ARTIFACT_KIND,
-            TransformTemplateOutputFunctionKind::Format,
-        ) => Some(CemtStageMetadataContract::Formatter),
-        (
-            "colorizer" | CEM_TREE_COLORIZER_HELPER_ARTIFACT_KIND,
-            TransformTemplateOutputFunctionKind::Color,
-        ) => Some(CemtStageMetadataContract::Colorizer),
+    match function.kind {
+        TransformTemplateOutputFunctionKind::Format
+            if CemtStageMetadataContract::Formatter
+                .includes_artifact_kind(artifact.kind.as_str()) =>
+        {
+            Some(CemtStageMetadataContract::Formatter)
+        }
+        TransformTemplateOutputFunctionKind::Color
+            if CemtStageMetadataContract::Colorizer
+                .includes_artifact_kind(artifact.kind.as_str()) =>
+        {
+            Some(CemtStageMetadataContract::Colorizer)
+        }
         _ => None,
     }
 }
@@ -6890,6 +6904,17 @@ impl CemtStageMetadataContract {
             Self::Formatter => "formatted",
             Self::Colorizer => "colored",
         }
+    }
+
+    fn artifact_kinds(self) -> &'static [&'static str] {
+        match self {
+            Self::Formatter => CEM_TREE_FORMATTER_STAGE_ARTIFACT_KINDS,
+            Self::Colorizer => CEM_TREE_COLORIZER_STAGE_ARTIFACT_KINDS,
+        }
+    }
+
+    fn includes_artifact_kind(self, kind: &str) -> bool {
+        self.artifact_kinds().contains(&kind)
     }
 }
 
@@ -7014,22 +7039,18 @@ fn conversion_package_artifact_is_related_cem_tree_stage_artifact(
 
     match contract {
         CemtStageMetadataContract::Formatter => {
-            matches!(
-                candidate.kind.as_str(),
-                "formatter" | CEM_TREE_FORMATTER_HELPER_ARTIFACT_KIND
-            ) && conversion_package_artifact_profile_matches(
-                root.formatter_profile.as_deref(),
-                candidate.formatter_profile.as_deref(),
-            )
+            contract.includes_artifact_kind(candidate.kind.as_str())
+                && conversion_package_artifact_profile_matches(
+                    root.formatter_profile.as_deref(),
+                    candidate.formatter_profile.as_deref(),
+                )
         }
         CemtStageMetadataContract::Colorizer => {
-            matches!(
-                candidate.kind.as_str(),
-                "colorizer" | CEM_TREE_COLORIZER_HELPER_ARTIFACT_KIND
-            ) && conversion_package_artifact_profile_matches(
-                root.color_profile.as_deref(),
-                candidate.color_profile.as_deref(),
-            )
+            contract.includes_artifact_kind(candidate.kind.as_str())
+                && conversion_package_artifact_profile_matches(
+                    root.color_profile.as_deref(),
+                    candidate.color_profile.as_deref(),
+                )
         }
     }
 }
@@ -7736,6 +7757,36 @@ mod tests {
         panic!("schema-package attribute `{attribute_name}` not declared");
     }
 
+    fn schema_package_field_contract_when_values(contract_name: &str) -> BTreeSet<String> {
+        let source =
+            builtin_schema_package_source("schema-package").expect("schema-package source");
+        let document = parse_cem_document(source.schema_source);
+        let schema_id = first_element_id_by_local_name(&document, "schema").expect("schema root");
+        let contracts_id = element_child_ids_by_local_name(&document, schema_id, "field-contracts")
+            .into_iter()
+            .next()
+            .expect("field-contracts section");
+
+        for contract_id in
+            element_child_ids_by_local_name(&document, contracts_id, "field-contract")
+        {
+            let attrs = collect_manifest_attrs(&document, contract_id);
+            if optional_manifest_attr(&attrs, "name") == Some(contract_name) {
+                return optional_manifest_attr(&attrs, "when-values")
+                    .unwrap_or_default()
+                    .split_whitespace()
+                    .map(str::to_owned)
+                    .collect();
+            }
+        }
+
+        panic!("schema-package field contract `{contract_name}` not declared");
+    }
+
+    fn string_set(values: &[&str]) -> BTreeSet<String> {
+        values.iter().copied().map(str::to_owned).collect()
+    }
+
     fn accepted_manifest_values<T>(
         candidates: &[&str],
         parser: impl Fn(&str) -> Option<T>,
@@ -7785,6 +7836,29 @@ mod tests {
         assert!(parse_manifest_readiness("__schema-test-invalid__").is_none());
         assert!(parse_manifest_output_syntax("__schema-test-invalid__").is_none());
         assert!(parse_manifest_parity_mode("__schema-test-invalid__").is_none());
+    }
+
+    #[test]
+    fn schema_package_artifact_stage_kind_groups_track_field_contracts() {
+        let formatter_kinds = string_set(CemtStageMetadataContract::Formatter.artifact_kinds());
+        let colorizer_kinds = string_set(CemtStageMetadataContract::Colorizer.artifact_kinds());
+        let all_stage_kinds = formatter_kinds
+            .union(&colorizer_kinds)
+            .cloned()
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(
+            schema_package_field_contract_when_values("artifact-formatter-layout"),
+            formatter_kinds
+        );
+        assert_eq!(
+            schema_package_field_contract_when_values("artifact-colorizer-layout"),
+            colorizer_kinds
+        );
+        assert_eq!(
+            schema_package_field_contract_when_values("artifact-stage-metadata"),
+            all_stage_kinds
+        );
     }
 
     fn cemt_edge_with_output_contract(

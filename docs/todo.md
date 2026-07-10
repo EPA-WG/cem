@@ -196,8 +196,10 @@ history belongs in git history and the feature-specific docs linked below.
         names, hard-coded required-field vector helper names, and retired
         descriptor parsing helpers/errors; schema-declared enum value sets for
         conversion manifest materializers are now parity-tested against the
-        Rust enum parsers. Keep expanding that audit for narrow operational
-        `matches!` lists as new declarative contracts move into schema.
+        Rust enum parsers, and formatter/colorizer artifact stage kind groups
+        are parity-tested against schema-owned field-contract `@when-values`.
+        Keep expanding that audit for narrow operational `matches!` lists as
+        new declarative contracts move into schema.
 
 - [ ] Complete the schema-package folder frame for
       `packages/cem_ml/schema-packages`: every `{package-id}/vN/` folder must be
