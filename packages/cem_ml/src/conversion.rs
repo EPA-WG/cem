@@ -2701,7 +2701,7 @@ struct CemTreeCemtOutputStageSpec {
 
 const CEM_TREE_FORMAT_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
     adapter_id: CEM_TREE_FORMAT_CEMT_ADAPTER_ID,
-    artifact_kind: "formatter",
+    artifact_kind: CEM_TREE_FORMATTER_ARTIFACT_KIND,
     declaration_element: "{format-function",
     function_kind: TransformTemplateOutputFunctionKind::Format,
     function_name: "cem.format-tree",
@@ -2710,7 +2710,7 @@ const CEM_TREE_FORMAT_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtO
 
 const CEM_TREE_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
     adapter_id: CEM_TREE_COLOR_CEMT_ADAPTER_ID,
-    artifact_kind: "colorizer",
+    artifact_kind: CEM_TREE_COLORIZER_ARTIFACT_KIND,
     declaration_element: "{color-function",
     function_kind: TransformTemplateOutputFunctionKind::Color,
     function_name: "cem.color-tree",
@@ -2903,27 +2903,15 @@ fn package_artifact_matches_cem_tree_target(
 fn package_artifact_output_function_kind(
     artifact_kind: &str,
 ) -> Option<TransformTemplateOutputFunctionKind> {
-    match artifact_kind.trim() {
-        "formatter" | CEM_TREE_FORMATTER_HELPER_ARTIFACT_KIND => {
-            Some(TransformTemplateOutputFunctionKind::Format)
-        }
-        "colorizer" | CEM_TREE_COLORIZER_HELPER_ARTIFACT_KIND => {
-            Some(TransformTemplateOutputFunctionKind::Color)
-        }
-        _ => None,
-    }
+    CemtStageMetadataContract::from_artifact_kind(artifact_kind)
+        .map(CemtStageMetadataContract::function_kind)
 }
 
 fn cemt_output_stage_helper_artifact_kind(
     function_kind: TransformTemplateOutputFunctionKind,
 ) -> Option<&'static str> {
-    match function_kind {
-        TransformTemplateOutputFunctionKind::Format => {
-            Some(CEM_TREE_FORMATTER_HELPER_ARTIFACT_KIND)
-        }
-        TransformTemplateOutputFunctionKind::Color => Some(CEM_TREE_COLORIZER_HELPER_ARTIFACT_KIND),
-        TransformTemplateOutputFunctionKind::Encoding => None,
-    }
+    CemtStageMetadataContract::from_function_kind(function_kind)
+        .map(CemtStageMetadataContract::helper_artifact_kind)
 }
 
 fn parse_cem_tree_cemt_output_artifact_module_options(
@@ -6913,6 +6901,39 @@ impl CemtStageMetadataContract {
         }
     }
 
+    fn from_artifact_kind(kind: &str) -> Option<Self> {
+        let kind = kind.trim();
+        if Self::Formatter.includes_artifact_kind(kind) {
+            Some(Self::Formatter)
+        } else if Self::Colorizer.includes_artifact_kind(kind) {
+            Some(Self::Colorizer)
+        } else {
+            None
+        }
+    }
+
+    fn from_function_kind(kind: TransformTemplateOutputFunctionKind) -> Option<Self> {
+        match kind {
+            TransformTemplateOutputFunctionKind::Format => Some(Self::Formatter),
+            TransformTemplateOutputFunctionKind::Color => Some(Self::Colorizer),
+            TransformTemplateOutputFunctionKind::Encoding => None,
+        }
+    }
+
+    fn function_kind(self) -> TransformTemplateOutputFunctionKind {
+        match self {
+            Self::Formatter => TransformTemplateOutputFunctionKind::Format,
+            Self::Colorizer => TransformTemplateOutputFunctionKind::Color,
+        }
+    }
+
+    fn helper_artifact_kind(self) -> &'static str {
+        match self {
+            Self::Formatter => CEM_TREE_FORMATTER_HELPER_ARTIFACT_KIND,
+            Self::Colorizer => CEM_TREE_COLORIZER_HELPER_ARTIFACT_KIND,
+        }
+    }
+
     fn includes_artifact_kind(self, kind: &str) -> bool {
         self.artifact_kinds().contains(&kind)
     }
@@ -7871,6 +7892,40 @@ mod tests {
         assert_eq!(
             schema_package_field_contract_when_values("artifact-stage-metadata"),
             all_stage_kinds
+        );
+    }
+
+    #[test]
+    fn cemt_artifact_stage_function_kind_mapping_tracks_schema_stage_groups() {
+        for kind in schema_package_field_contract_when_values("artifact-formatter-layout") {
+            assert_eq!(
+                package_artifact_output_function_kind(&kind),
+                Some(TransformTemplateOutputFunctionKind::Format),
+                "formatter schema stage kind `{kind}` must map to CEMT format output functions"
+            );
+        }
+        for kind in schema_package_field_contract_when_values("artifact-colorizer-layout") {
+            assert_eq!(
+                package_artifact_output_function_kind(&kind),
+                Some(TransformTemplateOutputFunctionKind::Color),
+                "colorizer schema stage kind `{kind}` must map to CEMT color output functions"
+            );
+        }
+        assert_eq!(
+            package_artifact_output_function_kind("__schema-test-invalid__"),
+            None
+        );
+        assert_eq!(
+            cemt_output_stage_helper_artifact_kind(TransformTemplateOutputFunctionKind::Format),
+            Some(CEM_TREE_FORMATTER_HELPER_ARTIFACT_KIND)
+        );
+        assert_eq!(
+            cemt_output_stage_helper_artifact_kind(TransformTemplateOutputFunctionKind::Color),
+            Some(CEM_TREE_COLORIZER_HELPER_ARTIFACT_KIND)
+        );
+        assert_eq!(
+            cemt_output_stage_helper_artifact_kind(TransformTemplateOutputFunctionKind::Encoding),
+            None
         );
     }
 

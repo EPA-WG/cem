@@ -119,9 +119,11 @@ history belongs in git history and the feature-specific docs linked below.
         Rust only as the execution placement; runtime conversion artifact
         extraction no longer owns artifact `kind`/`path`,
         formatter/colorizer profile required-field checks, or the `generated`
-        boolean datatype check. Remaining artifact work is to audit runtime
-        conversion selection checks for package-specific field assumptions and
-        move any declarative parts into schema-owned contracts.
+        boolean datatype check; runtime conversion selection now routes
+        formatter/colorizer stage-kind-to-function-kind mapping through the
+        schema-pinned CEMT stage contract groups. Remaining artifact work is to
+        audit deeper CEMT body/output assertions once the schema vocabulary for
+        those assertions exists.
   - [ ] Model example cases in `schema-package.cem`: required example
         metadata and failing-example `expected-diagnostics` now live in
         schema-owned `field-contract` declarations and emit
@@ -210,7 +212,8 @@ history belongs in git history and the feature-specific docs linked below.
         descriptor parsing helpers/errors; schema-declared enum value sets for
         conversion manifest materializers are now parity-tested against the
         Rust enum parsers, and formatter/colorizer artifact stage kind groups
-        are parity-tested against schema-owned field-contract `@when-values`.
+        plus runtime output-function-kind mappings are parity-tested against
+        schema-owned field-contract `@when-values`.
         Formatter/colorizer CEMT body metadata term checks are centralized on
         the operational stage contract type and test-pinned; moving those terms
         into schema needs a schema vocabulary for CEMT body/output assertions.
