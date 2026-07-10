@@ -7712,6 +7712,81 @@ mod tests {
         }
     }
 
+    fn schema_package_attribute_values(attribute_name: &str) -> BTreeSet<String> {
+        let source =
+            builtin_schema_package_source("schema-package").expect("schema-package source");
+        let document = parse_cem_document(source.schema_source);
+        let schema_id = first_element_id_by_local_name(&document, "schema").expect("schema root");
+        let attributes_id = element_child_ids_by_local_name(&document, schema_id, "attributes")
+            .into_iter()
+            .next()
+            .expect("attributes section");
+
+        for attribute_id in element_child_ids_by_local_name(&document, attributes_id, "attribute") {
+            let attrs = collect_manifest_attrs(&document, attribute_id);
+            if optional_manifest_attr(&attrs, "name") == Some(attribute_name) {
+                return optional_manifest_attr(&attrs, "values")
+                    .unwrap_or_default()
+                    .split_whitespace()
+                    .map(str::to_owned)
+                    .collect();
+            }
+        }
+
+        panic!("schema-package attribute `{attribute_name}` not declared");
+    }
+
+    fn accepted_manifest_values<T>(
+        candidates: &[&str],
+        parser: impl Fn(&str) -> Option<T>,
+    ) -> BTreeSet<String> {
+        candidates
+            .iter()
+            .copied()
+            .filter(|candidate| parser(candidate).is_some())
+            .map(str::to_owned)
+            .collect()
+    }
+
+    #[test]
+    fn schema_package_manifest_enum_parsers_track_schema_declared_values() {
+        assert_eq!(
+            schema_package_attribute_values("implementation"),
+            accepted_manifest_values(&["cemt", "rust"], parse_manifest_implementation)
+        );
+        assert_eq!(
+            schema_package_attribute_values("readiness"),
+            accepted_manifest_values(&["ready", "planned"], parse_manifest_readiness)
+        );
+        assert_eq!(
+            schema_package_attribute_values("output-syntax"),
+            accepted_manifest_values(
+                &[
+                    "html", "xml", "json", "yaml", "csv", "css", "markdown", "cemt", "text",
+                    "binary", "opaque",
+                ],
+                parse_manifest_output_syntax,
+            )
+        );
+        assert_eq!(
+            schema_package_attribute_values("parity"),
+            accepted_manifest_values(
+                &[
+                    "byte-exact",
+                    "token-equivalent",
+                    "parse-equivalent",
+                    "diagnostic-equivalent",
+                ],
+                parse_manifest_parity_mode,
+            )
+        );
+
+        assert!(parse_manifest_implementation("__schema-test-invalid__").is_none());
+        assert!(parse_manifest_readiness("__schema-test-invalid__").is_none());
+        assert!(parse_manifest_output_syntax("__schema-test-invalid__").is_none());
+        assert!(parse_manifest_parity_mode("__schema-test-invalid__").is_none());
+    }
+
     fn cemt_edge_with_output_contract(
         id: &str,
         to: ConversionEndpoint,
