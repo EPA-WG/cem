@@ -10,6 +10,30 @@ use crate::tokenizer::cem::CemTokenizer;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
+#[allow(dead_code)]
+pub(crate) const SCHEMA_PACKAGE_SOURCE_CONSISTENCY_CONSTRAINT_DIAGNOSTICS: &[(&str, &str)] = &[
+    (
+        "cem.schema_package.schema_source_unreadable",
+        "schema-source-metadata-consistency",
+    ),
+    (
+        "cem.schema_package.schema_source_invalid",
+        "schema-source-metadata-consistency",
+    ),
+    (
+        "cem.schema_package.schema_uri_mismatch",
+        "schema-source-metadata-consistency",
+    ),
+    (
+        "cem.schema_package.schema_content_type_mismatch",
+        "schema-source-metadata-consistency",
+    ),
+    (
+        "cem.schema_package.schema_namespace_mismatch",
+        "schema-source-metadata-consistency",
+    ),
+];
+
 pub fn validate_schema_package_source_consistency(
     manifest_path: &Path,
     manifest: &CemDocument,

@@ -590,6 +590,8 @@ fn element_child_ids_by_local_name(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::schema::package_consistency::SCHEMA_PACKAGE_SOURCE_CONSISTENCY_CONSTRAINT_DIAGNOSTICS;
+    use crate::validation::rules::SCHEMA_PACKAGE_CONVERTER_CONSTRAINT_DIAGNOSTICS;
 
     fn descriptor(schema_uri: &str, content_type: &str) -> SchemaDescriptor {
         SchemaDescriptor {
@@ -621,6 +623,29 @@ mod tests {
             .filter_map(|diagnostic_id| {
                 collect_attrs(&document, diagnostic_id)
                     .get("code")
+                    .map(String::to_owned)
+            })
+            .collect()
+    }
+
+    fn schema_package_schema_constraint_kinds() -> BTreeSet<String> {
+        let source = builtin_schema_package_sources()
+            .iter()
+            .find(|source| source.package_id == "schema-package")
+            .expect("schema-package source");
+        let document = parse_cem_document(source.schema_source);
+        let schema_id = first_element_id_by_local_name(&document, "schema")
+            .expect("schema-package schema root");
+        let constraints_id = element_child_ids_by_local_name(&document, schema_id, "constraints")
+            .into_iter()
+            .next()
+            .expect("schema-package constraints");
+
+        element_child_ids_by_local_name(&document, constraints_id, "constraint")
+            .into_iter()
+            .filter_map(|constraint_id| {
+                collect_attrs(&document, constraint_id)
+                    .get("kind")
                     .map(String::to_owned)
             })
             .collect()
@@ -685,6 +710,18 @@ mod tests {
         codes.extend(schema_package_diagnostic_code_literals(include_str!(
             "package_consistency.rs"
         )));
+        codes
+    }
+
+    fn emitted_schema_package_validation_diagnostic_codes() -> BTreeSet<String> {
+        let mut codes = schema_package_diagnostic_codes_after_call(
+            include_str!("../validation/rules.rs"),
+            "diag_at(",
+        );
+        codes.extend(schema_package_diagnostic_codes_after_call(
+            include_str!("package_consistency.rs"),
+            "schema_package_consistency_diagnostic(",
+        ));
         codes
     }
 
@@ -764,49 +801,53 @@ mod tests {
     }
 
     #[test]
-    fn schema_package_schema_exposes_converter_template_validation_metadata() {
-        let source = builtin_schema_package_sources()
+    fn schema_package_schema_declares_runtime_constraint_kinds() {
+        let emitted = emitted_schema_package_validation_diagnostic_codes();
+        let implemented = SCHEMA_PACKAGE_CONVERTER_CONSTRAINT_DIAGNOSTICS
             .iter()
-            .find(|source| source.package_id == "schema-package")
-            .expect("schema-package source");
-        let document = parse_cem_document(source.schema_source);
-        let schema_id = first_element_id_by_local_name(&document, "schema")
-            .expect("schema-package schema root");
-
-        let constraints_id = element_child_ids_by_local_name(&document, schema_id, "constraints")
-            .into_iter()
-            .next()
-            .expect("schema-package constraints");
-        let constraint_kinds =
-            element_child_ids_by_local_name(&document, constraints_id, "constraint")
-                .into_iter()
-                .filter_map(|constraint_id| {
-                    collect_attrs(&document, constraint_id)
-                        .get("kind")
-                        .map(String::to_owned)
-                })
-                .collect::<Vec<_>>();
+            .chain(SCHEMA_PACKAGE_SOURCE_CONSISTENCY_CONSTRAINT_DIAGNOSTICS.iter())
+            .copied()
+            .collect::<Vec<_>>();
+        let implemented_diagnostics = implemented
+            .iter()
+            .map(|(diagnostic_code, _)| (*diagnostic_code).to_owned())
+            .collect::<BTreeSet<_>>();
+        let implemented_constraints = implemented
+            .iter()
+            .map(|(_, constraint_kind)| (*constraint_kind).to_owned())
+            .collect::<BTreeSet<_>>();
+        let declared = schema_package_schema_constraint_kinds();
+        let missing_diagnostic_mappings = emitted
+            .difference(&implemented_diagnostics)
+            .collect::<Vec<_>>();
+        let missing_constraint_declarations = implemented_constraints
+            .difference(&declared)
+            .collect::<Vec<_>>();
 
         assert!(
-            constraint_kinds
-                .iter()
-                .any(|kind| kind == "converter-template-output-stage-contract"),
+            !emitted.is_empty(),
+            "expected schema-package validation diagnostics emitted by runtime validators"
+        );
+        assert!(
+            missing_diagnostic_mappings.is_empty(),
+            "schema-package validation diagnostics need constraint mappings: {missing_diagnostic_mappings:?}"
+        );
+        assert!(
+            missing_constraint_declarations.is_empty(),
+            "schema-package schema is missing runtime constraint declarations: {missing_constraint_declarations:?}"
+        );
+    }
+
+    #[test]
+    fn schema_package_schema_exposes_converter_template_validation_metadata() {
+        let constraint_kinds = schema_package_schema_constraint_kinds();
+
+        assert!(
+            constraint_kinds.contains("converter-template-output-stage-contract"),
             "schema-package schema must publish the CEMT converter template output-stage constraint"
         );
 
-        let diagnostics_id = element_child_ids_by_local_name(&document, schema_id, "diagnostics")
-            .into_iter()
-            .next()
-            .expect("schema-package diagnostics");
-        let diagnostic_codes =
-            element_child_ids_by_local_name(&document, diagnostics_id, "diagnostic")
-                .into_iter()
-                .filter_map(|diagnostic_id| {
-                    collect_attrs(&document, diagnostic_id)
-                        .get("code")
-                        .map(String::to_owned)
-                })
-                .collect::<Vec<_>>();
+        let diagnostic_codes = schema_package_schema_diagnostic_codes();
 
         for expected_code in [
             "cem.schema_package.converter_template_schema_missing",
@@ -814,7 +855,7 @@ mod tests {
             "cem.schema_package.converter_template_contract_invalid",
         ] {
             assert!(
-                diagnostic_codes.iter().any(|code| code == expected_code),
+                diagnostic_codes.contains(expected_code),
                 "schema-package schema must publish diagnostic code {expected_code}"
             );
         }

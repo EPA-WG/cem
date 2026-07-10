@@ -71,9 +71,11 @@
         {constraint @kind="single-primary-content-type" @target="package" @policy="required"}
         {constraint @kind="schema-source-required" @target="schema" @policy="required"}
         {constraint @kind="converter-from-to-required" @target="converter" @policy="required"}
+        {constraint @kind="converter-implementation-known" @target="converter" @policy="implementation must use a declared schema-package implementation value"}
         {constraint @kind="cemt-template-identity-required" @target="converter" @policy="when implementation is cemt"}
         {constraint @kind="rust-symbol-required" @target="converter" @policy="when implementation is rust"}
         {constraint @kind="converter-cost-positive" @target="converter" @policy="cost, when present, must be a positive integer"}
+        {constraint @kind="converter-planner-state-contract" @target="converter" @policy="streamable, implicit, explicit-only, and readiness metadata must use declared values; implicit and explicit-only cannot both be true"}
         {constraint @kind="converter-output-contract" @target="converter" @policy="output-syntax and parity, when present, must use declared values; encoding-category, formatter-profile, and color-profile describe the CEMT tree pipeline and final writer artifact identity"}
         {constraint @kind="converter-template-output-stage-contract" @target="converter" @policy="CEMT converters that declare formatter-profile or color-profile output stages must reference a readable CEMT template that compiles as a formatted CEM-tree producer before writer output"}
         {constraint @kind="converter-endpoint-schema-content-type-match" @target="from to" @policy="when endpoint schema is known, content-type must be registered by that schema"}
