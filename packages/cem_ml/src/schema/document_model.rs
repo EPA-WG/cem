@@ -9,9 +9,10 @@
 //! - direct child element allow-lists.
 //! - built-in base element references through schema `{uses}` aliases.
 //! - schema-owned field contracts for element-bound conditional checks.
+//! - schema-owned attribute `@values` and boolean type checks.
 //!
-//! Cardinality, ordering, scalar type checks beyond declared field contracts,
-//! and semantic constraints remain follow-up work.
+//! Cardinality, ordering, non-boolean scalar type checks, and semantic
+//! constraints remain follow-up work.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -35,6 +36,7 @@ pub const UNKNOWN_ELEMENT_CODE: &str = "cem.schema_model.unknown_element";
 pub const UNKNOWN_ATTRIBUTE_CODE: &str = "cem.schema_model.unknown_attribute";
 pub const MISSING_REQUIRED_ATTRIBUTE_CODE: &str = "cem.schema_model.missing_required_attribute";
 pub const INVALID_ATTRIBUTE_VALUE_CODE: &str = "cem.schema_model.invalid_attribute_value";
+pub const INVALID_ATTRIBUTE_TYPE_CODE: &str = "cem.schema_model.invalid_attribute_type";
 pub const INVALID_CHILD_ELEMENT_CODE: &str = "cem.schema_model.invalid_child_element";
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -228,7 +230,7 @@ fn validate_node(
                 attr,
             ));
         } else if let Some(attribute_model) = model.attributes.get(attr_local) {
-            validate_attribute_value(
+            validate_attribute_contracts(
                 &model.schema_uri,
                 local,
                 attr_local,
@@ -292,6 +294,86 @@ fn validate_node(
             diagnostics,
         );
     }
+}
+
+fn validate_attribute_contracts(
+    schema_uri: &str,
+    element_name: &str,
+    attribute_name: &str,
+    value: &str,
+    attribute_model: &AttributeModel,
+    attribute_values: &BTreeMap<String, String>,
+    node: &CemAstNode,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    validate_attribute_type(
+        schema_uri,
+        element_name,
+        attribute_name,
+        value,
+        attribute_model,
+        attribute_values,
+        node,
+        diagnostics,
+    );
+    validate_attribute_value(
+        schema_uri,
+        element_name,
+        attribute_name,
+        value,
+        attribute_model,
+        attribute_values,
+        node,
+        diagnostics,
+    );
+}
+
+fn validate_attribute_type(
+    schema_uri: &str,
+    element_name: &str,
+    attribute_name: &str,
+    value: &str,
+    attribute_model: &AttributeModel,
+    attribute_values: &BTreeMap<String, String>,
+    node: &CemAstNode,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(value_type) = attribute_model.value_type.as_deref() else {
+        return;
+    };
+    if !is_boolean_type_reference(value_type) {
+        return;
+    }
+
+    let value = value.trim();
+    if matches!(value, "" | "true" | "false") {
+        return;
+    }
+
+    diagnostics.push(diag_at_with_details(
+        INVALID_ATTRIBUTE_TYPE_CODE,
+        format!(
+            "attribute `{attribute_name}` on element `{element_name}` has value `{value}` outside schema-declared boolean values"
+        ),
+        node,
+        attribute_type_details(
+            schema_uri,
+            element_name,
+            attribute_name,
+            value,
+            attribute_model,
+            attribute_values,
+            node,
+        ),
+    ));
+}
+
+fn is_boolean_type_reference(value_type: &str) -> bool {
+    let value_type = value_type.trim();
+    value_type == "boolean"
+        || value_type
+            .rsplit_once(':')
+            .is_some_and(|(_, local)| local == "boolean")
 }
 
 fn validate_attribute_value(
@@ -609,6 +691,37 @@ fn attribute_value_details(
         "checkKind": "value-vocabulary",
         "valueType": &attribute_model.value_type,
         "expectedValues": &attribute_model.allowed_values,
+        "actualValue": actual_value,
+        "requiredFields": [],
+        "optionalFields": [],
+        "forbiddenFields": [],
+        "missingFields": [],
+        "invalidFields": [attribute_name],
+        "actualValues": attribute_values,
+        "sourceRange": node_source_range_details(node),
+    })
+}
+
+fn attribute_type_details(
+    schema_uri: &str,
+    element_name: &str,
+    attribute_name: &str,
+    actual_value: &str,
+    attribute_model: &AttributeModel,
+    attribute_values: &BTreeMap<String, String>,
+    node: &CemAstNode,
+) -> serde_json::Value {
+    let expected_type = attribute_model.value_type.as_deref().unwrap_or_default();
+    serde_json::json!({
+        "schemaUri": schema_uri,
+        "element": element_name,
+        "attribute": attribute_name,
+        "contract": format!("attribute-type:{attribute_name}"),
+        "checkKind": "type:boolean",
+        "valueType": expected_type,
+        "expectedType": expected_type,
+        "expectedValues": ["false", "true"],
+        "allowsEmpty": true,
         "actualValue": actual_value,
         "requiredFields": [],
         "optionalFields": [],
@@ -1079,6 +1192,74 @@ mod tests {
         assert_eq!(
             details["actualValues"]["mode"],
             serde_json::json!("tabular")
+        );
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
+    fn schema_boolean_attribute_type_drives_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/type-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="type-contracts" @namespace="https://example.test/ns/type-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="enabled"}
+    }
+    {attributes |
+        {attribute @name="enabled" @type="schema:boolean"}
+    }
+}"#,
+        );
+        for source in [
+            r#"{item @enabled}"#,
+            r#"{item @enabled=true}"#,
+            r#"{item @enabled=false}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_TYPE_CODE),
+                "valid boolean source produced type diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{item @enabled=maybe}"#);
+        let diagnostics = validate_document_model(&document, &model);
+
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_TYPE_CODE)
+            .expect("attribute type diagnostic");
+        assert!(diagnostic.message.contains("enabled"));
+        assert!(diagnostic.message.contains("maybe"));
+        let details = diagnostic.details.as_ref().expect("attribute type details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/type-contracts/1")
+        );
+        assert_eq!(details["element"], serde_json::json!("item"));
+        assert_eq!(details["attribute"], serde_json::json!("enabled"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-type:enabled")
+        );
+        assert_eq!(details["checkKind"], serde_json::json!("type:boolean"));
+        assert_eq!(details["expectedType"], serde_json::json!("schema:boolean"));
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["false", "true"])
+        );
+        assert_eq!(details["allowsEmpty"], serde_json::json!(true));
+        assert_eq!(details["actualValue"], serde_json::json!("maybe"));
+        assert_eq!(details["invalidFields"], serde_json::json!(["enabled"]));
+        assert_eq!(
+            details["actualValues"]["enabled"],
+            serde_json::json!("maybe")
         );
         assert!(details["sourceRange"]["span"]["start"].is_u64());
     }
