@@ -106,7 +106,7 @@ const SCHEMA_PACKAGE_RUNTIME_CONSTRAINT_EXAMPLE_DIAGNOSTICS: &[(&str, &str)] = &
     ),
     (
         "cemt-native-fallback-reason",
-        "cem.schema_package.converter_fallback_reason_missing",
+        "cem.schema_package.converter_check",
     ),
     (
         "schema-source-metadata-consistency",
@@ -328,7 +328,6 @@ fn schema_owned_examples_validate_through_cli() {
             expected_diagnostics: &[
                 "cem.schema_package.converter_implementation_unknown",
                 "cem.schema_package.converter_template_schema_mismatch",
-                "cem.schema_package.converter_fallback_reason_missing",
                 "cem.schema_model.invalid_attribute_type",
                 "cem.schema_model.invalid_attribute_value",
                 "cem.schema_package.converter_selection_conflict",

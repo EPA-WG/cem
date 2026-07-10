@@ -112,10 +112,18 @@ pub struct FieldContract {
     pub forbidden_attributes: BTreeSet<String>,
     pub when_attribute: Option<String>,
     pub when_values: BTreeSet<String>,
+    pub when_present_attributes: BTreeSet<String>,
 }
 
 impl FieldContract {
     fn applies_to(&self, attributes: &BTreeMap<String, String>) -> bool {
+        if !self
+            .when_present_attributes
+            .iter()
+            .all(|name| attributes.contains_key(name))
+        {
+            return false;
+        }
         let Some(when_attribute) = self.when_attribute.as_deref() else {
             return true;
         };
@@ -724,6 +732,7 @@ fn collect_field_contracts(document: &CemDocument, schema_id: AstNodeId) -> Vec<
                 when_attribute: optional_non_empty_attr(&attrs, "when-attribute")
                     .map(str::to_owned),
                 when_values: parse_name_set(attrs.get("when-values")),
+                when_present_attributes: parse_name_set(attrs.get("when-present-attributes")),
             });
         }
     }
@@ -817,6 +826,7 @@ fn field_contract_details(
         "condition": {
             "attribute": &contract.when_attribute,
             "values": &contract.when_values,
+            "presentAttributes": &contract.when_present_attributes,
         },
         "sourceRange": node_source_range_details(node),
     })
@@ -1307,6 +1317,14 @@ mod tests {
             @diagnostic="example.item_check"
             @check-kind="required-fields"
         }
+        {field-contract
+            @name="name-needs-code"
+            @target="item"
+            @when-present-attributes="name"
+            @required-attributes="code"
+            @diagnostic="example.item_check"
+            @check-kind="dependent-required-fields"
+        }
     }
 }"#,
         );
@@ -1341,10 +1359,42 @@ mod tests {
         assert_eq!(details["actualValues"]["kind"], serde_json::json!("a"));
         assert_eq!(details["condition"]["attribute"], serde_json::json!("kind"));
         assert_eq!(details["condition"]["values"], serde_json::json!(["a"]));
+        assert_eq!(
+            details["condition"]["presentAttributes"],
+            serde_json::json!([])
+        );
         assert!(details["sourceRange"]["span"]["start"].is_u64());
         assert!(!diagnostics
             .iter()
             .any(|diagnostic| diagnostic.message.contains("kind-b-fields")));
+        assert!(!diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("name-needs-code")));
+
+        let document = parse_cem_document(r#"{item @kind=a @name=foo}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("name-needs-code")
+            })
+            .expect("presence-gated field contract diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("presence-gated field contract details");
+        assert_eq!(details["missingFields"], serde_json::json!(["code"]));
+        assert_eq!(
+            details["condition"],
+            serde_json::json!({
+                "attribute": null,
+                "values": [],
+                "presentAttributes": ["name"],
+            })
+        );
     }
 
     #[test]

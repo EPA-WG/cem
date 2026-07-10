@@ -42,6 +42,11 @@ details such as target, check kind, expected fields, missing fields, invalid
 fields, forbidden fields, and actual values. They should not require one
 diagnostic code per individual metadata or schema field.
 
+Field contracts can be gated by value selectors such as `when-attribute` plus
+`when-values`, and by presence selectors such as `when-present-attributes`.
+Use presence selectors for dependent-required rules such as "when this
+attribute is present, require these other attributes".
+
 ## Validation Examples
 
 The schema-owned examples live in [`examples/`](examples/) and are used by the

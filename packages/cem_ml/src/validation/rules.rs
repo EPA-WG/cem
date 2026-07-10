@@ -74,10 +74,6 @@ pub(crate) const SCHEMA_PACKAGE_CONVERTER_CONSTRAINT_DIAGNOSTICS: &[(&str, &str)
         "converter-template-output-stage-contract",
     ),
     (
-        "cem.schema_package.converter_fallback_reason_missing",
-        "cemt-native-fallback-reason",
-    ),
-    (
         "cem.schema_package.converter_endpoint_missing",
         "converter-from-to-required",
     ),
@@ -1345,22 +1341,6 @@ fn validate_cemt_converter_contract(
         }
     }
 
-    if has_manifest_attr(doc, node, "rust-symbol")
-        && attr_value(doc, node, "fallback-reason")
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .is_none()
-    {
-        out.push(diag_at(
-            "cem.schema_package.converter_fallback_reason_missing",
-            Severity::Error,
-            format!(
-                "CEMT converter `{converter_id}` with a native fallback must declare `fallback-reason`"
-            ),
-            node,
-        ));
-    }
-
     if claims_formatter_coloring_pipeline && template_content_type_valid && template_schema_valid {
         validate_cemt_converter_template_source_contract(
             ctx,
@@ -1995,16 +1975,6 @@ fn manifest_bool_value(
         "false" => Some(false),
         _ => None,
     }
-}
-
-fn has_manifest_attr(
-    doc: &crate::parser::document::CemDocument,
-    node: &CemAstNode,
-    attr_name: &str,
-) -> bool {
-    attr_value(doc, node, attr_name)
-        .map(str::trim)
-        .is_some_and(|value| !value.is_empty())
 }
 
 fn is_schema_package_manifest_document(ctx: &RuleContext<'_>) -> bool {
@@ -2756,7 +2726,6 @@ mod tests {
             "cem.schema_package.converter_check",
             "cem.schema_package.converter_template_content_type_mismatch",
             "cem.schema_package.converter_template_schema_mismatch",
-            "cem.schema_package.converter_fallback_reason_missing",
             "cem.schema_package.converter_endpoint_duplicate",
             "cem.schema_package.converter_endpoint_missing",
             "cem.schema_model.invalid_attribute_type",
@@ -2778,6 +2747,7 @@ mod tests {
             "cem.schema_package.converter_template_content_type_missing",
             "cem.schema_package.converter_template_schema_missing",
             "cem.schema_package.converter_rust_symbol_missing",
+            "cem.schema_package.converter_fallback_reason_missing",
             "cem.schema_package.converter_readiness_unknown",
             "cem.schema_package.converter_lossiness_unknown",
             "cem.schema_package.converter_output_syntax_unknown",
@@ -2808,6 +2778,33 @@ mod tests {
             serde_json::json!({
                 "attribute": "implementation",
                 "values": ["cemt"],
+                "presentAttributes": [],
+            })
+        );
+
+        let fallback_reason = diags
+            .iter()
+            .find(|d| {
+                d.code == "cem.schema_package.converter_check"
+                    && d.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("converter-cemt-fallback-reason")
+            })
+            .expect("schema-owned CEMT fallback reason field contract diagnostic");
+        let details = fallback_reason
+            .details
+            .as_ref()
+            .expect("CEMT fallback reason details");
+        assert_eq!(
+            details["missingFields"],
+            serde_json::json!(["fallback-reason"])
+        );
+        assert_eq!(
+            details["condition"],
+            serde_json::json!({
+                "attribute": "implementation",
+                "values": ["cemt"],
+                "presentAttributes": ["rust-symbol"],
             })
         );
 
@@ -3020,6 +3017,35 @@ mod tests {
         assert_eq!(
             diagnostic.details.as_ref().expect("Rust symbol details")["missingFields"],
             serde_json::json!(["rust-symbol"])
+        );
+    }
+
+    #[test]
+    fn schema_package_converter_contract_does_not_require_fallback_reason_for_rust_converter() {
+        let diags = run_rules_with_identity(
+            r#"{package @id=demo @version="1.0.0" |
+                {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+                {content-type @value="application/vnd.example.demo+cem" @primary=true}
+                {converter
+                    @id="rust-converter"
+                    @implementation="rust"
+                    @rust-symbol="demo_convert" |
+                    {from @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+                    {to @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
+                }
+            }"#,
+            Some(CEM_SCHEMA_PACKAGE_URI),
+            Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
+        );
+
+        assert!(
+            diags.iter().all(|d| {
+                d.details
+                    .as_ref()
+                    .and_then(|details| details.get("contract").and_then(serde_json::Value::as_str))
+                    != Some("converter-cemt-fallback-reason")
+            }),
+            "Rust converter should not trigger CEMT fallback field contract: {diags:?}"
         );
     }
 

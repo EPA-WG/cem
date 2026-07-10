@@ -22,21 +22,22 @@ history belongs in git history and the feature-specific docs linked below.
   - [ ] Expand the initial `field-contracts` vocabulary in
         `packages/cem_ml/schema-packages/schema/v1/schema/cem-schema.cem`.
         The schema language now models element-bound required/optional/
-        forbidden fields, conditional selectors, diagnostic families, and
-        attribute `@values` vocabularies; it still needs accepted children,
-        scalar type validation beyond boolean/integer syntax, RELAX NG-style
-        datatype params beyond `minInclusive` such as `maxInclusive` and
-        `pattern`, defaults, dependent-required fields, mutually exclusive
-        fields, conditional case groups, and cardinality.
+        forbidden fields, value and presence conditional selectors,
+        diagnostic families, and attribute `@values` vocabularies; it still
+        needs accepted children, scalar type validation beyond boolean/integer
+        syntax, RELAX NG-style datatype params beyond `minInclusive` such as
+        `maxInclusive` and `pattern`, defaults, richer dependent-required
+        field groups, mutually exclusive fields, conditional case groups, and
+        cardinality.
   - [ ] Extend the compiled Rust schema contract model. `SchemaDocumentModel`
         now compiles initial `field-contract` declarations and evaluates
         required/forbidden fields, attribute `@values` vocabularies, and
         `schema:boolean`/`cemml:boolean` plus `schema:integer`/
         `cemml:integer` attribute types; it still needs reusable string/path/
         URI/media-type constraints, RELAX NG-style datatype params beyond
-        integer `minInclusive`, dependent fields, mutual exclusion,
-        cardinality, defaults, and richer case grouping for all schema
-        elements.
+        integer `minInclusive`, dependent field groups beyond presence-gated
+        required fields, mutual exclusion, cardinality, defaults, and richer
+        case grouping for all schema elements.
   - [ ] Extend structured diagnostic details beyond initial required/forbidden
         field checks. The first generic field-contract evaluator now emits
         schema URI, element, contract name, check kind, required/optional/
@@ -61,16 +62,16 @@ history belongs in git history and the feature-specific docs linked below.
         Cover `package`, `schema`, `content-type`, `namespace`, `converter`,
         `from`, `to`, `parity-fixture`, `artifact`, and `example`.
   - [ ] Model converter cases in `schema-package.cem`: `implementation=cemt`
-        and `implementation=rust` required attribute contracts now live in
-        schema-owned `field-contract` declarations and emit
-        `cem.schema_package.converter_check`; CEMT native fallback still
-        requires `fallback-reason` from a Rust conditional; `from`/`to`
-        endpoint cardinality is one each; enum fields now use schema-declared
-        `@values` and boolean fields now use `schema:boolean` in the generic
-        document model; `cost` now uses generic integer syntax and RELAX
-        NG-style `minInclusive=1`; package-specific enum, boolean, and cost
-        diagnostics have been retired in favor of generic schema-model codes;
-        `implicit` and `explicit-only` are mutually exclusive.
+        and `implementation=rust` required attribute contracts plus CEMT
+        native fallback `fallback-reason` now live in schema-owned
+        `field-contract` declarations and emit
+        `cem.schema_package.converter_check`; `from`/`to` endpoint cardinality
+        is one each; enum fields now use schema-declared `@values` and boolean
+        fields now use `schema:boolean` in the generic document model; `cost`
+        now uses generic integer syntax and RELAX NG-style `minInclusive=1`;
+        package-specific enum, boolean, cost, and fallback-reason diagnostics
+        have been retired in favor of generic schema-owned codes; `implicit`
+        and `explicit-only` are mutually exclusive.
   - [ ] Finish artifact cases in `schema-package.cem`. Formatter, colorizer,
         formatter-helper, and colorizer-helper required field metadata now
         lives in schema-owned `field-contract` declarations; stage directory,
@@ -94,9 +95,9 @@ history belongs in git history and the feature-specific docs linked below.
         constraints/rules in `.cem`, with Rust only as the execution placement.
   - [ ] Refactor `SchemaPackageConverterContractRule` so it calls the generic
         field-contract evaluator before operational checks, then removes the
-        remaining Rust-owned match blocks for dependent fields, endpoint
-        cardinality, and mutual exclusion. CEMT template identity and Rust
-        symbol requirements are now schema-owned field contracts; the legacy
+        remaining Rust-owned match blocks for endpoint cardinality and mutual
+        exclusion. CEMT template identity, Rust symbol, and CEMT fallback
+        reason requirements are now schema-owned field contracts; the legacy
         package-specific enum, boolean, and positive-cost branches are now
         covered by generic `@values`, `schema:boolean`, and `minInclusive`
         checks.

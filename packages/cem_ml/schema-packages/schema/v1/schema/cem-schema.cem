@@ -43,7 +43,7 @@
         {element @name="resolution" @required-attributes="target mode"}
         {element @name="handoff" @required-attributes="attribute target"}
         {element @name="field-contracts" @children="field-contract"}
-        {element @name="field-contract" @required-attributes="name target" @optional-attributes="diagnostic check-kind required-attributes optional-attributes forbidden-attributes when-attribute when-values"}
+        {element @name="field-contract" @required-attributes="name target" @optional-attributes="diagnostic check-kind required-attributes optional-attributes forbidden-attributes when-attribute when-values when-present-attributes"}
         {element @name="constraints" @children="constraint"}
         {element @name="constraint" @required-attributes="kind" @optional-attributes="target value policy"}
         {element @name="diagnostics" @children="diagnostic"}
@@ -90,6 +90,7 @@
         {attribute @name="check-kind" @type="cemml:identifier"}
         {attribute @name="when-attribute" @type="cemml:identifier"}
         {attribute @name="when-values" @type="cemml:name-list"}
+        {attribute @name="when-present-attributes" @type="cemml:name-list"}
         {attribute @name="minInclusive" @type="schema:integer"}
     }
 
