@@ -75,7 +75,9 @@ history belongs in git history and the feature-specific docs linked below.
         content-type `primary` boolean validation now stay in schema-owned
         validation instead of registry descriptor extraction; `parity-fixture`
         `id`/`path` requiredness now stays in schema-owned validation instead
-        of conversion descriptor extraction.
+        of conversion descriptor extraction; artifact `kind`/`path`
+        requiredness now stays in schema-owned validation instead of
+        conversion artifact descriptor extraction.
   - [ ] Model converter cases in `schema-package.cem`: `implementation=cemt`
         and `implementation=rust` required attribute contracts plus CEMT
         native fallback `fallback-reason` now live in schema-owned
@@ -102,11 +104,11 @@ history belongs in git history and the feature-specific docs linked below.
         parser validity, and function lookup now also report through
         schema-declared `artifact-output-stage-contract` details while keeping
         Rust only as the execution placement; runtime conversion artifact
-        extraction no longer owns formatter/colorizer profile required-field
-        checks or the `generated` boolean datatype check. Remaining artifact
-        work is to audit runtime conversion
-        selection checks for package-specific field assumptions and move any
-        declarative parts into schema-owned contracts.
+        extraction no longer owns artifact `kind`/`path`,
+        formatter/colorizer profile required-field checks, or the `generated`
+        boolean datatype check. Remaining artifact work is to audit runtime
+        conversion selection checks for package-specific field assumptions and
+        move any declarative parts into schema-owned contracts.
   - [ ] Model example cases in `schema-package.cem`: required example
         metadata and failing-example `expected-diagnostics` now live in
         schema-owned `field-contract` declarations and emit
@@ -136,7 +138,9 @@ history belongs in git history and the feature-specific docs linked below.
         streamability, implicit/explicit flags, cost, output syntax, and parity
         now stay in generic schema-model validation instead of descriptor
         extraction; parity fixture `id`/`path` field checks now stay in generic
-        schema-model validation instead of descriptor extraction.
+        schema-model validation instead of descriptor extraction; artifact
+        `kind`/`path` field checks now stay in generic schema-model validation
+        instead of descriptor extraction.
   - [ ] Keep Rust validators only for operational execution that cannot be
         represented as field data: resource read failures, parser failures,
         CEMT compilation, CEMT function lookup, host-hook availability, and

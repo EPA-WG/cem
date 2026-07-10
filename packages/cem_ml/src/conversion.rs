@@ -6701,12 +6701,15 @@ fn conversion_package_artifacts_from_schema_package_manifest_inner(
     let mut artifacts = Vec::new();
     for artifact_node_id in element_child_ids_by_local_name(&document, package_node_id, "artifact")
     {
-        artifacts.push(conversion_package_artifact_from_manifest_node(
+        let Some(artifact) = conversion_package_artifact_from_manifest_node(
             &document,
             artifact_node_id,
             &package_id,
             base_path,
-        )?);
+        ) else {
+            continue;
+        };
+        artifacts.push(artifact);
     }
     if validate_embedded_artifact_contracts {
         for artifact in &artifacts {
@@ -6721,10 +6724,10 @@ fn conversion_package_artifact_from_manifest_node(
     node_id: AstNodeId,
     package_id: &str,
     base_path: &str,
-) -> Result<ConversionPackageArtifactDescriptor, ConversionManifestError> {
+) -> Option<ConversionPackageArtifactDescriptor> {
     let attrs = collect_manifest_attrs(document, node_id);
-    let kind = required_manifest_attr(&attrs, None, "kind")?.to_owned();
-    let path = package_relative_path(base_path, required_manifest_attr(&attrs, None, "path")?);
+    let kind = optional_manifest_attr(&attrs, "kind")?.to_owned();
+    let path = package_relative_path(base_path, optional_manifest_attr(&attrs, "path")?);
     let content_type = optional_manifest_attr(&attrs, "content-type").map(content_type_essence);
     let schema = optional_manifest_attr(&attrs, "schema").map(str::to_owned);
     let target_content_type =
@@ -6747,7 +6750,7 @@ fn conversion_package_artifact_from_manifest_node(
         color_profile: optional_manifest_attr(&attrs, "color-profile").map(str::to_owned),
         generated,
     };
-    Ok(artifact)
+    Some(artifact)
 }
 
 fn validate_conversion_package_artifact_cemt_contract(
@@ -8337,6 +8340,35 @@ mod tests {
             .expect("artifact descriptor");
 
         assert!(!artifact.generated);
+    }
+
+    #[test]
+    fn package_manifest_extraction_does_not_own_artifact_required_fields() {
+        let package = package_source(
+            r#"@doc cem-ml 1
+{package @id="test-dom-projection" @version="1.0.0" |
+    {schema @uri="https://cem.dev/ns/projection/dom/1" @source="schema/cem-dom-projection.cem"}
+    {content-type @value="application/vnd.cem.dom+cem-bin" @primary=true}
+    {artifact @path="artifacts/missing-kind.cemt"}
+    {artifact @kind="support"}
+    {artifact
+        @kind="support"
+        @path="artifacts/valid.cemt"
+        @generated=true}
+}"#,
+        );
+
+        let artifacts = conversion_package_artifacts_from_schema_package(&package)
+            .expect("schema-owned validation reports missing artifact fields before extraction");
+
+        assert_eq!(artifacts.len(), 1);
+        let artifact = &artifacts[0];
+        assert_eq!(artifact.kind, "support");
+        assert_eq!(
+            artifact.path,
+            "schema-packages/cem-dom-projection/v1/artifacts/valid.cemt"
+        );
+        assert!(artifact.generated);
     }
 
     #[test]
