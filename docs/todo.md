@@ -91,10 +91,13 @@ history belongs in git history and the feature-specific docs linked below.
         schema-owned path-layout contracts; CEMT output function target
         identity/category/profile mismatches now emit the schema-declared
         `cem.schema_package.artifact_check` family with
-        `artifact-output-stage-contract` details; remaining artifact work is to
-        make CEMT source readability, parser validity, and function lookup
-        report through schema-declared operational rule details while keeping
-        Rust only as the execution placement.
+        `artifact-output-stage-contract` details; CEMT source readability,
+        parser validity, and function lookup now also report through
+        schema-declared `artifact-output-stage-contract` details while keeping
+        Rust only as the execution placement. Remaining artifact work is to
+        audit runtime conversion selection checks for package-specific field
+        assumptions and move any declarative parts into schema-owned
+        contracts.
   - [ ] Model example cases in `schema-package.cem`: required example
         metadata and failing-example `expected-diagnostics` now live in
         schema-owned `field-contract` declarations and emit
@@ -108,7 +111,9 @@ history belongs in git history and the feature-specific docs linked below.
         `example_check` families where the only distinction is field contract
         detail; artifact CEMT output function metadata mismatches now also
         use `cem.schema_package.artifact_check` with contract details instead
-        of a narrow mismatch code.
+        of a narrow mismatch code, and artifact CEMT source read, parse, and
+        function lookup failures now use the same generic family with
+        operational `checkKind` details.
   - [ ] Keep Rust validators only for operational execution that cannot be
         represented as field data: resource read failures, parser failures,
         CEMT compilation, CEMT function lookup, host-hook availability, and

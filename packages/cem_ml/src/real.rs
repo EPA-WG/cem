@@ -10115,11 +10115,13 @@ mod tests {
                     .contains("target category metadata expected `wrong-tree`")
                 && diag.message.contains("CEMT declares `cem-tree`")
         }));
-        assert!(!resp
-            .report
-            .diagnostics
-            .iter()
-            .any(|diag| diag.code == "cem.schema_package.artifact_source_unreadable"));
+        let artifact_source_read_failed = resp.report.diagnostics.iter().any(|diag| {
+            diag.code == "cem.schema_package.artifact_check"
+                && diag.details.as_ref().and_then(|details| {
+                    details.get("checkKind").and_then(serde_json::Value::as_str)
+                }) == Some("artifact-source-readable")
+        });
+        assert!(!artifact_source_read_failed);
     }
 
     #[test]

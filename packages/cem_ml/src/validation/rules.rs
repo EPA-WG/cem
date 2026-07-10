@@ -74,18 +74,6 @@ pub(crate) const SCHEMA_PACKAGE_CONVERTER_CONSTRAINT_DIAGNOSTICS: &[(&str, &str)
         "converter-endpoint-schema-content-type-match",
     ),
     (
-        "cem.schema_package.artifact_source_unreadable",
-        "artifact-output-stage-contract",
-    ),
-    (
-        "cem.schema_package.artifact_cemt_invalid",
-        "artifact-output-stage-contract",
-    ),
-    (
-        "cem.schema_package.artifact_function_missing",
-        "artifact-output-stage-contract",
-    ),
-    (
         "cem.schema_package.artifact_check",
         "artifact-output-stage-contract",
     ),
@@ -1673,14 +1661,12 @@ fn validate_schema_package_artifact(
         .iter()
         .find(|diagnostic| diagnostic.severity.is_hard_violation())
     {
-        out.push(diag_at(
-            "cem.schema_package.artifact_cemt_invalid",
-            Severity::Error,
-            format!(
-                "artifact `{path}` CEMT source is invalid: {}",
-                diagnostic.message
-            ),
+        out.push(schema_package_artifact_cemt_parse_failed_diag(
+            ctx.document,
             node,
+            path,
+            function_name,
+            diagnostic,
         ));
         return;
     }
@@ -1691,11 +1677,18 @@ fn validate_schema_package_artifact(
         .iter()
         .find(|function| function.name == function_name)
     else {
-        out.push(diag_at(
-            "cem.schema_package.artifact_function_missing",
-            Severity::Error,
-            format!("artifact `{path}` does not declare CEMT output function `{function_name}`"),
+        let declared_functions = parse_response
+            .module_options
+            .output_functions
+            .iter()
+            .map(|function| function.name.clone())
+            .collect::<Vec<_>>();
+        out.push(schema_package_artifact_function_lookup_failed_diag(
+            ctx.document,
             node,
+            path,
+            function_name,
+            declared_functions,
         ));
         return;
     };
@@ -1733,7 +1726,8 @@ fn read_schema_package_artifact_source(
                 content_type: attr_value(ctx.document, node, "content-type").map(str::to_owned),
             }),
             Err(error) => {
-                out.push(schema_package_artifact_source_unreadable_diag(
+                out.push(schema_package_artifact_source_read_failed_diag(
+                    ctx.document,
                     node,
                     path,
                     function_name,
@@ -1754,7 +1748,8 @@ fn read_schema_package_artifact_source(
     ) {
         Ok(source) => Some(source),
         Err(error) => {
-            out.push(schema_package_artifact_source_unreadable_diag(
+            out.push(schema_package_artifact_source_read_failed_diag(
+                ctx.document,
                 node,
                 path,
                 function_name,
@@ -1765,20 +1760,112 @@ fn read_schema_package_artifact_source(
     }
 }
 
-fn schema_package_artifact_source_unreadable_diag(
+fn schema_package_artifact_source_read_failed_diag(
+    doc: &crate::parser::document::CemDocument,
     node: &CemAstNode,
     path: &str,
     function_name: &str,
     error: impl AsRef<str>,
 ) -> Diagnostic {
-    diag_at(
-        "cem.schema_package.artifact_source_unreadable",
+    diag_at_with_details(
+        "cem.schema_package.artifact_check",
         Severity::Error,
         format!(
             "artifact `{path}` referenced by CEMT function `{function_name}` could not be read: {}",
             error.as_ref()
         ),
         node,
+        serde_json::json!({
+            "schemaUri": CEM_SCHEMA_PACKAGE_URI,
+            "element": "artifact",
+            "contract": "artifact-output-stage-contract",
+            "target": "artifact",
+            "diagnostic": "cem.schema_package.artifact_check",
+            "checkKind": "artifact-source-readable",
+            "path": path,
+            "functionName": function_name,
+            "invalidFields": ["path"],
+            "invalidValues": {
+                "path": path,
+            },
+            "error": error.as_ref(),
+            "actualValues": element_attribute_values(doc, node),
+            "sourceRange": node_source_range_details(node),
+        }),
+    )
+}
+
+fn schema_package_artifact_cemt_parse_failed_diag(
+    doc: &crate::parser::document::CemDocument,
+    node: &CemAstNode,
+    path: &str,
+    function_name: &str,
+    diagnostic: &Diagnostic,
+) -> Diagnostic {
+    diag_at_with_details(
+        "cem.schema_package.artifact_check",
+        Severity::Error,
+        format!(
+            "artifact `{path}` CEMT source is invalid: {}",
+            diagnostic.message
+        ),
+        node,
+        serde_json::json!({
+            "schemaUri": CEM_SCHEMA_PACKAGE_URI,
+            "element": "artifact",
+            "contract": "artifact-output-stage-contract",
+            "target": "artifact",
+            "diagnostic": "cem.schema_package.artifact_check",
+            "checkKind": "artifact-cemt-valid",
+            "path": path,
+            "functionName": function_name,
+            "invalidFields": ["path"],
+            "invalidValues": {
+                "path": path,
+            },
+            "sourceDiagnostic": {
+                "code": diagnostic.code,
+                "severity": format!("{:?}", diagnostic.severity),
+                "message": diagnostic.message,
+            },
+            "actualValues": element_attribute_values(doc, node),
+            "sourceRange": node_source_range_details(node),
+        }),
+    )
+}
+
+fn schema_package_artifact_function_lookup_failed_diag(
+    doc: &crate::parser::document::CemDocument,
+    node: &CemAstNode,
+    path: &str,
+    function_name: &str,
+    declared_functions: Vec<String>,
+) -> Diagnostic {
+    diag_at_with_details(
+        "cem.schema_package.artifact_check",
+        Severity::Error,
+        format!("artifact `{path}` does not declare CEMT output function `{function_name}`"),
+        node,
+        serde_json::json!({
+            "schemaUri": CEM_SCHEMA_PACKAGE_URI,
+            "element": "artifact",
+            "contract": "artifact-output-stage-contract",
+            "target": "artifact",
+            "diagnostic": "cem.schema_package.artifact_check",
+            "checkKind": "artifact-function-declared",
+            "path": path,
+            "functionName": function_name,
+            "invalidFields": ["function-name"],
+            "expectedValues": {
+                "function-name": function_name,
+            },
+            "invalidValues": {
+                "function-name": "<not declared>",
+            },
+            "declaredFunctions": declared_functions,
+            "actualValues": element_attribute_values(doc, node),
+            "sourceRange": node_source_range_details(node),
+        }),
     )
 }
 
@@ -3449,9 +3536,154 @@ mod tests {
             Some(&package_uri),
         );
 
-        assert!(diags
+        let diagnostic = diags
             .iter()
-            .any(|d| d.code == "cem.schema_package.artifact_source_unreadable"));
+            .find(|d| {
+                d.code == "cem.schema_package.artifact_check"
+                    && d.details.as_ref().and_then(|details| {
+                        details.get("checkKind").and_then(serde_json::Value::as_str)
+                    }) == Some("artifact-source-readable")
+            })
+            .expect("schema-owned artifact source readability diagnostic");
+        assert!(diagnostic
+            .message
+            .contains("referenced by CEMT function `demo.format` could not be read"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("artifact source readability details");
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("artifact-output-stage-contract")
+        );
+        assert_eq!(details["invalidFields"], serde_json::json!(["path"]));
+        assert_eq!(
+            details["invalidValues"],
+            serde_json::json!({
+                "path": "formatters/missing.cemt",
+            })
+        );
+        let error = details["error"]
+            .as_str()
+            .expect("artifact source readability error");
+        assert!(error.contains("No such file") || error.contains("os error"));
+    }
+
+    #[test]
+    fn schema_package_artifact_contract_flags_invalid_cemt_source_from_schema_contract() {
+        let dir = schema_package_artifact_contract_fixture_dir(
+            "artifact-cemt-invalid",
+            &[("formatters/invalid.cemt", invalid_cemt_source())],
+        );
+        let package_uri = dir.join("package.cem").display().to_string();
+        let diags = run_rules_with_identity_and_source_uri(
+            r#"{package @id=demo @version="1.0.0" |
+                {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+                {content-type @value="application/vnd.example.demo+cem" @primary=true}
+                {artifact
+                    @kind="formatter"
+                    @path="formatters/invalid.cemt"
+                    @content-type="application/vnd.cem.transform+cem"
+                    @schema="https://cem.dev/ns/transform/cem/1"
+                    @target-content-type="application/cem"
+                    @target-schema="https://cem.dev/ns/cem-ml/1"
+                    @target-category="cem-tree"
+                    @function-name="demo.format"
+                    @formatter-profile="cem.format-tree"
+                }
+            }"#,
+            Some(CEM_SCHEMA_PACKAGE_URI),
+            Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
+            Some(&package_uri),
+        );
+
+        let diagnostic = diags
+            .iter()
+            .find(|d| {
+                d.code == "cem.schema_package.artifact_check"
+                    && d.details.as_ref().and_then(|details| {
+                        details.get("checkKind").and_then(serde_json::Value::as_str)
+                    }) == Some("artifact-cemt-valid")
+            })
+            .expect("schema-owned artifact CEMT validity diagnostic");
+        assert!(diagnostic.message.contains("CEMT source is invalid"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("artifact CEMT validity details");
+        assert_eq!(
+            details["sourceDiagnostic"]["severity"],
+            serde_json::json!("Fatal")
+        );
+        assert!(details["sourceDiagnostic"]["message"]
+            .as_str()
+            .is_some_and(|message| !message.is_empty()));
+        assert_eq!(
+            details["invalidValues"],
+            serde_json::json!({
+                "path": "formatters/invalid.cemt",
+            })
+        );
+    }
+
+    #[test]
+    fn schema_package_artifact_contract_flags_missing_cemt_function_from_schema_contract() {
+        let dir = schema_package_artifact_contract_fixture_dir(
+            "artifact-function-missing",
+            &[("formatters/demo.cemt", demo_format_cemt_source())],
+        );
+        let package_uri = dir.join("package.cem").display().to_string();
+        let diags = run_rules_with_identity_and_source_uri(
+            r#"{package @id=demo @version="1.0.0" |
+                {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+                {content-type @value="application/vnd.example.demo+cem" @primary=true}
+                {artifact
+                    @kind="formatter"
+                    @path="formatters/demo.cemt"
+                    @content-type="application/vnd.cem.transform+cem"
+                    @schema="https://cem.dev/ns/transform/cem/1"
+                    @target-content-type="application/cem"
+                    @target-schema="https://cem.dev/ns/cem-ml/1"
+                    @target-category="cem-tree"
+                    @function-name="demo.missing"
+                    @formatter-profile="cem.format-tree"
+                }
+            }"#,
+            Some(CEM_SCHEMA_PACKAGE_URI),
+            Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
+            Some(&package_uri),
+        );
+
+        let diagnostic = diags
+            .iter()
+            .find(|d| {
+                d.code == "cem.schema_package.artifact_check"
+                    && d.details.as_ref().and_then(|details| {
+                        details.get("checkKind").and_then(serde_json::Value::as_str)
+                    }) == Some("artifact-function-declared")
+            })
+            .expect("schema-owned artifact function declaration diagnostic");
+        assert!(diagnostic
+            .message
+            .contains("does not declare CEMT output function `demo.missing`"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("artifact function declaration details");
+        assert_eq!(
+            details["invalidFields"],
+            serde_json::json!(["function-name"])
+        );
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!({
+                "function-name": "demo.missing",
+            })
+        );
+        assert_eq!(
+            details["declaredFunctions"],
+            serde_json::json!(["demo.format"])
+        );
     }
 
     fn schema_package_artifact_contract_fixture_dir(
@@ -3516,6 +3748,16 @@ mod tests {
         @streamable=true
     }
 }
+"#
+    }
+
+    fn invalid_cemt_source() -> &'static str {
+        r#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {format-function @name="demo.format"
 "#
     }
 
