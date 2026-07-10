@@ -100,10 +100,6 @@ const SCHEMA_PACKAGE_RUNTIME_CONSTRAINT_EXAMPLE_DIAGNOSTICS: &[(&str, &str)] = &
         "cem.schema_package.converter_selection_conflict",
     ),
     (
-        "converter-output-contract",
-        "cem.schema_package.converter_output_syntax_unknown",
-    ),
-    (
         "converter-template-output-stage-contract",
         "cem.schema_package.converter_template_contract_invalid",
     ),
@@ -337,10 +333,7 @@ fn schema_owned_examples_validate_through_cli() {
                 "cem.schema_package.converter_template_schema_mismatch",
                 "cem.schema_package.converter_fallback_reason_missing",
                 "cem.schema_model.invalid_attribute_type",
-                "cem.schema_package.converter_readiness_unknown",
-                "cem.schema_package.converter_lossiness_unknown",
-                "cem.schema_package.converter_output_syntax_unknown",
-                "cem.schema_package.converter_parity_unknown",
+                "cem.schema_model.invalid_attribute_value",
                 "cem.schema_package.converter_selection_conflict",
                 "cem.schema_package.converter_rust_symbol_missing",
             ],
