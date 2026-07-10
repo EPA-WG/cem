@@ -193,9 +193,9 @@ history belongs in git history and the feature-specific docs linked below.
         `*_missing`, `*_unknown`, `*_invalid`, `*_duplicate`, and `*_conflict`
         diagnostics except explicitly allowlisted operational execution
         failures, plus retired converter scalar/value/cardinality diagnostic
-        names and retired descriptor parsing helpers/errors; keep expanding
-        that audit for hard-coded required field vectors and narrow enum
-        `matches!` lists as new declarative contracts move into schema.
+        names, hard-coded required-field vector helper names, and retired
+        descriptor parsing helpers/errors; keep expanding that audit for narrow
+        enum `matches!` lists as new declarative contracts move into schema.
 
 - [ ] Complete the schema-package folder frame for
       `packages/cem_ml/schema-packages`: every `{package-id}/vN/` folder must be
