@@ -6905,27 +6905,6 @@ fn validate_conversion_package_artifact_cem_tree_stage_metadata_contract(
         return Ok(());
     };
 
-    match contract {
-        CemtStageMetadataContract::Formatter => {
-            if conversion_trimmed_non_empty(artifact.formatter_profile.as_deref()).is_none() {
-                return Err(conversion_artifact_contract_error(
-                    artifact,
-                    "formatter CEMT artifact must declare `formatter-profile` package metadata",
-                ));
-            }
-        }
-        CemtStageMetadataContract::Colorizer => {
-            if artifact.kind == "colorizer"
-                && conversion_trimmed_non_empty(artifact.color_profile.as_deref()).is_none()
-            {
-                return Err(conversion_artifact_contract_error(
-                    artifact,
-                    "colorizer CEMT artifact must declare `color-profile` package metadata",
-                ));
-            }
-        }
-    }
-
     let reachable_body = conversion_package_artifact_reachable_cemt_body(
         artifact,
         function.name.as_str(),
@@ -11174,62 +11153,6 @@ mod tests {
                 );
                 assert!(message.contains("target category metadata expected `wrong-tree`"));
                 assert!(message.contains("CEMT declares `cem-tree`"));
-            }
-            other => panic!("unexpected error: {other:?}"),
-        }
-    }
-
-    #[test]
-    fn cemt_formatter_artifact_requires_formatter_profile_metadata() {
-        let package = load_builtin_schema_package(CEM_ML_SCHEMA_URI).expect("CEM-ML package");
-        let manifest = package.manifest_source.replacen(
-            "\n        @formatter-profile=\"cem.format-tree\"",
-            "",
-            1,
-        );
-        let package = BuiltinSchemaPackage {
-            manifest_source: Box::leak(manifest.into_boxed_str()),
-            ..package
-        };
-
-        let error = conversion_package_artifacts_from_schema_package(&package)
-            .expect_err("formatter artifact without formatter-profile is rejected");
-
-        match error {
-            ConversionManifestError::ArtifactContract { path, message, .. } => {
-                assert_eq!(
-                    path,
-                    "schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt"
-                );
-                assert!(message.contains("formatter CEMT artifact"));
-                assert!(message.contains("formatter-profile"));
-            }
-            other => panic!("unexpected error: {other:?}"),
-        }
-    }
-
-    #[test]
-    fn cemt_colorizer_artifact_requires_color_profile_metadata() {
-        let package = load_builtin_schema_package(CEM_ML_SCHEMA_URI).expect("CEM-ML package");
-        let manifest = package
-            .manifest_source
-            .replacen("\n        @color-profile=\"none\"", "", 1);
-        let package = BuiltinSchemaPackage {
-            manifest_source: Box::leak(manifest.into_boxed_str()),
-            ..package
-        };
-
-        let error = conversion_package_artifacts_from_schema_package(&package)
-            .expect_err("colorizer artifact without color-profile is rejected");
-
-        match error {
-            ConversionManifestError::ArtifactContract { path, message, .. } => {
-                assert_eq!(
-                    path,
-                    "schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt"
-                );
-                assert!(message.contains("colorizer CEMT artifact"));
-                assert!(message.contains("color-profile"));
             }
             other => panic!("unexpected error: {other:?}"),
         }

@@ -94,10 +94,11 @@ history belongs in git history and the feature-specific docs linked below.
         `artifact-output-stage-contract` details; CEMT source readability,
         parser validity, and function lookup now also report through
         schema-declared `artifact-output-stage-contract` details while keeping
-        Rust only as the execution placement. Remaining artifact work is to
-        audit runtime conversion selection checks for package-specific field
-        assumptions and move any declarative parts into schema-owned
-        contracts.
+        Rust only as the execution placement; runtime conversion artifact
+        extraction no longer owns formatter/colorizer profile required-field
+        checks. Remaining artifact work is to audit runtime conversion
+        selection checks for package-specific field assumptions and move any
+        declarative parts into schema-owned contracts.
   - [ ] Model example cases in `schema-package.cem`: required example
         metadata and failing-example `expected-diagnostics` now live in
         schema-owned `field-contract` declarations and emit

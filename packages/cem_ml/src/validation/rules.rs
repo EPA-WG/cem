@@ -3512,6 +3512,55 @@ mod tests {
     }
 
     #[test]
+    fn schema_package_artifact_contract_flags_missing_colorizer_profile_from_schema_contract() {
+        let dir = schema_package_artifact_contract_fixture_dir(
+            "artifact-colorizer-profile-missing",
+            &[("colorizers/demo.cemt", demo_color_cemt_source())],
+        );
+        let package_uri = dir.join("package.cem").display().to_string();
+        let diags = run_rules_with_identity_and_source_uri(
+            r#"{package @id=demo @version="1.0.0" |
+                {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+                {content-type @value="application/vnd.example.demo+cem" @primary=true}
+                {artifact
+                    @kind="colorizer"
+                    @path="colorizers/demo.cemt"
+                    @content-type="application/vnd.cem.transform+cem"
+                    @schema="https://cem.dev/ns/transform/cem/1"
+                    @target-content-type="application/cem"
+                    @target-schema="https://cem.dev/ns/cem-ml/1"
+                    @target-category="cem-tree"
+                    @function-name="demo.color"
+                    @function-profile="classes"
+                }
+            }"#,
+            Some(CEM_SCHEMA_PACKAGE_URI),
+            Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
+            Some(&package_uri),
+        );
+
+        let diagnostic = diags
+            .iter()
+            .find(|d| {
+                d.code == "cem.schema_package.artifact_check"
+                    && d.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("artifact-colorizer-profile")
+            })
+            .expect("schema-owned colorizer profile field contract diagnostic");
+        assert!(diagnostic.message.contains("color-profile"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("colorizer profile details");
+        assert_eq!(
+            details["missingFields"],
+            serde_json::json!(["color-profile"])
+        );
+        assert_eq!(details["checkKind"], serde_json::json!("required-fields"));
+    }
+
+    #[test]
     fn schema_package_artifact_contract_flags_unreadable_cemt_source() {
         let dir = schema_package_artifact_contract_fixture_dir("artifact-source-missing", &[]);
         let package_uri = dir.join("package.cem").display().to_string();
