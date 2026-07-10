@@ -7396,15 +7396,16 @@ fn conversion_descriptor_from_manifest_node(
     let (rust_symbol, rust_fallback) = match implementation {
         ConversionImplementation::Cemt => (
             None,
-            rust_symbol
-                .map(|rust_symbol| {
-                    let reason = required_manifest_attr(&attrs, Some(&id), "fallback-reason")?;
-                    Ok(ConversionRustFallbackDescriptor {
-                        rust_symbol,
-                        reason: reason.to_owned(),
-                    })
-                })
-                .transpose()?,
+            match (
+                rust_symbol,
+                optional_manifest_attr(&attrs, "fallback-reason"),
+            ) {
+                (Some(rust_symbol), Some(reason)) => Some(ConversionRustFallbackDescriptor {
+                    rust_symbol,
+                    reason: reason.to_owned(),
+                }),
+                _ => None,
+            },
         ),
         ConversionImplementation::Rust => (
             Some(
@@ -8253,42 +8254,6 @@ mod tests {
         assert_eq!(
             descriptor.template.as_ref().unwrap().path,
             "schema-packages/cem-dom-projection/v1/converters/external-dom-to-html.cemt"
-        );
-    }
-
-    #[test]
-    fn package_manifest_requires_cemt_fallback_reason() {
-        let package = package_source(
-            r#"@doc cem-ml 1
-{package @id="test-dom-projection" @version="1.0.0" |
-    {schema @uri="https://cem.dev/ns/projection/dom/1" @source="schema/cem-dom-projection.cem"}
-    {content-type @value="application/vnd.cem.dom+cem-bin" @primary=true}
-    {converter
-        @id="dom-to-html-cemt"
-        @implementation="cemt"
-        @template="converters/dom-to-html.cemt"
-        @template-content-type="application/vnd.cem.transform+cem"
-        @template-schema="https://cem.dev/ns/transform/cem/1"
-        @template-entrypoint="main"
-        @rust-symbol="HtmlExportConverter"
-        @output-syntax="html"
-        @encoding-category="html-document"
-        @parity="parse-equivalent" |
-        {from @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
-        {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
-    }
-}"#,
-        );
-
-        let error = conversion_descriptors_from_schema_package(&package)
-            .expect_err("CEMT fallback reason is required when rust-symbol is declared");
-
-        assert_eq!(
-            error,
-            ConversionManifestError::MissingAttribute {
-                converter_id: Some("dom-to-html-cemt".to_owned()),
-                attribute: "fallback-reason",
-            }
         );
     }
 

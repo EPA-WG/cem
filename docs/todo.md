@@ -114,7 +114,9 @@ history belongs in git history and the feature-specific docs linked below.
         use `cem.schema_package.artifact_check` with contract details instead
         of a narrow mismatch code, and artifact CEMT source read, parse, and
         function lookup failures now use the same generic family with
-        operational `checkKind` details.
+        operational `checkKind` details; CEMT native fallback reason
+        requirements now stay in schema-owned `converter_check` contracts
+        instead of conversion descriptor extraction.
   - [ ] Keep Rust validators only for operational execution that cannot be
         represented as field data: resource read failures, parser failures,
         CEMT compilation, CEMT function lookup, host-hook availability, and
