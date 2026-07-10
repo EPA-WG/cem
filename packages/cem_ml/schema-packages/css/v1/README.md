@@ -1,5 +1,7 @@
 # CSS schema package v1
 
+Status: schema, examples, formatter, and colorizer package frame
+
 This package defines the CEM schema identity for CSS stylesheets and scoped style content.
 
 - Schema URL: `https://cem.dev/ns/data/css/1`
@@ -9,6 +11,12 @@ This package defines the CEM schema identity for CSS stylesheets and scoped styl
 CSS source is not CEM-ML syntax. The package models stylesheet, style block, style attribute, rule, selector, declaration, and component-value structure for future parser and converter work.
 
 Scoped style content is represented as metadata on style blocks and style attributes. The scope can point at an HTML, SVG, MathML, custom-element, or shadow-root host without changing the `text/css` content identity.
+
+## Output Artifacts
+
+The package declares CEMT formatter and colorizer artifacts in `package.cem`.
+The public formatter profile names are `compact`, `pretty`, and `tabular`.
+The public colorizer profile names are `terminal`, `html`, and `md`.
 
 ## Validation
 

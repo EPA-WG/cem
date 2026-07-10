@@ -203,6 +203,16 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
             "../../schema-packages/markdown/v1/colorizers/markdown-color-document.cemt"
         ),
     },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "css",
+        path: "schema-packages/css/v1/formatters/css-format-document.cemt",
+        source: include_str!("../../schema-packages/css/v1/formatters/css-format-document.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "css",
+        path: "schema-packages/css/v1/colorizers/css-color-document.cemt",
+        source: include_str!("../../schema-packages/css/v1/colorizers/css-color-document.cemt"),
+    },
 ];
 
 static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
@@ -364,10 +374,10 @@ mod tests {
         CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
         CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI,
         CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
-        CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSV_CONTENT_TYPE,
-        CSV_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI,
-        JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, YAML_CONTENT_TYPE,
-        YAML_SCHEMA_URI,
+        CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSS_CONTENT_TYPE,
+        CSS_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI, JSON_CONTENT_TYPE,
+        JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI,
+        MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
     };
     use crate::source::{BytesSource, SourceId};
     use crate::tokenizer::cem::CemTokenizer;
@@ -996,6 +1006,65 @@ mod tests {
     }
 
     #[test]
+    fn css_package_examples_are_manifest_indexed() {
+        let examples =
+            manifest_indexed_package_examples("css", CSS_CONTENT_TYPE, CSS_SCHEMA_URI, 8);
+
+        for (id, expected_result, expected_code) in [
+            (
+                "basic-stylesheet",
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "scoped-component",
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "style-attribute",
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "invalid-import",
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.css.import_rejected"),
+            ),
+            (
+                "invalid-url",
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.css.url_rejected"),
+            ),
+            (
+                "invalid-token",
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.css.invalid_token"),
+            ),
+            (
+                "invalid-declaration",
+                SchemaPackageExampleExpectedResult::Pass,
+                Some("cem.css.invalid_declaration"),
+            ),
+            (
+                "encoding-conflict",
+                SchemaPackageExampleExpectedResult::Pass,
+                Some("cem.css.encoding_conflict"),
+            ),
+        ] {
+            let example = examples
+                .iter()
+                .find(|example| example.id == id)
+                .unwrap_or_else(|| panic!("CSS example `{id}`"));
+            assert_eq!(example.expected_result, expected_result);
+            let expected_codes = expected_code
+                .map(|code| vec![code.to_owned()])
+                .unwrap_or_default();
+            assert_eq!(example.expected_diagnostic_codes, expected_codes);
+        }
+    }
+
+    #[test]
     fn builtin_schema_package_catalog_matches_core_folder_frame() {
         for source in builtin_schema_package_sources() {
             let root = package_root(source.package_id);
@@ -1543,5 +1612,24 @@ mod tests {
         assert!(colorizer
             .source
             .contains(r#"@content-type="text/markdown""#));
+    }
+
+    #[test]
+    fn catalog_exposes_css_output_artifact_sources() {
+        let formatter = builtin_schema_package_artifact_source(
+            "css",
+            "schema-packages/css/v1/formatters/css-format-document.cemt",
+        )
+        .expect("CSS formatter source");
+        let colorizer = builtin_schema_package_artifact_source(
+            "css",
+            "schema-packages/css/v1/colorizers/css-color-document.cemt",
+        )
+        .expect("CSS colorizer source");
+
+        assert!(formatter.source.contains(r#"@name="css.format-document""#));
+        assert!(formatter.source.contains(r#"@category="css-document""#));
+        assert!(colorizer.source.contains(r#"@name="css.color-document""#));
+        assert!(colorizer.source.contains(r#"@content-type="text/css""#));
     }
 }

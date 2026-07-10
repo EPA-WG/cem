@@ -14,4 +14,145 @@
     {namespace @prefix="cemhtml" @uri="https://cem.dev/ns/data/html/1"}
     {namespace @prefix="cemsvg" @uri="https://cem.dev/ns/data/svg/1"}
     {namespace @prefix="cemmathml" @uri="https://cem.dev/ns/data/mathml/1"}
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/css-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/css"
+        @target-schema="https://cem.dev/ns/data/css/1"
+        @target-category="css-document"
+        @function-name="css.format-document"
+        @formatter-profile="compact"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/css-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/css"
+        @target-schema="https://cem.dev/ns/data/css/1"
+        @target-category="css-document"
+        @function-name="css.format-document"
+        @formatter-profile="pretty"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/css-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/css"
+        @target-schema="https://cem.dev/ns/data/css/1"
+        @target-category="css-document"
+        @function-name="css.format-document"
+        @formatter-profile="tabular"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/css-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/css"
+        @target-schema="https://cem.dev/ns/data/css/1"
+        @target-category="css-document"
+        @function-name="css.color-document"
+        @color-profile="terminal"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/css-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/css"
+        @target-schema="https://cem.dev/ns/data/css/1"
+        @target-category="css-document"
+        @function-name="css.color-document"
+        @color-profile="html"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/css-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/css"
+        @target-schema="https://cem.dev/ns/data/css/1"
+        @target-category="css-document"
+        @function-name="css.color-document"
+        @color-profile="md"
+    }
+
+    {example
+        @id="basic-stylesheet"
+        @path="examples/basic-stylesheet.css"
+        @content-type="text/css"
+        @schema="https://cem.dev/ns/data/css/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="scoped-component"
+        @path="examples/scoped-component.css"
+        @content-type="text/css"
+        @schema="https://cem.dev/ns/data/css/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="style-attribute"
+        @path="examples/style-attribute.css"
+        @content-type="text/css"
+        @schema="https://cem.dev/ns/data/css/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="invalid-import"
+        @path="examples/invalid-import.css"
+        @content-type="text/css"
+        @schema="https://cem.dev/ns/data/css/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.css.import_rejected"
+    }
+
+    {example
+        @id="invalid-url"
+        @path="examples/invalid-url.css"
+        @content-type="text/css"
+        @schema="https://cem.dev/ns/data/css/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.css.url_rejected"
+    }
+
+    {example
+        @id="invalid-token"
+        @path="examples/invalid-token.css"
+        @content-type="text/css"
+        @schema="https://cem.dev/ns/data/css/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.css.invalid_token"
+    }
+
+    {example
+        @id="invalid-declaration"
+        @path="examples/invalid-declaration.css"
+        @content-type="text/css"
+        @schema="https://cem.dev/ns/data/css/1"
+        @expected-result="pass"
+        @expected-diagnostics="cem.css.invalid_declaration"
+    }
+
+    {example
+        @id="encoding-conflict"
+        @path="examples/encoding-conflict.css"
+        @content-type="text/css; charset=iso-8859-1"
+        @schema="https://cem.dev/ns/data/css/1"
+        @expected-result="pass"
+        @expected-diagnostics="cem.css.encoding_conflict"
+    }
 }
