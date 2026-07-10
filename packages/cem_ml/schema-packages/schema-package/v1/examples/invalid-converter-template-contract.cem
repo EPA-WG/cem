@@ -24,7 +24,7 @@
         @lossiness="lossless"
         @output-syntax="html"
         @encoding-category="html-document"
-        @formatter-profile="canonical"
+        @formatter-profile="compact"
         @color-profile="classes"
         @parity="parse-equivalent"
         @cost=100 |

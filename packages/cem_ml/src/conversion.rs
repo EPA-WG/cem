@@ -5832,7 +5832,7 @@ fn conversion_output_safety_options(
         canonical: output_contract
             .formatter_profile
             .as_deref()
-            .is_some_and(|profile| profile == "canonical"),
+            .is_some_and(|profile| matches!(profile, "compact" | "canonical")),
         formatter_profile: output_contract.formatter_profile.clone(),
         color_profile: output_contract.color_profile.clone(),
         mode: conversion_output_artifact_mode(category),
@@ -5963,7 +5963,7 @@ fn direct_markup_output_pipeline(
     let output_contract = ConversionOutputContractDescriptor {
         output_syntax: Some(output_syntax),
         encoding_category: Some(category.to_owned()),
-        formatter_profile: Some("canonical".to_owned()),
+        formatter_profile: Some("compact".to_owned()),
         color_profile: color_profile.map(str::to_owned),
         parity: None,
     };
@@ -8150,7 +8150,7 @@ mod tests {
         );
         assert_eq!(
             html.output_contract.formatter_profile.as_deref(),
-            Some("canonical")
+            Some("compact")
         );
         assert_eq!(
             html.output_contract.color_profile.as_deref(),
@@ -8284,7 +8284,7 @@ mod tests {
             ConversionOutputContractDescriptor {
                 output_syntax: Some(ConversionOutputSyntax::Html),
                 encoding_category: Some("html-document".to_owned()),
-                formatter_profile: Some("canonical".to_owned()),
+                formatter_profile: Some("compact".to_owned()),
                 color_profile: Some("classes".to_owned()),
                 parity: Some(ConversionParityMode::ParseEquivalent),
             },
@@ -9781,7 +9781,7 @@ mod tests {
         );
         assert_eq!(
             html.insertion_context.formatter_profile.as_deref(),
-            Some("canonical")
+            Some("compact")
         );
         assert_eq!(
             html.insertion_context.color_profile.as_deref(),

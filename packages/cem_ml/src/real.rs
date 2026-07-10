@@ -6737,7 +6737,7 @@ mod tests {
                 output_contract: crate::conversion::ConversionOutputContractDescriptor {
                     output_syntax: Some(crate::conversion::ConversionOutputSyntax::Html),
                     encoding_category: Some("html-document".to_owned()),
-                    formatter_profile: Some("canonical".to_owned()),
+                    formatter_profile: Some("compact".to_owned()),
                     color_profile: Some("classes".to_owned()),
                     parity: None,
                 },
@@ -10172,7 +10172,7 @@ mod tests {
         @template-schema="https://cem.dev/ns/transform/cem/1"
         @output-syntax="html"
         @encoding-category="html-document"
-        @formatter-profile="canonical"
+        @formatter-profile="compact"
         @color-profile="classes" |
         {from @content-type="application/vnd.example.demo+cem" @schema="https://example.test/ns/demo/1"}
         {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}

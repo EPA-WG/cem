@@ -25,7 +25,7 @@
         @lossiness="serialization"
         @output-syntax="html"
         @encoding-category="html-document"
-        @formatter-profile="canonical"
+        @formatter-profile="compact"
         @color-profile="classes"
         @parity="parse-equivalent"
         @implicit=true
@@ -53,7 +53,7 @@
         @lossiness="serialization"
         @output-syntax="xml"
         @encoding-category="xml-document"
-        @formatter-profile="canonical"
+        @formatter-profile="compact"
         @parity="parse-equivalent"
         @implicit=true
         @readiness="ready"

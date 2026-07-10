@@ -2798,7 +2798,7 @@ mod tests {
                     @streamable=true
                     @output-syntax="html"
                     @encoding-category="html-document"
-                    @formatter-profile="canonical"
+                    @formatter-profile="compact"
                     @color-profile="classes"
                     @parity="parse-equivalent"
                     @implicit=false
@@ -3224,7 +3224,7 @@ mod tests {
                     @template-schema="https://cem.dev/ns/transform/cem/1"
                     @output-syntax="html"
                     @encoding-category="html-document"
-                    @formatter-profile="canonical"
+                    @formatter-profile="compact"
                     @color-profile="classes" |
                     {from @content-type="application/vnd.example.demo+cem" @schema="https://example.test/ns/demo/1"}
                     {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
@@ -3283,7 +3283,7 @@ mod tests {
                     @template-schema="https://cem.dev/ns/transform/cem/1"
                     @output-syntax="html"
                     @encoding-category="html-document"
-                    @formatter-profile="canonical" |
+                    @formatter-profile="compact" |
                     {from @content-type="application/vnd.example.demo+cem" @schema="https://example.test/ns/demo/1"}
                     {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
                 }
