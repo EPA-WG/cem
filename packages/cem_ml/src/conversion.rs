@@ -6024,6 +6024,7 @@ fn conversion_cem_tree_formatter_profile(
         .map(str::trim)
         .filter(|profile| !profile.is_empty())
         .map(|profile| match profile {
+            "compact" | "pretty" | "tabular" => profile,
             "format-tree" | "cem.format-tree" => "cem.format-tree",
             _ => "cem.format-tree",
         })
@@ -6058,7 +6059,7 @@ fn conversion_output_color_profile(
         return Ok(None);
     };
 
-    if matches!(selector, "none" | "plain") {
+    if matches!(selector, "none" | "plain" | "md" | "markdown") {
         let profile = TransformTemplateColorOutputProfile::plain();
         return profile.validate().map(|_| Some(profile)).map_err(|error| {
             conversion_output_safety_diagnostic(
@@ -10147,6 +10148,74 @@ mod tests {
     }
 
     #[test]
+    fn output_safety_contracts_accept_baseline_color_profile_aliases() {
+        struct ColorAliasCase {
+            id: &'static str,
+            content_type: &'static str,
+            schema: &'static str,
+            output_syntax: ConversionOutputSyntax,
+            category: &'static str,
+            color_profile: &'static str,
+            expected_output: TransformTemplateColorOutputKind,
+        }
+
+        let cases = [
+            ColorAliasCase {
+                id: "terminal-color-alias",
+                content_type: "text/plain",
+                schema: "https://cem.dev/ns/data/text/1",
+                output_syntax: ConversionOutputSyntax::Text,
+                category: "terminal-color",
+                color_profile: "terminal",
+                expected_output: TransformTemplateColorOutputKind::Terminal,
+            },
+            ColorAliasCase {
+                id: "html-color-alias",
+                content_type: HTML_CONTENT_TYPE,
+                schema: HTML_SCHEMA_URI,
+                output_syntax: ConversionOutputSyntax::Html,
+                category: "html-document",
+                color_profile: "html",
+                expected_output: TransformTemplateColorOutputKind::Html,
+            },
+            ColorAliasCase {
+                id: "markdown-color-alias",
+                content_type: MARKDOWN_CONTENT_TYPE,
+                schema: MARKDOWN_SCHEMA_URI,
+                output_syntax: ConversionOutputSyntax::Markdown,
+                category: "markdown-document",
+                color_profile: "md",
+                expected_output: TransformTemplateColorOutputKind::None,
+            },
+        ];
+
+        for case in cases {
+            let descriptor = cemt_edge_with_output_contract(
+                case.id,
+                endpoint(case.content_type, case.schema),
+                ConversionOutputContractDescriptor {
+                    output_syntax: Some(case.output_syntax),
+                    encoding_category: Some(case.category.to_owned()),
+                    color_profile: Some(case.color_profile.to_owned()),
+                    ..ConversionOutputContractDescriptor::default()
+                },
+            );
+
+            let (contract, diagnostics) = conversion_output_safety_contract(&descriptor);
+
+            assert!(diagnostics.is_empty(), "{}: {diagnostics:?}", case.id);
+            assert_eq!(
+                contract
+                    .and_then(|contract| contract.color_output_profile)
+                    .map(|profile| profile.output),
+                Some(case.expected_output),
+                "{}",
+                case.id
+            );
+        }
+    }
+
+    #[test]
     fn output_safety_contract_context_drives_encoded_artifact_guard() {
         let registry = ConversionRegistry::with_builtin_converters();
         let (contracts, diagnostics) = registry.cemt_output_safety_contracts();
@@ -11340,6 +11409,24 @@ mod tests {
                 .template_uri,
             colorizer.path
         );
+        for profile in ["compact", "pretty", "tabular"] {
+            let stage = cem_tree_format_cemt_stage(&target, Some(profile))
+                .expect("baseline formatter profile resolves");
+            assert_eq!(
+                stage.template_uri,
+                "schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt"
+            );
+            assert_eq!(stage.stage_profile.as_deref(), Some(profile));
+        }
+        for profile in ["terminal", "html", "md"] {
+            let stage = cem_tree_color_cemt_stage(&target, Some(profile))
+                .expect("baseline colorizer profile resolves");
+            assert_eq!(
+                stage.template_uri,
+                "schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt"
+            );
+            assert_eq!(stage.stage_profile.as_deref(), Some(profile));
+        }
         for source in [formatter_source.source, colorizer_source.source] {
             assert!(source.contains(r#"@content-type="application/cem""#));
             assert!(source.contains(r#"@schema="https://cem.dev/ns/cem-ml/1""#));

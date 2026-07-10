@@ -352,6 +352,9 @@
         {body |
             {$ match($colorProfile, {
                 none: $subject,
+                terminal: $subject,
+                md: $subject,
+                markdown: $subject,
                 default: match(call("cem.color-tree.is-text-node", { subject: $subject }), {
                     true: call("cem.color-tree.wrap-text-node", { subject: $subject, colorProfile: $colorProfile }),
                     false: $subject
@@ -463,6 +466,27 @@
                     call("cem.color-tree.color-decision", { source: $subject, name: "profile", role: "colorizer.profile", value: $colorProfile, colorProfile: $colorProfile }),
                     call("cem.color-tree.color-decision", { source: $subject, name: "output", role: "colorizer.output", value: "terminal", colorProfile: $colorProfile })
                 ],
+                terminal: [
+                    call("cem.color-tree.color-marker", { source: $subject, colorProfile: $colorProfile }),
+                    call("cem.color-tree.color-decision", { source: $subject, name: "profile", role: "colorizer.profile", value: $colorProfile, colorProfile: $colorProfile }),
+                    call("cem.color-tree.color-decision", { source: $subject, name: "output", role: "colorizer.output", value: "terminal", colorProfile: $colorProfile })
+                ],
+                md: [
+                    call("cem.color-tree.color-marker", { source: $subject, colorProfile: $colorProfile }),
+                    call("cem.color-tree.color-decision", { source: $subject, name: "profile", role: "colorizer.profile", value: $colorProfile, colorProfile: $colorProfile }),
+                    call("cem.color-tree.color-decision", { source: $subject, name: "output", role: "colorizer.output", value: "md", colorProfile: $colorProfile })
+                ],
+                markdown: [
+                    call("cem.color-tree.color-marker", { source: $subject, colorProfile: $colorProfile }),
+                    call("cem.color-tree.color-decision", { source: $subject, name: "profile", role: "colorizer.profile", value: $colorProfile, colorProfile: $colorProfile }),
+                    call("cem.color-tree.color-decision", { source: $subject, name: "output", role: "colorizer.output", value: "md", colorProfile: $colorProfile })
+                ],
+                html: [
+                    call("cem.color-tree.color-marker", { source: $subject, colorProfile: $colorProfile }),
+                    call("cem.color-tree.color-decision", { source: $subject, name: "profile", role: "colorizer.profile", value: $colorProfile, colorProfile: $colorProfile }),
+                    call("cem.color-tree.color-decision", { source: $subject, name: "output", role: "colorizer.output", value: "html", colorProfile: $colorProfile }),
+                    call("cem.color-tree.color-decision", { source: $subject, name: "html-mode", role: "colorizer.html-mode", value: "classes", colorProfile: $colorProfile })
+                ],
                 default: [
                     call("cem.color-tree.color-marker", { source: $subject, colorProfile: $colorProfile }),
                     call("cem.color-tree.color-decision", { source: $subject, name: "profile", role: "colorizer.profile", value: $colorProfile, colorProfile: $colorProfile }),
@@ -549,6 +573,9 @@
         {body |
             {$ match($colorProfile, {
                 none: $subject,
+                terminal: $subject,
+                md: $subject,
+                markdown: $subject,
                 default: set(
                     $subject,
                     "writerAttributeNodes",

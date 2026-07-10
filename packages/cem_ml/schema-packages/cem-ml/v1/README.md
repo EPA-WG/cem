@@ -69,6 +69,15 @@ execution. Colorizer artifacts also keep the CEMT function profile separate
 from the output color profile, because one CEMT body can serve multiple output
 color profiles.
 
+The baseline package-frame selectors are declared in `package.cem`:
+`compact`, `pretty`, and `tabular` select the canonical `cem.format-tree`
+formatter asset and matching helper asset; `terminal`, `html`, and `md` select
+the canonical `cem.color-tree` colorizer asset. The current formatter aliases
+share the same CEMT body while the distinct pretty/tabular layout rules are
+implemented. The `html` colorizer selector maps to the class-based HTML mode,
+`terminal` records terminal output metadata without HTML writer attributes, and
+`md` records Markdown output metadata without HTML writer attributes.
+
 Package-qualified formatter and colorizer artifacts are selected by explicit
 CEMT function name first, then by stage profile fallback. This keeps the
 canonical `cem.format-tree` and `cem.color-tree` pipeline stable while allowing

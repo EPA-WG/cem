@@ -237,8 +237,12 @@ history belongs in git history and the feature-specific docs linked below.
         to have matching `package.cem`, `.cem` schema source, and at least one
         example fixture; declared CEMT artifacts must exist on disk and be
         embedded in the artifact source catalog; `cem-ml/v1` formatter and
-        colorizer asset folders are checked against `package.cem`. Remaining
-        work is to enforce baseline formatter/colorizer profile completeness
+        colorizer asset folders are checked against `package.cem`, and
+        `cem-ml/v1` declares runtime-selectable baseline formatter profiles
+        `compact`, `pretty`, `tabular` plus colorizer profiles `terminal`,
+        `html`, and `md` over the canonical CEMT assets. Remaining work is to
+        implement distinct pretty/tabular formatter behavior, deeper terminal/
+        Markdown color output behavior, and then enforce profile completeness
         across each package as those profiles are added.
   - [ ] Require example loading to resolve the declared content type plus schema
         URL and validate the source bytes against that schema; filename
@@ -268,7 +272,10 @@ formats, then XML/markup families, then projection/debug formats.
 Bootstrap and self-hosting packages:
 
 - [ ] `cem-ml/v1` (`application/cem`; aliases: `text/cem-ml`, `text/cem`,
-      `application/cem+xml`).
+      `application/cem+xml`). Baseline formatter/colorizer selectors are
+      declared and runtime-selectable over canonical CEMT assets; remaining
+      work is distinct pretty/tabular layout semantics, deeper terminal/
+      Markdown color output semantics, and example validation expansion.
 - [ ] `schema/v1` (`application/vnd.cem.schema+cem`).
 - [ ] `schema-package/v1` (`application/vnd.cem.schema-package+cem`).
 - [ ] `cem-native-template/v1` (`application/vnd.cem.template+cem`; CEM source

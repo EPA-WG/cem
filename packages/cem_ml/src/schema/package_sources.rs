@@ -372,6 +372,23 @@ mod tests {
             .collect()
     }
 
+    fn package_manifest_artifact_attrs(
+        package_id: &str,
+        manifest_source: &str,
+    ) -> Vec<BTreeMap<String, String>> {
+        let document = parse_cem_document(manifest_source);
+        element_ids_by_local_name(&document, "artifact")
+            .into_iter()
+            .map(|node_id| {
+                let mut attrs = collect_attrs(&document, node_id);
+                if let Some(path) = attrs.get("path").cloned() {
+                    attrs.insert("path".to_owned(), package_relative_path(package_id, &path));
+                }
+                attrs
+            })
+            .collect()
+    }
+
     fn directory_cemt_paths(package_id: &str, directory: &str) -> BTreeSet<String> {
         let root = package_root(package_id).join(directory);
         let Ok(entries) = std::fs::read_dir(root) else {
@@ -537,6 +554,61 @@ mod tests {
             assert!(
                 builtin_schema_package_artifact_source(package_id, path).is_some(),
                 "cem-ml CEMT asset `{path}` must be embedded in the artifact source catalog"
+            );
+        }
+    }
+
+    #[test]
+    fn cem_ml_baseline_output_profiles_are_manifest_declared() {
+        let manifest = builtin_schema_package_source("cem-ml").expect("cem-ml package");
+        let artifacts = package_manifest_artifact_attrs("cem-ml", manifest.manifest_source);
+
+        let formatter_profiles = artifacts
+            .iter()
+            .filter(|attrs| {
+                attrs.get("kind").map(String::as_str) == Some("formatter")
+                    && attrs.get("path").map(String::as_str)
+                        == Some("schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt")
+                    && attrs.get("function-name").map(String::as_str) == Some("cem.format-tree")
+            })
+            .filter_map(|attrs| attrs.get("formatter-profile").map(String::as_str))
+            .collect::<BTreeSet<_>>();
+        let formatter_helper_profiles = artifacts
+            .iter()
+            .filter(|attrs| {
+                attrs.get("kind").map(String::as_str) == Some("formatter-helper")
+                    && attrs.get("path").map(String::as_str)
+                        == Some("schema-packages/cem-ml/v1/formatters/cem-format-tree-helpers.cemt")
+                    && attrs.get("function-name").map(String::as_str)
+                        == Some("cem.format-tree.apply-stage")
+            })
+            .filter_map(|attrs| attrs.get("formatter-profile").map(String::as_str))
+            .collect::<BTreeSet<_>>();
+        let color_profiles = artifacts
+            .iter()
+            .filter(|attrs| {
+                attrs.get("kind").map(String::as_str) == Some("colorizer")
+                    && attrs.get("path").map(String::as_str)
+                        == Some("schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt")
+                    && attrs.get("function-name").map(String::as_str) == Some("cem.color-tree")
+            })
+            .filter_map(|attrs| attrs.get("color-profile").map(String::as_str))
+            .collect::<BTreeSet<_>>();
+
+        for profile in ["compact", "pretty", "tabular"] {
+            assert!(
+                formatter_profiles.contains(profile),
+                "cem-ml must declare baseline `{profile}` formatter profile"
+            );
+            assert!(
+                formatter_helper_profiles.contains(profile),
+                "cem-ml must declare baseline `{profile}` formatter helper profile"
+            );
+        }
+        for profile in ["terminal", "html", "md"] {
+            assert!(
+                color_profiles.contains(profile),
+                "cem-ml must declare baseline `{profile}` colorizer profile"
             );
         }
     }

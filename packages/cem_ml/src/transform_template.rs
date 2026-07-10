@@ -2203,6 +2203,7 @@ impl TransformTemplateTerminalColorCapability {
     pub fn parse(selector: &str) -> Option<Self> {
         match selector.trim() {
             "none" => Some(Self::None),
+            "terminal" => Some(Self::Auto),
             "ansi-16" => Some(Self::Ansi16),
             "ansi-256" => Some(Self::Ansi256),
             "truecolor" => Some(Self::Truecolor),
@@ -2234,7 +2235,7 @@ pub enum TransformTemplateHtmlColorMode {
 impl TransformTemplateHtmlColorMode {
     pub fn parse(selector: &str) -> Option<Self> {
         match selector.trim() {
-            "classes" | "html.classes" | "class-based" => Some(Self::Classes),
+            "html" | "classes" | "html.classes" | "class-based" => Some(Self::Classes),
             "inline-style" | "html.inline-style" => Some(Self::InlineStyle),
             "css-custom-properties" | "html.css-custom-properties" | "css-vars" => {
                 Some(Self::CssCustomProperties)
@@ -3732,6 +3733,9 @@ fn transform_template_color_output_profile_for_target(
     let target_output = transform_template_color_output_kind_for_target(target);
     let profile = match transform_template_trimmed_selector(selector) {
         Some(selector) => match target_output {
+            _ if matches!(selector.as_str(), "md" | "markdown") => {
+                TransformTemplateColorOutputProfile::plain()
+            }
             Some(TransformTemplateColorOutputKind::Terminal) => {
                 TransformTemplateColorOutputProfile::terminal_from_selector(&selector)
                     .map_err(|_| unsupported_terminal_color_capability(selector.clone()))?
@@ -27715,6 +27719,17 @@ mod tests {
             .validate()
             .expect("plain terminal fallback profile is valid");
 
+        let terminal_profile =
+            TransformTemplateColorOutputProfile::terminal_from_selector("terminal")
+                .expect("terminal alias profile resolves");
+        assert_eq!(
+            terminal_profile.terminal_capability,
+            TransformTemplateTerminalColorCapability::Auto
+        );
+        terminal_profile
+            .validate()
+            .expect("terminal alias profile is valid");
+
         let mut unsupported_links =
             TransformTemplateColorOutputProfile::terminal_from_selector("none+hyperlinks")
                 .expect("none terminal hyperlink selector parses");
@@ -27776,6 +27791,11 @@ mod tests {
             TransformTemplateHtmlColorMode::InlineStyle
         );
         inline.validate().expect("inline profile is valid");
+
+        let html = TransformTemplateColorOutputProfile::html_from_selector("html")
+            .expect("html alias profile resolves");
+        assert_eq!(html.html_mode, TransformTemplateHtmlColorMode::Classes);
+        html.validate().expect("html alias profile is valid");
 
         let selector_error = TransformTemplateColorOutputProfile::html_from_selector("table")
             .expect_err("unknown HTML color profile is rejected");
