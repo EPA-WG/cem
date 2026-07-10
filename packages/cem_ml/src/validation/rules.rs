@@ -30,6 +30,7 @@ use crate::run_config::ScopeConfig;
 use crate::schema::document_model::{
     load_builtin_document_model_for_identity, validate_document_model,
 };
+use crate::schema::package_consistency::validate_schema_package_source_consistency;
 use crate::schema::registry::{
     content_type_essence, SchemaRegistry, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI,
     CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
@@ -52,7 +53,8 @@ use crate::transform_template::{
     TransformTemplateModuleParseRequest, TransformTemplateModulePreflight,
 };
 use crate::validation::{
-    RuleContext, RuleDescriptor, RuleId, RuleInput, RuleResourceRead, SemanticRule, TriggerLayer,
+    RuleContext, RuleDescriptor, RuleId, RuleInput, RuleRegistry, RuleResourceRead, SemanticRule,
+    TriggerLayer,
 };
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -2097,9 +2099,13 @@ fn validate_schema_package_example_source_contract(
     let Some(source) = read_schema_package_example_source(ctx, node, path, example_id, out) else {
         return;
     };
-    let Some(diagnostics) =
-        validate_schema_package_example_source_bytes(&source.bytes, content_type, schema_uri)
-    else {
+    let Some(diagnostics) = validate_schema_package_example_source_bytes(
+        &source.bytes,
+        content_type,
+        schema_uri,
+        &source.uri,
+        ctx.resource_reader,
+    ) else {
         return;
     };
     let hard_diagnostics = diagnostics
@@ -2222,19 +2228,35 @@ fn validate_schema_package_example_source_bytes(
     bytes: &[u8],
     content_type: &str,
     schema_uri: &str,
+    source_uri: &str,
+    resource_reader: Option<&crate::validation::RuleResourceReader<'_>>,
 ) -> Option<Vec<Diagnostic>> {
-    let mut document = match schema_package_example_tokenizer(content_type, schema_uri)? {
+    let document = match schema_package_example_tokenizer(content_type, schema_uri)? {
         SchemaPackageExampleTokenizer::Cem => parse_example_cem_document(bytes),
         SchemaPackageExampleTokenizer::Html => parse_example_html_document(bytes),
         SchemaPackageExampleTokenizer::Xml => parse_example_xml_document(bytes),
     };
-    if let Some(model) =
-        load_builtin_document_model_for_identity(Some(schema_uri), Some(content_type))
+    let upstream_diagnostics = document.diagnostics.clone();
+    let mut diagnostics = document.diagnostics.clone();
+    if schema_uri == CEM_SCHEMA_PACKAGE_URI
+        || content_type_essence(content_type) == CEM_SCHEMA_PACKAGE_CONTENT_TYPE
     {
-        let model_diagnostics = validate_document_model(&document, &model);
-        document.diagnostics.extend(model_diagnostics);
+        if let Some(source_path) = local_path_from_validation_source_uri(source_uri) {
+            diagnostics.extend(validate_schema_package_source_consistency(
+                &source_path,
+                &document,
+            ));
+        }
     }
-    Some(document.diagnostics)
+    diagnostics.extend(RuleRegistry::with_tier_a_rules().run(&RuleContext {
+        document: &document,
+        schema_uri: Some(schema_uri),
+        content_type: Some(content_type),
+        source_uri: Some(source_uri),
+        resource_reader,
+        upstream_diagnostics: &upstream_diagnostics,
+    }));
+    Some(diagnostics)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -3704,6 +3726,79 @@ mod tests {
         assert_eq!(
             details["actualDiagnostics"],
             serde_json::json!(["cem.schema_model.missing_required_attribute"])
+        );
+    }
+
+    #[test]
+    fn schema_package_example_contract_runs_tier_a_rules_for_loaded_source() {
+        let schema_source = r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="demo" @namespace="https://example.test/ns/demo/1" @version="1.0.0" |
+    {content-types |
+        {content-type @value="application/vnd.example.demo+cem" @primary=true}
+    }
+}"#;
+        let dir = schema_package_artifact_contract_fixture_dir(
+            "example-source-tier-a-rules",
+            &[
+                ("schema/demo.cem", schema_source),
+                ("examples/schema/demo.cem", schema_source),
+                ("examples/formatters/demo.cemt", demo_format_cemt_source()),
+                (
+                    "examples/invalid-artifact.cem",
+                    r#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id=demo @version="1.0.0" |
+    {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+    {content-type @value="application/vnd.example.demo+cem" @primary=true}
+    {artifact
+        @kind="formatter"
+        @path="formatters/demo.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="wrong-tree"
+        @function-name="demo.format"
+        @formatter-profile="compact"
+    }
+}"#,
+                ),
+            ],
+        );
+        let package_uri = dir.join("package.cem").display().to_string();
+        let diags = run_rules_with_identity_and_source_uri(
+            r#"{package @id=demo @version="1.0.0" |
+                {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+                {content-type @value="application/vnd.example.demo+cem" @primary=true}
+                {example
+                    @id="invalid-artifact"
+                    @path="examples/invalid-artifact.cem"
+                    @content-type="application/vnd.cem.schema-package+cem"
+                    @schema="https://cem.dev/ns/schema-package/1"
+                    @expected-result="fail"
+                    @expected-diagnostics="cem.schema_package.artifact_check"
+                }
+            }"#,
+            Some(CEM_SCHEMA_PACKAGE_URI),
+            Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
+            Some(&package_uri),
+        );
+
+        assert!(
+            diags.iter().all(|diagnostic| {
+                diagnostic.details.as_ref().and_then(|details| {
+                    details.get("checkKind").and_then(serde_json::Value::as_str)
+                }) != Some("example-source-validation")
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("checkKind").and_then(serde_json::Value::as_str)
+                    }) != Some("example-expected-diagnostics")
+            }),
+            "manifest-loaded example should satisfy expected artifact_check diagnostics through Tier A validation: {diags:?}"
         );
     }
 

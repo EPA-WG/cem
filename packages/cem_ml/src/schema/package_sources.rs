@@ -265,7 +265,8 @@ mod tests {
     use crate::parser::{AstNodeId, CemAstNode};
     use crate::schema::registry::{
         schema_package_examples_from_package_sources, SchemaPackageExampleExpectedResult,
-        CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_URI,
+        CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
+        CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
     };
     use crate::source::{BytesSource, SourceId};
     use crate::tokenizer::cem::CemTokenizer;
@@ -549,6 +550,47 @@ mod tests {
             unclosed.expected_diagnostic_codes,
             vec!["cem.ast.unclosed_scope".to_owned()]
         );
+    }
+
+    #[test]
+    fn schema_package_manifest_examples_are_manifest_indexed() {
+        let examples = manifest_indexed_package_examples(
+            "schema-package",
+            CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            CEM_SCHEMA_PACKAGE_URI,
+            15,
+        );
+        for (id, expected_code) in [
+            (
+                "invalid-converter-contract",
+                "cem.schema_package.converter_check",
+            ),
+            (
+                "invalid-artifact-contract",
+                "cem.schema_package.artifact_check",
+            ),
+            (
+                "invalid-example-contract",
+                "cem.schema_package.example_check",
+            ),
+            (
+                "invalid-schema-metadata",
+                "cem.schema_package.schema_uri_mismatch",
+            ),
+        ] {
+            let example = examples
+                .iter()
+                .find(|example| example.id == id)
+                .unwrap_or_else(|| panic!("schema-package example `{id}`"));
+            assert_eq!(
+                example.expected_result,
+                SchemaPackageExampleExpectedResult::Fail
+            );
+            assert_eq!(
+                example.expected_diagnostic_codes,
+                vec![expected_code.to_owned()]
+            );
+        }
     }
 
     #[test]

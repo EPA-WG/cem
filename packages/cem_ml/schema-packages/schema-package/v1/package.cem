@@ -12,4 +12,137 @@
 
     {namespace @prefix="pkg" @uri="https://cem.dev/ns/schema-package/1"}
     {namespace @prefix="schema" @uri="https://cem.dev/ns/schema/1"}
+
+    {example
+        @id="basic-package"
+        @path="examples/basic-package.cem"
+        @content-type="application/vnd.cem.schema-package+cem"
+        @schema="https://cem.dev/ns/schema-package/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="converter-package"
+        @path="examples/converter-package.cem"
+        @content-type="application/vnd.cem.schema-package+cem"
+        @schema="https://cem.dev/ns/schema-package/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="invalid-unclosed-package"
+        @path="examples/invalid-unclosed-package.cem"
+        @content-type="application/vnd.cem.schema-package+cem"
+        @schema="https://cem.dev/ns/schema-package/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.ast.unclosed_scope"
+    }
+
+    {example
+        @id="invalid-missing-required-attribute"
+        @path="examples/invalid-missing-required-attribute.cem"
+        @content-type="application/vnd.cem.schema-package+cem"
+        @schema="https://cem.dev/ns/schema-package/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_model.missing_required_attribute"
+    }
+
+    {example
+        @id="invalid-converter-contract"
+        @path="examples/invalid-converter-contract.cem"
+        @content-type="application/vnd.cem.schema-package+cem"
+        @schema="https://cem.dev/ns/schema-package/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_package.converter_check"
+    }
+
+    {example
+        @id="invalid-converter-runtime-constraints"
+        @path="examples/invalid-converter-runtime-constraints.cem"
+        @content-type="application/vnd.cem.schema-package+cem"
+        @schema="https://cem.dev/ns/schema-package/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_package.converter_check"
+    }
+
+    {example
+        @id="invalid-converter-template-contract"
+        @path="examples/invalid-converter-template-contract.cem"
+        @content-type="application/vnd.cem.schema-package+cem"
+        @schema="https://cem.dev/ns/schema-package/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_package.converter_check"
+    }
+
+    {example
+        @id="invalid-artifact-contract"
+        @path="examples/invalid-artifact-contract.cem"
+        @content-type="application/vnd.cem.schema-package+cem"
+        @schema="https://cem.dev/ns/schema-package/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_package.artifact_check"
+    }
+
+    {example
+        @id="invalid-artifact-layout"
+        @path="examples/invalid-artifact-layout.cem"
+        @content-type="application/vnd.cem.schema-package+cem"
+        @schema="https://cem.dev/ns/schema-package/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_package.artifact_check"
+    }
+
+    {example
+        @id="invalid-artifact-source-unreadable"
+        @path="examples/invalid-artifact-source-unreadable.cem"
+        @content-type="application/vnd.cem.schema-package+cem"
+        @schema="https://cem.dev/ns/schema-package/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_package.artifact_check"
+    }
+
+    {example
+        @id="invalid-artifact-source-parse"
+        @path="examples/invalid-artifact-source-parse.cem"
+        @content-type="application/vnd.cem.schema-package+cem"
+        @schema="https://cem.dev/ns/schema-package/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_package.artifact_check"
+    }
+
+    {example
+        @id="invalid-artifact-function-missing"
+        @path="examples/invalid-artifact-function-missing.cem"
+        @content-type="application/vnd.cem.schema-package+cem"
+        @schema="https://cem.dev/ns/schema-package/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_package.artifact_check"
+    }
+
+    {example
+        @id="invalid-schema-metadata"
+        @path="examples/invalid-schema-metadata.cem"
+        @content-type="application/vnd.cem.schema-package+cem"
+        @schema="https://cem.dev/ns/schema-package/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_package.schema_uri_mismatch"
+    }
+
+    {example
+        @id="invalid-example-contract"
+        @path="examples/invalid-example-contract.cem"
+        @content-type="application/vnd.cem.schema-package+cem"
+        @schema="https://cem.dev/ns/schema-package/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_package.example_check"
+    }
+
+    {example
+        @id="invalid-example-source-contract"
+        @path="examples/invalid-example-source-contract.cem"
+        @content-type="application/vnd.cem.schema-package+cem"
+        @schema="https://cem.dev/ns/schema-package/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_package.example_check"
+    }
 }
