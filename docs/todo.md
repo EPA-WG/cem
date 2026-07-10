@@ -23,12 +23,12 @@ history belongs in git history and the feature-specific docs linked below.
         `packages/cem_ml/schema-packages/schema/v1/schema/cem-schema.cem`.
         The schema language now models element-bound required/optional/
         forbidden fields, value and presence conditional selectors,
-        diagnostic families, and attribute `@values` vocabularies; it still
-        needs accepted children, scalar type validation beyond boolean/integer
-        syntax, RELAX NG-style datatype params beyond `minInclusive` such as
-        `maxInclusive` and `pattern`, defaults, richer dependent-required
-        field groups, mutually exclusive fields, conditional case groups, and
-        cardinality.
+        value-specific forbidden fields, diagnostic families, and attribute
+        `@values` vocabularies; it still needs accepted children, scalar type
+        validation beyond boolean/integer syntax, RELAX NG-style datatype
+        params beyond `minInclusive` such as `maxInclusive` and `pattern`,
+        defaults, richer dependent-required field groups, RELAX NG-style
+        choice/case groups, and cardinality.
   - [ ] Extend the compiled Rust schema contract model. `SchemaDocumentModel`
         now compiles initial `field-contract` declarations and evaluates
         required/forbidden fields, attribute `@values` vocabularies, and
@@ -36,8 +36,8 @@ history belongs in git history and the feature-specific docs linked below.
         `cemml:integer` attribute types; it still needs reusable string/path/
         URI/media-type constraints, RELAX NG-style datatype params beyond
         integer `minInclusive`, dependent field groups beyond presence-gated
-        required fields, mutual exclusion, cardinality, defaults, and richer
-        case grouping for all schema elements.
+        required fields, RELAX NG-style choice/case groups, cardinality,
+        defaults, and richer case grouping for all schema elements.
   - [ ] Extend structured diagnostic details beyond initial required/forbidden
         field checks. The first generic field-contract evaluator now emits
         schema URI, element, contract name, check kind, required/optional/
@@ -45,9 +45,10 @@ history belongs in git history and the feature-specific docs linked below.
         source-map range, and attribute `@values` checks emit expected/actual
         value details; boolean and integer type checks now emit expected/
         actual details; integer `minInclusive` checks emit datatype-param
-        details; string/path/URI/media-type, datatype params beyond
-        `minInclusive`, dependency, mutual-exclusion, cardinality, and
-        cross-reference checks need the same schema-owned detail shape.
+        details; value-specific forbidden checks emit forbiddenAttributeValues
+        and invalidValues details; string/path/URI/media-type, datatype params
+        beyond `minInclusive`, dependency, choice/case grouping, cardinality,
+        and cross-reference checks need the same schema-owned detail shape.
   - [ ] Extend the generic field-contract evaluator. The first evaluator runs
         from schema URI plus content type, consumes the compiled contract
         model, preserves source-map ranges, and emits contract-declared
@@ -56,7 +57,7 @@ history belongs in git history and the feature-specific docs linked below.
         attribute `@values` plus boolean/integer type and integer
         `minInclusive` datatype-param checks, and still needs coverage for
         string/path/URI/media-type, datatype params beyond `minInclusive`,
-        dependency, mutual-exclusion, and cardinality checks.
+        dependency, RELAX NG-style choice/case grouping, and cardinality checks.
   - [ ] Move schema-package manifest field rules from Rust conditionals into
         `packages/cem_ml/schema-packages/schema-package/v1/schema/schema-package.cem`.
         Cover `package`, `schema`, `content-type`, `namespace`, `converter`,
@@ -69,9 +70,10 @@ history belongs in git history and the feature-specific docs linked below.
         is one each; enum fields now use schema-declared `@values` and boolean
         fields now use `schema:boolean` in the generic document model; `cost`
         now uses generic integer syntax and RELAX NG-style `minInclusive=1`;
-        package-specific enum, boolean, cost, and fallback-reason diagnostics
-        have been retired in favor of generic schema-owned codes; `implicit`
-        and `explicit-only` are mutually exclusive.
+        `implicit=true` with `explicit-only=true` is now a schema-owned
+        value-specific forbidden field contract; package-specific enum,
+        boolean, cost, fallback-reason, and planner-state diagnostics have been
+        retired in favor of generic schema-owned codes.
   - [ ] Finish artifact cases in `schema-package.cem`. Formatter, colorizer,
         formatter-helper, and colorizer-helper required field metadata now
         lives in schema-owned `field-contract` declarations; stage directory,
@@ -95,11 +97,12 @@ history belongs in git history and the feature-specific docs linked below.
         constraints/rules in `.cem`, with Rust only as the execution placement.
   - [ ] Refactor `SchemaPackageConverterContractRule` so it calls the generic
         field-contract evaluator before operational checks, then removes the
-        remaining Rust-owned match blocks for endpoint cardinality and mutual
-        exclusion. CEMT template identity, Rust symbol, and CEMT fallback
-        reason requirements are now schema-owned field contracts; the legacy
-        package-specific enum, boolean, and positive-cost branches are now
-        covered by generic `@values`, `schema:boolean`, and `minInclusive`
+        remaining Rust-owned endpoint cardinality match blocks. CEMT template
+        identity, Rust symbol, CEMT fallback reason requirements, and
+        converter planner-state conflicts are now schema-owned field
+        contracts; the legacy package-specific enum, boolean, positive-cost,
+        and planner-state branches are now covered by generic `@values`,
+        `schema:boolean`, `minInclusive`, and value-specific forbidden field
         checks.
   - [ ] Refactor `schema_descriptor_from_package_sources`,
         `collect_package_examples`, and `required_attr` in

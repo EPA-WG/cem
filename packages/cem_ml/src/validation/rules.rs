@@ -54,10 +54,6 @@ pub(crate) const SCHEMA_PACKAGE_CONVERTER_CONSTRAINT_DIAGNOSTICS: &[(&str, &str)
         "converter-implementation-known",
     ),
     (
-        "cem.schema_package.converter_selection_conflict",
-        "converter-planner-state-contract",
-    ),
-    (
         "cem.schema_package.converter_template_content_type_mismatch",
         "cemt-template-identity-required",
     ),
@@ -1279,19 +1275,6 @@ fn validate_schema_package_converter(
 
     validate_converter_endpoint_contract(doc, node, converter_id, "from", registry, out);
     validate_converter_endpoint_contract(doc, node, converter_id, "to", registry, out);
-
-    if manifest_bool_value(doc, node, "explicit-only") == Some(true)
-        && manifest_bool_value(doc, node, "implicit") == Some(true)
-    {
-        out.push(diag_at(
-            "cem.schema_package.converter_selection_conflict",
-            Severity::Error,
-            format!(
-                "converter `{converter_id}` cannot set both `explicit-only=true` and `implicit=true`"
-            ),
-            node,
-        ));
-    }
 }
 
 fn validate_cemt_converter_contract(
@@ -1962,18 +1945,6 @@ fn validate_schema_package_example(
             ),
             node,
         ));
-    }
-}
-
-fn manifest_bool_value(
-    doc: &crate::parser::document::CemDocument,
-    node: &CemAstNode,
-    attr_name: &str,
-) -> Option<bool> {
-    match attr_value(doc, node, attr_name)?.trim() {
-        "" | "true" => Some(true),
-        "false" => Some(false),
-        _ => None,
     }
 }
 
@@ -2731,7 +2702,6 @@ mod tests {
             "cem.schema_model.invalid_attribute_type",
             "cem.schema_model.invalid_attribute_value",
             "cem.schema_model.invalid_attribute_datatype_param",
-            "cem.schema_package.converter_selection_conflict",
             "cem.schema_package.converter_content_type_mismatch",
         ] {
             assert!(
@@ -2752,6 +2722,7 @@ mod tests {
             "cem.schema_package.converter_lossiness_unknown",
             "cem.schema_package.converter_output_syntax_unknown",
             "cem.schema_package.converter_parity_unknown",
+            "cem.schema_package.converter_selection_conflict",
         ] {
             assert!(
                 diags.iter().all(|d| d.code != removed_code),
@@ -2805,6 +2776,42 @@ mod tests {
                 "attribute": "implementation",
                 "values": ["cemt"],
                 "presentAttributes": ["rust-symbol"],
+            })
+        );
+
+        let planner_state = diags
+            .iter()
+            .find(|d| {
+                d.code == "cem.schema_package.converter_check"
+                    && d.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("converter-planner-state")
+            })
+            .expect("schema-owned converter planner state field contract diagnostic");
+        let details = planner_state
+            .details
+            .as_ref()
+            .expect("converter planner state details");
+        assert_eq!(details["missingFields"], serde_json::json!([]));
+        assert_eq!(details["invalidFields"], serde_json::json!(["implicit"]));
+        assert_eq!(
+            details["forbiddenAttributeValues"],
+            serde_json::json!({
+                "implicit": ["true"],
+            })
+        );
+        assert_eq!(
+            details["invalidValues"],
+            serde_json::json!({
+                "implicit": "true",
+            })
+        );
+        assert_eq!(
+            details["condition"],
+            serde_json::json!({
+                "attribute": "explicit-only",
+                "values": ["true"],
+                "presentAttributes": [],
             })
         );
 
@@ -3046,6 +3053,43 @@ mod tests {
                     != Some("converter-cemt-fallback-reason")
             }),
             "Rust converter should not trigger CEMT fallback field contract: {diags:?}"
+        );
+    }
+
+    #[test]
+    fn schema_package_converter_contract_allows_explicit_only_with_implicit_false() {
+        let diags = run_rules_with_identity(
+            r#"{package @id=demo @version="1.0.0" |
+                {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+                {content-type @value="application/vnd.example.demo+cem" @primary=true}
+                {converter
+                    @id="rust-explicit"
+                    @implementation="rust"
+                    @rust-symbol="demo_convert"
+                    @explicit-only=true
+                    @implicit=false |
+                    {from @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+                    {to @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
+                }
+            }"#,
+            Some(CEM_SCHEMA_PACKAGE_URI),
+            Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
+        );
+
+        assert!(
+            diags.iter().all(|d| {
+                d.details
+                    .as_ref()
+                    .and_then(|details| details.get("contract").and_then(serde_json::Value::as_str))
+                    != Some("converter-planner-state")
+            }),
+            "implicit=false should not trigger converter planner-state field contract: {diags:?}"
+        );
+        assert!(
+            diags
+                .iter()
+                .all(|d| d.code != "cem.schema_package.converter_selection_conflict"),
+            "legacy converter selection conflict diagnostic should not emit: {diags:?}"
         );
     }
 

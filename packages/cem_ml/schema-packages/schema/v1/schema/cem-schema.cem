@@ -43,7 +43,7 @@
         {element @name="resolution" @required-attributes="target mode"}
         {element @name="handoff" @required-attributes="attribute target"}
         {element @name="field-contracts" @children="field-contract"}
-        {element @name="field-contract" @required-attributes="name target" @optional-attributes="diagnostic check-kind required-attributes optional-attributes forbidden-attributes when-attribute when-values when-present-attributes"}
+        {element @name="field-contract" @required-attributes="name target" @optional-attributes="diagnostic check-kind required-attributes optional-attributes forbidden-attributes forbidden-attribute-values when-attribute when-values when-present-attributes"}
         {element @name="constraints" @children="constraint"}
         {element @name="constraint" @required-attributes="kind" @optional-attributes="target value policy"}
         {element @name="diagnostics" @children="diagnostic"}
@@ -67,6 +67,7 @@
         {attribute @name="required-attributes" @type="cemml:name-list"}
         {attribute @name="optional-attributes" @type="cemml:name-list"}
         {attribute @name="forbidden-attributes" @type="cemml:name-list"}
+        {attribute @name="forbidden-attribute-values" @type="cemml:name-value-list"}
         {attribute @name="children" @type="schema:content-model"}
         {attribute @name="type" @type="schema:type-reference"}
         {attribute @name="required" @type="schema:boolean-or-policy"}
@@ -105,6 +106,7 @@
         {type @name="media-type" @base="cemml:media-type"}
         {type @name="path" @base="cemml:path"}
         {type @name="name-list" @base="cemml:name-list"}
+        {type @name="name-value-list" @base="cemml:name-value-list"}
         {type @name="content-model" @base="cemml:content-model"}
         {type @name="type-reference" @base="cemml:type-reference"}
         {type @name="diagnostic-severity" @base="cemml:identifier" @values="debug info warning error fatal"}

@@ -94,7 +94,7 @@ const SCHEMA_PACKAGE_RUNTIME_CONSTRAINT_EXAMPLE_DIAGNOSTICS: &[(&str, &str)] = &
     ("rust-symbol-required", "cem.schema_package.converter_check"),
     (
         "converter-planner-state-contract",
-        "cem.schema_package.converter_selection_conflict",
+        "cem.schema_package.converter_check",
     ),
     (
         "converter-template-output-stage-contract",
@@ -330,7 +330,6 @@ fn schema_owned_examples_validate_through_cli() {
                 "cem.schema_package.converter_template_schema_mismatch",
                 "cem.schema_model.invalid_attribute_type",
                 "cem.schema_model.invalid_attribute_value",
-                "cem.schema_package.converter_selection_conflict",
                 "cem.schema_package.converter_check",
             ],
         },

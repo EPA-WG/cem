@@ -46,6 +46,9 @@ Field contracts can be gated by value selectors such as `when-attribute` plus
 `when-values`, and by presence selectors such as `when-present-attributes`.
 Use presence selectors for dependent-required rules such as "when this
 attribute is present, require these other attributes".
+Use `forbidden-attribute-values` for value-specific exclusions, such as a
+schema-owned mutual exclusion where one attribute value makes another attribute
+value invalid while leaving other values legal.
 
 ## Validation Examples
 

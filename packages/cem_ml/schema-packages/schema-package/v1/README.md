@@ -30,8 +30,9 @@ target content identities, fallback hook, readiness, and planner `cost`.
 Validation enforces the implementation-specific contract: CEMT converters must
 name a CEMT template identity, Rust converters must name a `rust-symbol`, each
 converter must have exactly one `from` and `to` endpoint, planner cost is
-validated by the schema-owned integer `minInclusive` contract, and known
-endpoint schemas must own the declared content type.
+validated by the schema-owned integer `minInclusive` contract,
+`explicit-only=true` cannot be paired with `implicit=true`, and known endpoint
+schemas must own the declared content type.
 Serializer converters may also declare output-contract metadata:
 `output-syntax`, `encoding-category`, `formatter-profile`, `color-profile`, and
 `parity`. For CEMT schema-output producers, this metadata plans the structured

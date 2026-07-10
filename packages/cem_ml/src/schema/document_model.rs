@@ -110,6 +110,7 @@ pub struct FieldContract {
     pub required_attributes: BTreeSet<String>,
     pub optional_attributes: BTreeSet<String>,
     pub forbidden_attributes: BTreeSet<String>,
+    pub forbidden_attribute_values: BTreeMap<String, BTreeSet<String>>,
     pub when_attribute: Option<String>,
     pub when_values: BTreeSet<String>,
     pub when_present_attributes: BTreeSet<String>,
@@ -729,6 +730,9 @@ fn collect_field_contracts(document: &CemDocument, schema_id: AstNodeId) -> Vec<
                 required_attributes: parse_name_set(attrs.get("required-attributes")),
                 optional_attributes: parse_name_set(attrs.get("optional-attributes")),
                 forbidden_attributes: parse_name_set(attrs.get("forbidden-attributes")),
+                forbidden_attribute_values: parse_name_value_set(
+                    attrs.get("forbidden-attribute-values"),
+                ),
                 when_attribute: optional_non_empty_attr(&attrs, "when-attribute")
                     .map(str::to_owned),
                 when_values: parse_name_set(attrs.get("when-values")),
@@ -764,8 +768,28 @@ fn validate_field_contracts(
             .filter(|name| seen_attributes.contains(*name))
             .cloned()
             .collect::<Vec<_>>();
+        let invalid_values = contract
+            .forbidden_attribute_values
+            .iter()
+            .filter_map(|(name, values)| {
+                let value = attribute_values
+                    .get(name)
+                    .map(String::as_str)
+                    .map(str::trim)?;
+                values
+                    .contains(value)
+                    .then(|| (name.clone(), value.to_owned()))
+            })
+            .collect::<BTreeMap<_, _>>();
+        let invalid_fields = forbidden
+            .iter()
+            .cloned()
+            .chain(invalid_values.keys().cloned())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
 
-        if missing.is_empty() && forbidden.is_empty() {
+        if missing.is_empty() && invalid_fields.is_empty() {
             continue;
         }
 
@@ -777,6 +801,16 @@ fn validate_field_contracts(
             parts.push(format!(
                 "forbidden fields present: {}",
                 forbidden.join(", ")
+            ));
+        }
+        if !invalid_values.is_empty() {
+            parts.push(format!(
+                "forbidden values present: {}",
+                invalid_values
+                    .iter()
+                    .map(|(name, value)| format!("{name}={value}"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ));
         }
         diagnostics.push(diag_at_with_details(
@@ -794,7 +828,8 @@ fn validate_field_contracts(
                 contract,
                 attribute_values,
                 &missing,
-                &forbidden,
+                &invalid_fields,
+                &invalid_values,
                 node,
             ),
         ));
@@ -808,6 +843,7 @@ fn field_contract_details(
     attribute_values: &BTreeMap<String, String>,
     missing_fields: &[String],
     invalid_fields: &[String],
+    invalid_values: &BTreeMap<String, String>,
     node: &CemAstNode,
 ) -> serde_json::Value {
     serde_json::json!({
@@ -820,8 +856,10 @@ fn field_contract_details(
         "requiredFields": &contract.required_attributes,
         "optionalFields": &contract.optional_attributes,
         "forbiddenFields": &contract.forbidden_attributes,
+        "forbiddenAttributeValues": &contract.forbidden_attribute_values,
         "missingFields": missing_fields,
         "invalidFields": invalid_fields,
+        "invalidValues": invalid_values,
         "actualValues": attribute_values,
         "condition": {
             "attribute": &contract.when_attribute,
@@ -1045,6 +1083,30 @@ fn parse_name_set(value: Option<&String>) -> BTreeSet<String> {
 
 fn parse_value_set(value: Option<&String>) -> BTreeSet<String> {
     parse_name_set(value)
+}
+
+fn parse_name_value_set(value: Option<&String>) -> BTreeMap<String, BTreeSet<String>> {
+    let mut pairs = BTreeMap::new();
+    let Some(value) = value else {
+        return pairs;
+    };
+
+    for token in value.split_whitespace().map(str::trim) {
+        let Some((name, value)) = token.split_once('=') else {
+            continue;
+        };
+        let name = name.trim();
+        let value = value.trim();
+        if name.is_empty() || value.is_empty() {
+            continue;
+        }
+        pairs
+            .entry(name.to_owned())
+            .or_insert_with(BTreeSet::new)
+            .insert(value.to_owned());
+    }
+
+    pairs
 }
 
 fn parse_child_set(value: Option<&String>) -> (BTreeSet<String>, bool) {
@@ -1296,7 +1358,7 @@ mod tests {
 
 {schema @name="contracts" @namespace="https://example.test/ns/contracts/1" @version="1.0.0" |
     {elements |
-        {element @name="item" @required-attributes="kind" @optional-attributes="kind name code"}
+        {element @name="item" @required-attributes="kind" @optional-attributes="kind name code mode"}
     }
     {field-contracts |
         {field-contract
@@ -1324,6 +1386,15 @@ mod tests {
             @required-attributes="code"
             @diagnostic="example.item_check"
             @check-kind="dependent-required-fields"
+        }
+        {field-contract
+            @name="kind-a-mode-conflict"
+            @target="item"
+            @when-attribute="kind"
+            @when-values="a"
+            @forbidden-attribute-values="mode=blocked"
+            @diagnostic="example.item_check"
+            @check-kind="mutual-exclusion"
         }
     }
 }"#,
@@ -1393,6 +1464,49 @@ mod tests {
                 "attribute": null,
                 "values": [],
                 "presentAttributes": ["name"],
+            })
+        );
+
+        let document = parse_cem_document(r#"{item @kind=a @mode=open}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        assert!(
+            diagnostics.iter().all(|diagnostic| {
+                diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("contract").and_then(serde_json::Value::as_str))
+                    != Some("kind-a-mode-conflict")
+            }),
+            "allowed value should not trigger mutual-exclusion field contract: {diagnostics:?}"
+        );
+
+        let document = parse_cem_document(r#"{item @kind=a @mode=blocked}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("kind-a-mode-conflict")
+            })
+            .expect("value-specific forbidden field contract diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("value-specific forbidden field contract details");
+        assert_eq!(details["missingFields"], serde_json::json!([]));
+        assert_eq!(details["invalidFields"], serde_json::json!(["mode"]));
+        assert_eq!(
+            details["forbiddenAttributeValues"],
+            serde_json::json!({
+                "mode": ["blocked"],
+            })
+        );
+        assert_eq!(
+            details["invalidValues"],
+            serde_json::json!({
+                "mode": "blocked",
             })
         );
     }
