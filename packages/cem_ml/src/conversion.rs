@@ -10531,7 +10531,17 @@ mod tests {
     #[test]
     fn conversion_output_pipeline_applies_literal_baseline_colorizer_profiles() {
         for profile in ["terminal", "md"] {
-            let mut pipeline = direct_cem_output_pipeline();
+            let mut pipeline = if profile == "md" {
+                direct_markup_output_pipeline(
+                    ConversionOutputSyntax::Markdown,
+                    MARKDOWN_CONTENT_TYPE,
+                    MARKDOWN_SCHEMA_URI,
+                    "markdown-document",
+                    Some("md"),
+                )
+            } else {
+                direct_cem_output_pipeline()
+            };
             pipeline.cemt_options.color_profile = Some(profile.to_owned());
             pipeline.cemt_insertion_context.color_profile = Some(profile.to_owned());
             pipeline.writer_insertion_context.color_profile = Some(profile.to_owned());
@@ -10580,7 +10590,12 @@ mod tests {
                 assert!(output.contains("\u{1b}[38;5;81mcard\u{1b}[0m"));
                 assert!(output.contains("\u{1b}[38;5;76mReady\u{1b}[0m"));
             } else {
-                assert!(output.contains("{card"));
+                assert!(output.contains(
+                    r#"<span class="cem-color cem-color-syntax-name" data-role="syntax.name">card</span>"#
+                ));
+                assert!(output.contains(
+                    r#"<span class="cem-color cem-color-syntax-string" data-role="syntax.string">Ready</span>"#
+                ));
             }
         }
 

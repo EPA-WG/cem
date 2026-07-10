@@ -241,8 +241,8 @@ history belongs in git history and the feature-specific docs linked below.
         `cem-ml/v1` declares runtime-selectable baseline formatter profiles
         `compact`, `pretty`, `tabular` plus colorizer profiles `terminal`,
         `html`, and `md` over the canonical CEMT assets. Remaining work is
-        deeper terminal/Markdown color output behavior and then enforcing
-        profile completeness across each package as those profiles are added.
+        enforcing profile completeness across each package as those profiles
+        are added.
   - [ ] Require example loading to resolve the declared content type plus schema
         URL and validate the source bytes against that schema; filename
         extension inference is only a fallback hint.
@@ -252,7 +252,7 @@ history belongs in git history and the feature-specific docs linked below.
   - [x] Implement reusable baseline formatter profiles:
         `compact` as default, `pretty`, and `tabular`; each profile is a CEMT
         transform that preserves source-map ranges.
-  - [ ] Implement reusable baseline colorizer profiles: `terminal`, `html`,
+  - [x] Implement reusable baseline colorizer profiles: `terminal`, `html`,
         and `md`; each profile is a CEMT transform over the formatted CEM tree
         with source-map range preservation.
     - [x] Preserve literal CEM-tree colorizer profile selectors `terminal`,
@@ -263,7 +263,7 @@ history belongs in git history and the feature-specific docs linked below.
           helper while keeping HTML writer attributes restricted to `html`.
     - [x] Add terminal writer rendering for capability-aware ANSI/SGR output
           from colored CEM-tree ranges.
-    - [ ] Add Markdown-safe rendered color output forms for `md` without
+    - [x] Add Markdown-safe rendered color output forms for `md` without
           losing source-map ranges.
   - [ ] Roll the frame through the supported package scope below in order,
         keeping every content type covered before moving to lower-priority
@@ -282,9 +282,9 @@ Bootstrap and self-hosting packages:
 
 - [ ] `cem-ml/v1` (`application/cem`; aliases: `text/cem-ml`, `text/cem`,
       `application/cem+xml`). Baseline formatter/colorizer selectors are
-      declared and runtime-selectable over canonical CEMT assets; remaining
-      work is deeper terminal/Markdown color output semantics and example
-      validation expansion.
+      declared and runtime-selectable over canonical CEMT assets; terminal and
+      Markdown rendered color output preserve source-map ranges. Remaining
+      work is example validation expansion.
 - [ ] `schema/v1` (`application/vnd.cem.schema+cem`).
 - [ ] `schema-package/v1` (`application/vnd.cem.schema-package+cem`).
 - [ ] `cem-native-template/v1` (`application/vnd.cem.template+cem`; CEM source

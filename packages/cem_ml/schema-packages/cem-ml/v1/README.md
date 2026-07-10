@@ -79,8 +79,8 @@ also lays attributes out vertically with formatter-owned line-ending and indent
 nodes. The `html` colorizer selector maps to the class-based HTML mode and
 materializes HTML writer attributes, `terminal` records terminal output plus
 auto capability metadata and renders ANSI/SGR-colored CEM text without HTML
-writer attributes, and `md` records Markdown output metadata without HTML writer
-attributes.
+writer attributes, and `md` records Markdown output metadata and renders
+Markdown-safe inline HTML color spans without HTML writer attributes.
 
 Package-qualified formatter and colorizer artifacts are selected by explicit
 CEMT function name first, then by stage profile fallback. This keeps the
