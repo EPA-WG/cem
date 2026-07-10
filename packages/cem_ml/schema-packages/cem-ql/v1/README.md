@@ -1,5 +1,7 @@
 # CEM-QL Query Resource Schema Package
 
+Status: schema, examples, formatter, and colorizer package frame
+
 This package defines registry identity for CEM-QL query source modules and
 compiled query artifacts.
 
@@ -14,6 +16,12 @@ content type are parsed by the `cem-ql` crate.
 - Authoring alias: `text/cem-ql`
 - Compiled artifact alias: `application/vnd.cem.query-artifact+cem-bin`
 - Legacy/internal cache aliases: `cem-ql/1`, `cem-ql/module`
+
+## Output Artifacts
+
+The package declares CEMT formatter and colorizer artifacts in `package.cem`.
+The public formatter profile names are `compact`, `pretty`, and `tabular`.
+The public colorizer profile names are `terminal`, `html`, and `md`.
 
 ## Resource Model
 

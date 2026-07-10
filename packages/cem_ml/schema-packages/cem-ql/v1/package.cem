@@ -15,4 +15,110 @@
     {content-type @value="cem-ql/module" @alias=true}
 
     {namespace @prefix="ql" @uri="https://cem.dev/ns/query/cem-ql/1"}
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/cem-ql-format-tree.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/vnd.cem.query+cem-ql"
+        @target-schema="https://cem.dev/ns/query/cem-ql/1"
+        @target-category="cem-tree"
+        @function-name="cem-ql.format-tree"
+        @formatter-profile="compact"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/cem-ql-format-tree.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/vnd.cem.query+cem-ql"
+        @target-schema="https://cem.dev/ns/query/cem-ql/1"
+        @target-category="cem-tree"
+        @function-name="cem-ql.format-tree"
+        @formatter-profile="pretty"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/cem-ql-format-tree.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/vnd.cem.query+cem-ql"
+        @target-schema="https://cem.dev/ns/query/cem-ql/1"
+        @target-category="cem-tree"
+        @function-name="cem-ql.format-tree"
+        @formatter-profile="tabular"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/cem-ql-color-tree.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/vnd.cem.query+cem-ql"
+        @target-schema="https://cem.dev/ns/query/cem-ql/1"
+        @target-category="cem-tree"
+        @function-name="cem-ql.color-tree"
+        @color-profile="terminal"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/cem-ql-color-tree.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/vnd.cem.query+cem-ql"
+        @target-schema="https://cem.dev/ns/query/cem-ql/1"
+        @target-category="cem-tree"
+        @function-name="cem-ql.color-tree"
+        @color-profile="html"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/cem-ql-color-tree.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/vnd.cem.query+cem-ql"
+        @target-schema="https://cem.dev/ns/query/cem-ql/1"
+        @target-category="cem-tree"
+        @function-name="cem-ql.color-tree"
+        @color-profile="md"
+    }
+
+    {example
+        @id="basic-query"
+        @path="examples/basic-query.cemql"
+        @content-type="application/vnd.cem.query+cem-ql"
+        @schema="https://cem.dev/ns/query/cem-ql/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="module-query"
+        @path="examples/module-query.cemql"
+        @content-type="application/vnd.cem.query+cem-ql"
+        @schema="https://cem.dev/ns/query/cem-ql/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="invalid-parse"
+        @path="examples/invalid-parse.cemql"
+        @content-type="application/vnd.cem.query+cem-ql"
+        @schema="https://cem.dev/ns/query/cem-ql/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.ql.parse_error"
+    }
+
+    {example
+        @id="invalid-missing-module"
+        @path="examples/invalid-missing-module.cemql"
+        @content-type="application/vnd.cem.query+cem-ql"
+        @schema="https://cem.dev/ns/query/cem-ql/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.ql.module_uri_missing"
+    }
 }

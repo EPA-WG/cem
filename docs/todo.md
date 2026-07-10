@@ -315,8 +315,11 @@ Bootstrap and self-hosting packages:
       artifacts, top-level examples are declared from `package.cem`, including
       the paired CEM fixture with its own CEM-ML identity, and catalog tests
       guard transform artifact/example manifest drift.
-- [ ] `cem-ql/v1` (`application/vnd.cem.query+cem-ql`, `text/cem-ql`, query
-      artifact aliases).
+- [x] `cem-ql/v1` (`application/vnd.cem.query+cem-ql`, `text/cem-ql`, query
+      artifact aliases). Baseline `compact`/`pretty`/`tabular` formatter and
+      `terminal`/`html`/`md` colorizer selectors are declared over CEMT
+      artifacts, top-level CEM-QL examples are declared from `package.cem`,
+      and catalog tests guard CEM-QL artifact/example manifest drift.
 
 Common structured and authoring formats:
 
