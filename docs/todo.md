@@ -309,7 +309,12 @@ Bootstrap and self-hosting packages:
       `terminal`/`html`/`md` colorizer selectors are declared over CEMT
       artifacts, top-level examples are declared from `package.cem`, and
       catalog tests guard native-template artifact/example manifest drift.
-- [ ] `cem-transform/v1` (`application/vnd.cem.transform+cem`, `.cemt`).
+- [x] `cem-transform/v1` (`application/vnd.cem.transform+cem`, `.cemt`).
+      Baseline `compact`/`pretty`/`tabular` formatter and
+      `terminal`/`html`/`md` colorizer selectors are declared over CEMT
+      artifacts, top-level examples are declared from `package.cem`, including
+      the paired CEM fixture with its own CEM-ML identity, and catalog tests
+      guard transform artifact/example manifest drift.
 - [ ] `cem-ql/v1` (`application/vnd.cem.query+cem-ql`, `text/cem-ql`, query
       artifact aliases).
 

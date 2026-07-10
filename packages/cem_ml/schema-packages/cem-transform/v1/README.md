@@ -1,6 +1,6 @@
 # CEM Transform Template Schema Package
 
-Status: initial source package
+Status: schema, examples, formatter, and colorizer package frame
 
 This package defines CEMT (`.cemt`) resources. CEMT is the primary declarative
 converter implementation language in the schema content registry design.
@@ -21,6 +21,12 @@ CEMT reuses the CEM-native template module language. Source and target content
 identity is not embedded in `.cemt`; it is declared by `package.cem` converter
 edges so the same template execution surface can participate in registry
 planning.
+
+## Output Artifacts
+
+The package declares CEMT formatter and colorizer artifacts in `package.cem`.
+The public formatter profile names are `compact`, `pretty`, and `tabular`.
+The public colorizer profile names are `terminal`, `html`, and `md`.
 
 ## Output Producer And Encoding Contract
 

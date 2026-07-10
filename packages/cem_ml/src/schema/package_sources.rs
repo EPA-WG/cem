@@ -121,6 +121,20 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
             "../../schema-packages/cem-native-template/v1/colorizers/template-color-tree.cemt"
         ),
     },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "cem-transform",
+        path: "schema-packages/cem-transform/v1/formatters/transform-format-tree.cemt",
+        source: include_str!(
+            "../../schema-packages/cem-transform/v1/formatters/transform-format-tree.cemt"
+        ),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "cem-transform",
+        path: "schema-packages/cem-transform/v1/colorizers/transform-color-tree.cemt",
+        source: include_str!(
+            "../../schema-packages/cem-transform/v1/colorizers/transform-color-tree.cemt"
+        ),
+    },
 ];
 
 static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
@@ -281,7 +295,8 @@ mod tests {
         schema_package_examples_from_package_sources, SchemaPackageExampleExpectedResult,
         CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
         CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
-        CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
+        CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE,
+        CEM_TRANSFORM_SCHEMA_URI,
     };
     use crate::source::{BytesSource, SourceId};
     use crate::tokenizer::cem::CemTokenizer;
@@ -628,6 +643,62 @@ mod tests {
             missing_required.expected_diagnostic_codes,
             vec!["cem.schema_model.missing_required_attribute".to_owned()]
         );
+    }
+
+    #[test]
+    fn cem_transform_package_examples_are_manifest_indexed() {
+        let package = builtin_schema_package_source("cem-transform").expect("package source");
+        let examples =
+            schema_package_examples_from_package_sources(package).expect("package examples");
+        let declared_paths = examples
+            .iter()
+            .map(|example| example.path.clone())
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(
+            declared_paths,
+            top_level_example_paths("cem-transform"),
+            "cem-transform top-level examples must be discoverable from package.cem"
+        );
+        assert_eq!(examples.len(), 8);
+
+        let fixture = examples
+            .iter()
+            .find(|example| example.id == "formatter-coloring-pipeline-fixture")
+            .expect("formatter/coloring pipeline fixture example");
+        assert_eq!(fixture.content_type, CEM_ML_CONTENT_TYPE);
+        assert_eq!(fixture.schema, CEM_ML_SCHEMA_URI);
+        assert_eq!(
+            fixture.expected_result,
+            SchemaPackageExampleExpectedResult::Pass
+        );
+
+        for example in examples
+            .iter()
+            .filter(|example| example.id != "formatter-coloring-pipeline-fixture")
+        {
+            assert_eq!(example.content_type, CEM_TRANSFORM_CONTENT_TYPE);
+            assert_eq!(example.schema, CEM_TRANSFORM_SCHEMA_URI);
+        }
+
+        for id in [
+            "invalid-missing-required-attribute",
+            "invalid-function-missing-category",
+            "invalid-function-missing-contract-metadata",
+        ] {
+            let example = examples
+                .iter()
+                .find(|example| example.id == id)
+                .unwrap_or_else(|| panic!("invalid transform example `{id}`"));
+            assert_eq!(
+                example.expected_result,
+                SchemaPackageExampleExpectedResult::Fail
+            );
+            assert_eq!(
+                example.expected_diagnostic_codes,
+                vec!["cem.schema_model.missing_required_attribute".to_owned()]
+            );
+        }
     }
 
     #[test]
@@ -1015,5 +1086,30 @@ mod tests {
         assert!(colorizer
             .source
             .contains(r#"@schema="https://cem.dev/ns/template/cem-native/1""#));
+    }
+
+    #[test]
+    fn catalog_exposes_cem_transform_output_artifact_sources() {
+        let formatter = builtin_schema_package_artifact_source(
+            "cem-transform",
+            "schema-packages/cem-transform/v1/formatters/transform-format-tree.cemt",
+        )
+        .expect("CEM transform formatter source");
+        let colorizer = builtin_schema_package_artifact_source(
+            "cem-transform",
+            "schema-packages/cem-transform/v1/colorizers/transform-color-tree.cemt",
+        )
+        .expect("CEM transform colorizer source");
+
+        assert!(formatter
+            .source
+            .contains(r#"@name="transform.format-tree""#));
+        assert!(formatter
+            .source
+            .contains(r#"@content-type="application/vnd.cem.transform+cem""#));
+        assert!(colorizer.source.contains(r#"@name="transform.color-tree""#));
+        assert!(colorizer
+            .source
+            .contains(r#"@schema="https://cem.dev/ns/transform/cem/1""#));
     }
 }
