@@ -7407,15 +7407,7 @@ fn conversion_descriptor_from_manifest_node(
                 _ => None,
             },
         ),
-        ConversionImplementation::Rust => (
-            Some(
-                rust_symbol.ok_or_else(|| ConversionManifestError::MissingAttribute {
-                    converter_id: Some(id.clone()),
-                    attribute: "rust-symbol",
-                })?,
-            ),
-            None,
-        ),
+        ConversionImplementation::Rust => (rust_symbol, None),
     };
 
     Ok(ConversionDescriptor {
@@ -8295,6 +8287,33 @@ mod tests {
             descriptor.output_contract.encoding_category.as_deref(),
             Some("yaml-document")
         );
+    }
+
+    #[test]
+    fn package_manifest_extraction_does_not_own_rust_symbol_requirement() {
+        let package = package_source(
+            r#"@doc cem-ml 1
+{package @id="test-dom-projection" @version="1.0.0" |
+    {schema @uri="https://cem.dev/ns/projection/dom/1" @source="schema/cem-dom-projection.cem"}
+    {content-type @value="application/vnd.cem.dom+cem-bin" @primary=true}
+    {converter
+        @id="dom-to-html-rust"
+        @implementation="rust" |
+        {from @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
+        {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+    }
+}"#,
+        );
+
+        let descriptors = conversion_descriptors_from_schema_package(&package)
+            .expect("schema-owned validation reports missing rust-symbol before extraction");
+        let descriptor = descriptors
+            .iter()
+            .find(|descriptor| descriptor.id == "dom-to-html-rust")
+            .expect("Rust descriptor");
+
+        assert_eq!(descriptor.implementation, ConversionImplementation::Rust);
+        assert_eq!(descriptor.rust_symbol, None);
     }
 
     #[test]

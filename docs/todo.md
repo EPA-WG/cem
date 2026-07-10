@@ -116,7 +116,10 @@ history belongs in git history and the feature-specific docs linked below.
         function lookup failures now use the same generic family with
         operational `checkKind` details; CEMT native fallback reason
         requirements now stay in schema-owned `converter_check` contracts
-        instead of conversion descriptor extraction.
+        instead of conversion descriptor extraction; Rust converter
+        `rust-symbol` requirements now also stay in schema-owned
+        `converter_check` contracts, with runtime execution retaining only the
+        operational missing-symbol guard.
   - [ ] Keep Rust validators only for operational execution that cannot be
         represented as field data: resource read failures, parser failures,
         CEMT compilation, CEMT function lookup, host-hook availability, and
