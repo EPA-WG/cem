@@ -1,5 +1,7 @@
 # CSV Resource Schema Package
 
+Status: schema, examples, formatter, and colorizer package frame
+
 This package defines registry identity for generic comma-separated value
 resources.
 
@@ -15,6 +17,12 @@ by a CSV parser or adapter.
 
 RFC 4180 registers `text/csv` with optional `charset` and `header` parameters.
 RFC 7111 defines row, column, and cell fragment identifiers for `text/csv`.
+
+## Output Artifacts
+
+The package declares CEMT formatter and colorizer artifacts in `package.cem`.
+The public formatter profile names are `compact`, `pretty`, and `tabular`.
+The public colorizer profile names are `terminal`, `html`, and `md`.
 
 ## Resource Model
 

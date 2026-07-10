@@ -179,6 +179,16 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
         path: "schema-packages/yaml/v1/colorizers/yaml-color-document.cemt",
         source: include_str!("../../schema-packages/yaml/v1/colorizers/yaml-color-document.cemt"),
     },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "csv",
+        path: "schema-packages/csv/v1/formatters/csv-format-document.cemt",
+        source: include_str!("../../schema-packages/csv/v1/formatters/csv-format-document.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "csv",
+        path: "schema-packages/csv/v1/colorizers/csv-color-document.cemt",
+        source: include_str!("../../schema-packages/csv/v1/colorizers/csv-color-document.cemt"),
+    },
 ];
 
 static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
@@ -340,9 +350,9 @@ mod tests {
         CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
         CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI,
         CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
-        CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, JSON_CONTENT_TYPE,
-        JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI, YAML_CONTENT_TYPE,
-        YAML_SCHEMA_URI,
+        CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSV_CONTENT_TYPE,
+        CSV_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI,
+        JSON_VALUE_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
     };
     use crate::source::{BytesSource, SourceId};
     use crate::tokenizer::cem::CemTokenizer;
@@ -880,6 +890,38 @@ mod tests {
     }
 
     #[test]
+    fn csv_package_examples_are_manifest_indexed() {
+        let examples =
+            manifest_indexed_package_examples("csv", CSV_CONTENT_TYPE, CSV_SCHEMA_URI, 4);
+
+        let invalid = examples
+            .iter()
+            .find(|example| example.id == "invalid-unclosed-quote")
+            .expect("invalid CSV quote example");
+        assert_eq!(
+            invalid.expected_result,
+            SchemaPackageExampleExpectedResult::Fail
+        );
+        assert_eq!(
+            invalid.expected_diagnostic_codes,
+            vec!["cem.csv.unclosed_quote".to_owned()]
+        );
+
+        let ragged = examples
+            .iter()
+            .find(|example| example.id == "ragged-row")
+            .expect("ragged CSV row example");
+        assert_eq!(
+            ragged.expected_result,
+            SchemaPackageExampleExpectedResult::Pass
+        );
+        assert_eq!(
+            ragged.expected_diagnostic_codes,
+            vec!["cem.csv.inconsistent_field_count".to_owned()]
+        );
+    }
+
+    #[test]
     fn builtin_schema_package_catalog_matches_core_folder_frame() {
         for source in builtin_schema_package_sources() {
             let root = package_root(source.package_id);
@@ -1381,5 +1423,24 @@ mod tests {
         assert!(colorizer
             .source
             .contains(r#"@content-type="application/yaml""#));
+    }
+
+    #[test]
+    fn catalog_exposes_csv_output_artifact_sources() {
+        let formatter = builtin_schema_package_artifact_source(
+            "csv",
+            "schema-packages/csv/v1/formatters/csv-format-document.cemt",
+        )
+        .expect("CSV formatter source");
+        let colorizer = builtin_schema_package_artifact_source(
+            "csv",
+            "schema-packages/csv/v1/colorizers/csv-color-document.cemt",
+        )
+        .expect("CSV colorizer source");
+
+        assert!(formatter.source.contains(r#"@name="csv.format-document""#));
+        assert!(formatter.source.contains(r#"@category="csv-document""#));
+        assert!(colorizer.source.contains(r#"@name="csv.color-document""#));
+        assert!(colorizer.source.contains(r#"@content-type="text/csv""#));
     }
 }

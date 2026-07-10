@@ -338,7 +338,11 @@ Common structured and authoring formats:
       colorizer selectors are declared over CEMT artifacts, top-level YAML
       examples are declared from `package.cem`, including alias content types,
       and catalog tests guard YAML artifact/example manifest drift.
-- [ ] `csv/v1` (`text/csv`).
+- [x] `csv/v1` (`text/csv`). Baseline `compact`/`pretty`/`tabular`
+      formatter and `terminal`/`html`/`md` colorizer selectors are declared
+      over CEMT artifacts, top-level CSV examples are declared from
+      `package.cem`, including pass-with-warning diagnostics, and catalog tests
+      guard CSV artifact/example manifest drift.
 - [ ] `markdown/v1` (`text/markdown`).
 - [ ] `css/v1` (`text/css`).
 

@@ -11,4 +11,110 @@
     {content-type @value="text/csv" @primary=true}
 
     {namespace @prefix="csv" @uri="https://cem.dev/ns/data/csv/1"}
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/csv-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/csv"
+        @target-schema="https://cem.dev/ns/data/csv/1"
+        @target-category="csv-document"
+        @function-name="csv.format-document"
+        @formatter-profile="compact"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/csv-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/csv"
+        @target-schema="https://cem.dev/ns/data/csv/1"
+        @target-category="csv-document"
+        @function-name="csv.format-document"
+        @formatter-profile="pretty"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/csv-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/csv"
+        @target-schema="https://cem.dev/ns/data/csv/1"
+        @target-category="csv-document"
+        @function-name="csv.format-document"
+        @formatter-profile="tabular"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/csv-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/csv"
+        @target-schema="https://cem.dev/ns/data/csv/1"
+        @target-category="csv-document"
+        @function-name="csv.color-document"
+        @color-profile="terminal"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/csv-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/csv"
+        @target-schema="https://cem.dev/ns/data/csv/1"
+        @target-category="csv-document"
+        @function-name="csv.color-document"
+        @color-profile="html"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/csv-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="text/csv"
+        @target-schema="https://cem.dev/ns/data/csv/1"
+        @target-category="csv-document"
+        @function-name="csv.color-document"
+        @color-profile="md"
+    }
+
+    {example
+        @id="basic-table"
+        @path="examples/basic-table.csv"
+        @content-type="text/csv"
+        @schema="https://cem.dev/ns/data/csv/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="quoted-fields"
+        @path="examples/quoted-fields.csv"
+        @content-type="text/csv"
+        @schema="https://cem.dev/ns/data/csv/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="invalid-unclosed-quote"
+        @path="examples/invalid-unclosed-quote.csv"
+        @content-type="text/csv"
+        @schema="https://cem.dev/ns/data/csv/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.csv.unclosed_quote"
+    }
+
+    {example
+        @id="ragged-row"
+        @path="examples/ragged-row.csv"
+        @content-type="text/csv"
+        @schema="https://cem.dev/ns/data/csv/1"
+        @expected-result="pass"
+        @expected-diagnostics="cem.csv.inconsistent_field_count"
+    }
 }
