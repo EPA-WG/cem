@@ -50,10 +50,6 @@ use std::path::{Path, PathBuf};
 #[allow(dead_code)]
 pub(crate) const SCHEMA_PACKAGE_CONVERTER_CONSTRAINT_DIAGNOSTICS: &[(&str, &str)] = &[
     (
-        "cem.schema_package.converter_implementation_unknown",
-        "converter-implementation-known",
-    ),
-    (
         "cem.schema_package.converter_template_content_type_mismatch",
         "cemt-template-identity-required",
     ),
@@ -1293,12 +1289,7 @@ fn validate_schema_package_converter(
     {
         Some("cemt") => validate_cemt_converter_contract(ctx, node, converter_id, out),
         Some("rust") => {}
-        Some(implementation) => out.push(diag_at(
-            "cem.schema_package.converter_implementation_unknown",
-            Severity::Error,
-            format!("converter `{converter_id}` has unknown implementation `{implementation}`"),
-            node,
-        )),
+        Some(_) => {}
         None => {}
     }
 

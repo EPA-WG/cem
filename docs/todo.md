@@ -83,7 +83,9 @@ history belongs in git history and the feature-specific docs linked below.
         validation instead of conversion descriptor extraction; top-level
         package `id`/`version` and schema `uri`/`source` descriptor fields now
         use schema-root/catalog fallbacks so missing manifest field diagnostics
-        stay schema-owned.
+        stay schema-owned; converter implementation value validation now stays
+        schema-owned through the generic `@values` vocabulary instead of the
+        package-specific `converter_implementation_unknown` runtime branch.
   - [ ] Model converter cases in `schema-package.cem`: `implementation=cemt`
         and `implementation=rust` required attribute contracts plus CEMT
         native fallback `fallback-reason` now live in schema-owned
@@ -151,11 +153,12 @@ history belongs in git history and the feature-specific docs linked below.
         instead of descriptor extraction; converter `id`/`implementation`,
         implementation value, endpoint occurrence, and endpoint `content-type`
         field checks now stay in generic schema-model validation instead of
-        descriptor extraction; stale converter manifest field-specific
-        `MissingAttribute`, `MissingEndpoint`, and `UnknownImplementation`
-        extraction errors have been removed; schema descriptor top-level
-        `MissingAttribute` extraction errors have been removed for package/
-        schema metadata.
+        descriptor extraction or schema-package validator branches; stale
+        converter manifest field-specific `MissingAttribute`,
+        `MissingEndpoint`, `UnknownImplementation`, and
+        `converter_implementation_unknown` errors have been removed; schema
+        descriptor top-level `MissingAttribute` extraction errors have been
+        removed for package/schema metadata.
   - [ ] Keep Rust validators only for operational execution that cannot be
         represented as field data: resource read failures, parser failures,
         CEMT compilation, CEMT function lookup, host-hook availability, and
@@ -187,8 +190,9 @@ history belongs in git history and the feature-specific docs linked below.
         assert generic contract-family codes plus structured details instead of
         schema-package-specific missing-field codes. A production-source audit
         now guards against reintroducing schema-package field-specific
-        `*_missing` diagnostics and retired descriptor parsing helpers/errors;
-        keep expanding that audit for hard-coded required field vectors and
+        `*_missing` diagnostics, retired converter scalar/value/cardinality
+        diagnostic names, and retired descriptor parsing helpers/errors; keep
+        expanding that audit for hard-coded required field vectors and narrow
         enum `matches!` lists as new declarative contracts move into schema.
 
 - [ ] Complete the schema-package folder frame for

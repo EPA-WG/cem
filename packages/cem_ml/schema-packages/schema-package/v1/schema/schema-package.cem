@@ -186,7 +186,6 @@
         {constraint @kind="single-primary-content-type" @target="package" @policy="required"}
         {constraint @kind="schema-source-required" @target="schema" @policy="required"}
         {constraint @kind="converter-from-to-required" @target="converter" @policy="required"}
-        {constraint @kind="converter-implementation-known" @target="converter" @policy="implementation must use a declared schema-package implementation value"}
         {constraint @kind="cemt-template-identity-required" @target="converter" @policy="when implementation is cemt"}
         {constraint @kind="rust-symbol-required" @target="converter" @policy="when implementation is rust"}
         {constraint @kind="converter-planner-state-contract" @target="converter" @policy="implicit and explicit-only cannot both be true"}
@@ -209,7 +208,6 @@
         {diagnostic @code="cem.schema_package.converter_identity_mismatch" @severity="error"}
         {diagnostic @code="cem.schema_package.implementation_missing" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_registration_failed" @severity="error"}
-        {diagnostic @code="cem.schema_package.converter_implementation_unknown" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_check" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_template_content_type_mismatch" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_template_schema_mismatch" @severity="error"}
