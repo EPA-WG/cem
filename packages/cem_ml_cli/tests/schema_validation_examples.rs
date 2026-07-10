@@ -78,6 +78,57 @@ struct ValidationExample {
     expected_diagnostics: &'static [&'static str],
 }
 
+const SCHEMA_PACKAGE_RUNTIME_CONSTRAINT_EXAMPLE_DIAGNOSTICS: &[(&str, &str)] = &[
+    (
+        "converter-from-to-required",
+        "cem.schema_package.converter_endpoint_missing",
+    ),
+    (
+        "converter-implementation-known",
+        "cem.schema_package.converter_implementation_unknown",
+    ),
+    (
+        "cemt-template-identity-required",
+        "cem.schema_package.converter_template_missing",
+    ),
+    (
+        "rust-symbol-required",
+        "cem.schema_package.converter_rust_symbol_missing",
+    ),
+    (
+        "converter-cost-positive",
+        "cem.schema_package.converter_cost_invalid",
+    ),
+    (
+        "converter-planner-state-contract",
+        "cem.schema_package.converter_boolean_invalid",
+    ),
+    (
+        "converter-output-contract",
+        "cem.schema_package.converter_output_syntax_unknown",
+    ),
+    (
+        "converter-template-output-stage-contract",
+        "cem.schema_package.converter_template_contract_invalid",
+    ),
+    (
+        "converter-endpoint-schema-content-type-match",
+        "cem.schema_package.converter_content_type_mismatch",
+    ),
+    (
+        "cemt-native-fallback-reason",
+        "cem.schema_package.converter_fallback_reason_missing",
+    ),
+    (
+        "schema-source-metadata-consistency",
+        "cem.schema_package.schema_uri_mismatch",
+    ),
+    (
+        "artifact-output-stage-contract",
+        "cem.schema_package.artifact_layout_invalid",
+    ),
+];
+
 fn cem_ml(args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_cem-ml"))
         .args(args)
@@ -129,6 +180,22 @@ fn has_diagnostic(report: &serde_json::Value, code: &str) -> bool {
     diagnostics(report)
         .iter()
         .any(|diagnostic| diagnostic["code"] == code)
+}
+
+fn assert_schema_package_runtime_constraint_example_coverage(examples: &[ValidationExample]) {
+    let covered_diagnostics = examples
+        .iter()
+        .filter(|example| example.schema_uri == CEM_SCHEMA_PACKAGE_URI)
+        .flat_map(|example| example.expected_diagnostics.iter().copied())
+        .collect::<BTreeSet<_>>();
+
+    for (constraint_kind, diagnostic_code) in SCHEMA_PACKAGE_RUNTIME_CONSTRAINT_EXAMPLE_DIAGNOSTICS
+    {
+        assert!(
+            covered_diagnostics.contains(diagnostic_code),
+            "schema-package runtime constraint `{constraint_kind}` needs a checked-in CLI validation example expecting `{diagnostic_code}`"
+        );
+    }
 }
 
 fn schema_package_manifest_paths() -> Vec<PathBuf> {
@@ -257,6 +324,25 @@ fn schema_owned_examples_validate_through_cli() {
                 "cem.schema_package.converter_endpoint_missing",
                 "cem.schema_package.converter_cost_invalid",
                 "cem.schema_package.converter_content_type_mismatch",
+            ],
+        },
+        ValidationExample {
+            name: "schema-package invalid converter runtime constraints",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-converter-runtime-constraints.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &[
+                "cem.schema_package.converter_implementation_unknown",
+                "cem.schema_package.converter_template_schema_mismatch",
+                "cem.schema_package.converter_fallback_reason_missing",
+                "cem.schema_package.converter_boolean_invalid",
+                "cem.schema_package.converter_readiness_unknown",
+                "cem.schema_package.converter_lossiness_unknown",
+                "cem.schema_package.converter_output_syntax_unknown",
+                "cem.schema_package.converter_parity_unknown",
+                "cem.schema_package.converter_selection_conflict",
+                "cem.schema_package.converter_rust_symbol_missing",
             ],
         },
         ValidationExample {
@@ -1104,6 +1190,8 @@ fn schema_owned_examples_validate_through_cli() {
             expected_diagnostics: &["cem.projection.events.binary_magic"],
         },
     ];
+
+    assert_schema_package_runtime_constraint_example_coverage(&examples);
 
     for example in examples {
         let path = workspace_path(example.path);
