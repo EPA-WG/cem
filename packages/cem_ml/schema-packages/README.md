@@ -158,6 +158,71 @@ The relationship is layered validation, not broad inheritance:
 Schema dependencies should be resolved by schema URL and content type, not by
 filesystem path. Filesystem layout is a distribution detail for local packages.
 
+## Package Folder Contract
+
+Every built-in schema package is a self-describing versioned folder under
+`packages/cem_ml/schema-packages/{package-id}/vN/`. The folder is the local
+distribution unit for the schema, validation examples, output formatters, and
+output colorizers:
+
+```text
+schema-packages/{package-id}/v1/
+  package.cem
+  schema/{package-id}.cem
+  examples/
+    {case}.{content-extension}
+    {case}.example.cem
+  formatters/
+    compact.cemt
+    pretty.cemt
+    tabular.cemt
+  colorizers/
+    terminal.cemt
+    html.cemt
+    md.cemt
+```
+
+`package.cem` is the package index. It must make each package part discoverable:
+the `{schema}` declaration points at the `.cem` schema source, `content-type`
+entries declare the owned primary and alias content types, formatter/colorizer
+artifacts point at `.cemt` output-stage transforms, and example declarations
+identify the package-owned fixtures that should be validated.
+
+Schemas are always authored in `.cem` format under `schema/`. The schema source
+declares the schema URI, version, owned content types, namespaces, content model,
+constraints, diagnostics, and explicit `{uses}` dependencies.
+
+Examples are not only naked source files. Each example set includes the source
+file in the matching content type and a CEM-format example reference, either as
+package manifest metadata or as a package-relative `.example.cem` sidecar. That
+reference must name the source path, content type, schema URL, expected
+pass/fail result, and expected diagnostic codes for invalid cases. When an
+example is loaded, the loader resolves the declared content type and schema URL
+and validates the source bytes against that schema; it must not rely on filename
+extension inference alone.
+
+Formatter assets live under `formatters/` and are CEMT (`.cemt`) transforms so
+they participate in the normal output pipeline and preserve source-map ranges.
+Every package should expose at least these formatter profiles:
+
+- `compact`: the default profile, minimizing optional whitespace while keeping
+  deterministic byte output.
+- `pretty`: a readable profile aligned with common Prettier-style defaults for
+  indentation, wrapping, and stable ordering.
+- `tabular`: vertically aligned where useful, with scope closers kept on the
+  same line when they fit.
+
+Colorizer assets live under `colorizers/` and are also CEMT transforms over the
+formatted CEM tree. Every package should expose at least these colorizer
+profiles:
+
+- `terminal`: terminal-safe output, including no-color and capability-aware ANSI
+  variants.
+- `html`: escaped HTML output with class or style metadata suitable for rendered
+  previews.
+- `md`: Markdown-safe colored output, using fenced or inline forms that preserve
+  the underlying source ranges.
+
 ## Creating A Custom Schema Package
 
 Use this checklist when adding a project-local or future external schema
@@ -171,6 +236,8 @@ schema-packages/{package-id}/v1/
   package.cem
   schema/{package-id}.cem
   examples/
+    {case}.{content-extension}
+    {case}.example.cem
   converters/
   formatters/
   colorizers/
@@ -219,11 +286,15 @@ schema-packages/{package-id}/v1/
    live under `colorizers/`. Formatters convert source AST/projection data into
    a formatted CEM tree. Colorizers mutate that CEM tree into a colored,
    writer-ready CEM tree. The writer runs only after coloring and receives the
-   already formatted and colored tree.
+   already formatted and colored tree. The baseline formatter profiles are
+   `compact`, `pretty`, and `tabular`; the baseline colorizer profiles are
+   `terminal`, `html`, and `md`.
 
 7. Add examples that cover the smallest valid instance, the common production
-   shape, and at least one invalid contract. Link those examples from the
-   package README and keep expected diagnostics explicit.
+   shape, and at least one invalid contract. Pair every source example with a
+   CEM-format example reference that names the content type and schema URL, link
+   those examples from the package README, and keep expected diagnostics
+   explicit.
 
 8. Validate the manifest directly:
 
