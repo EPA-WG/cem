@@ -343,7 +343,7 @@ fn schema_owned_examples_validate_through_cli() {
             content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
             schema_uri: CEM_SCHEMA_PACKAGE_URI,
             expected_exit: EXIT_HARD_FAILURE,
-            expected_diagnostics: &["cem.schema_package.artifact_function_contract_mismatch"],
+            expected_diagnostics: &["cem.schema_package.artifact_check"],
         },
         ValidationExample {
             name: "schema-package invalid artifact layout",

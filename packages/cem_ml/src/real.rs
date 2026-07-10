@@ -10106,7 +10106,10 @@ mod tests {
         let resp = RealCemMlEngine::new().validate(req).unwrap();
 
         assert!(resp.report.diagnostics.iter().any(|diag| {
-            diag.code == "cem.schema_package.artifact_function_contract_mismatch"
+            diag.code == "cem.schema_package.artifact_check"
+                && diag.details.as_ref().and_then(|details| {
+                    details.get("checkKind").and_then(serde_json::Value::as_str)
+                }) == Some("artifact-function-contract")
                 && diag
                     .message
                     .contains("target category metadata expected `wrong-tree`")

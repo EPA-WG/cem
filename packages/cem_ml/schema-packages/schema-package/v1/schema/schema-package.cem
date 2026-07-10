@@ -220,7 +220,6 @@
         {diagnostic @code="cem.schema_package.artifact_cemt_invalid" @severity="error"}
         {diagnostic @code="cem.schema_package.artifact_function_missing" @severity="error"}
         {diagnostic @code="cem.schema_package.artifact_check" @severity="error"}
-        {diagnostic @code="cem.schema_package.artifact_function_contract_mismatch" @severity="error"}
         {diagnostic @code="cem.schema_package.example_check" @severity="error"}
         {diagnostic @code="cem.schema_package.example_content_type_mismatch" @severity="error"}
         {diagnostic @code="cem.schema_package.schema_source_unreadable" @severity="error"}

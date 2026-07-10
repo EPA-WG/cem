@@ -33,7 +33,7 @@ use crate::schema::registry::{
     CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
     CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI,
 };
-use crate::source_map::FrameSpan;
+use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack};
 use crate::transform_template::{
     parse_cem_native_template_module_options,
     validate_transform_template_artifact_function_contract, TransformTemplateAdapter,
@@ -90,28 +90,13 @@ pub(crate) const SCHEMA_PACKAGE_CONVERTER_CONSTRAINT_DIAGNOSTICS: &[(&str, &str)
         "artifact-output-stage-contract",
     ),
     (
-        "cem.schema_package.artifact_function_contract_mismatch",
-        "artifact-output-stage-contract",
-    ),
-    (
         "cem.schema_package.example_content_type_mismatch",
         "example-contract",
     ),
 ];
 
 fn diag_at(code: &str, severity: Severity, message: String, node: &CemAstNode) -> Diagnostic {
-    let stack = match node {
-        CemAstNode::Document { source, .. }
-        | CemAstNode::Element { source, .. }
-        | CemAstNode::Attribute { source, .. }
-        | CemAstNode::Text { source, .. }
-        | CemAstNode::Whitespace { source, .. }
-        | CemAstNode::Comment { source, .. }
-        | CemAstNode::ProcessingInstruction { source, .. }
-        | CemAstNode::Cdata { source, .. }
-        | CemAstNode::RawText { source, .. }
-        | CemAstNode::Error { source, .. } => source,
-    };
+    let stack = source_stack_for_node(node);
     let byte_offset = stack.frames.first().and_then(|f| match &f.span {
         FrameSpan::Single(r) => Some(r.start),
         FrameSpan::Multi(rs) => rs.first().map(|r| r.start),
@@ -127,6 +112,70 @@ fn diag_at(code: &str, severity: Severity, message: String, node: &CemAstNode) -
         node: None,
         details: None,
         source_map: Some(stack.clone()),
+    }
+}
+
+fn diag_at_with_details(
+    code: &str,
+    severity: Severity,
+    message: String,
+    node: &CemAstNode,
+    details: serde_json::Value,
+) -> Diagnostic {
+    let mut diagnostic = diag_at(code, severity, message, node);
+    diagnostic.details = Some(details);
+    diagnostic
+}
+
+fn source_stack_for_node(node: &CemAstNode) -> &SourceMapStack {
+    match node {
+        CemAstNode::Document { source, .. }
+        | CemAstNode::Element { source, .. }
+        | CemAstNode::Attribute { source, .. }
+        | CemAstNode::Text { source, .. }
+        | CemAstNode::Whitespace { source, .. }
+        | CemAstNode::Comment { source, .. }
+        | CemAstNode::ProcessingInstruction { source, .. }
+        | CemAstNode::Cdata { source, .. }
+        | CemAstNode::RawText { source, .. }
+        | CemAstNode::Error { source, .. } => source,
+    }
+}
+
+fn node_source_range_details(node: &CemAstNode) -> Option<serde_json::Value> {
+    source_stack_for_node(node)
+        .current()
+        .map(source_frame_range_details)
+}
+
+fn source_frame_range_details(frame: &SourceMapFrame) -> serde_json::Value {
+    serde_json::json!({
+        "sourceId": frame.source_id.0,
+        "span": frame_span_details(&frame.span),
+    })
+}
+
+fn frame_span_details(span: &FrameSpan) -> serde_json::Value {
+    match span {
+        FrameSpan::Single(range) => serde_json::json!({
+            "kind": "single",
+            "start": range.start,
+            "len": range.len,
+            "end": range.end(),
+        }),
+        FrameSpan::Multi(ranges) => serde_json::json!({
+            "kind": "multi",
+            "ranges": ranges
+                .iter()
+                .map(|range| {
+                    serde_json::json!({
+                        "start": range.start,
+                        "len": range.len,
+                        "end": range.end(),
+                    })
+                })
+                .collect::<Vec<_>>(),
+        }),
     }
 }
 
@@ -181,6 +230,18 @@ fn attr_value<'a>(
         let (_, local, value) = attribute_parts(attr)?;
         (local == name).then_some(value).flatten()
     })
+}
+
+fn element_attribute_values(
+    doc: &crate::parser::document::CemDocument,
+    element: &CemAstNode,
+) -> BTreeMap<String, String> {
+    element_attributes(doc, element)
+        .filter_map(|attr| {
+            let (_, local, value) = attribute_parts(attr)?;
+            Some((local.to_owned(), value.unwrap_or_default().to_owned()))
+        })
+        .collect()
 }
 
 fn element_child_ids_by_local_name(
@@ -1651,7 +1712,9 @@ fn validate_schema_package_artifact(
             },
         )
         .into_iter()
-        .map(|mismatch| schema_package_artifact_contract_mismatch_diag(node, path, mismatch)),
+        .map(|mismatch| {
+            schema_package_artifact_contract_mismatch_diag(ctx.document, node, path, mismatch)
+        }),
     );
 }
 
@@ -1757,19 +1820,57 @@ fn local_path_from_validation_source_uri(source_uri: &str) -> Option<PathBuf> {
 }
 
 fn schema_package_artifact_contract_mismatch_diag(
+    doc: &crate::parser::document::CemDocument,
     node: &CemAstNode,
     path: &str,
     mismatch: TransformTemplateArtifactFunctionContractMismatch,
 ) -> Diagnostic {
-    diag_at(
-        "cem.schema_package.artifact_function_contract_mismatch",
+    let field_name = artifact_contract_mismatch_field_name(mismatch.field);
+    let invalid_fields = field_name
+        .map(|field| vec![field.to_owned()])
+        .unwrap_or_default();
+    let expected_values = field_name
+        .map(|field| BTreeMap::from([(field.to_owned(), mismatch.expected.clone())]))
+        .unwrap_or_default();
+    let invalid_values = field_name
+        .map(|field| BTreeMap::from([(field.to_owned(), mismatch.actual.clone())]))
+        .unwrap_or_default();
+
+    diag_at_with_details(
+        "cem.schema_package.artifact_check",
         Severity::Error,
         format!(
-            "artifact `{path}` {} metadata expected `{}`, CEMT declares `{}`",
+            "artifact `{path}` failed schema-owned artifact output stage contract: {} metadata expected `{}`, CEMT declares `{}`",
             mismatch.field, mismatch.expected, mismatch.actual
         ),
         node,
+        serde_json::json!({
+            "schemaUri": CEM_SCHEMA_PACKAGE_URI,
+            "element": "artifact",
+            "contract": "artifact-output-stage-contract",
+            "target": "artifact",
+            "diagnostic": "cem.schema_package.artifact_check",
+            "checkKind": "artifact-function-contract",
+            "path": path,
+            "field": mismatch.field,
+            "invalidFields": invalid_fields,
+            "expectedValues": expected_values,
+            "invalidValues": invalid_values,
+            "actualValues": element_attribute_values(doc, node),
+            "sourceRange": node_source_range_details(node),
+        }),
     )
+}
+
+fn artifact_contract_mismatch_field_name(field: &str) -> Option<&'static str> {
+    match field {
+        "function kind" => Some("kind"),
+        "target content type" => Some("target-content-type"),
+        "target schema" => Some("target-schema"),
+        "target category" => Some("target-category"),
+        "function profile" => Some("function-profile"),
+        _ => None,
+    }
 }
 
 fn validate_schema_package_example(
@@ -3075,12 +3176,50 @@ mod tests {
 
         let diagnostic = diags
             .iter()
-            .find(|d| d.code == "cem.schema_package.artifact_function_contract_mismatch")
-            .expect("artifact function metadata mismatch diagnostic");
+            .find(|d| {
+                d.code == "cem.schema_package.artifact_check"
+                    && d.details.as_ref().and_then(|details| {
+                        details.get("checkKind").and_then(serde_json::Value::as_str)
+                    }) == Some("artifact-function-contract")
+            })
+            .expect("schema-owned artifact function metadata mismatch diagnostic");
         assert!(diagnostic
             .message
             .contains("target category metadata expected `wrong-tree`"));
         assert!(diagnostic.message.contains("CEMT declares `cem-tree`"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("artifact function contract details");
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("artifact-output-stage-contract")
+        );
+        assert_eq!(
+            details["diagnostic"],
+            serde_json::json!("cem.schema_package.artifact_check")
+        );
+        assert_eq!(
+            details["invalidFields"],
+            serde_json::json!(["target-category"])
+        );
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!({
+                "target-category": "wrong-tree",
+            })
+        );
+        assert_eq!(
+            details["invalidValues"],
+            serde_json::json!({
+                "target-category": "cem-tree",
+            })
+        );
+        assert_eq!(
+            details["actualValues"]["function-name"],
+            serde_json::json!("demo.format")
+        );
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
     }
 
     #[test]

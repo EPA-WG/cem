@@ -88,10 +88,13 @@ history belongs in git history and the feature-specific docs linked below.
         formatter-helper, and colorizer-helper required field metadata now
         lives in schema-owned `field-contract` declarations; formatter/
         colorizer stage directory and `.cemt` source-path layout now live in
-        schema-owned path-layout contracts; target identity compatibility,
-        target category, function profile, and formatter/colorizer profile
-        consistency still need schema-owned field/rule declarations instead of
-        Rust conditionals.
+        schema-owned path-layout contracts; CEMT output function target
+        identity/category/profile mismatches now emit the schema-declared
+        `cem.schema_package.artifact_check` family with
+        `artifact-output-stage-contract` details; remaining artifact work is to
+        make CEMT source readability, parser validity, and function lookup
+        report through schema-declared operational rule details while keeping
+        Rust only as the execution placement.
   - [ ] Model example cases in `schema-package.cem`: required example
         metadata and failing-example `expected-diagnostics` now live in
         schema-owned `field-contract` declarations and emit
@@ -103,7 +106,9 @@ history belongs in git history and the feature-specific docs linked below.
         now emit `cem.schema_package.artifact_check`; converter and example
         field diagnostics now emit schema-declared `converter_check` and
         `example_check` families where the only distinction is field contract
-        detail.
+        detail; artifact CEMT output function metadata mismatches now also
+        use `cem.schema_package.artifact_check` with contract details instead
+        of a narrow mismatch code.
   - [ ] Keep Rust validators only for operational execution that cannot be
         represented as field data: resource read failures, parser failures,
         CEMT compilation, CEMT function lookup, host-hook availability, and
