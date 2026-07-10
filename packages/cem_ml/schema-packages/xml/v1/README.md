@@ -1,5 +1,7 @@
 # XML Resource Schema Package
 
+Status: schema, examples, formatter, colorizer, and converter package frame
+
 This package defines registry identity for generic XML resources.
 
 XML source is not CEM-ML syntax. The schema package and this manifest are
@@ -35,6 +37,12 @@ The schema describes XML resources as a namespace-aware document model:
 This package intentionally does not claim all media types ending in `+xml`.
 Domain formats such as XHTML, SVG, MathML, XSLT, Atom, and RSS need their own
 schema packages that can depend on the generic XML schema.
+
+## Output Artifacts
+
+The package declares CEMT formatter and colorizer artifacts in `package.cem`.
+The public formatter profile names are `compact`, `pretty`, and `tabular`.
+The public colorizer profile names are `terminal`, `html`, and `md`.
 
 ## Validation Examples
 

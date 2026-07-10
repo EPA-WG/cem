@@ -34,6 +34,7 @@
 //!   `▷` content boundary on elements that carry content.
 
 pub mod rules;
+pub mod xml;
 
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::parser::document::CemDocument;

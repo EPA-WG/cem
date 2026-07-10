@@ -16,6 +16,121 @@
 
     {namespace @prefix="xml" @uri="https://cem.dev/ns/data/xml/1"}
 
+    {artifact
+        @kind="formatter"
+        @path="formatters/xml-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/xml"
+        @target-schema="https://cem.dev/ns/data/xml/1"
+        @target-category="xml-document"
+        @function-name="xml.format-document"
+        @formatter-profile="compact"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/xml-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/xml"
+        @target-schema="https://cem.dev/ns/data/xml/1"
+        @target-category="xml-document"
+        @function-name="xml.format-document"
+        @formatter-profile="pretty"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/xml-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/xml"
+        @target-schema="https://cem.dev/ns/data/xml/1"
+        @target-category="xml-document"
+        @function-name="xml.format-document"
+        @formatter-profile="tabular"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/xml-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/xml"
+        @target-schema="https://cem.dev/ns/data/xml/1"
+        @target-category="xml-document"
+        @function-name="xml.color-document"
+        @color-profile="terminal"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/xml-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/xml"
+        @target-schema="https://cem.dev/ns/data/xml/1"
+        @target-category="xml-document"
+        @function-name="xml.color-document"
+        @color-profile="html"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/xml-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/xml"
+        @target-schema="https://cem.dev/ns/data/xml/1"
+        @target-category="xml-document"
+        @function-name="xml.color-document"
+        @color-profile="md"
+    }
+
+    {example
+        @id="basic-document"
+        @path="examples/basic-document.xml"
+        @content-type="application/xml"
+        @schema="https://cem.dev/ns/data/xml/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="namespaced-document"
+        @path="examples/namespaced-document.xml"
+        @content-type="text/xml; charset=utf-8"
+        @schema="https://cem.dev/ns/data/xml/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="invalid-mismatched-tag"
+        @path="examples/invalid-mismatched-tag.xml"
+        @content-type="application/xml"
+        @schema="https://cem.dev/ns/data/xml/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.xml.parse_error"
+    }
+
+    {example
+        @id="invalid-unbound-prefix"
+        @path="examples/invalid-unbound-prefix.xml"
+        @content-type="application/xml"
+        @schema="https://cem.dev/ns/data/xml/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.xml.unbound_namespace_prefix"
+    }
+
+    {example
+        @id="invalid-doctype"
+        @path="examples/invalid-doctype.xml"
+        @content-type="application/xml"
+        @schema="https://cem.dev/ns/data/xml/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.xml.dtd_rejected"
+    }
+
     {converter
         @id="xml-to-cem-dom-projection-rust"
         @implementation="rust"

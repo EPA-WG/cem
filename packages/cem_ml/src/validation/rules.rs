@@ -44,7 +44,6 @@ use crate::source::{BytesSource, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack};
 use crate::tokenizer::cem::CemTokenizer;
 use crate::tokenizer::html::HtmlTokenizer;
-use crate::tokenizer::xml::XmlTokenizer;
 use crate::transform_template::{
     parse_cem_native_template_module_options,
     validate_transform_template_artifact_function_contract, TransformTemplateAdapter,
@@ -53,6 +52,7 @@ use crate::transform_template::{
     TransformTemplateModuleParseRequest, TransformTemplateModulePreflight,
 };
 use crate::validation::{
+    xml::{validate_xml_source_bytes, XmlSourceValidationRequest},
     RuleContext, RuleDescriptor, RuleId, RuleInput, RuleRegistry, RuleResourceRead, SemanticRule,
     TriggerLayer,
 };
@@ -2083,7 +2083,13 @@ fn validate_schema_package_example(
         return;
     };
     validate_schema_package_example_source_contract(
-        ctx, node, example_id, path, &essence, schema_uri, out,
+        ctx,
+        node,
+        example_id,
+        path,
+        content_type,
+        schema_uri,
+        out,
     );
 }
 
@@ -2234,7 +2240,13 @@ fn validate_schema_package_example_source_bytes(
     let document = match schema_package_example_tokenizer(content_type, schema_uri)? {
         SchemaPackageExampleTokenizer::Cem => parse_example_cem_document(bytes),
         SchemaPackageExampleTokenizer::Html => parse_example_html_document(bytes),
-        SchemaPackageExampleTokenizer::Xml => parse_example_xml_document(bytes),
+        SchemaPackageExampleTokenizer::Xml => {
+            return Some(validate_xml_source_bytes(XmlSourceValidationRequest {
+                bytes,
+                source_uri,
+                content_type: Some(content_type),
+            }));
+        }
     };
     let upstream_diagnostics = document.diagnostics.clone();
     let mut diagnostics = document.diagnostics.clone();
@@ -2321,16 +2333,6 @@ fn parse_example_cem_document(bytes: &[u8]) -> CemDocument {
 fn parse_example_html_document(bytes: &[u8]) -> CemDocument {
     let src = BytesSource::new(SourceId(1), bytes.to_vec());
     let mut tok = HtmlTokenizer::from_source(src);
-    let tok_diags = tok.take_diagnostics();
-    let normalizer = CemEventNormalizer::new(tok);
-    let mut document = CemAstBuilder::new(normalizer).build();
-    document.diagnostics.extend(tok_diags);
-    document
-}
-
-fn parse_example_xml_document(bytes: &[u8]) -> CemDocument {
-    let src = BytesSource::new(SourceId(1), bytes.to_vec());
-    let mut tok = XmlTokenizer::from_source(src);
     let tok_diags = tok.take_diagnostics();
     let normalizer = CemEventNormalizer::new(tok);
     let mut document = CemAstBuilder::new(normalizer).build();

@@ -213,6 +213,16 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
         path: "schema-packages/css/v1/colorizers/css-color-document.cemt",
         source: include_str!("../../schema-packages/css/v1/colorizers/css-color-document.cemt"),
     },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xml",
+        path: "schema-packages/xml/v1/formatters/xml-format-document.cemt",
+        source: include_str!("../../schema-packages/xml/v1/formatters/xml-format-document.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xml",
+        path: "schema-packages/xml/v1/colorizers/xml-color-document.cemt",
+        source: include_str!("../../schema-packages/xml/v1/colorizers/xml-color-document.cemt"),
+    },
 ];
 
 static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
@@ -377,7 +387,8 @@ mod tests {
         CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSS_CONTENT_TYPE,
         CSS_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI, JSON_CONTENT_TYPE,
         JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI,
-        MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+        MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
+        YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
     };
     use crate::source::{BytesSource, SourceId};
     use crate::tokenizer::cem::CemTokenizer;
@@ -1065,6 +1076,71 @@ mod tests {
     }
 
     #[test]
+    fn xml_package_examples_are_manifest_indexed() {
+        let package = builtin_schema_package_source("xml").expect("package source");
+        let examples =
+            schema_package_examples_from_package_sources(package).expect("package examples");
+        let declared_paths = examples
+            .iter()
+            .map(|example| example.path.clone())
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(
+            declared_paths,
+            top_level_example_paths("xml"),
+            "xml top-level examples must be discoverable from package.cem"
+        );
+        assert_eq!(examples.len(), 5);
+        assert!(examples
+            .iter()
+            .all(|example| example.schema == XML_SCHEMA_URI));
+
+        for (id, content_type, expected_result, expected_code) in [
+            (
+                "basic-document",
+                XML_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "namespaced-document",
+                "text/xml",
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "invalid-mismatched-tag",
+                XML_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.xml.parse_error"),
+            ),
+            (
+                "invalid-unbound-prefix",
+                XML_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.xml.unbound_namespace_prefix"),
+            ),
+            (
+                "invalid-doctype",
+                XML_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.xml.dtd_rejected"),
+            ),
+        ] {
+            let example = examples
+                .iter()
+                .find(|example| example.id == id)
+                .unwrap_or_else(|| panic!("XML example `{id}`"));
+            assert_eq!(example.content_type, content_type);
+            assert_eq!(example.expected_result, expected_result);
+            let expected_codes = expected_code
+                .map(|code| vec![code.to_owned()])
+                .unwrap_or_default();
+            assert_eq!(example.expected_diagnostic_codes, expected_codes);
+        }
+    }
+
+    #[test]
     fn builtin_schema_package_catalog_matches_core_folder_frame() {
         for source in builtin_schema_package_sources() {
             let root = package_root(source.package_id);
@@ -1631,5 +1707,26 @@ mod tests {
         assert!(formatter.source.contains(r#"@category="css-document""#));
         assert!(colorizer.source.contains(r#"@name="css.color-document""#));
         assert!(colorizer.source.contains(r#"@content-type="text/css""#));
+    }
+
+    #[test]
+    fn catalog_exposes_xml_output_artifact_sources() {
+        let formatter = builtin_schema_package_artifact_source(
+            "xml",
+            "schema-packages/xml/v1/formatters/xml-format-document.cemt",
+        )
+        .expect("XML formatter source");
+        let colorizer = builtin_schema_package_artifact_source(
+            "xml",
+            "schema-packages/xml/v1/colorizers/xml-color-document.cemt",
+        )
+        .expect("XML colorizer source");
+
+        assert!(formatter.source.contains(r#"@name="xml.format-document""#));
+        assert!(formatter.source.contains(r#"@category="xml-document""#));
+        assert!(colorizer.source.contains(r#"@name="xml.color-document""#));
+        assert!(colorizer
+            .source
+            .contains(r#"@content-type="application/xml""#));
     }
 }

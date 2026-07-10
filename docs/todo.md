@@ -357,7 +357,12 @@ Common structured and authoring formats:
 
 XML and markup family formats:
 
-- [ ] `xml/v1` (`application/xml`, XML aliases).
+- [x] `xml/v1` (`application/xml`, XML aliases). Baseline
+      `compact`/`pretty`/`tabular` formatter and `terminal`/`html`/`md`
+      colorizer selectors are declared over CEMT artifacts, top-level XML
+      examples are declared from `package.cem`, including text XML alias
+      content type metadata, and catalog tests guard XML artifact/example
+      manifest drift while preserving the Rust XML-to-DOM converter metadata.
 - [ ] `html/v1` (`text/html`).
 - [ ] `relax-ng/v1` (`application/relax-ng+xml`,
       `application/relax-ng-compact-syntax`).
