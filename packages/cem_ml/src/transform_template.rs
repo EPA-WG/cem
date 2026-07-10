@@ -1938,9 +1938,13 @@ impl TransformTemplateOutputFunctionRegistry {
         let syntax_rules = request.syntax_rules()?;
         let color_profile = request.color_output_profile()?;
         let explicit_profile = request.color_profile_selector();
-        let query_profile = explicit_profile
-            .as_ref()
-            .map(|_| transform_template_canonical_color_profile_selector(&color_profile));
+        let query_profile = explicit_profile.as_ref().map(|selector| {
+            transform_template_color_binding_profile_selector(
+                &request.target,
+                selector,
+                &color_profile,
+            )
+        });
 
         let subject_types = request.subject_type_candidates();
         for subject_type in &subject_types {
@@ -1966,7 +1970,18 @@ impl TransformTemplateOutputFunctionRegistry {
                         &request.options,
                     );
                     identity.color_profile = Some(
-                        transform_template_canonical_color_profile_selector(&color_profile),
+                        explicit_profile
+                            .as_deref()
+                            .map(|selector| {
+                                transform_template_color_binding_profile_selector(
+                                    &request.target,
+                                    selector,
+                                    &color_profile,
+                                )
+                            })
+                            .unwrap_or_else(|| {
+                                transform_template_canonical_color_profile_selector(&color_profile)
+                            }),
                     );
                     identity.color_capability =
                         transform_template_color_capability_selector(&color_profile);
@@ -3830,6 +3845,23 @@ fn transform_template_canonical_color_profile_selector(
         }
         TransformTemplateColorOutputKind::Html => profile.html_mode.as_str().to_owned(),
     }
+}
+
+fn transform_template_color_binding_profile_selector(
+    target: &TransformTemplateEncodingTarget,
+    explicit_selector: &str,
+    profile: &TransformTemplateColorOutputProfile,
+) -> String {
+    if transform_template_target_is_explicit_format_output(target) {
+        match explicit_selector.trim() {
+            "terminal" => return "terminal".to_owned(),
+            "html" => return "html".to_owned(),
+            "md" | "markdown" => return "md".to_owned(),
+            _ => {}
+        }
+    }
+
+    transform_template_canonical_color_profile_selector(profile)
 }
 
 fn transform_template_color_capability_selector(
@@ -5729,6 +5761,13 @@ fn builtin_cem_tree_colorizer(
         "colorProfile".to_owned(),
         Value::String(color_profile.clone()),
     );
+    tree.insert(
+        "colorOutput".to_owned(),
+        Value::String(transform_template_cem_tree_color_output_selector(
+            &color_profile,
+            &profile,
+        )),
+    );
     if let Some(color_capability) = binding.identity.color_capability.clone() {
         tree.insert(
             "colorCapability".to_owned(),
@@ -5812,7 +5851,7 @@ fn transform_template_cem_tree_color_nodes(
         transform_template_cem_tree_color_decision(
             "output",
             "colorizer.output",
-            transform_template_cem_tree_color_output_kind(profile.output).to_owned(),
+            transform_template_cem_tree_color_output_selector(color_profile, profile),
             color_profile,
             source_map.as_ref(),
         ),
@@ -5939,6 +5978,66 @@ fn transform_template_cem_tree_color_output_kind(
     }
 }
 
+fn transform_template_cem_tree_color_output_selector(
+    color_profile: &str,
+    profile: &TransformTemplateColorOutputProfile,
+) -> String {
+    match color_profile.trim() {
+        "md" | "markdown" => "md".to_owned(),
+        _ => transform_template_cem_tree_color_output_kind(profile.output).to_owned(),
+    }
+}
+
+fn transform_template_cem_tree_color_style_map(
+    role: &str,
+    color_profile: &str,
+    profile: &TransformTemplateColorOutputProfile,
+) -> serde_json::Map<String, Value> {
+    let mut style = serde_json::Map::new();
+    transform_template_insert_cem_tree_color_style_metadata(
+        &mut style,
+        role,
+        color_profile,
+        profile,
+    );
+    style
+}
+
+fn transform_template_insert_cem_tree_color_style_metadata(
+    style: &mut serde_json::Map<String, Value>,
+    role: &str,
+    color_profile: &str,
+    profile: &TransformTemplateColorOutputProfile,
+) {
+    style.insert("colorRole".to_owned(), Value::String(role.to_owned()));
+    style.insert(
+        "colorProfile".to_owned(),
+        Value::String(color_profile.to_owned()),
+    );
+    style.insert(
+        "colorOutput".to_owned(),
+        Value::String(transform_template_cem_tree_color_output_selector(
+            color_profile,
+            profile,
+        )),
+    );
+    match profile.output {
+        TransformTemplateColorOutputKind::Terminal => {
+            style.insert(
+                "terminalCapability".to_owned(),
+                Value::String(profile.terminal_capability.as_str().to_owned()),
+            );
+        }
+        TransformTemplateColorOutputKind::Html => {
+            style.insert(
+                "htmlMode".to_owned(),
+                Value::String(profile.html_mode.as_str().to_owned()),
+            );
+        }
+        TransformTemplateColorOutputKind::None => {}
+    }
+}
+
 fn transform_template_apply_cem_tree_color_to_value(
     value: &mut Value,
     profile: &TransformTemplateColorOutputProfile,
@@ -5973,10 +6072,11 @@ fn transform_template_apply_cem_tree_color_to_node(
             .entry("style".to_owned())
             .or_insert_with(|| Value::Object(serde_json::Map::new()));
         if let Value::Object(style) = style {
-            style.insert("colorRole".to_owned(), Value::String(role.clone()));
-            style.insert(
-                "colorProfile".to_owned(),
-                Value::String(color_profile.to_owned()),
+            transform_template_insert_cem_tree_color_style_metadata(
+                style,
+                &role,
+                color_profile,
+                profile,
             );
         }
         fields.insert("colorRole".to_owned(), Value::String(role));
@@ -5989,6 +6089,7 @@ fn transform_template_apply_cem_tree_color_to_node(
                 fields,
                 writer_attributes,
                 color_profile,
+                profile,
                 writer_attributes_source_map.as_ref(),
             );
         }
@@ -6022,6 +6123,7 @@ fn transform_template_apply_cem_tree_color_to_node(
             fields,
             writer_attributes,
             color_profile,
+            profile,
             writer_attributes_source_map.as_ref(),
         );
     }
@@ -6144,10 +6246,11 @@ fn transform_template_cem_tree_color_text_wrapper(
     let writer_attributes =
         transform_template_cem_tree_color_writer_attributes_for_role(profile, role)?;
     let mut style = serde_json::Map::new();
-    style.insert("colorRole".to_owned(), Value::String(role.to_owned()));
-    style.insert(
-        "colorProfile".to_owned(),
-        Value::String(color_profile.to_owned()),
+    transform_template_insert_cem_tree_color_style_metadata(
+        &mut style,
+        role,
+        color_profile,
+        profile,
     );
 
     let mut wrapper = serde_json::Map::new();
@@ -6162,6 +6265,7 @@ fn transform_template_cem_tree_color_text_wrapper(
             fields,
             role,
             color_profile,
+            profile,
             wrapper_source_map.as_ref(),
         ),
     );
@@ -6174,6 +6278,7 @@ fn transform_template_cem_tree_color_text_wrapper(
         &mut wrapper,
         writer_attributes,
         color_profile,
+        profile,
         writer_attributes_source_map.as_ref(),
     );
     wrapper.insert(
@@ -6187,6 +6292,7 @@ fn transform_template_cem_tree_color_wrapper_nodes(
     fields: &serde_json::Map<String, Value>,
     role: &str,
     color_profile: &str,
+    profile: &TransformTemplateColorOutputProfile,
     source_map: Option<&Value>,
 ) -> Value {
     let wrapped_kind = fields
@@ -6201,6 +6307,7 @@ fn transform_template_cem_tree_color_wrapper_nodes(
             None,
             "colorizer.text-wrapper",
             color_profile,
+            profile,
             source_map,
         ),
         transform_template_cem_tree_color_wrapper_metadata_node(
@@ -6209,6 +6316,7 @@ fn transform_template_cem_tree_color_wrapper_nodes(
             Some(Value::String(wrapped_kind)),
             "colorizer.wrapped-kind",
             color_profile,
+            profile,
             source_map,
         ),
         transform_template_cem_tree_color_wrapper_metadata_node(
@@ -6217,6 +6325,7 @@ fn transform_template_cem_tree_color_wrapper_nodes(
             Some(Value::String(role.to_owned())),
             "colorizer.wrapped-role",
             color_profile,
+            profile,
             source_map,
         ),
     ])
@@ -6228,6 +6337,7 @@ fn transform_template_cem_tree_color_wrapper_metadata_node(
     value: Option<Value>,
     colorizer_role: &str,
     color_profile: &str,
+    profile: &TransformTemplateColorOutputProfile,
     source_map: Option<&Value>,
 ) -> Value {
     let mut node = serde_json::Map::new();
@@ -6251,10 +6361,11 @@ fn transform_template_cem_tree_color_wrapper_metadata_node(
     );
     node.insert(
         "style".to_owned(),
-        serde_json::json!({
-            "colorRole": "source.gutter",
-            "colorProfile": color_profile,
-        }),
+        Value::Object(transform_template_cem_tree_color_style_map(
+            "source.gutter",
+            color_profile,
+            profile,
+        )),
     );
     if let Some(source_map) = source_map {
         node.insert("sourceMap".to_owned(), source_map.clone());
@@ -6392,6 +6503,7 @@ fn transform_template_merge_cem_tree_color_writer_attribute_nodes(
     fields: &mut serde_json::Map<String, Value>,
     attributes: serde_json::Map<String, Value>,
     color_profile: &str,
+    profile: &TransformTemplateColorOutputProfile,
     source_map: Option<&Value>,
 ) {
     let mut merged = BTreeMap::<String, (Value, Option<Value>)>::new();
@@ -6459,10 +6571,11 @@ fn transform_template_merge_cem_tree_color_writer_attribute_nodes(
             );
             node.insert(
                 "style".to_owned(),
-                serde_json::json!({
-                    "colorRole": "source.gutter",
-                    "colorProfile": color_profile,
-                }),
+                Value::Object(transform_template_cem_tree_color_style_map(
+                    "source.gutter",
+                    color_profile,
+                    profile,
+                )),
             );
             if let Some(source_map) = source_map {
                 node.insert("sourceMap".to_owned(), source_map);
@@ -26793,10 +26906,16 @@ mod tests {
 
         let none = encode_colored_cem_tree_with_profile("none");
         assert_eq!(none["colorProfile"], "none");
+        assert_eq!(none["colorOutput"], "terminal");
+        assert_eq!(none["colorCapability"], "none");
         assert_eq!(cem_tree_color_decision(&none, "profile")["value"], "none");
         assert_eq!(
             cem_tree_color_decision(&none, "output")["value"],
             "terminal"
+        );
+        assert_eq!(
+            cem_tree_color_decision(&none, "capability")["value"],
+            "none"
         );
         assert!(none
             .get("colorNodes")
@@ -26812,12 +26931,90 @@ mod tests {
             none["nodes"][0]["children"][0]["style"]["colorRole"],
             "syntax.string"
         );
+        assert_eq!(
+            none["nodes"][0]["children"][0]["style"]["terminalCapability"],
+            "none"
+        );
         assert!(none["nodes"][0]["children"][0]
             .get("writerAttributes")
             .is_none());
         assert_colored_cem_tree_writes_target_native_text(
             &none,
             "none",
+            CEM_ML_CONTENT_TYPE,
+            CEM_ML_SCHEMA_URI,
+            "cem-tree",
+            &["{card @tone=info | Ready}"],
+        );
+
+        let terminal = encode_colored_cem_tree_with_profile("terminal");
+        assert_eq!(terminal["colorProfile"], "terminal");
+        assert_eq!(terminal["colorOutput"], "terminal");
+        assert_eq!(terminal["colorCapability"], "auto");
+        assert_eq!(
+            cem_tree_color_decision(&terminal, "output")["value"],
+            "terminal"
+        );
+        assert_eq!(
+            cem_tree_color_decision(&terminal, "capability")["value"],
+            "auto"
+        );
+        assert_eq!(terminal["nodes"][0]["style"]["terminalCapability"], "auto");
+        assert!(terminal["nodes"][0].get("writerAttributeNodes").is_none());
+        assert!(terminal["nodes"][0]["children"][0]
+            .get("colorWrapperNodes")
+            .is_none());
+        assert_colored_cem_tree_writes_target_native_text(
+            &terminal,
+            "terminal",
+            CEM_ML_CONTENT_TYPE,
+            CEM_ML_SCHEMA_URI,
+            "cem-tree",
+            &["{card @tone=info | Ready}"],
+        );
+
+        let html = encode_colored_cem_tree_with_profile("html");
+        assert_eq!(html["colorProfile"], "html");
+        assert_eq!(html["colorOutput"], "html");
+        assert_eq!(cem_tree_color_decision(&html, "output")["value"], "html");
+        assert_eq!(
+            cem_tree_color_decision(&html, "html-mode")["value"],
+            "classes"
+        );
+        assert_eq!(html["nodes"][0]["style"]["htmlMode"], "classes");
+        assert_eq!(
+            cem_tree_writer_attribute_value(&html["nodes"][0], "class"),
+            "cem-color cem-color-syntax-name cem-color-has-attributes"
+        );
+        assert_colored_cem_tree_writes_target_native_text(
+            &html,
+            "html",
+            HTML_CONTENT_TYPE,
+            HTML_SCHEMA_URI,
+            "html-fragment",
+            &[
+                "<card",
+                "class=\"cem-color cem-color-syntax-name cem-color-has-attributes\"",
+                "<span class=\"cem-color cem-color-syntax-string\"",
+                ">Ready</span>",
+            ],
+        );
+
+        let md = encode_colored_cem_tree_with_profile("md");
+        assert_eq!(md["colorProfile"], "md");
+        assert_eq!(md["colorOutput"], "md");
+        assert_eq!(cem_tree_color_decision(&md, "output")["value"], "md");
+        assert!(md
+            .get("colorNodes")
+            .and_then(Value::as_array)
+            .expect("colorNodes array")
+            .iter()
+            .all(|node| node.get("name").and_then(Value::as_str) != Some("capability")));
+        assert_eq!(md["nodes"][0]["style"]["colorOutput"], "md");
+        assert!(md["nodes"][0].get("writerAttributeNodes").is_none());
+        assert_colored_cem_tree_writes_target_native_text(
+            &md,
+            "md",
             CEM_ML_CONTENT_TYPE,
             CEM_ML_SCHEMA_URI,
             "cem-tree",
@@ -27006,7 +27203,15 @@ mod tests {
     #[test]
     fn color_binding_resolves_cem_tree_color_profiles_for_conversion_pipeline() {
         let mut registry = TransformTemplateOutputFunctionRegistry::new();
-        for profile in ["css-custom-properties", "classes", "inline-style", "none"] {
+        for profile in [
+            "css-custom-properties",
+            "classes",
+            "inline-style",
+            "none",
+            "terminal",
+            "html",
+            "md",
+        ] {
             registry.register(cem_tree_color_function_descriptor_with_profile(profile));
         }
         let subject = json!({
@@ -27017,7 +27222,15 @@ mod tests {
             "nodes": [{"kind": "element", "name": "card"}]
         });
 
-        for profile in ["classes", "inline-style", "none"] {
+        for (requested_profile, expected_profile, expected_capability) in [
+            ("classes", "classes", None),
+            ("inline-style", "inline-style", None),
+            ("none", "none", Some("none")),
+            ("terminal", "terminal", Some("auto")),
+            ("html", "html", None),
+            ("md", "md", None),
+            ("markdown", "md", None),
+        ] {
             let request = TransformTemplateEncodeBindingRequest::new(
                 subject.clone(),
                 TransformTemplateEncodingTarget::new(
@@ -27029,17 +27242,26 @@ mod tests {
             .with_subject_type("cem-tree")
             .with_options(TransformTemplateEncodeOptions {
                 colorizer: Some("cem.color-tree".to_owned()),
-                color_profile: Some(profile.to_owned()),
+                color_profile: Some(requested_profile.to_owned()),
                 ..TransformTemplateEncodeOptions::default()
             });
 
             let binding = registry
                 .resolve_color_binding(&request, &BTreeSet::new())
-                .unwrap_or_else(|error| panic!("CEM tree profile `{profile}` resolves: {error:?}"));
+                .unwrap_or_else(|error| {
+                    panic!("CEM tree profile `{requested_profile}` resolves: {error:?}")
+                });
 
             assert_eq!(binding.function.name, "cem.color-tree");
-            assert_eq!(binding.function.profile.as_deref(), Some(profile));
-            assert_eq!(binding.identity.color_profile.as_deref(), Some(profile));
+            assert_eq!(binding.function.profile.as_deref(), Some(expected_profile));
+            assert_eq!(
+                binding.identity.color_profile.as_deref(),
+                Some(expected_profile)
+            );
+            assert_eq!(
+                binding.identity.color_capability.as_deref(),
+                expected_capability
+            );
             assert_eq!(
                 binding.identity.produces,
                 TransformTemplateOutputProducedKind::CemTree

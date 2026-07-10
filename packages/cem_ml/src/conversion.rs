@@ -10529,6 +10529,99 @@ mod tests {
     }
 
     #[test]
+    fn conversion_output_pipeline_applies_literal_baseline_colorizer_profiles() {
+        for profile in ["terminal", "md"] {
+            let mut pipeline = direct_cem_output_pipeline();
+            pipeline.cemt_options.color_profile = Some(profile.to_owned());
+            pipeline.cemt_insertion_context.color_profile = Some(profile.to_owned());
+            pipeline.writer_insertion_context.color_profile = Some(profile.to_owned());
+
+            let execution = execute_conversion_output_pipeline(
+                &pipeline,
+                serde_json::json!({
+                    "kind": "element",
+                    "name": "card",
+                    "children": [{"kind": "text", "value": "Ready"}]
+                }),
+                None,
+                Vec::new(),
+                format!("test-{profile}-cem-output").as_str(),
+                Some("literal-colorizer"),
+                Some("converter.cemt"),
+            );
+
+            assert!(
+                execution.diagnostics.is_empty(),
+                "{profile}: {:?}",
+                execution.diagnostics
+            );
+            let colored = execution
+                .colored_cem_tree
+                .as_ref()
+                .expect("colored CEM tree");
+            assert_eq!(colored.value["colorProfile"], profile);
+            assert_eq!(
+                colored.value["colorOutput"],
+                if profile == "terminal" {
+                    "terminal"
+                } else {
+                    "md"
+                }
+            );
+            assert!(colored.value["nodes"][0]
+                .get("writerAttributeNodes")
+                .is_none());
+            let output = execution
+                .output
+                .as_ref()
+                .and_then(Value::as_str)
+                .expect("writer output");
+            assert!(output.contains("{card"));
+        }
+
+        let mut html_pipeline = direct_html_output_pipeline();
+        html_pipeline.cemt_options.color_profile = Some("html".to_owned());
+        html_pipeline.cemt_insertion_context.color_profile = Some("html".to_owned());
+        html_pipeline.writer_insertion_context.color_profile = Some("html".to_owned());
+        let html_execution = execute_conversion_output_pipeline(
+            &html_pipeline,
+            serde_json::json!({
+                "kind": "element",
+                "name": "card",
+                "children": [{"kind": "text", "value": "Ready"}]
+            }),
+            None,
+            Vec::new(),
+            "test-html-cem-output",
+            Some("literal-colorizer"),
+            Some("converter.cemt"),
+        );
+
+        assert!(
+            html_execution.diagnostics.is_empty(),
+            "{:?}",
+            html_execution.diagnostics
+        );
+        let html_colored = html_execution
+            .colored_cem_tree
+            .as_ref()
+            .expect("HTML colored CEM tree");
+        assert_eq!(html_colored.value["colorProfile"], "html");
+        assert_eq!(html_colored.value["colorOutput"], "html");
+        assert_eq!(
+            html_colored.value["nodes"][0]["style"]["htmlMode"],
+            "classes"
+        );
+        let html_output = html_execution
+            .output
+            .as_ref()
+            .and_then(Value::as_str)
+            .expect("HTML writer output");
+        assert!(html_output.contains("cem-color-syntax-name"));
+        assert!(html_output.contains("<span class=\"cem-color cem-color-syntax-string\""));
+    }
+
+    #[test]
     fn conversion_output_pipeline_reads_cemt_artifacts_through_environment_reader() {
         let schema_registry = SchemaRegistry::with_builtin_schemas();
         let mut conversion_registry = ConversionRegistry::new();

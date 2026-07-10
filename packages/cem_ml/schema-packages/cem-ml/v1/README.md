@@ -76,9 +76,10 @@ the canonical `cem.color-tree` colorizer asset. The formatter profiles use one
 CEMT body with profile-aware layout: `compact` keeps minimal deterministic
 spacing, `pretty` expands non-text child groups into block layout, and `tabular`
 also lays attributes out vertically with formatter-owned line-ending and indent
-nodes. The `html` colorizer selector maps to the class-based HTML mode,
-`terminal` records terminal output metadata without HTML writer attributes, and
-`md` records Markdown output metadata without HTML writer attributes.
+nodes. The `html` colorizer selector maps to the class-based HTML mode and
+materializes HTML writer attributes, `terminal` records terminal output and
+auto capability metadata without HTML writer attributes, and `md` records
+Markdown output metadata without HTML writer attributes.
 
 Package-qualified formatter and colorizer artifacts are selected by explicit
 CEMT function name first, then by stage profile fallback. This keeps the

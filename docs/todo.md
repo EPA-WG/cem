@@ -255,6 +255,16 @@ history belongs in git history and the feature-specific docs linked below.
   - [ ] Implement reusable baseline colorizer profiles: `terminal`, `html`,
         and `md`; each profile is a CEMT transform over the formatted CEM tree
         with source-map range preservation.
+    - [x] Preserve literal CEM-tree colorizer profile selectors `terminal`,
+          `html`, and `md` through transform binding, package-stage execution,
+          generated color metadata, and writer artifact identity.
+    - [x] Materialize `colorOutput`, terminal `colorCapability`, and
+          profile-specific per-node style metadata from the CEMT colorizer
+          helper while keeping HTML writer attributes restricted to `html`.
+    - [ ] Add terminal writer rendering for capability-aware ANSI/SGR output
+          from colored CEM-tree ranges.
+    - [ ] Add Markdown-safe rendered color output forms for `md` without
+          losing source-map ranges.
   - [ ] Roll the frame through the supported package scope below in order,
         keeping every content type covered before moving to lower-priority
         package families.
