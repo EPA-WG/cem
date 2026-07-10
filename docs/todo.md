@@ -230,19 +230,17 @@ history belongs in git history and the feature-specific docs linked below.
         pass/fail result, and expected diagnostics. Artifacts must include
         profile, target content type/schema, target category, and CEMT function
         identity.
-  - [ ] Add package-folder validation that checks `package.cem`, `schema/`,
+  - [x] Add package-folder validation that checks `package.cem`, `schema/`,
         `examples/`, `formatters/`, and `colorizers/` completeness for every
         built-in package before per-package implementation can be marked done.
         Build-time catalog checks now require every embedded built-in package
         to have matching `package.cem`, `.cem` schema source, and at least one
         example fixture; declared CEMT artifacts must exist on disk and be
-        embedded in the artifact source catalog; `cem-ml/v1` formatter and
-        colorizer asset folders are checked against `package.cem`, and
-        `cem-ml/v1` declares runtime-selectable baseline formatter profiles
-        `compact`, `pretty`, `tabular` plus colorizer profiles `terminal`,
-        `html`, and `md` over the canonical CEMT assets. Remaining work is
-        enforcing profile completeness across each package as those profiles
-        are added.
+        embedded in the artifact source catalog; any embedded package that
+        declares `formatters/` or `colorizers/` must have those CEMT assets
+        indexed by `package.cem`, and any declared output-stage profile set
+        must include baseline formatter profiles `compact`, `pretty`,
+        `tabular` or colorizer profiles `terminal`, `html`, and `md`.
   - [ ] Require example loading to resolve the declared content type plus schema
         URL and validate the source bytes against that schema; filename
         extension inference is only a fallback hint.

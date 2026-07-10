@@ -268,6 +268,9 @@ mod tests {
     use std::collections::{BTreeMap, BTreeSet};
     use std::path::{Path, PathBuf};
 
+    const BASELINE_FORMATTER_PROFILES: &[&str] = &["compact", "pretty", "tabular"];
+    const BASELINE_COLORIZER_PROFILES: &[&str] = &["terminal", "html", "md"];
+
     fn package_root(package_id: &str) -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("schema-packages")
@@ -407,6 +410,49 @@ mod tests {
             .collect()
     }
 
+    fn artifact_profiles(
+        artifacts: &[BTreeMap<String, String>],
+        kind: &str,
+        profile_attr: &str,
+    ) -> BTreeSet<String> {
+        artifacts
+            .iter()
+            .filter(|attrs| attrs.get("kind").map(String::as_str) == Some(kind))
+            .filter_map(|attrs| attrs.get(profile_attr).cloned())
+            .collect()
+    }
+
+    fn assert_baseline_profiles(
+        package_id: &str,
+        kind: &str,
+        profile_attr: &str,
+        actual_profiles: &BTreeSet<String>,
+        expected_profiles: &[&str],
+    ) {
+        if actual_profiles.is_empty() {
+            return;
+        }
+        for profile in expected_profiles {
+            assert!(
+                actual_profiles.contains(*profile),
+                "{} must declare baseline `{}` {} on `{}` artifacts; actual profiles: {:?}",
+                package_id,
+                profile,
+                profile_attr,
+                kind,
+                actual_profiles
+            );
+        }
+    }
+
+    fn output_artifact_directory(kind: &str) -> Option<&'static str> {
+        match kind {
+            "formatter" | "formatter-helper" => Some("formatters"),
+            "colorizer" | "colorizer-helper" => Some("colorizers"),
+            _ => None,
+        }
+    }
+
     #[test]
     fn builtin_schema_package_catalog_matches_core_folder_frame() {
         for source in builtin_schema_package_sources() {
@@ -528,87 +574,103 @@ mod tests {
     }
 
     #[test]
-    fn cem_ml_output_asset_folder_frame_is_manifest_indexed() {
-        let package_id = "cem-ml";
-        assert!(package_root(package_id).join("formatters").is_dir());
-        assert!(package_root(package_id).join("colorizers").is_dir());
+    fn builtin_output_asset_folders_are_manifest_indexed() {
+        let embedded_artifact_paths = builtin_schema_package_artifact_sources()
+            .iter()
+            .map(|source| (source.package_id, source.path))
+            .collect::<BTreeSet<_>>();
 
-        let manifest = builtin_schema_package_source(package_id).expect("cem-ml package");
-        let declared_artifacts =
-            package_manifest_artifact_paths(package_id, manifest.manifest_source);
-        let formatter_files = directory_cemt_paths(package_id, "formatters");
-        let colorizer_files = directory_cemt_paths(package_id, "colorizers");
-        assert!(
-            !formatter_files.is_empty(),
-            "cem-ml must include formatter CEMT assets"
-        );
-        assert!(
-            !colorizer_files.is_empty(),
-            "cem-ml must include colorizer CEMT assets"
-        );
-        for path in formatter_files.union(&colorizer_files) {
-            assert!(
-                declared_artifacts.contains(path),
-                "cem-ml CEMT asset `{path}` must be discoverable from package.cem"
-            );
-            assert!(
-                builtin_schema_package_artifact_source(package_id, path).is_some(),
-                "cem-ml CEMT asset `{path}` must be embedded in the artifact source catalog"
-            );
+        for package in builtin_schema_package_sources() {
+            let package_id = package.package_id;
+            let declared_attrs =
+                package_manifest_artifact_attrs(package_id, package.manifest_source);
+            let declared_paths = declared_attrs
+                .iter()
+                .filter_map(|attrs| attrs.get("path").cloned())
+                .collect::<BTreeSet<_>>();
+
+            for directory in ["formatters", "colorizers"] {
+                let directory_path = package_root(package_id).join(directory);
+                let files = directory_cemt_paths(package_id, directory);
+                if directory_path.exists() {
+                    assert!(
+                        directory_path.is_dir(),
+                        "{} output asset path `{}` must be a directory",
+                        package_id,
+                        directory_path.display()
+                    );
+                    assert!(
+                        !files.is_empty(),
+                        "{} output asset folder `{directory}/` must contain at least one .cemt file",
+                        package_id
+                    );
+                }
+
+                for path in &files {
+                    assert!(
+                        declared_paths.contains(path),
+                        "{} CEMT asset `{path}` must be discoverable from package.cem",
+                        package_id
+                    );
+                    assert!(
+                        embedded_artifact_paths.contains(&(package_id, path.as_str())),
+                        "{} CEMT asset `{path}` must be embedded in the artifact source catalog",
+                        package_id
+                    );
+                }
+            }
+
+            for attrs in &declared_attrs {
+                let Some(kind) = attrs
+                    .get("kind")
+                    .and_then(|kind| output_artifact_directory(kind))
+                else {
+                    continue;
+                };
+                let path = attrs.get("path").expect("artifact path normalized");
+                let expected_prefix = format!("schema-packages/{package_id}/v1/{kind}/");
+                assert!(
+                    path.starts_with(&expected_prefix),
+                    "{} `{}` artifact `{}` must live under `{kind}/`",
+                    package_id,
+                    attrs.get("kind").expect("artifact kind"),
+                    path
+                );
+            }
         }
     }
 
     #[test]
-    fn cem_ml_baseline_output_profiles_are_manifest_declared() {
-        let manifest = builtin_schema_package_source("cem-ml").expect("cem-ml package");
-        let artifacts = package_manifest_artifact_attrs("cem-ml", manifest.manifest_source);
+    fn builtin_output_stage_profile_sets_are_complete_when_declared() {
+        for package in builtin_schema_package_sources() {
+            let artifacts =
+                package_manifest_artifact_attrs(package.package_id, package.manifest_source);
+            let formatter_profiles =
+                artifact_profiles(&artifacts, "formatter", "formatter-profile");
+            let formatter_helper_profiles =
+                artifact_profiles(&artifacts, "formatter-helper", "formatter-profile");
+            let color_profiles = artifact_profiles(&artifacts, "colorizer", "color-profile");
 
-        let formatter_profiles = artifacts
-            .iter()
-            .filter(|attrs| {
-                attrs.get("kind").map(String::as_str) == Some("formatter")
-                    && attrs.get("path").map(String::as_str)
-                        == Some("schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt")
-                    && attrs.get("function-name").map(String::as_str) == Some("cem.format-tree")
-            })
-            .filter_map(|attrs| attrs.get("formatter-profile").map(String::as_str))
-            .collect::<BTreeSet<_>>();
-        let formatter_helper_profiles = artifacts
-            .iter()
-            .filter(|attrs| {
-                attrs.get("kind").map(String::as_str) == Some("formatter-helper")
-                    && attrs.get("path").map(String::as_str)
-                        == Some("schema-packages/cem-ml/v1/formatters/cem-format-tree-helpers.cemt")
-                    && attrs.get("function-name").map(String::as_str)
-                        == Some("cem.format-tree.apply-stage")
-            })
-            .filter_map(|attrs| attrs.get("formatter-profile").map(String::as_str))
-            .collect::<BTreeSet<_>>();
-        let color_profiles = artifacts
-            .iter()
-            .filter(|attrs| {
-                attrs.get("kind").map(String::as_str) == Some("colorizer")
-                    && attrs.get("path").map(String::as_str)
-                        == Some("schema-packages/cem-ml/v1/colorizers/cem-color-tree.cemt")
-                    && attrs.get("function-name").map(String::as_str) == Some("cem.color-tree")
-            })
-            .filter_map(|attrs| attrs.get("color-profile").map(String::as_str))
-            .collect::<BTreeSet<_>>();
-
-        for profile in ["compact", "pretty", "tabular"] {
-            assert!(
-                formatter_profiles.contains(profile),
-                "cem-ml must declare baseline `{profile}` formatter profile"
+            assert_baseline_profiles(
+                package.package_id,
+                "formatter",
+                "formatter-profile",
+                &formatter_profiles,
+                BASELINE_FORMATTER_PROFILES,
             );
-            assert!(
-                formatter_helper_profiles.contains(profile),
-                "cem-ml must declare baseline `{profile}` formatter helper profile"
+            assert_baseline_profiles(
+                package.package_id,
+                "formatter-helper",
+                "formatter-profile",
+                &formatter_helper_profiles,
+                BASELINE_FORMATTER_PROFILES,
             );
-        }
-        for profile in ["terminal", "html", "md"] {
-            assert!(
-                color_profiles.contains(profile),
-                "cem-ml must declare baseline `{profile}` colorizer profile"
+            assert_baseline_profiles(
+                package.package_id,
+                "colorizer",
+                "color-profile",
+                &color_profiles,
+                BASELINE_COLORIZER_PROFILES,
             );
         }
     }
