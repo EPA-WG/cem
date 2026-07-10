@@ -77,7 +77,10 @@ history belongs in git history and the feature-specific docs linked below.
         `id`/`path` requiredness now stays in schema-owned validation instead
         of conversion descriptor extraction; artifact `kind`/`path`
         requiredness now stays in schema-owned validation instead of
-        conversion artifact descriptor extraction.
+        conversion artifact descriptor extraction; converter `id`/
+        `implementation`, implementation value, endpoint occurrence, and
+        endpoint `content-type` requiredness now stay in schema-owned
+        validation instead of conversion descriptor extraction.
   - [ ] Model converter cases in `schema-package.cem`: `implementation=cemt`
         and `implementation=rust` required attribute contracts plus CEMT
         native fallback `fallback-reason` now live in schema-owned
@@ -92,7 +95,9 @@ history belongs in git history and the feature-specific docs linked below.
         and endpoint cardinality diagnostics have been retired in favor of
         generic schema-owned codes; `parity-fixture` `id`/`path` extraction now
         skips incomplete schema-invalid rows and materializes only complete
-        runtime fixture descriptors.
+        runtime fixture descriptors; converter descriptor extraction now skips
+        incomplete schema-invalid rows missing `id`, `implementation`, known
+        implementation value, `from`/`to`, or endpoint `content-type`.
   - [ ] Finish artifact cases in `schema-package.cem`. Formatter, colorizer,
         formatter-helper, and colorizer-helper required field metadata now
         lives in schema-owned `field-contract` declarations; formatter/
@@ -140,7 +145,12 @@ history belongs in git history and the feature-specific docs linked below.
         extraction; parity fixture `id`/`path` field checks now stay in generic
         schema-model validation instead of descriptor extraction; artifact
         `kind`/`path` field checks now stay in generic schema-model validation
-        instead of descriptor extraction.
+        instead of descriptor extraction; converter `id`/`implementation`,
+        implementation value, endpoint occurrence, and endpoint `content-type`
+        field checks now stay in generic schema-model validation instead of
+        descriptor extraction; stale converter manifest field-specific
+        `MissingAttribute`, `MissingEndpoint`, and `UnknownImplementation`
+        extraction errors have been removed.
   - [ ] Keep Rust validators only for operational execution that cannot be
         represented as field data: resource read failures, parser failures,
         CEMT compilation, CEMT function lookup, host-hook availability, and

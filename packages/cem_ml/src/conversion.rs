@@ -342,18 +342,6 @@ impl std::error::Error for ConversionRegistryError {}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConversionManifestError {
     MissingPackageElement,
-    MissingAttribute {
-        converter_id: Option<String>,
-        attribute: &'static str,
-    },
-    MissingEndpoint {
-        converter_id: String,
-        endpoint: &'static str,
-    },
-    UnknownImplementation {
-        converter_id: String,
-        implementation: String,
-    },
     ArtifactContract {
         package_id: String,
         path: String,
@@ -373,33 +361,6 @@ impl std::fmt::Display for ConversionManifestError {
             Self::MissingPackageElement => {
                 write!(f, "schema package manifest has no package element")
             }
-            Self::MissingAttribute {
-                converter_id,
-                attribute,
-            } => {
-                if let Some(converter_id) = converter_id {
-                    write!(
-                        f,
-                        "converter `{converter_id}` is missing required attribute `{attribute}`"
-                    )
-                } else {
-                    write!(f, "converter is missing required attribute `{attribute}`")
-                }
-            }
-            Self::MissingEndpoint {
-                converter_id,
-                endpoint,
-            } => write!(
-                f,
-                "converter `{converter_id}` is missing required `{endpoint}` endpoint"
-            ),
-            Self::UnknownImplementation {
-                converter_id,
-                implementation,
-            } => write!(
-                f,
-                "converter `{converter_id}` has unknown implementation `{implementation}`"
-            ),
             Self::ArtifactContract {
                 package_id,
                 path,
@@ -6633,12 +6594,15 @@ fn conversion_descriptors_from_schema_package_manifest_inner(
 
     let mut descriptors = Vec::new();
     for converter_id in element_child_ids_by_local_name(&document, package_node_id, "converter") {
-        descriptors.push(conversion_descriptor_from_manifest_node(
+        let Some(descriptor) = conversion_descriptor_from_manifest_node(
             &document,
             converter_id,
             &package_id,
             base_path,
-        )?);
+        ) else {
+            continue;
+        };
+        descriptors.push(descriptor);
     }
     if validate_embedded_converter_templates && builtin_schema_package_source(&package_id).is_some()
     {
@@ -7291,15 +7255,13 @@ fn conversion_descriptor_from_manifest_node(
     node_id: AstNodeId,
     package_id: &str,
     base_path: &str,
-) -> Result<ConversionDescriptor, ConversionManifestError> {
+) -> Option<ConversionDescriptor> {
     let attrs = collect_manifest_attrs(document, node_id);
-    let id = required_manifest_attr(&attrs, None, "id")?.to_owned();
-    let implementation = parse_manifest_implementation(
-        &id,
-        required_manifest_attr(&attrs, Some(&id), "implementation")?,
-    )?;
-    let from = manifest_endpoint(document, node_id, &id, "from")?;
-    let to = manifest_endpoint(document, node_id, &id, "to")?;
+    let id = optional_manifest_attr(&attrs, "id")?.to_owned();
+    let implementation =
+        optional_manifest_attr(&attrs, "implementation").and_then(parse_manifest_implementation)?;
+    let from = manifest_endpoint(document, node_id, "from")?;
+    let to = manifest_endpoint(document, node_id, "to")?;
     let readiness = optional_manifest_attr(&attrs, "readiness")
         .and_then(parse_manifest_readiness)
         .unwrap_or(ConversionReadiness::Ready);
@@ -7315,7 +7277,7 @@ fn conversion_descriptor_from_manifest_node(
         color_profile: optional_manifest_attr(&attrs, "color-profile").map(str::to_owned),
         parity: optional_manifest_attr(&attrs, "parity").and_then(parse_manifest_parity_mode),
     };
-    let parity_fixtures = manifest_parity_fixtures(document, node_id, base_path)?;
+    let parity_fixtures = manifest_parity_fixtures(document, node_id, base_path);
 
     let template = match implementation {
         ConversionImplementation::Cemt => match (
@@ -7355,7 +7317,7 @@ fn conversion_descriptor_from_manifest_node(
         ConversionImplementation::Rust => (rust_symbol, None),
     };
 
-    Ok(ConversionDescriptor {
+    Some(ConversionDescriptor {
         id,
         package_id: package_id.to_owned(),
         from,
@@ -7416,7 +7378,7 @@ fn manifest_parity_fixtures(
     document: &CemDocument,
     converter_node_id: AstNodeId,
     base_path: &str,
-) -> Result<Vec<ConversionParityFixtureDescriptor>, ConversionManifestError> {
+) -> Vec<ConversionParityFixtureDescriptor> {
     let mut parity_fixtures = Vec::new();
     for fixture_node_id in
         element_child_ids_by_local_name(document, converter_node_id, "parity-fixture")
@@ -7449,41 +7411,30 @@ fn manifest_parity_fixtures(
         });
     }
 
-    Ok(parity_fixtures)
+    parity_fixtures
 }
 
 fn manifest_endpoint(
     document: &CemDocument,
     converter_node_id: AstNodeId,
-    converter_id: &str,
     endpoint_name: &'static str,
-) -> Result<ConversionEndpoint, ConversionManifestError> {
+) -> Option<ConversionEndpoint> {
     let endpoint_id = element_child_ids_by_local_name(document, converter_node_id, endpoint_name)
         .into_iter()
-        .next()
-        .ok_or_else(|| ConversionManifestError::MissingEndpoint {
-            converter_id: converter_id.to_owned(),
-            endpoint: endpoint_name,
-        })?;
+        .next()?;
     let attrs = collect_manifest_attrs(document, endpoint_id);
-    let content_type = required_manifest_attr(&attrs, Some(converter_id), "content-type")?;
-    Ok(match optional_manifest_attr(&attrs, "schema") {
+    let content_type = optional_manifest_attr(&attrs, "content-type")?;
+    Some(match optional_manifest_attr(&attrs, "schema") {
         Some(schema) => ConversionEndpoint::with_schema(content_type, schema),
         None => ConversionEndpoint::new(content_type),
     })
 }
 
-fn parse_manifest_implementation(
-    converter_id: &str,
-    value: &str,
-) -> Result<ConversionImplementation, ConversionManifestError> {
+fn parse_manifest_implementation(value: &str) -> Option<ConversionImplementation> {
     match value.trim() {
-        "cemt" => Ok(ConversionImplementation::Cemt),
-        "rust" => Ok(ConversionImplementation::Rust),
-        implementation => Err(ConversionManifestError::UnknownImplementation {
-            converter_id: converter_id.to_owned(),
-            implementation: implementation.to_owned(),
-        }),
+        "cemt" => Some(ConversionImplementation::Cemt),
+        "rust" => Some(ConversionImplementation::Rust),
+        _ => None,
     }
 }
 
@@ -7538,19 +7489,6 @@ fn parse_manifest_cost(attrs: &BTreeMap<String, String>) -> Option<u32> {
         return None;
     };
     value.parse::<u32>().ok().filter(|cost| *cost >= 1)
-}
-
-fn required_manifest_attr<'a>(
-    attrs: &'a BTreeMap<String, String>,
-    converter_id: Option<&str>,
-    attribute: &'static str,
-) -> Result<&'a str, ConversionManifestError> {
-    optional_manifest_attr(attrs, attribute).ok_or_else(|| {
-        ConversionManifestError::MissingAttribute {
-            converter_id: converter_id.map(str::to_owned),
-            attribute,
-        }
-    })
 }
 
 fn optional_manifest_attr<'a>(
@@ -8199,6 +8137,85 @@ mod tests {
             descriptor.output_contract.encoding_category.as_deref(),
             Some("yaml-document")
         );
+    }
+
+    #[test]
+    fn package_manifest_extraction_does_not_own_converter_required_fields() {
+        let package = package_source(
+            r#"@doc cem-ml 1
+{package @id="test-dom-projection" @version="1.0.0" |
+    {schema @uri="https://cem.dev/ns/projection/dom/1" @source="schema/cem-dom-projection.cem"}
+    {content-type @value="application/vnd.cem.dom+cem-bin" @primary=true}
+    {converter
+        @implementation="rust"
+        @rust-symbol="DomHtmlConverter" |
+        {from @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
+        {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+    }
+    {converter
+        @id="missing-implementation" |
+        {from @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
+        {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+    }
+    {converter
+        @id="invalid-implementation"
+        @implementation="python" |
+        {from @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
+        {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+    }
+    {converter
+        @id="missing-from"
+        @implementation="rust"
+        @rust-symbol="DomHtmlConverter" |
+        {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+    }
+    {converter
+        @id="missing-to"
+        @implementation="rust"
+        @rust-symbol="DomHtmlConverter" |
+        {from @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
+    }
+    {converter
+        @id="from-missing-content-type"
+        @implementation="rust"
+        @rust-symbol="DomHtmlConverter" |
+        {from @schema="https://cem.dev/ns/projection/dom/1"}
+        {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+    }
+    {converter
+        @id="to-missing-content-type"
+        @implementation="rust"
+        @rust-symbol="DomHtmlConverter" |
+        {from @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
+        {to @schema="https://cem.dev/ns/data/html/1"}
+    }
+    {converter
+        @id="valid-rust"
+        @implementation="rust"
+        @rust-symbol="DomHtmlConverter" |
+        {from @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
+        {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+    }
+}"#,
+        );
+
+        let descriptors = conversion_descriptors_from_schema_package(&package)
+            .expect("schema-owned validation reports missing converter fields before extraction");
+
+        assert_eq!(descriptors.len(), 1);
+        let descriptor = &descriptors[0];
+        assert_eq!(descriptor.id, "valid-rust");
+        assert_eq!(descriptor.implementation, ConversionImplementation::Rust);
+        assert_eq!(
+            descriptor.from.content_type,
+            CEM_DOM_PROJECTION_CONTENT_TYPE
+        );
+        assert_eq!(
+            descriptor.from.schema.as_deref(),
+            Some(CEM_DOM_PROJECTION_SCHEMA_URI)
+        );
+        assert_eq!(descriptor.to.content_type, HTML_CONTENT_TYPE);
+        assert_eq!(descriptor.to.schema.as_deref(), Some(HTML_SCHEMA_URI));
     }
 
     #[test]
