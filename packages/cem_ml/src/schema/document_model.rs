@@ -17,12 +17,14 @@
 //! follow-up work.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::{Component, Path};
 
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::events::cem::CemEventNormalizer;
 use crate::parser::builder::CemAstBuilder;
 use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
+use crate::resolver::{has_uri_scheme, is_windows_drive_path};
 use crate::schema::package_loader::{
     load_builtin_schema_package, load_builtin_schema_package_for_content_type,
 };
@@ -113,6 +115,9 @@ pub struct FieldContract {
     pub forbidden_attribute_values: BTreeMap<String, BTreeSet<String>>,
     pub required_children: BTreeSet<String>,
     pub max_one_children: BTreeSet<String>,
+    pub path_layout_attributes: BTreeSet<String>,
+    pub path_layout_prefix: Option<String>,
+    pub path_layout_extension: Option<String>,
     pub when_attribute: Option<String>,
     pub when_values: BTreeSet<String>,
     pub when_present_attributes: BTreeSet<String>,
@@ -740,6 +745,11 @@ fn collect_field_contracts(document: &CemDocument, schema_id: AstNodeId) -> Vec<
                 ),
                 required_children: parse_name_set(attrs.get("required-children")),
                 max_one_children: parse_name_set(attrs.get("max-one-children")),
+                path_layout_attributes: parse_name_set(attrs.get("path-layout-attributes")),
+                path_layout_prefix: optional_non_empty_attr(&attrs, "path-layout-prefix")
+                    .map(str::to_owned),
+                path_layout_extension: optional_non_empty_attr(&attrs, "path-layout-extension")
+                    .map(str::to_owned),
                 when_attribute: optional_non_empty_attr(&attrs, "when-attribute")
                     .map(str::to_owned),
                 when_values: parse_name_set(attrs.get("when-values")),
@@ -789,6 +799,18 @@ fn validate_field_contracts(
                     .then(|| (name.clone(), value.to_owned()))
             })
             .collect::<BTreeMap<_, _>>();
+        let invalid_path_values = contract
+            .path_layout_attributes
+            .iter()
+            .filter_map(|name| {
+                let value = attribute_values.get(name).map(String::as_str)?.trim();
+                (!path_layout_is_valid(value, contract)).then(|| (name.clone(), value.to_owned()))
+            })
+            .collect::<BTreeMap<_, _>>();
+        let invalid_values = invalid_values
+            .into_iter()
+            .chain(invalid_path_values)
+            .collect::<BTreeMap<_, _>>();
         let invalid_fields = forbidden
             .iter()
             .cloned()
@@ -829,7 +851,7 @@ fn validate_field_contracts(
         }
         if !invalid_values.is_empty() {
             parts.push(format!(
-                "forbidden values present: {}",
+                "invalid values present: {}",
                 invalid_values
                     .iter()
                     .map(|(name, value)| format!("{name}={value}"))
@@ -898,6 +920,13 @@ fn field_contract_details(
         "forbiddenAttributeValues": &contract.forbidden_attribute_values,
         "requiredChildren": &contract.required_children,
         "maxOneChildren": &contract.max_one_children,
+        "pathLayout": {
+            "attributes": &contract.path_layout_attributes,
+            "prefix": &contract.path_layout_prefix,
+            "extension": &contract.path_layout_extension,
+            "relative": true,
+            "cleanSegments": true,
+        },
         "missingFields": missing_fields,
         "invalidFields": invalid_fields,
         "invalidValues": invalid_values,
@@ -1170,6 +1199,39 @@ fn child_element_counts(document: &CemDocument, children: &[AstNodeId]) -> BTree
     counts
 }
 
+fn path_layout_is_valid(path: &str, contract: &FieldContract) -> bool {
+    let path = path.trim();
+    if path.is_empty() || (has_uri_scheme(path) && !is_windows_drive_path(path)) {
+        return false;
+    }
+    let parsed = Path::new(path);
+    if parsed.is_absolute() {
+        return false;
+    }
+    if let Some(extension) = contract.path_layout_extension.as_deref() {
+        if parsed.extension().and_then(|ext| ext.to_str()) != Some(extension) {
+            return false;
+        }
+    }
+
+    let mut components = parsed.components();
+    if let Some(prefix) = contract.path_layout_prefix.as_deref() {
+        match components.next() {
+            Some(Component::Normal(first)) if first == prefix => {}
+            _ => return false,
+        }
+    }
+
+    let mut has_path_tail = contract.path_layout_prefix.is_none();
+    for component in components {
+        match component {
+            Component::Normal(_) => has_path_tail = true,
+            _ => return false,
+        }
+    }
+    has_path_tail
+}
+
 fn parse_child_set(value: Option<&String>) -> (BTreeSet<String>, bool) {
     let mut names = BTreeSet::new();
     let mut allow_any = false;
@@ -1422,6 +1484,7 @@ mod tests {
         {element @name="item" @required-attributes="kind" @optional-attributes="kind name code mode"}
         {element @name="group" @children="child"}
         {element @name="child"}
+        {element @name="asset" @optional-attributes="path"}
     }
     {field-contracts |
         {field-contract
@@ -1466,6 +1529,15 @@ mod tests {
             @max-one-children="child"
             @diagnostic="example.item_check"
             @check-kind="child-occurrence"
+        }
+        {field-contract
+            @name="asset-path-layout"
+            @target="asset"
+            @path-layout-attributes="path"
+            @path-layout-prefix="assets"
+            @path-layout-extension="cemt"
+            @diagnostic="example.item_check"
+            @check-kind="path-layout"
         }
     }
 }"#,
@@ -1636,6 +1708,52 @@ mod tests {
             details["childCounts"],
             serde_json::json!({
                 "child": 2,
+            })
+        );
+
+        let document = parse_cem_document(r#"{asset @path="assets/demo.cemt"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        assert!(
+            diagnostics.iter().all(|diagnostic| {
+                diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("contract").and_then(serde_json::Value::as_str))
+                    != Some("asset-path-layout")
+            }),
+            "matching path should satisfy path-layout field contract: {diagnostics:?}"
+        );
+
+        let document = parse_cem_document(r#"{asset @path="transforms/demo.cem"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("asset-path-layout")
+            })
+            .expect("path-layout field contract diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("path-layout field contract details");
+        assert_eq!(details["invalidFields"], serde_json::json!(["path"]));
+        assert_eq!(
+            details["invalidValues"],
+            serde_json::json!({
+                "path": "transforms/demo.cem",
+            })
+        );
+        assert_eq!(
+            details["pathLayout"],
+            serde_json::json!({
+                "attributes": ["path"],
+                "prefix": "assets",
+                "extension": "cemt",
+                "relative": true,
+                "cleanSegments": true,
             })
         );
     }

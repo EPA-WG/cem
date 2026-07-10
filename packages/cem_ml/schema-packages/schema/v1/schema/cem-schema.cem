@@ -43,7 +43,7 @@
         {element @name="resolution" @required-attributes="target mode"}
         {element @name="handoff" @required-attributes="attribute target"}
         {element @name="field-contracts" @children="field-contract"}
-        {element @name="field-contract" @required-attributes="name target" @optional-attributes="diagnostic check-kind required-attributes optional-attributes forbidden-attributes forbidden-attribute-values required-children max-one-children when-attribute when-values when-present-attributes"}
+        {element @name="field-contract" @required-attributes="name target" @optional-attributes="diagnostic check-kind required-attributes optional-attributes forbidden-attributes forbidden-attribute-values required-children max-one-children path-layout-attributes path-layout-prefix path-layout-extension when-attribute when-values when-present-attributes"}
         {element @name="constraints" @children="constraint"}
         {element @name="constraint" @required-attributes="kind" @optional-attributes="target value policy"}
         {element @name="diagnostics" @children="diagnostic"}
@@ -70,6 +70,9 @@
         {attribute @name="forbidden-attribute-values" @type="cemml:name-value-list"}
         {attribute @name="required-children" @type="cemml:name-list"}
         {attribute @name="max-one-children" @type="cemml:name-list"}
+        {attribute @name="path-layout-attributes" @type="cemml:name-list"}
+        {attribute @name="path-layout-prefix" @type="cemml:path"}
+        {attribute @name="path-layout-extension" @type="cemml:identifier"}
         {attribute @name="children" @type="schema:content-model"}
         {attribute @name="type" @type="schema:type-reference"}
         {attribute @name="required" @type="schema:boolean-or-policy"}

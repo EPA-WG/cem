@@ -143,6 +143,28 @@
             @check-kind="required-fields"
         }
         {field-contract
+            @name="artifact-formatter-layout"
+            @target="artifact"
+            @when-attribute="kind"
+            @when-values="formatter formatter-helper"
+            @path-layout-attributes="path"
+            @path-layout-prefix="formatters"
+            @path-layout-extension="cemt"
+            @diagnostic="cem.schema_package.artifact_check"
+            @check-kind="path-layout"
+        }
+        {field-contract
+            @name="artifact-colorizer-layout"
+            @target="artifact"
+            @when-attribute="kind"
+            @when-values="colorizer colorizer-helper"
+            @path-layout-attributes="path"
+            @path-layout-prefix="colorizers"
+            @path-layout-extension="cemt"
+            @diagnostic="cem.schema_package.artifact_check"
+            @check-kind="path-layout"
+        }
+        {field-contract
             @name="example-required-metadata"
             @target="example"
             @required-attributes="id path content-type schema expected-result"
@@ -197,7 +219,6 @@
         {diagnostic @code="cem.schema_package.artifact_source_unreadable" @severity="error"}
         {diagnostic @code="cem.schema_package.artifact_cemt_invalid" @severity="error"}
         {diagnostic @code="cem.schema_package.artifact_function_missing" @severity="error"}
-        {diagnostic @code="cem.schema_package.artifact_layout_invalid" @severity="error"}
         {diagnostic @code="cem.schema_package.artifact_check" @severity="error"}
         {diagnostic @code="cem.schema_package.artifact_function_contract_mismatch" @severity="error"}
         {diagnostic @code="cem.schema_package.example_check" @severity="error"}

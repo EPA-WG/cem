@@ -51,6 +51,10 @@ schema-owned mutual exclusion where one attribute value makes another attribute
 value invalid while leaving other values legal.
 Use `required-children` plus `max-one-children` for exact-one child occurrence
 contracts, such as schema package converter `from`/`to` endpoints.
+Use `path-layout-attributes` with `path-layout-prefix` and
+`path-layout-extension` for package-relative path layout contracts, such as
+formatter artifacts under `formatters/` and colorizer artifacts under
+`colorizers/`.
 
 ## Validation Examples
 
