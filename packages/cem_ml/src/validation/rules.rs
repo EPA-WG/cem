@@ -65,10 +65,7 @@ pub(crate) const SCHEMA_PACKAGE_CONVERTER_CONSTRAINT_DIAGNOSTICS: &[(&str, &str)
         "cem.schema_package.artifact_check",
         "artifact-output-stage-contract",
     ),
-    (
-        "cem.schema_package.example_content_type_mismatch",
-        "example-contract",
-    ),
+    ("cem.schema_package.example_check", "example-contract"),
 ];
 
 fn diag_at(code: &str, severity: Severity, message: String, node: &CemAstNode) -> Diagnostic {
@@ -2049,19 +2046,60 @@ fn validate_schema_package_example(
         return;
     };
     let essence = content_type_essence(content_type);
-    if !schema
+    let allowed_content_types = schema
         .content_type_essences()
-        .any(|allowed| allowed == essence)
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    if !allowed_content_types
+        .iter()
+        .any(|allowed| allowed == &essence)
     {
-        out.push(diag_at(
-            "cem.schema_package.example_content_type_mismatch",
-            Severity::Error,
-            format!(
-                "schema-package example `{example_id}` content type `{content_type}` is not declared by schema `{schema_uri}`"
-            ),
+        out.push(schema_package_example_schema_content_type_failed_diag(
+            doc,
             node,
+            example_id,
+            content_type,
+            schema_uri,
+            &allowed_content_types,
         ));
     }
+}
+
+fn schema_package_example_schema_content_type_failed_diag(
+    doc: &crate::parser::document::CemDocument,
+    node: &CemAstNode,
+    example_id: &str,
+    content_type: &str,
+    schema_uri: &str,
+    allowed_content_types: &[String],
+) -> Diagnostic {
+    diag_at_with_details(
+        "cem.schema_package.example_check",
+        Severity::Error,
+        format!(
+            "schema-package example `{example_id}` content type `{content_type}` is not declared by schema `{schema_uri}`"
+        ),
+        node,
+        serde_json::json!({
+            "schemaUri": CEM_SCHEMA_PACKAGE_URI,
+            "element": "example",
+            "contract": "example-contract",
+            "target": "example",
+            "diagnostic": "cem.schema_package.example_check",
+            "checkKind": "example-content-type-schema",
+            "exampleId": example_id,
+            "schema": schema_uri,
+            "invalidFields": ["content-type"],
+            "expectedValues": {
+                "content-type": allowed_content_types,
+            },
+            "invalidValues": {
+                "content-type": content_type,
+            },
+            "actualValues": element_attribute_values(doc, node),
+            "sourceRange": node_source_range_details(node),
+        }),
+    )
 }
 
 fn is_schema_package_manifest_document(ctx: &RuleContext<'_>) -> bool {
@@ -3067,7 +3105,6 @@ mod tests {
 
         for code in [
             "cem.schema_model.invalid_attribute_value",
-            "cem.schema_package.example_content_type_mismatch",
             "cem.schema_package.example_check",
         ] {
             assert!(
@@ -3077,6 +3114,7 @@ mod tests {
         }
 
         for removed_code in [
+            "cem.schema_package.example_content_type_mismatch",
             "cem.schema_package.example_result_unknown",
             "cem.schema_package.example_expected_diagnostics_missing",
         ] {
@@ -3128,6 +3166,31 @@ mod tests {
                 "attribute": "expected-result",
                 "values": ["fail"],
                 "presentAttributes": [],
+            })
+        );
+
+        let content_type_schema = diags
+            .iter()
+            .find(|d| {
+                d.code == "cem.schema_package.example_check"
+                    && d.details.as_ref().and_then(|details| {
+                        details.get("checkKind").and_then(serde_json::Value::as_str)
+                    }) == Some("example-content-type-schema")
+            })
+            .expect("schema-owned example content-type/schema compatibility diagnostic");
+        let details = content_type_schema
+            .details
+            .as_ref()
+            .expect("example content-type/schema details");
+        assert_eq!(details["contract"], serde_json::json!("example-contract"));
+        assert_eq!(
+            details["invalidFields"],
+            serde_json::json!(["content-type"])
+        );
+        assert_eq!(
+            details["invalidValues"],
+            serde_json::json!({
+                "content-type": "text/html",
             })
         );
     }

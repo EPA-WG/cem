@@ -127,17 +127,19 @@ history belongs in git history and the feature-specific docs linked below.
         schema-owned `field-contract` declarations and emit
         `cem.schema_package.example_check`; content type/schema compatibility
         is declared as a schema-owned cross-reference rule and still executes
-        in Rust; package example descriptor extraction no longer owns required
-        metadata or `expected-result` value diagnostics.
+        in Rust, now emitting `example_check` with structured `checkKind`
+        details; package example descriptor extraction no longer owns required
+        metadata or `expected-result` value diagnostics, and the stale
+        `example_content_type_mismatch` diagnostic has been retired.
   - [ ] Continue replacing one-code-per-field diagnostics with contract-family
         diagnostics declared in schema source. Artifact missing-metadata checks
         now emit `cem.schema_package.artifact_check`; converter and example
         field diagnostics now emit schema-declared `converter_check` and
-        `example_check` families where the only distinction is field contract
-        detail; artifact CEMT output function metadata mismatches now also
-        use `cem.schema_package.artifact_check` with contract details instead
-        of a narrow mismatch code, and artifact CEMT source read, parse, and
-        function lookup failures now use the same generic family with
+        `example_check` families where the distinction is field/cross-reference
+        contract detail; artifact CEMT output function metadata mismatches now
+        also use `cem.schema_package.artifact_check` with contract details
+        instead of a narrow mismatch code, and artifact CEMT source read, parse,
+        and function lookup failures now use the same generic family with
         operational `checkKind` details; CEMT native fallback reason
         requirements now stay in schema-owned `converter_check` contracts
         instead of conversion descriptor extraction; Rust converter

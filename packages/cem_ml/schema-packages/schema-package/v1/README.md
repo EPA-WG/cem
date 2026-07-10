@@ -81,7 +81,7 @@ CLI validation integration tests.
 | [`invalid-artifact-contract.cem`](examples/invalid-artifact-contract.cem) | Formatter artifact metadata disagrees with the referenced CEMT function declaration. | Fail with `cem.schema_package.artifact_check` |
 | [`invalid-artifact-layout.cem`](examples/invalid-artifact-layout.cem) | Formatter and colorizer artifacts point outside their schema-package stage directories. | Fail with `cem.schema_package.artifact_check` |
 | [`invalid-schema-metadata.cem`](examples/invalid-schema-metadata.cem) | Manifest schema metadata disagrees with the referenced schema source. | Fail with `cem.schema_package.schema_uri_mismatch`, `cem.schema_package.schema_content_type_mismatch`, `cem.schema_package.schema_namespace_mismatch` |
-| [`invalid-example-contract.cem`](examples/invalid-example-contract.cem) | Example metadata has an invalid expected result, incompatible schema/content type, and a failing example without expected diagnostics. | Fail with `cem.schema_model.invalid_attribute_value`, `cem.schema_package.example_check`, `cem.schema_package.example_content_type_mismatch` |
+| [`invalid-example-contract.cem`](examples/invalid-example-contract.cem) | Example metadata has an invalid expected result, incompatible schema/content type, and a failing example without expected diagnostics. | Fail with `cem.schema_model.invalid_attribute_value`, `cem.schema_package.example_check` |
 
 Validate an example explicitly against this schema:
 
