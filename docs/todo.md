@@ -71,6 +71,9 @@ history belongs in git history and the feature-specific docs linked below.
         `packages/cem_ml/schema-packages/schema-package/v1/schema/schema-package.cem`.
         Cover `package`, `schema`, `content-type`, `namespace`, `converter`,
         `from`, `to`, `parity-fixture`, `artifact`, and `example`.
+        `content-type` child `value`, `namespace` child `uri`, and
+        content-type `primary` boolean validation now stay in schema-owned
+        validation instead of registry descriptor extraction.
   - [ ] Model converter cases in `schema-package.cem`: `implementation=cemt`
         and `implementation=rust` required attribute contracts plus CEMT
         native fallback `fallback-reason` now live in schema-owned
@@ -150,7 +153,9 @@ history belongs in git history and the feature-specific docs linked below.
         missing/invalid manifest fields must be diagnosed by schema-owned
         contracts, not by descriptor parsing. `collect_package_examples` now
         treats invalid example field data as schema-owned and only materializes
-        complete loadable example descriptors.
+        complete loadable example descriptors; content-type and namespace
+        child extraction now skips incomplete schema-invalid rows instead of
+        owning field diagnostics.
   - [ ] Update runtime diagnostic declaration tests and CLI example coverage to
         assert generic contract-family codes plus structured details instead of
         schema-package-specific missing-field codes. Add an `rg`-based audit in

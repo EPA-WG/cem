@@ -469,19 +469,20 @@ fn collect_package_content_types(
     document: &CemDocument,
     package_id: AstNodeId,
 ) -> Result<Vec<SchemaContentType>, SchemaPackageDescriptorError> {
-    element_child_ids_by_local_name(document, package_id, "content-type")
-        .into_iter()
-        .map(|node_id| {
-            let attrs = collect_attrs(document, node_id);
-            let value = required_attr(&attrs, "content-type", "value")?;
-            let role = if manifest_bool_attr(&attrs, "primary") {
-                SchemaContentTypeRole::Primary
-            } else {
-                SchemaContentTypeRole::Alias
-            };
-            Ok(SchemaContentType::new(value, role))
-        })
-        .collect()
+    let mut content_types = Vec::new();
+    for node_id in element_child_ids_by_local_name(document, package_id, "content-type") {
+        let attrs = collect_attrs(document, node_id);
+        let Some(value) = optional_attr(&attrs, "value") else {
+            continue;
+        };
+        let role = if manifest_bool_attr(&attrs, "primary") {
+            SchemaContentTypeRole::Primary
+        } else {
+            SchemaContentTypeRole::Alias
+        };
+        content_types.push(SchemaContentType::new(value, role));
+    }
+    Ok(content_types)
 }
 
 fn collect_package_examples(
@@ -545,17 +546,18 @@ fn collect_package_namespaces(
     document: &CemDocument,
     package_id: AstNodeId,
 ) -> Result<Vec<NamespaceClaim>, SchemaPackageDescriptorError> {
-    element_child_ids_by_local_name(document, package_id, "namespace")
-        .into_iter()
-        .map(|node_id| {
-            let attrs = collect_attrs(document, node_id);
-            let uri = required_attr(&attrs, "namespace", "uri")?;
-            Ok(NamespaceClaim {
-                prefix: optional_attr(&attrs, "prefix").map(str::to_owned),
-                uri: uri.to_owned(),
-            })
-        })
-        .collect()
+    let mut namespaces = Vec::new();
+    for node_id in element_child_ids_by_local_name(document, package_id, "namespace") {
+        let attrs = collect_attrs(document, node_id);
+        let Some(uri) = optional_attr(&attrs, "uri") else {
+            continue;
+        };
+        namespaces.push(NamespaceClaim {
+            prefix: optional_attr(&attrs, "prefix").map(str::to_owned),
+            uri: uri.to_owned(),
+        });
+    }
+    Ok(namespaces)
 }
 
 fn collect_schema_uses(document: &CemDocument) -> Vec<String> {
@@ -872,6 +874,40 @@ mod tests {
                 CEM_ML_SCHEMA_URI.to_owned(),
                 XML_SCHEMA_URI.to_owned(),
             ]
+        );
+    }
+
+    #[test]
+    fn schema_descriptor_extraction_does_not_own_child_field_validation() {
+        let source = BuiltinSchemaPackageSource {
+            package_id: "demo",
+            manifest_source: r#"{package @id=demo @version="1.0.0" |
+                {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+                {content-type}
+                {content-type @value="Application/Vnd.Example.Demo+CEM; charset=utf-8" @primary="maybe"}
+                {namespace @prefix="demo"}
+                {namespace @prefix="demo" @uri="https://example.test/ns/demo/1"}
+            }"#,
+            schema_source: r#"{schema @name=demo @namespace="https://example.test/ns/demo/1" @version="1.0.0"}"#,
+        };
+
+        let descriptor = schema_descriptor_from_package_sources(&source).expect(
+            "schema-owned validation reports invalid content-type and namespace fields before extraction",
+        );
+
+        assert_eq!(descriptor.content_types.len(), 1);
+        assert_eq!(
+            descriptor.content_types[0].essence,
+            "application/vnd.example.demo+cem"
+        );
+        assert_eq!(
+            descriptor.content_types[0].role,
+            SchemaContentTypeRole::Alias
+        );
+        assert_eq!(descriptor.namespaces.len(), 1);
+        assert_eq!(
+            descriptor.namespaces[0],
+            NamespaceClaim::new(Some("demo"), "https://example.test/ns/demo/1")
         );
     }
 
