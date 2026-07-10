@@ -9,10 +9,10 @@
 //! - direct child element allow-lists.
 //! - built-in base element references through schema `{uses}` aliases.
 //! - schema-owned field contracts for element-bound conditional checks.
-//! - schema-owned attribute `@values` and boolean type checks.
+//! - schema-owned attribute `@values`, boolean type, and integer type checks.
 //!
-//! Cardinality, ordering, non-boolean scalar type checks, and semantic
-//! constraints remain follow-up work.
+//! Cardinality, ordering, scalar type checks beyond boolean/integer syntax,
+//! and semantic constraints remain follow-up work.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -84,6 +84,16 @@ pub struct AttributeModel {
     pub name: String,
     pub value_type: Option<String>,
     pub allowed_values: BTreeSet<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct AttributeTypeViolation {
+    name: &'static str,
+    check_kind: &'static str,
+    expected_values: &'static [&'static str],
+    expected_pattern: &'static str,
+    allows_empty: bool,
+    message: &'static str,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -341,19 +351,37 @@ fn validate_attribute_type(
     let Some(value_type) = attribute_model.value_type.as_deref() else {
         return;
     };
-    if !is_boolean_type_reference(value_type) {
-        return;
-    }
-
     let value = value.trim();
-    if matches!(value, "" | "true" | "false") {
+    let violation = if is_boolean_type_reference(value_type) {
+        (!matches!(value, "" | "true" | "false")).then_some(AttributeTypeViolation {
+            name: "boolean",
+            check_kind: "type:boolean",
+            expected_values: &["false", "true"],
+            expected_pattern: "empty | true | false",
+            allows_empty: true,
+            message: "outside schema-declared boolean values",
+        })
+    } else if is_integer_type_reference(value_type) {
+        (!is_signed_decimal_integer(value)).then_some(AttributeTypeViolation {
+            name: "integer",
+            check_kind: "type:integer",
+            expected_values: &[],
+            expected_pattern: "signed decimal integer",
+            allows_empty: false,
+            message: "not a schema-declared integer",
+        })
+    } else {
+        None
+    };
+    let Some(violation) = violation else {
         return;
-    }
+    };
 
     diagnostics.push(diag_at_with_details(
         INVALID_ATTRIBUTE_TYPE_CODE,
         format!(
-            "attribute `{attribute_name}` on element `{element_name}` has value `{value}` outside schema-declared boolean values"
+            "attribute `{attribute_name}` on element `{element_name}` has value `{value}` {}",
+            violation.message
         ),
         node,
         attribute_type_details(
@@ -362,6 +390,7 @@ fn validate_attribute_type(
             attribute_name,
             value,
             attribute_model,
+            violation,
             attribute_values,
             node,
         ),
@@ -369,11 +398,25 @@ fn validate_attribute_type(
 }
 
 fn is_boolean_type_reference(value_type: &str) -> bool {
+    type_reference_local_name(value_type) == "boolean"
+}
+
+fn is_integer_type_reference(value_type: &str) -> bool {
+    type_reference_local_name(value_type) == "integer"
+}
+
+fn type_reference_local_name(value_type: &str) -> &str {
     let value_type = value_type.trim();
-    value_type == "boolean"
-        || value_type
-            .rsplit_once(':')
-            .is_some_and(|(_, local)| local == "boolean")
+    value_type
+        .rsplit_once(':')
+        .map(|(_, local)| local)
+        .unwrap_or(value_type)
+}
+
+fn is_signed_decimal_integer(value: &str) -> bool {
+    let value = value.trim();
+    let digits = value.strip_prefix(['+', '-']).unwrap_or(value);
+    !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 fn validate_attribute_value(
@@ -708,6 +751,7 @@ fn attribute_type_details(
     attribute_name: &str,
     actual_value: &str,
     attribute_model: &AttributeModel,
+    violation: AttributeTypeViolation,
     attribute_values: &BTreeMap<String, String>,
     node: &CemAstNode,
 ) -> serde_json::Value {
@@ -717,11 +761,13 @@ fn attribute_type_details(
         "element": element_name,
         "attribute": attribute_name,
         "contract": format!("attribute-type:{attribute_name}"),
-        "checkKind": "type:boolean",
+        "type": violation.name,
+        "checkKind": violation.check_kind,
         "valueType": expected_type,
         "expectedType": expected_type,
-        "expectedValues": ["false", "true"],
-        "allowsEmpty": true,
+        "expectedValues": violation.expected_values,
+        "expectedPattern": violation.expected_pattern,
+        "allowsEmpty": violation.allows_empty,
         "actualValue": actual_value,
         "requiredFields": [],
         "optionalFields": [],
@@ -1068,6 +1114,15 @@ mod tests {
                 .allowed_values,
             BTreeSet::from(["cemt".to_owned(), "rust".to_owned()])
         );
+        assert_eq!(
+            model
+                .attributes
+                .get("cost")
+                .expect("cost attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:integer")
+        );
     }
 
     #[test]
@@ -1261,6 +1316,82 @@ mod tests {
             details["actualValues"]["enabled"],
             serde_json::json!("maybe")
         );
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
+    fn schema_integer_attribute_type_drives_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/integer-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="integer-contracts" @namespace="https://example.test/ns/integer-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="count"}
+    }
+    {attributes |
+        {attribute @name="count" @type="schema:integer"}
+    }
+}"#,
+        );
+        for source in [
+            r#"{item @count=0}"#,
+            r#"{item @count=-12}"#,
+            r#"{item @count=+12}"#,
+            r#"{item @count=120000000000000000000000000000}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_TYPE_CODE),
+                "valid integer source produced type diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        for source in [r#"{item @count}"#, r#"{item @count=1.5}"#] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_TYPE_CODE),
+                "invalid integer source did not produce type diagnostic: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{item @count=1.5}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_TYPE_CODE)
+            .expect("attribute type diagnostic");
+        assert!(diagnostic.message.contains("count"));
+        assert!(diagnostic.message.contains("1.5"));
+        let details = diagnostic.details.as_ref().expect("attribute type details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/integer-contracts/1")
+        );
+        assert_eq!(details["element"], serde_json::json!("item"));
+        assert_eq!(details["attribute"], serde_json::json!("count"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-type:count")
+        );
+        assert_eq!(details["checkKind"], serde_json::json!("type:integer"));
+        assert_eq!(details["expectedType"], serde_json::json!("schema:integer"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("signed decimal integer")
+        );
+        assert_eq!(details["allowsEmpty"], serde_json::json!(false));
+        assert_eq!(details["actualValue"], serde_json::json!("1.5"));
+        assert_eq!(details["invalidFields"], serde_json::json!(["count"]));
+        assert_eq!(details["actualValues"]["count"], serde_json::json!("1.5"));
         assert!(details["sourceRange"]["span"]["start"].is_u64());
     }
 
