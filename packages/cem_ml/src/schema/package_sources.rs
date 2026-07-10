@@ -259,6 +259,287 @@ static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::events::cem::CemEventNormalizer;
+    use crate::parser::builder::CemAstBuilder;
+    use crate::parser::document::CemDocument;
+    use crate::parser::{AstNodeId, CemAstNode};
+    use crate::source::{BytesSource, SourceId};
+    use crate::tokenizer::cem::CemTokenizer;
+    use std::collections::{BTreeMap, BTreeSet};
+    use std::path::{Path, PathBuf};
+
+    fn package_root(package_id: &str) -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("schema-packages")
+            .join(package_id)
+            .join("v1")
+    }
+
+    fn package_manifest_path(package_id: &str) -> PathBuf {
+        package_root(package_id).join("package.cem")
+    }
+
+    fn package_relative_path(package_id: &str, path: &str) -> String {
+        let path = path.trim();
+        if path.starts_with("schema-packages/") {
+            path.to_owned()
+        } else {
+            format!(
+                "schema-packages/{package_id}/v1/{}",
+                path.trim_start_matches("./")
+            )
+        }
+    }
+
+    fn package_root_relative_path(package_id: &str, path: &str) -> PathBuf {
+        let path = path.trim();
+        if let Some(relative) = path.strip_prefix(&format!("schema-packages/{package_id}/v1/")) {
+            package_root(package_id).join(relative)
+        } else {
+            package_root(package_id).join(path.trim_start_matches("./"))
+        }
+    }
+
+    fn parse_cem_document(input: &str) -> CemDocument {
+        let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
+        let tok = CemTokenizer::from_source(src);
+        let normalizer = CemEventNormalizer::new(tok);
+        CemAstBuilder::new(normalizer).build()
+    }
+
+    fn collect_attrs(document: &CemDocument, node_id: AstNodeId) -> BTreeMap<String, String> {
+        let mut attrs = BTreeMap::new();
+        let Some(CemAstNode::Element { attributes, .. }) = document.get(node_id) else {
+            return attrs;
+        };
+        for attr_id in attributes {
+            let Some(CemAstNode::Attribute {
+                expanded_name,
+                value,
+                ..
+            }) = document.get(*attr_id)
+            else {
+                continue;
+            };
+            attrs.insert(
+                expanded_name.local_name.clone(),
+                value.clone().unwrap_or_default(),
+            );
+        }
+        attrs
+    }
+
+    fn element_ids_by_local_name(document: &CemDocument, local_name: &str) -> Vec<AstNodeId> {
+        document
+            .iter()
+            .filter_map(|node| {
+                let CemAstNode::Element {
+                    node_id,
+                    expanded_name,
+                    ..
+                } = node
+                else {
+                    return None;
+                };
+                (expanded_name.local_name == local_name).then_some(*node_id)
+            })
+            .collect()
+    }
+
+    fn first_element_attrs(
+        document: &CemDocument,
+        local_name: &str,
+    ) -> Option<BTreeMap<String, String>> {
+        element_ids_by_local_name(document, local_name)
+            .into_iter()
+            .next()
+            .map(|node_id| collect_attrs(document, node_id))
+    }
+
+    fn package_manifest_artifact_paths(
+        package_id: &str,
+        manifest_source: &str,
+    ) -> BTreeSet<String> {
+        let document = parse_cem_document(manifest_source);
+        element_ids_by_local_name(&document, "artifact")
+            .into_iter()
+            .filter_map(|node_id| {
+                let attrs = collect_attrs(&document, node_id);
+                attrs
+                    .get("path")
+                    .map(|path| package_relative_path(package_id, path))
+            })
+            .collect()
+    }
+
+    fn directory_cemt_paths(package_id: &str, directory: &str) -> BTreeSet<String> {
+        let root = package_root(package_id).join(directory);
+        let Ok(entries) = std::fs::read_dir(root) else {
+            return BTreeSet::new();
+        };
+        entries
+            .filter_map(Result::ok)
+            .map(|entry| entry.path())
+            .filter(|path| path.extension().and_then(|ext| ext.to_str()) == Some("cemt"))
+            .filter_map(|path| {
+                let file_name = path.file_name()?.to_str()?;
+                Some(format!(
+                    "schema-packages/{package_id}/v1/{directory}/{file_name}"
+                ))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn builtin_schema_package_catalog_matches_core_folder_frame() {
+        for source in builtin_schema_package_sources() {
+            let root = package_root(source.package_id);
+            let manifest_path = package_manifest_path(source.package_id);
+            assert!(
+                root.is_dir(),
+                "{} package root must exist at {}",
+                source.package_id,
+                root.display()
+            );
+            assert!(
+                manifest_path.is_file(),
+                "{} package.cem must exist at {}",
+                source.package_id,
+                manifest_path.display()
+            );
+            assert!(
+                root.join("schema").is_dir(),
+                "{} package must include schema/",
+                source.package_id
+            );
+            assert!(
+                root.join("examples").is_dir(),
+                "{} package must include examples/",
+                source.package_id
+            );
+            assert!(
+                std::fs::read_to_string(&manifest_path).expect("read package.cem")
+                    == source.manifest_source,
+                "{} embedded package.cem must match the folder source",
+                source.package_id
+            );
+
+            let document = parse_cem_document(source.manifest_source);
+            let package_attrs = first_element_attrs(&document, "package").expect("package element");
+            assert_eq!(
+                package_attrs.get("id").map(String::as_str),
+                Some(source.package_id),
+                "{} package.cem id must match the embedded catalog id",
+                source.package_id
+            );
+
+            let schema_attrs = first_element_attrs(&document, "schema").expect("schema element");
+            let schema_source = schema_attrs
+                .get("source")
+                .expect("schema source attribute in package.cem");
+            let schema_path = package_relative_path(source.package_id, schema_source);
+            assert_eq!(
+                source.schema_path, schema_path,
+                "{} embedded schema path must match package.cem schema source",
+                source.package_id
+            );
+            assert!(
+                source.schema_path.ends_with(".cem"),
+                "{} schema source must be authored in .cem format",
+                source.package_id
+            );
+            let schema_file = package_root_relative_path(source.package_id, source.schema_path);
+            assert!(
+                schema_file.is_file(),
+                "{} schema source must exist at {}",
+                source.package_id,
+                schema_file.display()
+            );
+            assert!(
+                std::fs::read_to_string(&schema_file).expect("read schema source")
+                    == source.schema_source,
+                "{} embedded schema source must match the folder source",
+                source.package_id
+            );
+
+            let examples = std::fs::read_dir(root.join("examples"))
+                .expect("read examples directory")
+                .filter_map(Result::ok)
+                .filter(|entry| entry.path().is_file())
+                .count();
+            assert!(
+                examples > 0,
+                "{} package examples/ must contain at least one fixture",
+                source.package_id
+            );
+        }
+    }
+
+    #[test]
+    fn declared_builtin_cemt_artifacts_match_embedded_folder_sources() {
+        let embedded_artifact_paths = builtin_schema_package_artifact_sources()
+            .iter()
+            .map(|source| (source.package_id, source.path))
+            .collect::<BTreeSet<_>>();
+
+        for package in builtin_schema_package_sources() {
+            let declared =
+                package_manifest_artifact_paths(package.package_id, package.manifest_source);
+            for path in &declared {
+                let source_path = package_root_relative_path(package.package_id, path);
+                assert!(
+                    source_path.is_file(),
+                    "{} declared artifact `{}` must exist at {}",
+                    package.package_id,
+                    path,
+                    source_path.display()
+                );
+                assert!(
+                    path.ends_with(".cemt"),
+                    "{} declared CEMT artifact `{}` must use .cemt",
+                    package.package_id,
+                    path
+                );
+                assert!(
+                    embedded_artifact_paths.contains(&(package.package_id, path.as_str())),
+                    "{} declared artifact `{}` must be embedded in package_sources.rs",
+                    package.package_id,
+                    path
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn cem_ml_output_asset_folder_frame_is_manifest_indexed() {
+        let package_id = "cem-ml";
+        assert!(package_root(package_id).join("formatters").is_dir());
+        assert!(package_root(package_id).join("colorizers").is_dir());
+
+        let manifest = builtin_schema_package_source(package_id).expect("cem-ml package");
+        let declared_artifacts =
+            package_manifest_artifact_paths(package_id, manifest.manifest_source);
+        let formatter_files = directory_cemt_paths(package_id, "formatters");
+        let colorizer_files = directory_cemt_paths(package_id, "colorizers");
+        assert!(
+            !formatter_files.is_empty(),
+            "cem-ml must include formatter CEMT assets"
+        );
+        assert!(
+            !colorizer_files.is_empty(),
+            "cem-ml must include colorizer CEMT assets"
+        );
+        for path in formatter_files.union(&colorizer_files) {
+            assert!(
+                declared_artifacts.contains(path),
+                "cem-ml CEMT asset `{path}` must be discoverable from package.cem"
+            );
+            assert!(
+                builtin_schema_package_artifact_source(package_id, path).is_some(),
+                "cem-ml CEMT asset `{path}` must be embedded in the artifact source catalog"
+            );
+        }
+    }
 
     #[test]
     fn catalog_exposes_cem_ml_output_artifact_sources() {

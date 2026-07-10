@@ -233,6 +233,13 @@ history belongs in git history and the feature-specific docs linked below.
   - [ ] Add package-folder validation that checks `package.cem`, `schema/`,
         `examples/`, `formatters/`, and `colorizers/` completeness for every
         built-in package before per-package implementation can be marked done.
+        Build-time catalog checks now require every embedded built-in package
+        to have matching `package.cem`, `.cem` schema source, and at least one
+        example fixture; declared CEMT artifacts must exist on disk and be
+        embedded in the artifact source catalog; `cem-ml/v1` formatter and
+        colorizer asset folders are checked against `package.cem`. Remaining
+        work is to enforce baseline formatter/colorizer profile completeness
+        across each package as those profiles are added.
   - [ ] Require example loading to resolve the declared content type plus schema
         URL and validate the source bytes against that schema; filename
         extension inference is only a fallback hint.
