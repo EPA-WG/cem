@@ -96,7 +96,8 @@ history belongs in git history and the feature-specific docs linked below.
         schema-declared `artifact-output-stage-contract` details while keeping
         Rust only as the execution placement; runtime conversion artifact
         extraction no longer owns formatter/colorizer profile required-field
-        checks. Remaining artifact work is to audit runtime conversion
+        checks or the `generated` boolean datatype check. Remaining artifact
+        work is to audit runtime conversion
         selection checks for package-specific field assumptions and move any
         declarative parts into schema-owned contracts.
   - [ ] Model example cases in `schema-package.cem`: required example
@@ -123,7 +124,10 @@ history belongs in git history and the feature-specific docs linked below.
         `template-content-type`, and `template-schema` identity requirements
         now stay in the schema-owned `converter-cemt-template-identity`
         contract, with runtime execution retaining only the operational missing
-        template guard.
+        template guard; converter scalar datatype/value checks for readiness,
+        streamability, implicit/explicit flags, cost, output syntax, and parity
+        now stay in generic schema-model validation instead of descriptor
+        extraction.
   - [ ] Keep Rust validators only for operational execution that cannot be
         represented as field data: resource read failures, parser failures,
         CEMT compilation, CEMT function lookup, host-hook availability, and

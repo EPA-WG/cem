@@ -354,27 +354,6 @@ pub enum ConversionManifestError {
         converter_id: String,
         implementation: String,
     },
-    UnknownReadiness {
-        converter_id: String,
-        readiness: String,
-    },
-    UnknownOutputSyntax {
-        converter_id: String,
-        output_syntax: String,
-    },
-    UnknownParityMode {
-        converter_id: String,
-        parity: String,
-    },
-    InvalidBoolean {
-        converter_id: String,
-        attribute: &'static str,
-        value: String,
-    },
-    InvalidCost {
-        converter_id: String,
-        value: String,
-    },
     ArtifactContract {
         package_id: String,
         path: String,
@@ -420,42 +399,6 @@ impl std::fmt::Display for ConversionManifestError {
             } => write!(
                 f,
                 "converter `{converter_id}` has unknown implementation `{implementation}`"
-            ),
-            Self::UnknownReadiness {
-                converter_id,
-                readiness,
-            } => write!(
-                f,
-                "converter `{converter_id}` has unknown readiness `{readiness}`"
-            ),
-            Self::UnknownOutputSyntax {
-                converter_id,
-                output_syntax,
-            } => write!(
-                f,
-                "converter `{converter_id}` has unknown output syntax `{output_syntax}`"
-            ),
-            Self::UnknownParityMode {
-                converter_id,
-                parity,
-            } => write!(
-                f,
-                "converter `{converter_id}` has unknown parity mode `{parity}`"
-            ),
-            Self::InvalidBoolean {
-                converter_id,
-                attribute,
-                value,
-            } => write!(
-                f,
-                "converter `{converter_id}` has invalid boolean `{attribute}` value `{value}`"
-            ),
-            Self::InvalidCost {
-                converter_id,
-                value,
-            } => write!(
-                f,
-                "converter `{converter_id}` has invalid cost value `{value}`"
             ),
             Self::ArtifactContract {
                 package_id,
@@ -6788,7 +6731,7 @@ fn conversion_package_artifact_from_manifest_node(
         optional_manifest_attr(&attrs, "target-content-type").map(content_type_essence);
     let target_schema = optional_manifest_attr(&attrs, "target-schema").map(str::to_owned);
     let target_category = optional_manifest_attr(&attrs, "target-category").map(str::to_owned);
-    let generated = parse_manifest_bool("artifact", &attrs, "generated")?.unwrap_or(false);
+    let generated = parse_manifest_bool(&attrs, "generated").unwrap_or(false);
     let artifact = ConversionPackageArtifactDescriptor {
         package_id: package_id.to_owned(),
         kind,
@@ -7354,25 +7297,20 @@ fn conversion_descriptor_from_manifest_node(
     )?;
     let from = manifest_endpoint(document, node_id, &id, "from")?;
     let to = manifest_endpoint(document, node_id, &id, "to")?;
-    let readiness = attrs
-        .get("readiness")
-        .map(|value| parse_manifest_readiness(&id, value))
-        .transpose()?
+    let readiness = optional_manifest_attr(&attrs, "readiness")
+        .and_then(parse_manifest_readiness)
         .unwrap_or(ConversionReadiness::Ready);
-    let streamable = parse_manifest_bool(&id, &attrs, "streamable")?.unwrap_or(false);
-    let explicit_only = parse_manifest_bool(&id, &attrs, "explicit-only")?.unwrap_or(false);
-    let implicit = parse_manifest_bool(&id, &attrs, "implicit")?.unwrap_or(!explicit_only);
-    let cost = parse_manifest_cost(&id, &attrs)?.unwrap_or(100);
+    let streamable = parse_manifest_bool(&attrs, "streamable").unwrap_or(false);
+    let explicit_only = parse_manifest_bool(&attrs, "explicit-only").unwrap_or(false);
+    let implicit = parse_manifest_bool(&attrs, "implicit").unwrap_or(!explicit_only);
+    let cost = parse_manifest_cost(&attrs).unwrap_or(100);
     let output_contract = ConversionOutputContractDescriptor {
         output_syntax: optional_manifest_attr(&attrs, "output-syntax")
-            .map(|value| parse_manifest_output_syntax(&id, value))
-            .transpose()?,
+            .and_then(parse_manifest_output_syntax),
         encoding_category: optional_manifest_attr(&attrs, "encoding-category").map(str::to_owned),
         formatter_profile: optional_manifest_attr(&attrs, "formatter-profile").map(str::to_owned),
         color_profile: optional_manifest_attr(&attrs, "color-profile").map(str::to_owned),
-        parity: optional_manifest_attr(&attrs, "parity")
-            .map(|value| parse_manifest_parity_mode(&id, value))
-            .transpose()?,
+        parity: optional_manifest_attr(&attrs, "parity").and_then(parse_manifest_parity_mode),
     };
     let parity_fixtures = manifest_parity_fixtures(document, node_id, &id, base_path)?;
 
@@ -7544,92 +7482,57 @@ fn parse_manifest_implementation(
     }
 }
 
-fn parse_manifest_readiness(
-    converter_id: &str,
-    value: &str,
-) -> Result<ConversionReadiness, ConversionManifestError> {
+fn parse_manifest_readiness(value: &str) -> Option<ConversionReadiness> {
     match value.trim() {
-        "ready" => Ok(ConversionReadiness::Ready),
-        "planned" => Ok(ConversionReadiness::Planned),
-        readiness => Err(ConversionManifestError::UnknownReadiness {
-            converter_id: converter_id.to_owned(),
-            readiness: readiness.to_owned(),
-        }),
+        "ready" => Some(ConversionReadiness::Ready),
+        "planned" => Some(ConversionReadiness::Planned),
+        _ => None,
     }
 }
 
-fn parse_manifest_output_syntax(
-    converter_id: &str,
-    value: &str,
-) -> Result<ConversionOutputSyntax, ConversionManifestError> {
+fn parse_manifest_output_syntax(value: &str) -> Option<ConversionOutputSyntax> {
     match value.trim() {
-        "html" => Ok(ConversionOutputSyntax::Html),
-        "xml" => Ok(ConversionOutputSyntax::Xml),
-        "json" => Ok(ConversionOutputSyntax::Json),
-        "yaml" => Ok(ConversionOutputSyntax::Yaml),
-        "csv" => Ok(ConversionOutputSyntax::Csv),
-        "css" => Ok(ConversionOutputSyntax::Css),
-        "markdown" => Ok(ConversionOutputSyntax::Markdown),
-        "cemt" => Ok(ConversionOutputSyntax::Cemt),
-        "text" => Ok(ConversionOutputSyntax::Text),
-        "binary" => Ok(ConversionOutputSyntax::Binary),
-        "opaque" => Ok(ConversionOutputSyntax::Opaque),
-        output_syntax => Err(ConversionManifestError::UnknownOutputSyntax {
-            converter_id: converter_id.to_owned(),
-            output_syntax: output_syntax.to_owned(),
-        }),
+        "html" => Some(ConversionOutputSyntax::Html),
+        "xml" => Some(ConversionOutputSyntax::Xml),
+        "json" => Some(ConversionOutputSyntax::Json),
+        "yaml" => Some(ConversionOutputSyntax::Yaml),
+        "csv" => Some(ConversionOutputSyntax::Csv),
+        "css" => Some(ConversionOutputSyntax::Css),
+        "markdown" => Some(ConversionOutputSyntax::Markdown),
+        "cemt" => Some(ConversionOutputSyntax::Cemt),
+        "text" => Some(ConversionOutputSyntax::Text),
+        "binary" => Some(ConversionOutputSyntax::Binary),
+        "opaque" => Some(ConversionOutputSyntax::Opaque),
+        _ => None,
     }
 }
 
-fn parse_manifest_parity_mode(
-    converter_id: &str,
-    value: &str,
-) -> Result<ConversionParityMode, ConversionManifestError> {
+fn parse_manifest_parity_mode(value: &str) -> Option<ConversionParityMode> {
     match value.trim() {
-        "byte-exact" => Ok(ConversionParityMode::ByteExact),
-        "token-equivalent" => Ok(ConversionParityMode::TokenEquivalent),
-        "parse-equivalent" => Ok(ConversionParityMode::ParseEquivalent),
-        "diagnostic-equivalent" => Ok(ConversionParityMode::DiagnosticEquivalent),
-        parity => Err(ConversionManifestError::UnknownParityMode {
-            converter_id: converter_id.to_owned(),
-            parity: parity.to_owned(),
-        }),
+        "byte-exact" => Some(ConversionParityMode::ByteExact),
+        "token-equivalent" => Some(ConversionParityMode::TokenEquivalent),
+        "parse-equivalent" => Some(ConversionParityMode::ParseEquivalent),
+        "diagnostic-equivalent" => Some(ConversionParityMode::DiagnosticEquivalent),
+        _ => None,
     }
 }
 
-fn parse_manifest_bool(
-    converter_id: &str,
-    attrs: &BTreeMap<String, String>,
-    attribute: &'static str,
-) -> Result<Option<bool>, ConversionManifestError> {
+fn parse_manifest_bool(attrs: &BTreeMap<String, String>, attribute: &'static str) -> Option<bool> {
     let Some(value) = attrs.get(attribute).map(String::as_str).map(str::trim) else {
-        return Ok(None);
+        return None;
     };
     match value {
-        "" | "true" => Ok(Some(true)),
-        "false" => Ok(Some(false)),
-        _ => Err(ConversionManifestError::InvalidBoolean {
-            converter_id: converter_id.to_owned(),
-            attribute,
-            value: value.to_owned(),
-        }),
+        "" | "true" => Some(true),
+        "false" => Some(false),
+        _ => None,
     }
 }
 
-fn parse_manifest_cost(
-    converter_id: &str,
-    attrs: &BTreeMap<String, String>,
-) -> Result<Option<u32>, ConversionManifestError> {
+fn parse_manifest_cost(attrs: &BTreeMap<String, String>) -> Option<u32> {
     let Some(value) = optional_manifest_attr(attrs, "cost") else {
-        return Ok(None);
+        return None;
     };
-    value
-        .parse::<u32>()
-        .map(Some)
-        .map_err(|_| ConversionManifestError::InvalidCost {
-            converter_id: converter_id.to_owned(),
-            value: value.to_owned(),
-        })
+    value.parse::<u32>().ok().filter(|cost| *cost >= 1)
 }
 
 fn required_manifest_attr<'a>(
@@ -8367,6 +8270,71 @@ mod tests {
                 converter_id: "dom-to-html-cemt".to_owned()
             }
         );
+    }
+
+    #[test]
+    fn package_manifest_extraction_does_not_own_converter_scalar_field_validation() {
+        let package = package_source(
+            r#"@doc cem-ml 1
+{package @id="test-dom-projection" @version="1.0.0" |
+    {schema @uri="https://cem.dev/ns/projection/dom/1" @source="schema/cem-dom-projection.cem"}
+    {content-type @value="application/vnd.cem.dom+cem-bin" @primary=true}
+    {converter
+        @id="dom-to-html-rust"
+        @implementation="rust"
+        @rust-symbol="DomHtmlConverter"
+        @readiness="later"
+        @streamable="maybe"
+        @explicit-only="maybe"
+        @implicit="maybe"
+        @cost=0
+        @output-syntax="pdf"
+        @parity="mostly-equal" |
+        {from @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
+        {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+    }
+}"#,
+        );
+
+        let descriptors = conversion_descriptors_from_schema_package(&package).expect(
+            "schema-owned validation reports invalid converter scalar fields before extraction",
+        );
+        let descriptor = descriptors
+            .iter()
+            .find(|descriptor| descriptor.id == "dom-to-html-rust")
+            .expect("Rust descriptor");
+
+        assert_eq!(descriptor.readiness, ConversionReadiness::Ready);
+        assert!(!descriptor.streamable);
+        assert!(!descriptor.explicit_only);
+        assert!(descriptor.implicit);
+        assert_eq!(descriptor.cost, 100);
+        assert_eq!(descriptor.output_contract.output_syntax, None);
+        assert_eq!(descriptor.output_contract.parity, None);
+    }
+
+    #[test]
+    fn package_manifest_extraction_does_not_own_artifact_generated_boolean_validation() {
+        let package = package_source(
+            r#"@doc cem-ml 1
+{package @id="test-dom-projection" @version="1.0.0" |
+    {schema @uri="https://cem.dev/ns/projection/dom/1" @source="schema/cem-dom-projection.cem"}
+    {content-type @value="application/vnd.cem.dom+cem-bin" @primary=true}
+    {artifact
+        @kind="support"
+        @path="artifacts/generated.cemt"
+        @generated="maybe"}
+}"#,
+        );
+
+        let artifacts = conversion_package_artifacts_from_schema_package(&package)
+            .expect("schema-owned validation reports invalid generated boolean before extraction");
+        let artifact = artifacts
+            .iter()
+            .find(|artifact| artifact.path.ends_with("artifacts/generated.cemt"))
+            .expect("artifact descriptor");
+
+        assert!(!artifact.generated);
     }
 
     #[test]
