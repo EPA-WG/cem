@@ -60,7 +60,7 @@
         {attribute @name="with:*" @base="template:with:*"}
         {attribute @name="category" @type="schema:identifier"}
         {attribute @name="subject" @type="schema:identifier"}
-        {attribute @name="produces" @type="schema:identifier" @values="text bytes tokens chunks diagnostics"}
+        {attribute @name="produces" @type="schema:identifier" @values="text bytes tokens chunks diagnostics cem-tree"}
         {attribute @name="canonical" @type="schema:boolean"}
         {attribute @name="streamable" @type="schema:boolean"}
         {attribute @name="implementation" @type="schema:identifier" @values="cemt native external"}

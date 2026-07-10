@@ -34,12 +34,14 @@ use crate::tokenizer::cem::CemTokenizer;
 pub const UNKNOWN_ELEMENT_CODE: &str = "cem.schema_model.unknown_element";
 pub const UNKNOWN_ATTRIBUTE_CODE: &str = "cem.schema_model.unknown_attribute";
 pub const MISSING_REQUIRED_ATTRIBUTE_CODE: &str = "cem.schema_model.missing_required_attribute";
+pub const INVALID_ATTRIBUTE_VALUE_CODE: &str = "cem.schema_model.invalid_attribute_value";
 pub const INVALID_CHILD_ELEMENT_CODE: &str = "cem.schema_model.invalid_child_element";
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SchemaDocumentModel {
     pub schema_uri: String,
     pub elements: BTreeMap<String, ElementModel>,
+    pub attributes: BTreeMap<String, AttributeModel>,
 }
 
 impl SchemaDocumentModel {
@@ -73,6 +75,13 @@ impl ElementModel {
     fn allows_child(&self, local_name: &str) -> bool {
         self.allow_any_child || self.child_elements.contains(local_name)
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AttributeModel {
+    pub name: String,
+    pub value_type: Option<String>,
+    pub allowed_values: BTreeSet<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -218,6 +227,17 @@ fn validate_node(
                 ),
                 attr,
             ));
+        } else if let Some(attribute_model) = model.attributes.get(attr_local) {
+            validate_attribute_value(
+                &model.schema_uri,
+                local,
+                attr_local,
+                attr_value.unwrap_or_default(),
+                attribute_model,
+                &attribute_values,
+                attr,
+                diagnostics,
+            );
         }
     }
 
@@ -274,6 +294,45 @@ fn validate_node(
     }
 }
 
+fn validate_attribute_value(
+    schema_uri: &str,
+    element_name: &str,
+    attribute_name: &str,
+    value: &str,
+    attribute_model: &AttributeModel,
+    attribute_values: &BTreeMap<String, String>,
+    node: &CemAstNode,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let value = value.trim();
+    if attribute_model.allowed_values.is_empty() || attribute_model.allowed_values.contains(value) {
+        return;
+    }
+
+    diagnostics.push(diag_at_with_details(
+        INVALID_ATTRIBUTE_VALUE_CODE,
+        format!(
+            "attribute `{attribute_name}` on element `{element_name}` has value `{value}` outside schema-declared values: {}",
+            attribute_model
+                .allowed_values
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        node,
+        attribute_value_details(
+            schema_uri,
+            element_name,
+            attribute_name,
+            value,
+            attribute_model,
+            attribute_values,
+            node,
+        ),
+    ));
+}
+
 fn compile_document_model(schema_uri: &str, schema_source: &str) -> SchemaDocumentModel {
     compile_document_model_with_seen(schema_uri, schema_source, &mut BTreeSet::new())
 }
@@ -287,6 +346,7 @@ fn compile_document_model_with_seen(
         return SchemaDocumentModel {
             schema_uri: schema_uri.to_owned(),
             elements: BTreeMap::new(),
+            attributes: BTreeMap::new(),
         };
     }
 
@@ -294,6 +354,7 @@ fn compile_document_model_with_seen(
     let mut model = SchemaDocumentModel {
         schema_uri: schema_uri.to_owned(),
         elements: BTreeMap::new(),
+        attributes: BTreeMap::new(),
     };
 
     let Some(schema_id) = first_element_id_by_local_name(&document, "schema") else {
@@ -323,6 +384,8 @@ fn compile_document_model_with_seen(
                 .insert(element_model.name.clone(), element_model);
         }
     }
+
+    model.attributes = collect_attribute_models(&document, schema_id);
 
     for contract in collect_field_contracts(&document, schema_id) {
         if let Some(element_model) = model.elements.get_mut(&contract.target) {
@@ -365,6 +428,39 @@ fn compile_element_model(
     }
 
     Some(element_model)
+}
+
+fn collect_attribute_models(
+    document: &CemDocument,
+    schema_id: AstNodeId,
+) -> BTreeMap<String, AttributeModel> {
+    let mut attributes = BTreeMap::new();
+    for attributes_id in element_child_ids_by_local_name(document, schema_id, "attributes") {
+        let Some(CemAstNode::Element { children, .. }) = document.get(attributes_id) else {
+            continue;
+        };
+        for child_id in children {
+            if document.get(*child_id).and_then(element_local_name) != Some("attribute") {
+                continue;
+            }
+            let attrs = collect_attrs(document, *child_id);
+            let Some(name) = attrs.get("name").map(String::as_str).map(str::trim) else {
+                continue;
+            };
+            if name.is_empty() {
+                continue;
+            }
+            attributes.insert(
+                name.to_owned(),
+                AttributeModel {
+                    name: name.to_owned(),
+                    value_type: optional_non_empty_attr(&attrs, "type").map(str::to_owned),
+                    allowed_values: parse_value_set(attrs.get("values")),
+                },
+            );
+        }
+    }
+    attributes
 }
 
 fn collect_field_contracts(document: &CemDocument, schema_id: AstNodeId) -> Vec<FieldContract> {
@@ -496,6 +592,34 @@ fn field_contract_details(
     })
 }
 
+fn attribute_value_details(
+    schema_uri: &str,
+    element_name: &str,
+    attribute_name: &str,
+    actual_value: &str,
+    attribute_model: &AttributeModel,
+    attribute_values: &BTreeMap<String, String>,
+    node: &CemAstNode,
+) -> serde_json::Value {
+    serde_json::json!({
+        "schemaUri": schema_uri,
+        "element": element_name,
+        "attribute": attribute_name,
+        "contract": format!("attribute-values:{attribute_name}"),
+        "checkKind": "value-vocabulary",
+        "valueType": &attribute_model.value_type,
+        "expectedValues": &attribute_model.allowed_values,
+        "actualValue": actual_value,
+        "requiredFields": [],
+        "optionalFields": [],
+        "forbiddenFields": [],
+        "missingFields": [],
+        "invalidFields": [attribute_name],
+        "actualValues": attribute_values,
+        "sourceRange": node_source_range_details(node),
+    })
+}
+
 fn collect_schema_uses(document: &CemDocument, schema_id: AstNodeId) -> BTreeMap<String, String> {
     let mut uses = BTreeMap::new();
     for uses_id in element_child_ids_by_local_name(document, schema_id, "uses") {
@@ -606,6 +730,10 @@ fn parse_name_set(value: Option<&String>) -> BTreeSet<String> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn parse_value_set(value: Option<&String>) -> BTreeSet<String> {
+    parse_name_set(value)
 }
 
 fn parse_child_set(value: Option<&String>) -> (BTreeSet<String>, bool) {
@@ -819,6 +947,14 @@ mod tests {
             .any(|contract| contract.name == "artifact-stage-metadata"
                 && contract.diagnostic.as_deref() == Some("cem.schema_package.artifact_check")
                 && contract.required_attributes.contains("target-schema")));
+        assert_eq!(
+            model
+                .attributes
+                .get("implementation")
+                .expect("implementation attribute model")
+                .allowed_values,
+            BTreeSet::from(["cemt".to_owned(), "rust".to_owned()])
+        );
     }
 
     #[test]
@@ -890,6 +1026,61 @@ mod tests {
         assert!(!diagnostics
             .iter()
             .any(|diagnostic| diagnostic.message.contains("kind-b-fields")));
+    }
+
+    #[test]
+    fn schema_attribute_values_drive_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/value-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="value-contracts" @namespace="https://example.test/ns/value-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="mode"}
+    }
+    {attributes |
+        {attribute @name="mode" @type="schema:identifier" @values="compact pretty"}
+    }
+}"#,
+        );
+        let document = parse_cem_document(r#"{item @mode=tabular}"#);
+
+        let diagnostics = validate_document_model(&document, &model);
+
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_VALUE_CODE)
+            .expect("attribute value diagnostic");
+        assert!(diagnostic.message.contains("mode"));
+        assert!(diagnostic.message.contains("tabular"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("attribute value details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/value-contracts/1")
+        );
+        assert_eq!(details["element"], serde_json::json!("item"));
+        assert_eq!(details["attribute"], serde_json::json!("mode"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-values:mode")
+        );
+        assert_eq!(details["checkKind"], serde_json::json!("value-vocabulary"));
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["compact", "pretty"])
+        );
+        assert_eq!(details["actualValue"], serde_json::json!("tabular"));
+        assert_eq!(details["invalidFields"], serde_json::json!(["mode"]));
+        assert_eq!(
+            details["actualValues"]["mode"],
+            serde_json::json!("tabular")
+        );
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
     }
 
     #[test]

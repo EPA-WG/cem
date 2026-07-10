@@ -22,28 +22,30 @@ history belongs in git history and the feature-specific docs linked below.
   - [ ] Expand the initial `field-contracts` vocabulary in
         `packages/cem_ml/schema-packages/schema/v1/schema/cem-schema.cem`.
         The schema language now models element-bound required/optional/
-        forbidden fields, conditional selectors, and diagnostic families; it
-        still needs accepted children, value types, value vocabularies,
-        defaults, dependent-required fields, mutually exclusive fields,
-        conditional case groups, and cardinality.
+        forbidden fields, conditional selectors, diagnostic families, and
+        attribute `@values` vocabularies; it still needs accepted children,
+        value type validation, defaults, dependent-required fields, mutually
+        exclusive fields, conditional case groups, and cardinality.
   - [ ] Extend the compiled Rust schema contract model. `SchemaDocumentModel`
         now compiles initial `field-contract` declarations and evaluates
-        required/forbidden fields; it still needs reusable value constraints,
-        dependent fields, mutual exclusion, cardinality, defaults, and richer
-        case grouping for all schema elements.
+        required/forbidden fields plus attribute `@values` vocabularies; it
+        still needs reusable value type constraints, dependent fields, mutual
+        exclusion, cardinality, defaults, and richer case grouping for all
+        schema elements.
   - [ ] Extend structured diagnostic details beyond initial required/forbidden
         field checks. The first generic field-contract evaluator now emits
         schema URI, element, contract name, check kind, required/optional/
         forbidden fields, missing/invalid fields, actual values, condition, and
-        source-map range; value, dependency, mutual-exclusion, cardinality, and
-        cross-reference checks need the same schema-owned detail shape.
+        source-map range, and attribute `@values` checks emit expected/actual
+        value details; value type, dependency, mutual-exclusion, cardinality,
+        and cross-reference checks need the same schema-owned detail shape.
   - [ ] Extend the generic field-contract evaluator. The first evaluator runs
         from schema URI plus content type, consumes the compiled contract
         model, preserves source-map ranges, and emits contract-declared
         diagnostic families such as `cem.schema_package.artifact_check`; it
         now emits structured details for required/forbidden field checks and
-        still needs coverage for value, dependency, mutual-exclusion, and
-        cardinality checks.
+        attribute `@values` checks, and still needs coverage for value type,
+        dependency, mutual-exclusion, and cardinality checks.
   - [ ] Move schema-package manifest field rules from Rust conditionals into
         `packages/cem_ml/schema-packages/schema-package/v1/schema/schema-package.cem`.
         Cover `package`, `schema`, `content-type`, `namespace`, `converter`,
@@ -51,9 +53,11 @@ history belongs in git history and the feature-specific docs linked below.
   - [ ] Model converter cases in `schema-package.cem`: `implementation=cemt`
         requires CEMT template identity fields; `implementation=rust` requires
         `rust-symbol`; CEMT native fallback requires `fallback-reason`;
-        `from`/`to` endpoint cardinality is one each; boolean and enum fields
-        use schema-declared values; `implicit` and `explicit-only` are mutually
-        exclusive; and `cost` is a positive integer.
+        `from`/`to` endpoint cardinality is one each; enum fields now use
+        schema-declared `@values` in the generic document model, while boolean
+        type validation still needs to move out of package-specific Rust;
+        `implicit` and `explicit-only` are mutually exclusive; and `cost` is a
+        positive integer.
   - [ ] Finish artifact cases in `schema-package.cem`. Formatter, colorizer,
         formatter-helper, and colorizer-helper required field metadata now
         lives in schema-owned `field-contract` declarations; stage directory,
