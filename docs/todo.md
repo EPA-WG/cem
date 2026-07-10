@@ -83,9 +83,10 @@ history belongs in git history and the feature-specific docs linked below.
         validation instead of conversion descriptor extraction; top-level
         package `id`/`version` and schema `uri`/`source` descriptor fields now
         use schema-root/catalog fallbacks so missing manifest field diagnostics
-        stay schema-owned; converter implementation value validation now stays
-        schema-owned through the generic `@values` vocabulary instead of the
-        package-specific `converter_implementation_unknown` runtime branch.
+        stay schema-owned; converter implementation value validation and CEMT
+        template content-type/schema exact values now stay schema-owned through
+        the generic `@values` vocabulary instead of package-specific runtime
+        branches.
   - [ ] Model converter cases in `schema-package.cem`: `implementation=cemt`
         and `implementation=rust` required attribute contracts plus CEMT
         native fallback `fallback-reason` now live in schema-owned
@@ -95,12 +96,14 @@ history belongs in git history and the feature-specific docs linked below.
         `@values` and boolean fields now use `schema:boolean` in the generic
         document model; `cost` now uses generic integer syntax and RELAX
         NG-style `minInclusive=1`; `implicit=true` with `explicit-only=true`
-        is now a schema-owned value-specific forbidden field contract;
-        package-specific enum, boolean, cost, fallback-reason, planner-state,
-        and endpoint cardinality diagnostics have been retired in favor of
-        generic schema-owned codes; `parity-fixture` `id`/`path` extraction now
-        skips incomplete schema-invalid rows and materializes only complete
-        runtime fixture descriptors; converter descriptor extraction now skips
+        is now a schema-owned value-specific forbidden field contract; CEMT
+        template `template-content-type` and `template-schema` exact values now
+        use schema-declared `@values`; package-specific enum, boolean, cost,
+        fallback-reason, planner-state, endpoint cardinality, and CEMT template
+        identity diagnostics have been retired in favor of generic
+        schema-owned codes; `parity-fixture` `id`/`path` extraction now skips
+        incomplete schema-invalid rows and materializes only complete runtime
+        fixture descriptors; converter descriptor extraction now skips
         incomplete schema-invalid rows missing `id`, `implementation`, known
         implementation value, `from`/`to`, or endpoint `content-type`.
   - [ ] Finish artifact cases in `schema-package.cem`. Formatter, colorizer,
@@ -142,13 +145,16 @@ history belongs in git history and the feature-specific docs linked below.
         `converter_check` contracts, with runtime execution retaining only the
         operational missing-symbol guard; CEMT converter `template`,
         `template-content-type`, and `template-schema` identity requirements
-        now stay in the schema-owned `converter-cemt-template-identity`
-        contract, with runtime execution retaining only the operational missing
-        template guard; converter scalar datatype/value checks for readiness,
-        streamability, implicit/explicit flags, cost, output syntax, and parity
-        now stay in generic schema-model validation instead of descriptor
-        extraction; parity fixture `id`/`path` field checks now stay in generic
-        schema-model validation instead of descriptor extraction; artifact
+        now stay in schema-owned `converter-cemt-template-identity` and
+        `@values` declarations, with runtime execution retaining only
+        operational template source read and compile checks; converter endpoint
+        schema/content-type compatibility and converter template source/compile
+        failures now emit the generic `converter_check` family with structured
+        `checkKind` details; converter scalar datatype/value checks for
+        readiness, streamability, implicit/explicit flags, cost, output syntax,
+        and parity now stay in generic schema-model validation instead of
+        descriptor extraction; parity fixture `id`/`path` field checks now stay
+        in generic schema-model validation instead of descriptor extraction; artifact
         `kind`/`path` field checks now stay in generic schema-model validation
         instead of descriptor extraction; converter `id`/`implementation`,
         implementation value, endpoint occurrence, and endpoint `content-type`
@@ -158,7 +164,9 @@ history belongs in git history and the feature-specific docs linked below.
         `MissingEndpoint`, `UnknownImplementation`, and
         `converter_implementation_unknown` errors have been removed; schema
         descriptor top-level `MissingAttribute` extraction errors have been
-        removed for package/schema metadata.
+        removed for package/schema metadata; stale converter template and
+        endpoint-specific diagnostic declarations have been retired in favor of
+        `cem.schema_package.converter_check`.
   - [ ] Keep Rust validators only for operational execution that cannot be
         represented as field data: resource read failures, parser failures,
         CEMT compilation, CEMT function lookup, host-hook availability, and
@@ -172,7 +180,10 @@ history belongs in git history and the feature-specific docs linked below.
         the legacy package-specific enum, boolean, positive-cost,
         planner-state, and endpoint cardinality branches are now covered by
         generic `@values`, `schema:boolean`, `minInclusive`,
-        value-specific forbidden field, and child occurrence checks.
+        value-specific forbidden field, and child occurrence checks; CEMT
+        template content-type/schema exact values are now covered by generic
+        `@values`, and the remaining converter operational/cross-reference
+        branches emit `converter_check` with `checkKind` details.
   - [ ] Refactor `schema_descriptor_from_package_sources`,
         `collect_package_examples`, and `required_attr` in
         `packages/cem_ml/src/schema/registry.rs` so descriptor extraction runs

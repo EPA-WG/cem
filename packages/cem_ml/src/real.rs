@@ -10185,7 +10185,10 @@ mod tests {
         let resp = RealCemMlEngine::new().validate(req).unwrap();
 
         assert!(resp.report.diagnostics.iter().any(|diag| {
-            diag.code == "cem.schema_package.converter_template_contract_invalid"
+            diag.code == "cem.schema_package.converter_check"
+                && diag.details.as_ref().and_then(|details| {
+                    details.get("checkKind").and_then(serde_json::Value::as_str)
+                }) == Some("converter-template-contract")
                 && diag.message.contains("demo-to-html")
                 && diag
                     .message

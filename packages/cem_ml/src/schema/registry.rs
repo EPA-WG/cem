@@ -865,7 +865,6 @@ mod tests {
             "cem.schema_package.manifest_source_invalid",
             "cem.schema_package.manifest_conversion_metadata_invalid",
             "cem.schema_package.schema_source_invalid",
-            "cem.schema_package.converter_template_contract_invalid",
         ];
         let mut findings = Vec::new();
 
@@ -1183,11 +1182,7 @@ mod tests {
 
         let diagnostic_codes = schema_package_schema_diagnostic_codes();
 
-        for expected_code in [
-            "cem.schema_package.converter_check",
-            "cem.schema_package.converter_template_source_unreadable",
-            "cem.schema_package.converter_template_contract_invalid",
-        ] {
+        for expected_code in ["cem.schema_package.converter_check"] {
             assert!(
                 diagnostic_codes.contains(expected_code),
                 "schema-package schema must publish diagnostic code {expected_code}"
