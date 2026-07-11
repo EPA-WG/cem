@@ -60,7 +60,9 @@ formatter artifacts under `formatters/` and colorizer artifacts under
 
 The schema definition language declares reusable validation behavior under
 `{behaviors}`. A `{diagnostic}` binds its stable `@code` to a qualified behavior
-reference, and a field contract refers to that code:
+reference, and a field contract refers to that code. The code is the stable
+behavior-contract identity emitted in CLI and report output; the behavior
+reference selects the algorithm contract used to produce that diagnostic.
 
 ```cem
 {behaviors |
@@ -68,6 +70,22 @@ reference, and a field contract refers to that code:
         @name="field-contract"
         @implementation="engine"
         @execution="ast-validation"
+        @primitive="schema:field-contract" |
+        {inputs |
+            {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+            {input-binding @name="diagnostic" @type="schema:diagnostic" @source="diagnostic" @required=true}
+        }
+        {parameters |
+            {parameter @name="contract" @type="schema:field-contract" @required=true}
+        }
+        {result
+            @type="schema:diagnostic-result"
+            @severity="error"
+            @message="diagnostic"
+            @source-range="candidate" |
+            {detail @name="checkKind" @type="schema:identifier" @required=true}
+            {detail @name="sourceRange" @type="schema:object" @source="candidate"}
+        }
     }
 }
 
@@ -81,17 +99,36 @@ reference, and a field contract refers to that code:
 }
 ```
 
-Behavior references resolve through schema `{uses}` aliases. The initial
-engine-provided behavior is `schema:field-contract`; the runtime compiles its
-declaration, resolves diagnostic references against it, and takes severity and
-optional message text from the diagnostic declaration. An unresolved code or
-unknown behavior is a schema-compilation error rather than a silently skipped
-rule.
+Behavior references resolve through schema `{uses}` aliases. Engine-provided
+behaviors bind to a primitive algorithm with `@primitive`; the initial primitive
+is `schema:field-contract`. Function behaviors bind to a schema-declared
+function with `@function`, declare typed `{inputs}`, optional typed
+`{parameters}`, and a `{result}` shape with structured `{detail}` entries and
+source-range propagation policy:
 
-CEM-QL matching and schema-owned declarative function implementations are the
-next behavior-registry layer. Until that layer exists, custom schemas can
-compose the generic field-contract algorithm but cannot yet introduce an
-arbitrary custom validation function.
+```cem
+{behavior
+    @name="resource-label"
+    @implementation="function"
+    @execution="ast-validation"
+    @function="resource-label-result" |
+    {inputs |
+        {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true}
+    }
+    {result @type="schema:diagnostic-result" @source-range="candidate" |
+        {detail @name="checkKind" @type="schema:identifier" @required=true}
+    }
+    {function @name="resource-label-result" @returns="object" @deterministic=true |
+        {param @name="candidate" @type="object" @required=true}
+        {body}
+    }
+}
+```
+
+The compiler now validates diagnostic behavior references, unsupported engine
+primitives, missing function bindings, inline function lookup, function return
+type, and diagnostic result shape. CEM-QL candidate selection/matching and
+executing schema-declared function bodies are the next behavior-registry layer.
 
 ## Validation Examples
 

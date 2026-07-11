@@ -50,6 +50,10 @@ pub const UNRESOLVED_DIAGNOSTIC_REFERENCE_CODE: &str =
     "cem.schema_definition.unresolved_diagnostic_reference";
 pub const UNKNOWN_DIAGNOSTIC_BEHAVIOR_CODE: &str =
     "cem.schema_definition.unknown_diagnostic_behavior";
+pub const UNRESOLVED_BEHAVIOR_FUNCTION_CODE: &str =
+    "cem.schema_definition.unresolved_behavior_function";
+pub const INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE: &str =
+    "cem.schema_definition.invalid_diagnostic_behavior_contract";
 pub const FIELD_CONTRACT_DIAGNOSTIC_BEHAVIOR: &str = "schema:field-contract";
 
 #[derive(Debug, Clone, Default)]
@@ -109,6 +113,7 @@ pub struct DiagnosticBehavior {
     pub severity: Severity,
     pub behavior: String,
     pub engine_behavior: Option<EngineDiagnosticBehavior>,
+    pub function: Option<String>,
     pub message: Option<String>,
     pub source_map: SourceMapStack,
 }
@@ -124,7 +129,62 @@ pub struct BehaviorDefinition {
     pub name: String,
     pub implementation: String,
     pub execution: String,
+    pub primitive: Option<String>,
+    pub function: Option<String>,
+    pub inputs: Vec<BehaviorInput>,
+    pub parameters: Vec<BehaviorParameter>,
+    pub result: Option<BehaviorResult>,
+    pub inline_functions: BTreeMap<String, BehaviorFunctionDeclaration>,
     pub source_map: SourceMapStack,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BehaviorInput {
+    pub name: String,
+    pub value_type: String,
+    pub source: String,
+    pub required: bool,
+    pub source_range: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BehaviorParameter {
+    pub name: String,
+    pub value_type: String,
+    pub required: bool,
+    pub default: Option<String>,
+    pub values: BTreeSet<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BehaviorResult {
+    pub value_type: String,
+    pub severity: Option<String>,
+    pub message: Option<String>,
+    pub source_range: Option<String>,
+    pub details: Vec<BehaviorDetail>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BehaviorDetail {
+    pub name: String,
+    pub value_type: String,
+    pub required: bool,
+    pub source: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BehaviorFunctionDeclaration {
+    pub name: String,
+    pub returns: String,
+    pub params: Vec<BehaviorFunctionParam>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BehaviorFunctionParam {
+    pub name: String,
+    pub value_type: String,
+    pub required: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -838,23 +898,14 @@ fn collect_diagnostic_behaviors(
             let source_map = source_stack_for_node(child).clone();
             let behavior_definition =
                 resolve_behavior_definition(behavior, schema_uri, uses, local_behaviors);
-            let engine_behavior = behavior_definition
-                .as_ref()
-                .filter(|behavior| is_supported_engine_behavior(behavior))
-                .map(|_| EngineDiagnosticBehavior::FieldContract);
-            if engine_behavior.is_none() {
-                diagnostics.push(schema_compile_diagnostic(
-                    UNKNOWN_DIAGNOSTIC_BEHAVIOR_CODE,
-                    format!("diagnostic `{code}` references unknown engine behavior `{behavior}`"),
-                    &source_map,
-                    serde_json::json!({
-                        "schemaUri": schema_uri,
-                        "diagnostic": code,
-                        "behavior": behavior,
-                        "checkKind": "diagnostic-behavior-resolution",
-                    }),
-                ));
-            }
+            let (engine_behavior, function) = compile_diagnostic_behavior_binding(
+                schema_uri,
+                code,
+                behavior,
+                behavior_definition.as_ref(),
+                &source_map,
+                &mut diagnostics,
+            );
             behaviors.insert(
                 code.to_owned(),
                 DiagnosticBehavior {
@@ -862,6 +913,7 @@ fn collect_diagnostic_behaviors(
                     severity,
                     behavior: behavior.to_owned(),
                     engine_behavior,
+                    function,
                     message: optional_non_empty_attr(&attrs, "message").map(str::to_owned),
                     source_map,
                 },
@@ -905,12 +957,352 @@ fn collect_behavior_definitions(
                     name: name.to_owned(),
                     implementation: implementation.to_owned(),
                     execution: execution.to_owned(),
+                    primitive: optional_non_empty_attr(&attrs, "primitive").map(str::to_owned),
+                    function: optional_non_empty_attr(&attrs, "function").map(str::to_owned),
+                    inputs: collect_behavior_inputs(document, *child_id),
+                    parameters: collect_behavior_parameters(document, *child_id),
+                    result: collect_behavior_result(document, *child_id),
+                    inline_functions: collect_behavior_inline_functions(document, *child_id),
                     source_map: source_stack_for_node(child).clone(),
                 },
             );
         }
     }
     behaviors
+}
+
+fn collect_behavior_inputs(document: &CemDocument, behavior_id: AstNodeId) -> Vec<BehaviorInput> {
+    let mut inputs = Vec::new();
+    for inputs_id in element_child_ids_by_local_name(document, behavior_id, "inputs") {
+        let input_ids = element_child_ids_by_local_name(document, inputs_id, "input-binding")
+            .into_iter()
+            .chain(element_child_ids_by_local_name(
+                document, inputs_id, "input",
+            ));
+        for input_id in input_ids {
+            let attrs = collect_attrs(document, input_id);
+            let Some(name) = optional_non_empty_attr(&attrs, "name") else {
+                continue;
+            };
+            let Some(value_type) = optional_non_empty_attr(&attrs, "type") else {
+                continue;
+            };
+            inputs.push(BehaviorInput {
+                name: name.to_owned(),
+                value_type: value_type.to_owned(),
+                source: optional_non_empty_attr(&attrs, "source")
+                    .unwrap_or(name)
+                    .to_owned(),
+                required: attr_is_true(attrs.get("required")),
+                source_range: optional_non_empty_attr(&attrs, "source-range").map(str::to_owned),
+            });
+        }
+    }
+    inputs
+}
+
+fn collect_behavior_parameters(
+    document: &CemDocument,
+    behavior_id: AstNodeId,
+) -> Vec<BehaviorParameter> {
+    let mut parameters = Vec::new();
+    for parameters_id in element_child_ids_by_local_name(document, behavior_id, "parameters") {
+        for parameter_id in element_child_ids_by_local_name(document, parameters_id, "parameter") {
+            let attrs = collect_attrs(document, parameter_id);
+            let Some(name) = optional_non_empty_attr(&attrs, "name") else {
+                continue;
+            };
+            let Some(value_type) = optional_non_empty_attr(&attrs, "type") else {
+                continue;
+            };
+            parameters.push(BehaviorParameter {
+                name: name.to_owned(),
+                value_type: value_type.to_owned(),
+                required: attr_is_true(attrs.get("required")),
+                default: optional_non_empty_attr(&attrs, "default").map(str::to_owned),
+                values: parse_value_set(attrs.get("values")),
+            });
+        }
+    }
+    parameters
+}
+
+fn collect_behavior_result(
+    document: &CemDocument,
+    behavior_id: AstNodeId,
+) -> Option<BehaviorResult> {
+    let result_id = element_child_ids_by_local_name(document, behavior_id, "result")
+        .into_iter()
+        .next()?;
+    let attrs = collect_attrs(document, result_id);
+    let value_type = optional_non_empty_attr(&attrs, "type")?.to_owned();
+    Some(BehaviorResult {
+        value_type,
+        severity: optional_non_empty_attr(&attrs, "severity").map(str::to_owned),
+        message: optional_non_empty_attr(&attrs, "message").map(str::to_owned),
+        source_range: optional_non_empty_attr(&attrs, "source-range").map(str::to_owned),
+        details: collect_behavior_details(document, result_id),
+    })
+}
+
+fn collect_behavior_details(document: &CemDocument, result_id: AstNodeId) -> Vec<BehaviorDetail> {
+    let mut details = Vec::new();
+    for detail_id in element_child_ids_by_local_name(document, result_id, "detail") {
+        let attrs = collect_attrs(document, detail_id);
+        let Some(name) = optional_non_empty_attr(&attrs, "name") else {
+            continue;
+        };
+        let Some(value_type) = optional_non_empty_attr(&attrs, "type") else {
+            continue;
+        };
+        details.push(BehaviorDetail {
+            name: name.to_owned(),
+            value_type: value_type.to_owned(),
+            required: attr_is_true(attrs.get("required")),
+            source: optional_non_empty_attr(&attrs, "source").map(str::to_owned),
+        });
+    }
+    details
+}
+
+fn collect_behavior_inline_functions(
+    document: &CemDocument,
+    behavior_id: AstNodeId,
+) -> BTreeMap<String, BehaviorFunctionDeclaration> {
+    let mut functions = BTreeMap::new();
+    for function_id in element_child_ids_by_local_name(document, behavior_id, "function") {
+        let attrs = collect_attrs(document, function_id);
+        let Some(name) = optional_non_empty_attr(&attrs, "name") else {
+            continue;
+        };
+        let Some(returns) = optional_non_empty_attr(&attrs, "returns") else {
+            continue;
+        };
+        functions.insert(
+            name.to_owned(),
+            BehaviorFunctionDeclaration {
+                name: name.to_owned(),
+                returns: returns.to_owned(),
+                params: collect_behavior_function_params(document, function_id),
+            },
+        );
+    }
+    functions
+}
+
+fn collect_behavior_function_params(
+    document: &CemDocument,
+    function_id: AstNodeId,
+) -> Vec<BehaviorFunctionParam> {
+    let mut params = Vec::new();
+    for param_id in element_child_ids_by_local_name(document, function_id, "param") {
+        let attrs = collect_attrs(document, param_id);
+        let Some(name) = optional_non_empty_attr(&attrs, "name") else {
+            continue;
+        };
+        let Some(value_type) = optional_non_empty_attr(&attrs, "type") else {
+            continue;
+        };
+        params.push(BehaviorFunctionParam {
+            name: name.to_owned(),
+            value_type: value_type.to_owned(),
+            required: attr_is_true(attrs.get("required")),
+        });
+    }
+    params
+}
+
+fn compile_diagnostic_behavior_binding(
+    schema_uri: &str,
+    code: &str,
+    behavior_reference: &str,
+    behavior_definition: Option<&BehaviorDefinition>,
+    source_map: &SourceMapStack,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> (Option<EngineDiagnosticBehavior>, Option<String>) {
+    let Some(behavior_definition) = behavior_definition else {
+        diagnostics.push(schema_compile_diagnostic(
+            UNKNOWN_DIAGNOSTIC_BEHAVIOR_CODE,
+            format!("diagnostic `{code}` references unknown behavior `{behavior_reference}`"),
+            source_map,
+            serde_json::json!({
+                "schemaUri": schema_uri,
+                "diagnostic": code,
+                "behavior": behavior_reference,
+                "checkKind": "diagnostic-behavior-resolution",
+            }),
+        ));
+        return (None, None);
+    };
+
+    match behavior_definition.implementation.as_str() {
+        "engine" => {
+            let engine_behavior = supported_engine_behavior(behavior_definition);
+            if engine_behavior.is_none() {
+                diagnostics.push(schema_compile_diagnostic(
+                    UNKNOWN_DIAGNOSTIC_BEHAVIOR_CODE,
+                    format!(
+                        "diagnostic `{code}` references unsupported engine behavior `{behavior_reference}`"
+                    ),
+                    source_map,
+                    serde_json::json!({
+                        "schemaUri": schema_uri,
+                        "diagnostic": code,
+                        "behavior": behavior_reference,
+                        "primitive": &behavior_definition.primitive,
+                        "checkKind": "diagnostic-behavior-resolution",
+                    }),
+                ));
+            }
+            (engine_behavior, None)
+        }
+        "function" => compile_diagnostic_function_binding(
+            schema_uri,
+            code,
+            behavior_reference,
+            behavior_definition,
+            source_map,
+            diagnostics,
+        ),
+        implementation => {
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE,
+                format!(
+                    "diagnostic `{code}` references behavior `{behavior_reference}` with unsupported implementation `{implementation}`"
+                ),
+                source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "diagnostic": code,
+                    "behavior": behavior_reference,
+                    "implementation": implementation,
+                    "checkKind": "diagnostic-behavior-contract",
+                }),
+            ));
+            (None, None)
+        }
+    }
+}
+
+fn compile_diagnostic_function_binding(
+    schema_uri: &str,
+    code: &str,
+    behavior_reference: &str,
+    behavior_definition: &BehaviorDefinition,
+    source_map: &SourceMapStack,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> (Option<EngineDiagnosticBehavior>, Option<String>) {
+    if behavior_definition.execution != "ast-validation" {
+        diagnostics.push(schema_compile_diagnostic(
+            INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE,
+            format!(
+                "diagnostic `{code}` references function behavior `{behavior_reference}` with unsupported execution placement `{}`",
+                behavior_definition.execution
+            ),
+            source_map,
+            serde_json::json!({
+                "schemaUri": schema_uri,
+                "diagnostic": code,
+                "behavior": behavior_reference,
+                "execution": &behavior_definition.execution,
+                "checkKind": "diagnostic-behavior-contract",
+            }),
+        ));
+        return (None, None);
+    }
+
+    let Some(function) = behavior_definition.function.as_deref() else {
+        diagnostics.push(schema_compile_diagnostic(
+            INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE,
+            format!(
+                "diagnostic `{code}` references function behavior `{behavior_reference}` without a schema function binding"
+            ),
+            source_map,
+            serde_json::json!({
+                "schemaUri": schema_uri,
+                "diagnostic": code,
+                "behavior": behavior_reference,
+                "checkKind": "diagnostic-behavior-contract",
+            }),
+        ));
+        return (None, None);
+    };
+
+    let Some(result) = behavior_definition.result.as_ref() else {
+        diagnostics.push(schema_compile_diagnostic(
+            INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE,
+            format!(
+                "diagnostic `{code}` references function behavior `{behavior_reference}` without a diagnostic result declaration"
+            ),
+            source_map,
+            serde_json::json!({
+                "schemaUri": schema_uri,
+                "diagnostic": code,
+                "behavior": behavior_reference,
+                "function": function,
+                "checkKind": "diagnostic-behavior-contract",
+            }),
+        ));
+        return (None, None);
+    };
+    if result.value_type != "schema:diagnostic-result" {
+        diagnostics.push(schema_compile_diagnostic(
+            INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE,
+            format!(
+                "diagnostic `{code}` references function behavior `{behavior_reference}` whose result type is `{}` instead of `schema:diagnostic-result`",
+                result.value_type
+            ),
+            source_map,
+            serde_json::json!({
+                "schemaUri": schema_uri,
+                "diagnostic": code,
+                "behavior": behavior_reference,
+                "function": function,
+                "resultType": &result.value_type,
+                "checkKind": "diagnostic-behavior-contract",
+            }),
+        ));
+        return (None, None);
+    }
+
+    let Some(function_declaration) = behavior_definition.inline_functions.get(function) else {
+        diagnostics.push(schema_compile_diagnostic(
+            UNRESOLVED_BEHAVIOR_FUNCTION_CODE,
+            format!(
+                "diagnostic `{code}` references behavior `{behavior_reference}` function `{function}` that is not declared by the schema behavior"
+            ),
+            source_map,
+            serde_json::json!({
+                "schemaUri": schema_uri,
+                "diagnostic": code,
+                "behavior": behavior_reference,
+                "function": function,
+                "checkKind": "behavior-function-resolution",
+            }),
+        ));
+        return (None, None);
+    };
+    if function_declaration.returns != "object" {
+        diagnostics.push(schema_compile_diagnostic(
+            INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE,
+            format!(
+                "diagnostic `{code}` references behavior `{behavior_reference}` function `{function}` that returns `{}` instead of `object`",
+                function_declaration.returns
+            ),
+            source_map,
+            serde_json::json!({
+                "schemaUri": schema_uri,
+                "diagnostic": code,
+                "behavior": behavior_reference,
+                "function": function,
+                "returns": &function_declaration.returns,
+                "checkKind": "diagnostic-behavior-contract",
+            }),
+        ));
+        return (None, None);
+    }
+
+    (None, Some(function.to_owned()))
 }
 
 fn resolve_behavior_definition(
@@ -939,11 +1331,15 @@ fn resolve_behavior_definition(
         .cloned()
 }
 
-fn is_supported_engine_behavior(behavior: &BehaviorDefinition) -> bool {
-    behavior.schema_uri == CEM_SCHEMA_URI
-        && behavior.name == "field-contract"
-        && behavior.implementation == "engine"
+fn supported_engine_behavior(behavior: &BehaviorDefinition) -> Option<EngineDiagnosticBehavior> {
+    let primitive = behavior.primitive.as_deref().or_else(|| {
+        (behavior.schema_uri == CEM_SCHEMA_URI && behavior.name == "field-contract")
+            .then_some(FIELD_CONTRACT_DIAGNOSTIC_BEHAVIOR)
+    })?;
+    (behavior.implementation == "engine"
         && behavior.execution == "ast-validation"
+        && primitive == FIELD_CONTRACT_DIAGNOSTIC_BEHAVIOR)
+        .then_some(EngineDiagnosticBehavior::FieldContract)
 }
 
 fn parse_diagnostic_severity(value: &str) -> Option<Severity> {
@@ -1416,6 +1812,13 @@ fn optional_non_empty_attr<'a>(attrs: &'a BTreeMap<String, String>, name: &str) 
         .filter(|value| !value.is_empty())
 }
 
+fn attr_is_true(value: Option<&String>) -> bool {
+    matches!(
+        value.map(String::as_str).map(str::trim),
+        Some("true" | "required")
+    )
+}
+
 fn parse_name_set(value: Option<&String>) -> BTreeSet<String> {
     value
         .map(|value| {
@@ -1751,6 +2154,33 @@ mod tests {
             .expect("schema-declared field-contract engine behavior");
         assert_eq!(field_contract_behavior.implementation, "engine");
         assert_eq!(field_contract_behavior.execution, "ast-validation");
+        assert_eq!(
+            field_contract_behavior.primitive.as_deref(),
+            Some(FIELD_CONTRACT_DIAGNOSTIC_BEHAVIOR)
+        );
+        assert!(field_contract_behavior
+            .inputs
+            .iter()
+            .any(|input| input.name == "candidate"
+                && input.value_type == "schema:node"
+                && input.source == "candidate"));
+        assert!(field_contract_behavior
+            .parameters
+            .iter()
+            .any(|parameter| parameter.name == "contract"
+                && parameter.value_type == "schema:field-contract"
+                && parameter.required));
+        let result = field_contract_behavior
+            .result
+            .as_ref()
+            .expect("field-contract behavior result declaration");
+        assert_eq!(result.value_type, "schema:diagnostic-result");
+        assert_eq!(result.severity.as_deref(), Some("error"));
+        assert_eq!(result.source_range.as_deref(), Some("candidate"));
+        assert!(result
+            .details
+            .iter()
+            .any(|detail| detail.name == "checkKind" && detail.value_type == "schema:identifier"));
     }
 
     #[test]
@@ -2244,6 +2674,119 @@ mod tests {
         assert!(validate_document_model(&document, &model)
             .iter()
             .all(|diagnostic| diagnostic.code != "example.unknown_engine"));
+    }
+
+    #[test]
+    fn schema_diagnostic_behavior_accepts_schema_declared_function_binding() {
+        let model = compile_document_model(
+            "https://example.test/ns/function-behavior/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="function-behavior" @namespace="https://example.test/ns/function-behavior/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="name"}
+    }
+    {behaviors |
+        {behavior
+            @name="item-label"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="item-label-result" |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true}
+            }
+            {parameters |
+                {parameter @name="expected" @type="schema:string" @required=true @default="label"}
+            }
+            {result
+                @type="schema:diagnostic-result"
+                @severity="diagnostic"
+                @message="function"
+                @source-range="candidate" |
+                {detail @name="checkKind" @type="schema:identifier" @required=true}
+            }
+            {function @name="item-label-result" @returns="object" @deterministic=true |
+                {param @name="candidate" @type="object" @required=true}
+                {body}
+            }
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.item_label"
+            @severity="warning"
+            @behavior="item-label"
+            @message="Item label is required"
+        }
+    }
+}"#,
+        );
+
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "function behavior should compile: {:#?}",
+            model.compile_diagnostics
+        );
+        let behavior = model
+            .behaviors
+            .get("item-label")
+            .expect("schema-declared function behavior");
+        assert_eq!(behavior.function.as_deref(), Some("item-label-result"));
+        assert!(behavior.inline_functions.contains_key("item-label-result"));
+        let diagnostic_behavior = model
+            .diagnostic_behaviors
+            .get("example.item_label")
+            .expect("diagnostic behavior binding");
+        assert_eq!(
+            diagnostic_behavior.function.as_deref(),
+            Some("item-label-result")
+        );
+        assert_eq!(diagnostic_behavior.engine_behavior, None);
+        assert_eq!(diagnostic_behavior.code, "example.item_label");
+    }
+
+    #[test]
+    fn schema_diagnostic_behavior_rejects_unresolved_schema_function_binding() {
+        let model = compile_document_model(
+            "https://example.test/ns/function-behavior-invalid/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="function-behavior-invalid" @namespace="https://example.test/ns/function-behavior-invalid/1" @version="1.0.0" |
+    {behaviors |
+        {behavior
+            @name="item-label"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="missing-result" |
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.item_label"
+            @severity="error"
+            @behavior="item-label"
+        }
+    }
+}"#,
+        );
+
+        assert!(model.compile_diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "cem.schema_definition.unresolved_behavior_function"
+                && diagnostic.details.as_ref().is_some_and(|details| {
+                    details["diagnostic"] == "example.item_label"
+                        && details["behavior"] == "item-label"
+                        && details["function"] == "missing-result"
+                })
+        }));
+        assert!(model
+            .diagnostic_behaviors
+            .get("example.item_label")
+            .is_some_and(|behavior| behavior.function.is_none()));
     }
 
     #[test]

@@ -17,20 +17,12 @@ history belongs in git history and the feature-specific docs linked below.
       now declares an engine behavior catalog in `cem-schema.cem`, resolves
       diagnostic behavior references through schema `{uses}` aliases, compiles
       severity/message/source metadata, and dispatches
-      `schema:field-contract` generically; CEM-QL matches, declarative function
-      bodies, parameters, and additional engine algorithms remain.
-  - [ ] Define the bootstrap vocabulary in
-        `packages/cem_ml/schema-packages/schema/v1/schema/cem-schema.cem` for
-        named behavior declarations, qualified behavior references,
-        parameters, inputs, result/detail shape, severity, and source-range
-        propagation. Make diagnostic `@code` the stable behavior-contract
-        identity; its declaration must bind that identity to either an
-        engine-provided primitive algorithm or a schema-declared function, and
-        the binding must be generically resolvable and validatable. Initial
-        `{behaviors}`, `{behavior}`, diagnostic `@behavior`/`@message`, engine
-        implementation, and execution-placement vocabulary now exists for the
-        `schema:field-contract` algorithm; typed parameters, inputs, result
-        declarations, and function bindings remain.
+      `schema:field-contract` generically. The bootstrap vocabulary now defines
+      behavior primitives, function bindings, typed inputs, typed parameters,
+      diagnostic result/detail shape, severity/message ownership, and
+      source-range propagation in `cem-schema.cem`; CEM-QL matches,
+      declarative function body execution, imports, and additional engine
+      algorithms remain.
   - [ ] Allow declarative behavior to select candidate nodes and match failure
         conditions with CEM-QL, then invoke a schema-declared CEM-native/CEMT
         function to calculate the result and structured diagnostic details.
