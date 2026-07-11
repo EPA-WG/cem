@@ -208,9 +208,9 @@
         {diagnostic @code="cem.schema_package.converter_identity_mismatch" @severity="error"}
         {diagnostic @code="cem.schema_package.implementation_missing" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_registration_failed" @severity="error"}
-        {diagnostic @code="cem.schema_package.converter_check" @severity="error"}
-        {diagnostic @code="cem.schema_package.artifact_check" @severity="error"}
-        {diagnostic @code="cem.schema_package.example_check" @severity="error"}
+        {diagnostic @code="cem.schema_package.converter_check" @severity="error" @behavior="schema:field-contract"}
+        {diagnostic @code="cem.schema_package.artifact_check" @severity="error" @behavior="schema:field-contract"}
+        {diagnostic @code="cem.schema_package.example_check" @severity="error" @behavior="schema:field-contract"}
         {diagnostic @code="cem.schema_package.schema_source_unreadable" @severity="error"}
         {diagnostic @code="cem.schema_package.schema_source_invalid" @severity="error"}
         {diagnostic @code="cem.schema_package.schema_uri_mismatch" @severity="error"}

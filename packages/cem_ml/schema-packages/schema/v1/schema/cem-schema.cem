@@ -17,7 +17,7 @@
     }
 
     {elements |
-        {element @name="schema" @required-attributes="name namespace version" @children="summary uses content-types namespaces elements attributes directives nodes lexical types namespace-semantics field-contracts constraints diagnostics open-content compatibility"}
+        {element @name="schema" @required-attributes="name namespace version" @children="summary uses content-types namespaces elements attributes directives nodes lexical types namespace-semantics behaviors field-contracts constraints diagnostics open-content compatibility"}
         {element @name="summary" @children="text"}
         {element @name="text"}
         {element @name="uses" @children="use"}
@@ -42,12 +42,14 @@
         {element @name="binding" @required-attributes="directive scope"}
         {element @name="resolution" @required-attributes="target mode"}
         {element @name="handoff" @required-attributes="attribute target"}
+        {element @name="behaviors" @children="behavior"}
+        {element @name="behavior" @required-attributes="name implementation execution"}
         {element @name="field-contracts" @children="field-contract"}
         {element @name="field-contract" @required-attributes="name target" @optional-attributes="diagnostic check-kind required-attributes optional-attributes forbidden-attributes forbidden-attribute-values required-children max-one-children path-layout-attributes path-layout-prefix path-layout-extension when-attribute when-values when-present-attributes"}
         {element @name="constraints" @children="constraint"}
         {element @name="constraint" @required-attributes="kind" @optional-attributes="target value policy"}
         {element @name="diagnostics" @children="diagnostic"}
-        {element @name="diagnostic" @required-attributes="code severity"}
+        {element @name="diagnostic" @required-attributes="code severity" @optional-attributes="behavior message"}
         {element @name="open-content" @children="accept"}
         {element @name="accept" @required-attributes="kind policy"}
         {element @name="compatibility" @children="note source"}
@@ -77,6 +79,12 @@
         {attribute @name="type" @type="schema:type-reference"}
         {attribute @name="required" @type="schema:boolean-or-policy"}
         {attribute @name="severity" @type="schema:diagnostic-severity"}
+        {attribute @name="code" @type="schema:diagnostic-code"}
+        {attribute @name="diagnostic" @type="schema:diagnostic-code"}
+        {attribute @name="behavior" @type="schema:behavior-reference"}
+        {attribute @name="message" @type="cemml:string"}
+        {attribute @name="implementation" @type="schema:behavior-implementation"}
+        {attribute @name="execution" @type="schema:behavior-execution"}
         {attribute @name="kind" @type="cemml:identifier"}
         {attribute @name="policy" @type="cemml:identifier"}
         {attribute @name="fields" @type="cemml:name-list"}
@@ -92,7 +100,6 @@
         {attribute @name="scope" @type="cemml:string"}
         {attribute @name="mode" @type="cemml:identifier"}
         {attribute @name="attribute" @type="cemml:identifier"}
-        {attribute @name="diagnostic" @type="cemml:identifier"}
         {attribute @name="check-kind" @type="cemml:identifier"}
         {attribute @name="when-attribute" @type="cemml:identifier"}
         {attribute @name="when-values" @type="cemml:name-list"}
@@ -114,14 +121,28 @@
         {type @name="name-value-list" @base="cemml:name-value-list"}
         {type @name="content-model" @base="cemml:content-model"}
         {type @name="type-reference" @base="cemml:type-reference"}
+        {type @name="diagnostic-code" @base="cemml:string"}
+        {type @name="behavior-reference" @base="cemml:qualified-name"}
+        {type @name="behavior-implementation" @base="cemml:identifier" @values="engine function"}
+        {type @name="behavior-execution" @base="cemml:identifier" @values="tokenizer event-normalizer schema-machine reference-resolution ast-validation transform policy"}
         {type @name="diagnostic-severity" @base="cemml:identifier" @values="debug info warning error fatal"}
         {type @name="boolean-or-policy" @base="cemml:string"}
+    }
+
+    {behaviors |
+        {behavior
+            @name="field-contract"
+            @implementation="engine"
+            @execution="ast-validation"
+        }
     }
 
     {constraints |
         {constraint @kind="streamable" @target="schema" @policy="required"}
         {constraint @kind="schema-dependency-resolvable" @target="use" @policy="required"}
         {constraint @kind="qualified-type-reference-resolvable" @target="attribute" @policy="required"}
+        {constraint @kind="diagnostic-behavior-reference-resolvable" @target="diagnostic" @policy="required when behavior is present"}
+        {constraint @kind="field-contract-diagnostic-reference-resolvable" @target="field-contract" @policy="required when diagnostic is present"}
         {constraint @kind="unique-child-name" @target="elements" @policy="required"}
         {constraint @kind="unique-attribute-name" @target="attributes" @policy="required"}
         {constraint @kind="diagnostic-code-format" @target="diagnostic" @policy="required"}
@@ -134,6 +155,8 @@
         {diagnostic @code="cem.schema_definition.invalid_content_model" @severity="error"}
         {diagnostic @code="cem.schema_definition.unresolved_schema_dependency" @severity="error"}
         {diagnostic @code="cem.schema_definition.unresolved_type_reference" @severity="error"}
+        {diagnostic @code="cem.schema_definition.unresolved_diagnostic_reference" @severity="error"}
+        {diagnostic @code="cem.schema_definition.unknown_diagnostic_behavior" @severity="error"}
         {diagnostic @code="cem.schema_definition.non_streamable_constraint" @severity="error"}
     }
 

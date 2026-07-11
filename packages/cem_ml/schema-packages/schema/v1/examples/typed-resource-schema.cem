@@ -10,6 +10,7 @@
 
     {uses |
         {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
     }
 
     {content-types |
@@ -33,8 +34,26 @@
         {attribute @name="type" @type="schema:type-reference"}
     }
 
+    {field-contracts |
+        {field-contract
+            @name="page-resource-label"
+            @target="resource"
+            @when-attribute="kind"
+            @when-values="page"
+            @required-attributes="label"
+            @diagnostic="example.resource.missing_label"
+            @check-kind="required-fields"
+        }
+    }
+
     {diagnostics |
         {diagnostic @code="example.resource.missing_field" @severity="error"}
+        {diagnostic
+            @code="example.resource.missing_label"
+            @severity="warning"
+            @behavior="schema:field-contract"
+            @message="Page resources should declare a label"
+        }
     }
 
     {open-content |

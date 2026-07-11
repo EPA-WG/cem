@@ -56,6 +56,43 @@ Use `path-layout-attributes` with `path-layout-prefix` and
 formatter artifacts under `formatters/` and colorizer artifacts under
 `colorizers/`.
 
+## Declarative Behavior Registry
+
+The schema definition language declares reusable validation behavior under
+`{behaviors}`. A `{diagnostic}` binds its stable `@code` to a qualified behavior
+reference, and a field contract refers to that code:
+
+```cem
+{behaviors |
+    {behavior
+        @name="field-contract"
+        @implementation="engine"
+        @execution="ast-validation"
+    }
+}
+
+{diagnostics |
+    {diagnostic
+        @code="example.resource.missing_label"
+        @severity="warning"
+        @behavior="schema:field-contract"
+        @message="Page resources should declare a label"
+    }
+}
+```
+
+Behavior references resolve through schema `{uses}` aliases. The initial
+engine-provided behavior is `schema:field-contract`; the runtime compiles its
+declaration, resolves diagnostic references against it, and takes severity and
+optional message text from the diagnostic declaration. An unresolved code or
+unknown behavior is a schema-compilation error rather than a silently skipped
+rule.
+
+CEM-QL matching and schema-owned declarative function implementations are the
+next behavior-registry layer. Until that layer exists, custom schemas can
+compose the generic field-contract algorithm but cannot yet introduce an
+arbitrary custom validation function.
+
 ## Validation Examples
 
 The schema-owned examples live in [`examples/`](examples/) and are used by the
@@ -64,9 +101,10 @@ CLI validation integration tests.
 | Example | Purpose | Expected result |
 | --- | --- | --- |
 | [`basic-schema.cem`](examples/basic-schema.cem) | Minimal schema definition with content type, element, and attribute declarations. | Pass |
-| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with `uses`, namespace claims, diagnostics, and open-content policy. | Pass |
-| [`invalid-unclosed-schema.cem`](examples/invalid-unclosed-schema.cem) | Missing closing schema scope syntax diagnostic. | Fail with `cem.schema.unclosed_scope` |
+| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, a conditional field contract, an engine behavior-bound diagnostic, and open-content policy. | Pass |
+| [`invalid-unclosed-schema.cem`](examples/invalid-unclosed-schema.cem) | Missing closing schema scope syntax diagnostic. | Fail with `cem.ast.unclosed_scope` |
 | [`invalid-missing-required-attribute.cem`](examples/invalid-missing-required-attribute.cem) | Schema declaration missing its required `namespace` attribute. | Fail with `cem.schema_model.missing_required_attribute` |
+| [`invalid-diagnostic-behavior.cem`](examples/invalid-diagnostic-behavior.cem) | Diagnostic references a behavior absent from the imported engine catalog. | Fail with `cem.schema_definition.unknown_diagnostic_behavior` |
 
 Validate an example explicitly against this schema:
 

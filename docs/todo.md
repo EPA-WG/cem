@@ -6,6 +6,72 @@ history belongs in git history and the feature-specific docs linked below.
 
 ## Immediate Tasks
 
+- [ ] Enable schema behavior, including `{diagnostic}` behavior, to be defined
+      entirely through declarative CEM-ML syntax. A diagnostic `@code` must
+      resolve to a schema-visible algorithm contract instead of acting only as
+      an inert output label: the contract selects either a minimal
+      engine-provided behavior or a schema-owned declarative function, defines
+      how a failure is matched, and produces the diagnostic result without a
+      package-specific Rust validation branch. This is required for custom
+      schemas to introduce their own validation algorithms. The initial slice
+      now declares an engine behavior catalog in `cem-schema.cem`, resolves
+      diagnostic behavior references through schema `{uses}` aliases, compiles
+      severity/message/source metadata, and dispatches
+      `schema:field-contract` generically; CEM-QL matches, declarative function
+      bodies, parameters, and additional engine algorithms remain.
+  - [ ] Define the bootstrap vocabulary in
+        `packages/cem_ml/schema-packages/schema/v1/schema/cem-schema.cem` for
+        named behavior declarations, qualified behavior references,
+        parameters, inputs, result/detail shape, severity, and source-range
+        propagation. Make diagnostic `@code` the stable behavior-contract
+        identity; its declaration must bind that identity to either an
+        engine-provided primitive algorithm or a schema-declared function, and
+        the binding must be generically resolvable and validatable. Initial
+        `{behaviors}`, `{behavior}`, diagnostic `@behavior`/`@message`, engine
+        implementation, and execution-placement vocabulary now exists for the
+        `schema:field-contract` algorithm; typed parameters, inputs, result
+        declarations, and function bindings remain.
+  - [ ] Allow declarative behavior to select candidate nodes and match failure
+        conditions with CEM-QL, then invoke a schema-declared CEM-native/CEMT
+        function to calculate the result and structured diagnostic details.
+        Imports and references must resolve by schema URI and qualified name so
+        custom schema packages can reuse or extend shared behavior without
+        registering Rust code.
+  - [ ] Publish a minimal useful library of CEM engine-provided algorithms that
+        schema authors can consume through diagnostic `@code` behavior
+        references. Cover the common algorithmic variations needed to create a
+        schema, including required/forbidden fields, value vocabularies and
+        scalar/datatype parameters, child occurrence, dependency and
+        choice/case rules, reference resolution, and source/resource failures.
+        Keep these as general schema primitives rather than package-specific
+        semantic validators.
+  - [ ] Compile behavior declarations and references into the generic schema
+        model, reject missing or incompatible behavior references, and dispatch
+        them through a single runtime evaluation path. The resolved behavior
+        must own severity, message/detail construction, CEM-QL match semantics,
+        and source-map ranges while `@code` remains stable in CLI and report
+        output. `SchemaDocumentModel` now compiles the first behavior catalog,
+        rejects unresolved diagnostic references and unknown engine behaviors,
+        surfaces those compiler diagnostics during schema-document validation,
+        and uses declared severity/message metadata for field-contract
+        diagnostics; generic CEM-QL/function dispatch remains.
+  - [ ] Add schema-package and CLI examples for every engine-provided algorithm
+        and its meaningful parameter or matching variations. Include passing
+        and failing fixtures, expected diagnostic codes, structured details,
+        severity, and source ranges so the example set documents the minimal
+        behavior library available to schema authors. The typed-resource schema
+        example now covers the initial conditional field-contract behavior and
+        the native tests cover warning severity, message text, structured
+        details, source ranges, unresolved codes, and unknown behaviors; the
+        CLI example set also includes a schema that fails an unknown behavior
+        reference. The complete algorithm matrix remains.
+  - [ ] Add a custom-schema example that defines a new algorithm using only
+        CEM-ML, CEM-QL, and a declarative function, then prove that changing the
+        declared match or function changes validation behavior without adding
+        or editing Rust. Include negative tests for unresolved `@code`
+        behaviors, invalid parameters, incompatible function signatures, and
+        recursive or unsafe evaluation.
+
 - [ ] Implement schema-owned field contracts for every schema-declared field
       before adding more package-specific Rust validation branches. The current
       implementation compiles `required-attributes`, `optional-attributes`,

@@ -1,0 +1,21 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-diagnostic-behavior" @namespace="https://example.test/ns/invalid-diagnostic-behavior/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+
+    {elements |
+        {element @name="item"}
+    }
+
+    {diagnostics |
+        {diagnostic
+            @code="example.invalid_behavior"
+            @severity="error"
+            @behavior="schema:not-an-engine-behavior"
+        }
+    }
+}

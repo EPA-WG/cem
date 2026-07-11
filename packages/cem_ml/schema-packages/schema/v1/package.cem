@@ -38,6 +38,15 @@
     }
 
     {example
+        @id="invalid-diagnostic-behavior"
+        @path="examples/invalid-diagnostic-behavior.cem"
+        @content-type="application/vnd.cem.schema+cem"
+        @schema="https://cem.dev/ns/schema/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_definition.unknown_diagnostic_behavior"
+    }
+
+    {example
         @id="invalid-unclosed-schema"
         @path="examples/invalid-unclosed-schema.cem"
         @content-type="application/vnd.cem.schema+cem"

@@ -9,6 +9,8 @@
 //! - direct child element allow-lists.
 //! - built-in base element references through schema `{uses}` aliases.
 //! - schema-owned field contracts for element-bound conditional checks.
+//! - schema-owned diagnostic declarations resolved through declarative engine
+//!   behavior definitions, including severity and message metadata.
 //! - schema-owned attribute `@values`, boolean/integer type checks, and
 //!   integer `minInclusive` datatype-param checks.
 //!
@@ -44,12 +46,20 @@ pub const INVALID_ATTRIBUTE_TYPE_CODE: &str = "cem.schema_model.invalid_attribut
 pub const INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE: &str =
     "cem.schema_model.invalid_attribute_datatype_param";
 pub const INVALID_CHILD_ELEMENT_CODE: &str = "cem.schema_model.invalid_child_element";
+pub const UNRESOLVED_DIAGNOSTIC_REFERENCE_CODE: &str =
+    "cem.schema_definition.unresolved_diagnostic_reference";
+pub const UNKNOWN_DIAGNOSTIC_BEHAVIOR_CODE: &str =
+    "cem.schema_definition.unknown_diagnostic_behavior";
+pub const FIELD_CONTRACT_DIAGNOSTIC_BEHAVIOR: &str = "schema:field-contract";
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default)]
 pub struct SchemaDocumentModel {
     pub schema_uri: String,
     pub elements: BTreeMap<String, ElementModel>,
     pub attributes: BTreeMap<String, AttributeModel>,
+    pub behaviors: BTreeMap<String, BehaviorDefinition>,
+    pub diagnostic_behaviors: BTreeMap<String, DiagnosticBehavior>,
+    pub compile_diagnostics: Vec<Diagnostic>,
 }
 
 impl SchemaDocumentModel {
@@ -93,6 +103,30 @@ pub struct AttributeModel {
     pub min_inclusive: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiagnosticBehavior {
+    pub code: String,
+    pub severity: Severity,
+    pub behavior: String,
+    pub engine_behavior: Option<EngineDiagnosticBehavior>,
+    pub message: Option<String>,
+    pub source_map: SourceMapStack,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EngineDiagnosticBehavior {
+    FieldContract,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BehaviorDefinition {
+    pub schema_uri: String,
+    pub name: String,
+    pub implementation: String,
+    pub execution: String,
+    pub source_map: SourceMapStack,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct AttributeTypeViolation {
     name: &'static str,
@@ -121,6 +155,7 @@ pub struct FieldContract {
     pub when_attribute: Option<String>,
     pub when_values: BTreeSet<String>,
     pub when_present_attributes: BTreeSet<String>,
+    pub source_map: SourceMapStack,
 }
 
 impl FieldContract {
@@ -195,8 +230,22 @@ pub fn validate_document_model(
     for child_id in root_children {
         validate_node(document, model, *child_id, false, &mut diagnostics);
     }
+    if model.schema_uri == CEM_SCHEMA_URI {
+        diagnostics.extend(compile_authored_schema_behaviors(document));
+    }
 
     diagnostics
+}
+
+fn compile_authored_schema_behaviors(document: &CemDocument) -> Vec<Diagnostic> {
+    let Some(schema_id) = first_element_id_by_local_name(document, "schema") else {
+        return Vec::new();
+    };
+    let attrs = collect_attrs(document, schema_id);
+    let Some(schema_uri) = optional_non_empty_attr(&attrs, "namespace") else {
+        return Vec::new();
+    };
+    compile_document_model_from_document(schema_uri, document).compile_diagnostics
 }
 
 fn validate_node(
@@ -278,6 +327,7 @@ fn validate_node(
 
     validate_field_contracts(
         &model.schema_uri,
+        &model.diagnostic_behaviors,
         local,
         element_model,
         &seen_attributes,
@@ -589,28 +639,36 @@ fn compile_document_model_with_seen(
     schema_source: &str,
     seen_schema_uris: &mut BTreeSet<String>,
 ) -> SchemaDocumentModel {
+    let document = parse_cem_document(schema_source);
+    compile_document_model_from_document_with_seen(schema_uri, &document, seen_schema_uris)
+}
+
+fn compile_document_model_from_document(
+    schema_uri: &str,
+    document: &CemDocument,
+) -> SchemaDocumentModel {
+    compile_document_model_from_document_with_seen(schema_uri, document, &mut BTreeSet::new())
+}
+
+fn compile_document_model_from_document_with_seen(
+    schema_uri: &str,
+    document: &CemDocument,
+    seen_schema_uris: &mut BTreeSet<String>,
+) -> SchemaDocumentModel {
     if !seen_schema_uris.insert(schema_uri.to_owned()) {
-        return SchemaDocumentModel {
-            schema_uri: schema_uri.to_owned(),
-            elements: BTreeMap::new(),
-            attributes: BTreeMap::new(),
-        };
+        return empty_document_model(schema_uri);
     }
 
-    let document = parse_cem_document(schema_source);
-    let mut model = SchemaDocumentModel {
-        schema_uri: schema_uri.to_owned(),
-        elements: BTreeMap::new(),
-        attributes: BTreeMap::new(),
-    };
+    let mut model = empty_document_model(schema_uri);
 
-    let Some(schema_id) = first_element_id_by_local_name(&document, "schema") else {
+    let Some(schema_id) = first_element_id_by_local_name(document, "schema") else {
         seen_schema_uris.remove(schema_uri);
         return model;
     };
-    let uses = collect_schema_uses(&document, schema_id);
+    let uses = collect_schema_uses(document, schema_id);
+    model.behaviors = collect_behavior_definitions(document, schema_id, schema_uri);
 
-    for elements_id in element_child_ids_by_local_name(&document, schema_id, "elements") {
+    for elements_id in element_child_ids_by_local_name(document, schema_id, "elements") {
         let Some(CemAstNode::Element { children, .. }) = document.get(elements_id) else {
             continue;
         };
@@ -622,7 +680,7 @@ fn compile_document_model_with_seen(
                 continue;
             }
             let Some(element_model) =
-                compile_element_model(&document, *child_id, &uses, seen_schema_uris)
+                compile_element_model(document, *child_id, &uses, seen_schema_uris)
             else {
                 continue;
             };
@@ -632,9 +690,33 @@ fn compile_document_model_with_seen(
         }
     }
 
-    model.attributes = collect_attribute_models(&document, schema_id);
+    model.attributes = collect_attribute_models(document, schema_id);
+    let (diagnostic_behaviors, diagnostic_compile_diagnostics) =
+        collect_diagnostic_behaviors(document, schema_id, schema_uri, &uses, &model.behaviors);
+    model.diagnostic_behaviors = diagnostic_behaviors;
+    model
+        .compile_diagnostics
+        .extend(diagnostic_compile_diagnostics);
 
-    for contract in collect_field_contracts(&document, schema_id) {
+    for contract in collect_field_contracts(document, schema_id) {
+        if let Some(code) = contract.diagnostic.as_deref() {
+            if !model.diagnostic_behaviors.contains_key(code) {
+                model.compile_diagnostics.push(schema_compile_diagnostic(
+                    UNRESOLVED_DIAGNOSTIC_REFERENCE_CODE,
+                    format!(
+                        "field contract `{}` references diagnostic behavior `{code}` that is not declared by schema `{schema_uri}`",
+                        contract.name
+                    ),
+                    &contract.source_map,
+                    serde_json::json!({
+                        "schemaUri": schema_uri,
+                        "contract": &contract.name,
+                        "diagnostic": code,
+                        "checkKind": "diagnostic-reference-resolution",
+                    }),
+                ));
+            }
+        }
         if let Some(element_model) = model.elements.get_mut(&contract.target) {
             element_model.field_contracts.push(contract);
         }
@@ -642,6 +724,17 @@ fn compile_document_model_with_seen(
 
     seen_schema_uris.remove(schema_uri);
     model
+}
+
+fn empty_document_model(schema_uri: &str) -> SchemaDocumentModel {
+    SchemaDocumentModel {
+        schema_uri: schema_uri.to_owned(),
+        elements: BTreeMap::new(),
+        attributes: BTreeMap::new(),
+        behaviors: BTreeMap::new(),
+        diagnostic_behaviors: BTreeMap::new(),
+        compile_diagnostics: Vec::new(),
+    }
 }
 
 fn compile_element_model(
@@ -712,6 +805,157 @@ fn collect_attribute_models(
     attributes
 }
 
+fn collect_diagnostic_behaviors(
+    document: &CemDocument,
+    schema_id: AstNodeId,
+    schema_uri: &str,
+    uses: &BTreeMap<String, String>,
+    local_behaviors: &BTreeMap<String, BehaviorDefinition>,
+) -> (BTreeMap<String, DiagnosticBehavior>, Vec<Diagnostic>) {
+    let mut behaviors = BTreeMap::new();
+    let mut diagnostics = Vec::new();
+    for diagnostics_id in element_child_ids_by_local_name(document, schema_id, "diagnostics") {
+        let Some(CemAstNode::Element { children, .. }) = document.get(diagnostics_id) else {
+            continue;
+        };
+        for child_id in children {
+            let Some(child) = document.get(*child_id) else {
+                continue;
+            };
+            if element_local_name(child) != Some("diagnostic") {
+                continue;
+            }
+            let attrs = collect_attrs(document, *child_id);
+            let Some(code) = optional_non_empty_attr(&attrs, "code") else {
+                continue;
+            };
+            let Some(behavior) = optional_non_empty_attr(&attrs, "behavior") else {
+                continue;
+            };
+            let severity = optional_non_empty_attr(&attrs, "severity")
+                .and_then(parse_diagnostic_severity)
+                .unwrap_or(Severity::Error);
+            let source_map = source_stack_for_node(child).clone();
+            let behavior_definition =
+                resolve_behavior_definition(behavior, schema_uri, uses, local_behaviors);
+            let engine_behavior = behavior_definition
+                .as_ref()
+                .filter(|behavior| is_supported_engine_behavior(behavior))
+                .map(|_| EngineDiagnosticBehavior::FieldContract);
+            if engine_behavior.is_none() {
+                diagnostics.push(schema_compile_diagnostic(
+                    UNKNOWN_DIAGNOSTIC_BEHAVIOR_CODE,
+                    format!("diagnostic `{code}` references unknown engine behavior `{behavior}`"),
+                    &source_map,
+                    serde_json::json!({
+                        "schemaUri": schema_uri,
+                        "diagnostic": code,
+                        "behavior": behavior,
+                        "checkKind": "diagnostic-behavior-resolution",
+                    }),
+                ));
+            }
+            behaviors.insert(
+                code.to_owned(),
+                DiagnosticBehavior {
+                    code: code.to_owned(),
+                    severity,
+                    behavior: behavior.to_owned(),
+                    engine_behavior,
+                    message: optional_non_empty_attr(&attrs, "message").map(str::to_owned),
+                    source_map,
+                },
+            );
+        }
+    }
+    (behaviors, diagnostics)
+}
+
+fn collect_behavior_definitions(
+    document: &CemDocument,
+    schema_id: AstNodeId,
+    schema_uri: &str,
+) -> BTreeMap<String, BehaviorDefinition> {
+    let mut behaviors = BTreeMap::new();
+    for behaviors_id in element_child_ids_by_local_name(document, schema_id, "behaviors") {
+        let Some(CemAstNode::Element { children, .. }) = document.get(behaviors_id) else {
+            continue;
+        };
+        for child_id in children {
+            let Some(child) = document.get(*child_id) else {
+                continue;
+            };
+            if element_local_name(child) != Some("behavior") {
+                continue;
+            }
+            let attrs = collect_attrs(document, *child_id);
+            let Some(name) = optional_non_empty_attr(&attrs, "name") else {
+                continue;
+            };
+            let Some(implementation) = optional_non_empty_attr(&attrs, "implementation") else {
+                continue;
+            };
+            let Some(execution) = optional_non_empty_attr(&attrs, "execution") else {
+                continue;
+            };
+            behaviors.insert(
+                name.to_owned(),
+                BehaviorDefinition {
+                    schema_uri: schema_uri.to_owned(),
+                    name: name.to_owned(),
+                    implementation: implementation.to_owned(),
+                    execution: execution.to_owned(),
+                    source_map: source_stack_for_node(child).clone(),
+                },
+            );
+        }
+    }
+    behaviors
+}
+
+fn resolve_behavior_definition(
+    reference: &str,
+    schema_uri: &str,
+    uses: &BTreeMap<String, String>,
+    local_behaviors: &BTreeMap<String, BehaviorDefinition>,
+) -> Option<BehaviorDefinition> {
+    let reference = reference.trim();
+    let Some((alias, name)) = reference.split_once(':') else {
+        return local_behaviors.get(reference).cloned();
+    };
+    let referenced_schema_uri = uses.get(alias.trim())?.trim();
+    let name = name.trim();
+    if referenced_schema_uri.is_empty() || name.is_empty() {
+        return None;
+    }
+    if referenced_schema_uri == schema_uri {
+        return local_behaviors.get(name).cloned();
+    }
+    let package = load_builtin_schema_package(referenced_schema_uri).ok()?;
+    let document = parse_cem_document(package.schema_source);
+    let schema_id = first_element_id_by_local_name(&document, "schema")?;
+    collect_behavior_definitions(&document, schema_id, referenced_schema_uri)
+        .get(name)
+        .cloned()
+}
+
+fn is_supported_engine_behavior(behavior: &BehaviorDefinition) -> bool {
+    behavior.schema_uri == CEM_SCHEMA_URI
+        && behavior.name == "field-contract"
+        && behavior.implementation == "engine"
+        && behavior.execution == "ast-validation"
+}
+
+fn parse_diagnostic_severity(value: &str) -> Option<Severity> {
+    match value.trim() {
+        "info" => Some(Severity::Info),
+        "warning" => Some(Severity::Warning),
+        "error" => Some(Severity::Error),
+        "fatal" => Some(Severity::Fatal),
+        _ => None,
+    }
+}
+
 fn collect_field_contracts(document: &CemDocument, schema_id: AstNodeId) -> Vec<FieldContract> {
     let mut contracts = Vec::new();
     for contracts_id in element_child_ids_by_local_name(document, schema_id, "field-contracts") {
@@ -754,6 +998,11 @@ fn collect_field_contracts(document: &CemDocument, schema_id: AstNodeId) -> Vec<
                     .map(str::to_owned),
                 when_values: parse_name_set(attrs.get("when-values")),
                 when_present_attributes: parse_name_set(attrs.get("when-present-attributes")),
+                source_map: document
+                    .get(*child_id)
+                    .map(source_stack_for_node)
+                    .cloned()
+                    .unwrap_or_default(),
             });
         }
     }
@@ -762,6 +1011,7 @@ fn collect_field_contracts(document: &CemDocument, schema_id: AstNodeId) -> Vec<
 
 fn validate_field_contracts(
     schema_uri: &str,
+    diagnostic_behaviors: &BTreeMap<String, DiagnosticBehavior>,
     element_name: &str,
     element_model: &ElementModel,
     seen_attributes: &BTreeSet<String>,
@@ -771,6 +1021,18 @@ fn validate_field_contracts(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for contract in &element_model.field_contracts {
+        let diagnostic_behavior = match contract.diagnostic.as_deref() {
+            Some(code) => {
+                let Some(behavior) = diagnostic_behaviors.get(code) else {
+                    continue;
+                };
+                if behavior.engine_behavior != Some(EngineDiagnosticBehavior::FieldContract) {
+                    continue;
+                }
+                Some(behavior)
+            }
+            None => None,
+        };
         if !contract.applies_to(attribute_values) {
             continue;
         }
@@ -868,19 +1130,30 @@ fn validate_field_contracts(
                 duplicate_children.join(", ")
             ));
         }
-        diagnostics.push(diag_at_with_details(
+        let generated_message = format!(
+            "element `{element_name}` failed field contract `{}` ({}) with {}",
+            contract.name,
+            contract.check_kind(),
+            parts.join("; ")
+        );
+        let message = diagnostic_behavior
+            .and_then(|behavior| behavior.message.as_deref())
+            .map(|message| format!("{message}: {generated_message}"))
+            .unwrap_or(generated_message);
+        diagnostics.push(diag_at_with_details_and_severity(
             contract.diagnostic_code(),
-            format!(
-                "element `{element_name}` failed field contract `{}` ({}) with {}",
-                contract.name,
-                contract.check_kind(),
-                parts.join("; ")
-            ),
+            diagnostic_behavior
+                .map(|behavior| behavior.severity)
+                .unwrap_or(Severity::Error),
+            message,
             node,
             field_contract_details(
                 schema_uri,
                 element_name,
                 contract,
+                diagnostic_behavior
+                    .map(|behavior| behavior.behavior.as_str())
+                    .unwrap_or(FIELD_CONTRACT_DIAGNOSTIC_BEHAVIOR),
                 attribute_values,
                 &missing,
                 &invalid_fields,
@@ -898,6 +1171,7 @@ fn field_contract_details(
     schema_uri: &str,
     element_name: &str,
     contract: &FieldContract,
+    behavior: &str,
     attribute_values: &BTreeMap<String, String>,
     missing_fields: &[String],
     invalid_fields: &[String],
@@ -913,6 +1187,7 @@ fn field_contract_details(
         "contract": &contract.name,
         "target": &contract.target,
         "diagnostic": contract.diagnostic_code(),
+        "behavior": behavior,
         "checkKind": contract.check_kind(),
         "requiredFields": &contract.required_attributes,
         "optionalFields": &contract.optional_attributes,
@@ -1383,7 +1658,28 @@ fn diag_at_with_details(
     diagnostic
 }
 
+fn diag_at_with_details_and_severity(
+    code: &str,
+    severity: Severity,
+    message: String,
+    node: &CemAstNode,
+    details: serde_json::Value,
+) -> Diagnostic {
+    let mut diagnostic = diag_at_with_severity(code, severity, message, node);
+    diagnostic.details = Some(details);
+    diagnostic
+}
+
 fn diag_at(code: &str, message: String, node: &CemAstNode) -> Diagnostic {
+    diag_at_with_severity(code, Severity::Error, message, node)
+}
+
+fn diag_at_with_severity(
+    code: &str,
+    severity: Severity,
+    message: String,
+    node: &CemAstNode,
+) -> Diagnostic {
     let stack = source_stack_for_node(node);
     let byte_offset = stack.frames.first().and_then(|f| match &f.span {
         FrameSpan::Single(r) => Some(r.start),
@@ -1395,11 +1691,38 @@ fn diag_at(code: &str, message: String, node: &CemAstNode) -> Diagnostic {
         column: None,
         byte_offset,
         code: code.to_owned(),
-        severity: Severity::Error,
+        severity,
         message,
         node: None,
         details: None,
         source_map: Some(stack.clone()),
+    }
+}
+
+fn schema_compile_diagnostic(
+    code: &str,
+    message: String,
+    source_map: &SourceMapStack,
+    details: serde_json::Value,
+) -> Diagnostic {
+    let byte_offset = source_map
+        .frames
+        .first()
+        .and_then(|frame| match &frame.span {
+            FrameSpan::Single(range) => Some(range.start),
+            FrameSpan::Multi(ranges) => ranges.first().map(|range| range.start),
+        });
+    Diagnostic {
+        uri: None,
+        line: None,
+        column: None,
+        byte_offset,
+        code: code.to_owned(),
+        severity: Severity::Error,
+        message,
+        node: None,
+        details: Some(details),
+        source_map: Some(source_map.clone()),
     }
 }
 
@@ -1422,6 +1745,12 @@ mod tests {
         assert!(schema.required_attributes.contains("version"));
         assert!(schema.child_elements.contains("elements"));
         assert!(model.element("attribute").is_some());
+        let field_contract_behavior = model
+            .behaviors
+            .get("field-contract")
+            .expect("schema-declared field-contract engine behavior");
+        assert_eq!(field_contract_behavior.implementation, "engine");
+        assert_eq!(field_contract_behavior.execution, "ast-validation");
     }
 
     #[test]
@@ -1433,6 +1762,18 @@ mod tests {
         .unwrap();
 
         assert_eq!(model.schema_uri, CEM_SCHEMA_PACKAGE_URI);
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "schema-package behavior declarations must compile: {:#?}",
+            model.compile_diagnostics
+        );
+        assert_eq!(
+            model
+                .diagnostic_behaviors
+                .get("cem.schema_package.converter_check")
+                .map(|behavior| behavior.behavior.as_str()),
+            Some(FIELD_CONTRACT_DIAGNOSTIC_BEHAVIOR)
+        );
         let package = model.element("package").unwrap();
         assert!(package.required_attributes.contains("id"));
         assert!(package.child_elements.contains("converter"));
@@ -1480,6 +1821,9 @@ mod tests {
 @default schema
 
 {schema @name="contracts" @namespace="https://example.test/ns/contracts/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
     {elements |
         {element @name="item" @required-attributes="kind" @optional-attributes="kind name code mode"}
         {element @name="group" @children="child"}
@@ -1538,6 +1882,13 @@ mod tests {
             @path-layout-extension="cemt"
             @diagnostic="example.item_check"
             @check-kind="path-layout"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.item_check"
+            @severity="error"
+            @behavior="schema:field-contract"
         }
     }
 }"#,
@@ -1756,6 +2107,184 @@ mod tests {
                 "cleanSegments": true,
             })
         );
+    }
+
+    #[test]
+    fn schema_diagnostic_behavior_drives_field_contract_execution_and_severity() {
+        let model = compile_document_model(
+            "https://example.test/ns/diagnostic-behavior/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="diagnostic-behavior" @namespace="https://example.test/ns/diagnostic-behavior/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="item" @optional-attributes="name"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="item-name-required"
+            @target="item"
+            @required-attributes="name"
+            @diagnostic="example.item_name_required"
+            @check-kind="required-fields"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.item_name_required"
+            @severity="warning"
+            @behavior="schema:field-contract"
+            @message="Item name is required"
+        }
+    }
+}"#,
+        );
+
+        assert!(model.compile_diagnostics.is_empty());
+        let behavior = model
+            .diagnostic_behaviors
+            .get("example.item_name_required")
+            .expect("compiled diagnostic behavior");
+        assert_eq!(behavior.behavior, "schema:field-contract");
+        assert_eq!(behavior.severity, Severity::Warning);
+
+        let document = parse_cem_document(r#"{item}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.item_name_required")
+            .expect("schema-owned diagnostic behavior result");
+
+        assert_eq!(diagnostic.severity, Severity::Warning);
+        assert!(diagnostic.message.starts_with("Item name is required:"));
+        assert_eq!(
+            diagnostic
+                .details
+                .as_ref()
+                .and_then(|details| details.get("behavior"))
+                .and_then(serde_json::Value::as_str),
+            Some("schema:field-contract")
+        );
+    }
+
+    #[test]
+    fn schema_diagnostic_behavior_rejects_undeclared_field_contract_reference() {
+        let model = compile_document_model(
+            "https://example.test/ns/diagnostic-reference/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="diagnostic-reference" @namespace="https://example.test/ns/diagnostic-reference/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="item" @optional-attributes="name"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="item-name-required"
+            @target="item"
+            @required-attributes="name"
+            @diagnostic="example.undeclared"
+        }
+    }
+}"#,
+        );
+
+        assert!(model.compile_diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "cem.schema_definition.unresolved_diagnostic_reference"
+                && diagnostic.message.contains("example.undeclared")
+        }));
+    }
+
+    #[test]
+    fn schema_diagnostic_behavior_rejects_unknown_engine_behavior() {
+        let model = compile_document_model(
+            "https://example.test/ns/diagnostic-engine/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="diagnostic-engine" @namespace="https://example.test/ns/diagnostic-engine/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="item"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="unknown-engine-contract"
+            @target="item"
+            @required-attributes="name"
+            @diagnostic="example.unknown_engine"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.unknown_engine"
+            @severity="error"
+            @behavior="schema:not-an-engine-behavior"
+        }
+    }
+}"#,
+        );
+
+        assert!(model.compile_diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "cem.schema_definition.unknown_diagnostic_behavior"
+                && diagnostic.message.contains("schema:not-an-engine-behavior")
+        }));
+        let document = parse_cem_document(r#"{item}"#);
+        assert!(validate_document_model(&document, &model)
+            .iter()
+            .all(|diagnostic| diagnostic.code != "example.unknown_engine"));
+    }
+
+    #[test]
+    fn schema_document_validation_surfaces_diagnostic_behavior_compile_errors() {
+        let schema_language_model =
+            load_builtin_document_model_for_identity(Some(CEM_SCHEMA_URI), None).unwrap();
+        let document = parse_cem_document(
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-behavior" @namespace="https://example.test/ns/invalid-behavior/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="item"}
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.invalid_behavior"
+            @severity="error"
+            @behavior="schema:not-an-engine-behavior"
+        }
+    }
+}"#,
+        );
+
+        let diagnostics = validate_document_model(&document, &schema_language_model);
+
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == UNKNOWN_DIAGNOSTIC_BEHAVIOR_CODE
+                && diagnostic
+                    .source_map
+                    .as_ref()
+                    .is_some_and(|source_map| !source_map.frames.is_empty())
+                && diagnostic.details.as_ref().is_some_and(|details| {
+                    details["behavior"] == "schema:not-an-engine-behavior"
+                        && details["checkKind"] == "diagnostic-behavior-resolution"
+                })
+        }));
     }
 
     #[test]

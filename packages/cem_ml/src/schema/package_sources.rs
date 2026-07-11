@@ -656,7 +656,7 @@ mod tests {
     #[test]
     fn schema_package_examples_are_manifest_indexed() {
         let examples =
-            manifest_indexed_package_examples("schema", CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_URI, 4);
+            manifest_indexed_package_examples("schema", CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_URI, 5);
         let missing_required = examples
             .iter()
             .find(|example| example.id == "invalid-missing-required-attribute")
@@ -681,6 +681,19 @@ mod tests {
         assert_eq!(
             unclosed.expected_diagnostic_codes,
             vec!["cem.ast.unclosed_scope".to_owned()]
+        );
+
+        let invalid_behavior = examples
+            .iter()
+            .find(|example| example.id == "invalid-diagnostic-behavior")
+            .expect("invalid diagnostic behavior schema example");
+        assert_eq!(
+            invalid_behavior.expected_result,
+            SchemaPackageExampleExpectedResult::Fail
+        );
+        assert_eq!(
+            invalid_behavior.expected_diagnostic_codes,
+            vec!["cem.schema_definition.unknown_diagnostic_behavior".to_owned()]
         );
     }
 
