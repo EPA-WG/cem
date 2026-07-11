@@ -464,8 +464,12 @@ Reusable schema relationships are declared inside schema documents with
 ```
 
 Downstream declarations refer to imported definitions with qualified names, for
-example `schema:media-type` or `schema:uri`. This keeps package-specific schemas
-small while preserving strict validation boundaries for their own instances.
+example `schema:media-type`, `schema:uri`, or `schema:path`. `path` values are
+scoped resource specifiers rather than document-relative filesystem paths:
+`./...` resolves against the active context root, protocol values resolve through
+the matching resolver, and bare values are module-map specifiers. This keeps
+package-specific schemas small while preserving strict validation boundaries for
+their own instances.
 
 ## CEMT Transformation Ownership
 

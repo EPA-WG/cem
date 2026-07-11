@@ -54,7 +54,7 @@
         {type @name="uri" @kind="scalar" @rule="absolute or relative URI reference"}
         {type @name="semver" @kind="scalar" @rule="major.minor.patch with optional prerelease and build metadata"}
         {type @name="media-type" @kind="scalar" @rule="type slash subtype with optional structured suffix and parameters"}
-        {type @name="path" @kind="scalar" @rule="package-relative path"}
+        {type @name="path" @kind="scalar" @rule="scope-context path: ./context-relative, protocol URI, or module-map specifier"}
         {type @name="name-list" @kind="list" @base="identifier"}
         {type @name="content-model" @kind="grammar" @base="string"}
         {type @name="type-reference" @kind="reference" @base="qualified-name"}

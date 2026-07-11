@@ -22,7 +22,7 @@
     }
 
     {elements |
-        {element @name="resource" @required-attributes="id kind" @optional-attributes="label priority rank slug code href format inline" @children="field*"}
+        {element @name="resource" @required-attributes="id kind" @optional-attributes="label priority rank slug code href format asset inline" @children="field*"}
         {element @name="field" @required-attributes="name type"}
     }
 
@@ -69,6 +69,11 @@
             @name="format"
             @type="schema:media-type"
             @type-diagnostic="example.resource.invalid_format"
+        }
+        {attribute
+            @name="asset"
+            @type="schema:path"
+            @type-diagnostic="example.resource.invalid_asset"
         }
         {attribute
             @name="inline"
@@ -137,6 +142,12 @@
             @severity="error"
             @behavior="schema:scalar-type"
             @message="Resource format must be a media type"
+        }
+        {diagnostic
+            @code="example.resource.invalid_asset"
+            @severity="error"
+            @behavior="schema:scalar-type"
+            @message="Resource asset must be a scoped path"
         }
         {diagnostic
             @code="example.resource.invalid_priority"

@@ -11,13 +11,13 @@
 //! - schema-owned field contracts for element-bound conditional checks.
 //! - schema-owned diagnostic declarations resolved through declarative engine
 //!   behavior definitions, including severity and message metadata.
-//! - schema-owned attribute `@values`, boolean/integer/URI/media-type type
-//!   checks, and integer `minInclusive`/`maxInclusive`/`minExclusive`/
-//!   `maxExclusive`, string `minLength`/`maxLength`/`length`, and regex
-//!   `pattern` datatype-param checks.
+//! - schema-owned attribute `@values`, boolean/integer/URI/media-type/path
+//!   type checks, and integer `minInclusive`/`maxInclusive`/
+//!   `minExclusive`/`maxExclusive`, string `minLength`/`maxLength`/`length`,
+//!   and regex `pattern` datatype-param checks.
 //! - schema-owned exact and ranged child occurrence field contracts.
 //!
-//! Ordering, scalar type checks beyond boolean/integer/URI/media-type syntax,
+//! Ordering, scalar type checks beyond boolean/integer/URI/media-type/path syntax,
 //! additional datatype params, and semantic constraints remain follow-up work.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -662,6 +662,16 @@ fn validate_attribute_type(
             allows_empty: false,
             message: "not a schema-declared media type",
         })
+    } else if is_path_type_reference(value_type) {
+        (!is_scoped_path_specifier(value)).then_some(AttributeTypeViolation {
+            name: "path",
+            check_kind: "type:path",
+            expected_values: &[],
+            expected_pattern:
+                "scope-context path: ./context-relative, protocol URI, or module-map specifier",
+            allows_empty: false,
+            message: "not a schema-declared path",
+        })
     } else {
         None
     };
@@ -743,6 +753,10 @@ fn is_media_type_reference(value_type: &str) -> bool {
     type_reference_local_name(value_type) == "media-type"
 }
 
+fn is_path_type_reference(value_type: &str) -> bool {
+    type_reference_local_name(value_type) == "path"
+}
+
 fn type_reference_local_name(value_type: &str) -> &str {
     let value_type = value_type.trim();
     value_type
@@ -760,6 +774,41 @@ fn is_signed_decimal_integer(value: &str) -> bool {
 fn is_absolute_uri(value: &str) -> bool {
     let value = value.trim();
     has_uri_scheme(value) && !is_windows_drive_path(value)
+}
+
+fn is_scoped_path_specifier(value: &str) -> bool {
+    let value = value.trim();
+    if value.is_empty()
+        || value
+            .bytes()
+            .any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace())
+        || value.contains('\\')
+        || is_windows_drive_path(value)
+    {
+        return false;
+    }
+
+    if has_uri_scheme(value) {
+        return true;
+    }
+
+    if value.starts_with('/') || value == "." || value == ".." || value.starts_with("../") {
+        return false;
+    }
+
+    if let Some(relative) = value.strip_prefix("./") {
+        return is_path_segment_sequence(relative);
+    }
+
+    is_path_segment_sequence(value)
+}
+
+fn is_path_segment_sequence(value: &str) -> bool {
+    !value.is_empty()
+        && !value.contains('*')
+        && value
+            .split('/')
+            .all(|segment| !matches!(segment, "" | "." | ".."))
 }
 
 fn is_media_type(value: &str) -> bool {
@@ -5757,7 +5806,7 @@ mod tests {
         {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
     }
     {elements |
-        {element @name="item" @optional-attributes="mode enabled homepage format count score lower upper code label tag"}
+        {element @name="item" @optional-attributes="mode enabled homepage format asset count score lower upper code label tag"}
     }
     {attributes |
         {attribute
@@ -5780,6 +5829,11 @@ mod tests {
             @name="format"
             @type="schema:media-type"
             @type-diagnostic="example.format_type"
+        }
+        {attribute
+            @name="asset"
+            @type="schema:path"
+            @type-diagnostic="example.asset_type"
         }
         {attribute
             @name="count"
@@ -5850,6 +5904,12 @@ mod tests {
             @message="Format must be a media type"
         }
         {diagnostic
+            @code="example.asset_type"
+            @severity="error"
+            @behavior="schema:scalar-type"
+            @message="Asset must be a scoped path"
+        }
+        {diagnostic
             @code="example.count_min"
             @severity="error"
             @behavior="schema:datatype-param"
@@ -5909,7 +5969,7 @@ mod tests {
         );
 
         let document = parse_cem_document(
-            r#"{item @mode=tabular @enabled=maybe @homepage="/relative" @format="text/html; charset" @count=0 @score=11 @lower=1 @upper=10 @code=bad_code @label=go @tag=to}"#,
+            r#"{item @mode=tabular @enabled=maybe @homepage="/relative" @format="text/html; charset" @asset="/rooted.cem" @count=0 @score=11 @lower=1 @upper=10 @code=bad_code @label=go @tag=to}"#,
         );
         let diagnostics = validate_document_model(&document, &model);
 
@@ -6016,6 +6076,33 @@ mod tests {
             details["actualValue"],
             serde_json::json!("text/html; charset")
         );
+
+        let scalar_type = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.asset_type")
+            .expect("path scalar-type alias diagnostic");
+        assert_eq!(scalar_type.severity, Severity::Error);
+        assert!(scalar_type
+            .message
+            .starts_with("Asset must be a scoped path:"));
+        let details = scalar_type
+            .details
+            .as_ref()
+            .expect("path scalar-type alias details");
+        assert_eq!(details["behavior"], serde_json::json!("schema:scalar-type"));
+        assert_eq!(
+            details["diagnostic"],
+            serde_json::json!("example.asset_type")
+        );
+        assert_eq!(details["checkKind"], serde_json::json!("type:path"));
+        assert_eq!(details["expectedType"], serde_json::json!("schema:path"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!(
+                "scope-context path: ./context-relative, protocol URI, or module-map specifier"
+            )
+        );
+        assert_eq!(details["actualValue"], serde_json::json!("/rooted.cem"));
 
         let datatype_param = diagnostics
             .iter()
@@ -6630,6 +6717,97 @@ mod tests {
         assert_eq!(
             details["actualValues"]["content-type"],
             serde_json::json!("text/html; charset")
+        );
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
+    fn schema_path_attribute_type_drives_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/path-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="path-contracts" @namespace="https://example.test/ns/path-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="src"}
+    }
+    {attributes |
+        {attribute @name="src" @type="schema:path"}
+    }
+}"#,
+        );
+        for source in [
+            r#"{item @src="./templates/card.cem"}"#,
+            r#"{item @src="https://example.test/templates/card.cem"}"#,
+            r#"{item @src="file:///workspace/templates/card.cem"}"#,
+            r#"{item @src="@templates/card.cem"}"#,
+            r#"{item @src="formatters/card.cemt"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_TYPE_CODE),
+                "valid path source produced type diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        for source in [
+            r#"{item @src}"#,
+            r#"{item @src="/templates/card.cem"}"#,
+            r#"{item @src="C:/tmp/card.cem"}"#,
+            r#"{item @src="../templates/card.cem"}"#,
+            r#"{item @src="./../templates/card.cem"}"#,
+            r#"{item @src="./templates/*.cem"}"#,
+            r#"{item @src="templates\\card.cem"}"#,
+            r#"{item @src="./"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_TYPE_CODE),
+                "invalid path source did not produce type diagnostic: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{item @src="/templates/card.cem"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_TYPE_CODE)
+            .expect("attribute type diagnostic");
+        assert!(diagnostic.message.contains("src"));
+        assert!(diagnostic.message.contains("/templates/card.cem"));
+        let details = diagnostic.details.as_ref().expect("attribute type details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/path-contracts/1")
+        );
+        assert_eq!(details["element"], serde_json::json!("item"));
+        assert_eq!(details["attribute"], serde_json::json!("src"));
+        assert_eq!(details["contract"], serde_json::json!("attribute-type:src"));
+        assert_eq!(details["checkKind"], serde_json::json!("type:path"));
+        assert_eq!(details["expectedType"], serde_json::json!("schema:path"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!(
+                "scope-context path: ./context-relative, protocol URI, or module-map specifier"
+            )
+        );
+        assert_eq!(details["allowsEmpty"], serde_json::json!(false));
+        assert_eq!(
+            details["actualValue"],
+            serde_json::json!("/templates/card.cem")
+        );
+        assert_eq!(details["invalidFields"], serde_json::json!(["src"]));
+        assert_eq!(
+            details["actualValues"]["src"],
+            serde_json::json!("/templates/card.cem")
         );
         assert!(details["sourceRange"]["span"]["start"].is_u64());
     }
