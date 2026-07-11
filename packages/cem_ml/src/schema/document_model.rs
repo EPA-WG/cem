@@ -59,6 +59,9 @@ pub const SCHEMA_BEHAVIOR_QUERY_FAILED_CODE: &str = "cem.schema_behavior.query_f
 pub const SCHEMA_BEHAVIOR_RESULT_INVALID_CODE: &str = "cem.schema_behavior.result_invalid";
 pub const SCHEMA_BEHAVIOR_FUNCTION_FAILED_CODE: &str = "cem.schema_behavior.function_failed";
 pub const FIELD_CONTRACT_DIAGNOSTIC_BEHAVIOR: &str = "schema:field-contract";
+pub const VALUE_VOCABULARY_DIAGNOSTIC_BEHAVIOR: &str = "schema:value-vocabulary";
+pub const SCALAR_TYPE_DIAGNOSTIC_BEHAVIOR: &str = "schema:scalar-type";
+pub const DATATYPE_PARAM_DIAGNOSTIC_BEHAVIOR: &str = "schema:datatype-param";
 
 pub trait SchemaBehaviorEvaluator: std::fmt::Debug + Send + Sync {
     fn compile_model(&self, _model: &SchemaDocumentModel) -> Vec<Diagnostic> {
@@ -121,6 +124,10 @@ pub struct AttributeModel {
     pub value_type: Option<String>,
     pub allowed_values: BTreeSet<String>,
     pub min_inclusive: Option<String>,
+    pub values_diagnostic: Option<String>,
+    pub type_diagnostic: Option<String>,
+    pub datatype_param_diagnostic: Option<String>,
+    pub source_map: SourceMapStack,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -140,6 +147,20 @@ pub struct DiagnosticBehavior {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EngineDiagnosticBehavior {
     FieldContract,
+    ValueVocabulary,
+    ScalarType,
+    DatatypeParam,
+}
+
+impl EngineDiagnosticBehavior {
+    fn reference(self) -> &'static str {
+        match self {
+            Self::FieldContract => FIELD_CONTRACT_DIAGNOSTIC_BEHAVIOR,
+            Self::ValueVocabulary => VALUE_VOCABULARY_DIAGNOSTIC_BEHAVIOR,
+            Self::ScalarType => SCALAR_TYPE_DIAGNOSTIC_BEHAVIOR,
+            Self::DatatypeParam => DATATYPE_PARAM_DIAGNOSTIC_BEHAVIOR,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -426,6 +447,7 @@ fn validate_node(
         } else if let Some(attribute_model) = model.attributes.get(attr_local) {
             validate_attribute_contracts(
                 &model.schema_uri,
+                &model.diagnostic_behaviors,
                 local,
                 attr_local,
                 attr_value.unwrap_or_default(),
@@ -496,6 +518,7 @@ fn validate_node(
 
 fn validate_attribute_contracts(
     schema_uri: &str,
+    diagnostic_behaviors: &BTreeMap<String, DiagnosticBehavior>,
     element_name: &str,
     attribute_name: &str,
     value: &str,
@@ -506,6 +529,7 @@ fn validate_attribute_contracts(
 ) {
     let type_valid = validate_attribute_type(
         schema_uri,
+        diagnostic_behaviors,
         element_name,
         attribute_name,
         value,
@@ -517,6 +541,7 @@ fn validate_attribute_contracts(
     if type_valid {
         validate_attribute_datatype_params(
             schema_uri,
+            diagnostic_behaviors,
             element_name,
             attribute_name,
             value,
@@ -528,6 +553,7 @@ fn validate_attribute_contracts(
     }
     validate_attribute_value(
         schema_uri,
+        diagnostic_behaviors,
         element_name,
         attribute_name,
         value,
@@ -540,6 +566,7 @@ fn validate_attribute_contracts(
 
 fn validate_attribute_type(
     schema_uri: &str,
+    diagnostic_behaviors: &BTreeMap<String, DiagnosticBehavior>,
     element_name: &str,
     attribute_name: &str,
     value: &str,
@@ -577,12 +604,24 @@ fn validate_attribute_type(
         return true;
     };
 
-    diagnostics.push(diag_at_with_details(
-        INVALID_ATTRIBUTE_TYPE_CODE,
-        format!(
-            "attribute `{attribute_name}` on element `{element_name}` has value `{value}` {}",
-            violation.message
-        ),
+    let diagnostic_behavior = engine_diagnostic_behavior(
+        diagnostic_behaviors,
+        attribute_model.type_diagnostic.as_deref(),
+        EngineDiagnosticBehavior::ScalarType,
+    );
+    let code = diagnostic_behavior
+        .map(|behavior| behavior.code.as_str())
+        .unwrap_or(INVALID_ATTRIBUTE_TYPE_CODE);
+    let generated_message = format!(
+        "attribute `{attribute_name}` on element `{element_name}` has value `{value}` {}",
+        violation.message
+    );
+    diagnostics.push(diag_at_with_details_and_severity(
+        code,
+        diagnostic_behavior
+            .map(|behavior| behavior.severity)
+            .unwrap_or(Severity::Error),
+        behavior_message(diagnostic_behavior, generated_message),
         node,
         attribute_type_details(
             schema_uri,
@@ -591,11 +630,36 @@ fn validate_attribute_type(
             value,
             attribute_model,
             violation,
+            code,
+            diagnostic_behavior
+                .map(|behavior| behavior.behavior.as_str())
+                .unwrap_or(SCALAR_TYPE_DIAGNOSTIC_BEHAVIOR),
             attribute_values,
             node,
         ),
     ));
     false
+}
+
+fn engine_diagnostic_behavior<'a>(
+    diagnostic_behaviors: &'a BTreeMap<String, DiagnosticBehavior>,
+    code: Option<&str>,
+    expected_engine_behavior: EngineDiagnosticBehavior,
+) -> Option<&'a DiagnosticBehavior> {
+    let code = code?;
+    diagnostic_behaviors
+        .get(code)
+        .filter(|behavior| behavior.engine_behavior == Some(expected_engine_behavior))
+}
+
+fn behavior_message(
+    diagnostic_behavior: Option<&DiagnosticBehavior>,
+    generated_message: String,
+) -> String {
+    diagnostic_behavior
+        .and_then(|behavior| behavior.message.as_deref())
+        .map(|message| format!("{message}: {generated_message}"))
+        .unwrap_or(generated_message)
 }
 
 fn is_boolean_type_reference(value_type: &str) -> bool {
@@ -622,6 +686,7 @@ fn is_signed_decimal_integer(value: &str) -> bool {
 
 fn validate_attribute_datatype_params(
     schema_uri: &str,
+    diagnostic_behaviors: &BTreeMap<String, DiagnosticBehavior>,
     element_name: &str,
     attribute_name: &str,
     value: &str,
@@ -644,11 +709,23 @@ fn validate_attribute_datatype_params(
         return;
     }
 
-    diagnostics.push(diag_at_with_details(
-        INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE,
-        format!(
-            "attribute `{attribute_name}` on element `{element_name}` has value `{value}` below minInclusive `{min_inclusive}`"
-        ),
+    let diagnostic_behavior = engine_diagnostic_behavior(
+        diagnostic_behaviors,
+        attribute_model.datatype_param_diagnostic.as_deref(),
+        EngineDiagnosticBehavior::DatatypeParam,
+    );
+    let code = diagnostic_behavior
+        .map(|behavior| behavior.code.as_str())
+        .unwrap_or(INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE);
+    let generated_message = format!(
+        "attribute `{attribute_name}` on element `{element_name}` has value `{value}` below minInclusive `{min_inclusive}`"
+    );
+    diagnostics.push(diag_at_with_details_and_severity(
+        code,
+        diagnostic_behavior
+            .map(|behavior| behavior.severity)
+            .unwrap_or(Severity::Error),
+        behavior_message(diagnostic_behavior, generated_message),
         node,
         attribute_datatype_param_details(
             schema_uri,
@@ -658,6 +735,10 @@ fn validate_attribute_datatype_params(
             attribute_model,
             "minInclusive",
             min_inclusive,
+            code,
+            diagnostic_behavior
+                .map(|behavior| behavior.behavior.as_str())
+                .unwrap_or(DATATYPE_PARAM_DIAGNOSTIC_BEHAVIOR),
             attribute_values,
             node,
         ),
@@ -707,6 +788,7 @@ fn compare_positive_decimal_digits(left: &str, right: &str) -> std::cmp::Orderin
 
 fn validate_attribute_value(
     schema_uri: &str,
+    diagnostic_behaviors: &BTreeMap<String, DiagnosticBehavior>,
     element_name: &str,
     attribute_name: &str,
     value: &str,
@@ -720,17 +802,29 @@ fn validate_attribute_value(
         return;
     }
 
-    diagnostics.push(diag_at_with_details(
-        INVALID_ATTRIBUTE_VALUE_CODE,
-        format!(
-            "attribute `{attribute_name}` on element `{element_name}` has value `{value}` outside schema-declared values: {}",
-            attribute_model
-                .allowed_values
-                .iter()
-                .cloned()
-                .collect::<Vec<_>>()
-                .join(", ")
-        ),
+    let diagnostic_behavior = engine_diagnostic_behavior(
+        diagnostic_behaviors,
+        attribute_model.values_diagnostic.as_deref(),
+        EngineDiagnosticBehavior::ValueVocabulary,
+    );
+    let code = diagnostic_behavior
+        .map(|behavior| behavior.code.as_str())
+        .unwrap_or(INVALID_ATTRIBUTE_VALUE_CODE);
+    let generated_message = format!(
+        "attribute `{attribute_name}` on element `{element_name}` has value `{value}` outside schema-declared values: {}",
+        attribute_model
+            .allowed_values
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    diagnostics.push(diag_at_with_details_and_severity(
+        code,
+        diagnostic_behavior
+            .map(|behavior| behavior.severity)
+            .unwrap_or(Severity::Error),
+        behavior_message(diagnostic_behavior, generated_message),
         node,
         attribute_value_details(
             schema_uri,
@@ -738,6 +832,10 @@ fn validate_attribute_value(
             attribute_name,
             value,
             attribute_model,
+            code,
+            diagnostic_behavior
+                .map(|behavior| behavior.behavior.as_str())
+                .unwrap_or(VALUE_VOCABULARY_DIAGNOSTIC_BEHAVIOR),
             attribute_values,
             node,
         ),
@@ -839,6 +937,35 @@ fn compile_document_model_from_document_with_seen(
             element_model.field_contracts.push(contract);
         }
     }
+    for attribute_model in model.attributes.values() {
+        validate_attribute_diagnostic_reference(
+            schema_uri,
+            attribute_model,
+            attribute_model.values_diagnostic.as_deref(),
+            "values-diagnostic",
+            EngineDiagnosticBehavior::ValueVocabulary,
+            &model.diagnostic_behaviors,
+            &mut model.compile_diagnostics,
+        );
+        validate_attribute_diagnostic_reference(
+            schema_uri,
+            attribute_model,
+            attribute_model.type_diagnostic.as_deref(),
+            "type-diagnostic",
+            EngineDiagnosticBehavior::ScalarType,
+            &model.diagnostic_behaviors,
+            &mut model.compile_diagnostics,
+        );
+        validate_attribute_diagnostic_reference(
+            schema_uri,
+            attribute_model,
+            attribute_model.datatype_param_diagnostic.as_deref(),
+            "datatype-param-diagnostic",
+            EngineDiagnosticBehavior::DatatypeParam,
+            &model.diagnostic_behaviors,
+            &mut model.compile_diagnostics,
+        );
+    }
 
     seen_schema_uris.remove(schema_uri);
     model
@@ -916,11 +1043,78 @@ fn collect_attribute_models(
                     allowed_values: parse_value_set(attrs.get("values")),
                     min_inclusive: optional_non_empty_attr(&attrs, "minInclusive")
                         .map(str::to_owned),
+                    values_diagnostic: optional_non_empty_attr(&attrs, "values-diagnostic")
+                        .map(str::to_owned),
+                    type_diagnostic: optional_non_empty_attr(&attrs, "type-diagnostic")
+                        .map(str::to_owned),
+                    datatype_param_diagnostic: optional_non_empty_attr(
+                        &attrs,
+                        "datatype-param-diagnostic",
+                    )
+                    .map(str::to_owned),
+                    source_map: document
+                        .get(*child_id)
+                        .map(source_stack_for_node)
+                        .cloned()
+                        .unwrap_or_default(),
                 },
             );
         }
     }
     attributes
+}
+
+fn validate_attribute_diagnostic_reference(
+    schema_uri: &str,
+    attribute_model: &AttributeModel,
+    code: Option<&str>,
+    diagnostic_attribute: &str,
+    expected_engine_behavior: EngineDiagnosticBehavior,
+    diagnostic_behaviors: &BTreeMap<String, DiagnosticBehavior>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(code) = code else {
+        return;
+    };
+    let Some(behavior) = diagnostic_behaviors.get(code) else {
+        diagnostics.push(schema_compile_diagnostic(
+            UNRESOLVED_DIAGNOSTIC_REFERENCE_CODE,
+            format!(
+                "attribute `{}` references diagnostic behavior `{code}` through `{diagnostic_attribute}`, but it is not declared by schema `{schema_uri}`",
+                attribute_model.name
+            ),
+            &attribute_model.source_map,
+            serde_json::json!({
+                "schemaUri": schema_uri,
+                "attribute": &attribute_model.name,
+                "diagnostic": code,
+                "diagnosticAttribute": diagnostic_attribute,
+                "checkKind": "diagnostic-reference-resolution",
+            }),
+        ));
+        return;
+    };
+    if behavior.engine_behavior != Some(expected_engine_behavior) {
+        diagnostics.push(schema_compile_diagnostic(
+            INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE,
+            format!(
+                "attribute `{}` references diagnostic `{code}` through `{diagnostic_attribute}`, but behavior `{}` is not compatible with `{}`",
+                attribute_model.name,
+                behavior.behavior,
+                expected_engine_behavior.reference()
+            ),
+            &attribute_model.source_map,
+            serde_json::json!({
+                "schemaUri": schema_uri,
+                "attribute": &attribute_model.name,
+                "diagnostic": code,
+                "diagnosticAttribute": diagnostic_attribute,
+                "behavior": &behavior.behavior,
+                "expectedBehavior": expected_engine_behavior.reference(),
+                "checkKind": "diagnostic-behavior-contract",
+            }),
+        ));
+    }
 }
 
 fn collect_diagnostic_behaviors(
@@ -1964,10 +2158,16 @@ fn supported_engine_behavior(behavior: &BehaviorDefinition) -> Option<EngineDiag
         (behavior.schema_uri == CEM_SCHEMA_URI && behavior.name == "field-contract")
             .then_some(FIELD_CONTRACT_DIAGNOSTIC_BEHAVIOR)
     })?;
-    (behavior.implementation == "engine"
-        && behavior.execution == "ast-validation"
-        && primitive == FIELD_CONTRACT_DIAGNOSTIC_BEHAVIOR)
-        .then_some(EngineDiagnosticBehavior::FieldContract)
+    if behavior.implementation != "engine" || behavior.execution != "ast-validation" {
+        return None;
+    }
+    match primitive {
+        FIELD_CONTRACT_DIAGNOSTIC_BEHAVIOR => Some(EngineDiagnosticBehavior::FieldContract),
+        VALUE_VOCABULARY_DIAGNOSTIC_BEHAVIOR => Some(EngineDiagnosticBehavior::ValueVocabulary),
+        SCALAR_TYPE_DIAGNOSTIC_BEHAVIOR => Some(EngineDiagnosticBehavior::ScalarType),
+        DATATYPE_PARAM_DIAGNOSTIC_BEHAVIOR => Some(EngineDiagnosticBehavior::DatatypeParam),
+        _ => None,
+    }
 }
 
 fn parse_diagnostic_severity(value: &str) -> Option<Severity> {
@@ -2248,6 +2448,8 @@ fn attribute_value_details(
     attribute_name: &str,
     actual_value: &str,
     attribute_model: &AttributeModel,
+    diagnostic_code: &str,
+    behavior: &str,
     attribute_values: &BTreeMap<String, String>,
     node: &CemAstNode,
 ) -> serde_json::Value {
@@ -2256,6 +2458,8 @@ fn attribute_value_details(
         "element": element_name,
         "attribute": attribute_name,
         "contract": format!("attribute-values:{attribute_name}"),
+        "diagnostic": diagnostic_code,
+        "behavior": behavior,
         "checkKind": "value-vocabulary",
         "valueType": &attribute_model.value_type,
         "expectedValues": &attribute_model.allowed_values,
@@ -2277,6 +2481,8 @@ fn attribute_type_details(
     actual_value: &str,
     attribute_model: &AttributeModel,
     violation: AttributeTypeViolation,
+    diagnostic_code: &str,
+    behavior: &str,
     attribute_values: &BTreeMap<String, String>,
     node: &CemAstNode,
 ) -> serde_json::Value {
@@ -2286,6 +2492,8 @@ fn attribute_type_details(
         "element": element_name,
         "attribute": attribute_name,
         "contract": format!("attribute-type:{attribute_name}"),
+        "diagnostic": diagnostic_code,
+        "behavior": behavior,
         "type": violation.name,
         "checkKind": violation.check_kind,
         "valueType": expected_type,
@@ -2312,6 +2520,8 @@ fn attribute_datatype_param_details(
     attribute_model: &AttributeModel,
     param_name: &str,
     param_value: &str,
+    diagnostic_code: &str,
+    behavior: &str,
     attribute_values: &BTreeMap<String, String>,
     node: &CemAstNode,
 ) -> serde_json::Value {
@@ -2321,6 +2531,8 @@ fn attribute_datatype_param_details(
         "element": element_name,
         "attribute": attribute_name,
         "contract": format!("attribute-datatype-param:{attribute_name}:{param_name}"),
+        "diagnostic": diagnostic_code,
+        "behavior": behavior,
         "type": type_reference_local_name(expected_type),
         "checkKind": format!("datatype-param:{param_name}"),
         "datatypeParam": param_name,
@@ -2678,17 +2890,6 @@ fn frame_span_details(span: &FrameSpan) -> serde_json::Value {
     }
 }
 
-fn diag_at_with_details(
-    code: &str,
-    message: String,
-    node: &CemAstNode,
-    details: serde_json::Value,
-) -> Diagnostic {
-    let mut diagnostic = diag_at(code, message, node);
-    diagnostic.details = Some(details);
-    diagnostic
-}
-
 fn diag_at_with_details_and_severity(
     code: &str,
     severity: Severity,
@@ -2832,6 +3033,39 @@ mod tests {
                 .iter()
                 .any(|parameter| parameter.name == "contract"
                     && parameter.value_type == "schema:field-contract"
+                    && parameter.required));
+            assert!(behavior.result.is_some());
+        }
+        for (behavior_name, primitive, engine_behavior) in [
+            (
+                "value-vocabulary",
+                VALUE_VOCABULARY_DIAGNOSTIC_BEHAVIOR,
+                EngineDiagnosticBehavior::ValueVocabulary,
+            ),
+            (
+                "scalar-type",
+                SCALAR_TYPE_DIAGNOSTIC_BEHAVIOR,
+                EngineDiagnosticBehavior::ScalarType,
+            ),
+            (
+                "datatype-param",
+                DATATYPE_PARAM_DIAGNOSTIC_BEHAVIOR,
+                EngineDiagnosticBehavior::DatatypeParam,
+            ),
+        ] {
+            let behavior = model
+                .behaviors
+                .get(behavior_name)
+                .unwrap_or_else(|| panic!("schema-declared {behavior_name} engine behavior"));
+            assert_eq!(behavior.implementation, "engine");
+            assert_eq!(behavior.execution, "ast-validation");
+            assert_eq!(behavior.primitive.as_deref(), Some(primitive));
+            assert_eq!(supported_engine_behavior(behavior), Some(engine_behavior));
+            assert!(behavior
+                .parameters
+                .iter()
+                .any(|parameter| parameter.name == "attribute"
+                    && parameter.value_type == "schema:attribute"
                     && parameter.required));
             assert!(behavior.result.is_some());
         }
@@ -4058,6 +4292,234 @@ mod tests {
             serde_json::json!("tabular")
         );
         assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
+    fn schema_attribute_diagnostic_behavior_aliases_drive_engine_checks() {
+        let model = compile_document_model(
+            "https://example.test/ns/attribute-behavior-alias/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="attribute-behavior-alias" @namespace="https://example.test/ns/attribute-behavior-alias/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="item" @optional-attributes="mode enabled count"}
+    }
+    {attributes |
+        {attribute
+            @name="mode"
+            @type="schema:identifier"
+            @values="compact pretty"
+            @values-diagnostic="example.mode_value"
+        }
+        {attribute
+            @name="enabled"
+            @type="schema:boolean"
+            @type-diagnostic="example.enabled_type"
+        }
+        {attribute
+            @name="count"
+            @type="schema:integer"
+            @minInclusive=1
+            @datatype-param-diagnostic="example.count_min"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.mode_value"
+            @severity="warning"
+            @behavior="schema:value-vocabulary"
+            @message="Mode must use the declared vocabulary"
+        }
+        {diagnostic
+            @code="example.enabled_type"
+            @severity="info"
+            @behavior="schema:scalar-type"
+            @message="Enabled must be boolean"
+        }
+        {diagnostic
+            @code="example.count_min"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Count must satisfy its datatype parameters"
+        }
+    }
+}"#,
+        );
+
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "attribute behavior aliases must compile: {:#?}",
+            model.compile_diagnostics
+        );
+        assert_eq!(
+            model
+                .diagnostic_behaviors
+                .get("example.mode_value")
+                .map(|behavior| behavior.engine_behavior),
+            Some(Some(EngineDiagnosticBehavior::ValueVocabulary))
+        );
+
+        let document = parse_cem_document(r#"{item @mode=tabular @enabled=maybe @count=0}"#);
+        let diagnostics = validate_document_model(&document, &model);
+
+        let value = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.mode_value")
+            .expect("value-vocabulary alias diagnostic");
+        assert_eq!(value.severity, Severity::Warning);
+        assert!(value
+            .message
+            .starts_with("Mode must use the declared vocabulary:"));
+        let details = value
+            .details
+            .as_ref()
+            .expect("value-vocabulary alias details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:value-vocabulary")
+        );
+        assert_eq!(
+            details["diagnostic"],
+            serde_json::json!("example.mode_value")
+        );
+        assert_eq!(details["checkKind"], serde_json::json!("value-vocabulary"));
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["compact", "pretty"])
+        );
+        assert_eq!(details["actualValue"], serde_json::json!("tabular"));
+
+        let scalar_type = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.enabled_type")
+            .expect("scalar-type alias diagnostic");
+        assert_eq!(scalar_type.severity, Severity::Info);
+        assert!(scalar_type.message.starts_with("Enabled must be boolean:"));
+        let details = scalar_type
+            .details
+            .as_ref()
+            .expect("scalar-type alias details");
+        assert_eq!(details["behavior"], serde_json::json!("schema:scalar-type"));
+        assert_eq!(
+            details["diagnostic"],
+            serde_json::json!("example.enabled_type")
+        );
+        assert_eq!(details["checkKind"], serde_json::json!("type:boolean"));
+        assert_eq!(details["expectedType"], serde_json::json!("schema:boolean"));
+        assert_eq!(details["actualValue"], serde_json::json!("maybe"));
+
+        let datatype_param = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.count_min")
+            .expect("datatype-param alias diagnostic");
+        assert_eq!(datatype_param.severity, Severity::Error);
+        assert!(datatype_param
+            .message
+            .starts_with("Count must satisfy its datatype parameters:"));
+        let details = datatype_param
+            .details
+            .as_ref()
+            .expect("datatype-param alias details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:datatype-param")
+        );
+        assert_eq!(
+            details["diagnostic"],
+            serde_json::json!("example.count_min")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:minInclusive")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("minInclusive"));
+        assert_eq!(details["minInclusive"], serde_json::json!("1"));
+        assert_eq!(details["actualValue"], serde_json::json!("0"));
+    }
+
+    #[test]
+    fn schema_attribute_diagnostic_behavior_rejects_unresolved_reference() {
+        let model = compile_document_model(
+            "https://example.test/ns/attribute-behavior-missing/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="attribute-behavior-missing" @namespace="https://example.test/ns/attribute-behavior-missing/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="mode"}
+    }
+    {attributes |
+        {attribute
+            @name="mode"
+            @type="schema:identifier"
+            @values="compact pretty"
+            @values-diagnostic="example.mode_value"
+        }
+    }
+}"#,
+        );
+
+        assert!(model.compile_diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == UNRESOLVED_DIAGNOSTIC_REFERENCE_CODE
+                && diagnostic.details.as_ref().is_some_and(|details| {
+                    details["attribute"] == "mode"
+                        && details["diagnostic"] == "example.mode_value"
+                        && details["diagnosticAttribute"] == "values-diagnostic"
+                        && details["checkKind"] == "diagnostic-reference-resolution"
+                })
+        }));
+    }
+
+    #[test]
+    fn schema_attribute_diagnostic_behavior_rejects_incompatible_engine_reference() {
+        let model = compile_document_model(
+            "https://example.test/ns/attribute-behavior-incompatible/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="attribute-behavior-incompatible" @namespace="https://example.test/ns/attribute-behavior-incompatible/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="item" @optional-attributes="mode"}
+    }
+    {attributes |
+        {attribute
+            @name="mode"
+            @type="schema:identifier"
+            @values="compact pretty"
+            @values-diagnostic="example.mode_value"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.mode_value"
+            @severity="error"
+            @behavior="schema:scalar-type"
+        }
+    }
+}"#,
+        );
+
+        assert!(model.compile_diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE
+                && diagnostic.details.as_ref().is_some_and(|details| {
+                    details["attribute"] == "mode"
+                        && details["diagnostic"] == "example.mode_value"
+                        && details["diagnosticAttribute"] == "values-diagnostic"
+                        && details["behavior"] == "schema:scalar-type"
+                        && details["expectedBehavior"] == "schema:value-vocabulary"
+                        && details["checkKind"] == "diagnostic-behavior-contract"
+                })
+        }));
     }
 
     #[test]

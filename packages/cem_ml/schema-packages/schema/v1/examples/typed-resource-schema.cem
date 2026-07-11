@@ -28,7 +28,12 @@
 
     {attributes |
         {attribute @name="id" @type="cemml:identifier"}
-        {attribute @name="kind" @type="schema:identifier" @values="page component token"}
+        {attribute
+            @name="kind"
+            @type="schema:identifier"
+            @values="page component token"
+            @values-diagnostic="example.resource.invalid_kind"
+        }
         {attribute @name="label" @type="schema:string"}
         {attribute @name="name" @type="cemml:identifier"}
         {attribute @name="type" @type="schema:type-reference"}
@@ -53,6 +58,12 @@
             @severity="warning"
             @behavior="schema:required-fields"
             @message="Page resources should declare a label"
+        }
+        {diagnostic
+            @code="example.resource.invalid_kind"
+            @severity="error"
+            @behavior="schema:value-vocabulary"
+            @message="Resource kind must use the declared vocabulary"
         }
     }
 

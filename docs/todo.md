@@ -31,7 +31,9 @@ history belongs in git history and the feature-specific docs linked below.
       non-default parameter overrides for function-backed behaviors. The first
       field-contract-backed engine behavior aliases now exist for required
       fields, forbidden fields, dependent-required fields, mutual exclusions,
-      child occurrence, and path layout. Additional engine algorithms remain.
+      child occurrence, and path layout; attribute-owned aliases now exist for
+      value vocabularies, scalar type syntax, and datatype parameters.
+      Additional engine algorithms remain.
   - [ ] Allow declarative behavior to select candidate nodes and match failure
         conditions with CEM-QL, then invoke a schema-declared CEM-ML behavior
         function to calculate the result and structured diagnostic details.
@@ -53,9 +55,10 @@ history belongs in git history and the feature-specific docs linked below.
         field-contract-backed aliases for `schema:required-fields`,
         `schema:forbidden-fields`, `schema:dependent-required-fields`,
         `schema:mutual-exclusion`, `schema:child-occurrence`, and
-        `schema:path-layout`; value vocabulary, scalar/datatype parameter,
-        reference-resolution, source/resource, and broader choice/case
-        primitives remain.
+        `schema:path-layout`, plus attribute-owned aliases for
+        `schema:value-vocabulary`, `schema:scalar-type`, and
+        `schema:datatype-param`; reference-resolution, source/resource, and
+        broader choice/case primitives remain.
   - [ ] Compile behavior declarations and references into the generic schema
         model, reject missing or incompatible behavior references, and dispatch
         them through a single runtime evaluation path. The resolved behavior
@@ -78,10 +81,12 @@ history belongs in git history and the feature-specific docs linked below.
         severity, and source ranges so the example set documents the minimal
         behavior library available to schema authors. The typed-resource schema
         example now covers the initial `schema:required-fields` behavior alias
-        on a conditional field contract, and the native tests cover warning
-        severity, message text, structured details, source ranges, unresolved
-        codes, behavior aliases, and unknown behaviors; the CLI example set
-        also includes a schema that fails an unknown behavior
+        on a conditional field contract and `schema:value-vocabulary` on an
+        attribute declaration, and the native tests cover warning severity,
+        message text, structured details, source ranges, unresolved codes,
+        field-contract behavior aliases, attribute behavior aliases, and
+        unknown behaviors; the CLI example set also includes a schema that
+        fails an unknown behavior
         reference. The complete algorithm matrix remains.
   - [ ] Add a custom-schema example that defines a new algorithm using only
         CEM-ML, CEM-QL, and a declarative function, then prove that changing the

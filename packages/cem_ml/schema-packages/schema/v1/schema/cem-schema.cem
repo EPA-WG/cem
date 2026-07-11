@@ -29,7 +29,7 @@
         {element @name="elements" @children="element"}
         {element @name="element" @required-attributes="name" @optional-attributes="base required-attributes optional-attributes children"}
         {element @name="attributes" @children="attribute"}
-        {element @name="attribute" @required-attributes="name" @optional-attributes="base type required values minInclusive"}
+        {element @name="attribute" @required-attributes="name" @optional-attributes="base type required values minInclusive values-diagnostic type-diagnostic datatype-param-diagnostic"}
         {element @name="directives" @children="directive"}
         {element @name="directive" @required-attributes="name" @optional-attributes="required value"}
         {element @name="nodes" @children="node"}
@@ -92,6 +92,9 @@
         {attribute @name="severity" @type="schema:diagnostic-severity"}
         {attribute @name="code" @type="schema:diagnostic-code"}
         {attribute @name="diagnostic" @type="schema:diagnostic-code"}
+        {attribute @name="values-diagnostic" @type="schema:diagnostic-code"}
+        {attribute @name="type-diagnostic" @type="schema:diagnostic-code"}
+        {attribute @name="datatype-param-diagnostic" @type="schema:diagnostic-code"}
         {attribute @name="behavior" @type="schema:behavior-reference"}
         {attribute @name="message" @type="cemml:string"}
         {attribute @name="implementation" @type="schema:behavior-implementation"}
@@ -354,6 +357,92 @@
                 {detail @name="diagnostic" @type="schema:diagnostic-code" @required=true}
                 {detail @name="behavior" @type="schema:behavior-reference" @required=true}
                 {detail @name="checkKind" @type="schema:identifier" @required=true}
+                {detail @name="sourceRange" @type="schema:object" @source="candidate"}
+            }
+        }
+        {behavior
+            @name="value-vocabulary"
+            @implementation="engine"
+            @execution="ast-validation"
+            @primitive="schema:value-vocabulary" |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+                {input-binding @name="diagnostic" @type="schema:diagnostic" @source="diagnostic" @required=true}
+            }
+            {parameters |
+                {parameter @name="attribute" @type="schema:attribute" @required=true}
+            }
+            {result
+                @type="schema:diagnostic-result"
+                @severity="error"
+                @message="diagnostic"
+                @source-range="candidate" |
+                {detail @name="schemaUri" @type="schema:uri" @required=true}
+                {detail @name="element" @type="schema:identifier" @required=true}
+                {detail @name="attribute" @type="schema:identifier" @required=true}
+                {detail @name="diagnostic" @type="schema:diagnostic-code" @required=true}
+                {detail @name="behavior" @type="schema:behavior-reference" @required=true}
+                {detail @name="checkKind" @type="schema:identifier" @required=true}
+                {detail @name="expectedValues" @type="schema:array" @required=true}
+                {detail @name="actualValue" @type="schema:string" @required=true}
+                {detail @name="sourceRange" @type="schema:object" @source="candidate"}
+            }
+        }
+        {behavior
+            @name="scalar-type"
+            @implementation="engine"
+            @execution="ast-validation"
+            @primitive="schema:scalar-type" |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+                {input-binding @name="diagnostic" @type="schema:diagnostic" @source="diagnostic" @required=true}
+            }
+            {parameters |
+                {parameter @name="attribute" @type="schema:attribute" @required=true}
+            }
+            {result
+                @type="schema:diagnostic-result"
+                @severity="error"
+                @message="diagnostic"
+                @source-range="candidate" |
+                {detail @name="schemaUri" @type="schema:uri" @required=true}
+                {detail @name="element" @type="schema:identifier" @required=true}
+                {detail @name="attribute" @type="schema:identifier" @required=true}
+                {detail @name="diagnostic" @type="schema:diagnostic-code" @required=true}
+                {detail @name="behavior" @type="schema:behavior-reference" @required=true}
+                {detail @name="checkKind" @type="schema:identifier" @required=true}
+                {detail @name="expectedType" @type="schema:type-reference" @required=true}
+                {detail @name="expectedPattern" @type="schema:string"}
+                {detail @name="actualValue" @type="schema:string" @required=true}
+                {detail @name="sourceRange" @type="schema:object" @source="candidate"}
+            }
+        }
+        {behavior
+            @name="datatype-param"
+            @implementation="engine"
+            @execution="ast-validation"
+            @primitive="schema:datatype-param" |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+                {input-binding @name="diagnostic" @type="schema:diagnostic" @source="diagnostic" @required=true}
+            }
+            {parameters |
+                {parameter @name="attribute" @type="schema:attribute" @required=true}
+            }
+            {result
+                @type="schema:diagnostic-result"
+                @severity="error"
+                @message="diagnostic"
+                @source-range="candidate" |
+                {detail @name="schemaUri" @type="schema:uri" @required=true}
+                {detail @name="element" @type="schema:identifier" @required=true}
+                {detail @name="attribute" @type="schema:identifier" @required=true}
+                {detail @name="diagnostic" @type="schema:diagnostic-code" @required=true}
+                {detail @name="behavior" @type="schema:behavior-reference" @required=true}
+                {detail @name="checkKind" @type="schema:identifier" @required=true}
+                {detail @name="datatypeParam" @type="schema:identifier" @required=true}
+                {detail @name="paramValue" @type="schema:string" @required=true}
+                {detail @name="actualValue" @type="schema:string" @required=true}
                 {detail @name="sourceRange" @type="schema:object" @source="candidate"}
             }
         }
