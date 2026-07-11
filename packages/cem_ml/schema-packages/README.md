@@ -201,9 +201,10 @@ The relationship is layered validation, not broad inheritance:
   generically by the runtime, not encoded as package-specific Rust field lists.
 - Function-backed diagnostics are also schema-owned: behavior declarations use
   CEM-QL `@select`/`@match` expressions to choose failures and inline CEMT
-  functions to produce messages and structured details. Imported reusable
-  behavior functions and the full engine primitive library are still being
-  built out.
+  functions to produce messages and structured details. Defaulted typed
+  behavior parameters bind into those functions. Imported reusable behavior
+  functions, non-default parameter overrides, and the full engine primitive
+  library are still being built out.
 
 Schema dependencies should be resolved by schema URL and content type, not by
 filesystem path. Filesystem layout is a distribution detail for local packages.

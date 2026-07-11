@@ -1451,7 +1451,43 @@ fn compile_diagnostic_function_binding(
         return (None, None);
     }
 
+    if let Some(unbound_param) = function_declaration.params.iter().find(|param| {
+        param.required && !behavior_function_param_has_binding(behavior_definition, &param.name)
+    }) {
+        diagnostics.push(schema_compile_diagnostic(
+            INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE,
+            format!(
+                "diagnostic `{code}` references behavior `{behavior_reference}` function `{function}` with required parameter `{}` that has no behavior input or defaulted behavior parameter binding",
+                unbound_param.name
+            ),
+            source_map,
+            serde_json::json!({
+                "schemaUri": schema_uri,
+                "diagnostic": code,
+                "behavior": behavior_reference,
+                "function": function,
+                "parameter": &unbound_param.name,
+                "checkKind": "behavior-function-parameter-binding",
+            }),
+        ));
+        return (None, None);
+    }
+
     (None, Some(function.to_owned()))
+}
+
+fn behavior_function_param_has_binding(
+    behavior_definition: &BehaviorDefinition,
+    param_name: &str,
+) -> bool {
+    behavior_definition
+        .inputs
+        .iter()
+        .any(|input| input.name == param_name)
+        || behavior_definition
+            .parameters
+            .iter()
+            .any(|parameter| parameter.name == param_name && parameter.default.is_some())
 }
 
 fn resolve_behavior_definition(
@@ -2860,6 +2896,7 @@ mod tests {
             }
             {function @name="item-label-result" @returns="object" @deterministic=true |
                 {param @name="candidate" @type="object" @required=true}
+                {param @name="expected" @type="string" @required=true}
                 {body | {$ { message: "Item label is required", details: { checkKind: "item-label" } } }}
             }
         }
@@ -2943,6 +2980,63 @@ mod tests {
                     details["diagnostic"] == "example.item_label"
                         && details["behavior"] == "item-label"
                         && details["function"] == "missing-result"
+                })
+        }));
+        assert!(model
+            .diagnostic_behaviors
+            .get("example.item_label")
+            .is_some_and(|behavior| behavior.function.is_none()));
+    }
+
+    #[test]
+    fn schema_diagnostic_behavior_rejects_unbound_required_function_parameter() {
+        let model = compile_document_model(
+            "https://example.test/ns/function-param-invalid/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="function-param-invalid" @namespace="https://example.test/ns/function-param-invalid/1" @version="1.0.0" |
+    {elements |
+        {element @name="item"}
+    }
+    {behaviors |
+        {behavior
+            @name="item-label"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="item-label-result"
+            @select="item"
+            @match="true" |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true}
+            }
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+            {function @name="item-label-result" @returns="object" @deterministic=true |
+                {param @name="candidate" @type="object" @required=true}
+                {param @name="expected" @type="string" @required=true}
+                {body | {$ { message: "Item label is required" } }}
+            }
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.item_label"
+            @severity="error"
+            @behavior="item-label"
+        }
+    }
+}"#,
+        );
+
+        assert!(model.compile_diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE
+                && diagnostic.details.as_ref().is_some_and(|details| {
+                    details["diagnostic"] == "example.item_label"
+                        && details["behavior"] == "item-label"
+                        && details["function"] == "item-label-result"
+                        && details["parameter"] == "expected"
+                        && details["checkKind"] == "behavior-function-parameter-binding"
                 })
         }));
         assert!(model

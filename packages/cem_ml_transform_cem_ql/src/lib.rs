@@ -22,9 +22,10 @@ use cem_ml::parser::{AstNodeId, CemAstNode};
 use cem_ml::run_config::ScopeConfig;
 use cem_ml::scheduler::ScopePolicy;
 use cem_ml::schema::document_model::{
-    BehaviorDefinition, BehaviorFunctionDeclaration, DiagnosticBehavior, SchemaBehaviorEvaluator,
-    SchemaDocumentModel, SCHEMA_BEHAVIOR_FUNCTION_FAILED_CODE, SCHEMA_BEHAVIOR_QUERY_FAILED_CODE,
-    SCHEMA_BEHAVIOR_QUERY_INVALID_CODE, SCHEMA_BEHAVIOR_RESULT_INVALID_CODE,
+    BehaviorDefinition, BehaviorFunctionDeclaration, BehaviorParameter, DiagnosticBehavior,
+    SchemaBehaviorEvaluator, SchemaDocumentModel, SCHEMA_BEHAVIOR_FUNCTION_FAILED_CODE,
+    SCHEMA_BEHAVIOR_QUERY_FAILED_CODE, SCHEMA_BEHAVIOR_QUERY_INVALID_CODE,
+    SCHEMA_BEHAVIOR_RESULT_INVALID_CODE,
 };
 use cem_ml::schema::registry::{CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI};
 use cem_ml::source_map::{FrameSpan, SourceMapStack};
@@ -124,6 +125,26 @@ impl SchemaBehaviorEvaluator for CemQlSchemaBehaviorEvaluator {
                             "behavior": diagnostic.behavior,
                             "queryKind": "match",
                             "query": match_query,
+                        }),
+                    ));
+                }
+            }
+            for parameter in &definition.parameters {
+                if let Err(message) = behavior_parameter_default_value(parameter).map(|_| ()) {
+                    diagnostics.push(schema_behavior_diagnostic(
+                        SCHEMA_BEHAVIOR_RESULT_INVALID_CODE,
+                        Severity::Error,
+                        format!(
+                            "diagnostic `{}` behavior `{}` has invalid default for behavior parameter `{}`: {message}",
+                            diagnostic.code, diagnostic.behavior, parameter.name
+                        ),
+                        &definition.source_map,
+                        json!({
+                            "schemaUri": model.schema_uri,
+                            "diagnostic": diagnostic.code,
+                            "behavior": diagnostic.behavior,
+                            "parameter": parameter.name,
+                            "parameterType": parameter.value_type,
                         }),
                     ));
                 }
@@ -548,7 +569,17 @@ fn execute_schema_behavior_function(
                     }),
                 );
             }
-            _ => {}
+            _ => {
+                if let Some(value) = definition
+                    .parameters
+                    .iter()
+                    .find(|parameter| parameter.name == param.name)
+                    .and_then(|parameter| behavior_parameter_default_value(parameter).ok())
+                    .flatten()
+                {
+                    arguments.insert(param.name.clone(), value);
+                }
+            }
         }
     }
     let result =
@@ -719,6 +750,79 @@ fn behavior_param_type(value: &str) -> TransformTemplateModuleParamType {
         "object" => TransformTemplateModuleParamType::Object,
         "json" => TransformTemplateModuleParamType::Json,
         _ => TransformTemplateModuleParamType::Any,
+    }
+}
+
+fn behavior_parameter_default_value(
+    parameter: &BehaviorParameter,
+) -> Result<Option<Value>, String> {
+    let Some(default) = parameter.default.as_deref() else {
+        return Ok(None);
+    };
+    if !parameter.values.is_empty() && !parameter.values.contains(default) {
+        return Err(format!(
+            "default `{default}` is outside declared values `{}`",
+            parameter
+                .values
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(" ")
+        ));
+    }
+    let value_type = behavior_param_type(&parameter.value_type);
+    let value = match value_type {
+        TransformTemplateModuleParamType::Boolean => match default.trim() {
+            "true" => Value::Bool(true),
+            "false" => Value::Bool(false),
+            other => return Err(format!("expected boolean default, got `{other}`")),
+        },
+        TransformTemplateModuleParamType::Integer => {
+            let value = default
+                .trim()
+                .parse::<i64>()
+                .map_err(|_| format!("expected integer default, got `{default}`"))?;
+            Value::Number(Number::from(value))
+        }
+        TransformTemplateModuleParamType::Number => {
+            let value = default
+                .trim()
+                .parse::<f64>()
+                .map_err(|_| format!("expected number default, got `{default}`"))?;
+            Value::Number(
+                Number::from_f64(value)
+                    .ok_or_else(|| format!("expected finite number default, got `{default}`"))?,
+            )
+        }
+        TransformTemplateModuleParamType::Array
+        | TransformTemplateModuleParamType::Object
+        | TransformTemplateModuleParamType::Json => {
+            let value = serde_json::from_str::<Value>(default)
+                .map_err(|err| format!("default is not valid JSON: {err}"))?;
+            if !value_type.accepts(&value, false) {
+                return Err(format!(
+                    "expected {} default, got {}",
+                    value_type.as_contract_name(),
+                    json_value_kind(&value)
+                ));
+            }
+            value
+        }
+        TransformTemplateModuleParamType::Any | TransformTemplateModuleParamType::String => {
+            Value::String(default.to_owned())
+        }
+    };
+    Ok(Some(value))
+}
+
+fn json_value_kind(value: &Value) -> &'static str {
+    match value {
+        Value::Null => "null",
+        Value::Bool(_) => "boolean",
+        Value::Number(_) => "number",
+        Value::String(_) => "string",
+        Value::Array(_) => "array",
+        Value::Object(_) => "object",
     }
 }
 
@@ -2294,13 +2398,18 @@ mod tests {
             {inputs |
                 {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
             }
+            {parameters |
+                {parameter @name="expected" @type="schema:string" @required=true @default="label"}
+            }
             {result @type="schema:diagnostic-result" @source-range="candidate" |
                 {detail @name="checkKind" @type="schema:identifier" @required=true}
                 {detail @name="element" @type="schema:identifier" @required=true}
+                {detail @name="expected" @type="schema:string" @required=true}
             }
             {function @name="page-label-result" @returns="object" @deterministic=true |
                 {param @name="candidate" @type="object" @required=true}
-                {body | {$ { message: "Page resource needs a label", details: { checkKind: "page-label", element: $candidate.name } } }}
+                {param @name="expected" @type="string" @required=true}
+                {body | {$ { message: "Page resource needs a label", details: { checkKind: "page-label", element: $candidate.name, expected: $expected } } }}
             }
         }
     }
@@ -2339,6 +2448,7 @@ mod tests {
         assert_eq!(details["function"], json!("page-label-result"));
         assert_eq!(details["checkKind"], json!("page-label"));
         assert_eq!(details["element"], json!("resource"));
+        assert_eq!(details["expected"], json!("label"));
         assert!(details["sourceRange"]["span"]["start"].is_u64());
 
         let labeled = document_from_cem(r#"{resource @kind=page @label=Home}"#);

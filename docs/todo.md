@@ -23,15 +23,18 @@ history belongs in git history and the feature-specific docs linked below.
       source-range propagation in `cem-schema.cem`. Direct inline
       function-backed diagnostics now select candidates with CEM-QL, match
       failures with CEM-QL, and execute schema-declared CEMT function bodies
-      through the generic bridge; imported/qualified reusable functions,
-      behavior parameter binding, and additional engine algorithms remain.
+      through the generic bridge. Defaulted typed behavior parameters now bind
+      into direct CEMT behavior functions; imported/qualified reusable
+      functions, non-default parameter overrides, and additional engine
+      algorithms remain.
   - [ ] Allow declarative behavior to select candidate nodes and match failure
         conditions with CEM-QL, then invoke a schema-declared CEM-native/CEMT
         function to calculate the result and structured diagnostic details.
         Direct inline behavior functions now execute for AST validation through
-        the CEM-QL/CEMT bridge. Imports and references must still resolve by
-        schema URI and qualified name so custom schema packages can reuse or
-        extend shared behavior without registering Rust code.
+        the CEM-QL/CEMT bridge, including defaulted typed behavior parameters.
+        Imports and references must still resolve by schema URI and qualified
+        name so custom schema packages can reuse or extend shared behavior
+        without registering Rust code.
   - [ ] Publish a minimal useful library of CEM engine-provided algorithms that
         schema authors can consume through diagnostic `@code` behavior
         references. Cover the common algorithmic variations needed to create a
@@ -51,8 +54,9 @@ history belongs in git history and the feature-specific docs linked below.
         and uses declared severity/message metadata for field-contract
         diagnostics. Function behavior `@select`/`@match` expressions and
         inline CEMT result functions now dispatch through the generic runtime
-        path; reusable imported functions and behavior parameter value binding
-        remain.
+        path, and required function parameters must resolve from declared
+        inputs or defaulted behavior parameters. Reusable imported functions
+        and non-default parameter override binding remain.
   - [ ] Add schema-package and CLI examples for every engine-provided algorithm
         and its meaningful parameter or matching variations. Include passing
         and failing fixtures, expected diagnostic codes, structured details,
