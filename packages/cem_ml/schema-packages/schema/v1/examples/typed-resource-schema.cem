@@ -22,7 +22,7 @@
     }
 
     {elements |
-        {element @name="resource" @required-attributes="id kind" @optional-attributes="label priority rank slug code href inline" @children="field*"}
+        {element @name="resource" @required-attributes="id kind" @optional-attributes="label priority rank slug code href format inline" @children="field*"}
         {element @name="field" @required-attributes="name type"}
     }
 
@@ -64,6 +64,11 @@
             @name="href"
             @type="schema:uri"
             @type-diagnostic="example.resource.invalid_href"
+        }
+        {attribute
+            @name="format"
+            @type="schema:media-type"
+            @type-diagnostic="example.resource.invalid_format"
         }
         {attribute
             @name="inline"
@@ -126,6 +131,12 @@
             @severity="error"
             @behavior="schema:scalar-type"
             @message="Resource href must be an absolute URI"
+        }
+        {diagnostic
+            @code="example.resource.invalid_format"
+            @severity="error"
+            @behavior="schema:scalar-type"
+            @message="Resource format must be a media type"
         }
         {diagnostic
             @code="example.resource.invalid_priority"
