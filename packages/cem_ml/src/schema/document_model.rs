@@ -12,8 +12,8 @@
 //! - schema-owned diagnostic declarations resolved through declarative engine
 //!   behavior definitions, including severity and message metadata.
 //! - schema-owned attribute `@values`, boolean/integer type checks, and
-//!   integer `minInclusive`/`maxInclusive` plus regex `pattern`
-//!   datatype-param checks.
+//!   integer `minInclusive`/`maxInclusive`, string `minLength`/`maxLength`,
+//!   and regex `pattern` datatype-param checks.
 //!
 //! Ordering, scalar type checks beyond boolean/integer syntax, additional
 //! datatype params, and semantic constraints remain follow-up work.
@@ -134,6 +134,8 @@ pub struct AttributeModel {
     pub allowed_values: BTreeSet<String>,
     pub min_inclusive: Option<String>,
     pub max_inclusive: Option<String>,
+    pub min_length: Option<String>,
+    pub max_length: Option<String>,
     pub pattern: Option<String>,
     pub values_diagnostic: Option<String>,
     pub type_diagnostic: Option<String>,
@@ -792,6 +794,43 @@ fn validate_attribute_datatype_params(
             );
         }
     }
+    let value_length = value.chars().count();
+    if let Some(min_length) = attribute_model.min_length.as_deref() {
+        if parse_non_negative_integer_to_usize(min_length).is_some_and(|min| value_length < min) {
+            emit_attribute_datatype_param_diagnostic(
+                schema_uri,
+                diagnostic_behaviors,
+                element_name,
+                attribute_name,
+                value,
+                attribute_model,
+                "minLength",
+                min_length,
+                "shorter than",
+                attribute_values,
+                node,
+                diagnostics,
+            );
+        }
+    }
+    if let Some(max_length) = attribute_model.max_length.as_deref() {
+        if parse_non_negative_integer_to_usize(max_length).is_some_and(|max| value_length > max) {
+            emit_attribute_datatype_param_diagnostic(
+                schema_uri,
+                diagnostic_behaviors,
+                element_name,
+                attribute_name,
+                value,
+                attribute_model,
+                "maxLength",
+                max_length,
+                "longer than",
+                attribute_values,
+                node,
+                diagnostics,
+            );
+        }
+    }
 }
 
 fn emit_attribute_datatype_param_diagnostic(
@@ -852,6 +891,14 @@ fn pattern_matches_full_value(pattern: &str, value: &str) -> bool {
 
 fn compile_full_value_pattern(pattern: &str) -> Result<regex::Regex, regex::Error> {
     regex::Regex::new(&format!(r"\A(?:{pattern})\z"))
+}
+
+fn parse_non_negative_integer_to_usize(value: &str) -> Option<usize> {
+    let normalized = normalize_decimal_integer(value)?;
+    if normalized.0 {
+        return None;
+    }
+    normalized.1.parse::<usize>().ok()
 }
 
 fn decimal_integer_cmp(left: &str, right: &str) -> Option<std::cmp::Ordering> {
@@ -1158,6 +1205,8 @@ fn collect_attribute_models(
                         .map(str::to_owned),
                     max_inclusive: optional_non_empty_attr(&attrs, "maxInclusive")
                         .map(str::to_owned),
+                    min_length: optional_non_empty_attr(&attrs, "minLength").map(str::to_owned),
+                    max_length: optional_non_empty_attr(&attrs, "maxLength").map(str::to_owned),
                     pattern: optional_non_empty_attr(&attrs, "pattern").map(str::to_owned),
                     values_diagnostic: optional_non_empty_attr(&attrs, "values-diagnostic")
                         .map(str::to_owned),
@@ -1238,31 +1287,58 @@ fn validate_attribute_datatype_param_definition(
     attribute_model: &AttributeModel,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(pattern) = attribute_model.pattern.as_deref() else {
-        return;
-    };
-    let Err(error) = compile_full_value_pattern(pattern) else {
-        return;
-    };
-    let error = error.to_string();
-    diagnostics.push(schema_compile_diagnostic(
-        INVALID_SCHEMA_DATATYPE_PARAM_CODE,
-        format!(
-            "attribute `{}` declares invalid pattern datatype parameter `{pattern}` in schema `{schema_uri}`: {error}",
-            attribute_model.name
-        ),
-        &attribute_model.source_map,
-        serde_json::json!({
-            "schemaUri": schema_uri,
-            "attribute": &attribute_model.name,
-            "checkKind": "datatype-param:pattern",
-            "datatypeParam": "pattern",
-            "paramName": "pattern",
-            "paramValue": pattern,
-            "pattern": pattern,
-            "error": error,
-        }),
-    ));
+    if let Some(pattern) = attribute_model.pattern.as_deref() {
+        if let Err(error) = compile_full_value_pattern(pattern) {
+            let error = error.to_string();
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid pattern datatype parameter `{pattern}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:pattern",
+                    "datatypeParam": "pattern",
+                    "paramName": "pattern",
+                    "paramValue": pattern,
+                    "pattern": pattern,
+                    "error": error,
+                }),
+            ));
+        }
+    }
+    for (param_name, param_value) in [
+        ("minLength", attribute_model.min_length.as_deref()),
+        ("maxLength", attribute_model.max_length.as_deref()),
+    ] {
+        let Some(param_value) = param_value else {
+            continue;
+        };
+        if parse_non_negative_integer_to_usize(param_value).is_some() {
+            continue;
+        }
+        let error = "expected non-negative decimal integer within runtime length bounds";
+        diagnostics.push(schema_compile_diagnostic(
+            INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+            format!(
+                "attribute `{}` declares invalid {param_name} datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+                attribute_model.name
+            ),
+            &attribute_model.source_map,
+            serde_json::json!({
+                "schemaUri": schema_uri,
+                "attribute": &attribute_model.name,
+                "checkKind": format!("datatype-param:{param_name}"),
+                "datatypeParam": param_name,
+                "paramName": param_name,
+                "paramValue": param_value,
+                "error": error,
+            }),
+        ));
+    }
 }
 
 fn validate_field_contract_definition(
@@ -2983,11 +3059,13 @@ fn attribute_datatype_param_details(
     node: &CemAstNode,
 ) -> serde_json::Value {
     let expected_type = attribute_model.value_type.as_deref().unwrap_or_default();
-    let expected_pattern = if param_name == "pattern" {
-        param_value
-    } else {
-        "signed decimal integer"
+    let expected_pattern = match param_name {
+        "pattern" => param_value,
+        "minLength" | "maxLength" => "Unicode scalar value length",
+        _ => "signed decimal integer",
     };
+    let actual_length =
+        matches!(param_name, "minLength" | "maxLength").then(|| actual_value.chars().count());
     let mut details = serde_json::json!({
         "schemaUri": schema_uri,
         "element": element_name,
@@ -3014,6 +3092,9 @@ fn attribute_datatype_param_details(
     });
     if let Some(object) = details.as_object_mut() {
         object.insert(param_name.to_owned(), serde_json::json!(param_value));
+        if let Some(actual_length) = actual_length {
+            object.insert("actualLength".to_owned(), serde_json::json!(actual_length));
+        }
     }
     details
 }
@@ -3447,6 +3528,24 @@ mod tests {
                 .attributes
                 .get("maxInclusive")
                 .expect("maxInclusive attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:integer")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("minLength")
+                .expect("minLength attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:integer")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("maxLength")
+                .expect("maxLength attribute model")
                 .value_type
                 .as_deref(),
             Some("schema:integer")
@@ -5115,7 +5214,7 @@ mod tests {
         {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
     }
     {elements |
-        {element @name="item" @optional-attributes="mode enabled count score code"}
+        {element @name="item" @optional-attributes="mode enabled count score code label"}
     }
     {attributes |
         {attribute
@@ -5146,6 +5245,12 @@ mod tests {
             @type="schema:string"
             @pattern="[A-Z][A-Z0-9-]*"
             @datatype-param-diagnostic="example.code_pattern"
+        }
+        {attribute
+            @name="label"
+            @type="schema:string"
+            @minLength=3
+            @datatype-param-diagnostic="example.label_min_length"
         }
     }
     {diagnostics |
@@ -5179,6 +5284,12 @@ mod tests {
             @behavior="schema:datatype-param"
             @message="Code must satisfy its datatype parameters"
         }
+        {diagnostic
+            @code="example.label_min_length"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Label must satisfy its datatype parameters"
+        }
     }
 }"#,
         );
@@ -5197,7 +5308,7 @@ mod tests {
         );
 
         let document = parse_cem_document(
-            r#"{item @mode=tabular @enabled=maybe @count=0 @score=11 @code=bad_code}"#,
+            r#"{item @mode=tabular @enabled=maybe @count=0 @score=11 @code=bad_code @label=go}"#,
         );
         let diagnostics = validate_document_model(&document, &model);
 
@@ -5334,6 +5445,39 @@ mod tests {
             serde_json::json!("[A-Z][A-Z0-9-]*")
         );
         assert_eq!(details["actualValue"], serde_json::json!("bad_code"));
+
+        let datatype_param = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.label_min_length")
+            .expect("minLength datatype-param alias diagnostic");
+        assert_eq!(datatype_param.severity, Severity::Error);
+        assert!(datatype_param
+            .message
+            .starts_with("Label must satisfy its datatype parameters:"));
+        let details = datatype_param
+            .details
+            .as_ref()
+            .expect("minLength datatype-param alias details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:datatype-param")
+        );
+        assert_eq!(
+            details["diagnostic"],
+            serde_json::json!("example.label_min_length")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:minLength")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("minLength"));
+        assert_eq!(details["minLength"], serde_json::json!("3"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("Unicode scalar value length")
+        );
+        assert_eq!(details["actualLength"], serde_json::json!(2));
+        assert_eq!(details["actualValue"], serde_json::json!("go"));
     }
 
     #[test]
@@ -5664,6 +5808,160 @@ mod tests {
         assert_eq!(details["datatypeParam"], serde_json::json!("maxInclusive"));
         assert_eq!(details["maxInclusive"], serde_json::json!("10"));
         assert_eq!(details["actualValue"], serde_json::json!("11"));
+    }
+
+    #[test]
+    fn schema_string_length_datatype_params_drive_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/length-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="length-contracts" @namespace="https://example.test/ns/length-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="label"}
+    }
+    {attributes |
+        {attribute @name="label" @type="schema:string" @minLength=2 @maxLength=4}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "valid length schema must compile: {:#?}",
+            model.compile_diagnostics
+        );
+
+        for source in [
+            r#"{item @label=go}"#,
+            r#"{item @label="four"}"#,
+            r#"{item @label="éé"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "valid length source produced diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        for source in [r#"{item @label=x}"#, r#"{item @label="abcde"}"#] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "invalid length source did not produce diagnostic: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{item @label=x}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("minLength attribute datatype param diagnostic");
+        assert!(diagnostic.message.contains("label"));
+        assert!(diagnostic.message.contains("minLength"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("minLength attribute datatype param details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/length-contracts/1")
+        );
+        assert_eq!(details["element"], serde_json::json!("item"));
+        assert_eq!(details["attribute"], serde_json::json!("label"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:label:minLength")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:minLength")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("minLength"));
+        assert_eq!(details["minLength"], serde_json::json!("2"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("Unicode scalar value length")
+        );
+        assert_eq!(details["actualLength"], serde_json::json!(1));
+        assert_eq!(details["actualValue"], serde_json::json!("x"));
+        assert_eq!(details["invalidFields"], serde_json::json!(["label"]));
+        assert_eq!(details["actualValues"]["label"], serde_json::json!("x"));
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+
+        let document = parse_cem_document(r#"{item @label="abcde"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("maxLength attribute datatype param diagnostic");
+        assert!(diagnostic.message.contains("maxLength"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("maxLength attribute datatype param details");
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:label:maxLength")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:maxLength")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("maxLength"));
+        assert_eq!(details["maxLength"], serde_json::json!("4"));
+        assert_eq!(details["actualLength"], serde_json::json!(5));
+        assert_eq!(details["actualValue"], serde_json::json!("abcde"));
+    }
+
+    #[test]
+    fn schema_string_length_datatype_param_rejects_invalid_bound() {
+        let model = compile_document_model(
+            "https://example.test/ns/invalid-length-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-length-contracts" @namespace="https://example.test/ns/invalid-length-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="label"}
+    }
+    {attributes |
+        {attribute @name="label" @type="schema:string" @minLength=-1}
+    }
+}"#,
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE)
+            .expect("invalid minLength schema compile diagnostic");
+        assert!(diagnostic.message.contains("invalid minLength"));
+        assert!(diagnostic.message.contains("label"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid minLength compile details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/invalid-length-contracts/1")
+        );
+        assert_eq!(details["attribute"], serde_json::json!("label"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:minLength")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("minLength"));
+        assert_eq!(details["paramValue"], serde_json::json!("-1"));
     }
 
     #[test]

@@ -48,7 +48,13 @@
             @values-diagnostic="example.resource.invalid_kind"
         }
         {attribute @name="href" @type="schema:uri"}
-        {attribute @name="inline" @type="schema:string"}
+        {attribute
+            @name="inline"
+            @type="schema:string"
+            @minLength=3
+            @maxLength=80
+            @datatype-param-diagnostic="example.resource.invalid_inline"
+        }
         {attribute @name="label" @type="schema:string"}
         {attribute @name="name" @type="cemml:identifier"}
         {attribute @name="type" @type="schema:type-reference"}
@@ -100,6 +106,12 @@
             @severity="error"
             @behavior="schema:datatype-param"
             @message="Resource slug must match the declared pattern"
+        }
+        {diagnostic
+            @code="example.resource.invalid_inline"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Inline resource text must stay within the declared length bounds"
         }
         {diagnostic
             @code="example.resource.link_choice"

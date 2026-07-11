@@ -124,10 +124,11 @@ Attribute-owned engine primitives are also schema-visible. Attribute
 declarations bind `@values` failures through `@values-diagnostic` to
 `schema:value-vocabulary`, scalar syntax failures through `@type-diagnostic` to
 `schema:scalar-type`, and datatype parameter failures for integer
-`@minInclusive`/`@maxInclusive` bounds and regex `@pattern` through
-`@datatype-param-diagnostic` to `schema:datatype-param`. In all cases the
-diagnostic `@code` remains the stable output identity while `@behavior` selects
-the reusable algorithm contract.
+`@minInclusive`/`@maxInclusive` bounds, string `@minLength`/`@maxLength` bounds,
+and regex `@pattern` through `@datatype-param-diagnostic` to
+`schema:datatype-param`. In all cases the diagnostic `@code` remains the
+stable output identity while `@behavior` selects the reusable algorithm
+contract.
 
 Operational constraints bind their execution behavior at the `{constraint}`
 declaration while keeping the diagnostic family code stable. Constraint
@@ -194,10 +195,11 @@ stamp operational diagnostics while preserving broad diagnostic family codes.
 Constraint-owned `schema:resource-readable`, `schema:resource-parse`, and
 `schema:reference-resolution` bindings now compile and stamp operational
 diagnostics with their declared behavior. Integer `minInclusive` and
-`maxInclusive` bounds and regex `pattern` datatype parameter variations now
-execute through `schema:datatype-param`; required-one/max-one attribute choice
-cardinality now executes through `schema:choice-case`; nested choice/case
-groups and additional datatype parameter variations remain follow-up work.
+`maxInclusive` bounds, string `minLength`/`maxLength` bounds, and regex
+`pattern` datatype parameter variations now execute through
+`schema:datatype-param`; required-one/max-one attribute choice cardinality now
+executes through `schema:choice-case`; nested choice/case groups and additional
+datatype parameter variations remain follow-up work.
 
 ## Validation Examples
 
@@ -207,7 +209,7 @@ CLI validation integration tests.
 | Example | Purpose | Expected result |
 | --- | --- | --- |
 | [`basic-schema.cem`](examples/basic-schema.cem) | Minimal schema definition with content type, element, and attribute declarations. | Pass |
-| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, conditional `schema:required-fields`, exact-one `schema:choice-case`, `schema:value-vocabulary`, and `schema:datatype-param` integer-bound/pattern attribute diagnostics, and open-content policy. | Pass |
+| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, conditional `schema:required-fields`, exact-one `schema:choice-case`, `schema:value-vocabulary`, and `schema:datatype-param` integer-bound/string-length/pattern attribute diagnostics, and open-content policy. | Pass |
 | [`invalid-unclosed-schema.cem`](examples/invalid-unclosed-schema.cem) | Missing closing schema scope syntax diagnostic. | Fail with `cem.ast.unclosed_scope` |
 | [`invalid-missing-required-attribute.cem`](examples/invalid-missing-required-attribute.cem) | Schema declaration missing its required `namespace` attribute. | Fail with `cem.schema_model.missing_required_attribute` |
 | [`invalid-diagnostic-behavior.cem`](examples/invalid-diagnostic-behavior.cem) | Diagnostic references a behavior absent from the imported engine catalog. | Fail with `cem.schema_definition.unknown_diagnostic_behavior` |
