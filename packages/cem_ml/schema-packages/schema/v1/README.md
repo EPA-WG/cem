@@ -130,6 +130,14 @@ source-range propagation policy:
         {body | {$ { message: "Page resource needs a label", details: { checkKind: "resource-label", expected: $expected, element: $candidate.name } } }}
     }
 }
+
+{diagnostics |
+    {diagnostic @code="example.resource.missing_label" @severity="warning" @behavior="resource-label" |
+        {arguments |
+            {argument @name="expected" @value="label"}
+        }
+    }
+}
 ```
 
 The compiler now validates diagnostic behavior references, unsupported engine
@@ -141,9 +149,10 @@ schema-behavior bridge now evaluates direct candidate selection and match
 expressions, binds defaulted typed behavior parameters, and executes inline
 CEM-ML behavior function bodies outside CEMT to produce diagnostic messages and
 structured details. Qualified function references now resolve through schema
-`{uses}` aliases to visible reusable CEM-ML behavior functions. Non-default
-parameter overrides and the broader engine primitive library remain follow-up
-work.
+`{uses}` aliases to visible reusable CEM-ML behavior functions. Diagnostic
+`{arguments}` now bind non-default parameter overrides for function behaviors.
+Engine behavior argument binding and the broader engine primitive library remain
+follow-up work.
 
 ## Validation Examples
 

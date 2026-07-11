@@ -58,7 +58,9 @@
         {element @name="constraints" @children="constraint"}
         {element @name="constraint" @required-attributes="kind" @optional-attributes="target value policy"}
         {element @name="diagnostics" @children="diagnostic"}
-        {element @name="diagnostic" @required-attributes="code severity" @optional-attributes="behavior message"}
+        {element @name="diagnostic" @required-attributes="code severity" @optional-attributes="behavior message" @children="arguments"}
+        {element @name="arguments" @children="argument"}
+        {element @name="argument" @required-attributes="name value"}
         {element @name="open-content" @children="accept"}
         {element @name="accept" @required-attributes="kind policy"}
         {element @name="compatibility" @children="note source"}

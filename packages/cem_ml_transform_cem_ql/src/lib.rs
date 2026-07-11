@@ -22,10 +22,10 @@ use cem_ml::parser::{AstNodeId, CemAstNode};
 use cem_ml::run_config::ScopeConfig;
 use cem_ml::scheduler::ScopePolicy;
 use cem_ml::schema::document_model::{
-    BehaviorDefinition, BehaviorFunctionParam, BehaviorParameter, DiagnosticBehavior,
-    SchemaBehaviorEvaluator, SchemaDocumentModel, SCHEMA_BEHAVIOR_FUNCTION_FAILED_CODE,
-    SCHEMA_BEHAVIOR_QUERY_FAILED_CODE, SCHEMA_BEHAVIOR_QUERY_INVALID_CODE,
-    SCHEMA_BEHAVIOR_RESULT_INVALID_CODE,
+    BehaviorArgument, BehaviorDefinition, BehaviorFunctionParam, BehaviorParameter,
+    DiagnosticBehavior, SchemaBehaviorEvaluator, SchemaDocumentModel,
+    SCHEMA_BEHAVIOR_FUNCTION_FAILED_CODE, SCHEMA_BEHAVIOR_QUERY_FAILED_CODE,
+    SCHEMA_BEHAVIOR_QUERY_INVALID_CODE, SCHEMA_BEHAVIOR_RESULT_INVALID_CODE,
 };
 use cem_ml::schema::registry::{CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI};
 use cem_ml::source_map::{FrameSpan, SourceMapStack};
@@ -752,7 +752,7 @@ fn schema_behavior_function_argument_value(
             .parameters
             .iter()
             .find(|parameter| parameter.name == param.name)
-            .map(behavior_parameter_default_value)
+            .map(|parameter| behavior_parameter_bound_value(parameter, diagnostic))
             .transpose()?
             .flatten(),
     };
@@ -768,6 +768,20 @@ fn schema_behavior_function_argument_value(
         }
     }
     Ok(value)
+}
+
+fn behavior_parameter_bound_value(
+    parameter: &BehaviorParameter,
+    diagnostic: &DiagnosticBehavior,
+) -> Result<Option<Value>, String> {
+    if let Some(argument) = diagnostic
+        .arguments
+        .iter()
+        .find(|argument| argument.name == parameter.name)
+    {
+        return behavior_argument_value(argument, parameter).map(Some);
+    }
+    behavior_parameter_default_value(parameter)
 }
 
 fn schema_behavior_function_failed_diagnostic(
@@ -861,9 +875,23 @@ fn behavior_parameter_default_value(
     let Some(default) = parameter.default.as_deref() else {
         return Ok(None);
     };
-    if !parameter.values.is_empty() && !parameter.values.contains(default) {
+    behavior_parameter_raw_value(parameter, default).map(Some)
+}
+
+fn behavior_argument_value(
+    argument: &BehaviorArgument,
+    parameter: &BehaviorParameter,
+) -> Result<Value, String> {
+    behavior_parameter_raw_value(parameter, &argument.value)
+}
+
+fn behavior_parameter_raw_value(
+    parameter: &BehaviorParameter,
+    raw_value: &str,
+) -> Result<Value, String> {
+    if !parameter.values.is_empty() && !parameter.values.contains(raw_value) {
         return Err(format!(
-            "default `{default}` is outside declared values `{}`",
+            "value `{raw_value}` is outside declared values `{}`",
             parameter
                 .values
                 .iter()
@@ -874,36 +902,36 @@ fn behavior_parameter_default_value(
     }
     let value_type = schema_behavior_value_type(&parameter.value_type);
     let value = match value_type {
-        SchemaBehaviorValueType::Boolean => match default.trim() {
+        SchemaBehaviorValueType::Boolean => match raw_value.trim() {
             "true" => Value::Bool(true),
             "false" => Value::Bool(false),
-            other => return Err(format!("expected boolean default, got `{other}`")),
+            other => return Err(format!("expected boolean value, got `{other}`")),
         },
         SchemaBehaviorValueType::Integer => {
-            let value = default
+            let value = raw_value
                 .trim()
                 .parse::<i64>()
-                .map_err(|_| format!("expected integer default, got `{default}`"))?;
+                .map_err(|_| format!("expected integer value, got `{raw_value}`"))?;
             Value::Number(Number::from(value))
         }
         SchemaBehaviorValueType::Number => {
-            let value = default
+            let value = raw_value
                 .trim()
                 .parse::<f64>()
-                .map_err(|_| format!("expected number default, got `{default}`"))?;
+                .map_err(|_| format!("expected number value, got `{raw_value}`"))?;
             Value::Number(
                 Number::from_f64(value)
-                    .ok_or_else(|| format!("expected finite number default, got `{default}`"))?,
+                    .ok_or_else(|| format!("expected finite number value, got `{raw_value}`"))?,
             )
         }
         SchemaBehaviorValueType::Array
         | SchemaBehaviorValueType::Object
         | SchemaBehaviorValueType::Json => {
-            let value = serde_json::from_str::<Value>(default)
-                .map_err(|err| format!("default is not valid JSON: {err}"))?;
+            let value = serde_json::from_str::<Value>(raw_value)
+                .map_err(|err| format!("value is not valid JSON: {err}"))?;
             if !value_type.accepts(&value) {
                 return Err(format!(
-                    "expected {} default, got {}",
+                    "expected {} value, got {}",
                     value_type.as_contract_name(),
                     json_value_kind(&value)
                 ));
@@ -911,10 +939,10 @@ fn behavior_parameter_default_value(
             value
         }
         SchemaBehaviorValueType::Any | SchemaBehaviorValueType::String => {
-            Value::String(default.to_owned())
+            Value::String(raw_value.to_owned())
         }
     };
-    Ok(Some(value))
+    Ok(value)
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -3049,6 +3077,76 @@ mod tests {
         assert_eq!(details["checkKind"], json!("shared-label"));
         assert_eq!(details["element"], json!("resource"));
         assert_eq!(details["expected"], json!("label"));
+    }
+
+    #[test]
+    fn schema_declared_diagnostic_behavior_binds_diagnostic_argument_override() {
+        let model = cem_ml::schema::document_model::compile_schema_document_model(
+            "https://example.test/ns/argument-diagnostic/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="argument-diagnostic" @namespace="https://example.test/ns/argument-diagnostic/1" @version="1.0.0" |
+    {elements |
+        {element @name="resource" @optional-attributes="kind title"}
+    }
+    {attributes |
+        {attribute @name="kind" @type="schema:identifier"}
+        {attribute @name="title" @type="schema:string"}
+    }
+    {behaviors |
+        {behavior
+            @name="page-title"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="page-title-result"
+            @select="resource"
+            @match='kind = "page" and title = null' |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+            }
+            {parameters |
+                {parameter @name="expected" @type="schema:string" @required=true @default="label"}
+            }
+            {result @type="schema:diagnostic-result" @source-range="candidate" |
+                {detail @name="expected" @type="schema:string" @required=true}
+            }
+            {function @name="page-title-result" @returns="object" @deterministic=true |
+                {param @name="candidate" @type="object" @required=true}
+                {param @name="expected" @type="string" @required=true}
+                {body | {$ { message: "Page resource needs a field", details: { expected: $expected } } }}
+            }
+        }
+    }
+    {diagnostics |
+        {diagnostic @code="example.page_title" @severity="warning" @behavior="page-title" |
+            {arguments |
+                {argument @name="expected" @value="title"}
+            }
+        }
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "{:#?}",
+            model.compile_diagnostics
+        );
+        let evaluator = CemQlSchemaBehaviorEvaluator;
+        let document = document_from_cem(r#"{resource @kind=page}"#);
+        let diagnostics =
+            cem_ml::schema::document_model::validate_document_model_with_behavior_evaluator(
+                &document,
+                &model,
+                Some(&evaluator),
+            );
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.page_title")
+            .unwrap_or_else(|| panic!("diagnostic argument override: {diagnostics:#?}"));
+        let details = diagnostic.details.as_ref().expect("diagnostic details");
+        assert_eq!(details["expected"], json!("title"));
     }
 
     #[test]

@@ -132,6 +132,7 @@ pub struct DiagnosticBehavior {
     pub engine_behavior: Option<EngineDiagnosticBehavior>,
     pub function: Option<String>,
     pub function_definition: Option<BehaviorFunctionDeclaration>,
+    pub arguments: Vec<BehaviorArgument>,
     pub message: Option<String>,
     pub source_map: SourceMapStack,
 }
@@ -175,6 +176,13 @@ pub struct BehaviorParameter {
     pub required: bool,
     pub default: Option<String>,
     pub values: BTreeSet<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BehaviorArgument {
+    pub name: String,
+    pub value: String,
+    pub source_map: SourceMapStack,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -946,6 +954,7 @@ fn collect_diagnostic_behaviors(
                 .and_then(parse_diagnostic_severity)
                 .unwrap_or(Severity::Error);
             let source_map = source_stack_for_node(child).clone();
+            let arguments = collect_diagnostic_arguments(document, *child_id);
             let behavior_definition =
                 resolve_behavior_definition(behavior, schema_uri, uses, local_behaviors);
             let (engine_behavior, function, function_definition) =
@@ -954,6 +963,7 @@ fn collect_diagnostic_behaviors(
                     code,
                     behavior,
                     behavior_definition.as_ref(),
+                    &arguments,
                     uses,
                     local_behaviors,
                     &source_map,
@@ -969,6 +979,7 @@ fn collect_diagnostic_behaviors(
                     engine_behavior,
                     function,
                     function_definition,
+                    arguments,
                     message: optional_non_empty_attr(&attrs, "message").map(str::to_owned),
                     source_map,
                 },
@@ -976,6 +987,35 @@ fn collect_diagnostic_behaviors(
         }
     }
     (behaviors, diagnostics)
+}
+
+fn collect_diagnostic_arguments(
+    document: &CemDocument,
+    diagnostic_id: AstNodeId,
+) -> Vec<BehaviorArgument> {
+    let mut arguments = Vec::new();
+    for arguments_id in element_child_ids_by_local_name(document, diagnostic_id, "arguments") {
+        for argument_id in element_child_ids_by_local_name(document, arguments_id, "argument") {
+            let attrs = collect_attrs(document, argument_id);
+            let Some(name) = optional_non_empty_attr(&attrs, "name") else {
+                continue;
+            };
+            let Some(value) = optional_non_empty_attr(&attrs, "value") else {
+                continue;
+            };
+            let source_map = document
+                .get(argument_id)
+                .map(source_stack_for_node)
+                .cloned()
+                .unwrap_or_default();
+            arguments.push(BehaviorArgument {
+                name: name.to_owned(),
+                value: value.to_owned(),
+                source_map,
+            });
+        }
+    }
+    arguments
 }
 
 fn collect_behavior_definitions(
@@ -1226,6 +1266,7 @@ fn compile_diagnostic_behavior_binding(
     code: &str,
     behavior_reference: &str,
     behavior_definition: Option<&BehaviorDefinition>,
+    arguments: &[BehaviorArgument],
     uses: &BTreeMap<String, String>,
     local_behaviors: &BTreeMap<String, BehaviorDefinition>,
     source_map: &SourceMapStack,
@@ -1252,6 +1293,22 @@ fn compile_diagnostic_behavior_binding(
 
     match behavior_definition.implementation.as_str() {
         "engine" => {
+            if !arguments.is_empty() {
+                diagnostics.push(schema_compile_diagnostic(
+                    INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE,
+                    format!(
+                        "diagnostic `{code}` declares behavior arguments for engine behavior `{behavior_reference}`, but diagnostic arguments are supported only for function behaviors"
+                    ),
+                    source_map,
+                    serde_json::json!({
+                        "schemaUri": schema_uri,
+                        "diagnostic": code,
+                        "behavior": behavior_reference,
+                        "checkKind": "behavior-argument-binding",
+                    }),
+                ));
+                return (None, None, None);
+            }
             let engine_behavior = supported_engine_behavior(behavior_definition);
             if engine_behavior.is_none() {
                 diagnostics.push(schema_compile_diagnostic(
@@ -1276,6 +1333,7 @@ fn compile_diagnostic_behavior_binding(
             code,
             behavior_reference,
             behavior_definition,
+            arguments,
             uses,
             local_behaviors,
             source_map,
@@ -1306,6 +1364,7 @@ fn compile_diagnostic_function_binding(
     code: &str,
     behavior_reference: &str,
     behavior_definition: &BehaviorDefinition,
+    arguments: &[BehaviorArgument],
     uses: &BTreeMap<String, String>,
     local_behaviors: &BTreeMap<String, BehaviorDefinition>,
     source_map: &SourceMapStack,
@@ -1365,6 +1424,17 @@ fn compile_diagnostic_function_binding(
                 "checkKind": "diagnostic-behavior-contract",
             }),
         ));
+        return (None, None, None);
+    }
+
+    if !validate_diagnostic_behavior_arguments(
+        schema_uri,
+        code,
+        behavior_reference,
+        behavior_definition,
+        arguments,
+        diagnostics,
+    ) {
         return (None, None, None);
     }
 
@@ -1504,12 +1574,13 @@ fn compile_diagnostic_function_binding(
     }
 
     if let Some(unbound_param) = function_declaration.params.iter().find(|param| {
-        param.required && !behavior_function_param_has_binding(behavior_definition, &param.name)
+        param.required
+            && !behavior_function_param_has_binding(behavior_definition, arguments, &param.name)
     }) {
         diagnostics.push(schema_compile_diagnostic(
             INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE,
             format!(
-                "diagnostic `{code}` references behavior `{behavior_reference}` function `{function}` with required parameter `{}` that has no behavior input or defaulted behavior parameter binding",
+                "diagnostic `{code}` references behavior `{behavior_reference}` function `{function}` with required parameter `{}` that has no behavior input, diagnostic argument, or defaulted behavior parameter binding",
                 unbound_param.name
             ),
             source_map,
@@ -1530,16 +1601,222 @@ fn compile_diagnostic_function_binding(
 
 fn behavior_function_param_has_binding(
     behavior_definition: &BehaviorDefinition,
+    arguments: &[BehaviorArgument],
     param_name: &str,
 ) -> bool {
     behavior_definition
         .inputs
         .iter()
         .any(|input| input.name == param_name)
+        || arguments.iter().any(|argument| argument.name == param_name)
         || behavior_definition
             .parameters
             .iter()
             .any(|parameter| parameter.name == param_name && parameter.default.is_some())
+}
+
+fn validate_diagnostic_behavior_arguments(
+    schema_uri: &str,
+    code: &str,
+    behavior_reference: &str,
+    behavior_definition: &BehaviorDefinition,
+    arguments: &[BehaviorArgument],
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let mut valid = true;
+    let mut seen = BTreeSet::new();
+    for argument in arguments {
+        if !seen.insert(argument.name.clone()) {
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE,
+                format!(
+                    "diagnostic `{code}` repeats behavior argument `{}` for behavior `{behavior_reference}`",
+                    argument.name
+                ),
+                &argument.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "diagnostic": code,
+                    "behavior": behavior_reference,
+                    "argument": &argument.name,
+                    "checkKind": "behavior-argument-binding",
+                }),
+            ));
+            valid = false;
+            continue;
+        }
+        let Some(parameter) = behavior_definition
+            .parameters
+            .iter()
+            .find(|parameter| parameter.name == argument.name)
+        else {
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE,
+                format!(
+                    "diagnostic `{code}` overrides behavior argument `{}` that is not declared as a parameter by behavior `{behavior_reference}`",
+                    argument.name
+                ),
+                &argument.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "diagnostic": code,
+                    "behavior": behavior_reference,
+                    "argument": &argument.name,
+                    "checkKind": "behavior-argument-binding",
+                }),
+            ));
+            valid = false;
+            continue;
+        };
+        if let Err(message) = validate_behavior_parameter_raw_value(parameter, &argument.value) {
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE,
+                format!(
+                    "diagnostic `{code}` behavior `{behavior_reference}` argument `{}` is invalid: {message}",
+                    argument.name
+                ),
+                &argument.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "diagnostic": code,
+                    "behavior": behavior_reference,
+                    "argument": &argument.name,
+                    "argumentType": &parameter.value_type,
+                    "checkKind": "behavior-argument-binding",
+                }),
+            ));
+            valid = false;
+        }
+    }
+    valid
+}
+
+fn validate_behavior_parameter_raw_value(
+    parameter: &BehaviorParameter,
+    raw_value: &str,
+) -> Result<(), String> {
+    if !parameter.values.is_empty() && !parameter.values.contains(raw_value) {
+        return Err(format!(
+            "value `{raw_value}` is outside declared values `{}`",
+            parameter
+                .values
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(" ")
+        ));
+    }
+    match schema_behavior_parameter_value_type(&parameter.value_type) {
+        SchemaBehaviorParameterValueType::Boolean => match raw_value.trim() {
+            "true" | "false" => Ok(()),
+            other => Err(format!("expected boolean value, got `{other}`")),
+        },
+        SchemaBehaviorParameterValueType::Integer => raw_value
+            .trim()
+            .parse::<i64>()
+            .map(|_| ())
+            .map_err(|_| format!("expected integer value, got `{raw_value}`")),
+        SchemaBehaviorParameterValueType::Number => {
+            let value = raw_value
+                .trim()
+                .parse::<f64>()
+                .map_err(|_| format!("expected number value, got `{raw_value}`"))?;
+            if value.is_finite() {
+                Ok(())
+            } else {
+                Err(format!("expected finite number value, got `{raw_value}`"))
+            }
+        }
+        SchemaBehaviorParameterValueType::Array
+        | SchemaBehaviorParameterValueType::Object
+        | SchemaBehaviorParameterValueType::Json => {
+            let value = serde_json::from_str::<serde_json::Value>(raw_value)
+                .map_err(|err| format!("value is not valid JSON: {err}"))?;
+            let expected = schema_behavior_parameter_value_type(&parameter.value_type);
+            if expected.accepts(&value) {
+                Ok(())
+            } else {
+                Err(format!(
+                    "expected {} value, got {}",
+                    expected.as_contract_name(),
+                    json_value_kind(&value)
+                ))
+            }
+        }
+        SchemaBehaviorParameterValueType::Any | SchemaBehaviorParameterValueType::String => Ok(()),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SchemaBehaviorParameterValueType {
+    Any,
+    String,
+    Boolean,
+    Number,
+    Integer,
+    Array,
+    Object,
+    Json,
+}
+
+impl SchemaBehaviorParameterValueType {
+    fn accepts(self, value: &serde_json::Value) -> bool {
+        match self {
+            Self::Any | Self::Json => true,
+            Self::String => value.is_string(),
+            Self::Boolean => value.is_boolean(),
+            Self::Number => value.is_number(),
+            Self::Integer => value.as_i64().is_some() || value.as_u64().is_some(),
+            Self::Array => value.is_array(),
+            Self::Object => value.is_object(),
+        }
+    }
+
+    fn as_contract_name(self) -> &'static str {
+        match self {
+            Self::Any => "any",
+            Self::String => "string",
+            Self::Boolean => "boolean",
+            Self::Number => "number",
+            Self::Integer => "integer",
+            Self::Array => "array",
+            Self::Object => "object",
+            Self::Json => "json",
+        }
+    }
+}
+
+fn schema_behavior_parameter_value_type(value: &str) -> SchemaBehaviorParameterValueType {
+    match value
+        .trim()
+        .rsplit_once(':')
+        .map(|(_, local)| local)
+        .unwrap_or_else(|| value.trim())
+    {
+        "string" | "identifier" | "diagnostic-code" | "behavior-reference" => {
+            SchemaBehaviorParameterValueType::String
+        }
+        "boolean" => SchemaBehaviorParameterValueType::Boolean,
+        "number" => SchemaBehaviorParameterValueType::Number,
+        "integer" => SchemaBehaviorParameterValueType::Integer,
+        "array" => SchemaBehaviorParameterValueType::Array,
+        "object" | "node" | "diagnostic" | "diagnostic-result" => {
+            SchemaBehaviorParameterValueType::Object
+        }
+        "json" => SchemaBehaviorParameterValueType::Json,
+        _ => SchemaBehaviorParameterValueType::Any,
+    }
+}
+
+fn json_value_kind(value: &serde_json::Value) -> &'static str {
+    match value {
+        serde_json::Value::Null => "null",
+        serde_json::Value::Bool(_) => "boolean",
+        serde_json::Value::Number(_) => "number",
+        serde_json::Value::String(_) => "string",
+        serde_json::Value::Array(_) => "array",
+        serde_json::Value::Object(_) => "object",
+    }
 }
 
 fn resolve_behavior_function_declaration(
@@ -3197,6 +3474,71 @@ mod tests {
     }
 
     #[test]
+    fn schema_diagnostic_behavior_accepts_diagnostic_argument_override() {
+        let model = compile_document_model(
+            "https://example.test/ns/function-argument/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="function-argument" @namespace="https://example.test/ns/function-argument/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="name"}
+    }
+    {behaviors |
+        {behavior
+            @name="item-label"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="item-label-result"
+            @select="item"
+            @match="name = null" |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true}
+            }
+            {parameters |
+                {parameter @name="expected" @type="schema:string" @required=true}
+            }
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+            {function @name="item-label-result" @returns="object" @deterministic=true |
+                {param @name="candidate" @type="object" @required=true}
+                {param @name="expected" @type="string" @required=true}
+                {body | {$ { message: "Item field is required", details: { expected: $expected } } }}
+            }
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.item_label"
+            @severity="warning"
+            @behavior="item-label" |
+            {arguments |
+                {argument @name="expected" @value="title"}
+            }
+        }
+    }
+}"#,
+        );
+
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "diagnostic argument override should compile: {:#?}",
+            model.compile_diagnostics
+        );
+        let diagnostic_behavior = model
+            .diagnostic_behaviors
+            .get("example.item_label")
+            .expect("diagnostic behavior binding");
+        assert_eq!(diagnostic_behavior.arguments.len(), 1);
+        assert_eq!(diagnostic_behavior.arguments[0].name, "expected");
+        assert_eq!(diagnostic_behavior.arguments[0].value, "title");
+        assert_eq!(
+            diagnostic_behavior.function.as_deref(),
+            Some("item-label-result")
+        );
+    }
+
+    #[test]
     fn schema_diagnostic_behavior_rejects_unresolved_schema_function_binding() {
         let model = compile_document_model(
             "https://example.test/ns/function-behavior-invalid/1",
@@ -3296,6 +3638,117 @@ mod tests {
             .is_some_and(|behavior| {
                 behavior.function.is_none() && behavior.function_definition.is_none()
             }));
+    }
+
+    #[test]
+    fn schema_diagnostic_behavior_rejects_unknown_diagnostic_argument() {
+        let model = compile_document_model(
+            "https://example.test/ns/function-argument-invalid/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="function-argument-invalid" @namespace="https://example.test/ns/function-argument-invalid/1" @version="1.0.0" |
+    {behaviors |
+        {behavior
+            @name="item-label"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="item-label-result"
+            @select="item"
+            @match="true" |
+            {parameters |
+                {parameter @name="expected" @type="schema:string" @required=true @default="label"}
+            }
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+            {function @name="item-label-result" @returns="object" @deterministic=true |
+                {param @name="expected" @type="string" @required=true}
+                {body | {$ { message: "Item field is required" } }}
+            }
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.item_label"
+            @severity="error"
+            @behavior="item-label" |
+            {arguments |
+                {argument @name="field" @value="title"}
+            }
+        }
+    }
+}"#,
+        );
+
+        assert!(model.compile_diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE
+                && diagnostic.details.as_ref().is_some_and(|details| {
+                    details["diagnostic"] == "example.item_label"
+                        && details["behavior"] == "item-label"
+                        && details["argument"] == "field"
+                        && details["checkKind"] == "behavior-argument-binding"
+                })
+        }));
+        assert!(model
+            .diagnostic_behaviors
+            .get("example.item_label")
+            .is_some_and(|behavior| behavior.function.is_none()));
+    }
+
+    #[test]
+    fn schema_diagnostic_behavior_rejects_invalid_diagnostic_argument_type() {
+        let model = compile_document_model(
+            "https://example.test/ns/function-argument-type-invalid/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="function-argument-type-invalid" @namespace="https://example.test/ns/function-argument-type-invalid/1" @version="1.0.0" |
+    {behaviors |
+        {behavior
+            @name="item-count"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="item-count-result"
+            @select="item"
+            @match="true" |
+            {parameters |
+                {parameter @name="minimum" @type="schema:integer" @required=true}
+            }
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+            {function @name="item-count-result" @returns="object" @deterministic=true |
+                {param @name="minimum" @type="integer" @required=true}
+                {body | {$ { message: "Item count is too small" } }}
+            }
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.item_count"
+            @severity="error"
+            @behavior="item-count" |
+            {arguments |
+                {argument @name="minimum" @value="many"}
+            }
+        }
+    }
+}"#,
+        );
+
+        assert!(model.compile_diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE
+                && diagnostic.details.as_ref().is_some_and(|details| {
+                    details["diagnostic"] == "example.item_count"
+                        && details["behavior"] == "item-count"
+                        && details["argument"] == "minimum"
+                        && details["argumentType"] == "schema:integer"
+                        && details["checkKind"] == "behavior-argument-binding"
+                })
+        }));
+        assert!(model
+            .diagnostic_behaviors
+            .get("example.item_count")
+            .is_some_and(|behavior| behavior.function.is_none()));
     }
 
     #[test]

@@ -205,8 +205,9 @@ The relationship is layered validation, not broad inheritance:
   Defaulted typed behavior parameters bind into those functions. Qualified
   function references resolve through schema `{uses}` aliases to reusable
   CEM-ML behavior functions that opt in with `@visibility="package"` or
-  `@visibility="public"`. Non-default parameter overrides and the full engine
-  primitive library are still being built out.
+  `@visibility="public"`. Diagnostic-scoped `{arguments}` bind non-default
+  parameter overrides for function behaviors. Engine behavior argument binding
+  and the full engine primitive library are still being built out.
 
 Schema dependencies should be resolved by schema URL and content type, not by
 filesystem path. Filesystem layout is a distribution detail for local packages.

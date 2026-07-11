@@ -27,7 +27,8 @@ history belongs in git history and the feature-specific docs linked below.
       behavior parameters now bind into direct CEM-ML behavior functions;
       imported/qualified reusable CEM-ML behavior functions now resolve
       through schema `{uses}` aliases when their declarations opt in with
-      reusable visibility. Non-default parameter overrides and additional
+      reusable visibility. Diagnostic-scoped `{arguments}` now provide
+      non-default parameter overrides for function-backed behaviors. Additional
       engine algorithms remain.
   - [ ] Allow declarative behavior to select candidate nodes and match failure
         conditions with CEM-QL, then invoke a schema-declared CEM-ML behavior
@@ -37,7 +38,8 @@ history belongs in git history and the feature-specific docs linked below.
         parameters. Qualified function references now resolve through schema
         `{uses}` aliases to visible reusable CEM-ML behavior functions so
         custom schema packages can reuse result builders without registering
-        Rust code. Cross-diagnostic non-default parameter overrides remain.
+        Rust code. Diagnostic-scoped `{arguments}` bind cross-diagnostic
+        non-default parameter overrides.
   - [ ] Publish a minimal useful library of CEM engine-provided algorithms that
         schema authors can consume through diagnostic `@code` behavior
         references. Cover the common algorithmic variations needed to create a
@@ -60,7 +62,8 @@ history belongs in git history and the feature-specific docs linked below.
         path outside CEMT, and required function parameters must resolve from
         declared inputs or defaulted behavior parameters. Reusable imported
         functions now resolve by schema URI and `{uses}` alias when visible;
-        non-default parameter override binding remains.
+        non-default parameter override binding now comes from diagnostic-scoped
+        `{arguments}` for function behaviors.
   - [ ] Add schema-package and CLI examples for every engine-provided algorithm
         and its meaningful parameter or matching variations. Include passing
         and failing fixtures, expected diagnostic codes, structured details,
