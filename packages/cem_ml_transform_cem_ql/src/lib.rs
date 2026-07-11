@@ -22,7 +22,7 @@ use cem_ml::parser::{AstNodeId, CemAstNode};
 use cem_ml::run_config::ScopeConfig;
 use cem_ml::scheduler::ScopePolicy;
 use cem_ml::schema::document_model::{
-    BehaviorDefinition, BehaviorFunctionDeclaration, BehaviorParameter, DiagnosticBehavior,
+    BehaviorDefinition, BehaviorFunctionParam, BehaviorParameter, DiagnosticBehavior,
     SchemaBehaviorEvaluator, SchemaDocumentModel, SCHEMA_BEHAVIOR_FUNCTION_FAILED_CODE,
     SCHEMA_BEHAVIOR_QUERY_FAILED_CODE, SCHEMA_BEHAVIOR_QUERY_INVALID_CODE,
     SCHEMA_BEHAVIOR_RESULT_INVALID_CODE,
@@ -30,16 +30,14 @@ use cem_ml::schema::document_model::{
 use cem_ml::schema::registry::{CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI};
 use cem_ml::source_map::{FrameSpan, SourceMapStack};
 use cem_ml::transform_template::{
-    execute_transform_template_module_function, parse_cem_native_template_module_options,
-    TransformTemplateAdapter, TransformTemplateAdapterCapability, TransformTemplateAdapterError,
+    parse_cem_native_template_module_options, TransformTemplateAdapter,
+    TransformTemplateAdapterCapability, TransformTemplateAdapterError,
     TransformTemplateAdapterExecutionPhase, TransformTemplateAdapterRegistry,
     TransformTemplateAdapterResult, TransformTemplateCompileRequest,
     TransformTemplateCompileResponse, TransformTemplateCompiledArtifact,
-    TransformTemplateDataArtifact, TransformTemplateFunctionCallRequest,
-    TransformTemplateModuleFunctionDeclaration, TransformTemplateModuleOptions,
-    TransformTemplateModuleParamDeclaration, TransformTemplateModuleParamType,
-    TransformTemplateModuleParseRequest, TransformTemplateModulePreflight,
-    TransformTemplateModuleVisibility, TransformTemplateOutputArtifact,
+    TransformTemplateDataArtifact, TransformTemplateModuleOptions,
+    TransformTemplateModuleParamDeclaration, TransformTemplateModuleParseRequest,
+    TransformTemplateModulePreflight, TransformTemplateOutputArtifact,
     TransformTemplateRenderRequest, TransformTemplateRenderResponse,
     CEM_NATIVE_TEMPLATE_SCHEMA_URI, TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE,
     TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE, TRANSFORM_TEMPLATE_PARAM_TYPE_CODE,
@@ -147,6 +145,29 @@ impl SchemaBehaviorEvaluator for CemQlSchemaBehaviorEvaluator {
                             "parameterType": parameter.value_type,
                         }),
                     ));
+                }
+            }
+            if let Some(function_name) = diagnostic.function.as_deref() {
+                if let Some(function) = definition.inline_functions.get(function_name) {
+                    if let Some(body) = function.body_expression.as_deref() {
+                        if let Err(message) = parse_schema_behavior_expression(body) {
+                            diagnostics.push(schema_behavior_diagnostic(
+                                SCHEMA_BEHAVIOR_FUNCTION_FAILED_CODE,
+                                Severity::Error,
+                                format!(
+                                    "diagnostic `{}` behavior `{}` function `{function_name}` has invalid CEM-ML behavior body: {message}",
+                                    diagnostic.code, diagnostic.behavior
+                                ),
+                                &definition.source_map,
+                                json!({
+                                    "schemaUri": model.schema_uri,
+                                    "diagnostic": diagnostic.code,
+                                    "behavior": diagnostic.behavior,
+                                    "function": function_name,
+                                }),
+                            ));
+                        }
+                    }
                 }
             }
         }
@@ -546,86 +567,92 @@ fn execute_schema_behavior_function(
     candidate: &SchemaBehaviorCandidate,
 ) -> Option<Diagnostic> {
     let function_name = diagnostic.function.as_deref()?;
-    let module_options = behavior_module_options(definition);
-    let function_params = definition
-        .inline_functions
-        .get(function_name)
-        .map(|function| function.params.as_slice())
-        .unwrap_or(&[]);
+    let Some(function) = definition.inline_functions.get(function_name) else {
+        return Some(schema_behavior_function_failed_diagnostic(
+            model,
+            diagnostic,
+            function_name,
+            candidate,
+            format!("CEM-ML behavior function `{function_name}` is not declared"),
+        ));
+    };
+    let Some(body_expression) = function.body_expression.as_deref() else {
+        return Some(schema_behavior_function_failed_diagnostic(
+            model,
+            diagnostic,
+            function_name,
+            candidate,
+            format!("CEM-ML behavior function `{function_name}` has no body expression"),
+        ));
+    };
     let mut arguments = BTreeMap::new();
-    for param in function_params {
-        match param.name.as_str() {
-            "candidate" => {
-                arguments.insert("candidate".to_owned(), candidate_json(candidate));
+    for param in &function.params {
+        match schema_behavior_function_argument_value(param, diagnostic, definition, candidate) {
+            Ok(Some(value)) => {
+                arguments.insert(param.name.clone(), value);
             }
-            "diagnostic" => {
-                arguments.insert(
-                    "diagnostic".to_owned(),
-                    json!({
-                        "code": diagnostic.code,
-                        "severity": severity_name(diagnostic.severity),
-                        "behavior": diagnostic.behavior,
-                        "message": diagnostic.message,
-                    }),
-                );
+            Ok(None) if param.required => {
+                return Some(schema_behavior_function_failed_diagnostic(
+                    model,
+                    diagnostic,
+                    function_name,
+                    candidate,
+                    format!(
+                        "required CEM-ML behavior function parameter `{}` was not bound",
+                        param.name
+                    ),
+                ));
             }
-            _ => {
-                if let Some(value) = definition
-                    .parameters
-                    .iter()
-                    .find(|parameter| parameter.name == param.name)
-                    .and_then(|parameter| behavior_parameter_default_value(parameter).ok())
-                    .flatten()
-                {
-                    arguments.insert(param.name.clone(), value);
-                }
+            Ok(None) => {}
+            Err(message) => {
+                return Some(schema_behavior_function_failed_diagnostic(
+                    model,
+                    diagnostic,
+                    function_name,
+                    candidate,
+                    message,
+                ));
             }
         }
     }
-    let result =
-        match execute_transform_template_module_function(TransformTemplateFunctionCallRequest {
-            module_options: &module_options,
+    let expression = match parse_schema_behavior_expression(body_expression) {
+        Ok(expression) => expression,
+        Err(message) => {
+            return Some(schema_behavior_function_failed_diagnostic(
+                model,
+                diagnostic,
+                function_name,
+                candidate,
+                format!("invalid CEM-ML behavior body: {message}"),
+            ))
+        }
+    };
+    let result = match evaluate_schema_behavior_expression(&expression, &arguments) {
+        Ok(value) => value,
+        Err(message) => {
+            return Some(schema_behavior_function_failed_diagnostic(
+                model,
+                diagnostic,
+                function_name,
+                candidate,
+                message,
+            ))
+        }
+    };
+    let return_type = schema_behavior_value_type(&function.returns);
+    if !return_type.accepts(&result) {
+        return Some(schema_behavior_function_failed_diagnostic(
+            model,
+            diagnostic,
             function_name,
-            arguments,
-        }) {
-            Ok(Some(value)) => value,
-            Ok(None) => {
-                return Some(schema_behavior_diagnostic(
-                    SCHEMA_BEHAVIOR_RESULT_INVALID_CODE,
-                    Severity::Error,
-                    format!(
-                    "diagnostic `{}` behavior `{}` function `{function_name}` returned no result",
-                    diagnostic.code, diagnostic.behavior
-                ),
-                    &candidate.source_map,
-                    json!({
-                        "schemaUri": model.schema_uri,
-                        "diagnostic": diagnostic.code,
-                        "behavior": diagnostic.behavior,
-                        "function": function_name,
-                        "candidate": candidate_json(candidate),
-                    }),
-                ))
-            }
-            Err(message) => {
-                return Some(schema_behavior_diagnostic(
-                    SCHEMA_BEHAVIOR_FUNCTION_FAILED_CODE,
-                    Severity::Error,
-                    format!(
-                    "diagnostic `{}` behavior `{}` function `{function_name}` failed: {message}",
-                    diagnostic.code, diagnostic.behavior
-                ),
-                    &candidate.source_map,
-                    json!({
-                        "schemaUri": model.schema_uri,
-                        "diagnostic": diagnostic.code,
-                        "behavior": diagnostic.behavior,
-                        "function": function_name,
-                        "candidate": candidate_json(candidate),
-                    }),
-                ))
-            }
-        };
+            candidate,
+            format!(
+                "CEM-ML behavior function `{function_name}` returned {}, expected {}",
+                json_value_kind(&result),
+                return_type.as_contract_name()
+            ),
+        ));
+    }
     let Some(result) = result.as_object() else {
         return Some(schema_behavior_diagnostic(
             SCHEMA_BEHAVIOR_RESULT_INVALID_CODE,
@@ -695,61 +722,124 @@ fn execute_schema_behavior_function(
     ))
 }
 
-fn behavior_module_options(definition: &BehaviorDefinition) -> TransformTemplateModuleOptions {
-    let functions = definition
-        .inline_functions
-        .values()
-        .map(behavior_function_declaration)
-        .collect();
-    TransformTemplateModuleOptions {
-        functions,
-        ..TransformTemplateModuleOptions::default()
-    }
-}
-
-fn behavior_function_declaration(
-    function: &BehaviorFunctionDeclaration,
-) -> TransformTemplateModuleFunctionDeclaration {
-    TransformTemplateModuleFunctionDeclaration {
-        owner: None,
-        name: function.name.clone(),
-        visibility: TransformTemplateModuleVisibility::Private,
-        return_type: behavior_param_type(&function.returns),
-        nullable: false,
-        deterministic: true,
-        trusted: false,
-        params: function
-            .params
+fn schema_behavior_function_argument_value(
+    param: &BehaviorFunctionParam,
+    diagnostic: &DiagnosticBehavior,
+    definition: &BehaviorDefinition,
+    candidate: &SchemaBehaviorCandidate,
+) -> Result<Option<Value>, String> {
+    let value = match param.name.as_str() {
+        "candidate" => Some(candidate_json(candidate)),
+        "diagnostic" => Some(json!({
+            "code": diagnostic.code,
+            "severity": severity_name(diagnostic.severity),
+            "behavior": diagnostic.behavior,
+            "message": diagnostic.message,
+        })),
+        _ => definition
+            .parameters
             .iter()
-            .map(|param| TransformTemplateModuleParamDeclaration {
-                name: param.name.clone(),
-                value_type: behavior_param_type(&param.value_type),
-                nullable: false,
-                default_value: None,
-                required: param.required,
-                visibility: TransformTemplateModuleVisibility::Private,
-            })
-            .collect(),
-        body_declared: function.body_expression.is_some(),
-        body_expression: function.body_expression.clone(),
+            .find(|parameter| parameter.name == param.name)
+            .map(behavior_parameter_default_value)
+            .transpose()?
+            .flatten(),
+    };
+    if let Some(value) = value.as_ref() {
+        let value_type = schema_behavior_value_type(&param.value_type);
+        if !value_type.accepts(value) {
+            return Err(format!(
+                "CEM-ML behavior function parameter `{}` expected {}, got {}",
+                param.name,
+                value_type.as_contract_name(),
+                json_value_kind(value)
+            ));
+        }
+    }
+    Ok(value)
+}
+
+fn schema_behavior_function_failed_diagnostic(
+    model: &SchemaDocumentModel,
+    diagnostic: &DiagnosticBehavior,
+    function_name: &str,
+    candidate: &SchemaBehaviorCandidate,
+    message: impl Into<String>,
+) -> Diagnostic {
+    let message = message.into();
+    schema_behavior_diagnostic(
+        SCHEMA_BEHAVIOR_FUNCTION_FAILED_CODE,
+        Severity::Error,
+        format!(
+            "diagnostic `{}` behavior `{}` function `{function_name}` failed: {message}",
+            diagnostic.code, diagnostic.behavior
+        ),
+        &candidate.source_map,
+        json!({
+            "schemaUri": model.schema_uri,
+            "diagnostic": diagnostic.code,
+            "behavior": diagnostic.behavior,
+            "function": function_name,
+            "candidate": candidate_json(candidate),
+        }),
+    )
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SchemaBehaviorValueType {
+    Any,
+    String,
+    Boolean,
+    Number,
+    Integer,
+    Array,
+    Object,
+    Json,
+}
+
+impl SchemaBehaviorValueType {
+    fn accepts(self, value: &Value) -> bool {
+        match self {
+            Self::Any | Self::Json => true,
+            Self::String => value.is_string(),
+            Self::Boolean => value.is_boolean(),
+            Self::Number => value.is_number(),
+            Self::Integer => value.as_i64().is_some() || value.as_u64().is_some(),
+            Self::Array => value.is_array(),
+            Self::Object => value.is_object(),
+        }
+    }
+
+    fn as_contract_name(self) -> &'static str {
+        match self {
+            Self::Any => "any",
+            Self::String => "string",
+            Self::Boolean => "boolean",
+            Self::Number => "number",
+            Self::Integer => "integer",
+            Self::Array => "array",
+            Self::Object => "object",
+            Self::Json => "json",
+        }
     }
 }
 
-fn behavior_param_type(value: &str) -> TransformTemplateModuleParamType {
+fn schema_behavior_value_type(value: &str) -> SchemaBehaviorValueType {
     match value
         .trim()
         .rsplit_once(':')
         .map(|(_, local)| local)
         .unwrap_or_else(|| value.trim())
     {
-        "string" => TransformTemplateModuleParamType::String,
-        "boolean" => TransformTemplateModuleParamType::Boolean,
-        "number" => TransformTemplateModuleParamType::Number,
-        "integer" => TransformTemplateModuleParamType::Integer,
-        "array" => TransformTemplateModuleParamType::Array,
-        "object" => TransformTemplateModuleParamType::Object,
-        "json" => TransformTemplateModuleParamType::Json,
-        _ => TransformTemplateModuleParamType::Any,
+        "string" | "identifier" | "diagnostic-code" | "behavior-reference" => {
+            SchemaBehaviorValueType::String
+        }
+        "boolean" => SchemaBehaviorValueType::Boolean,
+        "number" => SchemaBehaviorValueType::Number,
+        "integer" => SchemaBehaviorValueType::Integer,
+        "array" => SchemaBehaviorValueType::Array,
+        "object" | "node" | "diagnostic" | "diagnostic-result" => SchemaBehaviorValueType::Object,
+        "json" => SchemaBehaviorValueType::Json,
+        _ => SchemaBehaviorValueType::Any,
     }
 }
 
@@ -770,21 +860,21 @@ fn behavior_parameter_default_value(
                 .join(" ")
         ));
     }
-    let value_type = behavior_param_type(&parameter.value_type);
+    let value_type = schema_behavior_value_type(&parameter.value_type);
     let value = match value_type {
-        TransformTemplateModuleParamType::Boolean => match default.trim() {
+        SchemaBehaviorValueType::Boolean => match default.trim() {
             "true" => Value::Bool(true),
             "false" => Value::Bool(false),
             other => return Err(format!("expected boolean default, got `{other}`")),
         },
-        TransformTemplateModuleParamType::Integer => {
+        SchemaBehaviorValueType::Integer => {
             let value = default
                 .trim()
                 .parse::<i64>()
                 .map_err(|_| format!("expected integer default, got `{default}`"))?;
             Value::Number(Number::from(value))
         }
-        TransformTemplateModuleParamType::Number => {
+        SchemaBehaviorValueType::Number => {
             let value = default
                 .trim()
                 .parse::<f64>()
@@ -794,12 +884,12 @@ fn behavior_parameter_default_value(
                     .ok_or_else(|| format!("expected finite number default, got `{default}`"))?,
             )
         }
-        TransformTemplateModuleParamType::Array
-        | TransformTemplateModuleParamType::Object
-        | TransformTemplateModuleParamType::Json => {
+        SchemaBehaviorValueType::Array
+        | SchemaBehaviorValueType::Object
+        | SchemaBehaviorValueType::Json => {
             let value = serde_json::from_str::<Value>(default)
                 .map_err(|err| format!("default is not valid JSON: {err}"))?;
-            if !value_type.accepts(&value, false) {
+            if !value_type.accepts(&value) {
                 return Err(format!(
                     "expected {} default, got {}",
                     value_type.as_contract_name(),
@@ -808,11 +898,404 @@ fn behavior_parameter_default_value(
             }
             value
         }
-        TransformTemplateModuleParamType::Any | TransformTemplateModuleParamType::String => {
+        SchemaBehaviorValueType::Any | SchemaBehaviorValueType::String => {
             Value::String(default.to_owned())
         }
     };
     Ok(Some(value))
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum SchemaBehaviorExpression {
+    Null,
+    Bool(bool),
+    Number(Number),
+    String(String),
+    Path(Vec<String>),
+    Array(Vec<SchemaBehaviorExpression>),
+    Object(Vec<(String, SchemaBehaviorExpression)>),
+}
+
+fn parse_schema_behavior_expression(raw: &str) -> Result<SchemaBehaviorExpression, String> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return Err("empty expression".to_owned());
+    }
+    if raw.starts_with('{') {
+        return parse_schema_behavior_object(raw);
+    }
+    if raw.starts_with('[') {
+        return parse_schema_behavior_array(raw);
+    }
+    if raw.starts_with('"') || raw.starts_with('\'') {
+        return parse_schema_behavior_string_literal(raw).map(SchemaBehaviorExpression::String);
+    }
+    if raw == "null" {
+        return Ok(SchemaBehaviorExpression::Null);
+    }
+    if raw == "true" {
+        return Ok(SchemaBehaviorExpression::Bool(true));
+    }
+    if raw == "false" {
+        return Ok(SchemaBehaviorExpression::Bool(false));
+    }
+    if raw.starts_with('$') {
+        return parse_schema_behavior_path(raw);
+    }
+    if let Ok(Value::Number(number)) = serde_json::from_str::<Value>(raw) {
+        return Ok(SchemaBehaviorExpression::Number(number));
+    }
+    Err(format!("unsupported expression `{raw}`"))
+}
+
+fn parse_schema_behavior_object(raw: &str) -> Result<SchemaBehaviorExpression, String> {
+    let end = matching_schema_behavior_delimiter(raw, '{', '}')?;
+    if end != raw.len() - 1 {
+        return Err("unexpected content after object expression".to_owned());
+    }
+    let inner = raw[1..end].trim();
+    if inner.is_empty() {
+        return Ok(SchemaBehaviorExpression::Object(Vec::new()));
+    }
+    let mut fields = Vec::new();
+    for field in split_schema_behavior_top_level(inner, ',')? {
+        let field = field.trim();
+        if field.is_empty() {
+            continue;
+        }
+        let colon = find_schema_behavior_top_level(field, ':')?
+            .ok_or_else(|| format!("object field `{field}` is missing `:`"))?;
+        let key = parse_schema_behavior_object_key(&field[..colon])?;
+        let value = parse_schema_behavior_expression(&field[colon + 1..])?;
+        fields.push((key, value));
+    }
+    Ok(SchemaBehaviorExpression::Object(fields))
+}
+
+fn parse_schema_behavior_array(raw: &str) -> Result<SchemaBehaviorExpression, String> {
+    let end = matching_schema_behavior_delimiter(raw, '[', ']')?;
+    if end != raw.len() - 1 {
+        return Err("unexpected content after array expression".to_owned());
+    }
+    let inner = raw[1..end].trim();
+    if inner.is_empty() {
+        return Ok(SchemaBehaviorExpression::Array(Vec::new()));
+    }
+    let mut items = Vec::new();
+    for item in split_schema_behavior_top_level(inner, ',')? {
+        let item = item.trim();
+        if item.is_empty() {
+            continue;
+        }
+        items.push(parse_schema_behavior_expression(item)?);
+    }
+    Ok(SchemaBehaviorExpression::Array(items))
+}
+
+fn parse_schema_behavior_object_key(raw: &str) -> Result<String, String> {
+    let raw = raw.trim();
+    if raw.starts_with('"') || raw.starts_with('\'') {
+        return parse_schema_behavior_string_literal(raw);
+    }
+    if raw.is_empty() {
+        return Err("object field key is empty".to_owned());
+    }
+    if raw
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | ':' | '.'))
+    {
+        return Ok(raw.to_owned());
+    }
+    Err(format!("invalid object field key `{raw}`"))
+}
+
+fn parse_schema_behavior_string_literal(raw: &str) -> Result<String, String> {
+    let raw = raw.trim();
+    let quote = raw
+        .chars()
+        .next()
+        .ok_or_else(|| "empty string literal".to_owned())?;
+    if quote != '"' && quote != '\'' {
+        return Err(format!("expected string literal, got `{raw}`"));
+    }
+    let end = matching_schema_behavior_quote(raw, quote)?;
+    if end != raw.len() - 1 {
+        return Err("unexpected content after string literal".to_owned());
+    }
+    if quote == '"' {
+        return serde_json::from_str::<String>(raw)
+            .map_err(|err| format!("invalid string literal: {err}"));
+    }
+    parse_schema_behavior_single_quoted_string(&raw[1..end])
+}
+
+fn parse_schema_behavior_single_quoted_string(inner: &str) -> Result<String, String> {
+    let mut value = String::new();
+    let mut chars = inner.chars();
+    while let Some(ch) = chars.next() {
+        if ch != '\\' {
+            value.push(ch);
+            continue;
+        }
+        let escaped = chars
+            .next()
+            .ok_or_else(|| "unterminated string escape".to_owned())?;
+        match escaped {
+            '\\' => value.push('\\'),
+            '\'' => value.push('\''),
+            '"' => value.push('"'),
+            'n' => value.push('\n'),
+            'r' => value.push('\r'),
+            't' => value.push('\t'),
+            other => return Err(format!("unsupported string escape `\\{other}`")),
+        }
+    }
+    Ok(value)
+}
+
+fn parse_schema_behavior_path(raw: &str) -> Result<SchemaBehaviorExpression, String> {
+    let path = raw
+        .trim()
+        .strip_prefix('$')
+        .expect("path parser is only called for `$` expressions");
+    if path.is_empty() {
+        return Err("path expression is missing a binding name".to_owned());
+    }
+    let mut segments = Vec::new();
+    for segment in path.split('.') {
+        if segment.is_empty() {
+            return Err(format!("path expression `{raw}` contains an empty segment"));
+        }
+        if !segment
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
+        {
+            return Err(format!(
+                "path expression `{raw}` contains invalid segment `{segment}`"
+            ));
+        }
+        segments.push(segment.to_owned());
+    }
+    Ok(SchemaBehaviorExpression::Path(segments))
+}
+
+fn matching_schema_behavior_delimiter(raw: &str, open: char, close: char) -> Result<usize, String> {
+    let mut depth = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    for (index, ch) in raw.char_indices() {
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if ch == '"' || ch == '\'' {
+            quote = Some(ch);
+            continue;
+        }
+        if ch == open {
+            depth += 1;
+            continue;
+        }
+        if ch == close {
+            depth = depth
+                .checked_sub(1)
+                .ok_or_else(|| format!("unexpected `{close}`"))?;
+            if depth == 0 {
+                return Ok(index);
+            }
+        }
+    }
+    Err(format!("unterminated `{open}` expression"))
+}
+
+fn matching_schema_behavior_quote(raw: &str, quote: char) -> Result<usize, String> {
+    let mut escaped = false;
+    for (index, ch) in raw.char_indices().skip(1) {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if ch == '\\' {
+            escaped = true;
+            continue;
+        }
+        if ch == quote {
+            return Ok(index);
+        }
+    }
+    Err("unterminated string literal".to_owned())
+}
+
+fn split_schema_behavior_top_level(raw: &str, delimiter: char) -> Result<Vec<&str>, String> {
+    let mut parts = Vec::new();
+    let mut start = 0usize;
+    let mut depth = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    for (index, ch) in raw.char_indices() {
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if ch == '"' || ch == '\'' {
+            quote = Some(ch);
+            continue;
+        }
+        match ch {
+            '{' | '[' | '(' => depth += 1,
+            '}' | ']' | ')' => {
+                depth = depth
+                    .checked_sub(1)
+                    .ok_or_else(|| format!("unexpected `{ch}`"))?;
+            }
+            _ if ch == delimiter && depth == 0 => {
+                parts.push(&raw[start..index]);
+                start = index + ch.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    if quote.is_some() {
+        return Err("unterminated string literal".to_owned());
+    }
+    if depth != 0 {
+        return Err("unterminated nested expression".to_owned());
+    }
+    parts.push(&raw[start..]);
+    Ok(parts)
+}
+
+fn find_schema_behavior_top_level(raw: &str, needle: char) -> Result<Option<usize>, String> {
+    let mut depth = 0usize;
+    let mut quote = None;
+    let mut escaped = false;
+    for (index, ch) in raw.char_indices() {
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+        if ch == '"' || ch == '\'' {
+            quote = Some(ch);
+            continue;
+        }
+        match ch {
+            '{' | '[' | '(' => depth += 1,
+            '}' | ']' | ')' => {
+                depth = depth
+                    .checked_sub(1)
+                    .ok_or_else(|| format!("unexpected `{ch}`"))?;
+            }
+            _ if ch == needle && depth == 0 => return Ok(Some(index)),
+            _ => {}
+        }
+    }
+    if quote.is_some() {
+        return Err("unterminated string literal".to_owned());
+    }
+    if depth != 0 {
+        return Err("unterminated nested expression".to_owned());
+    }
+    Ok(None)
+}
+
+fn evaluate_schema_behavior_expression(
+    expression: &SchemaBehaviorExpression,
+    bindings: &BTreeMap<String, Value>,
+) -> Result<Value, String> {
+    match expression {
+        SchemaBehaviorExpression::Null => Ok(Value::Null),
+        SchemaBehaviorExpression::Bool(value) => Ok(Value::Bool(*value)),
+        SchemaBehaviorExpression::Number(value) => Ok(Value::Number(value.clone())),
+        SchemaBehaviorExpression::String(value) => Ok(Value::String(value.clone())),
+        SchemaBehaviorExpression::Path(path) => resolve_schema_behavior_path(path, bindings),
+        SchemaBehaviorExpression::Array(items) => items
+            .iter()
+            .map(|item| evaluate_schema_behavior_expression(item, bindings))
+            .collect::<Result<Vec<_>, _>>()
+            .map(Value::Array),
+        SchemaBehaviorExpression::Object(fields) => {
+            let mut object = Map::new();
+            for (name, value) in fields {
+                object.insert(
+                    name.clone(),
+                    evaluate_schema_behavior_expression(value, bindings)?,
+                );
+            }
+            Ok(Value::Object(object))
+        }
+    }
+}
+
+fn resolve_schema_behavior_path(
+    path: &[String],
+    bindings: &BTreeMap<String, Value>,
+) -> Result<Value, String> {
+    let Some((binding, segments)) = path.split_first() else {
+        return Err("path expression is empty".to_owned());
+    };
+    let mut value = bindings
+        .get(binding)
+        .ok_or_else(|| format!("unknown CEM-ML behavior binding `${binding}`"))?;
+    for segment in segments {
+        match value {
+            Value::Object(object) => {
+                value = object.get(segment).ok_or_else(|| {
+                    format!("CEM-ML behavior path `${}` is unresolved", path.join("."))
+                })?;
+            }
+            Value::Array(items) => {
+                let index = segment.parse::<usize>().map_err(|_| {
+                    format!(
+                        "CEM-ML behavior path `${}` expected array index, got `{segment}`",
+                        path.join(".")
+                    )
+                })?;
+                value = items.get(index).ok_or_else(|| {
+                    format!(
+                        "CEM-ML behavior path `${}` index `{index}` is out of bounds",
+                        path.join(".")
+                    )
+                })?;
+            }
+            _ => {
+                return Err(format!(
+                    "CEM-ML behavior path `${}` crosses non-container field `{segment}`",
+                    path.join(".")
+                ));
+            }
+        }
+    }
+    Ok(value.clone())
 }
 
 fn json_value_kind(value: &Value) -> &'static str {
@@ -2372,7 +2855,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_declared_diagnostic_behavior_executes_cem_ql_match_and_cemt_function() {
+    fn schema_declared_diagnostic_behavior_executes_cem_ql_match_and_cem_ml_function() {
         let model = cem_ml::schema::document_model::compile_schema_document_model(
             "https://example.test/ns/declarative-diagnostic/1",
             r#"@doc cem-ml 1
@@ -2404,12 +2887,15 @@ mod tests {
             {result @type="schema:diagnostic-result" @source-range="candidate" |
                 {detail @name="checkKind" @type="schema:identifier" @required=true}
                 {detail @name="element" @type="schema:identifier" @required=true}
+                {detail @name="kind" @type="schema:identifier" @required=true}
                 {detail @name="expected" @type="schema:string" @required=true}
+                {detail @name="expectedFields" @type="schema:array" @required=true}
+                {detail @name="sample" @type="schema:object" @required=true}
             }
             {function @name="page-label-result" @returns="object" @deterministic=true |
                 {param @name="candidate" @type="object" @required=true}
                 {param @name="expected" @type="string" @required=true}
-                {body | {$ { message: "Page resource needs a label", details: { checkKind: "page-label", element: $candidate.name, expected: $expected } } }}
+                {body | {$ { message: "Page resource needs a label", details: { checkKind: "page-label", element: $candidate.name, kind: $candidate.attributes.kind, expected: $expected, expectedFields: [$expected], sample: { enabled: true, count: 1, nothing: null } } } }}
             }
         }
     }
@@ -2448,7 +2934,17 @@ mod tests {
         assert_eq!(details["function"], json!("page-label-result"));
         assert_eq!(details["checkKind"], json!("page-label"));
         assert_eq!(details["element"], json!("resource"));
+        assert_eq!(details["kind"], json!("page"));
         assert_eq!(details["expected"], json!("label"));
+        assert_eq!(details["expectedFields"], json!(["label"]));
+        assert_eq!(
+            details["sample"],
+            json!({
+                "enabled": true,
+                "count": 1,
+                "nothing": null,
+            })
+        );
         assert!(details["sourceRange"]["span"]["start"].is_u64());
 
         let labeled = document_from_cem(r#"{resource @kind=page @label=Home}"#);
@@ -2463,6 +2959,70 @@ mod tests {
                 .iter()
                 .all(|diagnostic| diagnostic.code != "example.page_label"),
             "{diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn schema_declared_diagnostic_behavior_rejects_cemt_call_body() {
+        let model = cem_ml::schema::document_model::compile_schema_document_model(
+            "https://example.test/ns/declarative-diagnostic/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="declarative-diagnostic" @namespace="https://example.test/ns/declarative-diagnostic/1" @version="1.0.0" |
+    {elements |
+        {element @name="resource" @optional-attributes="kind"}
+    }
+    {attributes |
+        {attribute @name="kind" @type="schema:identifier"}
+    }
+    {behaviors |
+        {behavior
+            @name="page-kind"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="page-kind-result"
+            @select="resource"
+            @match='kind = "page"' |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+            }
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+            {function @name="page-kind-result" @returns="object" @deterministic=true |
+                {param @name="candidate" @type="object" @required=true}
+                {body | {$ call("page-kind-result", { candidate: $candidate }) }}
+            }
+        }
+    }
+    {diagnostics |
+        {diagnostic @code="example.page_kind" @severity="warning" @behavior="page-kind"}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "{:#?}",
+            model.compile_diagnostics
+        );
+        let evaluator = CemQlSchemaBehaviorEvaluator;
+        let document = document_from_cem(r#"{resource @kind=page}"#);
+        let diagnostics =
+            cem_ml::schema::document_model::validate_document_model_with_behavior_evaluator(
+                &document,
+                &model,
+                Some(&evaluator),
+            );
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == SCHEMA_BEHAVIOR_FUNCTION_FAILED_CODE)
+            .unwrap_or_else(|| panic!("CEMT call body must be rejected: {diagnostics:#?}"));
+        assert!(
+            diagnostic
+                .message
+                .contains("invalid CEM-ML behavior body: unsupported expression `call("),
+            "{}",
+            diagnostic.message
         );
     }
 

@@ -11703,46 +11703,6 @@ pub(crate) fn cemt_runtime_functions_from_module_options(
     functions
 }
 
-#[derive(Debug, Clone)]
-pub struct TransformTemplateFunctionCallRequest<'a> {
-    pub module_options: &'a TransformTemplateModuleOptions,
-    pub function_name: &'a str,
-    pub arguments: BTreeMap<String, Value>,
-}
-
-pub fn execute_transform_template_module_function(
-    request: TransformTemplateFunctionCallRequest<'_>,
-) -> Result<Option<Value>, String> {
-    let runtime_functions = cemt_runtime_functions_from_module_options(request.module_options);
-    if !runtime_functions.contains_key(request.function_name) {
-        return Err(format!(
-            "CEMT function `{}` is not declared",
-            request.function_name
-        ));
-    }
-    let function_name = serde_json::to_string(request.function_name)
-        .map_err(|err| format!("CEMT function name could not be encoded: {err}"))?;
-    let arguments = request
-        .arguments
-        .keys()
-        .map(|name| {
-            let key = serde_json::to_string(name).map_err(|err| {
-                format!("CEMT argument name `{name}` could not be encoded: {err}")
-            })?;
-            Ok(format!("{key}: ${name}"))
-        })
-        .collect::<Result<Vec<_>, String>>()?
-        .join(", ");
-    let expression = format!("call({function_name}, {{ {arguments} }})");
-    resolve_encode_subject_expression_at_depth(
-        &expression,
-        &request.arguments,
-        &runtime_functions,
-        None,
-        0,
-    )
-}
-
 fn cemt_runtime_function_from_declaration(
     function: &TransformTemplateModuleFunctionDeclaration,
 ) -> Option<(String, CemtRuntimeFunction)> {

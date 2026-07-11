@@ -1437,7 +1437,7 @@ fn compile_diagnostic_function_binding(
         diagnostics.push(schema_compile_diagnostic(
             INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE,
             format!(
-                "diagnostic `{code}` references behavior `{behavior_reference}` function `{function}` without an executable CEMT body expression"
+                "diagnostic `{code}` references behavior `{behavior_reference}` function `{function}` without an executable CEM-ML behavior body expression"
             ),
             source_map,
             serde_json::json!({

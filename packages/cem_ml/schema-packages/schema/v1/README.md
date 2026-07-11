@@ -135,13 +135,14 @@ source-range propagation policy:
 The compiler now validates diagnostic behavior references, unsupported engine
 primitives, missing function bindings, inline function lookup, function return
 type, diagnostic result shape, required CEM-QL `@select`/`@match` expressions,
-executable CEMT body presence, and required function-parameter binding through
-declared inputs or defaulted behavior parameters. The CEM-QL bridge now
-evaluates direct candidate selection and match expressions, binds defaulted
-typed behavior parameters, and executes inline CEMT function bodies to produce
-diagnostic messages and structured details. Imported schema-level behavior
-functions, non-default parameter overrides, and the broader engine primitive
-library remain follow-up work.
+executable CEM-ML behavior body presence, and required function-parameter
+binding through declared inputs or defaulted behavior parameters. The CEM-QL
+schema-behavior bridge now evaluates direct candidate selection and match
+expressions, binds defaulted typed behavior parameters, and executes inline
+CEM-ML behavior function bodies outside CEMT to produce diagnostic messages and
+structured details. Imported schema-level behavior functions, non-default
+parameter overrides, and the broader engine primitive library remain follow-up
+work.
 
 ## Validation Examples
 
