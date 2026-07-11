@@ -206,11 +206,13 @@ The relationship is layered validation, not broad inheritance:
   function references resolve through schema `{uses}` aliases to reusable
   CEM-ML behavior functions that opt in with `@visibility="package"` or
   `@visibility="public"`. Diagnostic-scoped `{arguments}` bind non-default
-  parameter overrides for function behaviors. Constraint declarations can also
-  bind `@diagnostic` plus `@behavior` for operational engine primitives such as
-  resource readability, parser/validation, and reference resolution while
-  keeping broad diagnostic family codes stable. Engine behavior argument
-  binding and the full engine primitive library are still being built out.
+  parameter overrides for function behaviors. Field-contract declarations can
+  bind `@diagnostic` plus `@behavior` for dependency and choice/case engine
+  primitives while keeping broad diagnostic family codes stable. Constraint
+  declarations can do the same for operational engine primitives such as
+  resource readability, parser/validation, and reference resolution. Engine
+  behavior argument binding and the full engine primitive library are still
+  being built out.
 
 Schema dependencies should be resolved by schema URL and content type, not by
 filesystem path. Filesystem layout is a distribution detail for local packages.

@@ -34,7 +34,9 @@ history belongs in git history and the feature-specific docs linked below.
       child occurrence, and path layout; attribute-owned aliases now exist for
       value vocabularies, scalar type syntax, and datatype parameters.
       Constraint-level bindings now exist for resource readability,
-      resource parse/validation, and reference resolution while preserving
+      resource parse/validation, and reference resolution; field-contract-level
+      bindings now exist for broader dependency and choice/case algorithms.
+      Both preserve
       stable diagnostic family codes.
       Additional engine algorithms remain.
   - [ ] Allow declarative behavior to select candidate nodes and match failure
@@ -58,12 +60,13 @@ history belongs in git history and the feature-specific docs linked below.
         field-contract-backed aliases for `schema:required-fields`,
         `schema:forbidden-fields`, `schema:dependent-required-fields`,
         `schema:mutual-exclusion`, `schema:child-occurrence`, and
-        `schema:path-layout`, plus attribute-owned aliases for
+        `schema:path-layout`, broader `schema:field-dependency` and
+        `schema:choice-case` aliases, plus attribute-owned aliases for
         `schema:value-vocabulary`, `schema:scalar-type`, and
         `schema:datatype-param`, plus constraint-owned bindings for
         `schema:resource-readable`, `schema:resource-parse`, and
-        `schema:reference-resolution`; broader dependency and choice/case
-        primitives remain.
+        `schema:reference-resolution`; richer choice cardinality and datatype
+        parameter variations remain.
   - [ ] Compile behavior declarations and references into the generic schema
         model, reject missing or incompatible behavior references, and dispatch
         them through a single runtime evaluation path. The resolved behavior
@@ -90,11 +93,14 @@ history belongs in git history and the feature-specific docs linked below.
         attribute declaration; schema-package examples cover constraint-level
         `schema:resource-readable`, `schema:resource-parse`, and
         `schema:reference-resolution` bindings through operational artifact
-        and example diagnostics. The native tests cover warning severity,
+        and example diagnostics, plus field-contract-level
+        `schema:field-dependency` and `schema:choice-case` bindings through
+        converter diagnostics. The native tests cover warning severity,
         message text, structured details, source ranges, unresolved codes,
-        field-contract behavior aliases, attribute behavior aliases,
-        constraint behavior aliases, and unknown behaviors; the CLI example
-        set also includes a schema that fails an unknown behavior
+        field-contract behavior aliases, field-contract-local behavior
+        bindings, attribute behavior aliases, constraint behavior aliases, and
+        unknown behaviors; the CLI example set also includes a schema that
+        fails an unknown behavior
         reference. The complete algorithm matrix remains.
   - [ ] Add a custom-schema example that defines a new algorithm using only
         CEM-ML, CEM-QL, and a declarative function, then prove that changing the

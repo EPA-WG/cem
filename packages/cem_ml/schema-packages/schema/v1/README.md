@@ -105,7 +105,16 @@ field-contract primitive is `schema:field-contract`, and the bootstrap schema
 declares named behavior contracts backed by that primitive:
 `schema:required-fields`, `schema:forbidden-fields`,
 `schema:dependent-required-fields`, `schema:mutual-exclusion`,
+`schema:field-dependency`, `schema:choice-case`,
 `schema:child-occurrence`, and `schema:path-layout`.
+
+Individual `{field-contract}` declarations can also bind `@diagnostic` plus
+`@behavior`. The diagnostic code remains the report identity, while the
+contract-local behavior selects the operational algorithm for that contract.
+This lets one broad diagnostic family such as
+`cem.schema_package.converter_check` report a conditional dependency through
+`schema:field-dependency` and a choice/case exclusion through
+`schema:choice-case`.
 
 Attribute-owned engine primitives are also schema-visible. Attribute
 declarations bind `@values` failures through `@values-diagnostic` to
@@ -174,11 +183,13 @@ structured details. Qualified function references now resolve through schema
 `{uses}` aliases to visible reusable CEM-ML behavior functions. Diagnostic
 `{arguments}` now bind non-default parameter overrides for function behaviors.
 The first field-contract-backed and attribute-owned engine behavior aliases now
-compile and execute through diagnostic `@behavior`. Constraint-owned
-`schema:resource-readable`, `schema:resource-parse`, and
+compile and execute through diagnostic `@behavior`; field-contract-local
+`schema:field-dependency` and `schema:choice-case` bindings now compile and
+stamp operational diagnostics while preserving broad diagnostic family codes.
+Constraint-owned `schema:resource-readable`, `schema:resource-parse`, and
 `schema:reference-resolution` bindings now compile and stamp operational
-diagnostics with their declared behavior; broader dependency and choice/case
-primitives remain follow-up work.
+diagnostics with their declared behavior. Richer choice cardinality and
+datatype parameter variations remain follow-up work.
 
 ## Validation Examples
 

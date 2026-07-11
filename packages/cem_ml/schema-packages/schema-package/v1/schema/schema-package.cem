@@ -96,6 +96,7 @@
             @when-present-attributes="rust-symbol"
             @required-attributes="fallback-reason"
             @diagnostic="cem.schema_package.converter_check"
+            @behavior="schema:field-dependency"
             @check-kind="dependent-required-fields"
         }
         {field-contract
@@ -105,6 +106,7 @@
             @when-values="true"
             @forbidden-attribute-values="implicit=true"
             @diagnostic="cem.schema_package.converter_check"
+            @behavior="schema:choice-case"
             @check-kind="mutual-exclusion"
         }
         {field-contract
@@ -178,6 +180,7 @@
             @when-values="fail"
             @required-attributes="expected-diagnostics"
             @diagnostic="cem.schema_package.example_check"
+            @behavior="schema:field-dependency"
             @check-kind="dependent-required-fields"
         }
     }

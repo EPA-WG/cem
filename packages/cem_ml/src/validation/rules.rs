@@ -3410,6 +3410,10 @@ mod tests {
             .as_ref()
             .expect("CEMT fallback reason details");
         assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:field-dependency")
+        );
+        assert_eq!(
             details["missingFields"],
             serde_json::json!(["fallback-reason"])
         );
@@ -3462,6 +3466,7 @@ mod tests {
             .details
             .as_ref()
             .expect("converter planner state details");
+        assert_eq!(details["behavior"], serde_json::json!("schema:choice-case"));
         assert_eq!(details["missingFields"], serde_json::json!([]));
         assert_eq!(details["invalidFields"], serde_json::json!(["implicit"]));
         assert_eq!(

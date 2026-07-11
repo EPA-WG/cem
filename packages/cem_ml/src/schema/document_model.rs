@@ -282,6 +282,9 @@ pub struct FieldContract {
     pub name: String,
     pub target: String,
     pub diagnostic: Option<String>,
+    pub behavior: Option<String>,
+    pub definition: Option<BehaviorDefinition>,
+    pub engine_behavior: Option<EngineDiagnosticBehavior>,
     pub check_kind: Option<String>,
     pub required_attributes: BTreeSet<String>,
     pub optional_attributes: BTreeSet<String>,
@@ -944,25 +947,15 @@ fn compile_document_model_from_document_with_seen(
     model.constraints =
         collect_constraint_definitions(document, schema_id, schema_uri, &uses, &model.behaviors);
 
-    for contract in collect_field_contracts(document, schema_id) {
-        if let Some(code) = contract.diagnostic.as_deref() {
-            if !model.diagnostic_behaviors.contains_key(code) {
-                model.compile_diagnostics.push(schema_compile_diagnostic(
-                    UNRESOLVED_DIAGNOSTIC_REFERENCE_CODE,
-                    format!(
-                        "field contract `{}` references diagnostic behavior `{code}` that is not declared by schema `{schema_uri}`",
-                        contract.name
-                    ),
-                    &contract.source_map,
-                    serde_json::json!({
-                        "schemaUri": schema_uri,
-                        "contract": &contract.name,
-                        "diagnostic": code,
-                        "checkKind": "diagnostic-reference-resolution",
-                    }),
-                ));
-            }
-        }
+    for contract in
+        collect_field_contracts(document, schema_id, schema_uri, &uses, &model.behaviors)
+    {
+        validate_field_contract_definition(
+            schema_uri,
+            &contract,
+            &model.diagnostic_behaviors,
+            &mut model.compile_diagnostics,
+        );
         if let Some(element_model) = model.elements.get_mut(&contract.target) {
             element_model.field_contracts.push(contract);
         }
@@ -1149,6 +1142,120 @@ fn validate_attribute_diagnostic_reference(
                 "behavior": &behavior.behavior,
                 "expectedBehavior": expected_engine_behavior.reference(),
                 "checkKind": "diagnostic-behavior-contract",
+            }),
+        ));
+    }
+}
+
+fn validate_field_contract_definition(
+    schema_uri: &str,
+    contract: &FieldContract,
+    diagnostic_behaviors: &BTreeMap<String, DiagnosticBehavior>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let diagnostic_behavior = if let Some(code) = contract.diagnostic.as_deref() {
+        let Some(behavior) = diagnostic_behaviors.get(code) else {
+            diagnostics.push(schema_compile_diagnostic(
+                UNRESOLVED_DIAGNOSTIC_REFERENCE_CODE,
+                format!(
+                    "field contract `{}` references diagnostic behavior `{code}` that is not declared by schema `{schema_uri}`",
+                    contract.name
+                ),
+                &contract.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "contract": &contract.name,
+                    "diagnostic": code,
+                    "checkKind": "diagnostic-reference-resolution",
+                }),
+            ));
+            return;
+        };
+        Some(behavior)
+    } else {
+        None
+    };
+
+    if contract.behavior.is_some() && contract.diagnostic.is_none() {
+        diagnostics.push(schema_compile_diagnostic(
+            INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE,
+            format!(
+                "field contract `{}` declares a behavior but does not declare the diagnostic code that receives the result",
+                contract.name
+            ),
+            &contract.source_map,
+            serde_json::json!({
+                "schemaUri": schema_uri,
+                "contract": &contract.name,
+                "behavior": &contract.behavior,
+                "checkKind": "field-contract-behavior-contract",
+            }),
+        ));
+    }
+
+    if let Some(behavior) = diagnostic_behavior {
+        if behavior.engine_behavior != Some(EngineDiagnosticBehavior::FieldContract) {
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE,
+                format!(
+                    "field contract `{}` references diagnostic `{}` with behavior `{}`, but field contracts require `{}`",
+                    contract.name,
+                    behavior.code,
+                    behavior.behavior,
+                    EngineDiagnosticBehavior::FieldContract.reference()
+                ),
+                &contract.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "contract": &contract.name,
+                    "diagnostic": &behavior.code,
+                    "behavior": &behavior.behavior,
+                    "expectedBehavior": EngineDiagnosticBehavior::FieldContract.reference(),
+                    "checkKind": "field-contract-diagnostic-behavior-contract",
+                }),
+            ));
+        }
+    }
+
+    let Some(behavior) = contract.behavior.as_deref() else {
+        return;
+    };
+    if contract.definition.is_none() || contract.engine_behavior.is_none() {
+        diagnostics.push(schema_compile_diagnostic(
+            UNKNOWN_DIAGNOSTIC_BEHAVIOR_CODE,
+            format!(
+                "field contract `{}` references unsupported engine behavior `{behavior}`",
+                contract.name
+            ),
+            &contract.source_map,
+            serde_json::json!({
+                "schemaUri": schema_uri,
+                "contract": &contract.name,
+                "behavior": behavior,
+                "expectedBehavior": EngineDiagnosticBehavior::FieldContract.reference(),
+                "checkKind": "field-contract-behavior-resolution",
+            }),
+        ));
+        return;
+    }
+    if contract.engine_behavior != Some(EngineDiagnosticBehavior::FieldContract) {
+        diagnostics.push(schema_compile_diagnostic(
+            INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE,
+            format!(
+                "field contract `{}` references behavior `{behavior}`, but field contracts require `{}`",
+                contract.name,
+                EngineDiagnosticBehavior::FieldContract.reference()
+            ),
+            &contract.source_map,
+            serde_json::json!({
+                "schemaUri": schema_uri,
+                "contract": &contract.name,
+                "behavior": behavior,
+                "actualBehavior": contract
+                    .engine_behavior
+                    .map(|engine_behavior| engine_behavior.reference()),
+                "expectedBehavior": EngineDiagnosticBehavior::FieldContract.reference(),
+                "checkKind": "field-contract-behavior-contract",
             }),
         ));
     }
@@ -2333,7 +2440,13 @@ fn parse_diagnostic_severity(value: &str) -> Option<Severity> {
     }
 }
 
-fn collect_field_contracts(document: &CemDocument, schema_id: AstNodeId) -> Vec<FieldContract> {
+fn collect_field_contracts(
+    document: &CemDocument,
+    schema_id: AstNodeId,
+    schema_uri: &str,
+    uses: &BTreeMap<String, String>,
+    local_behaviors: &BTreeMap<String, BehaviorDefinition>,
+) -> Vec<FieldContract> {
     let mut contracts = Vec::new();
     for contracts_id in element_child_ids_by_local_name(document, schema_id, "field-contracts") {
         let Some(CemAstNode::Element { children, .. }) = document.get(contracts_id) else {
@@ -2353,10 +2466,18 @@ fn collect_field_contracts(document: &CemDocument, schema_id: AstNodeId) -> Vec<
             if name.is_empty() || target.is_empty() {
                 continue;
             }
+            let behavior = optional_non_empty_attr(&attrs, "behavior").map(str::to_owned);
+            let definition = behavior.as_deref().and_then(|behavior| {
+                resolve_behavior_definition(behavior, schema_uri, uses, local_behaviors)
+            });
+            let engine_behavior = definition.as_ref().and_then(supported_engine_behavior);
             contracts.push(FieldContract {
                 name: name.to_owned(),
                 target: target.to_owned(),
                 diagnostic: optional_non_empty_attr(&attrs, "diagnostic").map(str::to_owned),
+                behavior,
+                definition,
+                engine_behavior,
                 check_kind: optional_non_empty_attr(&attrs, "check-kind").map(str::to_owned),
                 required_attributes: parse_name_set(attrs.get("required-attributes")),
                 optional_attributes: parse_name_set(attrs.get("optional-attributes")),
@@ -2410,6 +2531,10 @@ fn validate_field_contracts(
             }
             None => None,
         };
+        let contract_behavior = contract
+            .behavior
+            .as_deref()
+            .filter(|_| contract.engine_behavior == Some(EngineDiagnosticBehavior::FieldContract));
         if !contract.applies_to(attribute_values) {
             continue;
         }
@@ -2528,8 +2653,8 @@ fn validate_field_contracts(
                 schema_uri,
                 element_name,
                 contract,
-                diagnostic_behavior
-                    .map(|behavior| behavior.behavior.as_str())
+                contract_behavior
+                    .or_else(|| diagnostic_behavior.map(|behavior| behavior.behavior.as_str()))
                     .unwrap_or(FIELD_CONTRACT_DIAGNOSTIC_BEHAVIOR),
                 attribute_values,
                 &missing,
@@ -3167,7 +3292,9 @@ mod tests {
             "required-fields",
             "forbidden-fields",
             "dependent-required-fields",
+            "field-dependency",
             "mutual-exclusion",
+            "choice-case",
             "child-occurrence",
             "path-layout",
         ] {
@@ -3264,6 +3391,33 @@ mod tests {
         let package = model.element("package").unwrap();
         assert!(package.required_attributes.contains("id"));
         assert!(package.child_elements.contains("converter"));
+        let converter = model.element("converter").unwrap();
+        let fallback_reason = converter
+            .field_contracts
+            .iter()
+            .find(|contract| contract.name == "converter-cemt-fallback-reason")
+            .expect("converter fallback reason contract");
+        assert_eq!(
+            fallback_reason.behavior.as_deref(),
+            Some("schema:field-dependency")
+        );
+        assert_eq!(
+            fallback_reason.engine_behavior,
+            Some(EngineDiagnosticBehavior::FieldContract)
+        );
+        let planner_state = converter
+            .field_contracts
+            .iter()
+            .find(|contract| contract.name == "converter-planner-state")
+            .expect("converter planner state contract");
+        assert_eq!(
+            planner_state.behavior.as_deref(),
+            Some("schema:choice-case")
+        );
+        assert_eq!(
+            planner_state.engine_behavior,
+            Some(EngineDiagnosticBehavior::FieldContract)
+        );
         let artifact = model.element("artifact").unwrap();
         assert!(artifact
             .field_contracts
@@ -3404,6 +3558,53 @@ mod tests {
     }
 
     #[test]
+    fn schema_field_contract_behavior_rejects_incompatible_engine_reference() {
+        let model = compile_document_model(
+            "https://example.test/ns/field-contract-behavior/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="field-contract-behavior" @namespace="https://example.test/ns/field-contract-behavior/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="item" @optional-attributes="name"}
+    }
+    {attributes |
+        {attribute @name="name" @type="schema:string"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="item-name-required"
+            @target="item"
+            @required-attributes="name"
+            @diagnostic="example.item_check"
+            @behavior="schema:resource-readable"
+            @check-kind="required-fields"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.item_check"
+            @severity="error"
+            @behavior="schema:field-contract"
+        }
+    }
+}"#,
+        );
+
+        assert!(model.compile_diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE
+                && diagnostic.message.contains("schema:resource-readable")
+                && diagnostic.details.as_ref().and_then(|details| {
+                    details.get("checkKind").and_then(serde_json::Value::as_str)
+                }) == Some("field-contract-behavior-contract")
+        }));
+    }
+
+    #[test]
     fn schema_field_contracts_drive_validation_from_cem_source() {
         let model = compile_document_model(
             "https://example.test/ns/contracts/1",
@@ -3446,6 +3647,7 @@ mod tests {
             @when-present-attributes="name"
             @required-attributes="code"
             @diagnostic="example.item_check"
+            @behavior="schema:field-dependency"
             @check-kind="dependent-required-fields"
         }
         {field-contract
@@ -3455,6 +3657,7 @@ mod tests {
             @when-values="a"
             @forbidden-attribute-values="mode=blocked"
             @diagnostic="example.item_check"
+            @behavior="schema:choice-case"
             @check-kind="mutual-exclusion"
         }
         {field-contract
@@ -3542,6 +3745,14 @@ mod tests {
             .details
             .as_ref()
             .expect("presence-gated field contract details");
+        assert_eq!(
+            details["diagnostic"],
+            serde_json::json!("example.item_check")
+        );
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:field-dependency")
+        );
         assert_eq!(details["missingFields"], serde_json::json!(["code"]));
         assert_eq!(
             details["condition"],
@@ -3580,6 +3791,11 @@ mod tests {
             .details
             .as_ref()
             .expect("value-specific forbidden field contract details");
+        assert_eq!(
+            details["diagnostic"],
+            serde_json::json!("example.item_check")
+        );
+        assert_eq!(details["behavior"], serde_json::json!("schema:choice-case"));
         assert_eq!(details["missingFields"], serde_json::json!([]));
         assert_eq!(details["invalidFields"], serde_json::json!(["mode"]));
         assert_eq!(
