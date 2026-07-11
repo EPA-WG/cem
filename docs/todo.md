@@ -72,10 +72,10 @@ history belongs in git history and the feature-specific docs linked below.
         `schema:reference-resolution`; required-one/max-one attribute choice
         cardinality now executes through `schema:choice-case`; broader child
         occurrence ranges now execute through `schema:child-occurrence`; basic
-        URI, media-type, and scope-context path scalar syntax now execute
-        through `schema:scalar-type`; nested choice/case groups and datatype
-        parameter variations beyond integer inclusive/exclusive bounds, string
-        length constraints, and regex pattern remain.
+        number, URI, media-type, and scope-context path scalar syntax now
+        execute through `schema:scalar-type`; nested choice/case groups and
+        datatype parameter variations beyond integer inclusive/exclusive
+        bounds, string length constraints, and regex pattern remain.
   - [ ] Compile behavior declarations and references into the generic schema
         model, reject missing or incompatible behavior references, and dispatch
         them through a single runtime evaluation path. The resolved behavior
@@ -99,8 +99,8 @@ history belongs in git history and the feature-specific docs linked below.
         behavior library available to schema authors. The typed-resource schema
         example now covers the initial `schema:required-fields` behavior alias
         on a conditional field contract and `schema:value-vocabulary` on an
-        attribute declaration, `schema:scalar-type` URI/media-type/path syntax on
-        attribute declarations, plus exact-one `schema:choice-case` attribute
+        attribute declaration, `schema:scalar-type` number/URI/media-type/path
+        syntax on attribute declarations, plus exact-one `schema:choice-case` attribute
         cardinality and `schema:datatype-param` string length constraints;
         schema-package examples cover constraint-level
         `schema:resource-readable`, `schema:resource-parse`, and
@@ -143,20 +143,21 @@ history belongs in git history and the feature-specific docs linked below.
         value-specific forbidden fields, exact-one child occurrence contracts,
         required-one/max-one attribute choice cardinality, package-relative
         path-layout contracts, diagnostic families, and attribute `@values`
-        vocabularies, plus boolean/integer/basic URI/media-type/path scalar syntax,
-        integer `minInclusive`, `maxInclusive`,
+        vocabularies, plus boolean/integer/number/basic URI/media-type/path
+        scalar syntax, integer `minInclusive`, `maxInclusive`,
         `minExclusive`, and `maxExclusive` bounds plus string `minLength`,
         `maxLength`, and `length` params and regex `pattern` datatype params,
         plus min/max child occurrence ranges; it
         still needs accepted children, scalar type validation beyond
-        boolean/integer/basic URI/media-type/path syntax, RELAX NG-style datatype
-        params beyond those initial variations, defaults, richer
+        boolean/integer/number/basic URI/media-type/path syntax, RELAX NG-style
+        datatype params beyond those initial variations, defaults, richer
         dependent-required field groups, RELAX NG-style choice/case groups, and
         additional child occurrence variants.
   - [ ] Extend the compiled Rust schema contract model. `SchemaDocumentModel`
         now compiles initial `field-contract` declarations and evaluates
         required/forbidden fields, attribute `@values` vocabularies, and
         `schema:boolean`/`cemml:boolean`, `schema:integer`/`cemml:integer`,
+        `schema:number`/`cemml:number`,
         `schema:uri`/`cemml:uri`, `schema:media-type`/
         `cemml:media-type`, plus `schema:path`/`cemml:path` attribute types; it
         still needs reusable string/path constraints beyond path-layout checks,
@@ -170,8 +171,8 @@ history belongs in git history and the feature-specific docs linked below.
         schema URI, element, contract name, check kind, required/optional/
         forbidden fields, missing/invalid fields, actual values, condition, and
         source-map range, and attribute `@values` checks emit expected/actual
-        value details; boolean, integer, basic URI, basic media-type, and path type
-        checks now emit expected/actual details; integer `minInclusive`,
+        value details; boolean, integer, number, basic URI, basic media-type,
+        and path type checks now emit expected/actual details; integer `minInclusive`,
         `maxInclusive`,
         `minExclusive`, and `maxExclusive` checks, string `minLength`,
         `maxLength`, and `length` checks, plus regex `pattern` checks emit
@@ -190,7 +191,7 @@ history belongs in git history and the feature-specific docs linked below.
         model, preserves source-map ranges, and emits contract-declared
         diagnostic families such as `cem.schema_package.artifact_check`; it
         now emits structured details for required/forbidden field checks and
-        attribute `@values` plus boolean/integer/basic URI/media-type/path type,
+        attribute `@values` plus boolean/integer/number/basic URI/media-type/path type,
         integer `minInclusive`/`maxInclusive`/`minExclusive`/`maxExclusive`,
         string `minLength`/`maxLength`/`length`, and regex `pattern`
         datatype-param checks, exact-one child occurrence checks, min/max child

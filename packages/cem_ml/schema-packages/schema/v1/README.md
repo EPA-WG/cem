@@ -124,8 +124,9 @@ This lets one broad diagnostic family such as
 
 Attribute-owned engine primitives are also schema-visible. Attribute
 declarations bind `@values` failures through `@values-diagnostic` to
-`schema:value-vocabulary`, scalar syntax failures for boolean, integer, URI,
-media-type, and path attributes through `@type-diagnostic` to `schema:scalar-type`,
+`schema:value-vocabulary`, scalar syntax failures for boolean, integer, number,
+URI, media-type, and path attributes through `@type-diagnostic` to
+`schema:scalar-type`,
 and datatype parameter failures for integer
 `@minInclusive`/`@maxInclusive`/`@minExclusive`/`@maxExclusive` bounds, string
 `@minLength`/`@maxLength`/`@length` constraints, and regex `@pattern` through
@@ -202,7 +203,7 @@ diagnostics with their declared behavior. Integer `minInclusive`,
 `maxInclusive`, `minExclusive`, and `maxExclusive` bounds, string
 `minLength`/`maxLength`/`length` constraints, and regex `pattern` datatype
 parameter variations now execute through
-`schema:datatype-param`; boolean, integer, basic absolute-URI, basic
+`schema:datatype-param`; boolean, integer, number, basic absolute-URI, basic
 media-type, and scope-context path scalar syntax now execute through
 `schema:scalar-type`;
 required-one/max-one attribute choice cardinality now
@@ -219,7 +220,7 @@ CLI validation integration tests.
 | Example | Purpose | Expected result |
 | --- | --- | --- |
 | [`basic-schema.cem`](examples/basic-schema.cem) | Minimal schema definition with content type, element, and attribute declarations. | Pass |
-| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, conditional `schema:required-fields`, exact-one `schema:choice-case`, ranged `schema:child-occurrence`, `schema:value-vocabulary`, `schema:scalar-type` URI/media-type/path syntax, and `schema:datatype-param` integer-bound/string length/pattern attribute diagnostics, and open-content policy. | Pass |
+| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, conditional `schema:required-fields`, exact-one `schema:choice-case`, ranged `schema:child-occurrence`, `schema:value-vocabulary`, `schema:scalar-type` number/URI/media-type/path syntax, and `schema:datatype-param` integer-bound/string length/pattern attribute diagnostics, and open-content policy. | Pass |
 | [`invalid-unclosed-schema.cem`](examples/invalid-unclosed-schema.cem) | Missing closing schema scope syntax diagnostic. | Fail with `cem.ast.unclosed_scope` |
 | [`invalid-missing-required-attribute.cem`](examples/invalid-missing-required-attribute.cem) | Schema declaration missing its required `namespace` attribute. | Fail with `cem.schema_model.missing_required_attribute` |
 | [`invalid-diagnostic-behavior.cem`](examples/invalid-diagnostic-behavior.cem) | Diagnostic references a behavior absent from the imported engine catalog. | Fail with `cem.schema_definition.unknown_diagnostic_behavior` |

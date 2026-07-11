@@ -22,7 +22,7 @@
     }
 
     {elements |
-        {element @name="resource" @required-attributes="id kind" @optional-attributes="label priority rank slug code href format asset inline" @children="field*"}
+        {element @name="resource" @required-attributes="id kind" @optional-attributes="label priority rank weight slug code href format asset inline" @children="field*"}
         {element @name="field" @required-attributes="name type"}
     }
 
@@ -41,6 +41,11 @@
             @minExclusive=0
             @maxExclusive=100
             @datatype-param-diagnostic="example.resource.invalid_rank"
+        }
+        {attribute
+            @name="weight"
+            @type="schema:number"
+            @type-diagnostic="example.resource.invalid_weight"
         }
         {attribute
             @name="slug"
@@ -160,6 +165,12 @@
             @severity="error"
             @behavior="schema:datatype-param"
             @message="Resource rank must stay within the declared exclusive bounds"
+        }
+        {diagnostic
+            @code="example.resource.invalid_weight"
+            @severity="error"
+            @behavior="schema:scalar-type"
+            @message="Resource weight must be numeric"
         }
         {diagnostic
             @code="example.resource.invalid_slug"

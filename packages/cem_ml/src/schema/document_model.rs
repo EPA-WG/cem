@@ -11,14 +11,15 @@
 //! - schema-owned field contracts for element-bound conditional checks.
 //! - schema-owned diagnostic declarations resolved through declarative engine
 //!   behavior definitions, including severity and message metadata.
-//! - schema-owned attribute `@values`, boolean/integer/URI/media-type/path
-//!   type checks, and integer `minInclusive`/`maxInclusive`/
+//! - schema-owned attribute `@values`, boolean/integer/number/URI/media-type/
+//!   path type checks, and integer `minInclusive`/`maxInclusive`/
 //!   `minExclusive`/`maxExclusive`, string `minLength`/`maxLength`/`length`,
 //!   and regex `pattern` datatype-param checks.
 //! - schema-owned exact and ranged child occurrence field contracts.
 //!
-//! Ordering, scalar type checks beyond boolean/integer/URI/media-type/path syntax,
-//! additional datatype params, and semantic constraints remain follow-up work.
+//! Ordering, scalar type checks beyond boolean/integer/number/URI/media-type/
+//! path syntax, additional datatype params, and semantic constraints remain
+//! follow-up work.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path};
@@ -643,6 +644,15 @@ fn validate_attribute_type(
             allows_empty: false,
             message: "not a schema-declared integer",
         })
+    } else if is_number_type_reference(value_type) {
+        (!is_finite_decimal_number(value)).then_some(AttributeTypeViolation {
+            name: "number",
+            check_kind: "type:number",
+            expected_values: &[],
+            expected_pattern: "finite decimal number",
+            allows_empty: false,
+            message: "not a schema-declared number",
+        })
     } else if is_uri_type_reference(value_type) {
         (!is_absolute_uri(value)).then_some(AttributeTypeViolation {
             name: "uri",
@@ -745,6 +755,10 @@ fn is_integer_type_reference(value_type: &str) -> bool {
     type_reference_local_name(value_type) == "integer"
 }
 
+fn is_number_type_reference(value_type: &str) -> bool {
+    type_reference_local_name(value_type) == "number"
+}
+
 fn is_uri_type_reference(value_type: &str) -> bool {
     type_reference_local_name(value_type) == "uri"
 }
@@ -769,6 +783,13 @@ fn is_signed_decimal_integer(value: &str) -> bool {
     let value = value.trim();
     let digits = value.strip_prefix(['+', '-']).unwrap_or(value);
     !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())
+}
+
+fn is_finite_decimal_number(value: &str) -> bool {
+    let value = value.trim();
+    !value.is_empty()
+        && value.parse::<f64>().is_ok_and(|number| number.is_finite())
+        && value.bytes().any(|byte| byte.is_ascii_digit())
 }
 
 fn is_absolute_uri(value: &str) -> bool {
@@ -5806,7 +5827,7 @@ mod tests {
         {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
     }
     {elements |
-        {element @name="item" @optional-attributes="mode enabled homepage format asset count score lower upper code label tag"}
+        {element @name="item" @optional-attributes="mode enabled rating homepage format asset count score lower upper code label tag"}
     }
     {attributes |
         {attribute
@@ -5819,6 +5840,11 @@ mod tests {
             @name="enabled"
             @type="schema:boolean"
             @type-diagnostic="example.enabled_type"
+        }
+        {attribute
+            @name="rating"
+            @type="schema:number"
+            @type-diagnostic="example.rating_type"
         }
         {attribute
             @name="homepage"
@@ -5890,6 +5916,12 @@ mod tests {
             @severity="info"
             @behavior="schema:scalar-type"
             @message="Enabled must be boolean"
+        }
+        {diagnostic
+            @code="example.rating_type"
+            @severity="error"
+            @behavior="schema:scalar-type"
+            @message="Rating must be numeric"
         }
         {diagnostic
             @code="example.homepage_type"
@@ -5969,7 +6001,7 @@ mod tests {
         );
 
         let document = parse_cem_document(
-            r#"{item @mode=tabular @enabled=maybe @homepage="/relative" @format="text/html; charset" @asset="/rooted.cem" @count=0 @score=11 @lower=1 @upper=10 @code=bad_code @label=go @tag=to}"#,
+            r#"{item @mode=tabular @enabled=maybe @rating=NaN @homepage="/relative" @format="text/html; charset" @asset="/rooted.cem" @count=0 @score=11 @lower=1 @upper=10 @code=bad_code @label=go @tag=to}"#,
         );
         let diagnostics = validate_document_model(&document, &model);
 
@@ -6018,6 +6050,29 @@ mod tests {
         assert_eq!(details["checkKind"], serde_json::json!("type:boolean"));
         assert_eq!(details["expectedType"], serde_json::json!("schema:boolean"));
         assert_eq!(details["actualValue"], serde_json::json!("maybe"));
+
+        let scalar_type = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.rating_type")
+            .expect("number scalar-type alias diagnostic");
+        assert_eq!(scalar_type.severity, Severity::Error);
+        assert!(scalar_type.message.starts_with("Rating must be numeric:"));
+        let details = scalar_type
+            .details
+            .as_ref()
+            .expect("number scalar-type alias details");
+        assert_eq!(details["behavior"], serde_json::json!("schema:scalar-type"));
+        assert_eq!(
+            details["diagnostic"],
+            serde_json::json!("example.rating_type")
+        );
+        assert_eq!(details["checkKind"], serde_json::json!("type:number"));
+        assert_eq!(details["expectedType"], serde_json::json!("schema:number"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("finite decimal number")
+        );
+        assert_eq!(details["actualValue"], serde_json::json!("NaN"));
 
         let scalar_type = diagnostics
             .iter()
@@ -6536,6 +6591,91 @@ mod tests {
         assert_eq!(details["actualValue"], serde_json::json!("1.5"));
         assert_eq!(details["invalidFields"], serde_json::json!(["count"]));
         assert_eq!(details["actualValues"]["count"], serde_json::json!("1.5"));
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
+    fn schema_number_attribute_type_drives_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/number-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="number-contracts" @namespace="https://example.test/ns/number-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="weight"}
+    }
+    {attributes |
+        {attribute @name="weight" @type="schema:number"}
+    }
+}"#,
+        );
+        for source in [
+            r#"{item @weight=0}"#,
+            r#"{item @weight=-12}"#,
+            r#"{item @weight=+12}"#,
+            r#"{item @weight=1.5}"#,
+            r#"{item @weight=-0.25}"#,
+            r#"{item @weight=1e3}"#,
+            r#"{item @weight="2.75"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_TYPE_CODE),
+                "valid number source produced type diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        for source in [
+            r#"{item @weight}"#,
+            r#"{item @weight=NaN}"#,
+            r#"{item @weight=inf}"#,
+            r#"{item @weight=text}"#,
+            r#"{item @weight="1.2.3"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_TYPE_CODE),
+                "invalid number source did not produce type diagnostic: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{item @weight=NaN}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_TYPE_CODE)
+            .expect("attribute type diagnostic");
+        assert!(diagnostic.message.contains("weight"));
+        assert!(diagnostic.message.contains("NaN"));
+        let details = diagnostic.details.as_ref().expect("attribute type details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/number-contracts/1")
+        );
+        assert_eq!(details["element"], serde_json::json!("item"));
+        assert_eq!(details["attribute"], serde_json::json!("weight"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-type:weight")
+        );
+        assert_eq!(details["checkKind"], serde_json::json!("type:number"));
+        assert_eq!(details["expectedType"], serde_json::json!("schema:number"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("finite decimal number")
+        );
+        assert_eq!(details["allowsEmpty"], serde_json::json!(false));
+        assert_eq!(details["actualValue"], serde_json::json!("NaN"));
+        assert_eq!(details["invalidFields"], serde_json::json!(["weight"]));
+        assert_eq!(details["actualValues"]["weight"], serde_json::json!("NaN"));
         assert!(details["sourceRange"]["span"]["start"].is_u64());
     }
 
