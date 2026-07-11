@@ -15,8 +15,8 @@
 //!   integer `minInclusive`/`maxInclusive` plus regex `pattern`
 //!   datatype-param checks.
 //!
-//! Cardinality, ordering, scalar type checks beyond boolean/integer syntax,
-//! additional datatype params, and semantic constraints remain follow-up work.
+//! Ordering, scalar type checks beyond boolean/integer syntax, additional
+//! datatype params, and semantic constraints remain follow-up work.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path};
@@ -293,6 +293,8 @@ pub struct FieldContract {
     pub optional_attributes: BTreeSet<String>,
     pub forbidden_attributes: BTreeSet<String>,
     pub forbidden_attribute_values: BTreeMap<String, BTreeSet<String>>,
+    pub required_one_attributes: BTreeSet<String>,
+    pub max_one_attributes: BTreeSet<String>,
     pub required_children: BTreeSet<String>,
     pub max_one_children: BTreeSet<String>,
     pub path_layout_attributes: BTreeSet<String>,
@@ -2601,6 +2603,8 @@ fn collect_field_contracts(
                 forbidden_attribute_values: parse_name_value_set(
                     attrs.get("forbidden-attribute-values"),
                 ),
+                required_one_attributes: parse_name_set(attrs.get("required-one-attributes")),
+                max_one_attributes: parse_name_set(attrs.get("max-one-attributes")),
                 required_children: parse_name_set(attrs.get("required-children")),
                 max_one_children: parse_name_set(attrs.get("max-one-children")),
                 path_layout_attributes: parse_name_set(attrs.get("path-layout-attributes")),
@@ -2698,6 +2702,37 @@ fn validate_field_contracts(
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
+        let present_required_one_attributes = contract
+            .required_one_attributes
+            .iter()
+            .filter(|name| seen_attributes.contains(*name))
+            .cloned()
+            .collect::<Vec<_>>();
+        let missing_choice_fields = (!contract.required_one_attributes.is_empty()
+            && present_required_one_attributes.is_empty())
+        .then(|| {
+            contract
+                .required_one_attributes
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+        let present_max_one_attributes = contract
+            .max_one_attributes
+            .iter()
+            .filter(|name| seen_attributes.contains(*name))
+            .cloned()
+            .collect::<Vec<_>>();
+        let conflicting_choice_fields = (present_max_one_attributes.len() > 1)
+            .then(|| present_max_one_attributes.clone())
+            .unwrap_or_default();
+        let invalid_fields = invalid_fields
+            .into_iter()
+            .chain(conflicting_choice_fields.iter().cloned())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
         let missing_children = contract
             .required_children
             .iter()
@@ -2713,6 +2748,8 @@ fn validate_field_contracts(
 
         if missing.is_empty()
             && invalid_fields.is_empty()
+            && missing_choice_fields.is_empty()
+            && conflicting_choice_fields.is_empty()
             && missing_children.is_empty()
             && duplicate_children.is_empty()
         {
@@ -2737,6 +2774,18 @@ fn validate_field_contracts(
                     .map(|(name, value)| format!("{name}={value}"))
                     .collect::<Vec<_>>()
                     .join(", ")
+            ));
+        }
+        if !missing_choice_fields.is_empty() {
+            parts.push(format!(
+                "missing one of fields: {}",
+                missing_choice_fields.join(", ")
+            ));
+        }
+        if !conflicting_choice_fields.is_empty() {
+            parts.push(format!(
+                "too many choice fields present: {}",
+                conflicting_choice_fields.join(", ")
             ));
         }
         if !missing_children.is_empty() {
@@ -2776,6 +2825,10 @@ fn validate_field_contracts(
                 &missing,
                 &invalid_fields,
                 &invalid_values,
+                &present_required_one_attributes,
+                &present_max_one_attributes,
+                &missing_choice_fields,
+                &conflicting_choice_fields,
                 &missing_children,
                 &duplicate_children,
                 child_counts,
@@ -2794,6 +2847,10 @@ fn field_contract_details(
     missing_fields: &[String],
     invalid_fields: &[String],
     invalid_values: &BTreeMap<String, String>,
+    present_required_one_fields: &[String],
+    present_max_one_fields: &[String],
+    missing_choice_fields: &[String],
+    conflicting_choice_fields: &[String],
     missing_children: &[String],
     duplicate_children: &[String],
     child_counts: &BTreeMap<String, usize>,
@@ -2811,6 +2868,12 @@ fn field_contract_details(
         "optionalFields": &contract.optional_attributes,
         "forbiddenFields": &contract.forbidden_attributes,
         "forbiddenAttributeValues": &contract.forbidden_attribute_values,
+        "requiredOneFields": &contract.required_one_attributes,
+        "maxOneFields": &contract.max_one_attributes,
+        "presentRequiredOneFields": present_required_one_fields,
+        "presentMaxOneFields": present_max_one_fields,
+        "missingChoiceFields": missing_choice_fields,
+        "conflictingChoiceFields": conflicting_choice_fields,
         "requiredChildren": &contract.required_children,
         "maxOneChildren": &contract.max_one_children,
         "pathLayout": {
@@ -3397,6 +3460,24 @@ mod tests {
                 .as_deref(),
             Some("schema:string")
         );
+        assert_eq!(
+            model
+                .attributes
+                .get("required-one-attributes")
+                .expect("required-one-attributes attribute model")
+                .value_type
+                .as_deref(),
+            Some("cemml:name-list")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("max-one-attributes")
+                .expect("max-one-attributes attribute model")
+                .value_type
+                .as_deref(),
+            Some("cemml:name-list")
+        );
         let field_contract_behavior = model
             .behaviors
             .get("field-contract")
@@ -3759,7 +3840,7 @@ mod tests {
         {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
     }
     {elements |
-        {element @name="item" @required-attributes="kind" @optional-attributes="kind name code mode"}
+        {element @name="item" @required-attributes="kind" @optional-attributes="kind name code mode href action"}
         {element @name="group" @children="child"}
         {element @name="child"}
         {element @name="asset" @optional-attributes="path"}
@@ -3801,6 +3882,15 @@ mod tests {
             @diagnostic="example.item_check"
             @behavior="schema:choice-case"
             @check-kind="mutual-exclusion"
+        }
+        {field-contract
+            @name="item-link-choice"
+            @target="item"
+            @required-one-attributes="href action"
+            @max-one-attributes="href action"
+            @diagnostic="example.item_check"
+            @behavior="schema:choice-case"
+            @check-kind="exactly-one-fields"
         }
         {field-contract
             @name="group-exact-child"
@@ -3951,6 +4041,93 @@ mod tests {
             serde_json::json!({
                 "mode": "blocked",
             })
+        );
+
+        let document = parse_cem_document(r#"{item @kind=x}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("item-link-choice")
+            })
+            .expect("missing choice field contract diagnostic");
+        assert!(diagnostic.message.contains("missing one of fields"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("missing choice field contract details");
+        assert_eq!(details["behavior"], serde_json::json!("schema:choice-case"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("exactly-one-fields")
+        );
+        assert_eq!(
+            details["requiredOneFields"],
+            serde_json::json!(["action", "href"])
+        );
+        assert_eq!(
+            details["maxOneFields"],
+            serde_json::json!(["action", "href"])
+        );
+        assert_eq!(
+            details["missingChoiceFields"],
+            serde_json::json!(["action", "href"])
+        );
+        assert_eq!(details["presentRequiredOneFields"], serde_json::json!([]));
+        assert_eq!(details["conflictingChoiceFields"], serde_json::json!([]));
+        assert_eq!(details["missingFields"], serde_json::json!([]));
+        assert_eq!(details["invalidFields"], serde_json::json!([]));
+
+        let document = parse_cem_document(r#"{item @kind=x @href="/demo"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        assert!(
+            diagnostics.iter().all(|diagnostic| {
+                diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("contract").and_then(serde_json::Value::as_str))
+                    != Some("item-link-choice")
+            }),
+            "single choice field should satisfy exactly-one field contract: {diagnostics:?}"
+        );
+
+        let document = parse_cem_document(r#"{item @kind=x @href="/demo" @action=run}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("item-link-choice")
+            })
+            .expect("conflicting choice field contract diagnostic");
+        assert!(diagnostic
+            .message
+            .contains("too many choice fields present"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("conflicting choice field contract details");
+        assert_eq!(
+            details["presentRequiredOneFields"],
+            serde_json::json!(["action", "href"])
+        );
+        assert_eq!(
+            details["presentMaxOneFields"],
+            serde_json::json!(["action", "href"])
+        );
+        assert_eq!(details["missingChoiceFields"], serde_json::json!([]));
+        assert_eq!(
+            details["conflictingChoiceFields"],
+            serde_json::json!(["action", "href"])
+        );
+        assert_eq!(
+            details["invalidFields"],
+            serde_json::json!(["action", "href"])
         );
 
         let document = parse_cem_document(r#"{group}"#);

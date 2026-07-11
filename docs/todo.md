@@ -38,7 +38,9 @@ history belongs in git history and the feature-specific docs linked below.
       bindings now exist for broader dependency and choice/case algorithms.
       Both preserve stable diagnostic family codes. Attribute-owned datatype
       parameter checks now cover integer `minInclusive` and `maxInclusive`
-      plus regex `pattern`. Additional engine algorithms remain.
+      plus regex `pattern`. Required-one/max-one attribute choice cardinality
+      now executes through `schema:choice-case`. Additional engine algorithms
+      remain.
   - [ ] Allow declarative behavior to select candidate nodes and match failure
         conditions with CEM-QL, then invoke a schema-declared CEM-ML behavior
         function to calculate the result and structured diagnostic details.
@@ -65,8 +67,9 @@ history belongs in git history and the feature-specific docs linked below.
         `schema:value-vocabulary`, `schema:scalar-type`, and
         `schema:datatype-param`, plus constraint-owned bindings for
         `schema:resource-readable`, `schema:resource-parse`, and
-        `schema:reference-resolution`; richer choice cardinality and
-        additional datatype parameter variations remain.
+        `schema:reference-resolution`; required-one/max-one attribute choice
+        cardinality now executes through `schema:choice-case`; nested
+        choice/case groups and additional datatype parameter variations remain.
   - [ ] Compile behavior declarations and references into the generic schema
         model, reject missing or incompatible behavior references, and dispatch
         them through a single runtime evaluation path. The resolved behavior
@@ -90,7 +93,8 @@ history belongs in git history and the feature-specific docs linked below.
         behavior library available to schema authors. The typed-resource schema
         example now covers the initial `schema:required-fields` behavior alias
         on a conditional field contract and `schema:value-vocabulary` on an
-        attribute declaration; schema-package examples cover constraint-level
+        attribute declaration, plus exact-one `schema:choice-case` attribute
+        cardinality; schema-package examples cover constraint-level
         `schema:resource-readable`, `schema:resource-parse`, and
         `schema:reference-resolution` bindings through operational artifact
         and example diagnostics, plus field-contract-level
@@ -128,13 +132,14 @@ history belongs in git history and the feature-specific docs linked below.
         The schema language now models element-bound required/optional/
         forbidden fields, value and presence conditional selectors,
         value-specific forbidden fields, exact-one child occurrence contracts,
-        package-relative path-layout contracts, diagnostic families, and
-        attribute `@values` vocabularies, plus integer `minInclusive` and
-        `maxInclusive` bounds and regex `pattern` datatype params; it still
-        needs accepted children, scalar type validation beyond boolean/integer
-        syntax, RELAX NG-style datatype params beyond those initial
-        variations, defaults, richer dependent-required field groups, RELAX
-        NG-style choice/case groups, and broader child occurrence ranges.
+        required-one/max-one attribute choice cardinality, package-relative
+        path-layout contracts, diagnostic families, and attribute `@values`
+        vocabularies, plus integer `minInclusive` and `maxInclusive` bounds
+        and regex `pattern` datatype params; it still needs accepted children,
+        scalar type validation beyond boolean/integer syntax, RELAX NG-style
+        datatype params beyond those initial variations, defaults, richer
+        dependent-required field groups, RELAX NG-style choice/case groups, and
+        broader child occurrence ranges.
   - [ ] Extend the compiled Rust schema contract model. `SchemaDocumentModel`
         now compiles initial `field-contract` declarations and evaluates
         required/forbidden fields, attribute `@values` vocabularies, and
@@ -142,9 +147,9 @@ history belongs in git history and the feature-specific docs linked below.
         `cemml:integer` attribute types; it still needs reusable string/path/
         URI/media-type constraints beyond path-layout checks, RELAX NG-style
         datatype params beyond integer bounds and pattern, dependent field
-        groups beyond presence-gated required fields, RELAX NG-style choice/case
-        groups, broader child occurrence ranges, defaults, and richer case
-        grouping for all schema elements.
+        groups beyond presence-gated required fields, nested RELAX NG-style
+        choice/case groups, broader child occurrence ranges, defaults, and
+        richer case grouping for all schema elements.
   - [ ] Extend structured diagnostic details beyond initial required/forbidden
         field checks. The first generic field-contract evaluator now emits
         schema URI, element, contract name, check kind, required/optional/
@@ -157,9 +162,10 @@ history belongs in git history and the feature-specific docs linked below.
         forbiddenAttributeValues and invalidValues details; child occurrence
         checks emit required/
         max-one children, missing/duplicate children, and childCounts details;
-        path-layout checks emit pathLayout and invalidValues details; string/
-        path/URI/media-type validation beyond path-layout, additional
-        datatype params, dependency, choice/case grouping, broader child
+        required-one/max-one attribute choice checks emit choice cardinality
+        details; path-layout checks emit pathLayout and invalidValues details;
+        string/path/URI/media-type validation beyond path-layout, additional
+        datatype params, dependency, nested choice/case grouping, broader child
         occurrence ranges, and cross-reference checks need the same
         schema-owned detail shape.
   - [ ] Extend the generic field-contract evaluator. The first evaluator runs
@@ -169,10 +175,10 @@ history belongs in git history and the feature-specific docs linked below.
         now emits structured details for required/forbidden field checks and
         attribute `@values` plus boolean/integer type, integer
         `minInclusive`/`maxInclusive`, and regex `pattern` datatype-param
-        checks, exact-one child occurrence checks, and package-relative
-        path-layout checks, and still
+        checks, exact-one child occurrence checks, required-one/max-one
+        attribute choice checks, and package-relative path-layout checks; it still
         needs coverage for string/path/URI/media-type validation beyond
-        path-layout, additional datatype params, dependency,
+        path-layout, additional datatype params, dependency, nested
         RELAX NG-style choice/case grouping, and broader child occurrence
         ranges.
   - [ ] Move schema-package manifest field rules from Rust conditionals into
