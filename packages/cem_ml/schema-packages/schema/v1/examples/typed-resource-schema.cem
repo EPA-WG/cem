@@ -22,7 +22,7 @@
     }
 
     {elements |
-        {element @name="resource" @required-attributes="id kind" @optional-attributes="label priority slug code href inline" @children="field*"}
+        {element @name="resource" @required-attributes="id kind" @optional-attributes="label priority rank slug code href inline" @children="field*"}
         {element @name="field" @required-attributes="name type"}
     }
 
@@ -34,6 +34,13 @@
             @minInclusive=1
             @maxInclusive=10
             @datatype-param-diagnostic="example.resource.invalid_priority"
+        }
+        {attribute
+            @name="rank"
+            @type="schema:integer"
+            @minExclusive=0
+            @maxExclusive=100
+            @datatype-param-diagnostic="example.resource.invalid_rank"
         }
         {attribute
             @name="slug"
@@ -115,6 +122,12 @@
             @severity="error"
             @behavior="schema:datatype-param"
             @message="Resource priority must stay within the declared bounds"
+        }
+        {diagnostic
+            @code="example.resource.invalid_rank"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource rank must stay within the declared exclusive bounds"
         }
         {diagnostic
             @code="example.resource.invalid_slug"

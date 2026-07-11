@@ -12,8 +12,9 @@
 //! - schema-owned diagnostic declarations resolved through declarative engine
 //!   behavior definitions, including severity and message metadata.
 //! - schema-owned attribute `@values`, boolean/integer type checks, and
-//!   integer `minInclusive`/`maxInclusive`, string `minLength`/`maxLength`/
-//!   `length`, and regex `pattern` datatype-param checks.
+//!   integer `minInclusive`/`maxInclusive`/`minExclusive`/`maxExclusive`,
+//!   string `minLength`/`maxLength`/`length`, and regex `pattern`
+//!   datatype-param checks.
 //! - schema-owned exact and ranged child occurrence field contracts.
 //!
 //! Ordering, scalar type checks beyond boolean/integer syntax, additional
@@ -136,6 +137,8 @@ pub struct AttributeModel {
     pub allowed_values: BTreeSet<String>,
     pub min_inclusive: Option<String>,
     pub max_inclusive: Option<String>,
+    pub min_exclusive: Option<String>,
+    pub max_exclusive: Option<String>,
     pub min_length: Option<String>,
     pub max_length: Option<String>,
     pub length: Option<String>,
@@ -762,6 +765,26 @@ fn validate_attribute_datatype_params(
                 );
             }
         }
+        if let Some(min_exclusive) = attribute_model.min_exclusive.as_deref() {
+            if decimal_integer_cmp(value, min_exclusive)
+                .is_some_and(|ordering| ordering != std::cmp::Ordering::Greater)
+            {
+                emit_attribute_datatype_param_diagnostic(
+                    schema_uri,
+                    diagnostic_behaviors,
+                    element_name,
+                    attribute_name,
+                    value,
+                    attribute_model,
+                    "minExclusive",
+                    min_exclusive,
+                    "not greater than",
+                    attribute_values,
+                    node,
+                    diagnostics,
+                );
+            }
+        }
         if let Some(max_inclusive) = attribute_model.max_inclusive.as_deref() {
             if decimal_integer_cmp(value, max_inclusive) == Some(std::cmp::Ordering::Greater) {
                 emit_attribute_datatype_param_diagnostic(
@@ -774,6 +797,26 @@ fn validate_attribute_datatype_params(
                     "maxInclusive",
                     max_inclusive,
                     "above",
+                    attribute_values,
+                    node,
+                    diagnostics,
+                );
+            }
+        }
+        if let Some(max_exclusive) = attribute_model.max_exclusive.as_deref() {
+            if decimal_integer_cmp(value, max_exclusive)
+                .is_some_and(|ordering| ordering != std::cmp::Ordering::Less)
+            {
+                emit_attribute_datatype_param_diagnostic(
+                    schema_uri,
+                    diagnostic_behaviors,
+                    element_name,
+                    attribute_name,
+                    value,
+                    attribute_model,
+                    "maxExclusive",
+                    max_exclusive,
+                    "not less than",
                     attribute_values,
                     node,
                     diagnostics,
@@ -1227,6 +1270,10 @@ fn collect_attribute_models(
                     min_inclusive: optional_non_empty_attr(&attrs, "minInclusive")
                         .map(str::to_owned),
                     max_inclusive: optional_non_empty_attr(&attrs, "maxInclusive")
+                        .map(str::to_owned),
+                    min_exclusive: optional_non_empty_attr(&attrs, "minExclusive")
+                        .map(str::to_owned),
+                    max_exclusive: optional_non_empty_attr(&attrs, "maxExclusive")
                         .map(str::to_owned),
                     min_length: optional_non_empty_attr(&attrs, "minLength").map(str::to_owned),
                     max_length: optional_non_empty_attr(&attrs, "maxLength").map(str::to_owned),
@@ -3693,6 +3740,24 @@ mod tests {
         assert_eq!(
             model
                 .attributes
+                .get("minExclusive")
+                .expect("minExclusive attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:integer")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("maxExclusive")
+                .expect("maxExclusive attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:integer")
+        );
+        assert_eq!(
+            model
+                .attributes
                 .get("minLength")
                 .expect("minLength attribute model")
                 .value_type
@@ -5562,7 +5627,7 @@ mod tests {
         {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
     }
     {elements |
-        {element @name="item" @optional-attributes="mode enabled count score code label tag"}
+        {element @name="item" @optional-attributes="mode enabled count score lower upper code label tag"}
     }
     {attributes |
         {attribute
@@ -5587,6 +5652,18 @@ mod tests {
             @type="schema:integer"
             @maxInclusive=10
             @datatype-param-diagnostic="example.score_max"
+        }
+        {attribute
+            @name="lower"
+            @type="schema:integer"
+            @minExclusive=1
+            @datatype-param-diagnostic="example.lower_min_exclusive"
+        }
+        {attribute
+            @name="upper"
+            @type="schema:integer"
+            @maxExclusive=10
+            @datatype-param-diagnostic="example.upper_max_exclusive"
         }
         {attribute
             @name="code"
@@ -5633,6 +5710,18 @@ mod tests {
             @message="Score must satisfy its datatype parameters"
         }
         {diagnostic
+            @code="example.lower_min_exclusive"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Lower bound must satisfy its datatype parameters"
+        }
+        {diagnostic
+            @code="example.upper_max_exclusive"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Upper bound must satisfy its datatype parameters"
+        }
+        {diagnostic
             @code="example.code_pattern"
             @severity="error"
             @behavior="schema:datatype-param"
@@ -5668,7 +5757,7 @@ mod tests {
         );
 
         let document = parse_cem_document(
-            r#"{item @mode=tabular @enabled=maybe @count=0 @score=11 @code=bad_code @label=go @tag=to}"#,
+            r#"{item @mode=tabular @enabled=maybe @count=0 @score=11 @lower=1 @upper=10 @code=bad_code @label=go @tag=to}"#,
         );
         let diagnostics = validate_document_model(&document, &model);
 
@@ -5773,6 +5862,62 @@ mod tests {
         assert_eq!(details["datatypeParam"], serde_json::json!("maxInclusive"));
         assert_eq!(details["maxInclusive"], serde_json::json!("10"));
         assert_eq!(details["actualValue"], serde_json::json!("11"));
+
+        let datatype_param = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.lower_min_exclusive")
+            .expect("minExclusive datatype-param alias diagnostic");
+        assert_eq!(datatype_param.severity, Severity::Error);
+        assert!(datatype_param
+            .message
+            .starts_with("Lower bound must satisfy its datatype parameters:"));
+        let details = datatype_param
+            .details
+            .as_ref()
+            .expect("minExclusive datatype-param alias details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:datatype-param")
+        );
+        assert_eq!(
+            details["diagnostic"],
+            serde_json::json!("example.lower_min_exclusive")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:minExclusive")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("minExclusive"));
+        assert_eq!(details["minExclusive"], serde_json::json!("1"));
+        assert_eq!(details["actualValue"], serde_json::json!("1"));
+
+        let datatype_param = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.upper_max_exclusive")
+            .expect("maxExclusive datatype-param alias diagnostic");
+        assert_eq!(datatype_param.severity, Severity::Error);
+        assert!(datatype_param
+            .message
+            .starts_with("Upper bound must satisfy its datatype parameters:"));
+        let details = datatype_param
+            .details
+            .as_ref()
+            .expect("maxExclusive datatype-param alias details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:datatype-param")
+        );
+        assert_eq!(
+            details["diagnostic"],
+            serde_json::json!("example.upper_max_exclusive")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:maxExclusive")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("maxExclusive"));
+        assert_eq!(details["maxExclusive"], serde_json::json!("10"));
+        assert_eq!(details["actualValue"], serde_json::json!("10"));
 
         let datatype_param = diagnostics
             .iter()
@@ -6107,10 +6252,11 @@ mod tests {
 
 {schema @name="datatype-param-contracts" @namespace="https://example.test/ns/datatype-param-contracts/1" @version="1.0.0" |
     {elements |
-        {element @name="item" @optional-attributes="count"}
+        {element @name="item" @optional-attributes="count offset"}
     }
     {attributes |
         {attribute @name="count" @type="schema:integer" @minInclusive=1 @maxInclusive=10}
+        {attribute @name="offset" @type="schema:integer" @minExclusive=1 @maxExclusive=10}
     }
 }"#,
         );
@@ -6119,6 +6265,8 @@ mod tests {
             r#"{item @count=+1}"#,
             r#"{item @count=10}"#,
             r#"{item @count=00010}"#,
+            r#"{item @offset=2}"#,
+            r#"{item @offset=9}"#,
         ] {
             let document = parse_cem_document(source);
             let diagnostics = validate_document_model(&document, &model);
@@ -6135,6 +6283,8 @@ mod tests {
             r#"{item @count=-12}"#,
             r#"{item @count=11}"#,
             r#"{item @count=120000000000000000000000000000}"#,
+            r#"{item @offset=1}"#,
+            r#"{item @offset=10}"#,
         ] {
             let document = parse_cem_document(source);
             let diagnostics = validate_document_model(&document, &model);
@@ -6201,6 +6351,52 @@ mod tests {
         assert_eq!(details["datatypeParam"], serde_json::json!("maxInclusive"));
         assert_eq!(details["maxInclusive"], serde_json::json!("10"));
         assert_eq!(details["actualValue"], serde_json::json!("11"));
+
+        let document = parse_cem_document(r#"{item @offset=1}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("minExclusive attribute datatype param diagnostic");
+        assert!(diagnostic.message.contains("minExclusive"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("minExclusive attribute datatype param details");
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:offset:minExclusive")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:minExclusive")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("minExclusive"));
+        assert_eq!(details["minExclusive"], serde_json::json!("1"));
+        assert_eq!(details["actualValue"], serde_json::json!("1"));
+
+        let document = parse_cem_document(r#"{item @offset=10}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("maxExclusive attribute datatype param diagnostic");
+        assert!(diagnostic.message.contains("maxExclusive"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("maxExclusive attribute datatype param details");
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:offset:maxExclusive")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:maxExclusive")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("maxExclusive"));
+        assert_eq!(details["maxExclusive"], serde_json::json!("10"));
+        assert_eq!(details["actualValue"], serde_json::json!("10"));
     }
 
     #[test]

@@ -37,8 +37,9 @@ history belongs in git history and the feature-specific docs linked below.
       resource parse/validation, and reference resolution; field-contract-level
       bindings now exist for broader dependency and choice/case algorithms.
       Both preserve stable diagnostic family codes. Attribute-owned datatype
-      parameter checks now cover integer `minInclusive`/`maxInclusive`, string
-      `minLength`/`maxLength`/`length`, and regex `pattern`.
+      parameter checks now cover integer `minInclusive`/`maxInclusive`/
+      `minExclusive`/`maxExclusive`, string `minLength`/`maxLength`/`length`,
+      and regex `pattern`.
       Required-one/max-one attribute choice cardinality now executes through
       `schema:choice-case`. Broader child occurrence ranges now execute
       through `schema:child-occurrence`. Additional engine algorithms remain.
@@ -72,8 +73,8 @@ history belongs in git history and the feature-specific docs linked below.
         cardinality now executes through `schema:choice-case`; broader child
         occurrence ranges now execute through `schema:child-occurrence`;
         nested choice/case groups and datatype parameter variations beyond
-        integer bounds, string length constraints, and regex pattern
-        remain.
+        integer inclusive/exclusive bounds, string length constraints, and
+        regex pattern remain.
   - [ ] Compile behavior declarations and references into the generic schema
         model, reject missing or incompatible behavior references, and dispatch
         them through a single runtime evaluation path. The resolved behavior
@@ -140,9 +141,10 @@ history belongs in git history and the feature-specific docs linked below.
         value-specific forbidden fields, exact-one child occurrence contracts,
         required-one/max-one attribute choice cardinality, package-relative
         path-layout contracts, diagnostic families, and attribute `@values`
-        vocabularies, plus integer `minInclusive` and `maxInclusive` bounds
-        plus string `minLength`, `maxLength`, and `length` params and regex
-        `pattern` datatype params, plus min/max child occurrence ranges; it
+        vocabularies, plus integer `minInclusive`, `maxInclusive`,
+        `minExclusive`, and `maxExclusive` bounds plus string `minLength`,
+        `maxLength`, and `length` params and regex `pattern` datatype params,
+        plus min/max child occurrence ranges; it
         still needs accepted children, scalar type validation beyond
         boolean/integer syntax, RELAX NG-style datatype params beyond those
         initial variations, defaults, richer dependent-required field groups,
@@ -164,9 +166,10 @@ history belongs in git history and the feature-specific docs linked below.
         forbidden fields, missing/invalid fields, actual values, condition, and
         source-map range, and attribute `@values` checks emit expected/actual
         value details; boolean and integer type checks now emit expected/
-        actual details; integer `minInclusive` and `maxInclusive` checks,
-        string `minLength`, `maxLength`, and `length` checks, plus regex
-        `pattern` checks emit datatype-param details; value-specific forbidden checks emit
+        actual details; integer `minInclusive`, `maxInclusive`,
+        `minExclusive`, and `maxExclusive` checks, string `minLength`,
+        `maxLength`, and `length` checks, plus regex `pattern` checks emit
+        datatype-param details; value-specific forbidden checks emit
         forbiddenAttributeValues and invalidValues details; child occurrence
         checks emit required/max-one/min/max children,
         missing/duplicate/under-min/over-max children, and childCounts details;
@@ -182,8 +185,8 @@ history belongs in git history and the feature-specific docs linked below.
         diagnostic families such as `cem.schema_package.artifact_check`; it
         now emits structured details for required/forbidden field checks and
         attribute `@values` plus boolean/integer type, integer
-        `minInclusive`/`maxInclusive`, string `minLength`/`maxLength`/
-        `length`, and regex `pattern` datatype-param checks, exact-one child
+        `minInclusive`/`maxInclusive`/`minExclusive`/`maxExclusive`, string
+        `minLength`/`maxLength`/`length`, and regex `pattern` datatype-param checks, exact-one child
         occurrence checks, min/max child occurrence range checks, required-one/max-one
         attribute choice checks, and
         package-relative path-layout checks; it still

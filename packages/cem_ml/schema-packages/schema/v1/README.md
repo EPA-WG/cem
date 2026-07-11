@@ -126,8 +126,8 @@ Attribute-owned engine primitives are also schema-visible. Attribute
 declarations bind `@values` failures through `@values-diagnostic` to
 `schema:value-vocabulary`, scalar syntax failures through `@type-diagnostic` to
 `schema:scalar-type`, and datatype parameter failures for integer
-`@minInclusive`/`@maxInclusive` bounds, string `@minLength`/`@maxLength`/
-`@length` constraints, and regex `@pattern` through
+`@minInclusive`/`@maxInclusive`/`@minExclusive`/`@maxExclusive` bounds, string
+`@minLength`/`@maxLength`/`@length` constraints, and regex `@pattern` through
 `@datatype-param-diagnostic` to
 `schema:datatype-param`. In all cases the diagnostic `@code` remains the
 stable output identity while `@behavior` selects the reusable algorithm
@@ -197,9 +197,10 @@ compile and execute through diagnostic `@behavior`; field-contract-local
 stamp operational diagnostics while preserving broad diagnostic family codes.
 Constraint-owned `schema:resource-readable`, `schema:resource-parse`, and
 `schema:reference-resolution` bindings now compile and stamp operational
-diagnostics with their declared behavior. Integer `minInclusive` and
-`maxInclusive` bounds, string `minLength`/`maxLength`/`length` constraints,
-and regex `pattern` datatype parameter variations now execute through
+diagnostics with their declared behavior. Integer `minInclusive`,
+`maxInclusive`, `minExclusive`, and `maxExclusive` bounds, string
+`minLength`/`maxLength`/`length` constraints, and regex `pattern` datatype
+parameter variations now execute through
 `schema:datatype-param`; required-one/max-one attribute choice cardinality now
 executes through `schema:choice-case`; `min-children`/`max-children` child
 occurrence ranges now execute through `schema:child-occurrence`; nested
