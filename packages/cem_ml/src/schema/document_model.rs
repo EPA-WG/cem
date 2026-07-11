@@ -14,6 +14,7 @@
 //! - schema-owned attribute `@values`, boolean/integer type checks, and
 //!   integer `minInclusive`/`maxInclusive`, string `minLength`/`maxLength`,
 //!   and regex `pattern` datatype-param checks.
+//! - schema-owned exact and ranged child occurrence field contracts.
 //!
 //! Ordering, scalar type checks beyond boolean/integer syntax, additional
 //! datatype params, and semantic constraints remain follow-up work.
@@ -54,6 +55,7 @@ pub const UNRESOLVED_BEHAVIOR_FUNCTION_CODE: &str =
     "cem.schema_definition.unresolved_behavior_function";
 pub const INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE: &str =
     "cem.schema_definition.invalid_diagnostic_behavior_contract";
+pub const INVALID_SCHEMA_FIELD_CONTRACT_CODE: &str = "cem.schema_definition.invalid_field_contract";
 pub const INVALID_SCHEMA_DATATYPE_PARAM_CODE: &str = "cem.schema_definition.invalid_datatype_param";
 pub const SCHEMA_BEHAVIOR_QUERY_INVALID_CODE: &str = "cem.schema_behavior.query_invalid";
 pub const SCHEMA_BEHAVIOR_QUERY_FAILED_CODE: &str = "cem.schema_behavior.query_failed";
@@ -299,6 +301,8 @@ pub struct FieldContract {
     pub max_one_attributes: BTreeSet<String>,
     pub required_children: BTreeSet<String>,
     pub max_one_children: BTreeSet<String>,
+    pub min_children: BTreeMap<String, String>,
+    pub max_children: BTreeMap<String, String>,
     pub path_layout_attributes: BTreeSet<String>,
     pub path_layout_prefix: Option<String>,
     pub path_layout_extension: Option<String>,
@@ -1411,6 +1415,8 @@ fn validate_field_contract_definition(
         }
     }
 
+    validate_child_range_field_contract(schema_uri, contract, diagnostics);
+
     let Some(behavior) = contract.behavior.as_deref() else {
         return;
     };
@@ -1450,6 +1456,74 @@ fn validate_field_contract_definition(
                     .map(|engine_behavior| engine_behavior.reference()),
                 "expectedBehavior": EngineDiagnosticBehavior::FieldContract.reference(),
                 "checkKind": "field-contract-behavior-contract",
+            }),
+        ));
+    }
+}
+
+fn validate_child_range_field_contract(
+    schema_uri: &str,
+    contract: &FieldContract,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for (range_name, range) in [
+        ("min-children", &contract.min_children),
+        ("max-children", &contract.max_children),
+    ] {
+        for (child, value) in range {
+            if parse_non_negative_integer_to_usize(value).is_some() {
+                continue;
+            }
+            let error = "expected non-negative decimal integer within runtime child-count bounds";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_FIELD_CONTRACT_CODE,
+                format!(
+                    "field contract `{}` declares invalid {range_name} bound `{child}={value}` in schema `{schema_uri}`: {error}",
+                    contract.name
+                ),
+                &contract.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "contract": &contract.name,
+                    "checkKind": "field-contract-child-range",
+                    "range": range_name,
+                    "child": child,
+                    "value": value,
+                    "error": error,
+                }),
+            ));
+        }
+    }
+
+    for (child, min_value) in &contract.min_children {
+        let Some(max_value) = contract.max_children.get(child) else {
+            continue;
+        };
+        let Some(min) = parse_non_negative_integer_to_usize(min_value) else {
+            continue;
+        };
+        let Some(max) = parse_non_negative_integer_to_usize(max_value) else {
+            continue;
+        };
+        if min <= max {
+            continue;
+        }
+        let error = "min-children exceeds max-children";
+        diagnostics.push(schema_compile_diagnostic(
+            INVALID_SCHEMA_FIELD_CONTRACT_CODE,
+            format!(
+                "field contract `{}` declares invalid child occurrence range `{child}` in schema `{schema_uri}`: {error}",
+                contract.name
+            ),
+            &contract.source_map,
+            serde_json::json!({
+                "schemaUri": schema_uri,
+                "contract": &contract.name,
+                "checkKind": "field-contract-child-range",
+                "child": child,
+                "minChildren": min_value,
+                "maxChildren": max_value,
+                "error": error,
             }),
         ));
     }
@@ -2683,6 +2757,8 @@ fn collect_field_contracts(
                 max_one_attributes: parse_name_set(attrs.get("max-one-attributes")),
                 required_children: parse_name_set(attrs.get("required-children")),
                 max_one_children: parse_name_set(attrs.get("max-one-children")),
+                min_children: parse_name_value_map(attrs.get("min-children")),
+                max_children: parse_name_value_map(attrs.get("max-children")),
                 path_layout_attributes: parse_name_set(attrs.get("path-layout-attributes")),
                 path_layout_prefix: optional_non_empty_attr(&attrs, "path-layout-prefix")
                     .map(str::to_owned),
@@ -2821,6 +2897,24 @@ fn validate_field_contracts(
             .filter(|name| child_counts.get(*name).copied().unwrap_or_default() > 1)
             .cloned()
             .collect::<Vec<_>>();
+        let under_min_children = contract
+            .min_children
+            .iter()
+            .filter_map(|(name, min)| {
+                let min = parse_non_negative_integer_to_usize(min)?;
+                let count = child_counts.get(name).copied().unwrap_or_default();
+                (count < min).then(|| name.clone())
+            })
+            .collect::<Vec<_>>();
+        let over_max_children = contract
+            .max_children
+            .iter()
+            .filter_map(|(name, max)| {
+                let max = parse_non_negative_integer_to_usize(max)?;
+                let count = child_counts.get(name).copied().unwrap_or_default();
+                (count > max).then(|| name.clone())
+            })
+            .collect::<Vec<_>>();
 
         if missing.is_empty()
             && invalid_fields.is_empty()
@@ -2828,6 +2922,8 @@ fn validate_field_contracts(
             && conflicting_choice_fields.is_empty()
             && missing_children.is_empty()
             && duplicate_children.is_empty()
+            && under_min_children.is_empty()
+            && over_max_children.is_empty()
         {
             continue;
         }
@@ -2873,6 +2969,18 @@ fn validate_field_contracts(
                 duplicate_children.join(", ")
             ));
         }
+        if !under_min_children.is_empty() {
+            parts.push(format!(
+                "children below minimum: {}",
+                under_min_children.join(", ")
+            ));
+        }
+        if !over_max_children.is_empty() {
+            parts.push(format!(
+                "children above maximum: {}",
+                over_max_children.join(", ")
+            ));
+        }
         let generated_message = format!(
             "element `{element_name}` failed field contract `{}` ({}) with {}",
             contract.name,
@@ -2907,6 +3015,8 @@ fn validate_field_contracts(
                 &conflicting_choice_fields,
                 &missing_children,
                 &duplicate_children,
+                &under_min_children,
+                &over_max_children,
                 child_counts,
                 node,
             ),
@@ -2929,6 +3039,8 @@ fn field_contract_details(
     conflicting_choice_fields: &[String],
     missing_children: &[String],
     duplicate_children: &[String],
+    under_min_children: &[String],
+    over_max_children: &[String],
     child_counts: &BTreeMap<String, usize>,
     node: &CemAstNode,
 ) -> serde_json::Value {
@@ -2952,6 +3064,8 @@ fn field_contract_details(
         "conflictingChoiceFields": conflicting_choice_fields,
         "requiredChildren": &contract.required_children,
         "maxOneChildren": &contract.max_one_children,
+        "minChildren": &contract.min_children,
+        "maxChildren": &contract.max_children,
         "pathLayout": {
             "attributes": &contract.path_layout_attributes,
             "prefix": &contract.path_layout_prefix,
@@ -2964,6 +3078,8 @@ fn field_contract_details(
         "invalidValues": invalid_values,
         "missingChildren": missing_children,
         "duplicateChildren": duplicate_children,
+        "underMinChildren": under_min_children,
+        "overMaxChildren": over_max_children,
         "childCounts": child_counts,
         "actualValues": attribute_values,
         "condition": {
@@ -3241,6 +3357,27 @@ fn parse_name_value_set(value: Option<&String>) -> BTreeMap<String, BTreeSet<Str
             .entry(name.to_owned())
             .or_insert_with(BTreeSet::new)
             .insert(value.to_owned());
+    }
+
+    pairs
+}
+
+fn parse_name_value_map(value: Option<&String>) -> BTreeMap<String, String> {
+    let mut pairs = BTreeMap::new();
+    let Some(value) = value else {
+        return pairs;
+    };
+
+    for token in value.split_whitespace().map(str::trim) {
+        let Some((name, value)) = token.split_once('=') else {
+            continue;
+        };
+        let name = name.trim();
+        let value = value.trim();
+        if name.is_empty() || value.is_empty() {
+            continue;
+        }
+        pairs.insert(name.to_owned(), value.to_owned());
     }
 
     pairs
@@ -3576,6 +3713,24 @@ mod tests {
                 .value_type
                 .as_deref(),
             Some("cemml:name-list")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("min-children")
+                .expect("min-children attribute model")
+                .value_type
+                .as_deref(),
+            Some("cemml:name-value-list")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("max-children")
+                .expect("max-children attribute model")
+                .value_type
+                .as_deref(),
+            Some("cemml:name-value-list")
         );
         let field_contract_behavior = model
             .behaviors
@@ -3942,6 +4097,8 @@ mod tests {
         {element @name="item" @required-attributes="kind" @optional-attributes="kind name code mode href action"}
         {element @name="group" @children="child"}
         {element @name="child"}
+        {element @name="range-group" @children="range-child"}
+        {element @name="range-child"}
         {element @name="asset" @optional-attributes="path"}
     }
     {field-contracts |
@@ -3998,6 +4155,15 @@ mod tests {
             @max-one-children="child"
             @diagnostic="example.item_check"
             @check-kind="child-occurrence"
+        }
+        {field-contract
+            @name="range-group-children"
+            @target="range-group"
+            @min-children="range-child=2"
+            @max-children="range-child=3"
+            @diagnostic="example.item_check"
+            @behavior="schema:child-occurrence"
+            @check-kind="child-occurrence-range"
         }
         {field-contract
             @name="asset-path-layout"
@@ -4287,6 +4453,97 @@ mod tests {
             })
         );
 
+        let document = parse_cem_document(r#"{range-group | {range-child}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("range-group-children")
+            })
+            .expect("under-min child occurrence diagnostic");
+        assert!(diagnostic.message.contains("children below minimum"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("under-min child occurrence details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:child-occurrence")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("child-occurrence-range")
+        );
+        assert_eq!(
+            details["minChildren"],
+            serde_json::json!({
+                "range-child": "2",
+            })
+        );
+        assert_eq!(
+            details["maxChildren"],
+            serde_json::json!({
+                "range-child": "3",
+            })
+        );
+        assert_eq!(
+            details["underMinChildren"],
+            serde_json::json!(["range-child"])
+        );
+        assert_eq!(details["overMaxChildren"], serde_json::json!([]));
+        assert_eq!(
+            details["childCounts"],
+            serde_json::json!({
+                "range-child": 1,
+            })
+        );
+
+        let document = parse_cem_document(r#"{range-group | {range-child} {range-child}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        assert!(
+            diagnostics.iter().all(|diagnostic| {
+                diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("contract").and_then(serde_json::Value::as_str))
+                    != Some("range-group-children")
+            }),
+            "in-range child count should satisfy child occurrence field contract: {diagnostics:?}"
+        );
+
+        let document = parse_cem_document(
+            r#"{range-group | {range-child} {range-child} {range-child} {range-child}}"#,
+        );
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("range-group-children")
+            })
+            .expect("over-max child occurrence diagnostic");
+        assert!(diagnostic.message.contains("children above maximum"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("over-max child occurrence details");
+        assert_eq!(details["underMinChildren"], serde_json::json!([]));
+        assert_eq!(
+            details["overMaxChildren"],
+            serde_json::json!(["range-child"])
+        );
+        assert_eq!(
+            details["childCounts"],
+            serde_json::json!({
+                "range-child": 4,
+            })
+        );
+
         let document = parse_cem_document(r#"{asset @path="assets/demo.cemt"}"#);
         let diagnostics = validate_document_model(&document, &model);
         assert!(
@@ -4524,6 +4781,67 @@ mod tests {
         );
         assert_eq!(details["checkKind"], serde_json::json!("child-occurrence"));
         assert_eq!(details["duplicateChildren"], serde_json::json!(["child"]));
+    }
+
+    #[test]
+    fn schema_field_contract_child_range_rejects_invalid_bounds() {
+        let model = compile_document_model(
+            "https://example.test/ns/field-contract-child-range/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="field-contract-child-range" @namespace="https://example.test/ns/field-contract-child-range/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="group" @children="child"}
+        {element @name="child"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="bad-child-range"
+            @target="group"
+            @min-children="child=-1"
+            @max-children="child=3"
+            @diagnostic="example.group_child_range"
+            @behavior="schema:child-occurrence"
+            @check-kind="child-occurrence-range"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.group_child_range"
+            @severity="error"
+            @behavior="schema:field-contract"
+        }
+    }
+}"#,
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_SCHEMA_FIELD_CONTRACT_CODE)
+            .expect("invalid child range compile diagnostic");
+        assert!(diagnostic.message.contains("invalid min-children"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid child range compile details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/field-contract-child-range/1")
+        );
+        assert_eq!(details["contract"], serde_json::json!("bad-child-range"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("field-contract-child-range")
+        );
+        assert_eq!(details["range"], serde_json::json!("min-children"));
+        assert_eq!(details["child"], serde_json::json!("child"));
+        assert_eq!(details["value"], serde_json::json!("-1"));
     }
 
     #[test]

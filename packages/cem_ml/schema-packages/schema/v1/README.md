@@ -55,6 +55,8 @@ exactly-one attribute choice while still preserving the broad diagnostic family
 code.
 Use `required-children` plus `max-one-children` for exact-one child occurrence
 contracts, such as schema package converter `from`/`to` endpoints.
+Use `min-children` and `max-children` for broader child occurrence ranges
+expressed as `child=count` name-value pairs.
 Use `path-layout-attributes` with `path-layout-prefix` and
 `path-layout-extension` for package-relative path layout contracts, such as
 formatter artifacts under `formatters/` and colorizer artifacts under
@@ -198,8 +200,10 @@ diagnostics with their declared behavior. Integer `minInclusive` and
 `maxInclusive` bounds, string `minLength`/`maxLength` bounds, and regex
 `pattern` datatype parameter variations now execute through
 `schema:datatype-param`; required-one/max-one attribute choice cardinality now
-executes through `schema:choice-case`; nested choice/case groups and additional
-datatype parameter variations remain follow-up work.
+executes through `schema:choice-case`; `min-children`/`max-children` child
+occurrence ranges now execute through `schema:child-occurrence`; nested
+choice/case groups and additional datatype parameter variations remain
+follow-up work.
 
 ## Validation Examples
 
@@ -209,7 +213,7 @@ CLI validation integration tests.
 | Example | Purpose | Expected result |
 | --- | --- | --- |
 | [`basic-schema.cem`](examples/basic-schema.cem) | Minimal schema definition with content type, element, and attribute declarations. | Pass |
-| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, conditional `schema:required-fields`, exact-one `schema:choice-case`, `schema:value-vocabulary`, and `schema:datatype-param` integer-bound/string-length/pattern attribute diagnostics, and open-content policy. | Pass |
+| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, conditional `schema:required-fields`, exact-one `schema:choice-case`, ranged `schema:child-occurrence`, `schema:value-vocabulary`, and `schema:datatype-param` integer-bound/string-length/pattern attribute diagnostics, and open-content policy. | Pass |
 | [`invalid-unclosed-schema.cem`](examples/invalid-unclosed-schema.cem) | Missing closing schema scope syntax diagnostic. | Fail with `cem.ast.unclosed_scope` |
 | [`invalid-missing-required-attribute.cem`](examples/invalid-missing-required-attribute.cem) | Schema declaration missing its required `namespace` attribute. | Fail with `cem.schema_model.missing_required_attribute` |
 | [`invalid-diagnostic-behavior.cem`](examples/invalid-diagnostic-behavior.cem) | Diagnostic references a behavior absent from the imported engine catalog. | Fail with `cem.schema_definition.unknown_diagnostic_behavior` |

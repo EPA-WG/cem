@@ -79,6 +79,15 @@
             @behavior="schema:choice-case"
             @check-kind="exactly-one-fields"
         }
+        {field-contract
+            @name="resource-field-range"
+            @target="resource"
+            @min-children="field=1"
+            @max-children="field=8"
+            @diagnostic="example.resource.field_range"
+            @behavior="schema:child-occurrence"
+            @check-kind="child-occurrence-range"
+        }
     }
 
     {diagnostics |
@@ -118,6 +127,12 @@
             @severity="error"
             @behavior="schema:field-contract"
             @message="Resource must choose one link source"
+        }
+        {diagnostic
+            @code="example.resource.field_range"
+            @severity="error"
+            @behavior="schema:field-contract"
+            @message="Resource field children must stay within the declared range"
         }
     }
 

@@ -54,7 +54,7 @@
         {element @name="param" @required-attributes="name type" @optional-attributes="required default nullable"}
         {element @name="body" @children="*"}
         {element @name="field-contracts" @children="field-contract"}
-        {element @name="field-contract" @required-attributes="name target" @optional-attributes="diagnostic behavior check-kind required-attributes optional-attributes forbidden-attributes forbidden-attribute-values required-one-attributes max-one-attributes required-children max-one-children path-layout-attributes path-layout-prefix path-layout-extension when-attribute when-values when-present-attributes"}
+        {element @name="field-contract" @required-attributes="name target" @optional-attributes="diagnostic behavior check-kind required-attributes optional-attributes forbidden-attributes forbidden-attribute-values required-one-attributes max-one-attributes required-children max-one-children min-children max-children path-layout-attributes path-layout-prefix path-layout-extension when-attribute when-values when-present-attributes"}
         {element @name="constraints" @children="constraint"}
         {element @name="constraint" @required-attributes="kind" @optional-attributes="target value policy diagnostic behavior"}
         {element @name="diagnostics" @children="diagnostic"}
@@ -85,6 +85,8 @@
         {attribute @name="max-one-attributes" @type="cemml:name-list"}
         {attribute @name="required-children" @type="cemml:name-list"}
         {attribute @name="max-one-children" @type="cemml:name-list"}
+        {attribute @name="min-children" @type="cemml:name-value-list"}
+        {attribute @name="max-children" @type="cemml:name-value-list"}
         {attribute @name="path-layout-attributes" @type="cemml:name-list"}
         {attribute @name="path-layout-prefix" @type="cemml:path"}
         {attribute @name="path-layout-extension" @type="cemml:identifier"}
@@ -391,6 +393,15 @@
                 {detail @name="diagnostic" @type="schema:diagnostic-code" @required=true}
                 {detail @name="behavior" @type="schema:behavior-reference" @required=true}
                 {detail @name="checkKind" @type="schema:identifier" @required=true}
+                {detail @name="requiredChildren" @type="schema:array"}
+                {detail @name="maxOneChildren" @type="schema:array"}
+                {detail @name="minChildren" @type="schema:object"}
+                {detail @name="maxChildren" @type="schema:object"}
+                {detail @name="missingChildren" @type="schema:array"}
+                {detail @name="duplicateChildren" @type="schema:array"}
+                {detail @name="underMinChildren" @type="schema:array"}
+                {detail @name="overMaxChildren" @type="schema:array"}
+                {detail @name="childCounts" @type="schema:object"}
                 {detail @name="sourceRange" @type="schema:object" @source="candidate"}
             }
         }
@@ -618,6 +629,7 @@
         {diagnostic @code="cem.schema_definition.unknown_diagnostic_behavior" @severity="error"}
         {diagnostic @code="cem.schema_definition.unresolved_behavior_function" @severity="error"}
         {diagnostic @code="cem.schema_definition.invalid_diagnostic_behavior_contract" @severity="error"}
+        {diagnostic @code="cem.schema_definition.invalid_field_contract" @severity="error"}
         {diagnostic @code="cem.schema_behavior.query_invalid" @severity="error"}
         {diagnostic @code="cem.schema_behavior.query_failed" @severity="error"}
         {diagnostic @code="cem.schema_behavior.result_invalid" @severity="error"}
