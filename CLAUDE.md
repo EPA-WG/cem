@@ -4,6 +4,11 @@ Codex shorthand:
 - `.` means “where are we, and what is next?”
 - `>` means “continue”
 
+The itemized and prioritized work items list resides in docs/todo.md file.
+When prompted to continue, look into docs/todo.md unclosed item first.
+When all items closed, plan the top level goal from roadmap.md as itemized checklist into docs/todo.md
+After completion of work from todo checklist, mark it as done by [x] check.
+
 ## Project overview
 
 CEM (Consumer-Experience Model) is a semantic design token framework using `@epa-wg/custom-element` for declarative web
