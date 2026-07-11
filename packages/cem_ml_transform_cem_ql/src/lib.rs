@@ -5,7 +5,8 @@
 //! CEM-native fragment renderer. Keeping the bridge here avoids a dependency
 //! cycle from `cem_ml` back into `cem_ql`.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 use cem_ml::diagnostics::{Diagnostic, Severity};
 use cem_ml::engine::{
@@ -16,22 +17,35 @@ use cem_ml::legacy_custom_element::{
     convert_template_source, LegacyConversionDiagnostic, TEMPLATE_CONTENT_TYPES,
     UNSUPPORTED_CONSTRUCT_CODE, UNSUPPORTED_FUNCTION_CODE,
 };
+use cem_ml::parser::document::CemDocument;
+use cem_ml::parser::{AstNodeId, CemAstNode};
 use cem_ml::run_config::ScopeConfig;
+use cem_ml::scheduler::ScopePolicy;
+use cem_ml::schema::document_model::{
+    BehaviorDefinition, BehaviorFunctionDeclaration, DiagnosticBehavior, SchemaBehaviorEvaluator,
+    SchemaDocumentModel, SCHEMA_BEHAVIOR_FUNCTION_FAILED_CODE, SCHEMA_BEHAVIOR_QUERY_FAILED_CODE,
+    SCHEMA_BEHAVIOR_QUERY_INVALID_CODE, SCHEMA_BEHAVIOR_RESULT_INVALID_CODE,
+};
 use cem_ml::schema::registry::{CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI};
+use cem_ml::source_map::{FrameSpan, SourceMapStack};
 use cem_ml::transform_template::{
-    parse_cem_native_template_module_options, TransformTemplateAdapter,
-    TransformTemplateAdapterCapability, TransformTemplateAdapterError,
+    execute_transform_template_module_function, parse_cem_native_template_module_options,
+    TransformTemplateAdapter, TransformTemplateAdapterCapability, TransformTemplateAdapterError,
     TransformTemplateAdapterExecutionPhase, TransformTemplateAdapterRegistry,
     TransformTemplateAdapterResult, TransformTemplateCompileRequest,
     TransformTemplateCompileResponse, TransformTemplateCompiledArtifact,
-    TransformTemplateDataArtifact, TransformTemplateModuleOptions,
-    TransformTemplateModuleParamDeclaration, TransformTemplateModuleParseRequest,
-    TransformTemplateModulePreflight, TransformTemplateOutputArtifact,
+    TransformTemplateDataArtifact, TransformTemplateFunctionCallRequest,
+    TransformTemplateModuleFunctionDeclaration, TransformTemplateModuleOptions,
+    TransformTemplateModuleParamDeclaration, TransformTemplateModuleParamType,
+    TransformTemplateModuleParseRequest, TransformTemplateModulePreflight,
+    TransformTemplateModuleVisibility, TransformTemplateOutputArtifact,
     TransformTemplateRenderRequest, TransformTemplateRenderResponse,
     CEM_NATIVE_TEMPLATE_SCHEMA_URI, TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE,
     TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE, TRANSFORM_TEMPLATE_PARAM_TYPE_CODE,
     TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE,
 };
+use cem_ql::api::{compile, evaluate, CompileContext, EvaluationContext};
+use cem_ql::eval::QueryContextScope;
 use cem_ql::eval::{AtomValue, Item, ItemStream};
 use cem_ql::render::{
     compile_template, render_compiled_template, render_plan_to_html_with_source_map,
@@ -49,6 +63,173 @@ pub struct CemQlTransformTemplateAdapter;
 
 #[derive(Debug, Clone, Default)]
 pub struct XsltParityTransformTemplateAdapter;
+
+#[derive(Debug, Clone, Default)]
+pub struct CemQlSchemaBehaviorEvaluator;
+
+#[derive(Debug, Clone)]
+struct SchemaBehaviorCandidate {
+    node_id: AstNodeId,
+    element: String,
+    attributes: BTreeMap<String, String>,
+    source_map: SourceMapStack,
+}
+
+impl SchemaBehaviorEvaluator for CemQlSchemaBehaviorEvaluator {
+    fn compile_model(&self, model: &SchemaDocumentModel) -> Vec<Diagnostic> {
+        let mut diagnostics = Vec::new();
+        let select_bindings = select_binding_names(model);
+        let match_bindings = match_binding_names(model, &[]);
+        for diagnostic in model
+            .diagnostic_behaviors
+            .values()
+            .filter(|diagnostic| diagnostic.function.is_some())
+        {
+            let Some(definition) = diagnostic.definition.as_ref() else {
+                continue;
+            };
+            if let Some(select) = definition.select.as_deref() {
+                if let Err(message) = compile_cem_ql_behavior_query(select, &select_bindings) {
+                    diagnostics.push(schema_behavior_diagnostic(
+                        SCHEMA_BEHAVIOR_QUERY_INVALID_CODE,
+                        Severity::Error,
+                        format!(
+                            "diagnostic `{}` behavior `{}` has invalid CEM-QL select expression: {message}",
+                            diagnostic.code, diagnostic.behavior
+                        ),
+                        &definition.source_map,
+                        json!({
+                            "schemaUri": model.schema_uri,
+                            "diagnostic": diagnostic.code,
+                            "behavior": diagnostic.behavior,
+                            "queryKind": "select",
+                            "query": select,
+                        }),
+                    ));
+                }
+            }
+            if let Some(match_query) = definition.match_query.as_deref() {
+                if let Err(message) = compile_cem_ql_behavior_query(match_query, &match_bindings) {
+                    diagnostics.push(schema_behavior_diagnostic(
+                        SCHEMA_BEHAVIOR_QUERY_INVALID_CODE,
+                        Severity::Error,
+                        format!(
+                            "diagnostic `{}` behavior `{}` has invalid CEM-QL match expression: {message}",
+                            diagnostic.code, diagnostic.behavior
+                        ),
+                        &definition.source_map,
+                        json!({
+                            "schemaUri": model.schema_uri,
+                            "diagnostic": diagnostic.code,
+                            "behavior": diagnostic.behavior,
+                            "queryKind": "match",
+                            "query": match_query,
+                        }),
+                    ));
+                }
+            }
+        }
+        diagnostics
+    }
+
+    fn validate_document(
+        &self,
+        document: &CemDocument,
+        model: &SchemaDocumentModel,
+    ) -> Vec<Diagnostic> {
+        let candidates = collect_schema_behavior_candidates(document);
+        let mut diagnostics = Vec::new();
+        for diagnostic in model
+            .diagnostic_behaviors
+            .values()
+            .filter(|diagnostic| diagnostic.function.is_some())
+        {
+            let Some(definition) = diagnostic.definition.as_ref() else {
+                continue;
+            };
+            let Some(select) = definition.select.as_deref() else {
+                continue;
+            };
+            let Some(match_query) = definition.match_query.as_deref() else {
+                continue;
+            };
+            let select_binding_names = select_binding_names(model);
+            let match_bindings = match_binding_names(model, &candidates);
+            if compile_cem_ql_behavior_query(select, &select_binding_names).is_err()
+                || compile_cem_ql_behavior_query(match_query, &match_bindings).is_err()
+            {
+                continue;
+            }
+            let selected = match evaluate_cem_ql_behavior_query(
+                select,
+                &select_binding_names,
+                select_bindings(&candidates, model),
+            ) {
+                Ok(stream) => selected_candidate_ids(&stream),
+                Err(message) => {
+                    diagnostics.push(schema_behavior_diagnostic(
+                        SCHEMA_BEHAVIOR_QUERY_FAILED_CODE,
+                        Severity::Error,
+                        format!(
+                            "diagnostic `{}` behavior `{}` failed while evaluating CEM-QL select expression: {message}",
+                            diagnostic.code, diagnostic.behavior
+                        ),
+                        &definition.source_map,
+                        json!({
+                            "schemaUri": model.schema_uri,
+                            "diagnostic": diagnostic.code,
+                            "behavior": diagnostic.behavior,
+                            "queryKind": "select",
+                            "query": select,
+                        }),
+                    ));
+                    continue;
+                }
+            };
+            for candidate in candidates
+                .iter()
+                .filter(|candidate| selected.contains(&candidate.node_id))
+            {
+                let matched = match evaluate_cem_ql_behavior_query(
+                    match_query,
+                    &match_bindings,
+                    candidate_match_bindings(candidate, &match_bindings),
+                ) {
+                    Ok(stream) => stream_truthy(&stream),
+                    Err(message) => {
+                        diagnostics.push(schema_behavior_diagnostic(
+                            SCHEMA_BEHAVIOR_QUERY_FAILED_CODE,
+                            Severity::Error,
+                            format!(
+                                "diagnostic `{}` behavior `{}` failed while evaluating CEM-QL match expression: {message}",
+                                diagnostic.code, diagnostic.behavior
+                            ),
+                            &candidate.source_map,
+                            json!({
+                                "schemaUri": model.schema_uri,
+                                "diagnostic": diagnostic.code,
+                                "behavior": diagnostic.behavior,
+                                "queryKind": "match",
+                                "query": match_query,
+                                "candidate": candidate_json(candidate),
+                            }),
+                        ));
+                        false
+                    }
+                };
+                if !matched {
+                    continue;
+                }
+                if let Some(diagnostic_result) =
+                    execute_schema_behavior_function(model, diagnostic, definition, candidate)
+                {
+                    diagnostics.push(diagnostic_result);
+                }
+            }
+        }
+        diagnostics
+    }
+}
 
 #[derive(Debug, Clone)]
 struct CemQlCompiledTemplatePayload {
@@ -78,6 +259,544 @@ struct CemQlCompiledTemplateModulePayload {
 struct CemQlTemplateEntrypoints {
     implicit: Option<TemplateArtifact>,
     named: BTreeMap<String, TemplateArtifact>,
+}
+
+fn compile_cem_ql_behavior_query(
+    source: &str,
+    binding_names: &BTreeSet<String>,
+) -> Result<(), String> {
+    let policy_bindings = binding_names
+        .iter()
+        .cloned()
+        .map(|name| (name, ItemStream::empty()))
+        .collect();
+    compile(
+        source,
+        &CompileContext {
+            policy_bindings,
+            ..CompileContext::default()
+        },
+    )
+    .map(|_| ())
+    .map_err(|err| err.to_string())
+}
+
+fn evaluate_cem_ql_behavior_query(
+    source: &str,
+    binding_names: &BTreeSet<String>,
+    bindings: BTreeMap<String, ItemStream>,
+) -> Result<ItemStream, String> {
+    let compile_bindings = binding_names
+        .iter()
+        .cloned()
+        .map(|name| (name, ItemStream::empty()))
+        .collect();
+    let query = compile(
+        source,
+        &CompileContext {
+            policy_bindings: compile_bindings,
+            ..CompileContext::default()
+        },
+    )
+    .map_err(|err| err.to_string())?;
+    let stream = evaluate(
+        &query,
+        &EvaluationContext {
+            scope: QueryContextScope(0),
+            scope_policy: ScopePolicy::host_root(),
+            diagnostics: Vec::new(),
+            policy_bindings: bindings,
+        },
+    );
+    if let Some(error) = stream.error.as_ref() {
+        return Err(format!("{error:?}"));
+    }
+    if let Some(diagnostic) = stream
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return Err(format!("{}: {}", diagnostic.code, diagnostic.message));
+    }
+    Ok(stream)
+}
+
+fn select_binding_names(model: &SchemaDocumentModel) -> BTreeSet<String> {
+    let mut bindings = BTreeSet::from(["nodes".to_owned()]);
+    bindings.extend(model.elements.keys().cloned());
+    bindings
+}
+
+fn match_binding_names(
+    model: &SchemaDocumentModel,
+    candidates: &[SchemaBehaviorCandidate],
+) -> BTreeSet<String> {
+    let mut bindings = BTreeSet::from(["candidate".to_owned(), "element".to_owned()]);
+    bindings.extend(model.attributes.keys().cloned());
+    for element in model.elements.values() {
+        bindings.extend(element.required_attributes.iter().cloned());
+        bindings.extend(element.optional_attributes.iter().cloned());
+    }
+    for candidate in candidates {
+        bindings.extend(candidate.attributes.keys().cloned());
+    }
+    bindings
+}
+
+fn collect_schema_behavior_candidates(document: &CemDocument) -> Vec<SchemaBehaviorCandidate> {
+    document
+        .iter()
+        .filter_map(|node| {
+            let CemAstNode::Element {
+                node_id,
+                expanded_name,
+                attributes,
+                source,
+                ..
+            } = node
+            else {
+                return None;
+            };
+            if expanded_name.local_name.is_empty()
+                || expanded_name.local_name == "$"
+                || expanded_name.local_name.starts_with('@')
+            {
+                return None;
+            }
+            let mut candidate_attributes = BTreeMap::new();
+            for attr_id in attributes {
+                let Some(CemAstNode::Attribute {
+                    expanded_name,
+                    value,
+                    ..
+                }) = document.get(*attr_id)
+                else {
+                    continue;
+                };
+                candidate_attributes.insert(
+                    expanded_name.local_name.clone(),
+                    value.clone().unwrap_or_default(),
+                );
+            }
+            Some(SchemaBehaviorCandidate {
+                node_id: *node_id,
+                element: expanded_name.local_name.clone(),
+                attributes: candidate_attributes,
+                source_map: source.clone(),
+            })
+        })
+        .collect()
+}
+
+fn select_bindings(
+    candidates: &[SchemaBehaviorCandidate],
+    model: &SchemaDocumentModel,
+) -> BTreeMap<String, ItemStream> {
+    let mut bindings = BTreeMap::new();
+    let all_items = candidates
+        .iter()
+        .map(candidate_record_item)
+        .collect::<Vec<_>>();
+    bindings.insert("nodes".to_owned(), ItemStream::from_items(all_items));
+    for element_name in model.elements.keys() {
+        let items = candidates
+            .iter()
+            .filter(|candidate| candidate.element == *element_name)
+            .map(candidate_record_item)
+            .collect::<Vec<_>>();
+        bindings.insert(element_name.clone(), ItemStream::from_items(items));
+    }
+    bindings
+}
+
+fn candidate_match_bindings(
+    candidate: &SchemaBehaviorCandidate,
+    binding_names: &BTreeSet<String>,
+) -> BTreeMap<String, ItemStream> {
+    let mut bindings = BTreeMap::new();
+    bindings.insert(
+        "candidate".to_owned(),
+        ItemStream::once(candidate_record_item(candidate)),
+    );
+    bindings.insert(
+        "element".to_owned(),
+        ItemStream::once(Item::Atomic(AtomValue::String(candidate.element.clone()))),
+    );
+    for name in binding_names {
+        if matches!(name.as_str(), "candidate" | "element") {
+            continue;
+        }
+        let item = candidate
+            .attributes
+            .get(name)
+            .map(|value| Item::Atomic(AtomValue::String(value.clone())))
+            .unwrap_or(Item::Atomic(AtomValue::Null));
+        bindings.insert(name.clone(), ItemStream::once(item));
+    }
+    bindings
+}
+
+fn candidate_record_item(candidate: &SchemaBehaviorCandidate) -> Item {
+    let mut attributes = BTreeMap::new();
+    for (name, value) in &candidate.attributes {
+        attributes.insert(
+            name.clone(),
+            vec![Item::Atomic(AtomValue::String(value.clone()))],
+        );
+    }
+    let mut record = BTreeMap::new();
+    record.insert(
+        "nodeId".to_owned(),
+        vec![Item::Atomic(AtomValue::Integer(candidate.node_id as i64))],
+    );
+    record.insert(
+        "name".to_owned(),
+        vec![Item::Atomic(AtomValue::String(candidate.element.clone()))],
+    );
+    record.insert(
+        "element".to_owned(),
+        vec![Item::Atomic(AtomValue::String(candidate.element.clone()))],
+    );
+    record.insert("attributes".to_owned(), vec![Item::Record(attributes)]);
+    Item::Record(record)
+}
+
+fn selected_candidate_ids(stream: &ItemStream) -> BTreeSet<AstNodeId> {
+    let mut ids = BTreeSet::new();
+    for item in &stream.items {
+        collect_candidate_ids_from_item(item, &mut ids);
+    }
+    ids
+}
+
+fn collect_candidate_ids_from_item(item: &Item, ids: &mut BTreeSet<AstNodeId>) {
+    match item {
+        Item::Record(record) => {
+            if let Some(id) = record
+                .get("nodeId")
+                .and_then(|items| items.first())
+                .and_then(item_to_ast_node_id)
+            {
+                ids.insert(id);
+            }
+        }
+        Item::Array(items) => {
+            for item in items {
+                collect_candidate_ids_from_item(item, ids);
+            }
+        }
+        _ => {
+            if let Some(id) = item_to_ast_node_id(item) {
+                ids.insert(id);
+            }
+        }
+    }
+}
+
+fn item_to_ast_node_id(item: &Item) -> Option<AstNodeId> {
+    match item {
+        Item::Atomic(AtomValue::Integer(value)) => (*value).try_into().ok(),
+        Item::Atomic(AtomValue::String(value)) => value.parse::<AstNodeId>().ok(),
+        _ => None,
+    }
+}
+
+fn stream_truthy(stream: &ItemStream) -> bool {
+    let Some(item) = stream.items.first() else {
+        return false;
+    };
+    match item {
+        Item::Atomic(AtomValue::Boolean(value)) => *value,
+        Item::Atomic(AtomValue::Integer(value)) => *value != 0,
+        Item::Atomic(AtomValue::Decimal(value)) => value != "0" && value != "0.0",
+        Item::Atomic(AtomValue::Double(value)) => *value != 0.0 && !value.is_nan(),
+        Item::Atomic(AtomValue::String(value)) | Item::Atomic(AtomValue::AnyUri(value)) => {
+            !value.is_empty()
+        }
+        Item::Atomic(AtomValue::Null) => false,
+        _ => true,
+    }
+}
+
+fn execute_schema_behavior_function(
+    model: &SchemaDocumentModel,
+    diagnostic: &DiagnosticBehavior,
+    definition: &BehaviorDefinition,
+    candidate: &SchemaBehaviorCandidate,
+) -> Option<Diagnostic> {
+    let function_name = diagnostic.function.as_deref()?;
+    let module_options = behavior_module_options(definition);
+    let function_params = definition
+        .inline_functions
+        .get(function_name)
+        .map(|function| function.params.as_slice())
+        .unwrap_or(&[]);
+    let mut arguments = BTreeMap::new();
+    for param in function_params {
+        match param.name.as_str() {
+            "candidate" => {
+                arguments.insert("candidate".to_owned(), candidate_json(candidate));
+            }
+            "diagnostic" => {
+                arguments.insert(
+                    "diagnostic".to_owned(),
+                    json!({
+                        "code": diagnostic.code,
+                        "severity": severity_name(diagnostic.severity),
+                        "behavior": diagnostic.behavior,
+                        "message": diagnostic.message,
+                    }),
+                );
+            }
+            _ => {}
+        }
+    }
+    let result =
+        match execute_transform_template_module_function(TransformTemplateFunctionCallRequest {
+            module_options: &module_options,
+            function_name,
+            arguments,
+        }) {
+            Ok(Some(value)) => value,
+            Ok(None) => {
+                return Some(schema_behavior_diagnostic(
+                    SCHEMA_BEHAVIOR_RESULT_INVALID_CODE,
+                    Severity::Error,
+                    format!(
+                    "diagnostic `{}` behavior `{}` function `{function_name}` returned no result",
+                    diagnostic.code, diagnostic.behavior
+                ),
+                    &candidate.source_map,
+                    json!({
+                        "schemaUri": model.schema_uri,
+                        "diagnostic": diagnostic.code,
+                        "behavior": diagnostic.behavior,
+                        "function": function_name,
+                        "candidate": candidate_json(candidate),
+                    }),
+                ))
+            }
+            Err(message) => {
+                return Some(schema_behavior_diagnostic(
+                    SCHEMA_BEHAVIOR_FUNCTION_FAILED_CODE,
+                    Severity::Error,
+                    format!(
+                    "diagnostic `{}` behavior `{}` function `{function_name}` failed: {message}",
+                    diagnostic.code, diagnostic.behavior
+                ),
+                    &candidate.source_map,
+                    json!({
+                        "schemaUri": model.schema_uri,
+                        "diagnostic": diagnostic.code,
+                        "behavior": diagnostic.behavior,
+                        "function": function_name,
+                        "candidate": candidate_json(candidate),
+                    }),
+                ))
+            }
+        };
+    let Some(result) = result.as_object() else {
+        return Some(schema_behavior_diagnostic(
+            SCHEMA_BEHAVIOR_RESULT_INVALID_CODE,
+            Severity::Error,
+            format!(
+                "diagnostic `{}` behavior `{}` function `{function_name}` returned a non-object result",
+                diagnostic.code, diagnostic.behavior
+            ),
+            &candidate.source_map,
+            json!({
+                "schemaUri": model.schema_uri,
+                "diagnostic": diagnostic.code,
+                "behavior": diagnostic.behavior,
+                "function": function_name,
+                "candidate": candidate_json(candidate),
+                "result": result,
+            }),
+        ));
+    };
+    let message = result
+        .get("message")
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+        .or_else(|| diagnostic.message.clone())
+        .unwrap_or_else(|| {
+            format!(
+                "schema behavior `{}` matched `{}`",
+                diagnostic.behavior, candidate.element
+            )
+        });
+    let mut details = Map::new();
+    details.insert(
+        "schemaUri".to_owned(),
+        Value::String(model.schema_uri.clone()),
+    );
+    details.insert(
+        "diagnostic".to_owned(),
+        Value::String(diagnostic.code.clone()),
+    );
+    details.insert(
+        "behavior".to_owned(),
+        Value::String(diagnostic.behavior.clone()),
+    );
+    details.insert(
+        "function".to_owned(),
+        Value::String(function_name.to_owned()),
+    );
+    details.insert(
+        "element".to_owned(),
+        Value::String(candidate.element.clone()),
+    );
+    details.insert("candidate".to_owned(), candidate_json(candidate));
+    if let Some(source_range) = source_map_range_details(&candidate.source_map) {
+        details.insert("sourceRange".to_owned(), source_range);
+    }
+    if let Some(result_details) = result.get("details").and_then(Value::as_object) {
+        for (name, value) in result_details {
+            details.insert(name.clone(), value.clone());
+        }
+    }
+    Some(schema_behavior_diagnostic(
+        &diagnostic.code,
+        diagnostic.severity,
+        message,
+        &candidate.source_map,
+        Value::Object(details),
+    ))
+}
+
+fn behavior_module_options(definition: &BehaviorDefinition) -> TransformTemplateModuleOptions {
+    let functions = definition
+        .inline_functions
+        .values()
+        .map(behavior_function_declaration)
+        .collect();
+    TransformTemplateModuleOptions {
+        functions,
+        ..TransformTemplateModuleOptions::default()
+    }
+}
+
+fn behavior_function_declaration(
+    function: &BehaviorFunctionDeclaration,
+) -> TransformTemplateModuleFunctionDeclaration {
+    TransformTemplateModuleFunctionDeclaration {
+        owner: None,
+        name: function.name.clone(),
+        visibility: TransformTemplateModuleVisibility::Private,
+        return_type: behavior_param_type(&function.returns),
+        nullable: false,
+        deterministic: true,
+        trusted: false,
+        params: function
+            .params
+            .iter()
+            .map(|param| TransformTemplateModuleParamDeclaration {
+                name: param.name.clone(),
+                value_type: behavior_param_type(&param.value_type),
+                nullable: false,
+                default_value: None,
+                required: param.required,
+                visibility: TransformTemplateModuleVisibility::Private,
+            })
+            .collect(),
+        body_declared: function.body_expression.is_some(),
+        body_expression: function.body_expression.clone(),
+    }
+}
+
+fn behavior_param_type(value: &str) -> TransformTemplateModuleParamType {
+    match value
+        .trim()
+        .rsplit_once(':')
+        .map(|(_, local)| local)
+        .unwrap_or_else(|| value.trim())
+    {
+        "string" => TransformTemplateModuleParamType::String,
+        "boolean" => TransformTemplateModuleParamType::Boolean,
+        "number" => TransformTemplateModuleParamType::Number,
+        "integer" => TransformTemplateModuleParamType::Integer,
+        "array" => TransformTemplateModuleParamType::Array,
+        "object" => TransformTemplateModuleParamType::Object,
+        "json" => TransformTemplateModuleParamType::Json,
+        _ => TransformTemplateModuleParamType::Any,
+    }
+}
+
+fn severity_name(severity: Severity) -> &'static str {
+    match severity {
+        Severity::Info => "info",
+        Severity::Warning => "warning",
+        Severity::Error => "error",
+        Severity::Fatal => "fatal",
+    }
+}
+
+fn candidate_json(candidate: &SchemaBehaviorCandidate) -> Value {
+    json!({
+        "nodeId": candidate.node_id,
+        "name": candidate.element,
+        "element": candidate.element,
+        "attributes": candidate.attributes,
+        "sourceRange": source_map_range_details(&candidate.source_map),
+    })
+}
+
+fn source_map_range_details(source_map: &SourceMapStack) -> Option<Value> {
+    source_map.current().map(|frame| {
+        json!({
+            "sourceId": frame.source_id.0,
+            "span": frame_span_details(&frame.span),
+        })
+    })
+}
+
+fn frame_span_details(span: &FrameSpan) -> Value {
+    match span {
+        FrameSpan::Single(range) => json!({
+            "kind": "single",
+            "start": range.start,
+            "len": range.len,
+            "end": range.end(),
+        }),
+        FrameSpan::Multi(ranges) => json!({
+            "kind": "multi",
+            "ranges": ranges.iter().map(|range| {
+                json!({
+                    "start": range.start,
+                    "len": range.len,
+                    "end": range.end(),
+                })
+            }).collect::<Vec<_>>(),
+        }),
+    }
+}
+
+fn schema_behavior_diagnostic(
+    code: &str,
+    severity: Severity,
+    message: String,
+    source_map: &SourceMapStack,
+    details: Value,
+) -> Diagnostic {
+    let byte_offset = source_map
+        .frames
+        .first()
+        .and_then(|frame| match &frame.span {
+            FrameSpan::Single(range) => Some(range.start),
+            FrameSpan::Multi(ranges) => ranges.first().map(|range| range.start),
+        });
+    Diagnostic {
+        uri: None,
+        line: None,
+        column: None,
+        byte_offset,
+        code: code.to_owned(),
+        severity,
+        message,
+        node: None,
+        details: Some(details),
+        source_map: Some(source_map.clone()),
+    }
 }
 
 impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
@@ -409,9 +1128,19 @@ pub fn register_cem_ql_template_adapter(registry: &mut TransformTemplateAdapterR
     registry.register(XsltParityTransformTemplateAdapter);
 }
 
+pub fn register_cem_ql_schema_behavior_evaluator(context: &mut EngineContext) {
+    context.schema_behavior_evaluator = Some(Arc::new(CemQlSchemaBehaviorEvaluator));
+}
+
+pub fn register_cem_ql_runtime_adapters(context: &mut EngineContext) {
+    register_cem_ql_template_adapter(&mut context.template_adapter_registry);
+    register_cem_ql_schema_behavior_evaluator(context);
+}
+
 pub fn engine_context_with_cem_ql_template_adapter() -> EngineContext {
     let mut context = EngineContext::default();
-    register_cem_ql_template_adapter(&mut context.template_adapter_registry);
+    context.template_adapter_registry = TransformTemplateAdapterRegistry::with_builtin_adapters();
+    register_cem_ql_runtime_adapters(&mut context);
     context
 }
 
@@ -1536,6 +2265,95 @@ mod tests {
         let tokenizer = XmlTokenizer::from_source(source);
         let events = CemEventNormalizer::new(tokenizer);
         CemAstBuilder::new(events).build()
+    }
+
+    #[test]
+    fn schema_declared_diagnostic_behavior_executes_cem_ql_match_and_cemt_function() {
+        let model = cem_ml::schema::document_model::compile_schema_document_model(
+            "https://example.test/ns/declarative-diagnostic/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="declarative-diagnostic" @namespace="https://example.test/ns/declarative-diagnostic/1" @version="1.0.0" |
+    {elements |
+        {element @name="resource" @optional-attributes="kind label"}
+    }
+    {attributes |
+        {attribute @name="kind" @type="schema:identifier"}
+        {attribute @name="label" @type="schema:string"}
+    }
+    {behaviors |
+        {behavior
+            @name="page-label"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="page-label-result"
+            @select="resource"
+            @match='kind = "page" and label = null' |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+            }
+            {result @type="schema:diagnostic-result" @source-range="candidate" |
+                {detail @name="checkKind" @type="schema:identifier" @required=true}
+                {detail @name="element" @type="schema:identifier" @required=true}
+            }
+            {function @name="page-label-result" @returns="object" @deterministic=true |
+                {param @name="candidate" @type="object" @required=true}
+                {body | {$ { message: "Page resource needs a label", details: { checkKind: "page-label", element: $candidate.name } } }}
+            }
+        }
+    }
+    {diagnostics |
+        {diagnostic @code="example.page_label" @severity="warning" @behavior="page-label"}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "{:#?}",
+            model.compile_diagnostics
+        );
+        let evaluator = CemQlSchemaBehaviorEvaluator;
+
+        let document = document_from_cem(r#"{resource @kind=page}"#);
+        let diagnostics =
+            cem_ml::schema::document_model::validate_document_model_with_behavior_evaluator(
+                &document,
+                &model,
+                Some(&evaluator),
+            );
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.page_label")
+            .unwrap_or_else(|| panic!("declarative diagnostic behavior result: {diagnostics:#?}"));
+        assert_eq!(diagnostic.severity, Severity::Warning);
+        assert_eq!(diagnostic.message, "Page resource needs a label");
+        let details = diagnostic.details.as_ref().expect("diagnostic details");
+        assert_eq!(
+            details["schemaUri"],
+            json!("https://example.test/ns/declarative-diagnostic/1")
+        );
+        assert_eq!(details["diagnostic"], json!("example.page_label"));
+        assert_eq!(details["behavior"], json!("page-label"));
+        assert_eq!(details["function"], json!("page-label-result"));
+        assert_eq!(details["checkKind"], json!("page-label"));
+        assert_eq!(details["element"], json!("resource"));
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+
+        let labeled = document_from_cem(r#"{resource @kind=page @label=Home}"#);
+        let diagnostics =
+            cem_ml::schema::document_model::validate_document_model_with_behavior_evaluator(
+                &labeled,
+                &model,
+                Some(&evaluator),
+            );
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != "example.page_label"),
+            "{diagnostics:?}"
+        );
     }
 
     #[derive(Debug)]
@@ -4781,7 +5599,7 @@ mod tests {
                     InputFormat::Xml,
                     LayerFormat::Xml,
                     "xml",
-                    "<?xml version=\"1.0\"?>\n<!DOCTYPE main>\n<main aria-labelledby=\"title\" xmlns=\"http://www.w3.org/1999/xhtml\" cem:screen=\"conversion\" xmlns:cem=\"https://cem.dev/ns/core/1\"><!-- conversion fixture --><h1 id=\"title\">Conversion fixture</h1><svg xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M2 8h12\"/></svg><$>.items[0].name</$><button aria-label=\"Hello {.name}\" disabled=\"{.busy}\">Save</button></main>".to_owned(),
+                    "<?xml version=\"1.0\"?><!DOCTYPE main><main aria-labelledby=\"title\" xmlns=\"http://www.w3.org/1999/xhtml\" cem:screen=\"conversion\" xmlns:cem=\"https://cem.dev/ns/core/1\"><!-- conversion fixture --><h1 id=\"title\">Conversion fixture</h1><svg xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M2 8h12\"/></svg><$>.items[0].name</$><button aria-label=\"Hello {.name}\" disabled=\"{.busy}\">Save</button></main>".to_owned(),
                 )
             },
         ] {

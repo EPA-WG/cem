@@ -43,7 +43,7 @@
         {element @name="resolution" @required-attributes="target mode"}
         {element @name="handoff" @required-attributes="attribute target"}
         {element @name="behaviors" @children="behavior"}
-        {element @name="behavior" @required-attributes="name implementation execution" @optional-attributes="primitive function" @children="inputs parameters result function"}
+        {element @name="behavior" @required-attributes="name implementation execution" @optional-attributes="primitive function select match" @children="inputs parameters result function"}
         {element @name="inputs" @children="input-binding"}
         {element @name="input-binding" @required-attributes="name type source" @optional-attributes="required source-range"}
         {element @name="parameters" @children="parameter"}
@@ -96,6 +96,8 @@
         {attribute @name="execution" @type="schema:behavior-execution"}
         {attribute @name="primitive" @type="schema:behavior-reference"}
         {attribute @name="function" @type="schema:function-reference"}
+        {attribute @name="select" @type="schema:cem-ql-expression"}
+        {attribute @name="match" @type="schema:cem-ql-expression"}
         {attribute @name="source" @type="schema:behavior-input-source"}
         {attribute @name="source-range" @type="schema:source-range-propagation"}
         {attribute @name="returns" @type="schema:function-return-type"}
@@ -152,6 +154,7 @@
         {type @name="diagnostic-result" @base="schema:object"}
         {type @name="behavior-reference" @base="cemml:qualified-name"}
         {type @name="function-reference" @base="cemml:qualified-name"}
+        {type @name="cem-ql-expression" @base="cemml:string"}
         {type @name="behavior-implementation" @base="cemml:identifier" @values="engine function"}
         {type @name="behavior-execution" @base="cemml:identifier" @values="tokenizer event-normalizer schema-machine reference-resolution ast-validation transform policy"}
         {type @name="behavior-input-source" @base="cemml:identifier" @values="candidate diagnostic contract schema document query-match"}
@@ -217,6 +220,10 @@
         {diagnostic @code="cem.schema_definition.unknown_diagnostic_behavior" @severity="error"}
         {diagnostic @code="cem.schema_definition.unresolved_behavior_function" @severity="error"}
         {diagnostic @code="cem.schema_definition.invalid_diagnostic_behavior_contract" @severity="error"}
+        {diagnostic @code="cem.schema_behavior.query_invalid" @severity="error"}
+        {diagnostic @code="cem.schema_behavior.query_failed" @severity="error"}
+        {diagnostic @code="cem.schema_behavior.result_invalid" @severity="error"}
+        {diagnostic @code="cem.schema_behavior.function_failed" @severity="error"}
         {diagnostic @code="cem.schema_definition.non_streamable_constraint" @severity="error"}
     }
 

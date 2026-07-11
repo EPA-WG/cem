@@ -4,6 +4,7 @@ use crate::interpreter::OutputSpan;
 use crate::report::{Report, SchedulerTraceReport};
 use crate::resolver::ResolverRegistry;
 use crate::run_config::{SchedulerConfig, ScopeConfig};
+use crate::schema::document_model::SchemaBehaviorEvaluator;
 use crate::schema::registry::{
     CSS_CONTENT_TYPE, CSS_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, XHTML_CONTENT_TYPE,
     XHTML_SCHEMA_URI,
@@ -18,6 +19,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -116,6 +118,7 @@ pub struct EngineContext {
     pub resolver_registry: ResolverRegistry,
     pub template_adapter_registry: TransformTemplateAdapterRegistry,
     pub transform_template_encode_registry: TransformTemplateEncodeImplementationRegistry,
+    pub schema_behavior_evaluator: Option<Arc<dyn SchemaBehaviorEvaluator>>,
 }
 
 impl Default for EngineContext {
@@ -136,6 +139,7 @@ impl Default for EngineContext {
             template_adapter_registry,
             transform_template_encode_registry:
                 TransformTemplateEncodeImplementationRegistry::with_builtin_encoders(),
+            schema_behavior_evaluator: None,
         }
     }
 }

@@ -20,7 +20,7 @@ use cem_ml::transform_config::{
     self, TransformGraphConfig, TransformGraphEdgeRole, TransformGraphJoinMode, TransformGraphNode,
     TransformGraphNodeKind,
 };
-use cem_ml_transform_cem_ql::register_cem_ql_template_adapter;
+use cem_ml_transform_cem_ql::register_cem_ql_runtime_adapters;
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsStr;
 use std::fs;
@@ -883,7 +883,7 @@ fn context_with_config(c: &cli::ContextOptions, config: &RunConfig) -> eng::Engi
 }
 
 fn register_cli_transform_template_adapters(context: &mut eng::EngineContext) {
-    register_cem_ql_template_adapter(&mut context.template_adapter_registry);
+    register_cem_ql_runtime_adapters(context);
 }
 
 fn register_cli_resolvers(

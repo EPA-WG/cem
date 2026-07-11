@@ -1443,6 +1443,11 @@ where
         source_uri,
         resource_reader,
         upstream_diagnostics: &document.diagnostics,
+        schema_behavior_evaluator: context
+            .and_then(|context| context.schema_behavior_evaluator.as_deref())
+            .map(|evaluator| {
+                evaluator as &dyn crate::schema::document_model::SchemaBehaviorEvaluator
+            }),
     });
 
     let mut diagnostics = document.diagnostics.clone();

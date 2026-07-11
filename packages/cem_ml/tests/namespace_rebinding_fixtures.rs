@@ -207,6 +207,7 @@ fn xml_parity_fixture_runs_through_shared_pipeline() {
         source_uri: None,
         resource_reader: None,
         upstream_diagnostics: &document.diagnostics,
+        schema_behavior_evaluator: None,
     });
     let hard: Vec<_> = diagnostics
         .iter()

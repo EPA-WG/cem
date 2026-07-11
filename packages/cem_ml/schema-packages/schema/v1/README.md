@@ -111,7 +111,9 @@ source-range propagation policy:
     @name="resource-label"
     @implementation="function"
     @execution="ast-validation"
-    @function="resource-label-result" |
+    @function="resource-label-result"
+    @select="resource"
+    @match='kind = "page" and label = null' |
     {inputs |
         {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true}
     }
@@ -120,15 +122,19 @@ source-range propagation policy:
     }
     {function @name="resource-label-result" @returns="object" @deterministic=true |
         {param @name="candidate" @type="object" @required=true}
-        {body}
+        {body | {$ { message: "Page resource needs a label", details: { checkKind: "resource-label", element: $candidate.name } } }}
     }
 }
 ```
 
 The compiler now validates diagnostic behavior references, unsupported engine
 primitives, missing function bindings, inline function lookup, function return
-type, and diagnostic result shape. CEM-QL candidate selection/matching and
-executing schema-declared function bodies are the next behavior-registry layer.
+type, diagnostic result shape, required CEM-QL `@select`/`@match` expressions,
+and executable CEMT body presence. The CEM-QL bridge now evaluates direct
+candidate selection and match expressions and executes inline CEMT function
+bodies to produce diagnostic messages and structured details. Imported
+schema-level behavior functions, behavior parameter value binding, and the
+broader engine primitive library remain follow-up work.
 
 ## Validation Examples
 

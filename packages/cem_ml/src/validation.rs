@@ -39,6 +39,7 @@ pub mod xml;
 
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::parser::document::CemDocument;
+use crate::schema::document_model::SchemaBehaviorEvaluator;
 
 /// Stable identifier for a semantic rule, scoped to its owning schema /
 /// content type. Serialized form is `<scope>.<rule>` (e.g.
@@ -119,6 +120,7 @@ pub struct RuleContext<'a> {
     /// machine, AST builder). Rules may consult this list to skip
     /// downstream work when an upstream layer already failed.
     pub upstream_diagnostics: &'a [Diagnostic],
+    pub schema_behavior_evaluator: Option<&'a dyn SchemaBehaviorEvaluator>,
 }
 
 pub trait SemanticRule: Send + Sync {
@@ -237,6 +239,7 @@ pub fn run(input: &str) -> ValidationReport {
         source_uri: None,
         resource_reader: None,
         upstream_diagnostics: &document.diagnostics,
+        schema_behavior_evaluator: None,
     });
 
     let mut all = document.diagnostics;

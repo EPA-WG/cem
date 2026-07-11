@@ -54,7 +54,23 @@ pub const UNRESOLVED_BEHAVIOR_FUNCTION_CODE: &str =
     "cem.schema_definition.unresolved_behavior_function";
 pub const INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE: &str =
     "cem.schema_definition.invalid_diagnostic_behavior_contract";
+pub const SCHEMA_BEHAVIOR_QUERY_INVALID_CODE: &str = "cem.schema_behavior.query_invalid";
+pub const SCHEMA_BEHAVIOR_QUERY_FAILED_CODE: &str = "cem.schema_behavior.query_failed";
+pub const SCHEMA_BEHAVIOR_RESULT_INVALID_CODE: &str = "cem.schema_behavior.result_invalid";
+pub const SCHEMA_BEHAVIOR_FUNCTION_FAILED_CODE: &str = "cem.schema_behavior.function_failed";
 pub const FIELD_CONTRACT_DIAGNOSTIC_BEHAVIOR: &str = "schema:field-contract";
+
+pub trait SchemaBehaviorEvaluator: std::fmt::Debug + Send + Sync {
+    fn compile_model(&self, _model: &SchemaDocumentModel) -> Vec<Diagnostic> {
+        Vec::new()
+    }
+
+    fn validate_document(
+        &self,
+        document: &CemDocument,
+        model: &SchemaDocumentModel,
+    ) -> Vec<Diagnostic>;
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct SchemaDocumentModel {
@@ -112,6 +128,7 @@ pub struct DiagnosticBehavior {
     pub code: String,
     pub severity: Severity,
     pub behavior: String,
+    pub definition: Option<BehaviorDefinition>,
     pub engine_behavior: Option<EngineDiagnosticBehavior>,
     pub function: Option<String>,
     pub message: Option<String>,
@@ -131,6 +148,8 @@ pub struct BehaviorDefinition {
     pub execution: String,
     pub primitive: Option<String>,
     pub function: Option<String>,
+    pub select: Option<String>,
+    pub match_query: Option<String>,
     pub inputs: Vec<BehaviorInput>,
     pub parameters: Vec<BehaviorParameter>,
     pub result: Option<BehaviorResult>,
@@ -178,6 +197,7 @@ pub struct BehaviorFunctionDeclaration {
     pub name: String,
     pub returns: String,
     pub params: Vec<BehaviorFunctionParam>,
+    pub body_expression: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -279,6 +299,14 @@ pub fn validate_document_model(
     document: &CemDocument,
     model: &SchemaDocumentModel,
 ) -> Vec<Diagnostic> {
+    validate_document_model_with_behavior_evaluator(document, model, None)
+}
+
+pub fn validate_document_model_with_behavior_evaluator(
+    document: &CemDocument,
+    model: &SchemaDocumentModel,
+    behavior_evaluator: Option<&dyn SchemaBehaviorEvaluator>,
+) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     if model.is_empty() {
         return diagnostics;
@@ -290,14 +318,24 @@ pub fn validate_document_model(
     for child_id in root_children {
         validate_node(document, model, *child_id, false, &mut diagnostics);
     }
+    if let Some(behavior_evaluator) = behavior_evaluator {
+        diagnostics.extend(behavior_evaluator.compile_model(model));
+        diagnostics.extend(behavior_evaluator.validate_document(document, model));
+    }
     if model.schema_uri == CEM_SCHEMA_URI {
-        diagnostics.extend(compile_authored_schema_behaviors(document));
+        diagnostics.extend(compile_authored_schema_behaviors(
+            document,
+            behavior_evaluator,
+        ));
     }
 
     diagnostics
 }
 
-fn compile_authored_schema_behaviors(document: &CemDocument) -> Vec<Diagnostic> {
+fn compile_authored_schema_behaviors(
+    document: &CemDocument,
+    behavior_evaluator: Option<&dyn SchemaBehaviorEvaluator>,
+) -> Vec<Diagnostic> {
     let Some(schema_id) = first_element_id_by_local_name(document, "schema") else {
         return Vec::new();
     };
@@ -305,7 +343,12 @@ fn compile_authored_schema_behaviors(document: &CemDocument) -> Vec<Diagnostic> 
     let Some(schema_uri) = optional_non_empty_attr(&attrs, "namespace") else {
         return Vec::new();
     };
-    compile_document_model_from_document(schema_uri, document).compile_diagnostics
+    let model = compile_document_model_from_document(schema_uri, document);
+    let mut diagnostics = model.compile_diagnostics.clone();
+    if let Some(behavior_evaluator) = behavior_evaluator {
+        diagnostics.extend(behavior_evaluator.compile_model(&model));
+    }
+    diagnostics
 }
 
 fn validate_node(
@@ -690,6 +733,10 @@ fn validate_attribute_value(
     ));
 }
 
+pub fn compile_schema_document_model(schema_uri: &str, schema_source: &str) -> SchemaDocumentModel {
+    compile_document_model(schema_uri, schema_source)
+}
+
 fn compile_document_model(schema_uri: &str, schema_source: &str) -> SchemaDocumentModel {
     compile_document_model_with_seen(schema_uri, schema_source, &mut BTreeSet::new())
 }
@@ -912,6 +959,7 @@ fn collect_diagnostic_behaviors(
                     code: code.to_owned(),
                     severity,
                     behavior: behavior.to_owned(),
+                    definition: behavior_definition,
                     engine_behavior,
                     function,
                     message: optional_non_empty_attr(&attrs, "message").map(str::to_owned),
@@ -959,6 +1007,8 @@ fn collect_behavior_definitions(
                     execution: execution.to_owned(),
                     primitive: optional_non_empty_attr(&attrs, "primitive").map(str::to_owned),
                     function: optional_non_empty_attr(&attrs, "function").map(str::to_owned),
+                    select: optional_non_empty_attr(&attrs, "select").map(str::to_owned),
+                    match_query: optional_non_empty_attr(&attrs, "match").map(str::to_owned),
                     inputs: collect_behavior_inputs(document, *child_id),
                     parameters: collect_behavior_parameters(document, *child_id),
                     result: collect_behavior_result(document, *child_id),
@@ -1084,10 +1134,57 @@ fn collect_behavior_inline_functions(
                 name: name.to_owned(),
                 returns: returns.to_owned(),
                 params: collect_behavior_function_params(document, function_id),
+                body_expression: collect_behavior_function_body_expression(document, function_id),
             },
         );
     }
     functions
+}
+
+fn collect_behavior_function_body_expression(
+    document: &CemDocument,
+    function_id: AstNodeId,
+) -> Option<String> {
+    let mut expressions = Vec::new();
+    for body_id in element_child_ids_by_local_name(document, function_id, "body") {
+        collect_behavior_runtime_body_expressions(document, body_id, &mut expressions);
+    }
+    expressions.into_iter().next()
+}
+
+fn collect_behavior_runtime_body_expressions(
+    document: &CemDocument,
+    node_id: AstNodeId,
+    expressions: &mut Vec<String>,
+) {
+    let Some(node @ CemAstNode::Element { children, .. }) = document.get(node_id) else {
+        return;
+    };
+    if element_local_name(node) == Some("$") {
+        if let Some(expression) = expression_body(document, node_id) {
+            expressions.push(expression);
+        }
+        return;
+    }
+    for child in children {
+        collect_behavior_runtime_body_expressions(document, *child, expressions);
+    }
+}
+
+fn expression_body(document: &CemDocument, node_id: AstNodeId) -> Option<String> {
+    let Some(CemAstNode::Element { children, .. }) = document.get(node_id) else {
+        return None;
+    };
+    let mut body = String::new();
+    for child in children {
+        match document.get(*child) {
+            Some(CemAstNode::Text { data, .. }) | Some(CemAstNode::RawText { data, .. }) => {
+                body.push_str(data);
+            }
+            _ => {}
+        }
+    }
+    Some(body.trim().to_owned()).filter(|body| !body.is_empty())
 }
 
 fn collect_behavior_function_params(
@@ -1211,6 +1308,40 @@ fn compile_diagnostic_function_binding(
         return (None, None);
     }
 
+    if behavior_definition.select.is_none() {
+        diagnostics.push(schema_compile_diagnostic(
+            INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE,
+            format!(
+                "diagnostic `{code}` references function behavior `{behavior_reference}` without a declarative CEM-QL select expression"
+            ),
+            source_map,
+            serde_json::json!({
+                "schemaUri": schema_uri,
+                "diagnostic": code,
+                "behavior": behavior_reference,
+                "checkKind": "diagnostic-behavior-contract",
+            }),
+        ));
+        return (None, None);
+    }
+
+    if behavior_definition.match_query.is_none() {
+        diagnostics.push(schema_compile_diagnostic(
+            INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE,
+            format!(
+                "diagnostic `{code}` references function behavior `{behavior_reference}` without a declarative CEM-QL match expression"
+            ),
+            source_map,
+            serde_json::json!({
+                "schemaUri": schema_uri,
+                "diagnostic": code,
+                "behavior": behavior_reference,
+                "checkKind": "diagnostic-behavior-contract",
+            }),
+        ));
+        return (None, None);
+    }
+
     let Some(function) = behavior_definition.function.as_deref() else {
         diagnostics.push(schema_compile_diagnostic(
             INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE,
@@ -1296,6 +1427,24 @@ fn compile_diagnostic_function_binding(
                 "behavior": behavior_reference,
                 "function": function,
                 "returns": &function_declaration.returns,
+                "checkKind": "diagnostic-behavior-contract",
+            }),
+        ));
+        return (None, None);
+    }
+
+    if function_declaration.body_expression.is_none() {
+        diagnostics.push(schema_compile_diagnostic(
+            INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE,
+            format!(
+                "diagnostic `{code}` references behavior `{behavior_reference}` function `{function}` without an executable CEMT body expression"
+            ),
+            source_map,
+            serde_json::json!({
+                "schemaUri": schema_uri,
+                "diagnostic": code,
+                "behavior": behavior_reference,
+                "function": function,
                 "checkKind": "diagnostic-behavior-contract",
             }),
         ));
@@ -2693,7 +2842,9 @@ mod tests {
             @name="item-label"
             @implementation="function"
             @execution="ast-validation"
-            @function="item-label-result" |
+            @function="item-label-result"
+            @select="item"
+            @match="name = null" |
             {inputs |
                 {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true}
             }
@@ -2709,7 +2860,7 @@ mod tests {
             }
             {function @name="item-label-result" @returns="object" @deterministic=true |
                 {param @name="candidate" @type="object" @required=true}
-                {body}
+                {body | {$ { message: "Item label is required", details: { checkKind: "item-label" } } }}
             }
         }
     }
@@ -2734,7 +2885,16 @@ mod tests {
             .get("item-label")
             .expect("schema-declared function behavior");
         assert_eq!(behavior.function.as_deref(), Some("item-label-result"));
+        assert_eq!(behavior.select.as_deref(), Some("item"));
+        assert_eq!(behavior.match_query.as_deref(), Some("name = null"));
         assert!(behavior.inline_functions.contains_key("item-label-result"));
+        assert_eq!(
+            behavior
+                .inline_functions
+                .get("item-label-result")
+                .and_then(|function| function.body_expression.as_deref()),
+            Some(r#"{ message: "Item label is required", details: { checkKind: "item-label" } }"#)
+        );
         let diagnostic_behavior = model
             .diagnostic_behaviors
             .get("example.item_label")
@@ -2761,7 +2921,9 @@ mod tests {
             @name="item-label"
             @implementation="function"
             @execution="ast-validation"
-            @function="missing-result" |
+            @function="missing-result"
+            @select="item"
+            @match="true" |
             {result @type="schema:diagnostic-result" @source-range="candidate"}
         }
     }

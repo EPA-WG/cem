@@ -20,15 +20,18 @@ history belongs in git history and the feature-specific docs linked below.
       `schema:field-contract` generically. The bootstrap vocabulary now defines
       behavior primitives, function bindings, typed inputs, typed parameters,
       diagnostic result/detail shape, severity/message ownership, and
-      source-range propagation in `cem-schema.cem`; CEM-QL matches,
-      declarative function body execution, imports, and additional engine
-      algorithms remain.
+      source-range propagation in `cem-schema.cem`. Direct inline
+      function-backed diagnostics now select candidates with CEM-QL, match
+      failures with CEM-QL, and execute schema-declared CEMT function bodies
+      through the generic bridge; imported/qualified reusable functions,
+      behavior parameter binding, and additional engine algorithms remain.
   - [ ] Allow declarative behavior to select candidate nodes and match failure
         conditions with CEM-QL, then invoke a schema-declared CEM-native/CEMT
         function to calculate the result and structured diagnostic details.
-        Imports and references must resolve by schema URI and qualified name so
-        custom schema packages can reuse or extend shared behavior without
-        registering Rust code.
+        Direct inline behavior functions now execute for AST validation through
+        the CEM-QL/CEMT bridge. Imports and references must still resolve by
+        schema URI and qualified name so custom schema packages can reuse or
+        extend shared behavior without registering Rust code.
   - [ ] Publish a minimal useful library of CEM engine-provided algorithms that
         schema authors can consume through diagnostic `@code` behavior
         references. Cover the common algorithmic variations needed to create a
@@ -46,7 +49,10 @@ history belongs in git history and the feature-specific docs linked below.
         rejects unresolved diagnostic references and unknown engine behaviors,
         surfaces those compiler diagnostics during schema-document validation,
         and uses declared severity/message metadata for field-contract
-        diagnostics; generic CEM-QL/function dispatch remains.
+        diagnostics. Function behavior `@select`/`@match` expressions and
+        inline CEMT result functions now dispatch through the generic runtime
+        path; reusable imported functions and behavior parameter value binding
+        remain.
   - [ ] Add schema-package and CLI examples for every engine-provided algorithm
         and its meaningful parameter or matching variations. Include passing
         and failing fixtures, expected diagnostic codes, structured details,
