@@ -12,10 +12,10 @@
 //! - schema-owned diagnostic declarations resolved through declarative engine
 //!   behavior definitions, including severity and message metadata.
 //! - schema-owned attribute `@values`, boolean/integer type checks, and
-//!   integer `minInclusive` datatype-param checks.
+//!   integer `minInclusive`/`maxInclusive` datatype-param checks.
 //!
 //! Cardinality, ordering, scalar type checks beyond boolean/integer syntax,
-//! datatype params beyond `minInclusive`, and semantic constraints remain
+//! datatype params beyond integer bounds, and semantic constraints remain
 //! follow-up work.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -132,6 +132,7 @@ pub struct AttributeModel {
     pub value_type: Option<String>,
     pub allowed_values: BTreeSet<String>,
     pub min_inclusive: Option<String>,
+    pub max_inclusive: Option<String>,
     pub values_diagnostic: Option<String>,
     pub type_diagnostic: Option<String>,
     pub datatype_param_diagnostic: Option<String>,
@@ -726,9 +727,6 @@ fn validate_attribute_datatype_params(
     node: &CemAstNode,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(min_inclusive) = attribute_model.min_inclusive.as_deref() else {
-        return;
-    };
     let Some(value_type) = attribute_model.value_type.as_deref() else {
         return;
     };
@@ -736,10 +734,58 @@ fn validate_attribute_datatype_params(
         return;
     }
     let value = value.trim();
-    if decimal_integer_cmp(value, min_inclusive) != Some(std::cmp::Ordering::Less) {
-        return;
+    if let Some(min_inclusive) = attribute_model.min_inclusive.as_deref() {
+        if decimal_integer_cmp(value, min_inclusive) == Some(std::cmp::Ordering::Less) {
+            emit_attribute_datatype_param_diagnostic(
+                schema_uri,
+                diagnostic_behaviors,
+                element_name,
+                attribute_name,
+                value,
+                attribute_model,
+                "minInclusive",
+                min_inclusive,
+                "below",
+                attribute_values,
+                node,
+                diagnostics,
+            );
+        }
     }
+    if let Some(max_inclusive) = attribute_model.max_inclusive.as_deref() {
+        if decimal_integer_cmp(value, max_inclusive) == Some(std::cmp::Ordering::Greater) {
+            emit_attribute_datatype_param_diagnostic(
+                schema_uri,
+                diagnostic_behaviors,
+                element_name,
+                attribute_name,
+                value,
+                attribute_model,
+                "maxInclusive",
+                max_inclusive,
+                "above",
+                attribute_values,
+                node,
+                diagnostics,
+            );
+        }
+    }
+}
 
+fn emit_attribute_datatype_param_diagnostic(
+    schema_uri: &str,
+    diagnostic_behaviors: &BTreeMap<String, DiagnosticBehavior>,
+    element_name: &str,
+    attribute_name: &str,
+    value: &str,
+    attribute_model: &AttributeModel,
+    param_name: &str,
+    param_value: &str,
+    relation: &str,
+    attribute_values: &BTreeMap<String, String>,
+    node: &CemAstNode,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     let diagnostic_behavior = engine_diagnostic_behavior(
         diagnostic_behaviors,
         attribute_model.datatype_param_diagnostic.as_deref(),
@@ -749,7 +795,7 @@ fn validate_attribute_datatype_params(
         .map(|behavior| behavior.code.as_str())
         .unwrap_or(INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE);
     let generated_message = format!(
-        "attribute `{attribute_name}` on element `{element_name}` has value `{value}` below minInclusive `{min_inclusive}`"
+        "attribute `{attribute_name}` on element `{element_name}` has value `{value}` {relation} {param_name} `{param_value}`"
     );
     diagnostics.push(diag_at_with_details_and_severity(
         code,
@@ -764,8 +810,8 @@ fn validate_attribute_datatype_params(
             attribute_name,
             value,
             attribute_model,
-            "minInclusive",
-            min_inclusive,
+            param_name,
+            param_value,
             code,
             diagnostic_behavior
                 .map(|behavior| behavior.behavior.as_str())
@@ -1072,6 +1118,8 @@ fn collect_attribute_models(
                     value_type: optional_non_empty_attr(&attrs, "type").map(str::to_owned),
                     allowed_values: parse_value_set(attrs.get("values")),
                     min_inclusive: optional_non_empty_attr(&attrs, "minInclusive")
+                        .map(str::to_owned),
+                    max_inclusive: optional_non_empty_attr(&attrs, "maxInclusive")
                         .map(str::to_owned),
                     values_diagnostic: optional_non_empty_attr(&attrs, "values-diagnostic")
                         .map(str::to_owned),
@@ -2804,7 +2852,7 @@ fn attribute_datatype_param_details(
     node: &CemAstNode,
 ) -> serde_json::Value {
     let expected_type = attribute_model.value_type.as_deref().unwrap_or_default();
-    serde_json::json!({
+    let mut details = serde_json::json!({
         "schemaUri": schema_uri,
         "element": element_name,
         "attribute": attribute_name,
@@ -2819,7 +2867,6 @@ fn attribute_datatype_param_details(
         "valueType": expected_type,
         "expectedType": expected_type,
         "expectedPattern": "signed decimal integer",
-        "minInclusive": param_value,
         "actualValue": actual_value,
         "requiredFields": [],
         "optionalFields": [],
@@ -2828,7 +2875,11 @@ fn attribute_datatype_param_details(
         "invalidFields": [attribute_name],
         "actualValues": attribute_values,
         "sourceRange": node_source_range_details(node),
-    })
+    });
+    if let Some(object) = details.as_object_mut() {
+        object.insert(param_name.to_owned(), serde_json::json!(param_value));
+    }
+    details
 }
 
 fn collect_schema_uses(document: &CemDocument, schema_id: AstNodeId) -> BTreeMap<String, String> {
@@ -3255,6 +3306,15 @@ mod tests {
         assert!(schema.required_attributes.contains("version"));
         assert!(schema.child_elements.contains("elements"));
         assert!(model.element("attribute").is_some());
+        assert_eq!(
+            model
+                .attributes
+                .get("maxInclusive")
+                .expect("maxInclusive attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:integer")
+        );
         let field_contract_behavior = model
             .behaviors
             .get("field-contract")
@@ -4796,7 +4856,7 @@ mod tests {
         {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
     }
     {elements |
-        {element @name="item" @optional-attributes="mode enabled count"}
+        {element @name="item" @optional-attributes="mode enabled count score"}
     }
     {attributes |
         {attribute
@@ -4815,6 +4875,12 @@ mod tests {
             @type="schema:integer"
             @minInclusive=1
             @datatype-param-diagnostic="example.count_min"
+        }
+        {attribute
+            @name="score"
+            @type="schema:integer"
+            @maxInclusive=10
+            @datatype-param-diagnostic="example.score_max"
         }
     }
     {diagnostics |
@@ -4836,6 +4902,12 @@ mod tests {
             @behavior="schema:datatype-param"
             @message="Count must satisfy its datatype parameters"
         }
+        {diagnostic
+            @code="example.score_max"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Score must satisfy its datatype parameters"
+        }
     }
 }"#,
         );
@@ -4853,7 +4925,8 @@ mod tests {
             Some(Some(EngineDiagnosticBehavior::ValueVocabulary))
         );
 
-        let document = parse_cem_document(r#"{item @mode=tabular @enabled=maybe @count=0}"#);
+        let document =
+            parse_cem_document(r#"{item @mode=tabular @enabled=maybe @count=0 @score=11}"#);
         let diagnostics = validate_document_model(&document, &model);
 
         let value = diagnostics
@@ -4929,6 +5002,34 @@ mod tests {
         assert_eq!(details["datatypeParam"], serde_json::json!("minInclusive"));
         assert_eq!(details["minInclusive"], serde_json::json!("1"));
         assert_eq!(details["actualValue"], serde_json::json!("0"));
+
+        let datatype_param = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.score_max")
+            .expect("maxInclusive datatype-param alias diagnostic");
+        assert_eq!(datatype_param.severity, Severity::Error);
+        assert!(datatype_param
+            .message
+            .starts_with("Score must satisfy its datatype parameters:"));
+        let details = datatype_param
+            .details
+            .as_ref()
+            .expect("maxInclusive datatype-param alias details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:datatype-param")
+        );
+        assert_eq!(
+            details["diagnostic"],
+            serde_json::json!("example.score_max")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:maxInclusive")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("maxInclusive"));
+        assert_eq!(details["maxInclusive"], serde_json::json!("10"));
+        assert_eq!(details["actualValue"], serde_json::json!("11"));
     }
 
     #[test]
@@ -5156,7 +5257,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_min_inclusive_datatype_param_drives_validation_from_cem_source() {
+    fn schema_integer_bound_datatype_params_drive_validation_from_cem_source() {
         let model = compile_document_model(
             "https://example.test/ns/datatype-param-contracts/1",
             r#"@doc cem-ml 1
@@ -5168,14 +5269,15 @@ mod tests {
         {element @name="item" @optional-attributes="count"}
     }
     {attributes |
-        {attribute @name="count" @type="schema:integer" @minInclusive=1}
+        {attribute @name="count" @type="schema:integer" @minInclusive=1 @maxInclusive=10}
     }
 }"#,
         );
         for source in [
             r#"{item @count=1}"#,
             r#"{item @count=+1}"#,
-            r#"{item @count=120000000000000000000000000000}"#,
+            r#"{item @count=10}"#,
+            r#"{item @count=00010}"#,
         ] {
             let document = parse_cem_document(source);
             let diagnostics = validate_document_model(&document, &model);
@@ -5187,7 +5289,12 @@ mod tests {
             );
         }
 
-        for source in [r#"{item @count=0}"#, r#"{item @count=-12}"#] {
+        for source in [
+            r#"{item @count=0}"#,
+            r#"{item @count=-12}"#,
+            r#"{item @count=11}"#,
+            r#"{item @count=120000000000000000000000000000}"#,
+        ] {
             let document = parse_cem_document(source);
             let diagnostics = validate_document_model(&document, &model);
             assert!(
@@ -5230,6 +5337,29 @@ mod tests {
         assert_eq!(details["invalidFields"], serde_json::json!(["count"]));
         assert_eq!(details["actualValues"]["count"], serde_json::json!("0"));
         assert!(details["sourceRange"]["span"]["start"].is_u64());
+
+        let document = parse_cem_document(r#"{item @count=11}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("maxInclusive attribute datatype param diagnostic");
+        assert!(diagnostic.message.contains("maxInclusive"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("maxInclusive attribute datatype param details");
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:count:maxInclusive")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:maxInclusive")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("maxInclusive"));
+        assert_eq!(details["maxInclusive"], serde_json::json!("10"));
+        assert_eq!(details["actualValue"], serde_json::json!("11"));
     }
 
     #[test]

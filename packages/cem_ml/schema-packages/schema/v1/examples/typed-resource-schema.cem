@@ -22,12 +22,19 @@
     }
 
     {elements |
-        {element @name="resource" @required-attributes="id kind" @optional-attributes="label" @children="field*"}
+        {element @name="resource" @required-attributes="id kind" @optional-attributes="label priority" @children="field*"}
         {element @name="field" @required-attributes="name type"}
     }
 
     {attributes |
         {attribute @name="id" @type="cemml:identifier"}
+        {attribute
+            @name="priority"
+            @type="schema:integer"
+            @minInclusive=1
+            @maxInclusive=10
+            @datatype-param-diagnostic="example.resource.invalid_priority"
+        }
         {attribute
             @name="kind"
             @type="schema:identifier"
@@ -64,6 +71,12 @@
             @severity="error"
             @behavior="schema:value-vocabulary"
             @message="Resource kind must use the declared vocabulary"
+        }
+        {diagnostic
+            @code="example.resource.invalid_priority"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource priority must stay within the declared bounds"
         }
     }
 
