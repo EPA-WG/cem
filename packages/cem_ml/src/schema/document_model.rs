@@ -62,6 +62,9 @@ pub const FIELD_CONTRACT_DIAGNOSTIC_BEHAVIOR: &str = "schema:field-contract";
 pub const VALUE_VOCABULARY_DIAGNOSTIC_BEHAVIOR: &str = "schema:value-vocabulary";
 pub const SCALAR_TYPE_DIAGNOSTIC_BEHAVIOR: &str = "schema:scalar-type";
 pub const DATATYPE_PARAM_DIAGNOSTIC_BEHAVIOR: &str = "schema:datatype-param";
+pub const RESOURCE_READABLE_DIAGNOSTIC_BEHAVIOR: &str = "schema:resource-readable";
+pub const RESOURCE_PARSE_DIAGNOSTIC_BEHAVIOR: &str = "schema:resource-parse";
+pub const REFERENCE_RESOLUTION_DIAGNOSTIC_BEHAVIOR: &str = "schema:reference-resolution";
 
 pub trait SchemaBehaviorEvaluator: std::fmt::Debug + Send + Sync {
     fn compile_model(&self, _model: &SchemaDocumentModel) -> Vec<Diagnostic> {
@@ -81,6 +84,7 @@ pub struct SchemaDocumentModel {
     pub elements: BTreeMap<String, ElementModel>,
     pub attributes: BTreeMap<String, AttributeModel>,
     pub behaviors: BTreeMap<String, BehaviorDefinition>,
+    pub constraints: BTreeMap<String, ConstraintDefinition>,
     pub diagnostic_behaviors: BTreeMap<String, DiagnosticBehavior>,
     pub compile_diagnostics: Vec<Diagnostic>,
 }
@@ -92,6 +96,10 @@ impl SchemaDocumentModel {
 
     pub fn element(&self, name: &str) -> Option<&ElementModel> {
         self.elements.get(name)
+    }
+
+    pub fn constraint(&self, kind: &str) -> Option<&ConstraintDefinition> {
+        self.constraints.get(kind)
     }
 }
 
@@ -150,6 +158,9 @@ pub enum EngineDiagnosticBehavior {
     ValueVocabulary,
     ScalarType,
     DatatypeParam,
+    ResourceReadable,
+    ResourceParse,
+    ReferenceResolution,
 }
 
 impl EngineDiagnosticBehavior {
@@ -159,8 +170,25 @@ impl EngineDiagnosticBehavior {
             Self::ValueVocabulary => VALUE_VOCABULARY_DIAGNOSTIC_BEHAVIOR,
             Self::ScalarType => SCALAR_TYPE_DIAGNOSTIC_BEHAVIOR,
             Self::DatatypeParam => DATATYPE_PARAM_DIAGNOSTIC_BEHAVIOR,
+            Self::ResourceReadable => RESOURCE_READABLE_DIAGNOSTIC_BEHAVIOR,
+            Self::ResourceParse => RESOURCE_PARSE_DIAGNOSTIC_BEHAVIOR,
+            Self::ReferenceResolution => REFERENCE_RESOLUTION_DIAGNOSTIC_BEHAVIOR,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConstraintDefinition {
+    pub schema_uri: String,
+    pub kind: String,
+    pub target: Option<String>,
+    pub value: Option<String>,
+    pub policy: Option<String>,
+    pub diagnostic: Option<String>,
+    pub behavior: Option<String>,
+    pub definition: Option<BehaviorDefinition>,
+    pub engine_behavior: Option<EngineDiagnosticBehavior>,
+    pub source_map: SourceMapStack,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -913,6 +941,8 @@ fn compile_document_model_from_document_with_seen(
     model
         .compile_diagnostics
         .extend(diagnostic_compile_diagnostics);
+    model.constraints =
+        collect_constraint_definitions(document, schema_id, schema_uri, &uses, &model.behaviors);
 
     for contract in collect_field_contracts(document, schema_id) {
         if let Some(code) = contract.diagnostic.as_deref() {
@@ -966,6 +996,12 @@ fn compile_document_model_from_document_with_seen(
             &mut model.compile_diagnostics,
         );
     }
+    validate_constraint_definitions(
+        schema_uri,
+        &model.constraints,
+        &model.diagnostic_behaviors,
+        &mut model.compile_diagnostics,
+    );
 
     seen_schema_uris.remove(schema_uri);
     model
@@ -977,6 +1013,7 @@ fn empty_document_model(schema_uri: &str) -> SchemaDocumentModel {
         elements: BTreeMap::new(),
         attributes: BTreeMap::new(),
         behaviors: BTreeMap::new(),
+        constraints: BTreeMap::new(),
         diagnostic_behaviors: BTreeMap::new(),
         compile_diagnostics: Vec::new(),
     }
@@ -1114,6 +1151,117 @@ fn validate_attribute_diagnostic_reference(
                 "checkKind": "diagnostic-behavior-contract",
             }),
         ));
+    }
+}
+
+fn collect_constraint_definitions(
+    document: &CemDocument,
+    schema_id: AstNodeId,
+    schema_uri: &str,
+    uses: &BTreeMap<String, String>,
+    local_behaviors: &BTreeMap<String, BehaviorDefinition>,
+) -> BTreeMap<String, ConstraintDefinition> {
+    let mut constraints = BTreeMap::new();
+    for constraints_id in element_child_ids_by_local_name(document, schema_id, "constraints") {
+        let Some(CemAstNode::Element { children, .. }) = document.get(constraints_id) else {
+            continue;
+        };
+        for child_id in children {
+            let Some(child) = document.get(*child_id) else {
+                continue;
+            };
+            if element_local_name(child) != Some("constraint") {
+                continue;
+            }
+            let attrs = collect_attrs(document, *child_id);
+            let Some(kind) = optional_non_empty_attr(&attrs, "kind") else {
+                continue;
+            };
+            let behavior = optional_non_empty_attr(&attrs, "behavior").map(str::to_owned);
+            let definition = behavior.as_deref().and_then(|behavior| {
+                resolve_behavior_definition(behavior, schema_uri, uses, local_behaviors)
+            });
+            let engine_behavior = definition.as_ref().and_then(supported_engine_behavior);
+            constraints.insert(
+                kind.to_owned(),
+                ConstraintDefinition {
+                    schema_uri: schema_uri.to_owned(),
+                    kind: kind.to_owned(),
+                    target: optional_non_empty_attr(&attrs, "target").map(str::to_owned),
+                    value: optional_non_empty_attr(&attrs, "value").map(str::to_owned),
+                    policy: optional_non_empty_attr(&attrs, "policy").map(str::to_owned),
+                    diagnostic: optional_non_empty_attr(&attrs, "diagnostic").map(str::to_owned),
+                    behavior,
+                    definition,
+                    engine_behavior,
+                    source_map: source_stack_for_node(child).clone(),
+                },
+            );
+        }
+    }
+    constraints
+}
+
+fn validate_constraint_definitions(
+    schema_uri: &str,
+    constraints: &BTreeMap<String, ConstraintDefinition>,
+    diagnostic_behaviors: &BTreeMap<String, DiagnosticBehavior>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for constraint in constraints.values() {
+        if let Some(code) = constraint.diagnostic.as_deref() {
+            if !diagnostic_behaviors.contains_key(code) {
+                diagnostics.push(schema_compile_diagnostic(
+                    UNRESOLVED_DIAGNOSTIC_REFERENCE_CODE,
+                    format!(
+                        "constraint `{}` references diagnostic behavior `{code}` that is not declared by schema `{schema_uri}`",
+                        constraint.kind
+                    ),
+                    &constraint.source_map,
+                    serde_json::json!({
+                        "schemaUri": schema_uri,
+                        "constraint": &constraint.kind,
+                        "diagnostic": code,
+                        "checkKind": "diagnostic-reference-resolution",
+                    }),
+                ));
+            }
+        } else if constraint.behavior.is_some() {
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE,
+                format!(
+                    "constraint `{}` declares a behavior but does not declare the diagnostic code that receives the result",
+                    constraint.kind
+                ),
+                &constraint.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "constraint": &constraint.kind,
+                    "behavior": &constraint.behavior,
+                    "checkKind": "constraint-behavior-contract",
+                }),
+            ));
+        }
+
+        let Some(behavior) = constraint.behavior.as_deref() else {
+            continue;
+        };
+        if constraint.definition.is_none() || constraint.engine_behavior.is_none() {
+            diagnostics.push(schema_compile_diagnostic(
+                UNKNOWN_DIAGNOSTIC_BEHAVIOR_CODE,
+                format!(
+                    "constraint `{}` references unsupported engine behavior `{behavior}`",
+                    constraint.kind
+                ),
+                &constraint.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "constraint": &constraint.kind,
+                    "behavior": behavior,
+                    "checkKind": "constraint-behavior-resolution",
+                }),
+            ));
+        }
     }
 }
 
@@ -2166,6 +2314,11 @@ fn supported_engine_behavior(behavior: &BehaviorDefinition) -> Option<EngineDiag
         VALUE_VOCABULARY_DIAGNOSTIC_BEHAVIOR => Some(EngineDiagnosticBehavior::ValueVocabulary),
         SCALAR_TYPE_DIAGNOSTIC_BEHAVIOR => Some(EngineDiagnosticBehavior::ScalarType),
         DATATYPE_PARAM_DIAGNOSTIC_BEHAVIOR => Some(EngineDiagnosticBehavior::DatatypeParam),
+        RESOURCE_READABLE_DIAGNOSTIC_BEHAVIOR => Some(EngineDiagnosticBehavior::ResourceReadable),
+        RESOURCE_PARSE_DIAGNOSTIC_BEHAVIOR => Some(EngineDiagnosticBehavior::ResourceParse),
+        REFERENCE_RESOLUTION_DIAGNOSTIC_BEHAVIOR => {
+            Some(EngineDiagnosticBehavior::ReferenceResolution)
+        }
         _ => None,
     }
 }
@@ -3052,6 +3205,21 @@ mod tests {
                 DATATYPE_PARAM_DIAGNOSTIC_BEHAVIOR,
                 EngineDiagnosticBehavior::DatatypeParam,
             ),
+            (
+                "resource-readable",
+                RESOURCE_READABLE_DIAGNOSTIC_BEHAVIOR,
+                EngineDiagnosticBehavior::ResourceReadable,
+            ),
+            (
+                "resource-parse",
+                RESOURCE_PARSE_DIAGNOSTIC_BEHAVIOR,
+                EngineDiagnosticBehavior::ResourceParse,
+            ),
+            (
+                "reference-resolution",
+                REFERENCE_RESOLUTION_DIAGNOSTIC_BEHAVIOR,
+                EngineDiagnosticBehavior::ReferenceResolution,
+            ),
         ] {
             let behavior = model
                 .behaviors
@@ -3061,12 +3229,13 @@ mod tests {
             assert_eq!(behavior.execution, "ast-validation");
             assert_eq!(behavior.primitive.as_deref(), Some(primitive));
             assert_eq!(supported_engine_behavior(behavior), Some(engine_behavior));
-            assert!(behavior
-                .parameters
-                .iter()
-                .any(|parameter| parameter.name == "attribute"
-                    && parameter.value_type == "schema:attribute"
-                    && parameter.required));
+            assert!(behavior.parameters.iter().any(|parameter| {
+                parameter.required
+                    && ((parameter.name == "attribute"
+                        && parameter.value_type == "schema:attribute")
+                        || (parameter.name == "constraint"
+                            && parameter.value_type == "schema:constraint"))
+            }));
             assert!(behavior.result.is_some());
         }
     }
@@ -3127,6 +3296,110 @@ mod tests {
                 .min_inclusive
                 .as_deref(),
             Some("1")
+        );
+        let artifact_source_readable = model
+            .constraint("artifact-source-readable")
+            .expect("artifact source readability constraint");
+        assert_eq!(
+            artifact_source_readable.diagnostic.as_deref(),
+            Some("cem.schema_package.artifact_check")
+        );
+        assert_eq!(
+            artifact_source_readable.behavior.as_deref(),
+            Some("schema:resource-readable")
+        );
+        assert_eq!(
+            artifact_source_readable.engine_behavior,
+            Some(EngineDiagnosticBehavior::ResourceReadable)
+        );
+        let artifact_cemt_valid = model
+            .constraint("artifact-cemt-valid")
+            .expect("artifact CEMT validity constraint");
+        assert_eq!(
+            artifact_cemt_valid.engine_behavior,
+            Some(EngineDiagnosticBehavior::ResourceParse)
+        );
+        let example_content_type_schema = model
+            .constraint("example-content-type-schema")
+            .expect("example content type/schema constraint");
+        assert_eq!(
+            example_content_type_schema.engine_behavior,
+            Some(EngineDiagnosticBehavior::ReferenceResolution)
+        );
+    }
+
+    #[test]
+    fn schema_constraint_behavior_binding_compiles_independently_from_diagnostic_family() {
+        let model = compile_document_model(
+            "https://example.test/ns/constraint-behavior/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="constraint-behavior" @namespace="https://example.test/ns/constraint-behavior/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="artifact" @optional-attributes="path"}
+    }
+    {attributes |
+        {attribute @name="path" @type="schema:path"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="artifact-path"
+            @target="artifact"
+            @required-attributes="path"
+            @diagnostic="example.artifact_check"
+            @check-kind="required-fields"
+        }
+    }
+    {constraints |
+        {constraint
+            @kind="artifact-source-readable"
+            @target="artifact"
+            @diagnostic="example.artifact_check"
+            @behavior="schema:resource-readable"
+            @policy="artifact source must be readable"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.artifact_check"
+            @severity="error"
+            @behavior="schema:field-contract"
+        }
+    }
+}"#,
+        );
+
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "constraint behavior binding must compile: {:#?}",
+            model.compile_diagnostics
+        );
+        let constraint = model
+            .constraint("artifact-source-readable")
+            .expect("compiled constraint behavior");
+        assert_eq!(
+            constraint.diagnostic.as_deref(),
+            Some("example.artifact_check")
+        );
+        assert_eq!(
+            constraint.behavior.as_deref(),
+            Some("schema:resource-readable")
+        );
+        assert_eq!(
+            constraint.engine_behavior,
+            Some(EngineDiagnosticBehavior::ResourceReadable)
+        );
+        assert_eq!(
+            model
+                .diagnostic_behaviors
+                .get("example.artifact_check")
+                .map(|behavior| behavior.engine_behavior),
+            Some(Some(EngineDiagnosticBehavior::FieldContract))
         );
     }
 

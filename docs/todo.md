@@ -33,6 +33,9 @@ history belongs in git history and the feature-specific docs linked below.
       fields, forbidden fields, dependent-required fields, mutual exclusions,
       child occurrence, and path layout; attribute-owned aliases now exist for
       value vocabularies, scalar type syntax, and datatype parameters.
+      Constraint-level bindings now exist for resource readability,
+      resource parse/validation, and reference resolution while preserving
+      stable diagnostic family codes.
       Additional engine algorithms remain.
   - [ ] Allow declarative behavior to select candidate nodes and match failure
         conditions with CEM-QL, then invoke a schema-declared CEM-ML behavior
@@ -57,8 +60,10 @@ history belongs in git history and the feature-specific docs linked below.
         `schema:mutual-exclusion`, `schema:child-occurrence`, and
         `schema:path-layout`, plus attribute-owned aliases for
         `schema:value-vocabulary`, `schema:scalar-type`, and
-        `schema:datatype-param`; reference-resolution, source/resource, and
-        broader choice/case primitives remain.
+        `schema:datatype-param`, plus constraint-owned bindings for
+        `schema:resource-readable`, `schema:resource-parse`, and
+        `schema:reference-resolution`; broader dependency and choice/case
+        primitives remain.
   - [ ] Compile behavior declarations and references into the generic schema
         model, reject missing or incompatible behavior references, and dispatch
         them through a single runtime evaluation path. The resolved behavior
@@ -82,11 +87,14 @@ history belongs in git history and the feature-specific docs linked below.
         behavior library available to schema authors. The typed-resource schema
         example now covers the initial `schema:required-fields` behavior alias
         on a conditional field contract and `schema:value-vocabulary` on an
-        attribute declaration, and the native tests cover warning severity,
+        attribute declaration; schema-package examples cover constraint-level
+        `schema:resource-readable`, `schema:resource-parse`, and
+        `schema:reference-resolution` bindings through operational artifact
+        and example diagnostics. The native tests cover warning severity,
         message text, structured details, source ranges, unresolved codes,
-        field-contract behavior aliases, attribute behavior aliases, and
-        unknown behaviors; the CLI example set also includes a schema that
-        fails an unknown behavior
+        field-contract behavior aliases, attribute behavior aliases,
+        constraint behavior aliases, and unknown behaviors; the CLI example
+        set also includes a schema that fails an unknown behavior
         reference. The complete algorithm matrix remains.
   - [ ] Add a custom-schema example that defines a new algorithm using only
         CEM-ML, CEM-QL, and a declarative function, then prove that changing the

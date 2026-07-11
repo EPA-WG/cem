@@ -56,7 +56,7 @@
         {element @name="field-contracts" @children="field-contract"}
         {element @name="field-contract" @required-attributes="name target" @optional-attributes="diagnostic check-kind required-attributes optional-attributes forbidden-attributes forbidden-attribute-values required-children max-one-children path-layout-attributes path-layout-prefix path-layout-extension when-attribute when-values when-present-attributes"}
         {element @name="constraints" @children="constraint"}
-        {element @name="constraint" @required-attributes="kind" @optional-attributes="target value policy"}
+        {element @name="constraint" @required-attributes="kind" @optional-attributes="target value policy diagnostic behavior"}
         {element @name="diagnostics" @children="diagnostic"}
         {element @name="diagnostic" @required-attributes="code severity" @optional-attributes="behavior message" @children="arguments"}
         {element @name="arguments" @children="argument"}
@@ -146,6 +146,7 @@
         {type @name="path" @base="cemml:path"}
         {type @name="node" @base="cemml:element"}
         {type @name="attribute" @base="cemml:attribute"}
+        {type @name="constraint" @base="schema:object"}
         {type @name="object" @base="cemml:string"}
         {type @name="array" @base="cemml:string"}
         {type @name="json" @base="cemml:string"}
@@ -443,6 +444,90 @@
                 {detail @name="datatypeParam" @type="schema:identifier" @required=true}
                 {detail @name="paramValue" @type="schema:string" @required=true}
                 {detail @name="actualValue" @type="schema:string" @required=true}
+                {detail @name="sourceRange" @type="schema:object" @source="candidate"}
+            }
+        }
+        {behavior
+            @name="resource-readable"
+            @implementation="engine"
+            @execution="ast-validation"
+            @primitive="schema:resource-readable" |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+                {input-binding @name="diagnostic" @type="schema:diagnostic" @source="diagnostic" @required=true}
+            }
+            {parameters |
+                {parameter @name="constraint" @type="schema:constraint" @required=true}
+            }
+            {result
+                @type="schema:diagnostic-result"
+                @severity="error"
+                @message="diagnostic"
+                @source-range="candidate" |
+                {detail @name="schemaUri" @type="schema:uri" @required=true}
+                {detail @name="element" @type="schema:identifier" @required=true}
+                {detail @name="constraint" @type="schema:identifier" @required=true}
+                {detail @name="diagnostic" @type="schema:diagnostic-code" @required=true}
+                {detail @name="behavior" @type="schema:behavior-reference" @required=true}
+                {detail @name="checkKind" @type="schema:identifier" @required=true}
+                {detail @name="path" @type="schema:path" @required=true}
+                {detail @name="error" @type="schema:string"}
+                {detail @name="sourceRange" @type="schema:object" @source="candidate"}
+            }
+        }
+        {behavior
+            @name="resource-parse"
+            @implementation="engine"
+            @execution="ast-validation"
+            @primitive="schema:resource-parse" |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+                {input-binding @name="diagnostic" @type="schema:diagnostic" @source="diagnostic" @required=true}
+            }
+            {parameters |
+                {parameter @name="constraint" @type="schema:constraint" @required=true}
+            }
+            {result
+                @type="schema:diagnostic-result"
+                @severity="error"
+                @message="diagnostic"
+                @source-range="candidate" |
+                {detail @name="schemaUri" @type="schema:uri" @required=true}
+                {detail @name="element" @type="schema:identifier" @required=true}
+                {detail @name="constraint" @type="schema:identifier" @required=true}
+                {detail @name="diagnostic" @type="schema:diagnostic-code" @required=true}
+                {detail @name="behavior" @type="schema:behavior-reference" @required=true}
+                {detail @name="checkKind" @type="schema:identifier" @required=true}
+                {detail @name="path" @type="schema:path"}
+                {detail @name="sourceDiagnostic" @type="schema:object"}
+                {detail @name="sourceRange" @type="schema:object" @source="candidate"}
+            }
+        }
+        {behavior
+            @name="reference-resolution"
+            @implementation="engine"
+            @execution="ast-validation"
+            @primitive="schema:reference-resolution" |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+                {input-binding @name="diagnostic" @type="schema:diagnostic" @source="diagnostic" @required=true}
+            }
+            {parameters |
+                {parameter @name="constraint" @type="schema:constraint" @required=true}
+            }
+            {result
+                @type="schema:diagnostic-result"
+                @severity="error"
+                @message="diagnostic"
+                @source-range="candidate" |
+                {detail @name="schemaUri" @type="schema:uri" @required=true}
+                {detail @name="element" @type="schema:identifier" @required=true}
+                {detail @name="constraint" @type="schema:identifier" @required=true}
+                {detail @name="diagnostic" @type="schema:diagnostic-code" @required=true}
+                {detail @name="behavior" @type="schema:behavior-reference" @required=true}
+                {detail @name="checkKind" @type="schema:identifier" @required=true}
+                {detail @name="expectedValues" @type="schema:object"}
+                {detail @name="invalidValues" @type="schema:object"}
                 {detail @name="sourceRange" @type="schema:object" @source="candidate"}
             }
         }

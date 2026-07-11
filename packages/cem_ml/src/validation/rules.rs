@@ -58,6 +58,7 @@ use crate::validation::{
 };
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 #[allow(dead_code)]
 pub(crate) const SCHEMA_PACKAGE_CONVERTER_CONSTRAINT_DIAGNOSTICS: &[(&str, &str)] = &[
@@ -71,13 +72,54 @@ pub(crate) const SCHEMA_PACKAGE_CONVERTER_CONSTRAINT_DIAGNOSTICS: &[(&str, &str)
     ),
     (
         "cem.schema_package.converter_check",
+        "converter-template-source-readable",
+    ),
+    (
+        "cem.schema_package.converter_check",
+        "converter-template-contract",
+    ),
+    (
+        "cem.schema_package.converter_check",
         "converter-endpoint-schema-content-type-match",
+    ),
+    (
+        "cem.schema_package.converter_check",
+        "endpoint-content-type-schema",
     ),
     (
         "cem.schema_package.artifact_check",
         "artifact-output-stage-contract",
     ),
+    (
+        "cem.schema_package.artifact_check",
+        "artifact-source-readable",
+    ),
+    ("cem.schema_package.artifact_check", "artifact-cemt-valid"),
+    (
+        "cem.schema_package.artifact_check",
+        "artifact-function-declared",
+    ),
+    (
+        "cem.schema_package.artifact_check",
+        "artifact-function-contract",
+    ),
     ("cem.schema_package.example_check", "example-contract"),
+    (
+        "cem.schema_package.example_check",
+        "example-content-type-schema",
+    ),
+    (
+        "cem.schema_package.example_check",
+        "example-source-readable",
+    ),
+    (
+        "cem.schema_package.example_check",
+        "example-source-validation",
+    ),
+    (
+        "cem.schema_package.example_check",
+        "example-expected-diagnostics",
+    ),
 ];
 
 fn diag_at(code: &str, severity: Severity, message: String, node: &CemAstNode) -> Diagnostic {
@@ -162,6 +204,35 @@ fn frame_span_details(span: &FrameSpan) -> serde_json::Value {
                 .collect::<Vec<_>>(),
         }),
     }
+}
+
+fn schema_package_constraint_behavior_value(check_kind: &str) -> serde_json::Value {
+    schema_package_constraint_behavior(check_kind)
+        .map(serde_json::Value::String)
+        .unwrap_or(serde_json::Value::Null)
+}
+
+fn schema_package_constraint_behavior(check_kind: &str) -> Option<String> {
+    static CONSTRAINT_BEHAVIORS: OnceLock<BTreeMap<String, String>> = OnceLock::new();
+    CONSTRAINT_BEHAVIORS
+        .get_or_init(|| {
+            load_builtin_document_model_for_identity(Some(CEM_SCHEMA_PACKAGE_URI), None)
+                .map(|model| {
+                    model
+                        .constraints
+                        .into_iter()
+                        .filter_map(|(kind, constraint)| {
+                            constraint
+                                .behavior
+                                .filter(|_| constraint.engine_behavior.is_some())
+                                .map(|behavior| (kind, behavior))
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
+        })
+        .get(check_kind)
+        .cloned()
 }
 
 fn element_attributes<'a>(
@@ -1525,6 +1596,7 @@ fn schema_package_converter_template_source_read_failed_diag(
             "contract": "converter-template-output-stage-contract",
             "target": "converter",
             "diagnostic": "cem.schema_package.converter_check",
+            "behavior": schema_package_constraint_behavior_value("converter-template-source-readable"),
             "checkKind": "converter-template-source-readable",
             "converterId": converter_id,
             "invalidFields": ["template"],
@@ -1568,6 +1640,7 @@ fn schema_package_converter_template_contract_failed_diag(
             "contract": "converter-template-output-stage-contract",
             "target": "converter",
             "diagnostic": "cem.schema_package.converter_check",
+            "behavior": schema_package_constraint_behavior_value("converter-template-contract"),
             "checkKind": "converter-template-contract",
             "converterId": converter_id,
             "invalidFields": ["template"],
@@ -1673,6 +1746,7 @@ fn schema_package_converter_endpoint_content_type_mismatch_diag(
             "contract": "converter-endpoint-schema-content-type-match",
             "target": endpoint_name,
             "diagnostic": "cem.schema_package.converter_check",
+            "behavior": schema_package_constraint_behavior_value("endpoint-content-type-schema"),
             "checkKind": "endpoint-content-type-schema",
             "converterId": converter_id,
             "endpoint": endpoint_name,
@@ -1854,6 +1928,7 @@ fn schema_package_artifact_source_read_failed_diag(
             "contract": "artifact-output-stage-contract",
             "target": "artifact",
             "diagnostic": "cem.schema_package.artifact_check",
+            "behavior": schema_package_constraint_behavior_value("artifact-source-readable"),
             "checkKind": "artifact-source-readable",
             "path": path,
             "functionName": function_name,
@@ -1889,6 +1964,7 @@ fn schema_package_artifact_cemt_parse_failed_diag(
             "contract": "artifact-output-stage-contract",
             "target": "artifact",
             "diagnostic": "cem.schema_package.artifact_check",
+            "behavior": schema_package_constraint_behavior_value("artifact-cemt-valid"),
             "checkKind": "artifact-cemt-valid",
             "path": path,
             "functionName": function_name,
@@ -1925,6 +2001,7 @@ fn schema_package_artifact_function_lookup_failed_diag(
             "contract": "artifact-output-stage-contract",
             "target": "artifact",
             "diagnostic": "cem.schema_package.artifact_check",
+            "behavior": schema_package_constraint_behavior_value("artifact-function-declared"),
             "checkKind": "artifact-function-declared",
             "path": path,
             "functionName": function_name,
@@ -2010,6 +2087,7 @@ fn schema_package_artifact_contract_mismatch_diag(
             "contract": "artifact-output-stage-contract",
             "target": "artifact",
             "diagnostic": "cem.schema_package.artifact_check",
+            "behavior": schema_package_constraint_behavior_value("artifact-function-contract"),
             "checkKind": "artifact-function-contract",
             "path": path,
             "field": mismatch.field,
@@ -2362,6 +2440,7 @@ fn schema_package_example_schema_content_type_failed_diag(
             "contract": "example-contract",
             "target": "example",
             "diagnostic": "cem.schema_package.example_check",
+            "behavior": schema_package_constraint_behavior_value("example-content-type-schema"),
             "checkKind": "example-content-type-schema",
             "exampleId": example_id,
             "schema": schema_uri,
@@ -2399,6 +2478,7 @@ fn schema_package_example_source_read_failed_diag(
             "contract": "example-contract",
             "target": "example",
             "diagnostic": "cem.schema_package.example_check",
+            "behavior": schema_package_constraint_behavior_value("example-source-readable"),
             "checkKind": "example-source-readable",
             "exampleId": example_id,
             "invalidFields": ["path"],
@@ -2437,6 +2517,7 @@ fn schema_package_example_source_result_diag(
             "contract": "example-contract",
             "target": "example",
             "diagnostic": "cem.schema_package.example_check",
+            "behavior": schema_package_constraint_behavior_value("example-source-validation"),
             "checkKind": "example-source-validation",
             "exampleId": example_id,
             "path": path,
@@ -2477,6 +2558,7 @@ fn schema_package_example_expected_diagnostics_diag(
             "contract": "example-contract",
             "target": "example",
             "diagnostic": "cem.schema_package.example_check",
+            "behavior": schema_package_constraint_behavior_value("example-expected-diagnostics"),
             "checkKind": "example-expected-diagnostics",
             "exampleId": example_id,
             "path": path,
@@ -4449,6 +4531,10 @@ mod tests {
             details["contract"],
             serde_json::json!("artifact-output-stage-contract")
         );
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:resource-readable")
+        );
         assert_eq!(details["invalidFields"], serde_json::json!(["path"]));
         assert_eq!(
             details["invalidValues"],
@@ -4504,6 +4590,10 @@ mod tests {
             .details
             .as_ref()
             .expect("artifact CEMT validity details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:resource-parse")
+        );
         assert_eq!(
             details["sourceDiagnostic"]["severity"],
             serde_json::json!("Fatal")
@@ -4563,6 +4653,10 @@ mod tests {
             .details
             .as_ref()
             .expect("artifact function declaration details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:reference-resolution")
+        );
         assert_eq!(
             details["invalidFields"],
             serde_json::json!(["function-name"])

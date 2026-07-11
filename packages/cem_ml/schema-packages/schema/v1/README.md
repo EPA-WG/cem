@@ -115,6 +115,15 @@ through `@datatype-param-diagnostic` to `schema:datatype-param`. In all cases
 the diagnostic `@code` remains the stable output identity while `@behavior`
 selects the reusable algorithm contract.
 
+Operational constraints bind their execution behavior at the `{constraint}`
+declaration while keeping the diagnostic family code stable. Constraint
+declarations can use `@diagnostic` plus `@behavior` to bind resource readability
+checks to `schema:resource-readable`, parser/validation checks to
+`schema:resource-parse`, and cross-reference checks to
+`schema:reference-resolution`. This lets a schema-package diagnostic such as
+`cem.schema_package.artifact_check` remain the report identity while individual
+constraint `checkKind` values select different engine algorithms.
+
 Function behaviors bind to a schema-declared function with `@function`, declare
 typed `{inputs}`, optional typed `{parameters}`, and a `{result}` shape with
 structured `{detail}` entries and source-range propagation policy:
@@ -165,8 +174,11 @@ structured details. Qualified function references now resolve through schema
 `{uses}` aliases to visible reusable CEM-ML behavior functions. Diagnostic
 `{arguments}` now bind non-default parameter overrides for function behaviors.
 The first field-contract-backed and attribute-owned engine behavior aliases now
-compile and execute through diagnostic `@behavior`; reference-resolution,
-source/resource, and broader choice/case primitives remain follow-up work.
+compile and execute through diagnostic `@behavior`. Constraint-owned
+`schema:resource-readable`, `schema:resource-parse`, and
+`schema:reference-resolution` bindings now compile and stamp operational
+diagnostics with their declared behavior; broader dependency and choice/case
+primitives remain follow-up work.
 
 ## Validation Examples
 
