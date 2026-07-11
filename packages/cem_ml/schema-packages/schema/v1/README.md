@@ -101,10 +101,16 @@ reference selects the algorithm contract used to produce that diagnostic.
 
 Behavior references resolve through schema `{uses}` aliases. Engine-provided
 behaviors bind to a primitive algorithm with `@primitive`; the initial primitive
-is `schema:field-contract`. Function behaviors bind to a schema-declared
-function with `@function`, declare typed `{inputs}`, optional typed
-`{parameters}`, and a `{result}` shape with structured `{detail}` entries and
-source-range propagation policy:
+is `schema:field-contract`. The bootstrap schema also declares the first named
+engine behavior contracts backed by that primitive: `schema:required-fields`,
+`schema:forbidden-fields`, `schema:dependent-required-fields`,
+`schema:mutual-exclusion`, `schema:child-occurrence`, and
+`schema:path-layout`. Schema diagnostics can bind to those qualified behavior
+names when the field contract uses the matching check family.
+
+Function behaviors bind to a schema-declared function with `@function`, declare
+typed `{inputs}`, optional typed `{parameters}`, and a `{result}` shape with
+structured `{detail}` entries and source-range propagation policy:
 
 ```cem
 {behavior
@@ -151,7 +157,9 @@ CEM-ML behavior function bodies outside CEMT to produce diagnostic messages and
 structured details. Qualified function references now resolve through schema
 `{uses}` aliases to visible reusable CEM-ML behavior functions. Diagnostic
 `{arguments}` now bind non-default parameter overrides for function behaviors.
-Engine behavior argument binding and the broader engine primitive library remain
+The first field-contract-backed engine behavior aliases now compile and execute
+through diagnostic `@behavior`; value vocabulary, scalar/datatype parameter,
+reference-resolution, source/resource, and broader choice/case primitives remain
 follow-up work.
 
 ## Validation Examples
@@ -162,7 +170,7 @@ CLI validation integration tests.
 | Example | Purpose | Expected result |
 | --- | --- | --- |
 | [`basic-schema.cem`](examples/basic-schema.cem) | Minimal schema definition with content type, element, and attribute declarations. | Pass |
-| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, a conditional field contract, an engine behavior-bound diagnostic, and open-content policy. | Pass |
+| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, a conditional field contract, a `schema:required-fields` engine behavior-bound diagnostic, and open-content policy. | Pass |
 | [`invalid-unclosed-schema.cem`](examples/invalid-unclosed-schema.cem) | Missing closing schema scope syntax diagnostic. | Fail with `cem.ast.unclosed_scope` |
 | [`invalid-missing-required-attribute.cem`](examples/invalid-missing-required-attribute.cem) | Schema declaration missing its required `namespace` attribute. | Fail with `cem.schema_model.missing_required_attribute` |
 | [`invalid-diagnostic-behavior.cem`](examples/invalid-diagnostic-behavior.cem) | Diagnostic references a behavior absent from the imported engine catalog. | Fail with `cem.schema_definition.unknown_diagnostic_behavior` |

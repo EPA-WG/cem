@@ -2809,6 +2809,32 @@ mod tests {
             .details
             .iter()
             .any(|detail| detail.name == "checkKind" && detail.value_type == "schema:identifier"));
+        for behavior_name in [
+            "required-fields",
+            "forbidden-fields",
+            "dependent-required-fields",
+            "mutual-exclusion",
+            "child-occurrence",
+            "path-layout",
+        ] {
+            let behavior = model
+                .behaviors
+                .get(behavior_name)
+                .unwrap_or_else(|| panic!("schema-declared {behavior_name} engine behavior"));
+            assert_eq!(behavior.implementation, "engine");
+            assert_eq!(behavior.execution, "ast-validation");
+            assert_eq!(
+                behavior.primitive.as_deref(),
+                Some(FIELD_CONTRACT_DIAGNOSTIC_BEHAVIOR)
+            );
+            assert!(behavior
+                .parameters
+                .iter()
+                .any(|parameter| parameter.name == "contract"
+                    && parameter.value_type == "schema:field-contract"
+                    && parameter.required));
+            assert!(behavior.result.is_some());
+        }
     }
 
     #[test]
@@ -3227,6 +3253,136 @@ mod tests {
                 .and_then(serde_json::Value::as_str),
             Some("schema:field-contract")
         );
+    }
+
+    #[test]
+    fn schema_diagnostic_behavior_aliases_dispatch_to_field_contract_engine() {
+        let model = compile_document_model(
+            "https://example.test/ns/diagnostic-behavior-alias/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="diagnostic-behavior-alias" @namespace="https://example.test/ns/diagnostic-behavior-alias/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="item" @optional-attributes="name internal"}
+        {element @name="group" @children="child"}
+        {element @name="child"}
+    }
+    {attributes |
+        {attribute @name="name" @type="schema:string"}
+        {attribute @name="internal" @type="schema:string"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="item-name-required"
+            @target="item"
+            @required-attributes="name"
+            @diagnostic="example.item_name_required"
+            @check-kind="required-fields"
+        }
+        {field-contract
+            @name="item-internal-forbidden"
+            @target="item"
+            @forbidden-attributes="internal"
+            @diagnostic="example.item_internal_forbidden"
+            @check-kind="forbidden-fields"
+        }
+        {field-contract
+            @name="group-single-child"
+            @target="group"
+            @required-children="child"
+            @max-one-children="child"
+            @diagnostic="example.group_child_occurrence"
+            @check-kind="child-occurrence"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.item_name_required"
+            @severity="warning"
+            @behavior="schema:required-fields"
+        }
+        {diagnostic
+            @code="example.item_internal_forbidden"
+            @severity="error"
+            @behavior="schema:forbidden-fields"
+        }
+        {diagnostic
+            @code="example.group_child_occurrence"
+            @severity="error"
+            @behavior="schema:child-occurrence"
+        }
+    }
+}"#,
+        );
+
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "behavior aliases must compile: {:#?}",
+            model.compile_diagnostics
+        );
+        assert_eq!(
+            model
+                .diagnostic_behaviors
+                .get("example.item_name_required")
+                .map(|behavior| behavior.engine_behavior),
+            Some(Some(EngineDiagnosticBehavior::FieldContract))
+        );
+
+        let document = parse_cem_document(r#"{item @internal=yes}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let required = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.item_name_required")
+            .expect("required-fields alias diagnostic");
+        assert_eq!(required.severity, Severity::Warning);
+        let details = required
+            .details
+            .as_ref()
+            .expect("required-fields alias details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:required-fields")
+        );
+        assert_eq!(details["checkKind"], serde_json::json!("required-fields"));
+        assert_eq!(details["missingFields"], serde_json::json!(["name"]));
+
+        let forbidden = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.item_internal_forbidden")
+            .expect("forbidden-fields alias diagnostic");
+        let details = forbidden
+            .details
+            .as_ref()
+            .expect("forbidden-fields alias details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:forbidden-fields")
+        );
+        assert_eq!(details["checkKind"], serde_json::json!("forbidden-fields"));
+        assert_eq!(details["forbiddenFields"], serde_json::json!(["internal"]));
+        assert_eq!(details["invalidFields"], serde_json::json!(["internal"]));
+
+        let document = parse_cem_document(r#"{group | {child} {child}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let child_occurrence = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.group_child_occurrence")
+            .expect("child-occurrence alias diagnostic");
+        let details = child_occurrence
+            .details
+            .as_ref()
+            .expect("child-occurrence alias details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:child-occurrence")
+        );
+        assert_eq!(details["checkKind"], serde_json::json!("child-occurrence"));
+        assert_eq!(details["duplicateChildren"], serde_json::json!(["child"]));
     }
 
     #[test]

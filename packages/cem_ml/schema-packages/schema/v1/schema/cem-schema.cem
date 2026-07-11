@@ -195,6 +195,168 @@
                 {detail @name="sourceRange" @type="schema:object" @source="candidate"}
             }
         }
+        {behavior
+            @name="required-fields"
+            @implementation="engine"
+            @execution="ast-validation"
+            @primitive="schema:field-contract" |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+                {input-binding @name="diagnostic" @type="schema:diagnostic" @source="diagnostic" @required=true}
+            }
+            {parameters |
+                {parameter @name="contract" @type="schema:field-contract" @required=true}
+            }
+            {result
+                @type="schema:diagnostic-result"
+                @severity="error"
+                @message="diagnostic"
+                @source-range="candidate" |
+                {detail @name="schemaUri" @type="schema:uri" @required=true}
+                {detail @name="element" @type="schema:identifier" @required=true}
+                {detail @name="contract" @type="schema:identifier" @required=true}
+                {detail @name="target" @type="schema:identifier" @required=true}
+                {detail @name="diagnostic" @type="schema:diagnostic-code" @required=true}
+                {detail @name="behavior" @type="schema:behavior-reference" @required=true}
+                {detail @name="checkKind" @type="schema:identifier" @required=true}
+                {detail @name="sourceRange" @type="schema:object" @source="candidate"}
+            }
+        }
+        {behavior
+            @name="forbidden-fields"
+            @implementation="engine"
+            @execution="ast-validation"
+            @primitive="schema:field-contract" |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+                {input-binding @name="diagnostic" @type="schema:diagnostic" @source="diagnostic" @required=true}
+            }
+            {parameters |
+                {parameter @name="contract" @type="schema:field-contract" @required=true}
+            }
+            {result
+                @type="schema:diagnostic-result"
+                @severity="error"
+                @message="diagnostic"
+                @source-range="candidate" |
+                {detail @name="schemaUri" @type="schema:uri" @required=true}
+                {detail @name="element" @type="schema:identifier" @required=true}
+                {detail @name="contract" @type="schema:identifier" @required=true}
+                {detail @name="target" @type="schema:identifier" @required=true}
+                {detail @name="diagnostic" @type="schema:diagnostic-code" @required=true}
+                {detail @name="behavior" @type="schema:behavior-reference" @required=true}
+                {detail @name="checkKind" @type="schema:identifier" @required=true}
+                {detail @name="sourceRange" @type="schema:object" @source="candidate"}
+            }
+        }
+        {behavior
+            @name="dependent-required-fields"
+            @implementation="engine"
+            @execution="ast-validation"
+            @primitive="schema:field-contract" |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+                {input-binding @name="diagnostic" @type="schema:diagnostic" @source="diagnostic" @required=true}
+            }
+            {parameters |
+                {parameter @name="contract" @type="schema:field-contract" @required=true}
+            }
+            {result
+                @type="schema:diagnostic-result"
+                @severity="error"
+                @message="diagnostic"
+                @source-range="candidate" |
+                {detail @name="schemaUri" @type="schema:uri" @required=true}
+                {detail @name="element" @type="schema:identifier" @required=true}
+                {detail @name="contract" @type="schema:identifier" @required=true}
+                {detail @name="target" @type="schema:identifier" @required=true}
+                {detail @name="diagnostic" @type="schema:diagnostic-code" @required=true}
+                {detail @name="behavior" @type="schema:behavior-reference" @required=true}
+                {detail @name="checkKind" @type="schema:identifier" @required=true}
+                {detail @name="sourceRange" @type="schema:object" @source="candidate"}
+            }
+        }
+        {behavior
+            @name="mutual-exclusion"
+            @implementation="engine"
+            @execution="ast-validation"
+            @primitive="schema:field-contract" |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+                {input-binding @name="diagnostic" @type="schema:diagnostic" @source="diagnostic" @required=true}
+            }
+            {parameters |
+                {parameter @name="contract" @type="schema:field-contract" @required=true}
+            }
+            {result
+                @type="schema:diagnostic-result"
+                @severity="error"
+                @message="diagnostic"
+                @source-range="candidate" |
+                {detail @name="schemaUri" @type="schema:uri" @required=true}
+                {detail @name="element" @type="schema:identifier" @required=true}
+                {detail @name="contract" @type="schema:identifier" @required=true}
+                {detail @name="target" @type="schema:identifier" @required=true}
+                {detail @name="diagnostic" @type="schema:diagnostic-code" @required=true}
+                {detail @name="behavior" @type="schema:behavior-reference" @required=true}
+                {detail @name="checkKind" @type="schema:identifier" @required=true}
+                {detail @name="sourceRange" @type="schema:object" @source="candidate"}
+            }
+        }
+        {behavior
+            @name="child-occurrence"
+            @implementation="engine"
+            @execution="ast-validation"
+            @primitive="schema:field-contract" |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+                {input-binding @name="diagnostic" @type="schema:diagnostic" @source="diagnostic" @required=true}
+            }
+            {parameters |
+                {parameter @name="contract" @type="schema:field-contract" @required=true}
+            }
+            {result
+                @type="schema:diagnostic-result"
+                @severity="error"
+                @message="diagnostic"
+                @source-range="candidate" |
+                {detail @name="schemaUri" @type="schema:uri" @required=true}
+                {detail @name="element" @type="schema:identifier" @required=true}
+                {detail @name="contract" @type="schema:identifier" @required=true}
+                {detail @name="target" @type="schema:identifier" @required=true}
+                {detail @name="diagnostic" @type="schema:diagnostic-code" @required=true}
+                {detail @name="behavior" @type="schema:behavior-reference" @required=true}
+                {detail @name="checkKind" @type="schema:identifier" @required=true}
+                {detail @name="sourceRange" @type="schema:object" @source="candidate"}
+            }
+        }
+        {behavior
+            @name="path-layout"
+            @implementation="engine"
+            @execution="ast-validation"
+            @primitive="schema:field-contract" |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+                {input-binding @name="diagnostic" @type="schema:diagnostic" @source="diagnostic" @required=true}
+            }
+            {parameters |
+                {parameter @name="contract" @type="schema:field-contract" @required=true}
+            }
+            {result
+                @type="schema:diagnostic-result"
+                @severity="error"
+                @message="diagnostic"
+                @source-range="candidate" |
+                {detail @name="schemaUri" @type="schema:uri" @required=true}
+                {detail @name="element" @type="schema:identifier" @required=true}
+                {detail @name="contract" @type="schema:identifier" @required=true}
+                {detail @name="target" @type="schema:identifier" @required=true}
+                {detail @name="diagnostic" @type="schema:diagnostic-code" @required=true}
+                {detail @name="behavior" @type="schema:behavior-reference" @required=true}
+                {detail @name="checkKind" @type="schema:identifier" @required=true}
+                {detail @name="sourceRange" @type="schema:object" @source="candidate"}
+            }
+        }
     }
 
     {constraints |

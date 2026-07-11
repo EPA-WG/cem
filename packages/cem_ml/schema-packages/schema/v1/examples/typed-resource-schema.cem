@@ -51,7 +51,7 @@
         {diagnostic
             @code="example.resource.missing_label"
             @severity="warning"
-            @behavior="schema:field-contract"
+            @behavior="schema:required-fields"
             @message="Page resources should declare a label"
         }
     }
