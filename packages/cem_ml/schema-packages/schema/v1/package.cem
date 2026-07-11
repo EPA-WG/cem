@@ -117,6 +117,15 @@
     }
 
     {example
+        @id="invalid-custom-behavior-contracts"
+        @path="examples/invalid-custom-behavior-contracts.cem"
+        @content-type="application/vnd.cem.schema+cem"
+        @schema="https://cem.dev/ns/schema/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_definition.invalid_diagnostic_behavior_contract"
+    }
+
+    {example
         @id="invalid-unclosed-schema"
         @path="examples/invalid-unclosed-schema.cem"
         @content-type="application/vnd.cem.schema+cem"

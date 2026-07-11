@@ -659,7 +659,7 @@ mod tests {
             "schema",
             CEM_SCHEMA_CONTENT_TYPE,
             CEM_SCHEMA_URI,
-            13,
+            14,
         );
         for id in ["custom-behavior-schema", "custom-behavior-schema-strict"] {
             let example = examples
@@ -736,6 +736,10 @@ mod tests {
             (
                 "invalid-custom-behavior-unsafe-call",
                 "cem.schema_behavior.function_failed",
+            ),
+            (
+                "invalid-custom-behavior-contracts",
+                "cem.schema_definition.invalid_diagnostic_behavior_contract",
             ),
         ] {
             let example = examples

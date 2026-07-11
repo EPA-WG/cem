@@ -78,7 +78,7 @@ history belongs in git history and the feature-specific docs linked below.
         execute through `schema:choice-case`; datatype parameter variations
         beyond integer inclusive/exclusive bounds, string length constraints,
         and regex pattern remain.
-  - [ ] Compile behavior declarations and references into the generic schema
+  - [x] Compile behavior declarations and references into the generic schema
         model, reject missing or incompatible behavior references, and dispatch
         them through a single runtime evaluation path. The resolved behavior
         must own severity, message/detail construction, CEM-QL match semantics,
@@ -93,7 +93,12 @@ history belongs in git history and the feature-specific docs linked below.
         declared inputs or defaulted behavior parameters. Reusable imported
         functions now resolve by schema URI and `{uses}` alias when visible;
         non-default parameter override binding now comes from diagnostic-scoped
-        `{arguments}` for function behaviors.
+        `{arguments}` for function behaviors. Schema-package CLI examples now
+        cover unresolved function references, invalid query expressions,
+        incompatible function signatures, unsupported behavior implementations
+        and execution placements, missing function/result/body pieces,
+        incompatible result/return contracts, invalid engine behavior
+        arguments, and invalid behavior body evaluation.
   - [ ] Add schema-package and CLI examples for every engine-provided algorithm
         and its meaningful parameter or matching variations. Include passing
         and failing fixtures, expected diagnostic codes, structured details,

@@ -1,0 +1,140 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-custom-behavior-contracts" @namespace="https://example.test/ns/invalid-custom-behavior-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="resource" @optional-attributes="kind"}
+    }
+
+    {attributes |
+        {attribute @name="kind" @type="schema:identifier"}
+    }
+
+    {behaviors |
+        {behavior
+            @name="macro-behavior"
+            @implementation="macro"
+            @execution="ast-validation"
+        }
+
+        {behavior
+            @name="render-behavior"
+            @implementation="function"
+            @execution="render"
+            @function="render-result"
+            @select="resource"
+            @match='kind = "page"' |
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+            {function @name="render-result" @returns="object" @deterministic=true |
+                {body | {$ { message: "Render behavior failed" } }}
+            }
+        }
+
+        {behavior
+            @name="missing-select"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="missing-select-result"
+            @match='kind = "page"' |
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+            {function @name="missing-select-result" @returns="object" @deterministic=true |
+                {body | {$ { message: "Missing select failed" } }}
+            }
+        }
+
+        {behavior
+            @name="missing-match"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="missing-match-result"
+            @select="resource" |
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+            {function @name="missing-match-result" @returns="object" @deterministic=true |
+                {body | {$ { message: "Missing match failed" } }}
+            }
+        }
+
+        {behavior
+            @name="missing-function-binding"
+            @implementation="function"
+            @execution="ast-validation"
+            @select="resource"
+            @match='kind = "page"' |
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+        }
+
+        {behavior
+            @name="missing-result"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="missing-result-function"
+            @select="resource"
+            @match='kind = "page"' |
+            {function @name="missing-result-function" @returns="object" @deterministic=true |
+                {body | {$ { message: "Missing result failed" } }}
+            }
+        }
+
+        {behavior
+            @name="wrong-result-type"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="wrong-result-type-result"
+            @select="resource"
+            @match='kind = "page"' |
+            {result @type="schema:string" @source-range="candidate"}
+            {function @name="wrong-result-type-result" @returns="object" @deterministic=true |
+                {body | {$ { message: "Wrong result type failed" } }}
+            }
+        }
+
+        {behavior
+            @name="wrong-return-type"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="wrong-return-type-result"
+            @select="resource"
+            @match='kind = "page"' |
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+            {function @name="wrong-return-type-result" @returns="string" @deterministic=true |
+                {body | {$ "not a diagnostic result" }}
+            }
+        }
+
+        {behavior
+            @name="missing-body"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="missing-body-result"
+            @select="resource"
+            @match='kind = "page"' |
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+            {function @name="missing-body-result" @returns="object" @deterministic=true}
+        }
+
+        {behavior
+            @name="engine-with-argument"
+            @implementation="engine"
+            @execution="ast-validation"
+            @primitive="schema:field-contract"
+        }
+    }
+
+    {diagnostics |
+        {diagnostic @code="example.unsupported_implementation" @severity="error" @behavior="macro-behavior"}
+        {diagnostic @code="example.unsupported_execution" @severity="error" @behavior="render-behavior"}
+        {diagnostic @code="example.missing_select" @severity="error" @behavior="missing-select"}
+        {diagnostic @code="example.missing_match" @severity="error" @behavior="missing-match"}
+        {diagnostic @code="example.missing_function_binding" @severity="error" @behavior="missing-function-binding"}
+        {diagnostic @code="example.missing_result" @severity="error" @behavior="missing-result"}
+        {diagnostic @code="example.wrong_result_type" @severity="error" @behavior="wrong-result-type"}
+        {diagnostic @code="example.wrong_return_type" @severity="error" @behavior="wrong-return-type"}
+        {diagnostic @code="example.missing_body" @severity="error" @behavior="missing-body"}
+        {diagnostic @code="example.engine_argument" @severity="error" @behavior="engine-with-argument" |
+            {arguments |
+                {argument @name="field" @value="kind"}
+            }
+        }
+    }
+}
