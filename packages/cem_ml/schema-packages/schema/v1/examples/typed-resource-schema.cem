@@ -60,7 +60,11 @@
             @values="page component token"
             @values-diagnostic="example.resource.invalid_kind"
         }
-        {attribute @name="href" @type="schema:uri"}
+        {attribute
+            @name="href"
+            @type="schema:uri"
+            @type-diagnostic="example.resource.invalid_href"
+        }
         {attribute
             @name="inline"
             @type="schema:string"
@@ -116,6 +120,12 @@
             @severity="error"
             @behavior="schema:value-vocabulary"
             @message="Resource kind must use the declared vocabulary"
+        }
+        {diagnostic
+            @code="example.resource.invalid_href"
+            @severity="error"
+            @behavior="schema:scalar-type"
+            @message="Resource href must be an absolute URI"
         }
         {diagnostic
             @code="example.resource.invalid_priority"

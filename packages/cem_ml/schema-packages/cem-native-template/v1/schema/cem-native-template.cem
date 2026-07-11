@@ -38,7 +38,7 @@
     {attributes |
         {attribute @name="version" @type="schema:semver"}
         {attribute @name="as" @type="schema:identifier"}
-        {attribute @name="src" @type="schema:uri"}
+        {attribute @name="src" @type="schema:path"}
         {attribute @name="content-type" @type="schema:media-type"}
         {attribute @name="contentType" @type="schema:media-type"}
         {attribute @name="schema" @type="schema:uri"}

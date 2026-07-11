@@ -11,13 +11,13 @@
 //! - schema-owned field contracts for element-bound conditional checks.
 //! - schema-owned diagnostic declarations resolved through declarative engine
 //!   behavior definitions, including severity and message metadata.
-//! - schema-owned attribute `@values`, boolean/integer type checks, and
+//! - schema-owned attribute `@values`, boolean/integer/URI type checks, and
 //!   integer `minInclusive`/`maxInclusive`/`minExclusive`/`maxExclusive`,
 //!   string `minLength`/`maxLength`/`length`, and regex `pattern`
 //!   datatype-param checks.
 //! - schema-owned exact and ranged child occurrence field contracts.
 //!
-//! Ordering, scalar type checks beyond boolean/integer syntax, additional
+//! Ordering, scalar type checks beyond boolean/integer/URI syntax, additional
 //! datatype params, and semantic constraints remain follow-up work.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -643,6 +643,15 @@ fn validate_attribute_type(
             allows_empty: false,
             message: "not a schema-declared integer",
         })
+    } else if is_uri_type_reference(value_type) {
+        (!is_absolute_uri(value)).then_some(AttributeTypeViolation {
+            name: "uri",
+            check_kind: "type:uri",
+            expected_values: &[],
+            expected_pattern: "absolute URI with scheme",
+            allows_empty: false,
+            message: "not a schema-declared URI",
+        })
     } else {
         None
     };
@@ -716,6 +725,10 @@ fn is_integer_type_reference(value_type: &str) -> bool {
     type_reference_local_name(value_type) == "integer"
 }
 
+fn is_uri_type_reference(value_type: &str) -> bool {
+    type_reference_local_name(value_type) == "uri"
+}
+
 fn type_reference_local_name(value_type: &str) -> &str {
     let value_type = value_type.trim();
     value_type
@@ -728,6 +741,11 @@ fn is_signed_decimal_integer(value: &str) -> bool {
     let value = value.trim();
     let digits = value.strip_prefix(['+', '-']).unwrap_or(value);
     !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())
+}
+
+fn is_absolute_uri(value: &str) -> bool {
+    let value = value.trim();
+    has_uri_scheme(value) && !is_windows_drive_path(value)
 }
 
 fn validate_attribute_datatype_params(
@@ -5627,7 +5645,7 @@ mod tests {
         {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
     }
     {elements |
-        {element @name="item" @optional-attributes="mode enabled count score lower upper code label tag"}
+        {element @name="item" @optional-attributes="mode enabled homepage count score lower upper code label tag"}
     }
     {attributes |
         {attribute
@@ -5640,6 +5658,11 @@ mod tests {
             @name="enabled"
             @type="schema:boolean"
             @type-diagnostic="example.enabled_type"
+        }
+        {attribute
+            @name="homepage"
+            @type="schema:uri"
+            @type-diagnostic="example.homepage_type"
         }
         {attribute
             @name="count"
@@ -5696,6 +5719,12 @@ mod tests {
             @severity="info"
             @behavior="schema:scalar-type"
             @message="Enabled must be boolean"
+        }
+        {diagnostic
+            @code="example.homepage_type"
+            @severity="error"
+            @behavior="schema:scalar-type"
+            @message="Homepage must be an absolute URI"
         }
         {diagnostic
             @code="example.count_min"
@@ -5757,7 +5786,7 @@ mod tests {
         );
 
         let document = parse_cem_document(
-            r#"{item @mode=tabular @enabled=maybe @count=0 @score=11 @lower=1 @upper=10 @code=bad_code @label=go @tag=to}"#,
+            r#"{item @mode=tabular @enabled=maybe @homepage="/relative" @count=0 @score=11 @lower=1 @upper=10 @code=bad_code @label=go @tag=to}"#,
         );
         let diagnostics = validate_document_model(&document, &model);
 
@@ -5806,6 +5835,31 @@ mod tests {
         assert_eq!(details["checkKind"], serde_json::json!("type:boolean"));
         assert_eq!(details["expectedType"], serde_json::json!("schema:boolean"));
         assert_eq!(details["actualValue"], serde_json::json!("maybe"));
+
+        let scalar_type = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.homepage_type")
+            .expect("URI scalar-type alias diagnostic");
+        assert_eq!(scalar_type.severity, Severity::Error);
+        assert!(scalar_type
+            .message
+            .starts_with("Homepage must be an absolute URI:"));
+        let details = scalar_type
+            .details
+            .as_ref()
+            .expect("URI scalar-type alias details");
+        assert_eq!(details["behavior"], serde_json::json!("schema:scalar-type"));
+        assert_eq!(
+            details["diagnostic"],
+            serde_json::json!("example.homepage_type")
+        );
+        assert_eq!(details["checkKind"], serde_json::json!("type:uri"));
+        assert_eq!(details["expectedType"], serde_json::json!("schema:uri"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("absolute URI with scheme")
+        );
+        assert_eq!(details["actualValue"], serde_json::json!("/relative"));
 
         let datatype_param = diagnostics
             .iter()
@@ -6239,6 +6293,88 @@ mod tests {
         assert_eq!(details["actualValue"], serde_json::json!("1.5"));
         assert_eq!(details["invalidFields"], serde_json::json!(["count"]));
         assert_eq!(details["actualValues"]["count"], serde_json::json!("1.5"));
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
+    fn schema_uri_attribute_type_drives_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/uri-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="uri-contracts" @namespace="https://example.test/ns/uri-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="href"}
+    }
+    {attributes |
+        {attribute @name="href" @type="schema:uri"}
+    }
+}"#,
+        );
+        for source in [
+            r#"{item @href="https://example.test/a"}"#,
+            r#"{item @href="urn:example:test"}"#,
+            r#"{item @href="mailto:test@example.test"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_TYPE_CODE),
+                "valid URI source produced type diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        for source in [
+            r#"{item @href}"#,
+            r#"{item @href="/relative"}"#,
+            r#"{item @href="C:/tmp/out.cem"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_TYPE_CODE),
+                "invalid URI source did not produce type diagnostic: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{item @href="/relative"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_TYPE_CODE)
+            .expect("attribute type diagnostic");
+        assert!(diagnostic.message.contains("href"));
+        assert!(diagnostic.message.contains("/relative"));
+        let details = diagnostic.details.as_ref().expect("attribute type details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/uri-contracts/1")
+        );
+        assert_eq!(details["element"], serde_json::json!("item"));
+        assert_eq!(details["attribute"], serde_json::json!("href"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-type:href")
+        );
+        assert_eq!(details["checkKind"], serde_json::json!("type:uri"));
+        assert_eq!(details["expectedType"], serde_json::json!("schema:uri"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("absolute URI with scheme")
+        );
+        assert_eq!(details["allowsEmpty"], serde_json::json!(false));
+        assert_eq!(details["actualValue"], serde_json::json!("/relative"));
+        assert_eq!(details["invalidFields"], serde_json::json!(["href"]));
+        assert_eq!(
+            details["actualValues"]["href"],
+            serde_json::json!("/relative")
+        );
         assert!(details["sourceRange"]["span"]["start"].is_u64());
     }
 
