@@ -1,0 +1,55 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="custom-behavior-strict" @namespace="https://example.test/ns/custom-behavior-strict/1" @version="1.0.0" |
+    {summary |
+        {text | Variant custom schema example that changes the declarative match and behavior result without engine code.}
+    }
+
+    {content-types |
+        {content-type @value="application/vnd.example.custom-behavior-strict+cem" @primary=true}
+    }
+
+    {elements |
+        {element @name="resource" @optional-attributes="kind status title"}
+    }
+
+    {attributes |
+        {attribute @name="kind" @type="schema:identifier"}
+        {attribute @name="status" @type="schema:identifier"}
+        {attribute @name="title" @type="schema:string"}
+    }
+
+    {behaviors |
+        {behavior
+            @name="published-page-title"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="published-page-title-result"
+            @select="resource"
+            @match='kind = "page" and status = "published" and title = null' |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+            }
+            {parameters |
+                {parameter @name="expected" @type="schema:string" @required=true @default="title"}
+            }
+            {result @type="schema:diagnostic-result" @source-range="candidate" |
+                {detail @name="checkKind" @type="schema:identifier" @required=true}
+                {detail @name="element" @type="schema:identifier" @required=true}
+                {detail @name="status" @type="schema:identifier" @required=true}
+                {detail @name="expected" @type="schema:string" @required=true}
+            }
+            {function @name="published-page-title-result" @returns="object" @deterministic=true |
+                {param @name="candidate" @type="object" @required=true}
+                {param @name="expected" @type="string" @required=true}
+                {body | {$ { message: "Published page resource needs a title", details: { checkKind: "published-page-title", element: $candidate.name, status: $candidate.attributes.status, expected: $expected } } }}
+            }
+        }
+    }
+
+    {diagnostics |
+        {diagnostic @code="example.published_page_title" @severity="error" @behavior="published-page-title"}
+    }
+}

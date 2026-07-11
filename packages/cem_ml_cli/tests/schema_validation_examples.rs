@@ -251,6 +251,22 @@ fn schema_owned_examples_validate_through_cli() {
             expected_diagnostics: &[],
         },
         ValidationExample {
+            name: "schema custom behavior",
+            path: "packages/cem_ml/schema-packages/schema/v1/examples/custom-behavior-schema.cem",
+            content_type: CEM_SCHEMA_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
+            name: "schema custom behavior strict",
+            path: "packages/cem_ml/schema-packages/schema/v1/examples/custom-behavior-schema-strict.cem",
+            content_type: CEM_SCHEMA_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        ValidationExample {
             name: "schema invalid unclosed scope",
             path: "packages/cem_ml/schema-packages/schema/v1/examples/invalid-unclosed-schema.cem",
             content_type: CEM_SCHEMA_CONTENT_TYPE,

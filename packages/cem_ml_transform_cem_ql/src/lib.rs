@@ -2858,6 +2858,15 @@ mod tests {
         TransformTemplateModulePreflight, TransformTemplateResolvedModule,
     };
 
+    const CUSTOM_BEHAVIOR_SCHEMA_URI: &str = "https://example.test/ns/custom-behavior/1";
+    const CUSTOM_BEHAVIOR_SCHEMA: &str =
+        include_str!("../../cem_ml/schema-packages/schema/v1/examples/custom-behavior-schema.cem");
+    const CUSTOM_BEHAVIOR_STRICT_SCHEMA_URI: &str =
+        "https://example.test/ns/custom-behavior-strict/1";
+    const CUSTOM_BEHAVIOR_STRICT_SCHEMA: &str = include_str!(
+        "../../cem_ml/schema-packages/schema/v1/examples/custom-behavior-schema-strict.cem"
+    );
+
     fn packaged_dom_projection_artifact(value: Value) -> TransformTemplateDataArtifact {
         TransformTemplateDataArtifact {
             artifact_id: "dom".to_owned(),
@@ -2892,6 +2901,84 @@ mod tests {
         let tokenizer = XmlTokenizer::from_source(source);
         let events = CemEventNormalizer::new(tokenizer);
         CemAstBuilder::new(events).build()
+    }
+
+    #[test]
+    fn checked_in_custom_behavior_schema_examples_change_validation_declaratively() {
+        let original = cem_ml::schema::document_model::compile_schema_document_model(
+            CUSTOM_BEHAVIOR_SCHEMA_URI,
+            CUSTOM_BEHAVIOR_SCHEMA,
+        );
+        assert!(
+            original.compile_diagnostics.is_empty(),
+            "{:#?}",
+            original.compile_diagnostics
+        );
+        let strict = cem_ml::schema::document_model::compile_schema_document_model(
+            CUSTOM_BEHAVIOR_STRICT_SCHEMA_URI,
+            CUSTOM_BEHAVIOR_STRICT_SCHEMA,
+        );
+        assert!(
+            strict.compile_diagnostics.is_empty(),
+            "{:#?}",
+            strict.compile_diagnostics
+        );
+
+        let evaluator = CemQlSchemaBehaviorEvaluator;
+        let unlabeled_page = document_from_cem(r#"{resource @kind=page}"#);
+        let original_diagnostics =
+            cem_ml::schema::document_model::validate_document_model_with_behavior_evaluator(
+                &unlabeled_page,
+                &original,
+                Some(&evaluator),
+            );
+        let diagnostic = original_diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.page_label")
+            .unwrap_or_else(|| {
+                panic!("checked-in custom behavior diagnostic: {original_diagnostics:#?}")
+            });
+        assert_eq!(diagnostic.severity, Severity::Warning);
+        assert_eq!(diagnostic.message, "Page resource needs a label");
+        let details = diagnostic.details.as_ref().expect("diagnostic details");
+        assert_eq!(details["behavior"], json!("page-label"));
+        assert_eq!(details["function"], json!("page-label-result"));
+        assert_eq!(details["expected"], json!("label"));
+
+        let strict_diagnostics =
+            cem_ml::schema::document_model::validate_document_model_with_behavior_evaluator(
+                &unlabeled_page,
+                &strict,
+                Some(&evaluator),
+            );
+        assert!(
+            strict_diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != "example.published_page_title"),
+            "strict custom behavior should not match unpublished pages: {strict_diagnostics:#?}"
+        );
+
+        let published_without_title =
+            document_from_cem(r#"{resource @kind=page @status=published}"#);
+        let strict_diagnostics =
+            cem_ml::schema::document_model::validate_document_model_with_behavior_evaluator(
+                &published_without_title,
+                &strict,
+                Some(&evaluator),
+            );
+        let diagnostic = strict_diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.published_page_title")
+            .unwrap_or_else(|| {
+                panic!("checked-in strict custom behavior diagnostic: {strict_diagnostics:#?}")
+            });
+        assert_eq!(diagnostic.severity, Severity::Error);
+        assert_eq!(diagnostic.message, "Published page resource needs a title");
+        let details = diagnostic.details.as_ref().expect("diagnostic details");
+        assert_eq!(details["behavior"], json!("published-page-title"));
+        assert_eq!(details["function"], json!("published-page-title-result"));
+        assert_eq!(details["expected"], json!("title"));
+        assert_eq!(details["status"], json!("published"));
     }
 
     #[test]

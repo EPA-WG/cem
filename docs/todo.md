@@ -122,7 +122,11 @@ history belongs in git history and the feature-specific docs linked below.
         declared match or function changes validation behavior without adding
         or editing Rust. Include negative tests for unresolved `@code`
         behaviors, invalid parameters, incompatible function signatures, and
-        recursive or unsafe evaluation.
+        recursive or unsafe evaluation. Checked-in schema-package CLI examples
+        now define a custom `page-label` behavior and a stricter variant whose
+        CEM-QL match and CEM-ML function result change validation behavior
+        without a Rust branch; remaining work is to add the negative behavior
+        cases to the example set.
 
 - [ ] Implement schema-owned field contracts for every schema-declared field
       before adding more package-specific Rust validation branches. The current

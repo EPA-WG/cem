@@ -29,6 +29,22 @@
     }
 
     {example
+        @id="custom-behavior-schema"
+        @path="examples/custom-behavior-schema.cem"
+        @content-type="application/vnd.cem.schema+cem"
+        @schema="https://cem.dev/ns/schema/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="custom-behavior-schema-strict"
+        @path="examples/custom-behavior-schema-strict.cem"
+        @content-type="application/vnd.cem.schema+cem"
+        @schema="https://cem.dev/ns/schema/1"
+        @expected-result="pass"
+    }
+
+    {example
         @id="invalid-missing-required-attribute"
         @path="examples/invalid-missing-required-attribute.cem"
         @content-type="application/vnd.cem.schema+cem"

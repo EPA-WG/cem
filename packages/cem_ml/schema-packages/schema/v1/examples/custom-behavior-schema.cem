@@ -1,0 +1,56 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="custom-behavior" @namespace="https://example.test/ns/custom-behavior/1" @version="1.0.0" |
+    {summary |
+        {text | Custom schema example that defines a diagnostic algorithm with CEM-QL candidate matching and a CEM-ML behavior function.}
+    }
+
+    {content-types |
+        {content-type @value="application/vnd.example.custom-behavior+cem" @primary=true}
+    }
+
+    {elements |
+        {element @name="resource" @optional-attributes="kind label"}
+    }
+
+    {attributes |
+        {attribute @name="kind" @type="schema:identifier"}
+        {attribute @name="label" @type="schema:string"}
+    }
+
+    {behaviors |
+        {behavior
+            @name="page-label"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="page-label-result"
+            @select="resource"
+            @match='kind = "page" and label = null' |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+            }
+            {parameters |
+                {parameter @name="expected" @type="schema:string" @required=true @default="label"}
+            }
+            {result @type="schema:diagnostic-result" @source-range="candidate" |
+                {detail @name="checkKind" @type="schema:identifier" @required=true}
+                {detail @name="element" @type="schema:identifier" @required=true}
+                {detail @name="kind" @type="schema:identifier" @required=true}
+                {detail @name="expected" @type="schema:string" @required=true}
+                {detail @name="expectedFields" @type="schema:array" @required=true}
+                {detail @name="sample" @type="schema:object" @required=true}
+            }
+            {function @name="page-label-result" @returns="object" @deterministic=true |
+                {param @name="candidate" @type="object" @required=true}
+                {param @name="expected" @type="string" @required=true}
+                {body | {$ { message: "Page resource needs a label", details: { checkKind: "page-label", element: $candidate.name, kind: $candidate.attributes.kind, expected: $expected, expectedFields: [$expected], sample: { enabled: true, count: 1, nothing: null } } } }}
+            }
+        }
+    }
+
+    {diagnostics |
+        {diagnostic @code="example.page_label" @severity="warning" @behavior="page-label"}
+    }
+}

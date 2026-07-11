@@ -13,7 +13,7 @@ use cem_ml::diagnostics::Diagnostic;
 use cem_ml::engine::{FormatIdentity, InputFormat};
 use cem_ml::schema::registry::{
     content_type_essence, CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI,
-    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI,
+    CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI,
 };
 use cem_ml::source::{BytesSource, SourceId};
 use cem_ml::tokenizer::cem::CemTokenizer;
@@ -58,6 +58,9 @@ pub fn run_with_identity(
     }
     if is_native_template_identity(identity) {
         return run_context_aware_template_pass(bytes, uri, false);
+    }
+    if is_schema_definition_identity(identity) {
+        return Vec::new();
     }
     run_raw_embedding_pass(bytes, uri)
 }
@@ -120,6 +123,18 @@ fn is_transform_identity(identity: TemplatePassIdentity<'_>) -> bool {
         })
 }
 
+fn is_schema_definition_identity(identity: TemplatePassIdentity<'_>) -> bool {
+    identity
+        .schema
+        .is_some_and(|schema| matches!(schema.trim(), CEM_SCHEMA_URI))
+        || identity.content_type.is_some_and(|content_type| {
+            matches!(
+                content_type_essence(content_type).as_str(),
+                CEM_SCHEMA_CONTENT_TYPE
+            )
+        })
+}
+
 fn tokenize(bytes: &[u8]) -> Vec<SchemaToken> {
     let src = BytesSource::new(SourceId(1), bytes.to_vec());
     let mut tokenizer = CemTokenizer::from_source(src);
@@ -168,6 +183,32 @@ mod tests {
         assert!(diagnostics
             .iter()
             .all(|diagnostic| diagnostic.uri.as_deref() == Some("broken.cem")));
+    }
+
+    #[test]
+    fn schema_definition_pass_leaves_behavior_expressions_to_schema_evaluator() {
+        let diagnostics = run_with_identity(
+            br#"{schema |
+                {behaviors |
+                    {behavior @select="resource" @match='kind = "page"' |
+                        {function @name="result" @returns="object" |
+                            {body | {$ { message: "Page", details: { kind: $kind } } }}
+                        }
+                    }
+                }
+            }"#,
+            InputFormat::Cem,
+            Some("schema.cem"),
+            TemplatePassIdentity {
+                content_type: Some(CEM_SCHEMA_CONTENT_TYPE),
+                schema: Some(CEM_SCHEMA_URI),
+            },
+        );
+
+        assert!(
+            diagnostics.is_empty(),
+            "schema behavior CEM-QL surfaces should be validated by the schema evaluator: {diagnostics:?}"
+        );
     }
 
     #[test]

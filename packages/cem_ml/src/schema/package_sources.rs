@@ -656,7 +656,19 @@ mod tests {
     #[test]
     fn schema_package_examples_are_manifest_indexed() {
         let examples =
-            manifest_indexed_package_examples("schema", CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_URI, 5);
+            manifest_indexed_package_examples("schema", CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_URI, 7);
+        for id in ["custom-behavior-schema", "custom-behavior-schema-strict"] {
+            let example = examples
+                .iter()
+                .find(|example| example.id == id)
+                .unwrap_or_else(|| panic!("custom behavior schema example `{id}`"));
+            assert_eq!(
+                example.expected_result,
+                SchemaPackageExampleExpectedResult::Pass
+            );
+            assert!(example.expected_diagnostic_codes.is_empty());
+        }
+
         let missing_required = examples
             .iter()
             .find(|example| example.id == "invalid-missing-required-attribute")
