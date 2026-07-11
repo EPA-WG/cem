@@ -148,7 +148,7 @@ impl SchemaBehaviorEvaluator for CemQlSchemaBehaviorEvaluator {
                 }
             }
             if let Some(function_name) = diagnostic.function.as_deref() {
-                if let Some(function) = definition.inline_functions.get(function_name) {
+                if let Some(function) = diagnostic_behavior_function(diagnostic, definition) {
                     if let Some(body) = function.body_expression.as_deref() {
                         if let Err(message) = parse_schema_behavior_expression(body) {
                             diagnostics.push(schema_behavior_diagnostic(
@@ -560,6 +560,18 @@ fn stream_truthy(stream: &ItemStream) -> bool {
     }
 }
 
+fn diagnostic_behavior_function<'a>(
+    diagnostic: &'a DiagnosticBehavior,
+    definition: &'a BehaviorDefinition,
+) -> Option<&'a cem_ml::schema::document_model::BehaviorFunctionDeclaration> {
+    diagnostic.function_definition.as_ref().or_else(|| {
+        diagnostic
+            .function
+            .as_deref()
+            .and_then(|function_name| definition.inline_functions.get(function_name))
+    })
+}
+
 fn execute_schema_behavior_function(
     model: &SchemaDocumentModel,
     diagnostic: &DiagnosticBehavior,
@@ -567,7 +579,7 @@ fn execute_schema_behavior_function(
     candidate: &SchemaBehaviorCandidate,
 ) -> Option<Diagnostic> {
     let function_name = diagnostic.function.as_deref()?;
-    let Some(function) = definition.inline_functions.get(function_name) else {
+    let Some(function) = diagnostic_behavior_function(diagnostic, definition) else {
         return Some(schema_behavior_function_failed_diagnostic(
             model,
             diagnostic,
@@ -2960,6 +2972,83 @@ mod tests {
                 .all(|diagnostic| diagnostic.code != "example.page_label"),
             "{diagnostics:?}"
         );
+    }
+
+    #[test]
+    fn schema_declared_diagnostic_behavior_executes_qualified_reusable_cem_ml_function() {
+        let model = cem_ml::schema::document_model::compile_schema_document_model(
+            "https://example.test/ns/reusable-diagnostic/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="reusable-diagnostic" @namespace="https://example.test/ns/reusable-diagnostic/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://example.test/ns/reusable-diagnostic/1" @as="self"}
+    }
+    {elements |
+        {element @name="resource" @optional-attributes="kind label"}
+    }
+    {attributes |
+        {attribute @name="kind" @type="schema:identifier"}
+        {attribute @name="label" @type="schema:string"}
+    }
+    {behaviors |
+        {behavior @name="diagnostic-results" @implementation="function" @execution="ast-validation" |
+            {function @name="shared-label-result" @returns="object" @visibility="package" @deterministic=true |
+                {param @name="candidate" @type="object" @required=true}
+                {param @name="expected" @type="string" @required=true}
+                {body | {$ { message: "Reusable label check failed", details: { checkKind: "shared-label", element: $candidate.name, expected: $expected } } }}
+            }
+        }
+        {behavior
+            @name="page-label"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="self:shared-label-result"
+            @select="resource"
+            @match='kind = "page" and label = null' |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+            }
+            {parameters |
+                {parameter @name="expected" @type="schema:string" @required=true @default="label"}
+            }
+            {result @type="schema:diagnostic-result" @source-range="candidate" |
+                {detail @name="checkKind" @type="schema:identifier" @required=true}
+                {detail @name="element" @type="schema:identifier" @required=true}
+                {detail @name="expected" @type="schema:string" @required=true}
+            }
+        }
+    }
+    {diagnostics |
+        {diagnostic @code="example.page_label" @severity="warning" @behavior="page-label"}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "{:#?}",
+            model.compile_diagnostics
+        );
+        let evaluator = CemQlSchemaBehaviorEvaluator;
+        let document = document_from_cem(r#"{resource @kind=page}"#);
+        let diagnostics =
+            cem_ml::schema::document_model::validate_document_model_with_behavior_evaluator(
+                &document,
+                &model,
+                Some(&evaluator),
+            );
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.page_label")
+            .unwrap_or_else(|| panic!("qualified reusable diagnostic behavior: {diagnostics:#?}"));
+        assert_eq!(diagnostic.message, "Reusable label check failed");
+        let details = diagnostic.details.as_ref().expect("diagnostic details");
+        assert_eq!(details["function"], json!("self:shared-label-result"));
+        assert_eq!(details["checkKind"], json!("shared-label"));
+        assert_eq!(details["element"], json!("resource"));
+        assert_eq!(details["expected"], json!("label"));
     }
 
     #[test]

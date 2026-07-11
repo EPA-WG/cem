@@ -140,8 +140,9 @@ binding through declared inputs or defaulted behavior parameters. The CEM-QL
 schema-behavior bridge now evaluates direct candidate selection and match
 expressions, binds defaulted typed behavior parameters, and executes inline
 CEM-ML behavior function bodies outside CEMT to produce diagnostic messages and
-structured details. Imported schema-level behavior functions, non-default
-parameter overrides, and the broader engine primitive library remain follow-up
+structured details. Qualified function references now resolve through schema
+`{uses}` aliases to visible reusable CEM-ML behavior functions. Non-default
+parameter overrides and the broader engine primitive library remain follow-up
 work.
 
 ## Validation Examples

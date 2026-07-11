@@ -25,18 +25,19 @@ history belongs in git history and the feature-specific docs linked below.
       failures with CEM-QL, and execute schema-declared CEM-ML behavior
       function bodies through the generic bridge without CEMT. Defaulted typed
       behavior parameters now bind into direct CEM-ML behavior functions;
-      imported/qualified reusable
-      functions, non-default parameter overrides, and additional engine
-      algorithms remain.
+      imported/qualified reusable CEM-ML behavior functions now resolve
+      through schema `{uses}` aliases when their declarations opt in with
+      reusable visibility. Non-default parameter overrides and additional
+      engine algorithms remain.
   - [ ] Allow declarative behavior to select candidate nodes and match failure
         conditions with CEM-QL, then invoke a schema-declared CEM-ML behavior
         function to calculate the result and structured diagnostic details.
         Direct inline behavior functions now execute for AST validation through
         the CEM-QL/schema-behavior bridge, including defaulted typed behavior
-        parameters.
-        Imports and references must still resolve by schema URI and qualified
-        name so custom schema packages can reuse or extend shared behavior
-        without registering Rust code.
+        parameters. Qualified function references now resolve through schema
+        `{uses}` aliases to visible reusable CEM-ML behavior functions so
+        custom schema packages can reuse result builders without registering
+        Rust code. Cross-diagnostic non-default parameter overrides remain.
   - [ ] Publish a minimal useful library of CEM engine-provided algorithms that
         schema authors can consume through diagnostic `@code` behavior
         references. Cover the common algorithmic variations needed to create a
@@ -58,7 +59,8 @@ history belongs in git history and the feature-specific docs linked below.
         inline CEM-ML result functions now dispatch through the generic runtime
         path outside CEMT, and required function parameters must resolve from
         declared inputs or defaulted behavior parameters. Reusable imported
-        functions and non-default parameter override binding remain.
+        functions now resolve by schema URI and `{uses}` alias when visible;
+        non-default parameter override binding remains.
   - [ ] Add schema-package and CLI examples for every engine-provided algorithm
         and its meaningful parameter or matching variations. Include passing
         and failing fixtures, expected diagnostic codes, structured details,

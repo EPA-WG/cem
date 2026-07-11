@@ -131,6 +131,7 @@ pub struct DiagnosticBehavior {
     pub definition: Option<BehaviorDefinition>,
     pub engine_behavior: Option<EngineDiagnosticBehavior>,
     pub function: Option<String>,
+    pub function_definition: Option<BehaviorFunctionDeclaration>,
     pub message: Option<String>,
     pub source_map: SourceMapStack,
 }
@@ -143,6 +144,7 @@ pub enum EngineDiagnosticBehavior {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BehaviorDefinition {
     pub schema_uri: String,
+    pub uses: BTreeMap<String, String>,
     pub name: String,
     pub implementation: String,
     pub execution: String,
@@ -196,6 +198,7 @@ pub struct BehaviorDetail {
 pub struct BehaviorFunctionDeclaration {
     pub name: String,
     pub returns: String,
+    pub visibility: String,
     pub params: Vec<BehaviorFunctionParam>,
     pub body_expression: Option<String>,
 }
@@ -773,7 +776,7 @@ fn compile_document_model_from_document_with_seen(
         return model;
     };
     let uses = collect_schema_uses(document, schema_id);
-    model.behaviors = collect_behavior_definitions(document, schema_id, schema_uri);
+    model.behaviors = collect_behavior_definitions(document, schema_id, schema_uri, &uses);
 
     for elements_id in element_child_ids_by_local_name(document, schema_id, "elements") {
         let Some(CemAstNode::Element { children, .. }) = document.get(elements_id) else {
@@ -945,14 +948,17 @@ fn collect_diagnostic_behaviors(
             let source_map = source_stack_for_node(child).clone();
             let behavior_definition =
                 resolve_behavior_definition(behavior, schema_uri, uses, local_behaviors);
-            let (engine_behavior, function) = compile_diagnostic_behavior_binding(
-                schema_uri,
-                code,
-                behavior,
-                behavior_definition.as_ref(),
-                &source_map,
-                &mut diagnostics,
-            );
+            let (engine_behavior, function, function_definition) =
+                compile_diagnostic_behavior_binding(
+                    schema_uri,
+                    code,
+                    behavior,
+                    behavior_definition.as_ref(),
+                    uses,
+                    local_behaviors,
+                    &source_map,
+                    &mut diagnostics,
+                );
             behaviors.insert(
                 code.to_owned(),
                 DiagnosticBehavior {
@@ -962,6 +968,7 @@ fn collect_diagnostic_behaviors(
                     definition: behavior_definition,
                     engine_behavior,
                     function,
+                    function_definition,
                     message: optional_non_empty_attr(&attrs, "message").map(str::to_owned),
                     source_map,
                 },
@@ -975,6 +982,7 @@ fn collect_behavior_definitions(
     document: &CemDocument,
     schema_id: AstNodeId,
     schema_uri: &str,
+    uses: &BTreeMap<String, String>,
 ) -> BTreeMap<String, BehaviorDefinition> {
     let mut behaviors = BTreeMap::new();
     for behaviors_id in element_child_ids_by_local_name(document, schema_id, "behaviors") {
@@ -1002,6 +1010,7 @@ fn collect_behavior_definitions(
                 name.to_owned(),
                 BehaviorDefinition {
                     schema_uri: schema_uri.to_owned(),
+                    uses: uses.clone(),
                     name: name.to_owned(),
                     implementation: implementation.to_owned(),
                     execution: execution.to_owned(),
@@ -1133,6 +1142,9 @@ fn collect_behavior_inline_functions(
             BehaviorFunctionDeclaration {
                 name: name.to_owned(),
                 returns: returns.to_owned(),
+                visibility: optional_non_empty_attr(&attrs, "visibility")
+                    .unwrap_or("private")
+                    .to_owned(),
                 params: collect_behavior_function_params(document, function_id),
                 body_expression: collect_behavior_function_body_expression(document, function_id),
             },
@@ -1214,9 +1226,15 @@ fn compile_diagnostic_behavior_binding(
     code: &str,
     behavior_reference: &str,
     behavior_definition: Option<&BehaviorDefinition>,
+    uses: &BTreeMap<String, String>,
+    local_behaviors: &BTreeMap<String, BehaviorDefinition>,
     source_map: &SourceMapStack,
     diagnostics: &mut Vec<Diagnostic>,
-) -> (Option<EngineDiagnosticBehavior>, Option<String>) {
+) -> (
+    Option<EngineDiagnosticBehavior>,
+    Option<String>,
+    Option<BehaviorFunctionDeclaration>,
+) {
     let Some(behavior_definition) = behavior_definition else {
         diagnostics.push(schema_compile_diagnostic(
             UNKNOWN_DIAGNOSTIC_BEHAVIOR_CODE,
@@ -1229,7 +1247,7 @@ fn compile_diagnostic_behavior_binding(
                 "checkKind": "diagnostic-behavior-resolution",
             }),
         ));
-        return (None, None);
+        return (None, None, None);
     };
 
     match behavior_definition.implementation.as_str() {
@@ -1251,13 +1269,15 @@ fn compile_diagnostic_behavior_binding(
                     }),
                 ));
             }
-            (engine_behavior, None)
+            (engine_behavior, None, None)
         }
         "function" => compile_diagnostic_function_binding(
             schema_uri,
             code,
             behavior_reference,
             behavior_definition,
+            uses,
+            local_behaviors,
             source_map,
             diagnostics,
         ),
@@ -1276,7 +1296,7 @@ fn compile_diagnostic_behavior_binding(
                     "checkKind": "diagnostic-behavior-contract",
                 }),
             ));
-            (None, None)
+            (None, None, None)
         }
     }
 }
@@ -1286,9 +1306,15 @@ fn compile_diagnostic_function_binding(
     code: &str,
     behavior_reference: &str,
     behavior_definition: &BehaviorDefinition,
+    uses: &BTreeMap<String, String>,
+    local_behaviors: &BTreeMap<String, BehaviorDefinition>,
     source_map: &SourceMapStack,
     diagnostics: &mut Vec<Diagnostic>,
-) -> (Option<EngineDiagnosticBehavior>, Option<String>) {
+) -> (
+    Option<EngineDiagnosticBehavior>,
+    Option<String>,
+    Option<BehaviorFunctionDeclaration>,
+) {
     if behavior_definition.execution != "ast-validation" {
         diagnostics.push(schema_compile_diagnostic(
             INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE,
@@ -1305,7 +1331,7 @@ fn compile_diagnostic_function_binding(
                 "checkKind": "diagnostic-behavior-contract",
             }),
         ));
-        return (None, None);
+        return (None, None, None);
     }
 
     if behavior_definition.select.is_none() {
@@ -1322,7 +1348,7 @@ fn compile_diagnostic_function_binding(
                 "checkKind": "diagnostic-behavior-contract",
             }),
         ));
-        return (None, None);
+        return (None, None, None);
     }
 
     if behavior_definition.match_query.is_none() {
@@ -1339,7 +1365,7 @@ fn compile_diagnostic_function_binding(
                 "checkKind": "diagnostic-behavior-contract",
             }),
         ));
-        return (None, None);
+        return (None, None, None);
     }
 
     let Some(function) = behavior_definition.function.as_deref() else {
@@ -1356,7 +1382,7 @@ fn compile_diagnostic_function_binding(
                 "checkKind": "diagnostic-behavior-contract",
             }),
         ));
-        return (None, None);
+        return (None, None, None);
     };
 
     let Some(result) = behavior_definition.result.as_ref() else {
@@ -1374,7 +1400,7 @@ fn compile_diagnostic_function_binding(
                 "checkKind": "diagnostic-behavior-contract",
             }),
         ));
-        return (None, None);
+        return (None, None, None);
     };
     if result.value_type != "schema:diagnostic-result" {
         diagnostics.push(schema_compile_diagnostic(
@@ -1393,25 +1419,51 @@ fn compile_diagnostic_function_binding(
                 "checkKind": "diagnostic-behavior-contract",
             }),
         ));
-        return (None, None);
+        return (None, None, None);
     }
 
-    let Some(function_declaration) = behavior_definition.inline_functions.get(function) else {
-        diagnostics.push(schema_compile_diagnostic(
-            UNRESOLVED_BEHAVIOR_FUNCTION_CODE,
-            format!(
-                "diagnostic `{code}` references behavior `{behavior_reference}` function `{function}` that is not declared by the schema behavior"
-            ),
-            source_map,
-            serde_json::json!({
-                "schemaUri": schema_uri,
-                "diagnostic": code,
-                "behavior": behavior_reference,
-                "function": function,
-                "checkKind": "behavior-function-resolution",
-            }),
-        ));
-        return (None, None);
+    let function_declaration = match resolve_behavior_function_declaration(
+        function,
+        schema_uri,
+        uses,
+        local_behaviors,
+        behavior_definition,
+    ) {
+        Ok(Some(function_declaration)) => function_declaration,
+        Ok(None) => {
+            diagnostics.push(schema_compile_diagnostic(
+                UNRESOLVED_BEHAVIOR_FUNCTION_CODE,
+                format!(
+                    "diagnostic `{code}` references behavior `{behavior_reference}` function `{function}` that is not declared by the schema behavior or a visible reusable schema function"
+                ),
+                source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "diagnostic": code,
+                    "behavior": behavior_reference,
+                    "function": function,
+                    "checkKind": "behavior-function-resolution",
+                }),
+            ));
+            return (None, None, None);
+        }
+        Err(message) => {
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE,
+                format!(
+                    "diagnostic `{code}` references behavior `{behavior_reference}` function `{function}` that cannot be resolved: {message}"
+                ),
+                source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "diagnostic": code,
+                    "behavior": behavior_reference,
+                    "function": function,
+                    "checkKind": "behavior-function-resolution",
+                }),
+            ));
+            return (None, None, None);
+        }
     };
     if function_declaration.returns != "object" {
         diagnostics.push(schema_compile_diagnostic(
@@ -1430,7 +1482,7 @@ fn compile_diagnostic_function_binding(
                 "checkKind": "diagnostic-behavior-contract",
             }),
         ));
-        return (None, None);
+        return (None, None, None);
     }
 
     if function_declaration.body_expression.is_none() {
@@ -1448,7 +1500,7 @@ fn compile_diagnostic_function_binding(
                 "checkKind": "diagnostic-behavior-contract",
             }),
         ));
-        return (None, None);
+        return (None, None, None);
     }
 
     if let Some(unbound_param) = function_declaration.params.iter().find(|param| {
@@ -1470,10 +1522,10 @@ fn compile_diagnostic_function_binding(
                 "checkKind": "behavior-function-parameter-binding",
             }),
         ));
-        return (None, None);
+        return (None, None, None);
     }
 
-    (None, Some(function.to_owned()))
+    (None, Some(function.to_owned()), Some(function_declaration))
 }
 
 fn behavior_function_param_has_binding(
@@ -1488,6 +1540,119 @@ fn behavior_function_param_has_binding(
             .parameters
             .iter()
             .any(|parameter| parameter.name == param_name && parameter.default.is_some())
+}
+
+fn resolve_behavior_function_declaration(
+    function_reference: &str,
+    current_schema_uri: &str,
+    current_uses: &BTreeMap<String, String>,
+    current_local_behaviors: &BTreeMap<String, BehaviorDefinition>,
+    behavior_definition: &BehaviorDefinition,
+) -> Result<Option<BehaviorFunctionDeclaration>, String> {
+    let function_reference = function_reference.trim();
+    if function_reference.is_empty() {
+        return Ok(None);
+    }
+
+    let Some((alias, name)) = function_reference.split_once(':') else {
+        if let Some(function) = behavior_definition.inline_functions.get(function_reference) {
+            return Ok(Some(function.clone()));
+        }
+        let behavior_definitions = behavior_definitions_for_function_schema(
+            &behavior_definition.schema_uri,
+            current_schema_uri,
+            current_local_behaviors,
+        )?;
+        return reusable_behavior_function_from_definitions(
+            function_reference,
+            &behavior_definitions,
+            false,
+        );
+    };
+
+    let alias = alias.trim();
+    let name = name.trim();
+    if alias.is_empty() || name.is_empty() {
+        return Ok(None);
+    }
+    let referenced_schema_uri = behavior_definition
+        .uses
+        .get(alias)
+        .or_else(|| current_uses.get(alias))
+        .map(String::as_str)
+        .map(str::trim)
+        .filter(|schema_uri| !schema_uri.is_empty());
+    let Some(referenced_schema_uri) = referenced_schema_uri else {
+        return Ok(None);
+    };
+    let behavior_definitions = behavior_definitions_for_function_schema(
+        referenced_schema_uri,
+        current_schema_uri,
+        current_local_behaviors,
+    )?;
+    reusable_behavior_function_from_definitions(
+        name,
+        &behavior_definitions,
+        referenced_schema_uri != behavior_definition.schema_uri,
+    )
+}
+
+fn behavior_definitions_for_function_schema(
+    schema_uri: &str,
+    current_schema_uri: &str,
+    current_local_behaviors: &BTreeMap<String, BehaviorDefinition>,
+) -> Result<BTreeMap<String, BehaviorDefinition>, String> {
+    if schema_uri == current_schema_uri {
+        return Ok(current_local_behaviors.clone());
+    }
+    let package = load_builtin_schema_package(schema_uri)
+        .map_err(|_| format!("schema `{schema_uri}` is not available as a built-in package"))?;
+    let document = parse_cem_document(package.schema_source);
+    let schema_id = first_element_id_by_local_name(&document, "schema")
+        .ok_or_else(|| format!("schema `{schema_uri}` has no root schema declaration"))?;
+    let uses = collect_schema_uses(&document, schema_id);
+    Ok(collect_behavior_definitions(
+        &document, schema_id, schema_uri, &uses,
+    ))
+}
+
+fn reusable_behavior_function_from_definitions(
+    name: &str,
+    behavior_definitions: &BTreeMap<String, BehaviorDefinition>,
+    external_schema: bool,
+) -> Result<Option<BehaviorFunctionDeclaration>, String> {
+    let mut matches = Vec::new();
+    for behavior in behavior_definitions.values() {
+        let Some(function) = behavior.inline_functions.get(name) else {
+            continue;
+        };
+        if !behavior_function_visible_for_reuse(function, external_schema) {
+            continue;
+        }
+        matches.push((behavior.name.as_str(), function.clone()));
+    }
+    if matches.len() > 1 {
+        return Err(format!(
+            "function `{name}` is ambiguous across reusable behavior functions: {}",
+            matches
+                .iter()
+                .map(|(behavior, _)| *behavior)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    Ok(matches.into_iter().next().map(|(_, function)| function))
+}
+
+fn behavior_function_visible_for_reuse(
+    function: &BehaviorFunctionDeclaration,
+    external_schema: bool,
+) -> bool {
+    if external_schema {
+        function.visibility == "public"
+    } else {
+        function.visibility == "package" || function.visibility == "public"
+    }
 }
 
 fn resolve_behavior_definition(
@@ -1511,7 +1676,8 @@ fn resolve_behavior_definition(
     let package = load_builtin_schema_package(referenced_schema_uri).ok()?;
     let document = parse_cem_document(package.schema_source);
     let schema_id = first_element_id_by_local_name(&document, "schema")?;
-    collect_behavior_definitions(&document, schema_id, referenced_schema_uri)
+    let uses = collect_schema_uses(&document, schema_id);
+    collect_behavior_definitions(&document, schema_id, referenced_schema_uri, &uses)
         .get(name)
         .cloned()
 }
@@ -2929,6 +3095,13 @@ mod tests {
             behavior
                 .inline_functions
                 .get("item-label-result")
+                .map(|function| function.visibility.as_str()),
+            Some("private")
+        );
+        assert_eq!(
+            behavior
+                .inline_functions
+                .get("item-label-result")
                 .and_then(|function| function.body_expression.as_deref()),
             Some(r#"{ message: "Item label is required", details: { checkKind: "item-label" } }"#)
         );
@@ -2940,8 +3113,87 @@ mod tests {
             diagnostic_behavior.function.as_deref(),
             Some("item-label-result")
         );
+        assert_eq!(
+            diagnostic_behavior
+                .function_definition
+                .as_ref()
+                .map(|function| function.name.as_str()),
+            Some("item-label-result")
+        );
         assert_eq!(diagnostic_behavior.engine_behavior, None);
         assert_eq!(diagnostic_behavior.code, "example.item_label");
+    }
+
+    #[test]
+    fn schema_diagnostic_behavior_accepts_qualified_reusable_function_binding() {
+        let model = compile_document_model(
+            "https://example.test/ns/function-behavior/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="function-behavior" @namespace="https://example.test/ns/function-behavior/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://example.test/ns/function-behavior/1" @as="self"}
+    }
+    {elements |
+        {element @name="item" @optional-attributes="name"}
+    }
+    {behaviors |
+        {behavior @name="result-library" @implementation="function" @execution="ast-validation" |
+            {function @name="shared-label-result" @returns="object" @visibility="package" @deterministic=true |
+                {param @name="candidate" @type="object" @required=true}
+                {param @name="expected" @type="string" @required=true}
+                {body | {$ { message: "Item label is required", details: { checkKind: "item-label", expected: $expected } } }}
+            }
+        }
+        {behavior
+            @name="item-label"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="self:shared-label-result"
+            @select="item"
+            @match="name = null" |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true}
+            }
+            {parameters |
+                {parameter @name="expected" @type="schema:string" @required=true @default="label"}
+            }
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.item_label"
+            @severity="warning"
+            @behavior="item-label"
+            @message="Item label is required"
+        }
+    }
+}"#,
+        );
+
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "qualified reusable function behavior should compile: {:#?}",
+            model.compile_diagnostics
+        );
+        let diagnostic_behavior = model
+            .diagnostic_behaviors
+            .get("example.item_label")
+            .expect("diagnostic behavior binding");
+        assert_eq!(
+            diagnostic_behavior.function.as_deref(),
+            Some("self:shared-label-result")
+        );
+        let function = diagnostic_behavior
+            .function_definition
+            .as_ref()
+            .expect("qualified reusable function");
+        assert_eq!(function.name, "shared-label-result");
+        assert_eq!(function.visibility, "package");
+        assert_eq!(function.params.len(), 2);
     }
 
     #[test]
@@ -2986,6 +3238,64 @@ mod tests {
             .diagnostic_behaviors
             .get("example.item_label")
             .is_some_and(|behavior| behavior.function.is_none()));
+    }
+
+    #[test]
+    fn schema_diagnostic_behavior_rejects_private_reusable_function_binding() {
+        let model = compile_document_model(
+            "https://example.test/ns/function-behavior-invalid/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="function-behavior-invalid" @namespace="https://example.test/ns/function-behavior-invalid/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://example.test/ns/function-behavior-invalid/1" @as="self"}
+    }
+    {behaviors |
+        {behavior @name="result-library" @implementation="function" @execution="ast-validation" |
+            {function @name="shared-label-result" @returns="object" @deterministic=true |
+                {param @name="candidate" @type="object" @required=true}
+                {body | {$ { message: "Item label is required" } }}
+            }
+        }
+        {behavior
+            @name="item-label"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="self:shared-label-result"
+            @select="item"
+            @match="true" |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true}
+            }
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.item_label"
+            @severity="error"
+            @behavior="item-label"
+        }
+    }
+}"#,
+        );
+
+        assert!(model.compile_diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "cem.schema_definition.unresolved_behavior_function"
+                && diagnostic.details.as_ref().is_some_and(|details| {
+                    details["diagnostic"] == "example.item_label"
+                        && details["behavior"] == "item-label"
+                        && details["function"] == "self:shared-label-result"
+                })
+        }));
+        assert!(model
+            .diagnostic_behaviors
+            .get("example.item_label")
+            .is_some_and(|behavior| {
+                behavior.function.is_none() && behavior.function_definition.is_none()
+            }));
     }
 
     #[test]

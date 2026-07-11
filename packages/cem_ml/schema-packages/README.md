@@ -202,9 +202,11 @@ The relationship is layered validation, not broad inheritance:
 - Function-backed diagnostics are also schema-owned: behavior declarations use
   CEM-QL `@select`/`@match` expressions to choose failures and inline CEM-ML
   behavior functions to produce messages and structured details outside CEMT.
-  Defaulted typed behavior parameters bind into those functions. Imported
-  reusable behavior functions, non-default parameter overrides, and the full
-  engine primitive library are still being built out.
+  Defaulted typed behavior parameters bind into those functions. Qualified
+  function references resolve through schema `{uses}` aliases to reusable
+  CEM-ML behavior functions that opt in with `@visibility="package"` or
+  `@visibility="public"`. Non-default parameter overrides and the full engine
+  primitive library are still being built out.
 
 Schema dependencies should be resolved by schema URL and content type, not by
 filesystem path. Filesystem layout is a distribution detail for local packages.
