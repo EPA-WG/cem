@@ -105,11 +105,13 @@
         {field-contract
             @name="resource-link-choice"
             @target="resource"
-            @required-one-attributes="href inline"
-            @max-one-attributes="href inline"
             @diagnostic="example.resource.link_choice"
             @behavior="schema:choice-case"
-            @check-kind="exactly-one-fields"
+            @check-kind="choice-case" |
+            {choice @name="resource-link-source" @mode="exactly-one" |
+                {case @name="href-link" @attributes="href"}
+                {case @name="inline-link" @attributes="inline"}
+            }
         }
         {field-contract
             @name="resource-field-range"

@@ -308,6 +308,7 @@ pub struct FieldContract {
     pub max_one_children: BTreeSet<String>,
     pub min_children: BTreeMap<String, String>,
     pub max_children: BTreeMap<String, String>,
+    pub choice_groups: Vec<ChoiceGroup>,
     pub path_layout_attributes: BTreeSet<String>,
     pub path_layout_prefix: Option<String>,
     pub path_layout_extension: Option<String>,
@@ -315,6 +316,57 @@ pub struct FieldContract {
     pub when_values: BTreeSet<String>,
     pub when_present_attributes: BTreeSet<String>,
     pub source_map: SourceMapStack,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChoiceGroup {
+    pub name: String,
+    pub mode: String,
+    pub cases: Vec<ChoiceCase>,
+    pub source_map: SourceMapStack,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChoiceCase {
+    pub name: Option<String>,
+    pub attributes: BTreeSet<String>,
+    pub children: BTreeSet<String>,
+    pub source_map: SourceMapStack,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ChoiceMode {
+    ExactlyOne,
+    AtLeastOne,
+    AtMostOne,
+}
+
+impl ChoiceMode {
+    fn parse(value: &str) -> Option<Self> {
+        match value.trim() {
+            "exactly-one" => Some(Self::ExactlyOne),
+            "at-least-one" => Some(Self::AtLeastOne),
+            "at-most-one" => Some(Self::AtMostOne),
+            _ => None,
+        }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::ExactlyOne => "exactly-one",
+            Self::AtLeastOne => "at-least-one",
+            Self::AtMostOne => "at-most-one",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct ChoiceGroupEvaluation {
+    present_choice_cases: BTreeMap<String, Vec<String>>,
+    missing_choice_cases: Vec<String>,
+    conflicting_choice_cases: BTreeMap<String, Vec<String>>,
+    missing_choice_fields: Vec<String>,
+    conflicting_choice_fields: Vec<String>,
 }
 
 impl FieldContract {
@@ -1684,6 +1736,7 @@ fn validate_field_contract_definition(
     }
 
     validate_child_range_field_contract(schema_uri, contract, diagnostics);
+    validate_choice_case_field_contract(schema_uri, contract, diagnostics);
 
     let Some(behavior) = contract.behavior.as_deref() else {
         return;
@@ -1726,6 +1779,72 @@ fn validate_field_contract_definition(
                 "checkKind": "field-contract-behavior-contract",
             }),
         ));
+    }
+}
+
+fn validate_choice_case_field_contract(
+    schema_uri: &str,
+    contract: &FieldContract,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for choice in &contract.choice_groups {
+        if ChoiceMode::parse(&choice.mode).is_none() {
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_FIELD_CONTRACT_CODE,
+                format!(
+                    "field contract `{}` declares invalid choice mode `{}` in schema `{schema_uri}`",
+                    contract.name, choice.mode
+                ),
+                &choice.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "contract": &contract.name,
+                    "choice": &choice.name,
+                    "mode": &choice.mode,
+                    "expectedModes": ["exactly-one", "at-least-one", "at-most-one"],
+                    "checkKind": "field-contract-choice-case",
+                }),
+            ));
+        }
+        if choice.cases.is_empty() {
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_FIELD_CONTRACT_CODE,
+                format!(
+                    "field contract `{}` declares choice `{}` without cases in schema `{schema_uri}`",
+                    contract.name, choice.name
+                ),
+                &choice.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "contract": &contract.name,
+                    "choice": &choice.name,
+                    "checkKind": "field-contract-choice-case",
+                    "error": "choice requires at least one case",
+                }),
+            ));
+        }
+        for (index, case) in choice.cases.iter().enumerate() {
+            if case.attributes.is_empty() && case.children.is_empty() {
+                diagnostics.push(schema_compile_diagnostic(
+                    INVALID_SCHEMA_FIELD_CONTRACT_CODE,
+                    format!(
+                        "field contract `{}` declares empty case `{}` in choice `{}` in schema `{schema_uri}`",
+                        contract.name,
+                        choice_case_label(choice, index),
+                        choice.name
+                    ),
+                    &case.source_map,
+                    serde_json::json!({
+                        "schemaUri": schema_uri,
+                        "contract": &contract.name,
+                        "choice": &choice.name,
+                        "case": choice_case_label(choice, index),
+                        "checkKind": "field-contract-choice-case",
+                        "error": "case requires attributes, children, or both",
+                    }),
+                ));
+            }
+        }
     }
 }
 
@@ -3027,6 +3146,7 @@ fn collect_field_contracts(
                 max_one_children: parse_name_set(attrs.get("max-one-children")),
                 min_children: parse_name_value_map(attrs.get("min-children")),
                 max_children: parse_name_value_map(attrs.get("max-children")),
+                choice_groups: collect_choice_groups(document, *child_id),
                 path_layout_attributes: parse_name_set(attrs.get("path-layout-attributes")),
                 path_layout_prefix: optional_non_empty_attr(&attrs, "path-layout-prefix")
                     .map(str::to_owned),
@@ -3045,6 +3165,58 @@ fn collect_field_contracts(
         }
     }
     contracts
+}
+
+fn collect_choice_groups(document: &CemDocument, field_contract_id: AstNodeId) -> Vec<ChoiceGroup> {
+    let Some(CemAstNode::Element { children, .. }) = document.get(field_contract_id) else {
+        return Vec::new();
+    };
+    children
+        .iter()
+        .filter_map(|choice_id| {
+            if document.get(*choice_id).and_then(element_local_name) != Some("choice") {
+                return None;
+            }
+            let attrs = collect_attrs(document, *choice_id);
+            let name = optional_non_empty_attr(&attrs, "name")?;
+            let mode = optional_non_empty_attr(&attrs, "mode")?;
+            Some(ChoiceGroup {
+                name: name.to_owned(),
+                mode: mode.to_owned(),
+                cases: collect_choice_cases(document, *choice_id),
+                source_map: document
+                    .get(*choice_id)
+                    .map(source_stack_for_node)
+                    .cloned()
+                    .unwrap_or_default(),
+            })
+        })
+        .collect()
+}
+
+fn collect_choice_cases(document: &CemDocument, choice_id: AstNodeId) -> Vec<ChoiceCase> {
+    let Some(CemAstNode::Element { children, .. }) = document.get(choice_id) else {
+        return Vec::new();
+    };
+    children
+        .iter()
+        .filter_map(|case_id| {
+            if document.get(*case_id).and_then(element_local_name) != Some("case") {
+                return None;
+            }
+            let attrs = collect_attrs(document, *case_id);
+            Some(ChoiceCase {
+                name: optional_non_empty_attr(&attrs, "name").map(str::to_owned),
+                attributes: parse_name_set(attrs.get("attributes")),
+                children: parse_name_set(attrs.get("children")),
+                source_map: document
+                    .get(*case_id)
+                    .map(source_stack_for_node)
+                    .cloned()
+                    .unwrap_or_default(),
+            })
+        })
+        .collect()
 }
 
 fn validate_field_contracts(
@@ -3147,9 +3319,39 @@ fn validate_field_contracts(
         let conflicting_choice_fields = (present_max_one_attributes.len() > 1)
             .then(|| present_max_one_attributes.clone())
             .unwrap_or_default();
+        let nested_choice_evaluation =
+            evaluate_choice_groups(contract, seen_attributes, child_counts);
         let invalid_fields = invalid_fields
             .into_iter()
             .chain(conflicting_choice_fields.iter().cloned())
+            .chain(
+                nested_choice_evaluation
+                    .conflicting_choice_fields
+                    .iter()
+                    .cloned(),
+            )
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        let missing_choice_fields = missing_choice_fields
+            .into_iter()
+            .chain(
+                nested_choice_evaluation
+                    .missing_choice_fields
+                    .iter()
+                    .cloned(),
+            )
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        let conflicting_choice_fields = conflicting_choice_fields
+            .into_iter()
+            .chain(
+                nested_choice_evaluation
+                    .conflicting_choice_fields
+                    .iter()
+                    .cloned(),
+            )
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
@@ -3188,6 +3390,8 @@ fn validate_field_contracts(
             && invalid_fields.is_empty()
             && missing_choice_fields.is_empty()
             && conflicting_choice_fields.is_empty()
+            && nested_choice_evaluation.missing_choice_cases.is_empty()
+            && nested_choice_evaluation.conflicting_choice_cases.is_empty()
             && missing_children.is_empty()
             && duplicate_children.is_empty()
             && under_min_children.is_empty()
@@ -3226,6 +3430,23 @@ fn validate_field_contracts(
             parts.push(format!(
                 "too many choice fields present: {}",
                 conflicting_choice_fields.join(", ")
+            ));
+        }
+        if !nested_choice_evaluation.missing_choice_cases.is_empty() {
+            parts.push(format!(
+                "missing choice cases: {}",
+                nested_choice_evaluation.missing_choice_cases.join(", ")
+            ));
+        }
+        if !nested_choice_evaluation.conflicting_choice_cases.is_empty() {
+            parts.push(format!(
+                "too many choice cases present: {}",
+                nested_choice_evaluation
+                    .conflicting_choice_cases
+                    .iter()
+                    .map(|(choice, cases)| format!("{choice}=[{}]", cases.join(", ")))
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ));
         }
         if !missing_children.is_empty() {
@@ -3281,6 +3502,7 @@ fn validate_field_contracts(
                 &present_max_one_attributes,
                 &missing_choice_fields,
                 &conflicting_choice_fields,
+                &nested_choice_evaluation,
                 &missing_children,
                 &duplicate_children,
                 &under_min_children,
@@ -3290,6 +3512,137 @@ fn validate_field_contracts(
             ),
         ));
     }
+}
+
+fn evaluate_choice_groups(
+    contract: &FieldContract,
+    seen_attributes: &BTreeSet<String>,
+    child_counts: &BTreeMap<String, usize>,
+) -> ChoiceGroupEvaluation {
+    let mut evaluation = ChoiceGroupEvaluation::default();
+    for choice in &contract.choice_groups {
+        let Some(mode) = ChoiceMode::parse(&choice.mode) else {
+            continue;
+        };
+        let mut present_cases = Vec::new();
+        let mut present_fields = Vec::new();
+        for (index, case) in choice.cases.iter().enumerate() {
+            let case_present_fields =
+                choice_case_present_fields(case, seen_attributes, child_counts);
+            if case_present_fields.is_empty() {
+                continue;
+            }
+            present_cases.push(choice_case_label(choice, index));
+            present_fields.extend(case_present_fields);
+        }
+
+        if !present_cases.is_empty() {
+            evaluation
+                .present_choice_cases
+                .insert(choice.name.clone(), present_cases.clone());
+        }
+
+        let is_missing = matches!(mode, ChoiceMode::ExactlyOne | ChoiceMode::AtLeastOne)
+            && present_cases.is_empty();
+        if is_missing {
+            evaluation.missing_choice_cases.push(choice.name.clone());
+            evaluation
+                .missing_choice_fields
+                .extend(choice_possible_fields(choice));
+        }
+
+        let is_conflicting = matches!(mode, ChoiceMode::ExactlyOne | ChoiceMode::AtMostOne)
+            && present_cases.len() > 1;
+        if is_conflicting {
+            evaluation
+                .conflicting_choice_cases
+                .insert(choice.name.clone(), present_cases);
+            evaluation.conflicting_choice_fields.extend(present_fields);
+        }
+    }
+
+    evaluation.missing_choice_cases.sort();
+    evaluation.missing_choice_fields.sort();
+    evaluation.missing_choice_fields.dedup();
+    evaluation.conflicting_choice_fields.sort();
+    evaluation.conflicting_choice_fields.dedup();
+    evaluation
+}
+
+fn choice_case_present_fields(
+    choice_case: &ChoiceCase,
+    seen_attributes: &BTreeSet<String>,
+    child_counts: &BTreeMap<String, usize>,
+) -> Vec<String> {
+    choice_case
+        .attributes
+        .iter()
+        .filter(|name| seen_attributes.contains(*name))
+        .map(|name| name.to_owned())
+        .chain(
+            choice_case
+                .children
+                .iter()
+                .filter(|name| child_counts.get(*name).copied().unwrap_or_default() > 0)
+                .map(|name| name.to_owned()),
+        )
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn choice_possible_fields(choice: &ChoiceGroup) -> Vec<String> {
+    choice
+        .cases
+        .iter()
+        .flat_map(|choice_case| {
+            choice_case
+                .attributes
+                .iter()
+                .chain(choice_case.children.iter())
+                .cloned()
+        })
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn choice_case_label(choice: &ChoiceGroup, index: usize) -> String {
+    choice
+        .cases
+        .get(index)
+        .and_then(|choice_case| choice_case.name.as_deref())
+        .map(str::to_owned)
+        .unwrap_or_else(|| format!("case-{}", index + 1))
+}
+
+fn choice_group_details(contract: &FieldContract) -> serde_json::Value {
+    serde_json::Value::Array(
+        contract
+            .choice_groups
+            .iter()
+            .map(|choice| {
+                serde_json::json!({
+                    "name": &choice.name,
+                    "mode": ChoiceMode::parse(&choice.mode)
+                        .map(ChoiceMode::as_str)
+                        .unwrap_or(choice.mode.as_str()),
+                    "cases": choice
+                        .cases
+                        .iter()
+                        .enumerate()
+                        .map(|(index, choice_case)| {
+                            serde_json::json!({
+                                "name": choice_case_label(choice, index),
+                                "attributes": &choice_case.attributes,
+                                "children": &choice_case.children,
+                            })
+                        })
+                        .collect::<Vec<_>>(),
+                })
+            })
+            .collect(),
+    )
 }
 
 fn field_contract_details(
@@ -3305,6 +3658,7 @@ fn field_contract_details(
     present_max_one_fields: &[String],
     missing_choice_fields: &[String],
     conflicting_choice_fields: &[String],
+    nested_choice_evaluation: &ChoiceGroupEvaluation,
     missing_children: &[String],
     duplicate_children: &[String],
     under_min_children: &[String],
@@ -3330,6 +3684,10 @@ fn field_contract_details(
         "presentMaxOneFields": present_max_one_fields,
         "missingChoiceFields": missing_choice_fields,
         "conflictingChoiceFields": conflicting_choice_fields,
+        "choiceCases": choice_group_details(contract),
+        "presentChoiceCases": &nested_choice_evaluation.present_choice_cases,
+        "missingChoiceCases": &nested_choice_evaluation.missing_choice_cases,
+        "conflictingChoiceCases": &nested_choice_evaluation.conflicting_choice_cases,
         "requiredChildren": &contract.required_children,
         "maxOneChildren": &contract.max_one_children,
         "minChildren": &contract.min_children,
@@ -4883,6 +5241,148 @@ mod tests {
                 "relative": true,
                 "cleanSegments": true,
             })
+        );
+    }
+
+    #[test]
+    fn schema_nested_choice_case_groups_drive_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/nested-choice-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="nested-choice-contracts" @namespace="https://example.test/ns/nested-choice-contracts/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="item" @optional-attributes="href inline" @children="body"}
+        {element @name="body"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="item-link-source-choice"
+            @target="item"
+            @diagnostic="example.item_check"
+            @behavior="schema:choice-case"
+            @check-kind="choice-case" |
+            {choice @name="link-source" @mode="exactly-one" |
+                {case @name="href-link" @attributes="href"}
+                {case @name="inline-link" @attributes="inline"}
+                {case @name="body-link" @children="body"}
+            }
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.item_check"
+            @severity="error"
+            @behavior="schema:field-contract"
+        }
+    }
+}"#,
+        );
+
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "nested choice schema should compile: {:#?}",
+            model.compile_diagnostics
+        );
+
+        let document = parse_cem_document(r#"{item}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.item_check")
+            .expect("missing nested choice diagnostic");
+        assert!(diagnostic
+            .message
+            .contains("missing choice cases: link-source"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("missing nested choice details");
+        assert_eq!(details["behavior"], serde_json::json!("schema:choice-case"));
+        assert_eq!(details["checkKind"], serde_json::json!("choice-case"));
+        assert_eq!(
+            details["missingChoiceCases"],
+            serde_json::json!(["link-source"])
+        );
+        assert_eq!(
+            details["missingChoiceFields"],
+            serde_json::json!(["body", "href", "inline"])
+        );
+        assert_eq!(
+            details["choiceCases"],
+            serde_json::json!([
+                {
+                    "name": "link-source",
+                    "mode": "exactly-one",
+                    "cases": [
+                        {"name": "href-link", "attributes": ["href"], "children": []},
+                        {"name": "inline-link", "attributes": ["inline"], "children": []},
+                        {"name": "body-link", "attributes": [], "children": ["body"]},
+                    ],
+                }
+            ])
+        );
+
+        let document = parse_cem_document(r#"{item @href="/demo"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        assert!(
+            diagnostics.iter().all(|diagnostic| {
+                diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("contract").and_then(serde_json::Value::as_str))
+                    != Some("item-link-source-choice")
+            }),
+            "single attribute case should satisfy nested choice: {diagnostics:?}"
+        );
+
+        let document = parse_cem_document(r#"{item | {body}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        assert!(
+            diagnostics.iter().all(|diagnostic| {
+                diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("contract").and_then(serde_json::Value::as_str))
+                    != Some("item-link-source-choice")
+            }),
+            "single child case should satisfy nested choice: {diagnostics:?}"
+        );
+
+        let document = parse_cem_document(r#"{item @href="/demo" @inline="text" | {body}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.item_check")
+            .expect("conflicting nested choice diagnostic");
+        assert!(diagnostic.message.contains(
+            "too many choice cases present: link-source=[href-link, inline-link, body-link]"
+        ));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("conflicting nested choice details");
+        assert_eq!(details["missingChoiceCases"], serde_json::json!([]));
+        assert_eq!(
+            details["presentChoiceCases"]["link-source"],
+            serde_json::json!(["href-link", "inline-link", "body-link"])
+        );
+        assert_eq!(
+            details["conflictingChoiceCases"]["link-source"],
+            serde_json::json!(["href-link", "inline-link", "body-link"])
+        );
+        assert_eq!(
+            details["conflictingChoiceFields"],
+            serde_json::json!(["body", "href", "inline"])
+        );
+        assert_eq!(
+            details["invalidFields"],
+            serde_json::json!(["body", "href", "inline"])
         );
     }
 

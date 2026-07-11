@@ -73,9 +73,10 @@ history belongs in git history and the feature-specific docs linked below.
         cardinality now executes through `schema:choice-case`; broader child
         occurrence ranges now execute through `schema:child-occurrence`; basic
         number, URI, media-type, and scope-context path scalar syntax now
-        execute through `schema:scalar-type`; nested choice/case groups and
-        datatype parameter variations beyond integer inclusive/exclusive
-        bounds, string length constraints, and regex pattern remain.
+        execute through `schema:scalar-type`; nested choice/case groups now
+        execute through `schema:choice-case`; datatype parameter variations
+        beyond integer inclusive/exclusive bounds, string length constraints,
+        and regex pattern remain.
   - [ ] Compile behavior declarations and references into the generic schema
         model, reject missing or incompatible behavior references, and dispatch
         them through a single runtime evaluation path. The resolved behavior
@@ -100,8 +101,9 @@ history belongs in git history and the feature-specific docs linked below.
         example now covers the initial `schema:required-fields` behavior alias
         on a conditional field contract and `schema:value-vocabulary` on an
         attribute declaration, `schema:scalar-type` number/URI/media-type/path
-        syntax on attribute declarations, plus exact-one `schema:choice-case` attribute
-        cardinality and `schema:datatype-param` string length constraints;
+        syntax on attribute declarations, plus nested exact-one
+        `schema:choice-case` cardinality and `schema:datatype-param` string
+        length constraints;
         schema-package examples cover constraint-level
         `schema:resource-readable`, `schema:resource-parse`, and
         `schema:reference-resolution` bindings through operational artifact
@@ -141,18 +143,19 @@ history belongs in git history and the feature-specific docs linked below.
         The schema language now models element-bound required/optional/
         forbidden fields, value and presence conditional selectors,
         value-specific forbidden fields, exact-one child occurrence contracts,
-        required-one/max-one attribute choice cardinality, package-relative
-        path-layout contracts, diagnostic families, and attribute `@values`
-        vocabularies, plus boolean/integer/number/basic URI/media-type/path
-        scalar syntax, integer `minInclusive`, `maxInclusive`,
+        required-one/max-one attribute choice cardinality, nested choice/case
+        groups, package-relative path-layout contracts, diagnostic families,
+        and attribute `@values` vocabularies, plus
+        boolean/integer/number/basic URI/media-type/path scalar syntax,
+        integer `minInclusive`, `maxInclusive`,
         `minExclusive`, and `maxExclusive` bounds plus string `minLength`,
         `maxLength`, and `length` params and regex `pattern` datatype params,
         plus min/max child occurrence ranges; it
         still needs accepted children, scalar type validation beyond
         boolean/integer/number/basic URI/media-type/path syntax, RELAX NG-style
         datatype params beyond those initial variations, defaults, richer
-        dependent-required field groups, RELAX NG-style choice/case groups, and
-        additional child occurrence variants.
+        dependent-required field groups, and additional child occurrence
+        variants.
   - [ ] Extend the compiled Rust schema contract model. `SchemaDocumentModel`
         now compiles initial `field-contract` declarations and evaluates
         required/forbidden fields, attribute `@values` vocabularies, and
@@ -163,17 +166,17 @@ history belongs in git history and the feature-specific docs linked below.
         still needs reusable string/path constraints beyond path-layout checks,
         richer URI/media-type constraints, RELAX NG-style datatype params
         beyond integer bounds and pattern, dependent field
-        groups beyond presence-gated required fields, nested RELAX NG-style
-        choice/case groups, additional child occurrence variants, defaults, and
-        richer case grouping for all schema elements.
+        groups beyond presence-gated required fields, additional child
+        occurrence variants, defaults, and richer case grouping for all schema
+        elements.
   - [ ] Extend structured diagnostic details beyond initial required/forbidden
         field checks. The first generic field-contract evaluator now emits
         schema URI, element, contract name, check kind, required/optional/
         forbidden fields, missing/invalid fields, actual values, condition, and
         source-map range, and attribute `@values` checks emit expected/actual
         value details; boolean, integer, number, basic URI, basic media-type,
-        and path type checks now emit expected/actual details; integer `minInclusive`,
-        `maxInclusive`,
+        and path type checks now emit expected/actual details; integer
+        `minInclusive`, `maxInclusive`,
         `minExclusive`, and `maxExclusive` checks, string `minLength`,
         `maxLength`, and `length` checks, plus regex `pattern` checks emit
         datatype-param details; value-specific forbidden checks emit
@@ -182,25 +185,27 @@ history belongs in git history and the feature-specific docs linked below.
         missing/duplicate/under-min/over-max children, and childCounts details;
         required-one/max-one attribute choice checks emit choice cardinality
         details; path-layout checks emit pathLayout and invalidValues details;
-        path type checks emit expected/actual details; richer URI/media-type constraints,
-        additional datatype params, dependency, nested choice/case grouping,
-        additional child occurrence variants, and cross-reference checks need
-        the same schema-owned detail shape.
+        path type checks emit expected/actual details; nested choice/case
+        checks emit declared cases, present cases, missing cases, and
+        conflicting cases; richer URI/media-type constraints, additional
+        datatype params, dependency, additional child occurrence variants, and
+        cross-reference checks need the same schema-owned detail shape.
   - [ ] Extend the generic field-contract evaluator. The first evaluator runs
         from schema URI plus content type, consumes the compiled contract
         model, preserves source-map ranges, and emits contract-declared
         diagnostic families such as `cem.schema_package.artifact_check`; it
         now emits structured details for required/forbidden field checks and
-        attribute `@values` plus boolean/integer/number/basic URI/media-type/path type,
-        integer `minInclusive`/`maxInclusive`/`minExclusive`/`maxExclusive`,
+        attribute `@values` plus
+        boolean/integer/number/basic URI/media-type/path type, integer
+        `minInclusive`/`maxInclusive`/`minExclusive`/`maxExclusive`,
         string `minLength`/`maxLength`/`length`, and regex `pattern`
         datatype-param checks, exact-one child occurrence checks, min/max child
         occurrence range checks, required-one/max-one attribute choice checks,
         and
-        package-relative path-layout checks, and scope-context path type checks;
-        it still needs coverage for richer URI/media-type constraints,
-        additional datatype params, dependency, nested RELAX NG-style
-        choice/case grouping, and additional child occurrence variants.
+        package-relative path-layout checks, scope-context path type checks,
+        and nested choice/case checks; it still needs coverage for richer
+        URI/media-type constraints, additional datatype params, dependency, and
+        additional child occurrence variants.
   - [ ] Move schema-package manifest field rules from Rust conditionals into
         `packages/cem_ml/schema-packages/schema-package/v1/schema/schema-package.cem`.
         Cover `package`, `schema`, `content-type`, `namespace`, `converter`,
