@@ -22,7 +22,7 @@
     }
 
     {elements |
-        {element @name="resource" @required-attributes="id kind" @optional-attributes="label priority slug href inline" @children="field*"}
+        {element @name="resource" @required-attributes="id kind" @optional-attributes="label priority slug code href inline" @children="field*"}
         {element @name="field" @required-attributes="name type"}
     }
 
@@ -40,6 +40,12 @@
             @type="schema:string"
             @pattern="[a-z][a-z0-9-]*"
             @datatype-param-diagnostic="example.resource.invalid_slug"
+        }
+        {attribute
+            @name="code"
+            @type="schema:string"
+            @length=4
+            @datatype-param-diagnostic="example.resource.invalid_code"
         }
         {attribute
             @name="kind"
@@ -115,6 +121,12 @@
             @severity="error"
             @behavior="schema:datatype-param"
             @message="Resource slug must match the declared pattern"
+        }
+        {diagnostic
+            @code="example.resource.invalid_code"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource code must have the declared length"
         }
         {diagnostic
             @code="example.resource.invalid_inline"
