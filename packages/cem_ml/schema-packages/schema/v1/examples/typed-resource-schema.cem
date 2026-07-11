@@ -22,7 +22,7 @@
     }
 
     {elements |
-        {element @name="resource" @required-attributes="id kind" @optional-attributes="label priority" @children="field*"}
+        {element @name="resource" @required-attributes="id kind" @optional-attributes="label priority slug" @children="field*"}
         {element @name="field" @required-attributes="name type"}
     }
 
@@ -34,6 +34,12 @@
             @minInclusive=1
             @maxInclusive=10
             @datatype-param-diagnostic="example.resource.invalid_priority"
+        }
+        {attribute
+            @name="slug"
+            @type="schema:string"
+            @pattern="[a-z][a-z0-9-]*"
+            @datatype-param-diagnostic="example.resource.invalid_slug"
         }
         {attribute
             @name="kind"
@@ -77,6 +83,12 @@
             @severity="error"
             @behavior="schema:datatype-param"
             @message="Resource priority must stay within the declared bounds"
+        }
+        {diagnostic
+            @code="example.resource.invalid_slug"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource slug must match the declared pattern"
         }
     }
 

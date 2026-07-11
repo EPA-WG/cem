@@ -21,6 +21,7 @@ yaml-rust2 = "0.11"
 quick-xml = "0.41"
 blake3 = "1"
 syn = { version = "2", features = ["full", "visit"] }
+regex = "1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"

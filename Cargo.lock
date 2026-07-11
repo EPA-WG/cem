@@ -122,6 +122,7 @@ dependencies = [
  "blake3",
  "js-sys",
  "quick-xml",
+ "regex",
  "serde",
  "serde_json",
  "syn",

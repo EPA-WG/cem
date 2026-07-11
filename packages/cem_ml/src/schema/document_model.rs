@@ -12,11 +12,11 @@
 //! - schema-owned diagnostic declarations resolved through declarative engine
 //!   behavior definitions, including severity and message metadata.
 //! - schema-owned attribute `@values`, boolean/integer type checks, and
-//!   integer `minInclusive`/`maxInclusive` datatype-param checks.
+//!   integer `minInclusive`/`maxInclusive` plus regex `pattern`
+//!   datatype-param checks.
 //!
 //! Cardinality, ordering, scalar type checks beyond boolean/integer syntax,
-//! datatype params beyond integer bounds, and semantic constraints remain
-//! follow-up work.
+//! additional datatype params, and semantic constraints remain follow-up work.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path};
@@ -54,6 +54,7 @@ pub const UNRESOLVED_BEHAVIOR_FUNCTION_CODE: &str =
     "cem.schema_definition.unresolved_behavior_function";
 pub const INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE: &str =
     "cem.schema_definition.invalid_diagnostic_behavior_contract";
+pub const INVALID_SCHEMA_DATATYPE_PARAM_CODE: &str = "cem.schema_definition.invalid_datatype_param";
 pub const SCHEMA_BEHAVIOR_QUERY_INVALID_CODE: &str = "cem.schema_behavior.query_invalid";
 pub const SCHEMA_BEHAVIOR_QUERY_FAILED_CODE: &str = "cem.schema_behavior.query_failed";
 pub const SCHEMA_BEHAVIOR_RESULT_INVALID_CODE: &str = "cem.schema_behavior.result_invalid";
@@ -133,6 +134,7 @@ pub struct AttributeModel {
     pub allowed_values: BTreeSet<String>,
     pub min_inclusive: Option<String>,
     pub max_inclusive: Option<String>,
+    pub pattern: Option<String>,
     pub values_diagnostic: Option<String>,
     pub type_diagnostic: Option<String>,
     pub datatype_param_diagnostic: Option<String>,
@@ -727,33 +729,51 @@ fn validate_attribute_datatype_params(
     node: &CemAstNode,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(value_type) = attribute_model.value_type.as_deref() else {
-        return;
-    };
-    if !is_integer_type_reference(value_type) {
-        return;
-    }
     let value = value.trim();
-    if let Some(min_inclusive) = attribute_model.min_inclusive.as_deref() {
-        if decimal_integer_cmp(value, min_inclusive) == Some(std::cmp::Ordering::Less) {
-            emit_attribute_datatype_param_diagnostic(
-                schema_uri,
-                diagnostic_behaviors,
-                element_name,
-                attribute_name,
-                value,
-                attribute_model,
-                "minInclusive",
-                min_inclusive,
-                "below",
-                attribute_values,
-                node,
-                diagnostics,
-            );
+    if attribute_model
+        .value_type
+        .as_deref()
+        .is_some_and(is_integer_type_reference)
+    {
+        if let Some(min_inclusive) = attribute_model.min_inclusive.as_deref() {
+            if decimal_integer_cmp(value, min_inclusive) == Some(std::cmp::Ordering::Less) {
+                emit_attribute_datatype_param_diagnostic(
+                    schema_uri,
+                    diagnostic_behaviors,
+                    element_name,
+                    attribute_name,
+                    value,
+                    attribute_model,
+                    "minInclusive",
+                    min_inclusive,
+                    "below",
+                    attribute_values,
+                    node,
+                    diagnostics,
+                );
+            }
+        }
+        if let Some(max_inclusive) = attribute_model.max_inclusive.as_deref() {
+            if decimal_integer_cmp(value, max_inclusive) == Some(std::cmp::Ordering::Greater) {
+                emit_attribute_datatype_param_diagnostic(
+                    schema_uri,
+                    diagnostic_behaviors,
+                    element_name,
+                    attribute_name,
+                    value,
+                    attribute_model,
+                    "maxInclusive",
+                    max_inclusive,
+                    "above",
+                    attribute_values,
+                    node,
+                    diagnostics,
+                );
+            }
         }
     }
-    if let Some(max_inclusive) = attribute_model.max_inclusive.as_deref() {
-        if decimal_integer_cmp(value, max_inclusive) == Some(std::cmp::Ordering::Greater) {
+    if let Some(pattern) = attribute_model.pattern.as_deref() {
+        if !pattern_matches_full_value(pattern, value) {
             emit_attribute_datatype_param_diagnostic(
                 schema_uri,
                 diagnostic_behaviors,
@@ -761,9 +781,9 @@ fn validate_attribute_datatype_params(
                 attribute_name,
                 value,
                 attribute_model,
-                "maxInclusive",
-                max_inclusive,
-                "above",
+                "pattern",
+                pattern,
+                "not matching",
                 attribute_values,
                 node,
                 diagnostics,
@@ -820,6 +840,16 @@ fn emit_attribute_datatype_param_diagnostic(
             node,
         ),
     ));
+}
+
+fn pattern_matches_full_value(pattern: &str, value: &str) -> bool {
+    compile_full_value_pattern(pattern)
+        .map(|regex| regex.is_match(value))
+        .unwrap_or(true)
+}
+
+fn compile_full_value_pattern(pattern: &str) -> Result<regex::Regex, regex::Error> {
+    regex::Regex::new(&format!(r"\A(?:{pattern})\z"))
 }
 
 fn decimal_integer_cmp(left: &str, right: &str) -> Option<std::cmp::Ordering> {
@@ -1007,6 +1037,11 @@ fn compile_document_model_from_document_with_seen(
         }
     }
     for attribute_model in model.attributes.values() {
+        validate_attribute_datatype_param_definition(
+            schema_uri,
+            attribute_model,
+            &mut model.compile_diagnostics,
+        );
         validate_attribute_diagnostic_reference(
             schema_uri,
             attribute_model,
@@ -1121,6 +1156,7 @@ fn collect_attribute_models(
                         .map(str::to_owned),
                     max_inclusive: optional_non_empty_attr(&attrs, "maxInclusive")
                         .map(str::to_owned),
+                    pattern: optional_non_empty_attr(&attrs, "pattern").map(str::to_owned),
                     values_diagnostic: optional_non_empty_attr(&attrs, "values-diagnostic")
                         .map(str::to_owned),
                     type_diagnostic: optional_non_empty_attr(&attrs, "type-diagnostic")
@@ -1193,6 +1229,38 @@ fn validate_attribute_diagnostic_reference(
             }),
         ));
     }
+}
+
+fn validate_attribute_datatype_param_definition(
+    schema_uri: &str,
+    attribute_model: &AttributeModel,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(pattern) = attribute_model.pattern.as_deref() else {
+        return;
+    };
+    let Err(error) = compile_full_value_pattern(pattern) else {
+        return;
+    };
+    let error = error.to_string();
+    diagnostics.push(schema_compile_diagnostic(
+        INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+        format!(
+            "attribute `{}` declares invalid pattern datatype parameter `{pattern}` in schema `{schema_uri}`: {error}",
+            attribute_model.name
+        ),
+        &attribute_model.source_map,
+        serde_json::json!({
+            "schemaUri": schema_uri,
+            "attribute": &attribute_model.name,
+            "checkKind": "datatype-param:pattern",
+            "datatypeParam": "pattern",
+            "paramName": "pattern",
+            "paramValue": pattern,
+            "pattern": pattern,
+            "error": error,
+        }),
+    ));
 }
 
 fn validate_field_contract_definition(
@@ -2852,6 +2920,11 @@ fn attribute_datatype_param_details(
     node: &CemAstNode,
 ) -> serde_json::Value {
     let expected_type = attribute_model.value_type.as_deref().unwrap_or_default();
+    let expected_pattern = if param_name == "pattern" {
+        param_value
+    } else {
+        "signed decimal integer"
+    };
     let mut details = serde_json::json!({
         "schemaUri": schema_uri,
         "element": element_name,
@@ -2866,7 +2939,7 @@ fn attribute_datatype_param_details(
         "paramValue": param_value,
         "valueType": expected_type,
         "expectedType": expected_type,
-        "expectedPattern": "signed decimal integer",
+        "expectedPattern": expected_pattern,
         "actualValue": actual_value,
         "requiredFields": [],
         "optionalFields": [],
@@ -3314,6 +3387,15 @@ mod tests {
                 .value_type
                 .as_deref(),
             Some("schema:integer")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("pattern")
+                .expect("pattern attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:string")
         );
         let field_contract_behavior = model
             .behaviors
@@ -4856,7 +4938,7 @@ mod tests {
         {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
     }
     {elements |
-        {element @name="item" @optional-attributes="mode enabled count score"}
+        {element @name="item" @optional-attributes="mode enabled count score code"}
     }
     {attributes |
         {attribute
@@ -4881,6 +4963,12 @@ mod tests {
             @type="schema:integer"
             @maxInclusive=10
             @datatype-param-diagnostic="example.score_max"
+        }
+        {attribute
+            @name="code"
+            @type="schema:string"
+            @pattern="[A-Z][A-Z0-9-]*"
+            @datatype-param-diagnostic="example.code_pattern"
         }
     }
     {diagnostics |
@@ -4908,6 +4996,12 @@ mod tests {
             @behavior="schema:datatype-param"
             @message="Score must satisfy its datatype parameters"
         }
+        {diagnostic
+            @code="example.code_pattern"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Code must satisfy its datatype parameters"
+        }
     }
 }"#,
         );
@@ -4925,8 +5019,9 @@ mod tests {
             Some(Some(EngineDiagnosticBehavior::ValueVocabulary))
         );
 
-        let document =
-            parse_cem_document(r#"{item @mode=tabular @enabled=maybe @count=0 @score=11}"#);
+        let document = parse_cem_document(
+            r#"{item @mode=tabular @enabled=maybe @count=0 @score=11 @code=bad_code}"#,
+        );
         let diagnostics = validate_document_model(&document, &model);
 
         let value = diagnostics
@@ -5030,6 +5125,38 @@ mod tests {
         assert_eq!(details["datatypeParam"], serde_json::json!("maxInclusive"));
         assert_eq!(details["maxInclusive"], serde_json::json!("10"));
         assert_eq!(details["actualValue"], serde_json::json!("11"));
+
+        let datatype_param = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.code_pattern")
+            .expect("pattern datatype-param alias diagnostic");
+        assert_eq!(datatype_param.severity, Severity::Error);
+        assert!(datatype_param
+            .message
+            .starts_with("Code must satisfy its datatype parameters:"));
+        let details = datatype_param
+            .details
+            .as_ref()
+            .expect("pattern datatype-param alias details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:datatype-param")
+        );
+        assert_eq!(
+            details["diagnostic"],
+            serde_json::json!("example.code_pattern")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:pattern")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("pattern"));
+        assert_eq!(details["pattern"], serde_json::json!("[A-Z][A-Z0-9-]*"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("[A-Z][A-Z0-9-]*")
+        );
+        assert_eq!(details["actualValue"], serde_json::json!("bad_code"));
     }
 
     #[test]
@@ -5360,6 +5487,137 @@ mod tests {
         assert_eq!(details["datatypeParam"], serde_json::json!("maxInclusive"));
         assert_eq!(details["maxInclusive"], serde_json::json!("10"));
         assert_eq!(details["actualValue"], serde_json::json!("11"));
+    }
+
+    #[test]
+    fn schema_pattern_datatype_param_drives_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/pattern-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="pattern-contracts" @namespace="https://example.test/ns/pattern-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="code"}
+    }
+    {attributes |
+        {attribute @name="code" @type="schema:string" @pattern="[A-Z][A-Z0-9-]*"}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "valid pattern schema must compile: {:#?}",
+            model.compile_diagnostics
+        );
+
+        for source in [r#"{item @code="A"}"#, r#"{item @code="ABC-12"}"#] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "valid pattern source produced diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        for source in [r#"{item @code="bad_code"}"#, r#"{item @code="ABC_12"}"#] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "invalid pattern source did not produce diagnostic: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{item @code="bad_code"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("pattern attribute datatype param diagnostic");
+        assert!(diagnostic.message.contains("code"));
+        assert!(diagnostic.message.contains("pattern"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("pattern attribute datatype param details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/pattern-contracts/1")
+        );
+        assert_eq!(details["element"], serde_json::json!("item"));
+        assert_eq!(details["attribute"], serde_json::json!("code"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:code:pattern")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:pattern")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("pattern"));
+        assert_eq!(details["pattern"], serde_json::json!("[A-Z][A-Z0-9-]*"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("[A-Z][A-Z0-9-]*")
+        );
+        assert_eq!(details["actualValue"], serde_json::json!("bad_code"));
+        assert_eq!(details["invalidFields"], serde_json::json!(["code"]));
+        assert_eq!(
+            details["actualValues"]["code"],
+            serde_json::json!("bad_code")
+        );
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
+    fn schema_pattern_datatype_param_rejects_invalid_regex() {
+        let model = compile_document_model(
+            "https://example.test/ns/invalid-pattern-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-pattern-contracts" @namespace="https://example.test/ns/invalid-pattern-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="code"}
+    }
+    {attributes |
+        {attribute @name="code" @type="schema:string" @pattern="["}
+    }
+}"#,
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE)
+            .expect("invalid pattern schema compile diagnostic");
+        assert!(diagnostic.message.contains("invalid pattern"));
+        assert!(diagnostic.message.contains("code"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid pattern compile details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/invalid-pattern-contracts/1")
+        );
+        assert_eq!(details["attribute"], serde_json::json!("code"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:pattern")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("pattern"));
+        assert_eq!(details["pattern"], serde_json::json!("["));
+        assert!(details["error"]
+            .as_str()
+            .is_some_and(|error| error.contains("regex")));
     }
 
     #[test]
