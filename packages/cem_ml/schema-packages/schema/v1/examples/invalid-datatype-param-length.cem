@@ -1,0 +1,14 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-datatype-param-length" @namespace="https://example.test/ns/invalid-datatype-param-length/1" @version="1.0.0" |
+    {elements |
+        {element @name="resource" @optional-attributes="label code"}
+    }
+
+    {attributes |
+        {attribute @name="label" @type="schema:string" @minLength=-1}
+        {attribute @name="code" @type="schema:string" @length=-1}
+    }
+}

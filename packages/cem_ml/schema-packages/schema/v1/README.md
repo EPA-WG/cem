@@ -238,6 +238,8 @@ CLI validation integration tests.
 | [`invalid-custom-behavior-signature.cem`](examples/invalid-custom-behavior-signature.cem) | Custom behavior function requires a parameter with no input, argument, or default binding. | Fail with `cem.schema_definition.invalid_diagnostic_behavior_contract` |
 | [`invalid-custom-behavior-unsafe-call.cem`](examples/invalid-custom-behavior-unsafe-call.cem) | Custom behavior body attempts a CEMT-style self-call instead of pure declarative result construction. | Fail with `cem.schema_behavior.function_failed` |
 | [`invalid-custom-behavior-contracts.cem`](examples/invalid-custom-behavior-contracts.cem) | Custom behaviors declare unsupported implementations, placements, missing function/result pieces, and incompatible result contracts. | Fail with `cem.schema_definition.invalid_diagnostic_behavior_contract` |
+| [`invalid-datatype-param-length.cem`](examples/invalid-datatype-param-length.cem) | String datatype parameter declarations use invalid negative length bounds. | Fail with `cem.schema_definition.invalid_datatype_param` |
+| [`invalid-datatype-param-pattern.cem`](examples/invalid-datatype-param-pattern.cem) | String datatype parameter declaration uses an invalid regular expression. | Fail with `cem.schema_definition.invalid_datatype_param` |
 
 Validate an example explicitly against this schema:
 

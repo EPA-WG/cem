@@ -116,7 +116,10 @@ history belongs in git history and the feature-specific docs linked below.
         and example diagnostics, plus field-contract-level
         `schema:field-dependency` and `schema:choice-case` bindings through
         converter diagnostics, and ranged `schema:child-occurrence` through the
-        typed-resource schema example. The native tests cover warning severity,
+        typed-resource schema example; schema-package CLI examples now also
+        cover schema-definition failures for invalid datatype parameter
+        declarations on string length bounds and regex patterns. The native
+        tests cover warning severity,
         message text, structured details, source ranges, unresolved codes,
         field-contract behavior aliases, field-contract-local behavior
         bindings, attribute behavior aliases, constraint behavior aliases, and

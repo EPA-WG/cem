@@ -1,0 +1,13 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-datatype-param-pattern" @namespace="https://example.test/ns/invalid-datatype-param-pattern/1" @version="1.0.0" |
+    {elements |
+        {element @name="resource" @optional-attributes="code"}
+    }
+
+    {attributes |
+        {attribute @name="code" @type="schema:string" @pattern="["}
+    }
+}

@@ -347,6 +347,22 @@ fn schema_owned_examples_validate_through_cli() {
             expected_diagnostics: &["cem.schema_definition.invalid_diagnostic_behavior_contract"],
         },
         ValidationExample {
+            name: "schema invalid datatype param length",
+            path: "packages/cem_ml/schema-packages/schema/v1/examples/invalid-datatype-param-length.cem",
+            content_type: CEM_SCHEMA_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.schema_definition.invalid_datatype_param"],
+        },
+        ValidationExample {
+            name: "schema invalid datatype param pattern",
+            path: "packages/cem_ml/schema-packages/schema/v1/examples/invalid-datatype-param-pattern.cem",
+            content_type: CEM_SCHEMA_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.schema_definition.invalid_datatype_param"],
+        },
+        ValidationExample {
             name: "schema-package basic",
             path: "packages/cem_ml/schema-packages/schema-package/v1/examples/basic-package.cem",
             content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
