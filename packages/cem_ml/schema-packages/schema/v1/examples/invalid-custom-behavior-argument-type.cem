@@ -1,0 +1,40 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-custom-behavior-argument-type" @namespace="https://example.test/ns/invalid-custom-behavior-argument-type/1" @version="1.0.0" |
+    {elements |
+        {element @name="resource" @optional-attributes="kind"}
+    }
+
+    {attributes |
+        {attribute @name="kind" @type="schema:identifier"}
+    }
+
+    {behaviors |
+        {behavior
+            @name="page-limit"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="page-limit-result"
+            @select="resource"
+            @match='kind = "page"' |
+            {parameters |
+                {parameter @name="minimum" @type="schema:integer" @required=true}
+            }
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+            {function @name="page-limit-result" @returns="object" @deterministic=true |
+                {param @name="minimum" @type="integer" @required=true}
+                {body | {$ { message: "Page limit failed", details: { minimum: $minimum } } }}
+            }
+        }
+    }
+
+    {diagnostics |
+        {diagnostic @code="example.page_limit" @severity="error" @behavior="page-limit" |
+            {arguments |
+                {argument @name="minimum" @value="many"}
+            }
+        }
+    }
+}

@@ -655,8 +655,12 @@ mod tests {
 
     #[test]
     fn schema_package_examples_are_manifest_indexed() {
-        let examples =
-            manifest_indexed_package_examples("schema", CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_URI, 7);
+        let examples = manifest_indexed_package_examples(
+            "schema",
+            CEM_SCHEMA_CONTENT_TYPE,
+            CEM_SCHEMA_URI,
+            11,
+        );
         for id in ["custom-behavior-schema", "custom-behavior-schema-strict"] {
             let example = examples
                 .iter()
@@ -707,6 +711,38 @@ mod tests {
             invalid_behavior.expected_diagnostic_codes,
             vec!["cem.schema_definition.unknown_diagnostic_behavior".to_owned()]
         );
+
+        for (id, expected_code) in [
+            (
+                "invalid-custom-behavior-unresolved-function",
+                "cem.schema_definition.unresolved_behavior_function",
+            ),
+            (
+                "invalid-custom-behavior-argument-type",
+                "cem.schema_definition.invalid_diagnostic_behavior_contract",
+            ),
+            (
+                "invalid-custom-behavior-signature",
+                "cem.schema_definition.invalid_diagnostic_behavior_contract",
+            ),
+            (
+                "invalid-custom-behavior-unsafe-call",
+                "cem.schema_behavior.function_failed",
+            ),
+        ] {
+            let example = examples
+                .iter()
+                .find(|example| example.id == id)
+                .unwrap_or_else(|| panic!("invalid custom behavior schema example `{id}`"));
+            assert_eq!(
+                example.expected_result,
+                SchemaPackageExampleExpectedResult::Fail
+            );
+            assert_eq!(
+                example.expected_diagnostic_codes,
+                vec![expected_code.to_owned()]
+            );
+        }
     }
 
     #[test]

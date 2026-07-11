@@ -1,0 +1,29 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-custom-behavior-unresolved-function" @namespace="https://example.test/ns/invalid-custom-behavior-unresolved-function/1" @version="1.0.0" |
+    {elements |
+        {element @name="resource" @optional-attributes="kind"}
+    }
+
+    {attributes |
+        {attribute @name="kind" @type="schema:identifier"}
+    }
+
+    {behaviors |
+        {behavior
+            @name="page-kind"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="missing-page-kind-result"
+            @select="resource"
+            @match='kind = "page"' |
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+        }
+    }
+
+    {diagnostics |
+        {diagnostic @code="example.page_kind" @severity="error" @behavior="page-kind"}
+    }
+}

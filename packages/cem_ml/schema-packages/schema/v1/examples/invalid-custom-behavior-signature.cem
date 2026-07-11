@@ -1,0 +1,37 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-custom-behavior-signature" @namespace="https://example.test/ns/invalid-custom-behavior-signature/1" @version="1.0.0" |
+    {elements |
+        {element @name="resource" @optional-attributes="kind"}
+    }
+
+    {attributes |
+        {attribute @name="kind" @type="schema:identifier"}
+    }
+
+    {behaviors |
+        {behavior
+            @name="page-label"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="page-label-result"
+            @select="resource"
+            @match='kind = "page"' |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+            }
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+            {function @name="page-label-result" @returns="object" @deterministic=true |
+                {param @name="candidate" @type="object" @required=true}
+                {param @name="expected" @type="string" @required=true}
+                {body | {$ { message: "Page label failed", details: { expected: $expected } } }}
+            }
+        }
+    }
+
+    {diagnostics |
+        {diagnostic @code="example.page_label" @severity="error" @behavior="page-label"}
+    }
+}

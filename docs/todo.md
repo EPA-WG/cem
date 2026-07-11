@@ -117,7 +117,7 @@ history belongs in git history and the feature-specific docs linked below.
         unknown behaviors; the CLI example set also includes a schema that
         fails an unknown behavior
         reference. The complete algorithm matrix remains.
-  - [ ] Add a custom-schema example that defines a new algorithm using only
+  - [x] Add a custom-schema example that defines a new algorithm using only
         CEM-ML, CEM-QL, and a declarative function, then prove that changing the
         declared match or function changes validation behavior without adding
         or editing Rust. Include negative tests for unresolved `@code`
@@ -125,8 +125,10 @@ history belongs in git history and the feature-specific docs linked below.
         recursive or unsafe evaluation. Checked-in schema-package CLI examples
         now define a custom `page-label` behavior and a stricter variant whose
         CEM-QL match and CEM-ML function result change validation behavior
-        without a Rust branch; remaining work is to add the negative behavior
-        cases to the example set.
+        without a Rust branch; negative schema-package CLI examples now cover
+        unresolved behavior/function bindings, invalid diagnostic argument
+        types, unbound function parameters, and a rejected CEMT-style self-call
+        body.
 
 - [ ] Implement schema-owned field contracts for every schema-declared field
       before adding more package-specific Rust validation branches. The current

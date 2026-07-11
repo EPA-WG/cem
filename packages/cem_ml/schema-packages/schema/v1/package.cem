@@ -63,6 +63,42 @@
     }
 
     {example
+        @id="invalid-custom-behavior-unresolved-function"
+        @path="examples/invalid-custom-behavior-unresolved-function.cem"
+        @content-type="application/vnd.cem.schema+cem"
+        @schema="https://cem.dev/ns/schema/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_definition.unresolved_behavior_function"
+    }
+
+    {example
+        @id="invalid-custom-behavior-argument-type"
+        @path="examples/invalid-custom-behavior-argument-type.cem"
+        @content-type="application/vnd.cem.schema+cem"
+        @schema="https://cem.dev/ns/schema/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_definition.invalid_diagnostic_behavior_contract"
+    }
+
+    {example
+        @id="invalid-custom-behavior-signature"
+        @path="examples/invalid-custom-behavior-signature.cem"
+        @content-type="application/vnd.cem.schema+cem"
+        @schema="https://cem.dev/ns/schema/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_definition.invalid_diagnostic_behavior_contract"
+    }
+
+    {example
+        @id="invalid-custom-behavior-unsafe-call"
+        @path="examples/invalid-custom-behavior-unsafe-call.cem"
+        @content-type="application/vnd.cem.schema+cem"
+        @schema="https://cem.dev/ns/schema/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_behavior.function_failed"
+    }
+
+    {example
         @id="invalid-unclosed-schema"
         @path="examples/invalid-unclosed-schema.cem"
         @content-type="application/vnd.cem.schema+cem"
