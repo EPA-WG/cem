@@ -1,0 +1,36 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-custom-behavior-select-query" @namespace="https://example.test/ns/invalid-custom-behavior-select-query/1" @version="1.0.0" |
+    {elements |
+        {element @name="resource" @optional-attributes="kind"}
+    }
+
+    {attributes |
+        {attribute @name="kind" @type="schema:identifier"}
+    }
+
+    {behaviors |
+        {behavior
+            @name="page-kind"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="page-kind-result"
+            @select="missing_resource"
+            @match='kind = "page"' |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+            }
+            {result @type="schema:diagnostic-result" @source-range="candidate"}
+            {function @name="page-kind-result" @returns="object" @deterministic=true |
+                {param @name="candidate" @type="object" @required=true}
+                {body | {$ { message: "Page kind failed", details: { element: $candidate.name } } }}
+            }
+        }
+    }
+
+    {diagnostics |
+        {diagnostic @code="example.page_kind" @severity="error" @behavior="page-kind"}
+    }
+}

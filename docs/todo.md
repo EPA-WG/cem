@@ -43,7 +43,7 @@ history belongs in git history and the feature-specific docs linked below.
       Required-one/max-one attribute choice cardinality now executes through
       `schema:choice-case`. Broader child occurrence ranges now execute
       through `schema:child-occurrence`. Additional engine algorithms remain.
-  - [ ] Allow declarative behavior to select candidate nodes and match failure
+  - [x] Allow declarative behavior to select candidate nodes and match failure
         conditions with CEM-QL, then invoke a schema-declared CEM-ML behavior
         function to calculate the result and structured diagnostic details.
         Direct inline behavior functions now execute for AST validation through
@@ -52,7 +52,8 @@ history belongs in git history and the feature-specific docs linked below.
         `{uses}` aliases to visible reusable CEM-ML behavior functions so
         custom schema packages can reuse result builders without registering
         Rust code. Diagnostic-scoped `{arguments}` bind cross-diagnostic
-        non-default parameter overrides.
+        non-default parameter overrides, and schema-package CLI examples now
+        cover invalid CEM-QL `@select` and `@match` expressions.
   - [ ] Publish a minimal useful library of CEM engine-provided algorithms that
         schema authors can consume through diagnostic `@code` behavior
         references. Cover the common algorithmic variations needed to create a
@@ -126,9 +127,9 @@ history belongs in git history and the feature-specific docs linked below.
         now define a custom `page-label` behavior and a stricter variant whose
         CEM-QL match and CEM-ML function result change validation behavior
         without a Rust branch; negative schema-package CLI examples now cover
-        unresolved behavior/function bindings, invalid diagnostic argument
-        types, unbound function parameters, and a rejected CEMT-style self-call
-        body.
+        unresolved behavior/function bindings, invalid CEM-QL select/match
+        expressions, invalid diagnostic argument types, unbound function
+        parameters, and a rejected CEMT-style self-call body.
 
 - [ ] Implement schema-owned field contracts for every schema-declared field
       before adding more package-specific Rust validation branches. The current

@@ -659,7 +659,7 @@ mod tests {
             "schema",
             CEM_SCHEMA_CONTENT_TYPE,
             CEM_SCHEMA_URI,
-            11,
+            13,
         );
         for id in ["custom-behavior-schema", "custom-behavior-schema-strict"] {
             let example = examples
@@ -716,6 +716,14 @@ mod tests {
             (
                 "invalid-custom-behavior-unresolved-function",
                 "cem.schema_definition.unresolved_behavior_function",
+            ),
+            (
+                "invalid-custom-behavior-select-query",
+                "cem.schema_behavior.query_invalid",
+            ),
+            (
+                "invalid-custom-behavior-match-query",
+                "cem.schema_behavior.query_invalid",
             ),
             (
                 "invalid-custom-behavior-argument-type",

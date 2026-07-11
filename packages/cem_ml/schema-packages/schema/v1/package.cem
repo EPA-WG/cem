@@ -72,6 +72,24 @@
     }
 
     {example
+        @id="invalid-custom-behavior-select-query"
+        @path="examples/invalid-custom-behavior-select-query.cem"
+        @content-type="application/vnd.cem.schema+cem"
+        @schema="https://cem.dev/ns/schema/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_behavior.query_invalid"
+    }
+
+    {example
+        @id="invalid-custom-behavior-match-query"
+        @path="examples/invalid-custom-behavior-match-query.cem"
+        @content-type="application/vnd.cem.schema+cem"
+        @schema="https://cem.dev/ns/schema/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_behavior.query_invalid"
+    }
+
+    {example
         @id="invalid-custom-behavior-argument-type"
         @path="examples/invalid-custom-behavior-argument-type.cem"
         @content-type="application/vnd.cem.schema+cem"

@@ -299,6 +299,22 @@ fn schema_owned_examples_validate_through_cli() {
             expected_diagnostics: &["cem.schema_definition.unresolved_behavior_function"],
         },
         ValidationExample {
+            name: "schema invalid custom behavior select query",
+            path: "packages/cem_ml/schema-packages/schema/v1/examples/invalid-custom-behavior-select-query.cem",
+            content_type: CEM_SCHEMA_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.schema_behavior.query_invalid"],
+        },
+        ValidationExample {
+            name: "schema invalid custom behavior match query",
+            path: "packages/cem_ml/schema-packages/schema/v1/examples/invalid-custom-behavior-match-query.cem",
+            content_type: CEM_SCHEMA_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.schema_behavior.query_invalid"],
+        },
+        ValidationExample {
             name: "schema invalid custom behavior argument type",
             path: "packages/cem_ml/schema-packages/schema/v1/examples/invalid-custom-behavior-argument-type.cem",
             content_type: CEM_SCHEMA_CONTENT_TYPE,
