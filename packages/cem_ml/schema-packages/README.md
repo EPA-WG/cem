@@ -477,8 +477,9 @@ the matching resolver, and bare values are module-map specifiers. This keeps
 package-specific schemas small while preserving strict validation boundaries for
 their own instances. Attribute datatype params such as `@uriSchemes`,
 `@uriRequiresAuthority`, `@uriPathPrefixes`, `@mediaTypes`, and
-`@mediaTypeParameters`/`@mediaTypeRequiredParameters` then narrow those
-compatible primitives declaratively in the schema document.
+`@mediaTypeSuffixes`/`@mediaTypeParameters`/
+`@mediaTypeForbiddenParameters`/`@mediaTypeRequiredParameters` then narrow
+those compatible primitives declaratively in the schema document.
 
 ## CEMT Transformation Ownership
 

@@ -15,7 +15,7 @@
 //!   path type checks, and integer/number `minInclusive`/`maxInclusive`/
 //!   `minExclusive`/`maxExclusive`, numeric `totalDigits`/`fractionDigits`,
 //!   string `minLength`/`maxLength`/`length`, regex `pattern`, URI scheme/path,
-//!   and media-type essence/parameter datatype-param checks.
+//!   and media-type essence/suffix/parameter datatype-param checks.
 //! - schema-owned exact, ranged, ordered, boundary, sequence, forbidden-sequence,
 //!   exact-sequence, and choice-cardinality child occurrence field contracts.
 //!
@@ -189,7 +189,9 @@ pub struct AttributeModel {
     pub uri_requires_authority: Option<String>,
     pub uri_path_prefixes: BTreeSet<String>,
     pub media_types: BTreeSet<String>,
+    pub media_type_suffixes: BTreeSet<String>,
     pub media_type_parameters: BTreeSet<String>,
+    pub media_type_forbidden_parameters: BTreeSet<String>,
     pub media_type_required_parameters: BTreeSet<String>,
     pub values_diagnostic: Option<String>,
     pub type_diagnostic: Option<String>,
@@ -1345,6 +1347,13 @@ fn normalized_media_type_parameter_names(value: &str) -> Option<BTreeSet<String>
     )
 }
 
+fn normalized_media_type_suffix(value: &str) -> Option<String> {
+    let essence = normalized_media_type_essence(value)?;
+    let (_, subtype) = essence.split_once('/')?;
+    let (_, suffix) = subtype.rsplit_once('+')?;
+    (!suffix.is_empty()).then(|| suffix.to_owned())
+}
+
 fn is_media_type_essence(value: &str) -> bool {
     let Some((type_name, subtype)) = value.split_once('/') else {
         return false;
@@ -1652,6 +1661,31 @@ fn validate_attribute_datatype_params(
             );
         }
     }
+    if !attribute_model.media_type_suffixes.is_empty()
+        && attribute_model
+            .value_type
+            .as_deref()
+            .is_some_and(is_media_type_reference)
+        && is_media_type(value)
+        && !normalized_media_type_suffix(value)
+            .is_some_and(|suffix| attribute_model.media_type_suffixes.contains(&suffix))
+    {
+        let param_value = format_value_set(&attribute_model.media_type_suffixes);
+        emit_attribute_datatype_param_diagnostic(
+            schema_uri,
+            diagnostic_behaviors,
+            element_name,
+            attribute_name,
+            value,
+            attribute_model,
+            "mediaTypeSuffixes",
+            &param_value,
+            "outside allowed",
+            attribute_values,
+            node,
+            diagnostics,
+        );
+    }
     if !attribute_model.media_type_parameters.is_empty()
         && attribute_model
             .value_type
@@ -1676,6 +1710,37 @@ fn validate_attribute_datatype_params(
             "mediaTypeParameters",
             &param_value,
             "outside allowed",
+            attribute_values,
+            node,
+            diagnostics,
+        );
+    }
+    if !attribute_model.media_type_forbidden_parameters.is_empty()
+        && attribute_model
+            .value_type
+            .as_deref()
+            .is_some_and(is_media_type_reference)
+        && normalized_media_type_parameter_names(value)
+            .map(|actual_parameters| {
+                actual_parameters.iter().any(|name| {
+                    attribute_model
+                        .media_type_forbidden_parameters
+                        .contains(name)
+                })
+            })
+            .unwrap_or(false)
+    {
+        let param_value = format_value_set(&attribute_model.media_type_forbidden_parameters);
+        emit_attribute_datatype_param_diagnostic(
+            schema_uri,
+            diagnostic_behaviors,
+            element_name,
+            attribute_name,
+            value,
+            attribute_model,
+            "mediaTypeForbiddenParameters",
+            &param_value,
+            "with forbidden",
             attribute_values,
             node,
             diagnostics,
@@ -2317,8 +2382,14 @@ fn collect_attribute_models(
                     ),
                     uri_path_prefixes: parse_value_set(attrs.get("uriPathPrefixes")),
                     media_types: parse_ascii_lower_value_set(attrs.get("mediaTypes")),
+                    media_type_suffixes: parse_ascii_lower_value_set(
+                        attrs.get("mediaTypeSuffixes"),
+                    ),
                     media_type_parameters: parse_ascii_lower_value_set(
                         attrs.get("mediaTypeParameters"),
+                    ),
+                    media_type_forbidden_parameters: parse_ascii_lower_value_set(
+                        attrs.get("mediaTypeForbiddenParameters"),
                     ),
                     media_type_required_parameters: parse_ascii_lower_value_set(
                         attrs.get("mediaTypeRequiredParameters"),
@@ -2800,6 +2871,57 @@ fn validate_attribute_datatype_param_definition(
             ));
         }
     }
+    if !attribute_model.media_type_suffixes.is_empty() {
+        let value_type = attribute_model.value_type.as_deref();
+        if !value_type.is_some_and(is_media_type_reference) {
+            let param_value = format_value_set(&attribute_model.media_type_suffixes);
+            let error =
+                "expected schema:media-type or cemml:media-type value type for mediaTypeSuffixes";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid mediaTypeSuffixes datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:mediaTypeSuffixes",
+                    "datatypeParam": "mediaTypeSuffixes",
+                    "paramName": "mediaTypeSuffixes",
+                    "paramValue": param_value,
+                    "valueType": value_type.unwrap_or_default(),
+                    "expectedType": "schema:media-type",
+                    "error": error,
+                }),
+            ));
+        }
+        for suffix in &attribute_model.media_type_suffixes {
+            if is_media_type_token(suffix) {
+                continue;
+            }
+            let error = "expected media type structured suffix token";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid mediaTypeSuffixes datatype parameter `{suffix}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:mediaTypeSuffixes",
+                    "datatypeParam": "mediaTypeSuffixes",
+                    "paramName": "mediaTypeSuffixes",
+                    "paramValue": suffix,
+                    "expectedPattern": "media type structured suffix token",
+                    "error": error,
+                }),
+            ));
+        }
+    }
     if !attribute_model.media_type_parameters.is_empty() {
         let value_type = attribute_model.value_type.as_deref();
         if !value_type.is_some_and(is_media_type_reference) {
@@ -2844,6 +2966,56 @@ fn validate_attribute_datatype_param_definition(
                     "checkKind": "datatype-param:mediaTypeParameters",
                     "datatypeParam": "mediaTypeParameters",
                     "paramName": "mediaTypeParameters",
+                    "paramValue": parameter,
+                    "expectedPattern": "media type parameter name",
+                    "error": error,
+                }),
+            ));
+        }
+    }
+    if !attribute_model.media_type_forbidden_parameters.is_empty() {
+        let value_type = attribute_model.value_type.as_deref();
+        if !value_type.is_some_and(is_media_type_reference) {
+            let param_value = format_value_set(&attribute_model.media_type_forbidden_parameters);
+            let error = "expected schema:media-type or cemml:media-type value type for mediaTypeForbiddenParameters";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid mediaTypeForbiddenParameters datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:mediaTypeForbiddenParameters",
+                    "datatypeParam": "mediaTypeForbiddenParameters",
+                    "paramName": "mediaTypeForbiddenParameters",
+                    "paramValue": param_value,
+                    "valueType": value_type.unwrap_or_default(),
+                    "expectedType": "schema:media-type",
+                    "error": error,
+                }),
+            ));
+        }
+        for parameter in &attribute_model.media_type_forbidden_parameters {
+            if is_media_type_token(parameter) {
+                continue;
+            }
+            let error = "expected media type parameter name";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid mediaTypeForbiddenParameters datatype parameter `{parameter}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:mediaTypeForbiddenParameters",
+                    "datatypeParam": "mediaTypeForbiddenParameters",
+                    "paramName": "mediaTypeForbiddenParameters",
                     "paramValue": parameter,
                     "expectedPattern": "media type parameter name",
                     "error": error,
@@ -5936,7 +6108,9 @@ fn attribute_datatype_param_details(
         "uriRequiresAuthority" => "URI authority",
         "uriPathPrefixes" => "URI path prefix",
         "mediaTypes" => "media type essence",
+        "mediaTypeSuffixes" => "media type structured suffix",
         "mediaTypeParameters" => "media type parameter name",
+        "mediaTypeForbiddenParameters" => "media type parameter name",
         "mediaTypeRequiredParameters" => "media type parameter name",
         "minLength" | "maxLength" | "length" => "Unicode scalar value length",
         "totalDigits" => "numeric total digit count",
@@ -6042,6 +6216,28 @@ fn attribute_datatype_param_details(
                 );
             }
         }
+        if param_name == "mediaTypeSuffixes" {
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .media_type_suffixes
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            if let Some(actual_essence) = normalized_media_type_essence(actual_value) {
+                object.insert(
+                    "actualMediaTypeEssence".to_owned(),
+                    serde_json::json!(actual_essence),
+                );
+            }
+            if let Some(actual_suffix) = normalized_media_type_suffix(actual_value) {
+                object.insert(
+                    "actualMediaTypeSuffix".to_owned(),
+                    serde_json::json!(actual_suffix),
+                );
+            }
+        }
         if param_name == "mediaTypeParameters" {
             object.insert(
                 "expectedValues".to_owned(),
@@ -6071,6 +6267,39 @@ fn attribute_datatype_param_details(
                 object.insert(
                     "invalidMediaTypeParameters".to_owned(),
                     serde_json::json!(invalid_parameters),
+                );
+            }
+        }
+        if param_name == "mediaTypeForbiddenParameters" {
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .media_type_forbidden_parameters
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            if let Some(actual_essence) = normalized_media_type_essence(actual_value) {
+                object.insert(
+                    "actualMediaTypeEssence".to_owned(),
+                    serde_json::json!(actual_essence),
+                );
+            }
+            if let Some(actual_parameters) = normalized_media_type_parameter_names(actual_value) {
+                let forbidden_parameters = attribute_model
+                    .media_type_forbidden_parameters
+                    .iter()
+                    .filter(|name| actual_parameters.contains(*name))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let actual_parameters = actual_parameters.into_iter().collect::<Vec<_>>();
+                object.insert(
+                    "actualMediaTypeParameters".to_owned(),
+                    serde_json::json!(actual_parameters),
+                );
+                object.insert(
+                    "forbiddenMediaTypeParameters".to_owned(),
+                    serde_json::json!(forbidden_parameters),
                 );
             }
         }
@@ -6725,8 +6954,26 @@ mod tests {
         assert_eq!(
             model
                 .attributes
+                .get("mediaTypeSuffixes")
+                .expect("mediaTypeSuffixes attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:string")
+        );
+        assert_eq!(
+            model
+                .attributes
                 .get("mediaTypeParameters")
                 .expect("mediaTypeParameters attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:string")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("mediaTypeForbiddenParameters")
+                .expect("mediaTypeForbiddenParameters attribute model")
                 .value_type
                 .as_deref(),
             Some("schema:string")
@@ -12156,6 +12403,356 @@ mod tests {
             serde_json::json!("text/html; charset")
         );
         assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
+    fn schema_media_type_suffix_datatype_param_drives_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/media-type-suffix-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="media-type-suffix-contracts" @namespace="https://example.test/ns/media-type-suffix-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="content-type"}
+    }
+    {attributes |
+        {attribute @name="content-type" @type="schema:media-type" @mediaTypeSuffixes="json xml"}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "valid media-type suffix schema must compile: {:#?}",
+            model.compile_diagnostics
+        );
+
+        for source in [
+            r#"{item @content-type="application/schema+json"}"#,
+            r#"{item @content-type="APPLICATION/LD+JSON; charset=utf-8"}"#,
+            r#"{item @content-type="image/svg+xml"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "allowed media-type suffix source produced datatype-param diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        for source in [
+            r#"{item @content-type="application/cbor"}"#,
+            r#"{item @content-type="application/schema+cbor"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "disallowed media-type suffix source did not produce datatype-param diagnostic: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{item @content-type="application/schema+cbor"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("media-type suffix datatype-param diagnostic");
+        assert!(diagnostic.message.contains("mediaTypeSuffixes"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("media-type suffix datatype-param details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/media-type-suffix-contracts/1")
+        );
+        assert_eq!(details["attribute"], serde_json::json!("content-type"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:content-type:mediaTypeSuffixes")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:mediaTypeSuffixes")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("mediaTypeSuffixes")
+        );
+        assert_eq!(details["mediaTypeSuffixes"], serde_json::json!("json xml"));
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["json", "xml"])
+        );
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("media type structured suffix")
+        );
+        assert_eq!(
+            details["actualMediaTypeEssence"],
+            serde_json::json!("application/schema+cbor")
+        );
+        assert_eq!(details["actualMediaTypeSuffix"], serde_json::json!("cbor"));
+        assert_eq!(
+            details["actualValue"],
+            serde_json::json!("application/schema+cbor")
+        );
+    }
+
+    #[test]
+    fn schema_media_type_suffix_datatype_param_rejects_invalid_declarations() {
+        let model = compile_document_model(
+            "https://example.test/ns/invalid-media-type-suffix-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-media-type-suffix-contracts" @namespace="https://example.test/ns/invalid-media-type-suffix-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="format label"}
+    }
+    {attributes |
+        {attribute @name="format" @type="schema:media-type" @mediaTypeSuffixes="json bad=suffix"}
+        {attribute @name="label" @type="schema:string" @mediaTypeSuffixes="json"}
+    }
+}"#,
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("attribute").and_then(serde_json::Value::as_str)
+                    }) == Some("format")
+            })
+            .expect("invalid mediaTypeSuffixes token compile diagnostic");
+        assert!(diagnostic.message.contains("invalid mediaTypeSuffixes"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid mediaTypeSuffixes token compile details");
+        assert_eq!(details["attribute"], serde_json::json!("format"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:mediaTypeSuffixes")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("mediaTypeSuffixes")
+        );
+        assert_eq!(details["paramValue"], serde_json::json!("bad=suffix"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("media type structured suffix token")
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("attribute").and_then(serde_json::Value::as_str)
+                    }) == Some("label")
+            })
+            .expect("invalid mediaTypeSuffixes type compile diagnostic");
+        assert!(diagnostic.message.contains("mediaTypeSuffixes"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid mediaTypeSuffixes type compile details");
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:mediaTypeSuffixes")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("mediaTypeSuffixes")
+        );
+        assert_eq!(
+            details["expectedType"],
+            serde_json::json!("schema:media-type")
+        );
+    }
+
+    #[test]
+    fn schema_media_type_forbidden_parameter_datatype_param_drives_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/media-type-forbidden-parameter-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="media-type-forbidden-parameter-contracts" @namespace="https://example.test/ns/media-type-forbidden-parameter-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="content-type"}
+    }
+    {attributes |
+        {attribute @name="content-type" @type="schema:media-type" @mediaTypeForbiddenParameters="profile q"}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "valid media-type forbidden-parameter schema must compile: {:#?}",
+            model.compile_diagnostics
+        );
+
+        for source in [
+            r#"{item @content-type="text/html"}"#,
+            r#"{item @content-type="text/html; charset=utf-8"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "allowed media-type parameter source produced datatype-param diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document =
+            parse_cem_document(r#"{item @content-type="text/html; profile=legacy; q=1"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("media-type forbidden parameter datatype-param diagnostic");
+        assert!(diagnostic.message.contains("mediaTypeForbiddenParameters"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("media-type forbidden parameter datatype-param details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/media-type-forbidden-parameter-contracts/1")
+        );
+        assert_eq!(details["attribute"], serde_json::json!("content-type"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:content-type:mediaTypeForbiddenParameters")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:mediaTypeForbiddenParameters")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("mediaTypeForbiddenParameters")
+        );
+        assert_eq!(
+            details["mediaTypeForbiddenParameters"],
+            serde_json::json!("profile q")
+        );
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["profile", "q"])
+        );
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("media type parameter name")
+        );
+        assert_eq!(
+            details["actualMediaTypeParameters"],
+            serde_json::json!(["profile", "q"])
+        );
+        assert_eq!(
+            details["forbiddenMediaTypeParameters"],
+            serde_json::json!(["profile", "q"])
+        );
+        assert_eq!(
+            details["actualValue"],
+            serde_json::json!("text/html; profile=legacy; q=1")
+        );
+    }
+
+    #[test]
+    fn schema_media_type_forbidden_parameter_datatype_param_rejects_invalid_declarations() {
+        let model = compile_document_model(
+            "https://example.test/ns/invalid-media-type-forbidden-parameter-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-media-type-forbidden-parameter-contracts" @namespace="https://example.test/ns/invalid-media-type-forbidden-parameter-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="format label"}
+    }
+    {attributes |
+        {attribute @name="format" @type="schema:media-type" @mediaTypeForbiddenParameters="profile bad=name"}
+        {attribute @name="label" @type="schema:string" @mediaTypeForbiddenParameters="profile"}
+    }
+}"#,
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("attribute").and_then(serde_json::Value::as_str)
+                    }) == Some("format")
+            })
+            .expect("invalid mediaTypeForbiddenParameters token compile diagnostic");
+        assert!(diagnostic
+            .message
+            .contains("invalid mediaTypeForbiddenParameters"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid mediaTypeForbiddenParameters token compile details");
+        assert_eq!(details["attribute"], serde_json::json!("format"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:mediaTypeForbiddenParameters")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("mediaTypeForbiddenParameters")
+        );
+        assert_eq!(details["paramValue"], serde_json::json!("bad=name"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("media type parameter name")
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("attribute").and_then(serde_json::Value::as_str)
+                    }) == Some("label")
+            })
+            .expect("invalid mediaTypeForbiddenParameters type compile diagnostic");
+        assert!(diagnostic.message.contains("mediaTypeForbiddenParameters"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid mediaTypeForbiddenParameters type compile details");
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:mediaTypeForbiddenParameters")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("mediaTypeForbiddenParameters")
+        );
+        assert_eq!(
+            details["expectedType"],
+            serde_json::json!("schema:media-type")
+        );
     }
 
     #[test]

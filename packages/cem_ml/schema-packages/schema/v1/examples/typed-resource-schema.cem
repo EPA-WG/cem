@@ -22,7 +22,7 @@
     }
 
     {elements |
-        {element @name="resource" @required-attributes="id kind" @optional-attributes="label priority rank weight serial ratio slug code href format asset inline qualified version" @children="field*"}
+        {element @name="resource" @required-attributes="id kind" @optional-attributes="label priority rank weight serial ratio slug code href format payload metadata asset inline qualified version" @children="field*"}
         {element @name="single-resource" @required-attributes="id kind" @children="field"}
         {element @name="linked-resource" @required-attributes="id kind" @optional-attributes="label" @children="field reference"}
         {element @name="field" @required-attributes="name type"}
@@ -101,6 +101,18 @@
             @mediaTypeParameters="charset profile"
             @mediaTypeRequiredParameters="charset"
             @datatype-param-diagnostic="example.resource.invalid_format_type"
+        }
+        {attribute
+            @name="payload"
+            @type="schema:media-type"
+            @mediaTypeSuffixes="json xml"
+            @datatype-param-diagnostic="example.resource.invalid_payload_suffix"
+        }
+        {attribute
+            @name="metadata"
+            @type="schema:media-type"
+            @mediaTypeForbiddenParameters="profile"
+            @datatype-param-diagnostic="example.resource.invalid_metadata_parameter"
         }
         {attribute
             @name="asset"
@@ -226,6 +238,18 @@
             @severity="error"
             @behavior="schema:datatype-param"
             @message="Resource format must use the declared media-type constraints"
+        }
+        {diagnostic
+            @code="example.resource.invalid_payload_suffix"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource payload must use the declared structured media-type suffix"
+        }
+        {diagnostic
+            @code="example.resource.invalid_metadata_parameter"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource metadata must not use forbidden media-type parameters"
         }
         {diagnostic
             @code="example.resource.invalid_asset"

@@ -165,7 +165,8 @@ and datatype parameter failures for integer and number
 `@minLength`/`@maxLength`/`@length` constraints, numeric
 `@totalDigits`/`@fractionDigits` digit-count constraints, and regex
 `@pattern`, URI `@uriSchemes`/`@uriRequiresAuthority`/`@uriPathPrefixes`,
-and media-type `@mediaTypes`/`@mediaTypeParameters`/
+and media-type `@mediaTypes`/`@mediaTypeSuffixes`/`@mediaTypeParameters`/
+`@mediaTypeForbiddenParameters`/
 `@mediaTypeRequiredParameters` constraints
 through `@datatype-param-diagnostic` to
 `schema:datatype-param`. In all cases the diagnostic `@code` remains the
@@ -241,9 +242,10 @@ diagnostics with their declared behavior. Integer and number `minInclusive`,
 `totalDigits`/`fractionDigits` constraints, string `minLength`/`maxLength`/
 `length` constraints, regex `pattern`, URI scheme/authority/path-prefix
 `uriSchemes`/`uriRequiresAuthority`/`uriPathPrefixes`, and media-type
-essence/parameter-name/required-parameter `mediaTypes`/
-`mediaTypeParameters`/`mediaTypeRequiredParameters` datatype parameter variations now
-execute through
+essence/structured-suffix/parameter-name/forbidden-parameter/
+required-parameter `mediaTypes`/`mediaTypeSuffixes`/`mediaTypeParameters`/
+`mediaTypeForbiddenParameters`/`mediaTypeRequiredParameters` datatype
+parameter variations now execute through
 `schema:datatype-param`; identifier, name-list, type-reference,
 symbol-reference, wildcard-name/list/type-reference, boolean, integer, number,
 qualified-name, semantic version, basic absolute-URI, basic media-type, and
@@ -265,7 +267,7 @@ CLI validation integration tests.
 | Example | Purpose | Expected result |
 | --- | --- | --- |
 | [`basic-schema.cem`](examples/basic-schema.cem) | Minimal schema definition with content type, element, and attribute declarations. | Pass |
-| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, conditional `schema:required-fields`, nested exact-one `schema:choice-case`, child-set, selected/ranged, ordered, boundary, and exact/required/forbidden sequence `schema:child-occurrence`, `schema:value-vocabulary`, `schema:scalar-type` number/qualified-name/semver/URI/media-type/path syntax, and `schema:datatype-param` integer-bound/number-bound/digit-count/string length/pattern/URI scheme/authority/path-prefix/media-type essence/parameter-name/required-parameter attribute diagnostics, and open-content policy. | Pass |
+| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, conditional `schema:required-fields`, nested exact-one `schema:choice-case`, child-set, selected/ranged, ordered, boundary, and exact/required/forbidden sequence `schema:child-occurrence`, `schema:value-vocabulary`, `schema:scalar-type` number/qualified-name/semver/URI/media-type/path syntax, and `schema:datatype-param` integer-bound/number-bound/digit-count/string length/pattern/URI scheme/authority/path-prefix/media-type essence/structured-suffix/parameter-name/forbidden-parameter/required-parameter attribute diagnostics, and open-content policy. | Pass |
 | [`custom-behavior-schema.cem`](examples/custom-behavior-schema.cem) | Custom schema that defines a diagnostic algorithm with CEM-QL candidate matching and a CEM-ML behavior function. | Pass |
 | [`custom-behavior-schema-strict.cem`](examples/custom-behavior-schema-strict.cem) | Variant custom schema that changes the match condition and function-produced result declaratively. | Pass |
 | [`invalid-unclosed-schema.cem`](examples/invalid-unclosed-schema.cem) | Missing closing schema scope syntax diagnostic. | Fail with `cem.ast.unclosed_scope` |
@@ -282,7 +284,7 @@ CLI validation integration tests.
 | [`invalid-datatype-param-bound.cem`](examples/invalid-datatype-param-bound.cem) | Numeric bound datatype parameter declarations use incompatible bound values or primitive types. | Fail with `cem.schema_definition.invalid_datatype_param` |
 | [`invalid-datatype-param-pattern.cem`](examples/invalid-datatype-param-pattern.cem) | String datatype parameter declaration uses an invalid regular expression. | Fail with `cem.schema_definition.invalid_datatype_param` |
 | [`invalid-datatype-param-digits.cem`](examples/invalid-datatype-param-digits.cem) | Numeric digit-count datatype parameter declarations use invalid limits or incompatible primitive types. | Fail with `cem.schema_definition.invalid_datatype_param` |
-| [`invalid-datatype-param-uri-media.cem`](examples/invalid-datatype-param-uri-media.cem) | URI scheme/authority/path-prefix and media-type essence/parameter-name/required-parameter datatype parameter declarations use invalid tokens. | Fail with `cem.schema_definition.invalid_datatype_param` |
+| [`invalid-datatype-param-uri-media.cem`](examples/invalid-datatype-param-uri-media.cem) | URI scheme/authority/path-prefix and media-type essence/structured-suffix/parameter-name/forbidden-parameter/required-parameter datatype parameter declarations use invalid tokens or incompatible primitive types. | Fail with `cem.schema_definition.invalid_datatype_param` |
 
 Validate an example explicitly against this schema:
 

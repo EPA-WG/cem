@@ -12,7 +12,11 @@
         {attribute @name="remote" @type="schema:uri" @uriRequiresAuthority=maybe}
         {attribute @name="asset" @type="schema:uri" @uriPathPrefixes="assets"}
         {attribute @name="format" @type="schema:media-type" @mediaTypes="text/html text"}
+        {attribute @name="structured" @type="schema:media-type" @mediaTypeSuffixes="json bad=suffix"}
         {attribute @name="payload" @type="schema:media-type" @mediaTypeParameters="charset bad=name"}
+        {attribute @name="legacy" @type="schema:media-type" @mediaTypeForbiddenParameters="profile bad=name"}
         {attribute @name="profiled" @type="schema:media-type" @mediaTypeRequiredParameters="charset bad=name"}
+        {attribute @name="label" @type="schema:string" @mediaTypeSuffixes="json"}
+        {attribute @name="title" @type="schema:string" @mediaTypeForbiddenParameters="profile"}
     }
 }
