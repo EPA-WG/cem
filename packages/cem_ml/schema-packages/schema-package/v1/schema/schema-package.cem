@@ -71,6 +71,14 @@
 
     {field-contracts |
         {field-contract
+            @name="package-required-children"
+            @target="package"
+            @required-children="schema content-type"
+            @diagnostic="cem.schema_package.package_check"
+            @behavior="schema:child-occurrence"
+            @check-kind="child-occurrence"
+        }
+        {field-contract
             @name="converter-cemt-template-identity"
             @target="converter"
             @when-attribute="implementation"
@@ -233,6 +241,7 @@
     }
 
     {diagnostics |
+        {diagnostic @code="cem.schema_package.package_check" @severity="error" @behavior="schema:field-contract"}
         {diagnostic @code="cem.schema_package.missing_schema" @severity="error"}
         {diagnostic @code="cem.schema_package.content_type_conflict" @severity="error"}
         {diagnostic @code="cem.schema_package.manifest_source_invalid" @severity="error"}

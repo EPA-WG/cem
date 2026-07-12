@@ -258,10 +258,13 @@ history belongs in git history and the feature-specific docs linked below.
         validation instead of conversion descriptor extraction; top-level
         package `id`/`version` and schema `uri`/`source` descriptor fields now
         use schema-root/catalog fallbacks so missing manifest field diagnostics
-        stay schema-owned; converter implementation value validation and CEMT
-        template content-type/schema exact values now stay schema-owned through
-        the generic `@values` vocabulary instead of package-specific runtime
-        branches.
+        stay schema-owned; package-root `schema` and `content-type` child
+        presence now stays schema-owned through the
+        `package-required-children` child-occurrence contract and
+        `cem.schema_package.package_check`; converter implementation value
+        validation and CEMT template content-type/schema exact values now stay
+        schema-owned through the generic `@values` vocabulary instead of
+        package-specific runtime branches.
   - [ ] Model converter cases in `schema-package.cem`: `implementation=cemt`
         and `implementation=rust` required attribute contracts plus CEMT
         native fallback `fallback-reason` now live in schema-owned
@@ -313,11 +316,12 @@ history belongs in git history and the feature-specific docs linked below.
         now emit `cem.schema_package.artifact_check`; converter and example
         field diagnostics now emit schema-declared `converter_check` and
         `example_check` families where the distinction is field/cross-reference
-        contract detail; artifact CEMT output function metadata mismatches now
-        also use `cem.schema_package.artifact_check` with contract details
-        instead of a narrow mismatch code, and artifact CEMT source read, parse,
-        and function lookup failures now use the same generic family with
-        operational `checkKind` details; CEMT native fallback reason
+        contract detail; package-root child presence now emits
+        `cem.schema_package.package_check`; artifact CEMT output function
+        metadata mismatches now also use `cem.schema_package.artifact_check`
+        with contract details instead of a narrow mismatch code, and artifact
+        CEMT source read, parse, and function lookup failures now use the same
+        generic family with operational `checkKind` details; CEMT native fallback reason
         requirements now stay in schema-owned `converter_check` contracts
         instead of conversion descriptor extraction; Rust converter
         `rust-symbol` requirements now also stay in schema-owned

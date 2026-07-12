@@ -488,7 +488,10 @@ fn schema_owned_examples_validate_through_cli() {
             content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
             schema_uri: CEM_SCHEMA_PACKAGE_URI,
             expected_exit: EXIT_HARD_FAILURE,
-            expected_diagnostics: &["cem.schema_model.missing_required_attribute"],
+            expected_diagnostics: &[
+                "cem.schema_model.missing_required_attribute",
+                "cem.schema_package.package_check",
+            ],
         },
         ValidationExample {
             name: "schema-package invalid converter contract",
@@ -1570,6 +1573,19 @@ fn schema_datatype_param_examples_emit_structured_definition_details() {
 #[test]
 fn schema_package_engine_behavior_examples_emit_structured_details() {
     let examples = [
+        DetailedValidationExample {
+            name: "schema-package invalid missing required attribute",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-missing-required-attribute.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected: &[DiagnosticDetailExpectation {
+                code: "cem.schema_package.package_check",
+                severity: "error",
+                behavior: "schema:child-occurrence",
+                check_kind: "child-occurrence",
+                contract: "package-required-children",
+            }],
+        },
         DetailedValidationExample {
             name: "schema-package invalid converter contract",
             path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-converter-contract.cem",

@@ -44,7 +44,7 @@
         @content-type="application/vnd.cem.schema-package+cem"
         @schema="https://cem.dev/ns/schema-package/1"
         @expected-result="fail"
-        @expected-diagnostics="cem.schema_model.missing_required_attribute"
+        @expected-diagnostics="cem.schema_model.missing_required_attribute cem.schema_package.package_check"
     }
 
     {example

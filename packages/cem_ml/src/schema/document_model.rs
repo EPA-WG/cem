@@ -5027,9 +5027,33 @@ mod tests {
                 .map(|behavior| behavior.behavior.as_str()),
             Some(FIELD_CONTRACT_DIAGNOSTIC_BEHAVIOR)
         );
+        assert_eq!(
+            model
+                .diagnostic_behaviors
+                .get("cem.schema_package.package_check")
+                .map(|behavior| behavior.behavior.as_str()),
+            Some(FIELD_CONTRACT_DIAGNOSTIC_BEHAVIOR)
+        );
         let package = model.element("package").unwrap();
         assert!(package.required_attributes.contains("id"));
         assert!(package.child_elements.contains("converter"));
+        let package_children = package
+            .field_contracts
+            .iter()
+            .find(|contract| contract.name == "package-required-children")
+            .expect("package required children contract");
+        assert_eq!(
+            package_children.diagnostic.as_deref(),
+            Some("cem.schema_package.package_check")
+        );
+        assert_eq!(
+            package_children.required_children,
+            BTreeSet::from(["content-type".to_owned(), "schema".to_owned()])
+        );
+        assert_eq!(
+            package_children.engine_behavior,
+            Some(EngineDiagnosticBehavior::FieldContract)
+        );
         let converter = model.element("converter").unwrap();
         let fallback_reason = converter
             .field_contracts
@@ -5132,6 +5156,49 @@ mod tests {
             example_content_type_schema.engine_behavior,
             Some(EngineDiagnosticBehavior::ReferenceResolution)
         );
+    }
+
+    #[test]
+    fn schema_package_package_contract_flags_missing_content_type_child() {
+        let model =
+            load_builtin_document_model_for_identity(Some(CEM_SCHEMA_PACKAGE_URI), None).unwrap();
+        let document = parse_cem_document(
+            r#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id=demo @version="1.0.0" |
+    {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+}"#,
+        );
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "cem.schema_package.package_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("package-required-children")
+            })
+            .expect("package required children contract diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("package required children details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:child-occurrence")
+        );
+        assert_eq!(details["checkKind"], serde_json::json!("child-occurrence"));
+        assert_eq!(
+            details["requiredChildren"],
+            serde_json::json!(["content-type", "schema"])
+        );
+        assert_eq!(
+            details["missingChildren"],
+            serde_json::json!(["content-type"])
+        );
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
     }
 
     #[test]

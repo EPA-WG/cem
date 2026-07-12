@@ -816,6 +816,21 @@ mod tests {
                 vec![expected_code.to_owned()]
             );
         }
+        let missing_required = examples
+            .iter()
+            .find(|example| example.id == "invalid-missing-required-attribute")
+            .expect("schema-package missing required example");
+        assert_eq!(
+            missing_required.expected_result,
+            SchemaPackageExampleExpectedResult::Fail
+        );
+        assert_eq!(
+            missing_required.expected_diagnostic_codes,
+            vec![
+                "cem.schema_model.missing_required_attribute".to_owned(),
+                "cem.schema_package.package_check".to_owned(),
+            ]
+        );
     }
 
     #[test]
