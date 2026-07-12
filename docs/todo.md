@@ -127,7 +127,8 @@ history belongs in git history and the feature-specific docs linked below.
         example; schema-package CLI examples now also cover schema-definition
         failures for invalid datatype parameter declarations on integer/number
         bounds, numeric digit counts, string length bounds, and regex patterns.
-        CLI tests now assert
+        CLI tests now assert structured schema-definition datatype-param
+        details for those failing declarations, plus
         structured `behavior`, `checkKind`, `contract`, severity, and source
         range details for representative schema-package engine behavior
         examples. The native tests cover warning severity,

@@ -135,8 +135,9 @@ URI, media-type, and path attributes through `@type-diagnostic` to
 `schema:scalar-type`,
 and datatype parameter failures for integer and number
 `@minInclusive`/`@maxInclusive`/`@minExclusive`/`@maxExclusive` bounds, string
-`@minLength`/`@maxLength`/`@length` constraints, and regex `@pattern` through
-`@datatype-param-diagnostic` to
+`@minLength`/`@maxLength`/`@length` constraints, numeric
+`@totalDigits`/`@fractionDigits` digit-count constraints, and regex
+`@pattern` through `@datatype-param-diagnostic` to
 `schema:datatype-param`. In all cases the diagnostic `@code` remains the
 stable output identity while `@behavior` selects the reusable algorithm
 contract.
@@ -206,9 +207,10 @@ stamp operational diagnostics while preserving broad diagnostic family codes.
 Constraint-owned `schema:resource-readable`, `schema:resource-parse`, and
 `schema:reference-resolution` bindings now compile and stamp operational
 diagnostics with their declared behavior. Integer and number `minInclusive`,
-`maxInclusive`, `minExclusive`, and `maxExclusive` bounds, string
-`minLength`/`maxLength`/`length` constraints, and regex `pattern` datatype
-parameter variations now execute through
+`maxInclusive`, `minExclusive`, and `maxExclusive` bounds, numeric
+`totalDigits`/`fractionDigits` constraints, string `minLength`/`maxLength`/
+`length` constraints, and regex `pattern` datatype parameter variations now
+execute through
 `schema:datatype-param`; boolean, integer, number, basic absolute-URI, basic
 media-type, and scope-context path scalar syntax now execute through
 `schema:scalar-type`;
@@ -225,7 +227,7 @@ CLI validation integration tests.
 | Example | Purpose | Expected result |
 | --- | --- | --- |
 | [`basic-schema.cem`](examples/basic-schema.cem) | Minimal schema definition with content type, element, and attribute declarations. | Pass |
-| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, conditional `schema:required-fields`, nested exact-one `schema:choice-case`, ranged `schema:child-occurrence`, `schema:value-vocabulary`, `schema:scalar-type` number/URI/media-type/path syntax, and `schema:datatype-param` integer-bound/number-bound/string length/pattern attribute diagnostics, and open-content policy. | Pass |
+| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, conditional `schema:required-fields`, nested exact-one `schema:choice-case`, ranged `schema:child-occurrence`, `schema:value-vocabulary`, `schema:scalar-type` number/URI/media-type/path syntax, and `schema:datatype-param` integer-bound/number-bound/digit-count/string length/pattern attribute diagnostics, and open-content policy. | Pass |
 | [`custom-behavior-schema.cem`](examples/custom-behavior-schema.cem) | Custom schema that defines a diagnostic algorithm with CEM-QL candidate matching and a CEM-ML behavior function. | Pass |
 | [`custom-behavior-schema-strict.cem`](examples/custom-behavior-schema-strict.cem) | Variant custom schema that changes the match condition and function-produced result declaratively. | Pass |
 | [`invalid-unclosed-schema.cem`](examples/invalid-unclosed-schema.cem) | Missing closing schema scope syntax diagnostic. | Fail with `cem.ast.unclosed_scope` |
@@ -241,6 +243,7 @@ CLI validation integration tests.
 | [`invalid-datatype-param-length.cem`](examples/invalid-datatype-param-length.cem) | String datatype parameter declarations use invalid negative length bounds. | Fail with `cem.schema_definition.invalid_datatype_param` |
 | [`invalid-datatype-param-bound.cem`](examples/invalid-datatype-param-bound.cem) | Integer datatype parameter declaration uses a decimal number bound. | Fail with `cem.schema_definition.invalid_datatype_param` |
 | [`invalid-datatype-param-pattern.cem`](examples/invalid-datatype-param-pattern.cem) | String datatype parameter declaration uses an invalid regular expression. | Fail with `cem.schema_definition.invalid_datatype_param` |
+| [`invalid-datatype-param-digits.cem`](examples/invalid-datatype-param-digits.cem) | Numeric datatype parameter declarations use invalid digit-count limits. | Fail with `cem.schema_definition.invalid_datatype_param` |
 
 Validate an example explicitly against this schema:
 

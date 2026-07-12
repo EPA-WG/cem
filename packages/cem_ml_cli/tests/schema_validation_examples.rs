@@ -96,6 +96,23 @@ struct DiagnosticDetailExpectation {
     contract: &'static str,
 }
 
+#[derive(Debug)]
+struct SchemaDefinitionDetailExample {
+    name: &'static str,
+    path: &'static str,
+    expected: &'static [SchemaDefinitionDetailExpectation],
+}
+
+#[derive(Debug)]
+struct SchemaDefinitionDetailExpectation {
+    code: &'static str,
+    severity: &'static str,
+    check_kind: &'static str,
+    attribute: &'static str,
+    datatype_param: &'static str,
+    param_value: &'static str,
+}
+
 const SCHEMA_PACKAGE_RUNTIME_CONSTRAINT_EXAMPLE_DIAGNOSTICS: &[(&str, &str)] = &[
     (
         "converter-from-to-required",
@@ -199,6 +216,24 @@ fn has_diagnostic_detail(
             && diagnostic["details"]["sourceRange"]["span"]["start"]
                 .as_u64()
                 .is_some()
+            && diagnostic["sourceMap"]["frames"]
+                .as_array()
+                .is_some_and(|frames| !frames.is_empty())
+    })
+}
+
+fn has_schema_definition_detail(
+    report: &serde_json::Value,
+    expected: &SchemaDefinitionDetailExpectation,
+) -> bool {
+    diagnostics(report).iter().any(|diagnostic| {
+        diagnostic["code"] == expected.code
+            && diagnostic["severity"] == expected.severity
+            && diagnostic["details"]["checkKind"] == expected.check_kind
+            && diagnostic["details"]["attribute"] == expected.attribute
+            && diagnostic["details"]["datatypeParam"] == expected.datatype_param
+            && diagnostic["details"]["paramName"] == expected.datatype_param
+            && diagnostic["details"]["paramValue"] == expected.param_value
             && diagnostic["sourceMap"]["frames"]
                 .as_array()
                 .is_some_and(|frames| !frames.is_empty())
@@ -1373,6 +1408,127 @@ fn schema_owned_examples_validate_through_cli() {
             assert!(
                 has_diagnostic(&report, expected),
                 "{} expected diagnostic `{}` in {}",
+                example.name,
+                expected,
+                stdout(&output)
+            );
+        }
+    }
+}
+
+#[test]
+fn schema_datatype_param_examples_emit_structured_definition_details() {
+    let examples = [
+        SchemaDefinitionDetailExample {
+            name: "schema invalid datatype param length",
+            path: "packages/cem_ml/schema-packages/schema/v1/examples/invalid-datatype-param-length.cem",
+            expected: &[
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
+                    check_kind: "datatype-param:minLength",
+                    attribute: "label",
+                    datatype_param: "minLength",
+                    param_value: "-1",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
+                    check_kind: "datatype-param:length",
+                    attribute: "code",
+                    datatype_param: "length",
+                    param_value: "-1",
+                },
+            ],
+        },
+        SchemaDefinitionDetailExample {
+            name: "schema invalid datatype param bound",
+            path: "packages/cem_ml/schema-packages/schema/v1/examples/invalid-datatype-param-bound.cem",
+            expected: &[SchemaDefinitionDetailExpectation {
+                code: "cem.schema_definition.invalid_datatype_param",
+                severity: "error",
+                check_kind: "datatype-param:minInclusive",
+                attribute: "priority",
+                datatype_param: "minInclusive",
+                param_value: "0.5",
+            }],
+        },
+        SchemaDefinitionDetailExample {
+            name: "schema invalid datatype param pattern",
+            path: "packages/cem_ml/schema-packages/schema/v1/examples/invalid-datatype-param-pattern.cem",
+            expected: &[SchemaDefinitionDetailExpectation {
+                code: "cem.schema_definition.invalid_datatype_param",
+                severity: "error",
+                check_kind: "datatype-param:pattern",
+                attribute: "code",
+                datatype_param: "pattern",
+                param_value: "[",
+            }],
+        },
+        SchemaDefinitionDetailExample {
+            name: "schema invalid datatype param digits",
+            path: "packages/cem_ml/schema-packages/schema/v1/examples/invalid-datatype-param-digits.cem",
+            expected: &[
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
+                    check_kind: "datatype-param:totalDigits",
+                    attribute: "serial",
+                    datatype_param: "totalDigits",
+                    param_value: "0",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
+                    check_kind: "datatype-param:fractionDigits",
+                    attribute: "ratio",
+                    datatype_param: "fractionDigits",
+                    param_value: "-1",
+                },
+            ],
+        },
+    ];
+
+    for example in examples {
+        let path = workspace_path(example.path);
+        assert!(
+            path.exists(),
+            "schema datatype-param validation example `{}` is missing at {}",
+            example.name,
+            path.display()
+        );
+
+        let output = validate_example(
+            &ValidationExample {
+                name: example.name,
+                path: example.path,
+                content_type: CEM_SCHEMA_CONTENT_TYPE,
+                schema_uri: CEM_SCHEMA_URI,
+                expected_exit: EXIT_HARD_FAILURE,
+                expected_diagnostics: &[],
+            },
+            &path,
+        );
+        assert_eq!(
+            output.status.code(),
+            Some(EXIT_HARD_FAILURE),
+            "{} stderr:\n{}",
+            example.name,
+            stderr(&output)
+        );
+        assert!(
+            stderr(&output).trim().is_empty(),
+            "{} stderr must stay empty:\n{}",
+            example.name,
+            stderr(&output)
+        );
+
+        let report: serde_json::Value = serde_json::from_str(stdout(&output).trim())
+            .unwrap_or_else(|err| panic!("{} stdout is validation JSON: {err}", example.name));
+        for expected in example.expected {
+            assert!(
+                has_schema_definition_detail(&report, expected),
+                "{} expected structured schema definition diagnostic {:?} in {}",
                 example.name,
                 expected,
                 stdout(&output)
