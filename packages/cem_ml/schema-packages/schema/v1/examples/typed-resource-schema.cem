@@ -148,6 +148,8 @@
             @selected-children="field"
             @min-selected-children=1
             @max-selected-children=8
+            @first-child="field"
+            @last-child="field"
             @diagnostic="example.resource.field_range"
             @behavior="schema:child-occurrence"
             @check-kind="child-occurrence-range"

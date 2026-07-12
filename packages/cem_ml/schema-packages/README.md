@@ -65,7 +65,7 @@ documents validate as CEM-ML documents first, then as instances of the schema
 definition language. This package owns
 `application/vnd.cem.schema+cem`, including schema-owned field contracts for
 child occurrence counts, child choices, child-set cardinality, and relative
-child ordering.
+child ordering and boundary placement.
 
 `schema-package/v1` defines the package manifest schema for
 `schema-packages/{schema-name}/{version}/package.cem`. The schema package

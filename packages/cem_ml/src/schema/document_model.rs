@@ -16,12 +16,12 @@
 //!   `minExclusive`/`maxExclusive`, numeric `totalDigits`/`fractionDigits`,
 //!   string `minLength`/`maxLength`/`length`, regex `pattern`, URI scheme,
 //!   and media-type essence datatype-param checks.
-//! - schema-owned exact, ranged, and choice-cardinality child occurrence field
-//!   contracts.
+//! - schema-owned exact, ranged, ordered, boundary, and choice-cardinality
+//!   child occurrence field contracts.
 //!
-//! Ordering, scalar type checks beyond boolean/integer/number/URI/media-type/
-//! path syntax, additional datatype-param families, and semantic constraints
-//! remain follow-up work.
+//! Scalar type checks beyond boolean/integer/number/URI/media-type/path syntax,
+//! additional datatype-param families, and semantic constraints remain
+//! follow-up work.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path};
@@ -357,6 +357,8 @@ pub struct FieldContract {
     pub max_one_child: BTreeSet<String>,
     pub selected_children: BTreeSet<String>,
     pub ordered_children: Vec<String>,
+    pub first_child: Option<String>,
+    pub last_child: Option<String>,
     pub exact_children: BTreeMap<String, String>,
     pub min_children: BTreeMap<String, String>,
     pub max_children: BTreeMap<String, String>,
@@ -434,6 +436,14 @@ struct ChoiceGroupEvaluation {
 struct OrderedChildrenEvaluation {
     sequence: Vec<String>,
     unordered_children: Vec<String>,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+struct BoundaryChildrenEvaluation {
+    actual_first_child: Option<String>,
+    actual_last_child: Option<String>,
+    invalid_first_child: bool,
+    invalid_last_child: bool,
 }
 
 impl FieldContract {
@@ -3989,6 +3999,8 @@ fn collect_field_contracts(
                 max_one_child: parse_name_set(attrs.get("max-one-child")),
                 selected_children: parse_name_set(attrs.get("selected-children")),
                 ordered_children: parse_ordered_name_list(attrs.get("ordered-children")),
+                first_child: optional_non_empty_attr(&attrs, "first-child").map(str::to_owned),
+                last_child: optional_non_empty_attr(&attrs, "last-child").map(str::to_owned),
                 exact_children: parse_name_value_map(attrs.get("exact-children")),
                 min_children: parse_name_value_map(attrs.get("min-children")),
                 max_children: parse_name_value_map(attrs.get("max-children")),
@@ -4346,6 +4358,7 @@ fn validate_field_contracts(
             .is_some_and(|max| selected_child_count > max);
         let ordered_child_evaluation =
             evaluate_ordered_children(&contract.ordered_children, child_sequence);
+        let boundary_child_evaluation = evaluate_boundary_children(contract, child_sequence);
 
         if missing.is_empty()
             && invalid_fields.is_empty()
@@ -4371,6 +4384,8 @@ fn validate_field_contracts(
             && !under_min_selected_children
             && !over_max_selected_children
             && ordered_child_evaluation.unordered_children.is_empty()
+            && !boundary_child_evaluation.invalid_first_child
+            && !boundary_child_evaluation.invalid_last_child
         {
             continue;
         }
@@ -4505,6 +4520,16 @@ fn validate_field_contracts(
                 ordered_child_evaluation.unordered_children.join(", ")
             ));
         }
+        if boundary_child_evaluation.invalid_first_child {
+            if let Some(expected) = contract.first_child.as_deref() {
+                parts.push(format!("first child mismatch: expected {expected}"));
+            }
+        }
+        if boundary_child_evaluation.invalid_last_child {
+            if let Some(expected) = contract.last_child.as_deref() {
+                parts.push(format!("last child mismatch: expected {expected}"));
+            }
+        }
         let generated_message = format!(
             "element `{element_name}` failed field contract `{}` ({}) with {}",
             contract.name,
@@ -4561,6 +4586,7 @@ fn validate_field_contracts(
                 over_max_selected_children,
                 selected_child_count,
                 &ordered_child_evaluation,
+                &boundary_child_evaluation,
                 child_counts,
                 node,
             ),
@@ -4616,6 +4642,26 @@ fn evaluate_ordered_children(
     }
 
     evaluation
+}
+
+fn evaluate_boundary_children(
+    contract: &FieldContract,
+    child_sequence: &[String],
+) -> BoundaryChildrenEvaluation {
+    let actual_first_child = child_sequence.first().cloned();
+    let actual_last_child = child_sequence.last().cloned();
+    BoundaryChildrenEvaluation {
+        invalid_first_child: contract
+            .first_child
+            .as_deref()
+            .is_some_and(|expected| actual_first_child.as_deref() != Some(expected)),
+        invalid_last_child: contract
+            .last_child
+            .as_deref()
+            .is_some_and(|expected| actual_last_child.as_deref() != Some(expected)),
+        actual_first_child,
+        actual_last_child,
+    }
 }
 
 fn evaluate_choice_groups(
@@ -4786,6 +4832,7 @@ fn field_contract_details(
     over_max_selected_children: bool,
     selected_child_count: usize,
     ordered_child_evaluation: &OrderedChildrenEvaluation,
+    boundary_child_evaluation: &BoundaryChildrenEvaluation,
     child_counts: &BTreeMap<String, usize>,
     node: &CemAstNode,
 ) -> serde_json::Value {
@@ -4887,6 +4934,14 @@ fn field_contract_details(
     details.insert(
         "orderedChildren".to_owned(),
         serde_json::json!(&contract.ordered_children),
+    );
+    details.insert(
+        "firstChild".to_owned(),
+        serde_json::json!(&contract.first_child),
+    );
+    details.insert(
+        "lastChild".to_owned(),
+        serde_json::json!(&contract.last_child),
     );
     details.insert(
         "presentRequiredOneChild".to_owned(),
@@ -5084,6 +5139,22 @@ fn field_contract_details(
     details.insert(
         "invalidChildOrder".to_owned(),
         serde_json::json!(!ordered_child_evaluation.unordered_children.is_empty()),
+    );
+    details.insert(
+        "actualFirstChild".to_owned(),
+        serde_json::json!(&boundary_child_evaluation.actual_first_child),
+    );
+    details.insert(
+        "actualLastChild".to_owned(),
+        serde_json::json!(&boundary_child_evaluation.actual_last_child),
+    );
+    details.insert(
+        "invalidFirstChild".to_owned(),
+        serde_json::json!(boundary_child_evaluation.invalid_first_child),
+    );
+    details.insert(
+        "invalidLastChild".to_owned(),
+        serde_json::json!(boundary_child_evaluation.invalid_last_child),
     );
     details.insert("childCounts".to_owned(), serde_json::json!(child_counts));
     details.insert(
@@ -6067,6 +6138,24 @@ mod tests {
         assert_eq!(
             model
                 .attributes
+                .get("first-child")
+                .expect("first-child attribute model")
+                .value_type
+                .as_deref(),
+            Some("cemml:identifier")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("last-child")
+                .expect("last-child attribute model")
+                .value_type
+                .as_deref(),
+            Some("cemml:identifier")
+        );
+        assert_eq!(
+            model
+                .attributes
                 .get("exact-selected-children")
                 .expect("exact-selected-children attribute model")
                 .value_type
@@ -6635,6 +6724,7 @@ mod tests {
         {element @name="article" @children="intro body outro aside"}
         {element @name="intro"}
         {element @name="outro"}
+        {element @name="frame" @children="header body footer aside"}
         {element @name="bundle" @children="photo video caption"}
         {element @name="photo"}
         {element @name="video"}
@@ -6781,6 +6871,15 @@ mod tests {
             @diagnostic="example.item_check"
             @behavior="schema:child-occurrence"
             @check-kind="ordered-children"
+        }
+        {field-contract
+            @name="frame-boundary-children"
+            @target="frame"
+            @first-child="header"
+            @last-child="footer"
+            @diagnostic="example.item_check"
+            @behavior="schema:child-occurrence"
+            @check-kind="boundary-children"
         }
         {field-contract
             @name="switch-child-choice"
@@ -7638,6 +7737,68 @@ mod tests {
         );
         assert_eq!(details["unorderedChildren"], serde_json::json!(["intro"]));
         assert_eq!(details["invalidChildOrder"], serde_json::json!(true));
+
+        let document = parse_cem_document(r#"{frame | {header} {aside} {body} {footer}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        assert!(
+            diagnostics.iter().all(|diagnostic| {
+                diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("contract").and_then(serde_json::Value::as_str))
+                    != Some("frame-boundary-children")
+            }),
+            "matching child boundaries should satisfy boundary child field contract: {diagnostics:?}"
+        );
+
+        let document = parse_cem_document(r#"{frame | {body} {header} {footer}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("frame-boundary-children")
+            })
+            .expect("first child boundary diagnostic");
+        assert!(diagnostic.message.contains("first child mismatch"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("first child boundary details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:child-occurrence")
+        );
+        assert_eq!(details["checkKind"], serde_json::json!("boundary-children"));
+        assert_eq!(details["firstChild"], serde_json::json!("header"));
+        assert_eq!(details["lastChild"], serde_json::json!("footer"));
+        assert_eq!(details["actualFirstChild"], serde_json::json!("body"));
+        assert_eq!(details["actualLastChild"], serde_json::json!("footer"));
+        assert_eq!(details["invalidFirstChild"], serde_json::json!(true));
+        assert_eq!(details["invalidLastChild"], serde_json::json!(false));
+
+        let document = parse_cem_document(r#"{frame | {header} {footer} {body}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("frame-boundary-children")
+            })
+            .expect("last child boundary diagnostic");
+        assert!(diagnostic.message.contains("last child mismatch"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("last child boundary details");
+        assert_eq!(details["actualFirstChild"], serde_json::json!("header"));
+        assert_eq!(details["actualLastChild"], serde_json::json!("body"));
+        assert_eq!(details["invalidFirstChild"], serde_json::json!(false));
+        assert_eq!(details["invalidLastChild"], serde_json::json!(true));
 
         let document = parse_cem_document(r#"{switch}"#);
         let diagnostics = validate_document_model(&document, &model);
