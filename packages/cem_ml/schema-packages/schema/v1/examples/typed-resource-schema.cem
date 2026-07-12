@@ -145,6 +145,9 @@
             @min-total-children=1
             @max-total-children=8
             @exact-distinct-children=1
+            @selected-children="field"
+            @min-selected-children=1
+            @max-selected-children=8
             @diagnostic="example.resource.field_range"
             @behavior="schema:child-occurrence"
             @check-kind="child-occurrence-range"

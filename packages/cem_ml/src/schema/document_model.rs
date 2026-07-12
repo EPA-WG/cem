@@ -355,6 +355,7 @@ pub struct FieldContract {
     pub max_one_children: BTreeSet<String>,
     pub required_one_child: BTreeSet<String>,
     pub max_one_child: BTreeSet<String>,
+    pub selected_children: BTreeSet<String>,
     pub exact_children: BTreeMap<String, String>,
     pub min_children: BTreeMap<String, String>,
     pub max_children: BTreeMap<String, String>,
@@ -364,6 +365,9 @@ pub struct FieldContract {
     pub exact_distinct_children: Option<String>,
     pub min_distinct_children: Option<String>,
     pub max_distinct_children: Option<String>,
+    pub exact_selected_children: Option<String>,
+    pub min_selected_children: Option<String>,
+    pub max_selected_children: Option<String>,
     pub choice_groups: Vec<ChoiceGroup>,
     pub path_layout_attributes: BTreeSet<String>,
     pub path_layout_prefix: Option<String>,
@@ -2580,6 +2584,18 @@ fn validate_child_range_field_contract(
             "max-distinct-children",
             contract.max_distinct_children.as_deref(),
         ),
+        (
+            "min-selected-children",
+            contract.min_selected_children.as_deref(),
+        ),
+        (
+            "exact-selected-children",
+            contract.exact_selected_children.as_deref(),
+        ),
+        (
+            "max-selected-children",
+            contract.max_selected_children.as_deref(),
+        ),
     ] {
         let Some(value) = value else {
             continue;
@@ -2692,6 +2708,36 @@ fn validate_child_range_field_contract(
                         "checkKind": "field-contract-child-range",
                         "minDistinctChildren": min_value,
                         "maxDistinctChildren": max_value,
+                        "error": error,
+                    }),
+                ));
+            }
+        }
+    }
+
+    if let (Some(min_value), Some(max_value)) = (
+        contract.min_selected_children.as_deref(),
+        contract.max_selected_children.as_deref(),
+    ) {
+        if let (Some(min), Some(max)) = (
+            parse_non_negative_integer_to_usize(min_value),
+            parse_non_negative_integer_to_usize(max_value),
+        ) {
+            if min > max {
+                let error = "min-selected-children exceeds max-selected-children";
+                diagnostics.push(schema_compile_diagnostic(
+                    INVALID_SCHEMA_FIELD_CONTRACT_CODE,
+                    format!(
+                        "field contract `{}` declares invalid selected child occurrence range in schema `{schema_uri}`: {error}",
+                        contract.name
+                    ),
+                    &contract.source_map,
+                    serde_json::json!({
+                        "schemaUri": schema_uri,
+                        "contract": &contract.name,
+                        "checkKind": "field-contract-child-range",
+                        "minSelectedChildren": min_value,
+                        "maxSelectedChildren": max_value,
                         "error": error,
                     }),
                 ));
@@ -3932,6 +3978,7 @@ fn collect_field_contracts(
                 max_one_children: parse_name_set(attrs.get("max-one-children")),
                 required_one_child: parse_name_set(attrs.get("required-one-child")),
                 max_one_child: parse_name_set(attrs.get("max-one-child")),
+                selected_children: parse_name_set(attrs.get("selected-children")),
                 exact_children: parse_name_value_map(attrs.get("exact-children")),
                 min_children: parse_name_value_map(attrs.get("min-children")),
                 max_children: parse_name_value_map(attrs.get("max-children")),
@@ -3946,6 +3993,12 @@ fn collect_field_contracts(
                 min_distinct_children: optional_non_empty_attr(&attrs, "min-distinct-children")
                     .map(str::to_owned),
                 max_distinct_children: optional_non_empty_attr(&attrs, "max-distinct-children")
+                    .map(str::to_owned),
+                exact_selected_children: optional_non_empty_attr(&attrs, "exact-selected-children")
+                    .map(str::to_owned),
+                min_selected_children: optional_non_empty_attr(&attrs, "min-selected-children")
+                    .map(str::to_owned),
+                max_selected_children: optional_non_empty_attr(&attrs, "max-selected-children")
                     .map(str::to_owned),
                 choice_groups: collect_choice_groups(document, *child_id),
                 path_layout_attributes: parse_name_set(attrs.get("path-layout-attributes")),
@@ -4264,6 +4317,22 @@ fn validate_field_contracts(
             .as_deref()
             .and_then(parse_non_negative_integer_to_usize)
             .is_some_and(|max| distinct_child_count > max);
+        let selected_child_count = selected_child_count(contract, child_counts);
+        let invalid_exact_selected_children = contract
+            .exact_selected_children
+            .as_deref()
+            .and_then(parse_non_negative_integer_to_usize)
+            .is_some_and(|exact| selected_child_count != exact);
+        let under_min_selected_children = contract
+            .min_selected_children
+            .as_deref()
+            .and_then(parse_non_negative_integer_to_usize)
+            .is_some_and(|min| selected_child_count < min);
+        let over_max_selected_children = contract
+            .max_selected_children
+            .as_deref()
+            .and_then(parse_non_negative_integer_to_usize)
+            .is_some_and(|max| selected_child_count > max);
 
         if missing.is_empty()
             && invalid_fields.is_empty()
@@ -4285,6 +4354,9 @@ fn validate_field_contracts(
             && !invalid_exact_distinct_children
             && !under_min_distinct_children
             && !over_max_distinct_children
+            && !invalid_exact_selected_children
+            && !under_min_selected_children
+            && !over_max_selected_children
         {
             continue;
         }
@@ -4404,6 +4476,15 @@ fn validate_field_contracts(
         if over_max_distinct_children {
             parts.push("distinct children above maximum".to_owned());
         }
+        if invalid_exact_selected_children {
+            parts.push("selected children not at exact count".to_owned());
+        }
+        if under_min_selected_children {
+            parts.push("selected children below minimum".to_owned());
+        }
+        if over_max_selected_children {
+            parts.push("selected children above maximum".to_owned());
+        }
         let generated_message = format!(
             "element `{element_name}` failed field contract `{}` ({}) with {}",
             contract.name,
@@ -4455,6 +4536,10 @@ fn validate_field_contracts(
                 under_min_distinct_children,
                 over_max_distinct_children,
                 distinct_child_count,
+                invalid_exact_selected_children,
+                under_min_selected_children,
+                over_max_selected_children,
+                selected_child_count,
                 child_counts,
                 node,
             ),
@@ -4471,6 +4556,14 @@ fn present_child_names(
         .filter(|name| child_counts.get(*name).copied().unwrap_or_default() > 0)
         .cloned()
         .collect()
+}
+
+fn selected_child_count(contract: &FieldContract, child_counts: &BTreeMap<String, usize>) -> usize {
+    contract
+        .selected_children
+        .iter()
+        .map(|name| child_counts.get(name).copied().unwrap_or_default())
+        .sum()
 }
 
 fn evaluate_choice_groups(
@@ -4636,6 +4729,10 @@ fn field_contract_details(
     under_min_distinct_children: bool,
     over_max_distinct_children: bool,
     distinct_child_count: usize,
+    invalid_exact_selected_children: bool,
+    under_min_selected_children: bool,
+    over_max_selected_children: bool,
+    selected_child_count: usize,
     child_counts: &BTreeMap<String, usize>,
     node: &CemAstNode,
 ) -> serde_json::Value {
@@ -4731,6 +4828,10 @@ fn field_contract_details(
         serde_json::json!(&contract.max_one_child),
     );
     details.insert(
+        "selectedChildren".to_owned(),
+        serde_json::json!(&contract.selected_children),
+    );
+    details.insert(
         "presentRequiredOneChild".to_owned(),
         serde_json::json!(present_required_one_child),
     );
@@ -4797,6 +4898,27 @@ fn field_contract_details(
         "maxDistinctChildren".to_owned(),
         serde_json::json!(contract
             .max_distinct_children
+            .as_deref()
+            .and_then(parse_non_negative_integer_to_usize)),
+    );
+    details.insert(
+        "exactSelectedChildren".to_owned(),
+        serde_json::json!(contract
+            .exact_selected_children
+            .as_deref()
+            .and_then(parse_non_negative_integer_to_usize)),
+    );
+    details.insert(
+        "minSelectedChildren".to_owned(),
+        serde_json::json!(contract
+            .min_selected_children
+            .as_deref()
+            .and_then(parse_non_negative_integer_to_usize)),
+    );
+    details.insert(
+        "maxSelectedChildren".to_owned(),
+        serde_json::json!(contract
+            .max_selected_children
             .as_deref()
             .and_then(parse_non_negative_integer_to_usize)),
     );
@@ -4877,6 +4999,22 @@ fn field_contract_details(
     details.insert(
         "distinctChildCount".to_owned(),
         serde_json::json!(distinct_child_count),
+    );
+    details.insert(
+        "invalidExactSelectedChildren".to_owned(),
+        serde_json::json!(invalid_exact_selected_children),
+    );
+    details.insert(
+        "underMinSelectedChildren".to_owned(),
+        serde_json::json!(under_min_selected_children),
+    );
+    details.insert(
+        "overMaxSelectedChildren".to_owned(),
+        serde_json::json!(over_max_selected_children),
+    );
+    details.insert(
+        "selectedChildCount".to_owned(),
+        serde_json::json!(selected_child_count),
     );
     details.insert("childCounts".to_owned(), serde_json::json!(child_counts));
     details.insert(
@@ -5817,6 +5955,42 @@ mod tests {
         assert_eq!(
             model
                 .attributes
+                .get("selected-children")
+                .expect("selected-children attribute model")
+                .value_type
+                .as_deref(),
+            Some("cemml:name-list")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("exact-selected-children")
+                .expect("exact-selected-children attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:integer")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("min-selected-children")
+                .expect("min-selected-children attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:integer")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("max-selected-children")
+                .expect("max-selected-children attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:integer")
+        );
+        assert_eq!(
+            model
+                .attributes
                 .get("min-children")
                 .expect("min-children attribute model")
                 .value_type
@@ -6355,6 +6529,11 @@ mod tests {
         {element @name="panel" @children="header body footer"}
         {element @name="header"}
         {element @name="footer"}
+        {element @name="bundle" @children="photo video caption"}
+        {element @name="photo"}
+        {element @name="video"}
+        {element @name="caption"}
+        {element @name="strip" @children="photo video caption"}
         {element @name="switch" @children="primary secondary"}
         {element @name="primary"}
         {element @name="secondary"}
@@ -6469,6 +6648,25 @@ mod tests {
             @diagnostic="example.item_check"
             @behavior="schema:child-occurrence"
             @check-kind="exact-distinct-children"
+        }
+        {field-contract
+            @name="bundle-selected-children"
+            @target="bundle"
+            @selected-children="photo video"
+            @min-selected-children=2
+            @max-selected-children=3
+            @diagnostic="example.item_check"
+            @behavior="schema:child-occurrence"
+            @check-kind="selected-child-range"
+        }
+        {field-contract
+            @name="strip-exact-selected-children"
+            @target="strip"
+            @selected-children="photo video"
+            @exact-selected-children=2
+            @diagnostic="example.item_check"
+            @behavior="schema:child-occurrence"
+            @check-kind="exact-selected-children"
         }
         {field-contract
             @name="switch-child-choice"
@@ -7155,6 +7353,136 @@ mod tests {
             serde_json::json!(true)
         );
 
+        let document = parse_cem_document(r#"{bundle | {photo} {caption} {video}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        assert!(
+            diagnostics.iter().all(|diagnostic| {
+                diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("contract").and_then(serde_json::Value::as_str))
+                    != Some("bundle-selected-children")
+            }),
+            "two selected child occurrences should satisfy selected child range: {diagnostics:?}"
+        );
+
+        let document = parse_cem_document(r#"{bundle | {photo} {photo} {caption} {video}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        assert!(
+            diagnostics.iter().all(|diagnostic| {
+                diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("contract").and_then(serde_json::Value::as_str))
+                    != Some("bundle-selected-children")
+            }),
+            "three selected child occurrences should satisfy selected child range: {diagnostics:?}"
+        );
+
+        let document = parse_cem_document(r#"{bundle | {photo} {caption}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("bundle-selected-children")
+            })
+            .expect("under-min selected child diagnostic");
+        assert!(diagnostic
+            .message
+            .contains("selected children below minimum"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("under-min selected child details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:child-occurrence")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("selected-child-range")
+        );
+        assert_eq!(
+            details["selectedChildren"],
+            serde_json::json!(["photo", "video"])
+        );
+        assert_eq!(details["minSelectedChildren"], serde_json::json!(2));
+        assert_eq!(details["maxSelectedChildren"], serde_json::json!(3));
+        assert_eq!(details["selectedChildCount"], serde_json::json!(1));
+        assert_eq!(details["underMinSelectedChildren"], serde_json::json!(true));
+        assert_eq!(details["overMaxSelectedChildren"], serde_json::json!(false));
+        assert_eq!(
+            details["invalidExactSelectedChildren"],
+            serde_json::json!(false)
+        );
+
+        let document =
+            parse_cem_document(r#"{bundle | {photo} {photo} {video} {video} {caption}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("bundle-selected-children")
+            })
+            .expect("over-max selected child diagnostic");
+        assert!(diagnostic
+            .message
+            .contains("selected children above maximum"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("over-max selected child details");
+        assert_eq!(details["selectedChildCount"], serde_json::json!(4));
+        assert_eq!(
+            details["underMinSelectedChildren"],
+            serde_json::json!(false)
+        );
+        assert_eq!(details["overMaxSelectedChildren"], serde_json::json!(true));
+
+        let document = parse_cem_document(r#"{strip | {photo} {caption} {video}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        assert!(
+            diagnostics.iter().all(|diagnostic| {
+                diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("contract").and_then(serde_json::Value::as_str))
+                    != Some("strip-exact-selected-children")
+            }),
+            "exact selected child count should satisfy selected child field contract: {diagnostics:?}"
+        );
+
+        let document = parse_cem_document(r#"{strip | {photo} {caption}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("strip-exact-selected-children")
+            })
+            .expect("exact selected child diagnostic");
+        assert!(diagnostic
+            .message
+            .contains("selected children not at exact count"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("exact selected child details");
+        assert_eq!(details["exactSelectedChildren"], serde_json::json!(2));
+        assert_eq!(details["selectedChildCount"], serde_json::json!(1));
+        assert_eq!(
+            details["invalidExactSelectedChildren"],
+            serde_json::json!(true)
+        );
+
         let document = parse_cem_document(r#"{switch}"#);
         let diagnostics = validate_document_model(&document, &model);
         let diagnostic = diagnostics
@@ -7754,6 +8082,16 @@ mod tests {
             @behavior="schema:child-occurrence"
             @check-kind="distinct-child-range"
         }
+        {field-contract
+            @name="bad-selected-child-range"
+            @target="group"
+            @selected-children="child"
+            @min-selected-children=-1
+            @max-selected-children=3
+            @diagnostic="example.group_child_range"
+            @behavior="schema:child-occurrence"
+            @check-kind="selected-child-range"
+        }
     }
     {diagnostics |
         {diagnostic
@@ -7846,6 +8184,36 @@ mod tests {
             serde_json::json!("field-contract-child-range")
         );
         assert_eq!(details["range"], serde_json::json!("min-distinct-children"));
+        assert_eq!(details["value"], serde_json::json!("-1"));
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_FIELD_CONTRACT_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("bad-selected-child-range")
+            })
+            .expect("invalid selected child range compile diagnostic");
+        assert!(diagnostic.message.contains("invalid min-selected-children"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid selected child range compile details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/field-contract-child-range/1")
+        );
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("bad-selected-child-range")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("field-contract-child-range")
+        );
+        assert_eq!(details["range"], serde_json::json!("min-selected-children"));
         assert_eq!(details["value"], serde_json::json!("-1"));
     }
 
