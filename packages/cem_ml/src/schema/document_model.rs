@@ -185,6 +185,7 @@ pub struct AttributeModel {
     pub fraction_digits: Option<String>,
     pub pattern: Option<String>,
     pub uri_schemes: BTreeSet<String>,
+    pub uri_requires_authority: Option<String>,
     pub media_types: BTreeSet<String>,
     pub values_diagnostic: Option<String>,
     pub type_diagnostic: Option<String>,
@@ -920,6 +921,21 @@ fn normalized_uri_scheme(value: &str) -> Option<String> {
     uri_scheme(value).map(str::to_ascii_lowercase)
 }
 
+fn uri_authority(value: &str) -> Option<&str> {
+    let value = value.trim();
+    if is_windows_drive_path(value) {
+        return None;
+    }
+    let scheme = uri_scheme(value)?;
+    let rest = value.get(scheme.len() + 1..)?;
+    let authority_rest = rest.strip_prefix("//")?;
+    let authority_end = authority_rest
+        .find(['/', '?', '#'])
+        .unwrap_or(authority_rest.len());
+    let authority = &authority_rest[..authority_end];
+    (!authority.is_empty()).then_some(authority)
+}
+
 fn is_scoped_path_specifier(value: &str) -> bool {
     let value = value.trim();
     if value.is_empty()
@@ -1214,6 +1230,32 @@ fn validate_attribute_datatype_params(
                 diagnostics,
             );
         }
+    }
+    if attribute_model
+        .uri_requires_authority
+        .as_deref()
+        .and_then(parse_boolean_datatype_param)
+        .unwrap_or(false)
+        && attribute_model
+            .value_type
+            .as_deref()
+            .is_some_and(is_uri_type_reference)
+        && uri_authority(value).is_none()
+    {
+        emit_attribute_datatype_param_diagnostic(
+            schema_uri,
+            diagnostic_behaviors,
+            element_name,
+            attribute_name,
+            value,
+            attribute_model,
+            "uriRequiresAuthority",
+            "true",
+            "without",
+            attribute_values,
+            node,
+            diagnostics,
+        );
     }
     if !attribute_model.media_types.is_empty()
         && attribute_model
@@ -1833,6 +1875,10 @@ fn collect_attribute_models(
                         .map(str::to_owned),
                     pattern: optional_non_empty_attr(&attrs, "pattern").map(str::to_owned),
                     uri_schemes: parse_ascii_lower_value_set(attrs.get("uriSchemes")),
+                    uri_requires_authority: optional_boolean_datatype_param(
+                        &attrs,
+                        "uriRequiresAuthority",
+                    ),
                     media_types: parse_ascii_lower_value_set(attrs.get("mediaTypes")),
                     values_diagnostic: optional_non_empty_attr(&attrs, "values-diagnostic")
                         .map(str::to_owned),
@@ -2082,6 +2128,52 @@ fn validate_attribute_datatype_param_definition(
                     "paramName": "uriSchemes",
                     "paramValue": scheme,
                     "expectedPattern": "URI scheme",
+                    "error": error,
+                }),
+            ));
+        }
+    }
+    if let Some(param_value) = attribute_model.uri_requires_authority.as_deref() {
+        let value_type = attribute_model.value_type.as_deref();
+        if !value_type.is_some_and(is_uri_type_reference) {
+            let error = "expected schema:uri or cemml:uri value type for uriRequiresAuthority";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriRequiresAuthority datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriRequiresAuthority",
+                    "datatypeParam": "uriRequiresAuthority",
+                    "paramName": "uriRequiresAuthority",
+                    "paramValue": param_value,
+                    "valueType": value_type.unwrap_or_default(),
+                    "expectedType": "schema:uri",
+                    "error": error,
+                }),
+            ));
+        }
+        if parse_boolean_datatype_param(param_value).is_none() {
+            let error = "expected schema boolean value";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriRequiresAuthority datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriRequiresAuthority",
+                    "datatypeParam": "uriRequiresAuthority",
+                    "paramName": "uriRequiresAuthority",
+                    "paramValue": param_value,
+                    "expectedValues": ["false", "true"],
                     "error": error,
                 }),
             ));
@@ -4443,6 +4535,7 @@ fn attribute_datatype_param_details(
     let expected_pattern = match param_name {
         "pattern" => param_value,
         "uriSchemes" => "URI scheme",
+        "uriRequiresAuthority" => "URI authority",
         "mediaTypes" => "media type essence",
         "minLength" | "maxLength" | "length" => "Unicode scalar value length",
         "totalDigits" => "numeric total digit count",
@@ -4509,6 +4602,14 @@ fn attribute_datatype_param_details(
             );
             if let Some(actual_scheme) = normalized_uri_scheme(actual_value) {
                 object.insert("actualScheme".to_owned(), serde_json::json!(actual_scheme));
+            }
+        }
+        if param_name == "uriRequiresAuthority" {
+            if let Some(actual_authority) = uri_authority(actual_value) {
+                object.insert(
+                    "actualUriAuthority".to_owned(),
+                    serde_json::json!(actual_authority),
+                );
             }
         }
         if param_name == "mediaTypes" {
@@ -4628,6 +4729,25 @@ fn optional_non_empty_attr<'a>(attrs: &'a BTreeMap<String, String>, name: &str) 
         .map(String::as_str)
         .map(str::trim)
         .filter(|value| !value.is_empty())
+}
+
+fn optional_boolean_datatype_param(attrs: &BTreeMap<String, String>, name: &str) -> Option<String> {
+    attrs.get(name).map(|value| {
+        let value = value.trim();
+        if value.is_empty() {
+            "true".to_owned()
+        } else {
+            value.to_owned()
+        }
+    })
+}
+
+fn parse_boolean_datatype_param(value: &str) -> Option<bool> {
+    match value.trim() {
+        "" | "true" => Some(true),
+        "false" => Some(false),
+        _ => None,
+    }
 }
 
 fn attr_is_true(value: Option<&String>) -> bool {
@@ -5057,6 +5177,15 @@ mod tests {
                 .value_type
                 .as_deref(),
             Some("schema:string")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("uriRequiresAuthority")
+                .expect("uriRequiresAuthority attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:boolean")
         );
         assert_eq!(
             model
@@ -8567,6 +8696,178 @@ mod tests {
             serde_json::json!("/relative")
         );
         assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
+    fn schema_uri_authority_datatype_param_drives_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/uri-authority-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="uri-authority-contracts" @namespace="https://example.test/ns/uri-authority-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="href ref"}
+    }
+    {attributes |
+        {attribute @name="href" @type="schema:uri" @uriRequiresAuthority=true}
+        {attribute @name="ref" @type="schema:uri" @uriRequiresAuthority=false}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "valid URI authority schema must compile: {:#?}",
+            model.compile_diagnostics
+        );
+
+        for source in [
+            r#"{item @href="https://example.test/a"}"#,
+            r#"{item @href="custom://resolver/module"}"#,
+            r#"{item @ref="urn:example:test"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "valid URI authority source produced datatype-param diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        for source in [
+            r#"{item @href="urn:example:test"}"#,
+            r#"{item @href="mailto:test@example.test"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "URI without authority did not produce datatype-param diagnostic: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{item @href="urn:example:test"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("URI authority datatype-param diagnostic");
+        assert!(diagnostic.message.contains("href"));
+        assert!(diagnostic.message.contains("uriRequiresAuthority"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("URI authority datatype-param details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/uri-authority-contracts/1")
+        );
+        assert_eq!(details["element"], serde_json::json!("item"));
+        assert_eq!(details["attribute"], serde_json::json!("href"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:href:uriRequiresAuthority")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriRequiresAuthority")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("uriRequiresAuthority")
+        );
+        assert_eq!(details["uriRequiresAuthority"], serde_json::json!("true"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("URI authority")
+        );
+        assert_eq!(
+            details["actualValue"],
+            serde_json::json!("urn:example:test")
+        );
+        assert_eq!(details["invalidFields"], serde_json::json!(["href"]));
+        assert_eq!(
+            details["actualValues"]["href"],
+            serde_json::json!("urn:example:test")
+        );
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
+    fn schema_uri_authority_datatype_param_rejects_invalid_declarations() {
+        let model = compile_document_model(
+            "https://example.test/ns/invalid-uri-authority-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-uri-authority-contracts" @namespace="https://example.test/ns/invalid-uri-authority-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="href label"}
+    }
+    {attributes |
+        {attribute @name="href" @type="schema:uri" @uriRequiresAuthority=maybe}
+        {attribute @name="label" @type="schema:string" @uriRequiresAuthority=true}
+    }
+}"#,
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("attribute").and_then(serde_json::Value::as_str)
+                    }) == Some("href")
+            })
+            .expect("invalid uriRequiresAuthority boolean compile diagnostic");
+        assert!(diagnostic.message.contains("invalid uriRequiresAuthority"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid uriRequiresAuthority boolean compile details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/invalid-uri-authority-contracts/1")
+        );
+        assert_eq!(details["attribute"], serde_json::json!("href"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriRequiresAuthority")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("uriRequiresAuthority")
+        );
+        assert_eq!(details["paramValue"], serde_json::json!("maybe"));
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("attribute").and_then(serde_json::Value::as_str)
+                    }) == Some("label")
+            })
+            .expect("invalid uriRequiresAuthority type compile diagnostic");
+        assert!(diagnostic.message.contains("uriRequiresAuthority"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid uriRequiresAuthority type compile details");
+        assert_eq!(details["attribute"], serde_json::json!("label"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriRequiresAuthority")
+        );
+        assert_eq!(details["expectedType"], serde_json::json!("schema:uri"));
     }
 
     #[test]

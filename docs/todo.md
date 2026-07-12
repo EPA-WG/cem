@@ -187,8 +187,8 @@ history belongs in git history and the feature-specific docs linked below.
         integer `minInclusive`, `maxInclusive`,
         `minExclusive`, and `maxExclusive` bounds, numeric `totalDigits` and
         `fractionDigits`, plus string `minLength`, `maxLength`, and `length`
-        params, regex `pattern`, URI `uriSchemes`, and media-type `mediaTypes`
-        datatype params,
+        params, regex `pattern`, URI `uriSchemes` and
+        `uriRequiresAuthority`, and media-type `mediaTypes` datatype params,
         plus accepted-child allow-lists, forbidden-child occurrence, exact
         child counts, and min/max child occurrence ranges; it still needs scalar type validation beyond
         boolean/integer/number/basic URI/media-type/path syntax, RELAX NG-style
@@ -205,8 +205,8 @@ history belongs in git history and the feature-specific docs linked below.
         accepted-child allow-list field contracts, forbidden-child
         occurrence contracts, and exact child-count contracts; it
         still needs reusable string/path constraints beyond path-layout checks,
-        URI/media-type constraints beyond initial allowed scheme/essence
-        lists, RELAX NG-style datatype params beyond numeric bounds/digit
+        URI/media-type constraints beyond initial allowed scheme/authority
+        and media-type essence lists, RELAX NG-style datatype params beyond numeric bounds/digit
         counts, pattern, and allowed URI/media tokens, dependent field
         groups beyond presence-gated required fields, additional child
         occurrence variants, defaults, and richer case grouping for all schema
@@ -231,8 +231,8 @@ history belongs in git history and the feature-specific docs linked below.
         path type checks emit expected/actual details; nested choice/case
         checks emit declared cases, present cases, missing cases, and
         conflicting cases; accepted-child checks emit accepted/invalid
-        children and childCounts details; URI scheme and media-type essence
-        datatype-param checks emit expected values and normalized actual tokens; additional
+        children and childCounts details; URI scheme, URI authority, and
+        media-type essence datatype-param checks emit expected values and normalized actual tokens; additional
         URI/media-type constraints, datatype params, dependency, additional
         child occurrence variants, and cross-reference checks need the same
         schema-owned detail shape.
@@ -251,7 +251,7 @@ history belongs in git history and the feature-specific docs linked below.
         and
         package-relative path-layout checks, scope-context path type checks,
         nested choice/case checks, accepted-child allow-lists, forbidden-child
-        occurrence checks, exact child-count checks, URI scheme
+        occurrence checks, exact child-count checks, URI scheme/authority
         constraints, and media-type essence constraints; it still needs coverage for additional
         URI/media-type constraints, additional datatype params, dependency, and
         additional child occurrence variants.

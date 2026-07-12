@@ -29,7 +29,7 @@
         {element @name="elements" @children="element"}
         {element @name="element" @required-attributes="name" @optional-attributes="base required-attributes optional-attributes children"}
         {element @name="attributes" @children="attribute"}
-        {element @name="attribute" @required-attributes="name" @optional-attributes="base type required values minInclusive maxInclusive minExclusive maxExclusive minLength maxLength length totalDigits fractionDigits pattern uriSchemes mediaTypes values-diagnostic type-diagnostic datatype-param-diagnostic"}
+        {element @name="attribute" @required-attributes="name" @optional-attributes="base type required values minInclusive maxInclusive minExclusive maxExclusive minLength maxLength length totalDigits fractionDigits pattern uriSchemes uriRequiresAuthority mediaTypes values-diagnostic type-diagnostic datatype-param-diagnostic"}
         {element @name="directives" @children="directive"}
         {element @name="directive" @required-attributes="name" @optional-attributes="required value"}
         {element @name="nodes" @children="node"}
@@ -151,6 +151,7 @@
         {attribute @name="fractionDigits" @type="schema:integer"}
         {attribute @name="pattern" @type="schema:string"}
         {attribute @name="uriSchemes" @type="schema:string"}
+        {attribute @name="uriRequiresAuthority" @type="schema:boolean"}
         {attribute @name="mediaTypes" @type="schema:string"}
     }
 
