@@ -8,6 +8,8 @@
     }
 
     {attributes |
+        {attribute @name="template" @type="schema:path" @pathPrefixes="/absolute ./../bad"}
+        {attribute @name="script" @type="schema:path" @pathExtensions="cem .cem"}
         {attribute @name="href" @type="schema:uri" @uriSchemes="https 1bad"}
         {attribute @name="remote" @type="schema:uri" @uriRequiresAuthority=maybe}
         {attribute @name="asset" @type="schema:uri" @uriPathPrefixes="assets"}
@@ -18,5 +20,7 @@
         {attribute @name="profiled" @type="schema:media-type" @mediaTypeRequiredParameters="charset bad=name"}
         {attribute @name="label" @type="schema:string" @mediaTypeSuffixes="json"}
         {attribute @name="title" @type="schema:string" @mediaTypeForbiddenParameters="profile"}
+        {attribute @name="caption" @type="schema:string" @pathPrefixes="./templates/"}
+        {attribute @name="summary" @type="schema:string" @pathExtensions="cem"}
     }
 }

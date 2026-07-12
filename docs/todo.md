@@ -39,7 +39,8 @@ history belongs in git history and the feature-specific docs linked below.
       Both preserve stable diagnostic family codes. Attribute-owned datatype
       parameter checks now cover integer and number `minInclusive`/`maxInclusive`/
       `minExclusive`/`maxExclusive`, numeric `totalDigits`/`fractionDigits`,
-      string `minLength`/`maxLength`/`length`, regex `pattern`, URI
+      string `minLength`/`maxLength`/`length`, regex `pattern`, path
+      `pathPrefixes`/`pathExtensions`, URI
       `uriSchemes`/`uriRequiresAuthority`/`uriPathPrefixes`, and media-type
       `mediaTypes`/`mediaTypeSuffixes`/`mediaTypeParameters`/
       `mediaTypeForbiddenParameters`/`mediaTypeRequiredParameters`.
@@ -94,8 +95,11 @@ history belongs in git history and the feature-specific docs linked below.
         `totalDigits` and `fractionDigits` now execute through
         `schema:datatype-param`; media-type structured suffix and forbidden
         parameter constraints now also execute through
-        `schema:datatype-param`; datatype parameter families beyond numeric bounds/digit counts, string length
-        constraints, regex pattern, and initial URI/media-type token lists
+        `schema:datatype-param`; scope-context path prefix and extension
+        constraints now also execute through `schema:datatype-param`;
+        datatype parameter families beyond the covered numeric bounds/digit
+        counts, string length constraints, regex pattern, initial path
+        constraints, and initial URI/media-type token lists
         remain.
   - [x] Compile behavior declarations and references into the generic schema
         model, reject missing or incompatible behavior references, and dispatch
@@ -130,7 +134,7 @@ history belongs in git history and the feature-specific docs linked below.
         syntax on attribute declarations, plus nested exact-one
         `schema:choice-case` cardinality and `schema:datatype-param` decimal
         number bounds, numeric digit-count constraints, and string length
-        constraints, plus URI scheme/authority/path-prefix and media-type
+        constraints, plus path prefix/extension, URI scheme/authority/path-prefix, and media-type
         essence/structured-suffix/parameter-name/forbidden-parameter/required-parameter constraints, plus child-set exact-one and
         selected/distinct-count/ordered/boundary/exact-sequence/required-sequence/forbidden-sequence `schema:child-occurrence`;
         schema-package examples cover constraint-level
@@ -209,7 +213,8 @@ history belongs in git history and the feature-specific docs linked below.
         integer `minInclusive`, `maxInclusive`,
         `minExclusive`, and `maxExclusive` bounds, numeric `totalDigits` and
         `fractionDigits`, plus string `minLength`, `maxLength`, and `length`
-        params, regex `pattern`, URI `uriSchemes`,
+        params, regex `pattern`, path `pathPrefixes`/`pathExtensions`,
+        URI `uriSchemes`,
         `uriRequiresAuthority`, and `uriPathPrefixes`, and media-type `mediaTypes`,
         `mediaTypeSuffixes`, `mediaTypeParameters`,
         `mediaTypeForbiddenParameters`, and `mediaTypeRequiredParameters` datatype params,
@@ -242,7 +247,8 @@ history belongs in git history and the feature-specific docs linked below.
         child-count contracts, total/selected/distinct child-count bound contracts,
         relative child ordering contracts, boundary child placement contracts,
         and exact/required/forbidden child sequence contracts; it
-        still needs reusable string/path constraints beyond path-layout checks,
+        still needs reusable string constraints and path constraints beyond
+        prefix/extension and path-layout checks,
         URI/media-type constraints beyond initial allowed scheme/authority/path-prefix
         and media-type essence/structured-suffix/parameter-name/forbidden-parameter/required-parameter lists, RELAX NG-style datatype params beyond numeric bounds/digit
         counts, pattern, and allowed URI/media tokens, dependent field
@@ -283,7 +289,9 @@ history belongs in git history and the feature-specific docs linked below.
         exactChildSequence, invalidExactChildSequence, and childCounts details;
         required-one/max-one attribute choice checks emit choice cardinality
         details; path-layout checks emit pathLayout and invalidValues details;
-        path type checks emit expected/actual details; nested choice/case
+        path type checks emit expected/actual details; path prefix/extension
+        datatype-param checks emit expected values and actual path/extension
+        details; nested choice/case
         checks emit declared cases, present cases, missing cases, and
         conflicting cases; accepted-child checks emit accepted/invalid
         children and childCounts details; URI scheme, URI authority,
@@ -309,6 +317,7 @@ history belongs in git history and the feature-specific docs linked below.
         min/max child occurrence range checks, required-one/max-one attribute choice checks,
         and
         package-relative path-layout checks, scope-context path type checks,
+        path prefix/extension constraints,
         nested choice/case checks, accepted-child allow-lists, forbidden-child
         occurrence checks, child-set cardinality, exact child-count and total/selected/distinct child-count checks, URI scheme/authority/path-prefix
         constraints, and media-type essence/structured-suffix/parameter-name/forbidden-parameter/required-parameter constraints; it still needs coverage for additional

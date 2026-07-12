@@ -118,6 +118,9 @@
             @name="asset"
             @type="schema:path"
             @type-diagnostic="example.resource.invalid_asset"
+            @pathPrefixes="./assets/ @assets/"
+            @pathExtensions="cem cemt"
+            @datatype-param-diagnostic="example.resource.invalid_asset_path"
         }
         {attribute
             @name="inline"
@@ -256,6 +259,12 @@
             @severity="error"
             @behavior="schema:scalar-type"
             @message="Resource asset must be a scoped path"
+        }
+        {diagnostic
+            @code="example.resource.invalid_asset_path"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource asset must use the declared path constraints"
         }
         {diagnostic
             @code="example.resource.invalid_priority"

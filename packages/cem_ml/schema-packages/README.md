@@ -475,9 +475,9 @@ scoped resource specifiers rather than document-relative filesystem paths:
 `./...` resolves against the active context root, protocol values resolve through
 the matching resolver, and bare values are module-map specifiers. This keeps
 package-specific schemas small while preserving strict validation boundaries for
-their own instances. Attribute datatype params such as `@uriSchemes`,
-`@uriRequiresAuthority`, `@uriPathPrefixes`, `@mediaTypes`, and
-`@mediaTypeSuffixes`/`@mediaTypeParameters`/
+their own instances. Attribute datatype params such as `@pathPrefixes`,
+`@pathExtensions`, `@uriSchemes`, `@uriRequiresAuthority`, `@uriPathPrefixes`,
+`@mediaTypes`, and `@mediaTypeSuffixes`/`@mediaTypeParameters`/
 `@mediaTypeForbiddenParameters`/`@mediaTypeRequiredParameters` then narrow
 those compatible primitives declaratively in the schema document.
 
