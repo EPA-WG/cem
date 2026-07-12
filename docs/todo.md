@@ -261,9 +261,12 @@ history belongs in git history and the feature-specific docs linked below.
         stay schema-owned; package-root `schema` and `content-type` child
         presence now stays schema-owned through the
         `package-required-children` child-occurrence contract and
-        `cem.schema_package.package_check`; converter implementation value
-        validation and CEMT template content-type/schema exact values now stay
-        schema-owned through the generic `@values` vocabulary instead of
+        `cem.schema_package.package_check`; single primary content-type
+        cardinality now stays schema-owned through a CEM-ML behavior function
+        selected by CEM-QL and emitted as
+        `cem.schema_package.content_type_conflict`; converter implementation
+        value validation and CEMT template content-type/schema exact values now
+        stay schema-owned through the generic `@values` vocabulary instead of
         package-specific runtime branches.
   - [ ] Model converter cases in `schema-package.cem`: `implementation=cemt`
         and `implementation=rust` required attribute contracts plus CEMT

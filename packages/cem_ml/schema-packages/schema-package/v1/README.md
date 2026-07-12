@@ -28,10 +28,12 @@ Converter declarations are registry-owned metadata in `package.cem`. A
 converter can declare a Rust implementation hook or CEMT template, source and
 target content identities, fallback hook, readiness, and planner `cost`.
 Validation enforces the manifest shape and implementation-specific contracts:
-the package root must include schema and content-type children, CEMT converters
-must name a CEMT template identity, Rust converters must name a `rust-symbol`,
-each converter must have exactly one `from` and `to` endpoint, planner cost is
-validated by the schema-owned integer `minInclusive` contract,
+the package root must include schema and content-type children, exactly one
+content-type child must be marked primary through a schema-declared CEM-ML
+behavior function, CEMT converters must name a CEMT template identity, Rust
+converters must name a `rust-symbol`, each converter must have exactly one
+`from` and `to` endpoint, planner cost is validated by the schema-owned
+integer `minInclusive` contract,
 `explicit-only=true` cannot be paired with `implicit=true`, and known endpoint
 schemas must own the declared content type.
 Serializer converters may also declare output-contract metadata:
@@ -78,6 +80,7 @@ severity, and source range data for the engine behavior contract they exercise.
 | [`converter-package.cem`](examples/converter-package.cem) | Package manifest with aliases and a CEMT converter declaration. | Pass |
 | [`invalid-unclosed-package.cem`](examples/invalid-unclosed-package.cem) | Missing closing package scope syntax diagnostic. | Fail with `cem.schema.unclosed_scope` |
 | [`invalid-missing-required-attribute.cem`](examples/invalid-missing-required-attribute.cem) | Manifest schema entry missing its required `source` attribute and package root missing its required content-type child. | Fail with `cem.schema_model.missing_required_attribute`, `cem.schema_package.package_check` |
+| [`invalid-primary-content-type.cem`](examples/invalid-primary-content-type.cem) | Manifest declares more than one primary content type; the package-level diagnostic is produced by a schema-declared CEM-ML behavior function. | Fail with `cem.schema_package.content_type_conflict` |
 | [`invalid-converter-contract.cem`](examples/invalid-converter-contract.cem) | Converter declaration with missing CEMT template identity, missing target endpoint, invalid cost, and incompatible endpoint schema/content type. | Fail with `cem.schema_package.converter_check`, `cem.schema_model.invalid_attribute_datatype_param` |
 | [`invalid-converter-runtime-constraints.cem`](examples/invalid-converter-runtime-constraints.cem) | Converter declarations with unknown implementation, invalid planner metadata, missing native fallback reason, invalid output metadata, and missing Rust symbol. | Fail with `cem.schema_model.invalid_attribute_type`, `cem.schema_model.invalid_attribute_value`, `cem.schema_package.converter_check` |
 | [`invalid-converter-template-contract.cem`](examples/invalid-converter-template-contract.cem) | CEMT converter declares formatter/coloring output profiles, but its template cannot compile as a formatted CEM-tree producer before writer output. | Fail with `cem.schema_package.converter_check` |

@@ -1,0 +1,15 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="broken-primary" @version="1.0.0" |
+    {schema
+        @uri="https://example.test/ns/broken-primary/1"
+        @source="schema/note.cem"
+    }
+
+    {content-type @value="application/vnd.example.broken-primary+cem" @primary=true}
+    {content-type @value="application/vnd.example.broken-primary-alt+cem" @primary=true}
+
+    {namespace @prefix="broken" @uri="https://example.test/ns/broken-primary/1"}
+}

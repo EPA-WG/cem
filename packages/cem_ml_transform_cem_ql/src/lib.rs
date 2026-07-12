@@ -2866,6 +2866,8 @@ mod tests {
     const CUSTOM_BEHAVIOR_STRICT_SCHEMA: &str = include_str!(
         "../../cem_ml/schema-packages/schema/v1/examples/custom-behavior-schema-strict.cem"
     );
+    const SCHEMA_PACKAGE_SCHEMA: &str =
+        include_str!("../../cem_ml/schema-packages/schema-package/v1/schema/schema-package.cem");
 
     fn packaged_dom_projection_artifact(value: Value) -> TransformTemplateDataArtifact {
         TransformTemplateDataArtifact {
@@ -3087,6 +3089,82 @@ mod tests {
                 .all(|diagnostic| diagnostic.code != "example.page_label"),
             "{diagnostics:?}"
         );
+    }
+
+    #[test]
+    fn checked_in_schema_package_primary_content_type_behavior_counts_primary_children() {
+        let model = cem_ml::schema::document_model::compile_schema_document_model(
+            CEM_SCHEMA_PACKAGE_URI,
+            SCHEMA_PACKAGE_SCHEMA,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "{:#?}",
+            model.compile_diagnostics
+        );
+        let evaluator = CemQlSchemaBehaviorEvaluator;
+
+        let valid = document_from_cem(
+            r#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="valid" @version="1.0.0" |
+    {schema @uri="https://example.test/ns/valid/1" @source="schema/valid.cem"}
+    {content-type @value="application/vnd.example.valid+cem" @primary=true}
+    {content-type @value="application/vnd.example.valid-alias+cem" @alias=true}
+    {content-type @value="application/vnd.example.valid-secondary+cem" @primary=false}
+}"#,
+        );
+        let diagnostics =
+            cem_ml::schema::document_model::validate_document_model_with_behavior_evaluator(
+                &valid,
+                &model,
+                Some(&evaluator),
+            );
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != "cem.schema_package.content_type_conflict"),
+            "valid package should not fail primary content-type count: {diagnostics:#?}"
+        );
+
+        let invalid = document_from_cem(
+            r#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="invalid" @version="1.0.0" |
+    {schema @uri="https://example.test/ns/invalid/1" @source="schema/invalid.cem"}
+    {content-type @value="application/vnd.example.invalid+cem" @primary=true}
+    {content-type @value="application/vnd.example.invalid-alt+cem" @primary=true}
+}"#,
+        );
+        let diagnostics =
+            cem_ml::schema::document_model::validate_document_model_with_behavior_evaluator(
+                &invalid,
+                &model,
+                Some(&evaluator),
+            );
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "cem.schema_package.content_type_conflict")
+            .unwrap_or_else(|| {
+                panic!("primary content-type behavior diagnostic: {diagnostics:#?}")
+            });
+        assert_eq!(
+            diagnostic.message,
+            "Schema package must declare exactly one primary content type"
+        );
+        let details = diagnostic.details.as_ref().expect("diagnostic details");
+        assert_eq!(details["behavior"], json!("single-primary-content-type"));
+        assert_eq!(
+            details["function"],
+            json!("single-primary-content-type-result")
+        );
+        assert_eq!(details["checkKind"], json!("single-primary-content-type"));
+        assert_eq!(details["contract"], json!("single-primary-content-type"));
+        assert_eq!(details["expectedPrimaryContentTypes"], json!(1));
     }
 
     #[test]

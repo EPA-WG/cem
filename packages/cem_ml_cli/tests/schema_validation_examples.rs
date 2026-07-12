@@ -494,6 +494,14 @@ fn schema_owned_examples_validate_through_cli() {
             ],
         },
         ValidationExample {
+            name: "schema-package invalid primary content type",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-primary-content-type.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.schema_package.content_type_conflict"],
+        },
+        ValidationExample {
             name: "schema-package invalid converter contract",
             path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-converter-contract.cem",
             content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
@@ -1584,6 +1592,19 @@ fn schema_package_engine_behavior_examples_emit_structured_details() {
                 behavior: "schema:child-occurrence",
                 check_kind: "child-occurrence",
                 contract: "package-required-children",
+            }],
+        },
+        DetailedValidationExample {
+            name: "schema-package invalid primary content type",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-primary-content-type.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected: &[DiagnosticDetailExpectation {
+                code: "cem.schema_package.content_type_conflict",
+                severity: "error",
+                behavior: "single-primary-content-type",
+                check_kind: "single-primary-content-type",
+                contract: "single-primary-content-type",
             }],
         },
         DetailedValidationExample {

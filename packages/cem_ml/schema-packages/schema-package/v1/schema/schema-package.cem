@@ -69,6 +69,30 @@
         {attribute @name="generated" @type="schema:boolean"}
     }
 
+    {behaviors |
+        {behavior
+            @name="single-primary-content-type"
+            @implementation="function"
+            @execution="ast-validation"
+            @function="single-primary-content-type-result"
+            @select='if seq:count(content-type.attributes.primary.where(. = "true" or . = "")) = 1 then () else package'
+            @match="true" |
+            {inputs |
+                {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
+            }
+            {result @type="schema:diagnostic-result" @source-range="candidate" |
+                {detail @name="checkKind" @type="schema:identifier" @required=true}
+                {detail @name="contract" @type="schema:identifier" @required=true}
+                {detail @name="element" @type="schema:identifier" @required=true}
+                {detail @name="expectedPrimaryContentTypes" @type="schema:integer" @required=true}
+            }
+            {function @name="single-primary-content-type-result" @returns="object" @deterministic=true |
+                {param @name="candidate" @type="object" @required=true}
+                {body | {$ { message: "Schema package must declare exactly one primary content type", details: { checkKind: "single-primary-content-type", contract: "single-primary-content-type", element: $candidate.name, expectedPrimaryContentTypes: 1 } } }}
+            }
+        }
+    }
+
     {field-contracts |
         {field-contract
             @name="package-required-children"
@@ -243,7 +267,7 @@
     {diagnostics |
         {diagnostic @code="cem.schema_package.package_check" @severity="error" @behavior="schema:field-contract"}
         {diagnostic @code="cem.schema_package.missing_schema" @severity="error"}
-        {diagnostic @code="cem.schema_package.content_type_conflict" @severity="error"}
+        {diagnostic @code="cem.schema_package.content_type_conflict" @severity="error" @behavior="single-primary-content-type"}
         {diagnostic @code="cem.schema_package.manifest_source_invalid" @severity="error"}
         {diagnostic @code="cem.schema_package.manifest_conversion_metadata_invalid" @severity="error"}
         {diagnostic @code="cem.schema_package.converter_identity_missing" @severity="error"}

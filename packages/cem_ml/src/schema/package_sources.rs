@@ -783,7 +783,7 @@ mod tests {
             "schema-package",
             CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
             CEM_SCHEMA_PACKAGE_URI,
-            15,
+            16,
         );
         for (id, expected_code) in [
             (
@@ -801,6 +801,10 @@ mod tests {
             (
                 "invalid-schema-metadata",
                 "cem.schema_package.schema_uri_mismatch",
+            ),
+            (
+                "invalid-primary-content-type",
+                "cem.schema_package.content_type_conflict",
             ),
         ] {
             let example = examples
