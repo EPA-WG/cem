@@ -16,7 +16,8 @@
 //!   `minExclusive`/`maxExclusive`, numeric `totalDigits`/`fractionDigits`,
 //!   string `minLength`/`maxLength`/`length`, regex `pattern`, URI scheme,
 //!   and media-type essence datatype-param checks.
-//! - schema-owned exact and ranged child occurrence field contracts.
+//! - schema-owned exact, ranged, and choice-cardinality child occurrence field
+//!   contracts.
 //!
 //! Ordering, scalar type checks beyond boolean/integer/number/URI/media-type/
 //! path syntax, additional datatype-param families, and semantic constraints
@@ -352,6 +353,8 @@ pub struct FieldContract {
     pub forbidden_children: BTreeSet<String>,
     pub required_children: BTreeSet<String>,
     pub max_one_children: BTreeSet<String>,
+    pub required_one_child: BTreeSet<String>,
+    pub max_one_child: BTreeSet<String>,
     pub exact_children: BTreeMap<String, String>,
     pub min_children: BTreeMap<String, String>,
     pub max_children: BTreeMap<String, String>,
@@ -3882,6 +3885,8 @@ fn collect_field_contracts(
                 forbidden_children: parse_name_set(attrs.get("forbidden-children")),
                 required_children: parse_name_set(attrs.get("required-children")),
                 max_one_children: parse_name_set(attrs.get("max-one-children")),
+                required_one_child: parse_name_set(attrs.get("required-one-child")),
+                max_one_child: parse_name_set(attrs.get("max-one-child")),
                 exact_children: parse_name_value_map(attrs.get("exact-children")),
                 min_children: parse_name_value_map(attrs.get("min-children")),
                 max_children: parse_name_value_map(attrs.get("max-children")),
@@ -4133,6 +4138,22 @@ fn validate_field_contracts(
             .filter(|name| child_counts.get(*name).copied().unwrap_or_default() > 1)
             .cloned()
             .collect::<Vec<_>>();
+        let present_required_one_child =
+            present_child_names(&contract.required_one_child, child_counts);
+        let missing_choice_children = (!contract.required_one_child.is_empty()
+            && present_required_one_child.is_empty())
+        .then(|| {
+            contract
+                .required_one_child
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+        let present_max_one_child = present_child_names(&contract.max_one_child, child_counts);
+        let conflicting_choice_children = (present_max_one_child.len() > 1)
+            .then(|| present_max_one_child.clone())
+            .unwrap_or_default();
         let invalid_exact_children = contract
             .exact_children
             .iter()
@@ -4186,6 +4207,8 @@ fn validate_field_contracts(
             && invalid_children.is_empty()
             && missing_children.is_empty()
             && duplicate_children.is_empty()
+            && missing_choice_children.is_empty()
+            && conflicting_choice_children.is_empty()
             && invalid_exact_children.is_empty()
             && under_min_children.is_empty()
             && over_max_children.is_empty()
@@ -4263,6 +4286,18 @@ fn validate_field_contracts(
                 duplicate_children.join(", ")
             ));
         }
+        if !missing_choice_children.is_empty() {
+            parts.push(format!(
+                "missing one of children: {}",
+                missing_choice_children.join(", ")
+            ));
+        }
+        if !conflicting_choice_children.is_empty() {
+            parts.push(format!(
+                "too many child choices present: {}",
+                conflicting_choice_children.join(", ")
+            ));
+        }
         if !invalid_exact_children.is_empty() {
             parts.push(format!(
                 "children not at exact count: {}",
@@ -4326,6 +4361,10 @@ fn validate_field_contracts(
                 &invalid_children,
                 &missing_children,
                 &duplicate_children,
+                &present_required_one_child,
+                &present_max_one_child,
+                &missing_choice_children,
+                &conflicting_choice_children,
                 &invalid_exact_children,
                 &under_min_children,
                 &over_max_children,
@@ -4338,6 +4377,17 @@ fn validate_field_contracts(
             ),
         ));
     }
+}
+
+fn present_child_names(
+    names: &BTreeSet<String>,
+    child_counts: &BTreeMap<String, usize>,
+) -> Vec<String> {
+    names
+        .iter()
+        .filter(|name| child_counts.get(*name).copied().unwrap_or_default() > 0)
+        .cloned()
+        .collect()
 }
 
 fn evaluate_choice_groups(
@@ -4488,6 +4538,10 @@ fn field_contract_details(
     invalid_children: &[String],
     missing_children: &[String],
     duplicate_children: &[String],
+    present_required_one_child: &[String],
+    present_max_one_child: &[String],
+    missing_choice_children: &[String],
+    conflicting_choice_children: &[String],
     invalid_exact_children: &[String],
     under_min_children: &[String],
     over_max_children: &[String],
@@ -4580,6 +4634,30 @@ fn field_contract_details(
     details.insert(
         "maxOneChildren".to_owned(),
         serde_json::json!(&contract.max_one_children),
+    );
+    details.insert(
+        "requiredOneChild".to_owned(),
+        serde_json::json!(&contract.required_one_child),
+    );
+    details.insert(
+        "maxOneChild".to_owned(),
+        serde_json::json!(&contract.max_one_child),
+    );
+    details.insert(
+        "presentRequiredOneChild".to_owned(),
+        serde_json::json!(present_required_one_child),
+    );
+    details.insert(
+        "presentMaxOneChild".to_owned(),
+        serde_json::json!(present_max_one_child),
+    );
+    details.insert(
+        "missingChoiceChildren".to_owned(),
+        serde_json::json!(missing_choice_children),
+    );
+    details.insert(
+        "conflictingChoiceChildren".to_owned(),
+        serde_json::json!(conflicting_choice_children),
     );
     details.insert(
         "exactChildren".to_owned(),
@@ -5516,6 +5594,24 @@ mod tests {
         assert_eq!(
             model
                 .attributes
+                .get("required-one-child")
+                .expect("required-one-child attribute model")
+                .value_type
+                .as_deref(),
+            Some("cemml:name-list")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("max-one-child")
+                .expect("max-one-child attribute model")
+                .value_type
+                .as_deref(),
+            Some("cemml:name-list")
+        );
+        assert_eq!(
+            model
+                .attributes
                 .get("accepted-children")
                 .expect("accepted-children attribute model")
                 .value_type
@@ -6101,6 +6197,9 @@ mod tests {
         {element @name="deck" @children="card marker"}
         {element @name="card"}
         {element @name="marker"}
+        {element @name="switch" @children="primary secondary"}
+        {element @name="primary"}
+        {element @name="secondary"}
         {element @name="slot" @children="title body aside"}
         {element @name="title"}
         {element @name="body"}
@@ -6195,6 +6294,15 @@ mod tests {
             @diagnostic="example.item_check"
             @behavior="schema:child-occurrence"
             @check-kind="exact-total-children"
+        }
+        {field-contract
+            @name="switch-child-choice"
+            @target="switch"
+            @required-one-child="primary secondary"
+            @max-one-child="primary secondary"
+            @diagnostic="example.item_check"
+            @behavior="schema:child-occurrence"
+            @check-kind="exactly-one-child"
         }
         {field-contract
             @name="slot-accepted-children"
@@ -6758,6 +6866,87 @@ mod tests {
         assert_eq!(
             details["invalidExactTotalChildren"],
             serde_json::json!(true)
+        );
+
+        let document = parse_cem_document(r#"{switch}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("switch-child-choice")
+            })
+            .expect("missing child choice diagnostic");
+        assert!(diagnostic.message.contains("missing one of children"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("missing child choice details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:child-occurrence")
+        );
+        assert_eq!(details["checkKind"], serde_json::json!("exactly-one-child"));
+        assert_eq!(
+            details["requiredOneChild"],
+            serde_json::json!(["primary", "secondary"])
+        );
+        assert_eq!(
+            details["maxOneChild"],
+            serde_json::json!(["primary", "secondary"])
+        );
+        assert_eq!(details["presentRequiredOneChild"], serde_json::json!([]));
+        assert_eq!(
+            details["missingChoiceChildren"],
+            serde_json::json!(["primary", "secondary"])
+        );
+        assert_eq!(details["conflictingChoiceChildren"], serde_json::json!([]));
+
+        let document = parse_cem_document(r#"{switch | {primary}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        assert!(
+            diagnostics.iter().all(|diagnostic| {
+                diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("contract").and_then(serde_json::Value::as_str))
+                    != Some("switch-child-choice")
+            }),
+            "single child choice should satisfy exact child choice field contract: {diagnostics:?}"
+        );
+
+        let document = parse_cem_document(r#"{switch | {primary} {secondary}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("switch-child-choice")
+            })
+            .expect("conflicting child choice diagnostic");
+        assert!(diagnostic
+            .message
+            .contains("too many child choices present"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("conflicting child choice details");
+        assert_eq!(
+            details["presentRequiredOneChild"],
+            serde_json::json!(["primary", "secondary"])
+        );
+        assert_eq!(
+            details["presentMaxOneChild"],
+            serde_json::json!(["primary", "secondary"])
+        );
+        assert_eq!(details["missingChoiceChildren"], serde_json::json!([]));
+        assert_eq!(
+            details["conflictingChoiceChildren"],
+            serde_json::json!(["primary", "secondary"])
         );
 
         let document = parse_cem_document(r#"{slot | {title} {body}}"#);

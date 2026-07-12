@@ -44,7 +44,9 @@ history belongs in git history and the feature-specific docs linked below.
       `mediaTypes`/`mediaTypeParameters`.
       Required-one/max-one attribute choice cardinality now executes through
       `schema:choice-case`. Broader child occurrence ranges now execute
-      through `schema:child-occurrence`. Additional engine algorithms remain.
+      through `schema:child-occurrence`; child-set cardinality now also
+      executes through `schema:child-occurrence`. Additional engine algorithms
+      remain.
   - [x] Allow declarative behavior to select candidate nodes and match failure
         conditions with CEM-QL, then invoke a schema-declared CEM-ML behavior
         function to calculate the result and structured diagnostic details.
@@ -74,7 +76,8 @@ history belongs in git history and the feature-specific docs linked below.
         `schema:resource-readable`, `schema:resource-parse`, and
         `schema:reference-resolution`; required-one/max-one attribute choice
         cardinality now executes through `schema:choice-case`; broader child
-        occurrence ranges now execute through `schema:child-occurrence`; basic
+        occurrence ranges and child-set cardinality now execute through
+        `schema:child-occurrence`; basic
         number, URI, media-type, and scope-context path scalar syntax now
         execute through `schema:scalar-type`; nested choice/case groups now
         execute through `schema:choice-case`; number inclusive/exclusive bounds
@@ -116,7 +119,8 @@ history belongs in git history and the feature-specific docs linked below.
         `schema:choice-case` cardinality and `schema:datatype-param` decimal
         number bounds, numeric digit-count constraints, and string length
         constraints, plus URI scheme/authority and media-type
-        essence/parameter-name constraints;
+        essence/parameter-name constraints, and child-set exact-one
+        `schema:child-occurrence`;
         schema-package examples cover constraint-level
         `schema:resource-readable`, `schema:resource-parse`, and
         `schema:reference-resolution` bindings through operational artifact
@@ -126,7 +130,7 @@ history belongs in git history and the feature-specific docs linked below.
         `schema:field-dependency`, `schema:child-occurrence`, and
         `schema:path-layout` bindings through converter/artifact/example
         diagnostics,
-        and ranged `schema:child-occurrence` through the typed-resource schema
+        and ranged plus child-set `schema:child-occurrence` through the typed-resource schema
         example; schema-package CLI examples now also cover schema-definition
         failures for invalid datatype parameter declarations on integer/number
         bounds, numeric digit counts, string length bounds, and regex patterns.
@@ -193,11 +197,11 @@ history belongs in git history and the feature-specific docs linked below.
         `uriRequiresAuthority`, and media-type `mediaTypes` and
         `mediaTypeParameters` datatype params,
         plus accepted-child allow-lists, forbidden-child occurrence, exact
-        child counts, total child-count bounds, and min/max child occurrence ranges; it still needs scalar type validation beyond
+        child counts, child-set cardinality, total child-count bounds, and min/max child occurrence ranges; it still needs scalar type validation beyond
         boolean/integer/number/basic URI/media-type/path syntax, RELAX NG-style
         datatype params beyond those initial variations, defaults, richer
         dependent-required field groups, and additional child occurrence
-        variants beyond exact/named/total count bounds.
+        variants beyond exact/named/total count bounds and child-set cardinality.
   - [ ] Extend the compiled Rust schema contract model. `SchemaDocumentModel`
         now compiles initial `field-contract` declarations and evaluates
         required/forbidden fields, attribute `@values` vocabularies, and
@@ -206,14 +210,14 @@ history belongs in git history and the feature-specific docs linked below.
         `schema:uri`/`cemml:uri`, `schema:media-type`/
         `cemml:media-type`, plus `schema:path`/`cemml:path` attribute types,
         accepted-child allow-list field contracts, forbidden-child
-        occurrence contracts, exact child-count contracts, and total
-        child-count bound contracts; it
+        occurrence contracts, child-set cardinality contracts, exact
+        child-count contracts, and total child-count bound contracts; it
         still needs reusable string/path constraints beyond path-layout checks,
         URI/media-type constraints beyond initial allowed scheme/authority
         and media-type essence/parameter-name lists, RELAX NG-style datatype params beyond numeric bounds/digit
         counts, pattern, and allowed URI/media tokens, dependent field
         groups beyond presence-gated required fields, additional child
-        occurrence variants beyond exact/named/total count bounds, defaults, and richer case grouping for all schema
+        occurrence variants beyond exact/named/total count bounds and child-set cardinality, defaults, and richer case grouping for all schema
         elements.
   - [ ] Extend structured diagnostic details beyond initial required/forbidden
         field checks. The first generic field-contract evaluator now emits
@@ -229,6 +233,8 @@ history belongs in git history and the feature-specific docs linked below.
         datatype-param details; value-specific forbidden checks emit
         forbiddenAttributeValues and invalidValues details; child occurrence
         checks emit required/forbidden/exact/max-one/min/max children,
+        required-one/max-one child choices, present/missing/conflicting child
+        choices,
         exact/min/max total children, invalid/missing/duplicate/
         invalid-exact/under-min/over-max named children,
         invalid-exact/under-min/over-max total-child flags,
@@ -241,7 +247,7 @@ history belongs in git history and the feature-specific docs linked below.
         children and childCounts details; URI scheme, URI authority, and
         media-type essence/parameter-name datatype-param checks emit expected values and normalized actual tokens; additional
         URI/media-type constraints, datatype params, dependency, additional
-        child occurrence variants beyond exact/named/total count bounds, and cross-reference checks need the same
+        child occurrence variants beyond exact/named/total count bounds and child-set cardinality, and cross-reference checks need the same
         schema-owned detail shape.
   - [ ] Extend the generic field-contract evaluator. The first evaluator runs
         from schema URI plus content type, consumes the compiled contract
@@ -253,15 +259,15 @@ history belongs in git history and the feature-specific docs linked below.
         `minInclusive`/`maxInclusive`/`minExclusive`/`maxExclusive`,
         numeric `totalDigits`/`fractionDigits`, string
         `minLength`/`maxLength`/`length`, and regex `pattern`
-        datatype-param checks, exact-one, exact-count, total-count, and
+        datatype-param checks, exact-one, child-choice, exact-count, total-count, and
         min/max child occurrence range checks, required-one/max-one attribute choice checks,
         and
         package-relative path-layout checks, scope-context path type checks,
         nested choice/case checks, accepted-child allow-lists, forbidden-child
-        occurrence checks, exact child-count and total child-count checks, URI scheme/authority
+        occurrence checks, child-set cardinality, exact child-count and total child-count checks, URI scheme/authority
         constraints, and media-type essence/parameter-name constraints; it still needs coverage for additional
         URI/media-type constraints, additional datatype params, dependency, and
-        additional child occurrence variants beyond exact/named/total count bounds.
+        additional child occurrence variants beyond exact/named/total count bounds and child-set cardinality.
   - [ ] Move schema-package manifest field rules from Rust conditionals into
         `packages/cem_ml/schema-packages/schema-package/v1/schema/schema-package.cem`.
         Cover `package`, `schema`, `content-type`, `namespace`, `converter`,

@@ -23,7 +23,9 @@
 
     {elements |
         {element @name="resource" @required-attributes="id kind" @optional-attributes="label priority rank weight serial ratio slug code href format asset inline" @children="field*"}
+        {element @name="linked-resource" @required-attributes="id kind" @optional-attributes="label" @children="field reference"}
         {element @name="field" @required-attributes="name type"}
+        {element @name="reference" @required-attributes="href"}
     }
 
     {attributes |
@@ -146,6 +148,15 @@
             @behavior="schema:child-occurrence"
             @check-kind="child-occurrence-range"
         }
+        {field-contract
+            @name="linked-resource-child-choice"
+            @target="linked-resource"
+            @required-one-child="field reference"
+            @max-one-child="field reference"
+            @diagnostic="example.resource.child_choice"
+            @behavior="schema:child-occurrence"
+            @check-kind="exactly-one-child"
+        }
     }
 
     {diagnostics |
@@ -257,6 +268,12 @@
             @severity="error"
             @behavior="schema:field-contract"
             @message="Resource field children must stay within the declared range"
+        }
+        {diagnostic
+            @code="example.resource.child_choice"
+            @severity="error"
+            @behavior="schema:field-contract"
+            @message="Linked resources must choose one child source"
         }
     }
 
