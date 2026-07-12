@@ -14,9 +14,9 @@
 //! - schema-owned attribute `@values`, boolean/integer/number/URI/media-type/
 //!   path type checks, and integer/number `minInclusive`/`maxInclusive`/
 //!   `minExclusive`/`maxExclusive`, numeric `totalDigits`/`fractionDigits`,
-//!   string `minLength`/`maxLength`/`length`, regex `pattern`, path
-//!   prefix/extension, URI scheme/path, and media-type essence/suffix/parameter
-//!   name/value datatype-param checks.
+//!   string `minLength`/`maxLength`/`length`/prefix/suffix, regex `pattern`,
+//!   path prefix/extension, URI scheme/path, and media-type
+//!   essence/suffix/parameter name/value datatype-param checks.
 //! - schema-owned exact, ranged, ordered, boundary, sequence, forbidden-sequence,
 //!   exact-sequence, and choice-cardinality child occurrence field contracts.
 //!
@@ -183,6 +183,8 @@ pub struct AttributeModel {
     pub min_length: Option<String>,
     pub max_length: Option<String>,
     pub length: Option<String>,
+    pub string_prefixes: BTreeSet<String>,
+    pub string_suffixes: BTreeSet<String>,
     pub total_digits: Option<String>,
     pub fraction_digits: Option<String>,
     pub pattern: Option<String>,
@@ -1991,6 +1993,50 @@ fn validate_attribute_datatype_params(
         .as_deref()
         .is_some_and(is_string_type_reference)
     {
+        if !attribute_model.string_prefixes.is_empty()
+            && !attribute_model
+                .string_prefixes
+                .iter()
+                .any(|prefix| value.starts_with(prefix))
+        {
+            let param_value = format_value_set(&attribute_model.string_prefixes);
+            emit_attribute_datatype_param_diagnostic(
+                schema_uri,
+                diagnostic_behaviors,
+                element_name,
+                attribute_name,
+                value,
+                attribute_model,
+                "stringPrefixes",
+                &param_value,
+                "outside allowed",
+                attribute_values,
+                node,
+                diagnostics,
+            );
+        }
+        if !attribute_model.string_suffixes.is_empty()
+            && !attribute_model
+                .string_suffixes
+                .iter()
+                .any(|suffix| value.ends_with(suffix))
+        {
+            let param_value = format_value_set(&attribute_model.string_suffixes);
+            emit_attribute_datatype_param_diagnostic(
+                schema_uri,
+                diagnostic_behaviors,
+                element_name,
+                attribute_name,
+                value,
+                attribute_model,
+                "stringSuffixes",
+                &param_value,
+                "outside allowed",
+                attribute_values,
+                node,
+                diagnostics,
+            );
+        }
         let value_length = value.chars().count();
         if let Some(length) = attribute_model.length.as_deref() {
             if parse_non_negative_integer_to_usize(length).is_some_and(|len| value_length != len) {
@@ -2581,6 +2627,8 @@ fn collect_attribute_models(
                     min_length: optional_non_empty_attr(&attrs, "minLength").map(str::to_owned),
                     max_length: optional_non_empty_attr(&attrs, "maxLength").map(str::to_owned),
                     length: optional_non_empty_attr(&attrs, "length").map(str::to_owned),
+                    string_prefixes: parse_value_set(attrs.get("stringPrefixes")),
+                    string_suffixes: parse_value_set(attrs.get("stringSuffixes")),
                     total_digits: optional_non_empty_attr(&attrs, "totalDigits").map(str::to_owned),
                     fraction_digits: optional_non_empty_attr(&attrs, "fractionDigits")
                         .map(str::to_owned),
@@ -2787,6 +2835,24 @@ fn validate_attribute_datatype_param_definition(
             attribute_model,
             param_name,
             param_value,
+            "schema:string or cemml:string",
+            is_string_type_reference,
+            diagnostics,
+        );
+    }
+    for (param_name, values) in [
+        ("stringPrefixes", &attribute_model.string_prefixes),
+        ("stringSuffixes", &attribute_model.string_suffixes),
+    ] {
+        if values.is_empty() {
+            continue;
+        }
+        let param_value = format_value_set(values);
+        validate_datatype_param_value_type(
+            schema_uri,
+            attribute_model,
+            param_name,
+            &param_value,
             "schema:string or cemml:string",
             is_string_type_reference,
             diagnostics,
@@ -6497,6 +6563,8 @@ fn attribute_datatype_param_details(
         "mediaTypeParameterValues" => "media type parameter value",
         "mediaTypeForbiddenParameters" => "media type parameter name",
         "mediaTypeRequiredParameters" => "media type parameter name",
+        "stringPrefixes" => "string prefix",
+        "stringSuffixes" => "string suffix",
         "minLength" | "maxLength" | "length" => "Unicode scalar value length",
         "totalDigits" => "numeric total digit count",
         "fractionDigits" => "numeric fractional digit count",
@@ -6550,6 +6618,28 @@ fn attribute_datatype_param_details(
                 "actualFractionDigits".to_owned(),
                 serde_json::json!(actual_digit_counts.fraction_digits),
             );
+        }
+        if param_name == "stringPrefixes" {
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .string_prefixes
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            object.insert("actualString".to_owned(), serde_json::json!(actual_value));
+        }
+        if param_name == "stringSuffixes" {
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .string_suffixes
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            object.insert("actualString".to_owned(), serde_json::json!(actual_value));
         }
         if param_name == "pathPrefixes" {
             object.insert(
@@ -7403,6 +7493,24 @@ mod tests {
                 .value_type
                 .as_deref(),
             Some("schema:integer")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("stringPrefixes")
+                .expect("stringPrefixes attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:string")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("stringSuffixes")
+                .expect("stringSuffixes attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:string")
         );
         assert_eq!(
             model
@@ -14812,7 +14920,7 @@ mod tests {
 
 {schema @name="incompatible-datatype-param-contracts" @namespace="https://example.test/ns/incompatible-datatype-param-contracts/1" @version="1.0.0" |
     {elements |
-        {element @name="item" @optional-attributes="title untyped count code ratio"}
+        {element @name="item" @optional-attributes="title untyped count code ratio score rank"}
     }
     {attributes |
         {attribute @name="title" @type="schema:string" @minInclusive=1}
@@ -14820,6 +14928,8 @@ mod tests {
         {attribute @name="count" @type="schema:integer" @maxLength=3}
         {attribute @name="code" @type="schema:string" @totalDigits=4}
         {attribute @name="ratio" @type="schema:boolean" @fractionDigits=2}
+        {attribute @name="score" @type="schema:number" @stringPrefixes="score-"}
+        {attribute @name="rank" @type="schema:integer" @stringSuffixes="-rank"}
     }
 }"#,
         );
@@ -14859,6 +14969,20 @@ mod tests {
                 "2",
                 "schema:boolean",
                 "schema:integer or schema:number",
+            ),
+            (
+                "score",
+                "stringPrefixes",
+                "score-",
+                "schema:number",
+                "schema:string or cemml:string",
+            ),
+            (
+                "rank",
+                "stringSuffixes",
+                "-rank",
+                "schema:integer",
+                "schema:string or cemml:string",
             ),
         ] {
             let diagnostic = model
@@ -14907,6 +15031,147 @@ mod tests {
                 .as_str()
                 .is_some_and(|error| error.contains("expected")));
         }
+    }
+
+    #[test]
+    fn schema_string_prefix_suffix_datatype_params_drive_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/string-prefix-suffix-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="string-prefix-suffix-contracts" @namespace="https://example.test/ns/string-prefix-suffix-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="slug"}
+    }
+    {attributes |
+        {attribute @name="slug" @type="schema:string" @stringPrefixes="page- component-" @stringSuffixes="-slug -id"}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "valid string prefix/suffix schema must compile: {:#?}",
+            model.compile_diagnostics
+        );
+
+        for source in [
+            r#"{item @slug="page-home-slug"}"#,
+            r#"{item @slug="component-card-id"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "valid string prefix/suffix source produced diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{item @slug="token-home-slug"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details
+                            .get("datatypeParam")
+                            .and_then(serde_json::Value::as_str)
+                    }) == Some("stringPrefixes")
+            })
+            .expect("stringPrefixes attribute datatype param diagnostic");
+        assert!(diagnostic.message.contains("slug"));
+        assert!(diagnostic.message.contains("stringPrefixes"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("stringPrefixes attribute datatype param details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/string-prefix-suffix-contracts/1")
+        );
+        assert_eq!(details["element"], serde_json::json!("item"));
+        assert_eq!(details["attribute"], serde_json::json!("slug"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:slug:stringPrefixes")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:stringPrefixes")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("stringPrefixes")
+        );
+        assert_eq!(
+            details["stringPrefixes"],
+            serde_json::json!("component- page-")
+        );
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("string prefix")
+        );
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["component-", "page-"])
+        );
+        assert_eq!(
+            details["actualString"],
+            serde_json::json!("token-home-slug")
+        );
+        assert_eq!(details["actualValue"], serde_json::json!("token-home-slug"));
+        assert_eq!(details["invalidFields"], serde_json::json!(["slug"]));
+        assert_eq!(
+            details["actualValues"]["slug"],
+            serde_json::json!("token-home-slug")
+        );
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+
+        let document = parse_cem_document(r#"{item @slug="page-home-ref"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details
+                            .get("datatypeParam")
+                            .and_then(serde_json::Value::as_str)
+                    }) == Some("stringSuffixes")
+            })
+            .expect("stringSuffixes attribute datatype param diagnostic");
+        assert!(diagnostic.message.contains("stringSuffixes"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("stringSuffixes attribute datatype param details");
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:slug:stringSuffixes")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:stringSuffixes")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("stringSuffixes")
+        );
+        assert_eq!(details["stringSuffixes"], serde_json::json!("-id -slug"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("string suffix")
+        );
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["-id", "-slug"])
+        );
+        assert_eq!(details["actualString"], serde_json::json!("page-home-ref"));
+        assert_eq!(details["actualValue"], serde_json::json!("page-home-ref"));
     }
 
     #[test]

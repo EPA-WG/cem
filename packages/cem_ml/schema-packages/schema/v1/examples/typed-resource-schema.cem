@@ -69,6 +69,8 @@
         {attribute
             @name="slug"
             @type="schema:string"
+            @stringPrefixes="page- component-"
+            @stringSuffixes="-slug -id"
             @pattern="[a-z][a-z0-9-]*"
             @datatype-param-diagnostic="example.resource.invalid_slug"
         }

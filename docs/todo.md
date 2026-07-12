@@ -39,14 +39,15 @@ history belongs in git history and the feature-specific docs linked below.
       Both preserve stable diagnostic family codes. Attribute-owned datatype
       parameter checks now cover integer and number `minInclusive`/`maxInclusive`/
       `minExclusive`/`maxExclusive`, numeric `totalDigits`/`fractionDigits`,
-      string `minLength`/`maxLength`/`length`, regex `pattern`, path
-      `pathPrefixes`/`pathExtensions`, URI
+      string `minLength`/`maxLength`/`length`, `stringPrefixes`/
+      `stringSuffixes`, regex `pattern`, path `pathPrefixes`/`pathExtensions`, URI
       `uriSchemes`/`uriRequiresAuthority`/`uriPathPrefixes`, and media-type
       `mediaTypes`/`mediaTypeSuffixes`/`mediaTypeParameters`/
       `mediaTypeParameterValues`/`mediaTypeForbiddenParameters`/
       `mediaTypeRequiredParameters`.
       Schema-definition validation now rejects numeric bounds/digit-counts on
-      non-numeric attributes and string length params on non-string attributes.
+      non-numeric attributes and string length/prefix/suffix params on
+      non-string attributes.
       Required-one/max-one attribute choice cardinality now executes through
       `schema:choice-case`. Broader child occurrence ranges now execute
       through `schema:child-occurrence`; child-set cardinality now also
@@ -97,10 +98,12 @@ history belongs in git history and the feature-specific docs linked below.
         `schema:datatype-param`; media-type structured suffix, parameter
         value, and forbidden parameter constraints now also execute through
         `schema:datatype-param`; scope-context path prefix and extension
-        constraints now also execute through `schema:datatype-param`;
+        constraints now also execute through `schema:datatype-param`; string
+        prefix and suffix constraints now also execute through
+        `schema:datatype-param`;
         datatype parameter families beyond the covered numeric bounds/digit
-        counts, string length constraints, regex pattern, initial path
-        constraints, and initial URI/media-type token lists
+        counts, string length/prefix/suffix constraints, regex pattern, initial
+        path constraints, and initial URI/media-type token lists
         remain.
   - [x] Compile behavior declarations and references into the generic schema
         model, reject missing or incompatible behavior references, and dispatch
@@ -134,8 +137,8 @@ history belongs in git history and the feature-specific docs linked below.
         number/qualified-name/semver/URI/media-type/path
         syntax on attribute declarations, plus nested exact-one
         `schema:choice-case` cardinality and `schema:datatype-param` decimal
-        number bounds, numeric digit-count constraints, and string length
-        constraints, plus path prefix/extension, URI scheme/authority/path-prefix, and media-type
+        number bounds, numeric digit-count constraints, and string
+        length/prefix/suffix constraints, plus path prefix/extension, URI scheme/authority/path-prefix, and media-type
         essence/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter constraints, plus child-set exact-one and
         selected/distinct-count/ordered/boundary/exact-sequence/required-sequence/forbidden-sequence `schema:child-occurrence`;
         schema-package examples cover constraint-level
@@ -150,9 +153,9 @@ history belongs in git history and the feature-specific docs linked below.
         and ranged, child-set, selected-count, distinct-count, ordered, boundary, exact-sequence, required-sequence, and forbidden-sequence `schema:child-occurrence` through the typed-resource schema
         example; schema-package CLI examples now also cover schema-definition
         failures for invalid datatype parameter declarations on integer/number
-        bounds, numeric digit counts, string length bounds, and regex patterns.
+        bounds, numeric digit counts, string length/prefix/suffix params, and regex patterns.
         They also cover incompatible primitive type declarations for numeric
-        bounds, numeric digit counts, and string length params.
+        bounds, numeric digit counts, and string length/prefix/suffix params.
         CLI tests now assert structured schema-definition datatype-param
         details for those failing declarations, plus
         structured `behavior`, `checkKind`, `contract`, severity, and source
@@ -214,13 +217,13 @@ history belongs in git history and the feature-specific docs linked below.
         integer `minInclusive`, `maxInclusive`,
         `minExclusive`, and `maxExclusive` bounds, numeric `totalDigits` and
         `fractionDigits`, plus string `minLength`, `maxLength`, and `length`
-        params, regex `pattern`, path `pathPrefixes`/`pathExtensions`,
+        params, string `stringPrefixes` and `stringSuffixes`, regex `pattern`, path `pathPrefixes`/`pathExtensions`,
         URI `uriSchemes`,
         `uriRequiresAuthority`, and `uriPathPrefixes`, and media-type `mediaTypes`,
         `mediaTypeSuffixes`, `mediaTypeParameters`, `mediaTypeParameterValues`,
         `mediaTypeForbiddenParameters`, and `mediaTypeRequiredParameters` datatype params,
         plus compatibility checks for numeric bounds/digit counts and string
-        length params against their target primitive families,
+        length/prefix/suffix params against their target primitive families,
         plus accepted-child allow-lists, forbidden-child occurrence, exact
         child counts, child-set cardinality, total, selected, and distinct child-count
         bounds, min/max child occurrence ranges, relative child ordering, and
@@ -248,11 +251,11 @@ history belongs in git history and the feature-specific docs linked below.
         child-count contracts, total/selected/distinct child-count bound contracts,
         relative child ordering contracts, boundary child placement contracts,
         and exact/required/forbidden child sequence contracts; it
-        still needs reusable string constraints and path constraints beyond
+        still needs reusable string constraints beyond length/prefix/suffix/pattern and path constraints beyond
         prefix/extension and path-layout checks,
         URI/media-type constraints beyond initial allowed scheme/authority/path-prefix
         and media-type essence/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter lists, RELAX NG-style datatype params beyond numeric bounds/digit
-        counts, pattern, and allowed URI/media tokens, dependent field
+        counts, string length/prefix/suffix, pattern, and allowed URI/media tokens, dependent field
         groups beyond presence-gated required fields, additional child
         occurrence variants beyond exact/named/total/selected/distinct count bounds, child-set cardinality, relative ordering, boundary placement, and exact/required/forbidden child sequences, defaults, and richer case grouping for all schema
         elements.
@@ -268,7 +271,7 @@ history belongs in git history and the feature-specific docs linked below.
         `minInclusive`, `maxInclusive`,
         `minExclusive`, and `maxExclusive` checks, numeric `totalDigits` and
         `fractionDigits` checks, string `minLength`, `maxLength`, and `length`
-        checks, plus regex `pattern` checks emit
+        checks, string `stringPrefixes`/`stringSuffixes` checks, plus regex `pattern` checks emit
         datatype-param details; value-specific forbidden checks emit
         forbiddenAttributeValues and invalidValues details; child occurrence
         checks emit required/forbidden/exact/max-one/min/max children,
@@ -290,7 +293,8 @@ history belongs in git history and the feature-specific docs linked below.
         exactChildSequence, invalidExactChildSequence, and childCounts details;
         required-one/max-one attribute choice checks emit choice cardinality
         details; path-layout checks emit pathLayout and invalidValues details;
-        path type checks emit expected/actual details; path prefix/extension
+        path type checks emit expected/actual details; string prefix/suffix
+        datatype-param checks emit expected values and actual string details; path prefix/extension
         datatype-param checks emit expected values and actual path/extension
         details; nested choice/case
         checks emit declared cases, present cases, missing cases, and
@@ -298,7 +302,7 @@ history belongs in git history and the feature-specific docs linked below.
         children and childCounts details; URI scheme, URI authority,
         URI path-prefix, and media-type essence/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter datatype-param checks emit expected values, normalized actual tokens, and invalid/missing parameter arrays;
         schema-definition datatype-param checks now emit expected type and
-        actual value type for incompatible numeric and string-length facets;
+        actual value type for incompatible numeric and string facets;
         URI/media-type constraints, datatype params, dependency, additional
         child occurrence variants beyond exact/named/total/selected/distinct count bounds, child-set cardinality, relative ordering, boundary placement, and exact/required/forbidden child sequences, and cross-reference checks need the same
         schema-owned detail shape.
@@ -313,12 +317,12 @@ history belongs in git history and the feature-specific docs linked below.
         URI/media-type/path type, integer
         `minInclusive`/`maxInclusive`/`minExclusive`/`maxExclusive`,
         numeric `totalDigits`/`fractionDigits`, string
-        `minLength`/`maxLength`/`length`, and regex `pattern`
+        `minLength`/`maxLength`/`length`, string `stringPrefixes`/`stringSuffixes`, and regex `pattern`
         datatype-param checks, exact-one, child-choice, exact-count, total-count, selected-count, distinct-count, and
         min/max child occurrence range checks, required-one/max-one attribute choice checks,
         and
         package-relative path-layout checks, scope-context path type checks,
-        path prefix/extension constraints,
+        string prefix/suffix constraints, path prefix/extension constraints,
         nested choice/case checks, accepted-child allow-lists, forbidden-child
         occurrence checks, child-set cardinality, exact child-count and total/selected/distinct child-count checks, URI scheme/authority/path-prefix
         constraints, and media-type essence/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter constraints; it still needs coverage for additional
