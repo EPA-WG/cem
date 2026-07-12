@@ -4596,10 +4596,23 @@ mod tests {
             .expect("converter fallback reason contract");
         assert_eq!(
             fallback_reason.behavior.as_deref(),
-            Some("schema:field-dependency")
+            Some("schema:dependent-required-fields")
         );
         assert_eq!(
             fallback_reason.engine_behavior,
+            Some(EngineDiagnosticBehavior::FieldContract)
+        );
+        let rust_template_forbidden = converter
+            .field_contracts
+            .iter()
+            .find(|contract| contract.name == "converter-rust-template-forbidden")
+            .expect("converter rust template forbidden contract");
+        assert_eq!(
+            rust_template_forbidden.behavior.as_deref(),
+            Some("schema:forbidden-fields")
+        );
+        assert_eq!(
+            rust_template_forbidden.engine_behavior,
             Some(EngineDiagnosticBehavior::FieldContract)
         );
         let planner_state = converter
@@ -4609,7 +4622,7 @@ mod tests {
             .expect("converter planner state contract");
         assert_eq!(
             planner_state.behavior.as_deref(),
-            Some("schema:choice-case")
+            Some("schema:mutual-exclusion")
         );
         assert_eq!(
             planner_state.engine_behavior,

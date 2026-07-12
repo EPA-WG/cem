@@ -44,4 +44,16 @@
         {from @content-type="application/cem" @schema="https://cem.dev/ns/cem-ml/1"}
         {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
     }
+
+    {converter
+        @id="rust-with-template"
+        @implementation="rust"
+        @rust-symbol="convert_rust_with_template"
+        @template="converters/unexpected.cemt"
+        @template-content-type="application/vnd.cem.transform+cem"
+        @template-schema="https://cem.dev/ns/transform/cem/1"
+        @template-entrypoint="main" |
+        {from @content-type="application/cem" @schema="https://cem.dev/ns/cem-ml/1"}
+        {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+    }
 }

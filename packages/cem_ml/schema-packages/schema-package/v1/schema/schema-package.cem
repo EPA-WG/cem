@@ -91,6 +91,16 @@
             @check-kind="required-fields"
         }
         {field-contract
+            @name="converter-rust-template-forbidden"
+            @target="converter"
+            @when-attribute="implementation"
+            @when-values="rust"
+            @forbidden-attributes="template template-content-type template-schema template-entrypoint"
+            @diagnostic="cem.schema_package.converter_check"
+            @behavior="schema:forbidden-fields"
+            @check-kind="forbidden-fields"
+        }
+        {field-contract
             @name="converter-cemt-fallback-reason"
             @target="converter"
             @when-attribute="implementation"
@@ -98,7 +108,7 @@
             @when-present-attributes="rust-symbol"
             @required-attributes="fallback-reason"
             @diagnostic="cem.schema_package.converter_check"
-            @behavior="schema:field-dependency"
+            @behavior="schema:dependent-required-fields"
             @check-kind="dependent-required-fields"
         }
         {field-contract
@@ -108,7 +118,7 @@
             @when-values="true"
             @forbidden-attribute-values="implicit=true"
             @diagnostic="cem.schema_package.converter_check"
-            @behavior="schema:choice-case"
+            @behavior="schema:mutual-exclusion"
             @check-kind="mutual-exclusion"
         }
         {field-contract

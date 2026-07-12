@@ -115,9 +115,11 @@ history belongs in git history and the feature-specific docs linked below.
         `schema:resource-readable`, `schema:resource-parse`, and
         `schema:reference-resolution` bindings through operational artifact
         and example diagnostics, plus field-contract-level
-        `schema:required-fields`, `schema:field-dependency`,
-        `schema:choice-case`, `schema:child-occurrence`, and
-        `schema:path-layout` bindings through converter/artifact diagnostics,
+        `schema:required-fields`, `schema:forbidden-fields`,
+        `schema:dependent-required-fields`, `schema:mutual-exclusion`,
+        `schema:field-dependency`, `schema:child-occurrence`, and
+        `schema:path-layout` bindings through converter/artifact/example
+        diagnostics,
         and ranged `schema:child-occurrence` through the typed-resource schema
         example; schema-package CLI examples now also cover schema-definition
         failures for invalid datatype parameter declarations on integer/number

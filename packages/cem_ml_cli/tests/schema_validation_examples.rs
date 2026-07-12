@@ -1435,14 +1435,21 @@ fn schema_package_engine_behavior_examples_emit_structured_details() {
                 DiagnosticDetailExpectation {
                     code: "cem.schema_package.converter_check",
                     severity: "error",
-                    behavior: "schema:field-dependency",
+                    behavior: "schema:forbidden-fields",
+                    check_kind: "forbidden-fields",
+                    contract: "converter-rust-template-forbidden",
+                },
+                DiagnosticDetailExpectation {
+                    code: "cem.schema_package.converter_check",
+                    severity: "error",
+                    behavior: "schema:dependent-required-fields",
                     check_kind: "dependent-required-fields",
                     contract: "converter-cemt-fallback-reason",
                 },
                 DiagnosticDetailExpectation {
                     code: "cem.schema_package.converter_check",
                     severity: "error",
-                    behavior: "schema:choice-case",
+                    behavior: "schema:mutual-exclusion",
                     check_kind: "mutual-exclusion",
                     contract: "converter-planner-state",
                 },
