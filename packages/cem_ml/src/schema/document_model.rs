@@ -346,6 +346,7 @@ pub struct FieldContract {
     pub forbidden_attribute_values: BTreeMap<String, BTreeSet<String>>,
     pub required_one_attributes: BTreeSet<String>,
     pub max_one_attributes: BTreeSet<String>,
+    pub accepted_children: BTreeSet<String>,
     pub required_children: BTreeSet<String>,
     pub max_one_children: BTreeSet<String>,
     pub min_children: BTreeMap<String, String>,
@@ -3613,6 +3614,7 @@ fn collect_field_contracts(
                 ),
                 required_one_attributes: parse_name_set(attrs.get("required-one-attributes")),
                 max_one_attributes: parse_name_set(attrs.get("max-one-attributes")),
+                accepted_children: parse_name_set(attrs.get("accepted-children")),
                 required_children: parse_name_set(attrs.get("required-children")),
                 max_one_children: parse_name_set(attrs.get("max-one-children")),
                 min_children: parse_name_value_map(attrs.get("min-children")),
@@ -3826,6 +3828,15 @@ fn validate_field_contracts(
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
+        let invalid_children = if contract.accepted_children.is_empty() {
+            Vec::new()
+        } else {
+            child_counts
+                .keys()
+                .filter(|name| !contract.accepted_children.contains(*name))
+                .cloned()
+                .collect::<Vec<_>>()
+        };
         let missing_children = contract
             .required_children
             .iter()
@@ -3863,6 +3874,7 @@ fn validate_field_contracts(
             && conflicting_choice_fields.is_empty()
             && nested_choice_evaluation.missing_choice_cases.is_empty()
             && nested_choice_evaluation.conflicting_choice_cases.is_empty()
+            && invalid_children.is_empty()
             && missing_children.is_empty()
             && duplicate_children.is_empty()
             && under_min_children.is_empty()
@@ -3920,6 +3932,9 @@ fn validate_field_contracts(
                     .join(", ")
             ));
         }
+        if !invalid_children.is_empty() {
+            parts.push(format!("invalid children: {}", invalid_children.join(", ")));
+        }
         if !missing_children.is_empty() {
             parts.push(format!("missing children: {}", missing_children.join(", ")));
         }
@@ -3974,6 +3989,7 @@ fn validate_field_contracts(
                 &missing_choice_fields,
                 &conflicting_choice_fields,
                 &nested_choice_evaluation,
+                &invalid_children,
                 &missing_children,
                 &duplicate_children,
                 &under_min_children,
@@ -4130,6 +4146,7 @@ fn field_contract_details(
     missing_choice_fields: &[String],
     conflicting_choice_fields: &[String],
     nested_choice_evaluation: &ChoiceGroupEvaluation,
+    invalid_children: &[String],
     missing_children: &[String],
     duplicate_children: &[String],
     under_min_children: &[String],
@@ -4159,6 +4176,7 @@ fn field_contract_details(
         "presentChoiceCases": &nested_choice_evaluation.present_choice_cases,
         "missingChoiceCases": &nested_choice_evaluation.missing_choice_cases,
         "conflictingChoiceCases": &nested_choice_evaluation.conflicting_choice_cases,
+        "acceptedChildren": &contract.accepted_children,
         "requiredChildren": &contract.required_children,
         "maxOneChildren": &contract.max_one_children,
         "minChildren": &contract.min_children,
@@ -4173,6 +4191,7 @@ fn field_contract_details(
         "missingFields": missing_fields,
         "invalidFields": invalid_fields,
         "invalidValues": invalid_values,
+        "invalidChildren": invalid_children,
         "missingChildren": missing_children,
         "duplicateChildren": duplicate_children,
         "underMinChildren": under_min_children,
@@ -4929,6 +4948,15 @@ mod tests {
         assert_eq!(
             model
                 .attributes
+                .get("accepted-children")
+                .expect("accepted-children attribute model")
+                .value_type
+                .as_deref(),
+            Some("cemml:name-list")
+        );
+        assert_eq!(
+            model
+                .attributes
                 .get("min-children")
                 .expect("min-children attribute model")
                 .value_type
@@ -4985,6 +5013,7 @@ mod tests {
             "mutual-exclusion",
             "choice-case",
             "child-occurrence",
+            "accepted-children",
             "path-layout",
         ] {
             let behavior = model
@@ -5451,6 +5480,10 @@ mod tests {
         {element @name="child"}
         {element @name="range-group" @children="range-child"}
         {element @name="range-child"}
+        {element @name="slot" @children="title body aside"}
+        {element @name="title"}
+        {element @name="body"}
+        {element @name="aside"}
         {element @name="asset" @optional-attributes="path"}
     }
     {field-contracts |
@@ -5516,6 +5549,14 @@ mod tests {
             @diagnostic="example.item_check"
             @behavior="schema:child-occurrence"
             @check-kind="child-occurrence-range"
+        }
+        {field-contract
+            @name="slot-accepted-children"
+            @target="slot"
+            @accepted-children="title body"
+            @diagnostic="example.item_check"
+            @behavior="schema:accepted-children"
+            @check-kind="accepted-children"
         }
         {field-contract
             @name="asset-path-layout"
@@ -5893,6 +5934,53 @@ mod tests {
             details["childCounts"],
             serde_json::json!({
                 "range-child": 4,
+            })
+        );
+
+        let document = parse_cem_document(r#"{slot | {title} {body}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        assert!(
+            diagnostics.iter().all(|diagnostic| {
+                diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("contract").and_then(serde_json::Value::as_str))
+                    != Some("slot-accepted-children")
+            }),
+            "accepted children should satisfy accepted-children field contract: {diagnostics:?}"
+        );
+
+        let document = parse_cem_document(r#"{slot | {title} {aside}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("slot-accepted-children")
+            })
+            .expect("accepted-children field contract diagnostic");
+        assert!(diagnostic.message.contains("invalid children"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("accepted-children field contract details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:accepted-children")
+        );
+        assert_eq!(details["checkKind"], serde_json::json!("accepted-children"));
+        assert_eq!(
+            details["acceptedChildren"],
+            serde_json::json!(["body", "title"])
+        );
+        assert_eq!(details["invalidChildren"], serde_json::json!(["aside"]));
+        assert_eq!(
+            details["childCounts"],
+            serde_json::json!({
+                "aside": 1,
+                "title": 1,
             })
         );
 
