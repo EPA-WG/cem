@@ -16,8 +16,8 @@
 //!   `minExclusive`/`maxExclusive`, numeric `totalDigits`/`fractionDigits`,
 //!   string `minLength`/`maxLength`/`length`, regex `pattern`, URI scheme,
 //!   and media-type essence datatype-param checks.
-//! - schema-owned exact, ranged, ordered, boundary, and choice-cardinality
-//!   child occurrence field contracts.
+//! - schema-owned exact, ranged, ordered, boundary, sequence, and
+//!   choice-cardinality child occurrence field contracts.
 //!
 //! Scalar type checks beyond boolean/integer/number/URI/media-type/path syntax,
 //! additional datatype-param families, and semantic constraints remain
@@ -359,6 +359,7 @@ pub struct FieldContract {
     pub ordered_children: Vec<String>,
     pub first_child: Option<String>,
     pub last_child: Option<String>,
+    pub required_child_sequence: Vec<String>,
     pub exact_children: BTreeMap<String, String>,
     pub min_children: BTreeMap<String, String>,
     pub max_children: BTreeMap<String, String>,
@@ -444,6 +445,13 @@ struct BoundaryChildrenEvaluation {
     actual_last_child: Option<String>,
     invalid_first_child: bool,
     invalid_last_child: bool,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+struct RequiredChildSequenceEvaluation {
+    actual_sequence: Vec<String>,
+    matched_sequence: Vec<String>,
+    invalid_sequence: bool,
 }
 
 impl FieldContract {
@@ -4001,6 +4009,7 @@ fn collect_field_contracts(
                 ordered_children: parse_ordered_name_list(attrs.get("ordered-children")),
                 first_child: optional_non_empty_attr(&attrs, "first-child").map(str::to_owned),
                 last_child: optional_non_empty_attr(&attrs, "last-child").map(str::to_owned),
+                required_child_sequence: parse_name_sequence(attrs.get("required-child-sequence")),
                 exact_children: parse_name_value_map(attrs.get("exact-children")),
                 min_children: parse_name_value_map(attrs.get("min-children")),
                 max_children: parse_name_value_map(attrs.get("max-children")),
@@ -4359,6 +4368,8 @@ fn validate_field_contracts(
         let ordered_child_evaluation =
             evaluate_ordered_children(&contract.ordered_children, child_sequence);
         let boundary_child_evaluation = evaluate_boundary_children(contract, child_sequence);
+        let required_child_sequence_evaluation =
+            evaluate_required_child_sequence(&contract.required_child_sequence, child_sequence);
 
         if missing.is_empty()
             && invalid_fields.is_empty()
@@ -4386,6 +4397,7 @@ fn validate_field_contracts(
             && ordered_child_evaluation.unordered_children.is_empty()
             && !boundary_child_evaluation.invalid_first_child
             && !boundary_child_evaluation.invalid_last_child
+            && !required_child_sequence_evaluation.invalid_sequence
         {
             continue;
         }
@@ -4530,6 +4542,12 @@ fn validate_field_contracts(
                 parts.push(format!("last child mismatch: expected {expected}"));
             }
         }
+        if required_child_sequence_evaluation.invalid_sequence {
+            parts.push(format!(
+                "missing child sequence: {}",
+                contract.required_child_sequence.join(", ")
+            ));
+        }
         let generated_message = format!(
             "element `{element_name}` failed field contract `{}` ({}) with {}",
             contract.name,
@@ -4587,6 +4605,7 @@ fn validate_field_contracts(
                 selected_child_count,
                 &ordered_child_evaluation,
                 &boundary_child_evaluation,
+                &required_child_sequence_evaluation,
                 child_counts,
                 node,
             ),
@@ -4661,6 +4680,28 @@ fn evaluate_boundary_children(
             .is_some_and(|expected| actual_last_child.as_deref() != Some(expected)),
         actual_first_child,
         actual_last_child,
+    }
+}
+
+fn evaluate_required_child_sequence(
+    required_child_sequence: &[String],
+    child_sequence: &[String],
+) -> RequiredChildSequenceEvaluation {
+    if required_child_sequence.is_empty() {
+        return RequiredChildSequenceEvaluation::default();
+    }
+
+    let matched_start = child_sequence
+        .windows(required_child_sequence.len())
+        .position(|window| window == required_child_sequence);
+    let matched_sequence = matched_start
+        .map(|start| child_sequence[start..start + required_child_sequence.len()].to_vec())
+        .unwrap_or_default();
+
+    RequiredChildSequenceEvaluation {
+        actual_sequence: child_sequence.to_vec(),
+        matched_sequence,
+        invalid_sequence: matched_start.is_none(),
     }
 }
 
@@ -4833,6 +4874,7 @@ fn field_contract_details(
     selected_child_count: usize,
     ordered_child_evaluation: &OrderedChildrenEvaluation,
     boundary_child_evaluation: &BoundaryChildrenEvaluation,
+    required_child_sequence_evaluation: &RequiredChildSequenceEvaluation,
     child_counts: &BTreeMap<String, usize>,
     node: &CemAstNode,
 ) -> serde_json::Value {
@@ -4942,6 +4984,10 @@ fn field_contract_details(
     details.insert(
         "lastChild".to_owned(),
         serde_json::json!(&contract.last_child),
+    );
+    details.insert(
+        "requiredChildSequence".to_owned(),
+        serde_json::json!(&contract.required_child_sequence),
     );
     details.insert(
         "presentRequiredOneChild".to_owned(),
@@ -5155,6 +5201,18 @@ fn field_contract_details(
     details.insert(
         "invalidLastChild".to_owned(),
         serde_json::json!(boundary_child_evaluation.invalid_last_child),
+    );
+    details.insert(
+        "actualChildSequence".to_owned(),
+        serde_json::json!(&required_child_sequence_evaluation.actual_sequence),
+    );
+    details.insert(
+        "matchedChildSequence".to_owned(),
+        serde_json::json!(&required_child_sequence_evaluation.matched_sequence),
+    );
+    details.insert(
+        "invalidChildSequence".to_owned(),
+        serde_json::json!(required_child_sequence_evaluation.invalid_sequence),
     );
     details.insert("childCounts".to_owned(), serde_json::json!(child_counts));
     details.insert(
@@ -5546,6 +5604,19 @@ fn parse_ordered_name_list(value: Option<&String>) -> Vec<String> {
     }
 
     names
+}
+
+fn parse_name_sequence(value: Option<&String>) -> Vec<String> {
+    value
+        .map(|value| {
+            value
+                .split_whitespace()
+                .map(str::trim)
+                .filter(|name| !name.is_empty())
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn parse_value_set(value: Option<&String>) -> BTreeSet<String> {
@@ -6156,6 +6227,15 @@ mod tests {
         assert_eq!(
             model
                 .attributes
+                .get("required-child-sequence")
+                .expect("required-child-sequence attribute model")
+                .value_type
+                .as_deref(),
+            Some("cemml:name-list")
+        );
+        assert_eq!(
+            model
+                .attributes
                 .get("exact-selected-children")
                 .expect("exact-selected-children attribute model")
                 .value_type
@@ -6725,6 +6805,10 @@ mod tests {
         {element @name="intro"}
         {element @name="outro"}
         {element @name="frame" @children="header body footer aside"}
+        {element @name="flow" @children="start checkpoint finish aside"}
+        {element @name="start"}
+        {element @name="checkpoint"}
+        {element @name="finish"}
         {element @name="bundle" @children="photo video caption"}
         {element @name="photo"}
         {element @name="video"}
@@ -6880,6 +6964,14 @@ mod tests {
             @diagnostic="example.item_check"
             @behavior="schema:child-occurrence"
             @check-kind="boundary-children"
+        }
+        {field-contract
+            @name="flow-required-child-sequence"
+            @target="flow"
+            @required-child-sequence="start checkpoint finish"
+            @diagnostic="example.item_check"
+            @behavior="schema:child-occurrence"
+            @check-kind="required-child-sequence"
         }
         {field-contract
             @name="switch-child-choice"
@@ -7799,6 +7891,55 @@ mod tests {
         assert_eq!(details["actualLastChild"], serde_json::json!("body"));
         assert_eq!(details["invalidFirstChild"], serde_json::json!(false));
         assert_eq!(details["invalidLastChild"], serde_json::json!(true));
+
+        let document =
+            parse_cem_document(r#"{flow | {aside} {start} {checkpoint} {finish} {aside}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        assert!(
+            diagnostics.iter().all(|diagnostic| {
+                diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("contract").and_then(serde_json::Value::as_str))
+                    != Some("flow-required-child-sequence")
+            }),
+            "contiguous child sequence should satisfy required-child-sequence field contract: {diagnostics:?}"
+        );
+
+        let document = parse_cem_document(r#"{flow | {start} {aside} {checkpoint} {finish}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("flow-required-child-sequence")
+            })
+            .expect("required child sequence diagnostic");
+        assert!(diagnostic.message.contains("missing child sequence"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("required child sequence details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:child-occurrence")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("required-child-sequence")
+        );
+        assert_eq!(
+            details["requiredChildSequence"],
+            serde_json::json!(["start", "checkpoint", "finish"])
+        );
+        assert_eq!(
+            details["actualChildSequence"],
+            serde_json::json!(["start", "aside", "checkpoint", "finish"])
+        );
+        assert_eq!(details["matchedChildSequence"], serde_json::json!([]));
+        assert_eq!(details["invalidChildSequence"], serde_json::json!(true));
 
         let document = parse_cem_document(r#"{switch}"#);
         let diagnostics = validate_document_model(&document, &model);
