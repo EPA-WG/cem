@@ -309,7 +309,7 @@
             @code="example.resource.invalid_slug"
             @severity="error"
             @behavior="schema:datatype-param"
-            @message="Resource slug must match the declared pattern"
+            @message="Resource slug must match the declared prefix, suffix, and pattern constraints"
         }
         {diagnostic
             @code="example.resource.invalid_code"

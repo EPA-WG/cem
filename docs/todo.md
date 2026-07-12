@@ -163,7 +163,8 @@ history belongs in git history and the feature-specific docs linked below.
         and example engine behavior examples. The native tests cover warning severity,
         message text, structured details, source ranges, unresolved codes,
         field-contract behavior aliases, field-contract-local behavior
-        bindings, attribute behavior aliases, constraint behavior aliases, and
+        bindings, attribute behavior aliases including string prefix/suffix
+        datatype-param bindings, constraint behavior aliases, and
         unknown behaviors; the CLI example set also includes a schema that
         fails an unknown behavior
         reference. The complete algorithm matrix remains.

@@ -11072,7 +11072,7 @@ mod tests {
         {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
     }
     {elements |
-        {element @name="item" @optional-attributes="mode enabled rating ratio homepage format secureHref payload asset count score lower upper code label tag serial decimal"}
+        {element @name="item" @optional-attributes="mode enabled rating ratio homepage format secureHref payload asset count score lower upper code label tag slugPrefix slugSuffix serial decimal"}
     }
     {attributes |
         {attribute
@@ -11165,6 +11165,18 @@ mod tests {
             @type="schema:string"
             @length=3
             @datatype-param-diagnostic="example.tag_length"
+        }
+        {attribute
+            @name="slugPrefix"
+            @type="schema:string"
+            @stringPrefixes="page- component-"
+            @datatype-param-diagnostic="example.slug_prefix"
+        }
+        {attribute
+            @name="slugSuffix"
+            @type="schema:string"
+            @stringSuffixes="-slug -id"
+            @datatype-param-diagnostic="example.slug_suffix"
         }
         {attribute
             @name="serial"
@@ -11277,6 +11289,18 @@ mod tests {
             @message="Tag must satisfy its datatype parameters"
         }
         {diagnostic
+            @code="example.slug_prefix"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Slug prefix must satisfy its datatype parameters"
+        }
+        {diagnostic
+            @code="example.slug_suffix"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Slug suffix must satisfy its datatype parameters"
+        }
+        {diagnostic
             @code="example.serial_total_digits"
             @severity="error"
             @behavior="schema:datatype-param"
@@ -11306,7 +11330,7 @@ mod tests {
         );
 
         let document = parse_cem_document(
-            r#"{item @mode=tabular @enabled=maybe @rating=NaN @ratio=1.5 @homepage="/relative" @format="text/html; charset" @secureHref="http://example.test/resource" @payload="image/png" @asset="/rooted.cem" @count=0 @score=11 @lower=1 @upper=10 @code=bad_code @label=go @tag=to @serial=1234 @decimal=12.345}"#,
+            r#"{item @mode=tabular @enabled=maybe @rating=NaN @ratio=1.5 @homepage="/relative" @format="text/html; charset" @secureHref="http://example.test/resource" @payload="image/png" @asset="/rooted.cem" @count=0 @score=11 @lower=1 @upper=10 @code=bad_code @label=go @tag=to @slugPrefix="token-home-slug" @slugSuffix="page-home-ref" @serial=1234 @decimal=12.345}"#,
         );
         let diagnostics = validate_document_model(&document, &model);
 
@@ -11781,6 +11805,92 @@ mod tests {
         );
         assert_eq!(details["actualLength"], serde_json::json!(2));
         assert_eq!(details["actualValue"], serde_json::json!("to"));
+
+        let datatype_param = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.slug_prefix")
+            .expect("stringPrefixes datatype-param alias diagnostic");
+        assert_eq!(datatype_param.severity, Severity::Error);
+        assert!(datatype_param
+            .message
+            .starts_with("Slug prefix must satisfy its datatype parameters:"));
+        let details = datatype_param
+            .details
+            .as_ref()
+            .expect("stringPrefixes datatype-param alias details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:datatype-param")
+        );
+        assert_eq!(
+            details["diagnostic"],
+            serde_json::json!("example.slug_prefix")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:stringPrefixes")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("stringPrefixes")
+        );
+        assert_eq!(
+            details["stringPrefixes"],
+            serde_json::json!("component- page-")
+        );
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("string prefix")
+        );
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["component-", "page-"])
+        );
+        assert_eq!(
+            details["actualString"],
+            serde_json::json!("token-home-slug")
+        );
+        assert_eq!(details["actualValue"], serde_json::json!("token-home-slug"));
+
+        let datatype_param = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.slug_suffix")
+            .expect("stringSuffixes datatype-param alias diagnostic");
+        assert_eq!(datatype_param.severity, Severity::Error);
+        assert!(datatype_param
+            .message
+            .starts_with("Slug suffix must satisfy its datatype parameters:"));
+        let details = datatype_param
+            .details
+            .as_ref()
+            .expect("stringSuffixes datatype-param alias details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:datatype-param")
+        );
+        assert_eq!(
+            details["diagnostic"],
+            serde_json::json!("example.slug_suffix")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:stringSuffixes")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("stringSuffixes")
+        );
+        assert_eq!(details["stringSuffixes"], serde_json::json!("-id -slug"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("string suffix")
+        );
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["-id", "-slug"])
+        );
+        assert_eq!(details["actualString"], serde_json::json!("page-home-ref"));
+        assert_eq!(details["actualValue"], serde_json::json!("page-home-ref"));
 
         let datatype_param = diagnostics
             .iter()
