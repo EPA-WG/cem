@@ -43,7 +43,7 @@
         {attribute @name="content-type" @base="template:content-type"}
         {attribute @name="contentType" @base="template:contentType"}
         {attribute @name="schema" @base="template:schema"}
-        {attribute @name="name" @base="template:name"}
+        {attribute @name="name" @type="schema:symbol-reference"}
         {attribute @name="default" @base="template:default"}
         {attribute @name="default-expr" @base="template:default-expr"}
         {attribute @name="defaultExpr" @base="template:defaultExpr"}
@@ -64,8 +64,8 @@
         {attribute @name="canonical" @type="schema:boolean"}
         {attribute @name="streamable" @type="schema:boolean"}
         {attribute @name="implementation" @type="schema:identifier" @values="cemt native external"}
-        {attribute @name="profile" @type="schema:identifier"}
-        {attribute @name="extends" @type="schema:identifier"}
+        {attribute @name="profile" @type="schema:symbol-reference"}
+        {attribute @name="extends" @type="schema:symbol-reference"}
         {attribute @name="capability" @type="schema:identifier"}
         {attribute @name="deterministic" @type="schema:boolean"}
         {attribute @name="trusted" @type="schema:boolean"}

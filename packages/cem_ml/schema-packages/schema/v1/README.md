@@ -156,9 +156,10 @@ This lets one broad diagnostic family such as
 
 Attribute-owned engine primitives are also schema-visible. Attribute
 declarations bind `@values` failures through `@values-diagnostic` to
-`schema:value-vocabulary`, scalar syntax failures for boolean, integer, number,
-qualified-name, semantic version, URI, media-type, and path attributes through
-`@type-diagnostic` to `schema:scalar-type`,
+`schema:value-vocabulary`, scalar syntax failures for identifier, name-list,
+type-reference, symbol-reference, wildcard-name/list/type-reference, boolean,
+integer, number, qualified-name, semantic version, URI, media-type, and path
+attributes through `@type-diagnostic` to `schema:scalar-type`,
 and datatype parameter failures for integer and number
 `@minInclusive`/`@maxInclusive`/`@minExclusive`/`@maxExclusive` bounds, string
 `@minLength`/`@maxLength`/`@length` constraints, numeric
@@ -243,9 +244,10 @@ diagnostics with their declared behavior. Integer and number `minInclusive`,
 essence/parameter-name/required-parameter `mediaTypes`/
 `mediaTypeParameters`/`mediaTypeRequiredParameters` datatype parameter variations now
 execute through
-`schema:datatype-param`; boolean, integer, number, qualified-name, semantic
-version, basic absolute-URI, basic media-type, and scope-context path scalar
-syntax now execute through `schema:scalar-type`;
+`schema:datatype-param`; identifier, name-list, type-reference,
+symbol-reference, wildcard-name/list/type-reference, boolean, integer, number,
+qualified-name, semantic version, basic absolute-URI, basic media-type, and
+scope-context path scalar syntax now execute through `schema:scalar-type`;
 schema-definition validation also rejects numeric bound/digit-count params on
 non-numeric attributes and string length params on non-string attributes;
 required-one/max-one attribute choice cardinality and nested choice/case groups

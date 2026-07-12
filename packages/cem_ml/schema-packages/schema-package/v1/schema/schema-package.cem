@@ -47,8 +47,8 @@
         {attribute @name="lossiness" @type="schema:identifier" @values="lossless serialization syntax-normalized debug-view recovery"}
         {attribute @name="output-syntax" @type="schema:identifier" @values="html xml json yaml csv css markdown cemt text binary opaque"}
         {attribute @name="encoding-category" @type="schema:identifier"}
-        {attribute @name="formatter-profile" @type="schema:identifier"}
-        {attribute @name="color-profile" @type="schema:identifier"}
+        {attribute @name="formatter-profile" @type="schema:symbol-reference"}
+        {attribute @name="color-profile" @type="schema:symbol-reference"}
         {attribute @name="parity" @type="schema:identifier" @values="byte-exact token-equivalent parse-equivalent diagnostic-equivalent"}
         {attribute @name="implicit" @type="schema:boolean"}
         {attribute @name="explicit-only" @type="schema:boolean"}
@@ -64,8 +64,8 @@
         {attribute @name="target-content-type" @type="schema:media-type"}
         {attribute @name="target-schema" @type="schema:uri"}
         {attribute @name="target-category" @type="schema:identifier"}
-        {attribute @name="function-name" @type="schema:identifier"}
-        {attribute @name="function-profile" @type="schema:identifier"}
+        {attribute @name="function-name" @type="schema:symbol-reference"}
+        {attribute @name="function-profile" @type="schema:symbol-reference"}
         {attribute @name="generated" @type="schema:boolean"}
     }
 

@@ -37,6 +37,9 @@
     {lexical |
         {rule @name="qualified-name" @value="prefix:local-name | local-name"}
         {rule @name="local-name" @value="identifier with hyphen support"}
+        {rule @name="symbol-reference" @value="local-name segments separated by dots"}
+        {rule @name="wildcard-name" @value="local-name | local-name:*"}
+        {rule @name="wildcard-type-reference" @value="prefix:local-name | prefix:* | prefix:local-name:*"}
         {rule @name="attribute-name" @value="@ qualified-name"}
         {rule @name="bare-value" @value="identifier | number | boolean"}
         {rule @name="quoted-value" @value="single-quoted or double-quoted text"}
@@ -47,6 +50,8 @@
     {types |
         {type @name="identifier" @kind="lexical" @rule="local-name"}
         {type @name="qualified-name" @kind="lexical" @rule="qualified-name"}
+        {type @name="symbol-reference" @kind="lexical" @rule="symbol-reference"}
+        {type @name="wildcard-name" @kind="lexical" @rule="wildcard-name"}
         {type @name="string" @kind="scalar" @rule="quoted-value | raw-text"}
         {type @name="boolean" @kind="scalar" @values="true false"}
         {type @name="integer" @kind="scalar" @rule="signed decimal integer"}
@@ -56,8 +61,10 @@
         {type @name="media-type" @kind="scalar" @rule="type slash subtype with optional structured suffix and parameters"}
         {type @name="path" @kind="scalar" @rule="scope-context path: ./context-relative, protocol URI, or module-map specifier"}
         {type @name="name-list" @kind="list" @base="identifier"}
+        {type @name="wildcard-name-list" @kind="list" @base="wildcard-name"}
         {type @name="content-model" @kind="grammar" @base="string"}
         {type @name="type-reference" @kind="reference" @base="qualified-name"}
+        {type @name="wildcard-type-reference" @kind="reference" @rule="wildcard-type-reference"}
     }
 
     {namespace-semantics |

@@ -71,7 +71,7 @@
     }
 
     {attributes |
-        {attribute @name="name" @type="cemml:identifier"}
+        {attribute @name="name" @type="schema:wildcard-name"}
         {attribute @name="namespace" @type="cemml:uri"}
         {attribute @name="version" @type="cemml:semver"}
         {attribute @name="value" @type="cemml:string"}
@@ -80,7 +80,7 @@
         {attribute @name="primary" @type="cemml:boolean"}
         {attribute @name="alias" @type="cemml:boolean"}
         {attribute @name="required-attributes" @type="cemml:name-list"}
-        {attribute @name="optional-attributes" @type="cemml:name-list"}
+        {attribute @name="optional-attributes" @type="schema:wildcard-name-list"}
         {attribute @name="forbidden-attributes" @type="cemml:name-list"}
         {attribute @name="forbidden-attribute-values" @type="cemml:name-value-list"}
         {attribute @name="required-one-attributes" @type="cemml:name-list"}
@@ -139,15 +139,15 @@
         {attribute @name="trusted" @type="schema:boolean"}
         {attribute @name="default" @type="cemml:string"}
         {attribute @name="kind" @type="cemml:identifier"}
-        {attribute @name="policy" @type="cemml:identifier"}
+        {attribute @name="policy" @type="schema:string"}
         {attribute @name="fields" @type="cemml:name-list"}
         {attribute @name="attributes" @type="cemml:name-list"}
-        {attribute @name="target" @type="cemml:identifier"}
+        {attribute @name="target" @type="schema:name-list"}
         {attribute @name="role" @type="cemml:identifier"}
         {attribute @name="content-type" @type="cemml:media-type"}
         {attribute @name="schema" @type="cemml:uri"}
         {attribute @name="as" @type="cemml:identifier"}
-        {attribute @name="base" @type="schema:type-reference"}
+        {attribute @name="base" @type="schema:wildcard-type-reference"}
         {attribute @name="rule" @type="cemml:string"}
         {attribute @name="values" @type="cemml:string"}
         {attribute @name="directive" @type="cemml:identifier"}
@@ -179,6 +179,8 @@
     {types |
         {type @name="identifier" @base="cemml:identifier"}
         {type @name="qualified-name" @base="cemml:qualified-name"}
+        {type @name="symbol-reference" @base="cemml:symbol-reference"}
+        {type @name="wildcard-name" @base="cemml:wildcard-name"}
         {type @name="string" @base="cemml:string"}
         {type @name="boolean" @base="cemml:boolean"}
         {type @name="integer" @base="cemml:integer"}
@@ -195,9 +197,11 @@
         {type @name="json" @base="cemml:string"}
         {type @name="any" @base="cemml:string"}
         {type @name="name-list" @base="cemml:name-list"}
+        {type @name="wildcard-name-list" @base="cemml:wildcard-name-list"}
         {type @name="name-value-list" @base="cemml:name-value-list"}
         {type @name="content-model" @base="cemml:content-model"}
         {type @name="type-reference" @base="cemml:type-reference"}
+        {type @name="wildcard-type-reference" @base="cemml:wildcard-type-reference"}
         {type @name="diagnostic-code" @base="cemml:string"}
         {type @name="diagnostic" @base="cemml:string"}
         {type @name="diagnostic-result" @base="schema:object"}

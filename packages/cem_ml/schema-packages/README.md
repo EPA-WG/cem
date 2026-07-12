@@ -26,9 +26,9 @@ external syntax such as JSON, HTML, or XML:
 2. **The built-in vocabulary stays primitive.** The bootstrap model provides
    only general structural and scalar concepts such as document, node, element,
    attribute, text, string, boolean, integer, number, URI, media type, path,
-   list, semantic version, and qualified-name/type reference. Their validation
-   role follows the
-   same pattern-oriented semantics as RELAX NG: primitives and composition
+   list, semantic version, identifier/name-list, qualified-name/type reference,
+   and explicit symbol/wildcard reference forms. Their validation role follows
+   the same pattern-oriented semantics as RELAX NG: primitives and composition
    describe an accepted document shape without embedding a package's domain
    model in the validator. Higher-level meaning belongs in the package's `.cem`
    schema. Schema-owned datatype parameters can refine compatible primitives,

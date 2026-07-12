@@ -84,9 +84,11 @@ history belongs in git history and the feature-specific docs linked below.
         cardinality now executes through `schema:choice-case`; broader child
         occurrence ranges, child-set cardinality, relative child ordering, and
         boundary child placement, plus exact/required/forbidden child sequences, now execute through `schema:child-occurrence`; basic
-        number, qualified-name, semantic version, URI, media-type, and
-        scope-context path scalar syntax now execute through `schema:scalar-type`; nested choice/case groups now
-        execute through `schema:choice-case`; number inclusive/exclusive bounds
+        identifier, name-list, type-reference, explicit symbol/wildcard
+        reference, number, qualified-name, semantic version, URI, media-type,
+        and scope-context path scalar syntax now execute through
+        `schema:scalar-type`; nested choice/case groups now execute through
+        `schema:choice-case`; number inclusive/exclusive bounds
         now reuse the existing range-parameter vocabulary; numeric
         `totalDigits` and `fractionDigits` now execute through
         `schema:datatype-param`; datatype parameter families beyond numeric
@@ -198,8 +200,9 @@ history belongs in git history and the feature-specific docs linked below.
         required-one/max-one attribute choice cardinality, nested choice/case
         groups, package-relative path-layout contracts, diagnostic families,
         and attribute `@values` vocabularies, plus
-        boolean/integer/number/qualified-name/semver/basic URI/media-type/path
-        scalar syntax,
+        boolean/integer/number/identifier/name-list/type-reference/
+        symbol-reference/wildcard-reference/qualified-name/semver/basic
+        URI/media-type/path scalar syntax,
         integer `minInclusive`, `maxInclusive`,
         `minExclusive`, and `maxExclusive` bounds, numeric `totalDigits` and
         `fractionDigits`, plus string `minLength`, `maxLength`, and `length`
@@ -211,10 +214,8 @@ history belongs in git history and the feature-specific docs linked below.
         plus accepted-child allow-lists, forbidden-child occurrence, exact
         child counts, child-set cardinality, total, selected, and distinct child-count
         bounds, min/max child occurrence ranges, relative child ordering, and
-        boundary child placement, plus exact/required/forbidden child sequences; it still needs scalar type validation beyond
-        boolean/integer/number/qualified-name/semver/basic URI/media-type/path
-        syntax, RELAX NG-style
-        datatype params beyond those initial variations, defaults, richer
+        boundary child placement, plus exact/required/forbidden child sequences; it still needs RELAX NG-style
+        datatype params beyond the initial scalar and datatype variations, defaults, richer
         dependent-required field groups, and additional child occurrence
         variants beyond exact/named/total/selected/distinct count bounds, child-set cardinality, relative ordering, boundary placement, and exact/required/forbidden child sequences.
   - [ ] Extend the compiled Rust schema contract model. `SchemaDocumentModel`
@@ -222,6 +223,13 @@ history belongs in git history and the feature-specific docs linked below.
         required/forbidden fields, attribute `@values` vocabularies, and
         `schema:boolean`/`cemml:boolean`, `schema:integer`/`cemml:integer`,
         `schema:number`/`cemml:number`,
+        `schema:identifier`/`cemml:identifier`,
+        `schema:name-list`/`cemml:name-list`,
+        `schema:type-reference`/`cemml:type-reference`,
+        `schema:symbol-reference`/`cemml:symbol-reference`,
+        `schema:wildcard-name`/`cemml:wildcard-name`,
+        `schema:wildcard-name-list`/`cemml:wildcard-name-list`,
+        `schema:wildcard-type-reference`/`cemml:wildcard-type-reference`,
         `schema:qualified-name`/`cemml:qualified-name`,
         `schema:semver`/`cemml:semver`, `schema:uri`/`cemml:uri`, `schema:media-type`/
         `cemml:media-type`, plus `schema:path`/`cemml:path` attribute types,
@@ -242,9 +250,10 @@ history belongs in git history and the feature-specific docs linked below.
         schema URI, element, contract name, check kind, required/optional/
         forbidden fields, missing/invalid fields, actual values, condition, and
         source-map range, and attribute `@values` checks emit expected/actual
-        value details; boolean, integer, number, qualified-name, semver, basic
-        URI, basic media-type, and path type checks now emit expected/actual
-        details; integer
+        value details; boolean, integer, number, identifier, name-list,
+        type-reference, symbol-reference, wildcard reference, qualified-name,
+        semver, basic URI, basic media-type, and path type checks now emit
+        expected/actual details; integer
         `minInclusive`, `maxInclusive`,
         `minExclusive`, and `maxExclusive` checks, numeric `totalDigits` and
         `fractionDigits` checks, string `minLength`, `maxLength`, and `length`
@@ -286,8 +295,9 @@ history belongs in git history and the feature-specific docs linked below.
         diagnostic families such as `cem.schema_package.artifact_check`; it
         now emits structured details for required/forbidden field checks and
         attribute `@values` plus
-        boolean/integer/number/qualified-name/semver/basic URI/media-type/path
-        type, integer
+        boolean/integer/number/identifier/name-list/type-reference/
+        symbol-reference/wildcard-reference/qualified-name/semver/basic
+        URI/media-type/path type, integer
         `minInclusive`/`maxInclusive`/`minExclusive`/`maxExclusive`,
         numeric `totalDigits`/`fractionDigits`, string
         `minLength`/`maxLength`/`length`, and regex `pattern`

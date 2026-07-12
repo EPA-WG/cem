@@ -791,7 +791,71 @@ fn validate_attribute_type(
         return true;
     };
     let value = value.trim();
-    let violation = if is_boolean_type_reference(value_type) {
+    let violation = if is_identifier_type_reference(value_type) {
+        (!is_cem_local_name(value)).then_some(AttributeTypeViolation {
+            name: "identifier",
+            check_kind: "type:identifier",
+            expected_values: &[],
+            expected_pattern: "CEM identifier: local-name",
+            allows_empty: false,
+            message: "not a schema-declared identifier",
+        })
+    } else if is_name_list_type_reference(value_type) {
+        (!is_cem_name_list(value)).then_some(AttributeTypeViolation {
+            name: "name-list",
+            check_kind: "type:name-list",
+            expected_values: &[],
+            expected_pattern: "whitespace-separated CEM identifiers",
+            allows_empty: false,
+            message: "not a schema-declared name list",
+        })
+    } else if is_type_reference_type_reference(value_type) {
+        (!is_cem_qualified_name(value)).then_some(AttributeTypeViolation {
+            name: "type-reference",
+            check_kind: "type:type-reference",
+            expected_values: &[],
+            expected_pattern: "CEM type reference: local-name or prefix:local-name",
+            allows_empty: false,
+            message: "not a schema-declared type reference",
+        })
+    } else if is_symbol_reference_type_reference(value_type) {
+        (!is_cem_symbol_reference(value)).then_some(AttributeTypeViolation {
+            name: "symbol-reference",
+            check_kind: "type:symbol-reference",
+            expected_values: &[],
+            expected_pattern: "CEM symbol reference: identifier segments separated by dots",
+            allows_empty: false,
+            message: "not a schema-declared symbol reference",
+        })
+    } else if is_wildcard_name_type_reference(value_type) {
+        (!is_cem_wildcard_name(value)).then_some(AttributeTypeViolation {
+            name: "wildcard-name",
+            check_kind: "type:wildcard-name",
+            expected_values: &[],
+            expected_pattern: "CEM wildcard name: local-name or local-name:*",
+            allows_empty: false,
+            message: "not a schema-declared wildcard name",
+        })
+    } else if is_wildcard_name_list_type_reference(value_type) {
+        (!is_cem_wildcard_name_list(value)).then_some(AttributeTypeViolation {
+            name: "wildcard-name-list",
+            check_kind: "type:wildcard-name-list",
+            expected_values: &[],
+            expected_pattern: "whitespace-separated CEM wildcard names",
+            allows_empty: false,
+            message: "not a schema-declared wildcard name list",
+        })
+    } else if is_wildcard_type_reference_type_reference(value_type) {
+        (!is_cem_wildcard_type_reference(value)).then_some(AttributeTypeViolation {
+            name: "wildcard-type-reference",
+            check_kind: "type:wildcard-type-reference",
+            expected_values: &[],
+            expected_pattern:
+                "CEM wildcard type reference: prefix:local-name, prefix:*, or prefix:local-name:*",
+            allows_empty: false,
+            message: "not a schema-declared wildcard type reference",
+        })
+    } else if is_boolean_type_reference(value_type) {
         (!matches!(value, "" | "true" | "false")).then_some(AttributeTypeViolation {
             name: "boolean",
             check_kind: "type:boolean",
@@ -931,6 +995,34 @@ fn behavior_message(
         .unwrap_or(generated_message)
 }
 
+fn is_identifier_type_reference(value_type: &str) -> bool {
+    type_reference_local_name(value_type) == "identifier"
+}
+
+fn is_name_list_type_reference(value_type: &str) -> bool {
+    type_reference_local_name(value_type) == "name-list"
+}
+
+fn is_type_reference_type_reference(value_type: &str) -> bool {
+    type_reference_local_name(value_type) == "type-reference"
+}
+
+fn is_symbol_reference_type_reference(value_type: &str) -> bool {
+    type_reference_local_name(value_type) == "symbol-reference"
+}
+
+fn is_wildcard_name_type_reference(value_type: &str) -> bool {
+    type_reference_local_name(value_type) == "wildcard-name"
+}
+
+fn is_wildcard_name_list_type_reference(value_type: &str) -> bool {
+    type_reference_local_name(value_type) == "wildcard-name-list"
+}
+
+fn is_wildcard_type_reference_type_reference(value_type: &str) -> bool {
+    type_reference_local_name(value_type) == "wildcard-type-reference"
+}
+
 fn is_boolean_type_reference(value_type: &str) -> bool {
     type_reference_local_name(value_type) == "boolean"
 }
@@ -1006,6 +1098,48 @@ fn is_cem_qualified_name(value: &str) -> bool {
             !local.contains(':') && is_cem_local_name(prefix) && is_cem_local_name(local)
         }
         None => is_cem_local_name(value),
+    }
+}
+
+fn is_cem_name_list(value: &str) -> bool {
+    let value = value.trim();
+    !value.is_empty() && value.split_whitespace().all(is_cem_local_name)
+}
+
+fn is_cem_symbol_reference(value: &str) -> bool {
+    let value = value.trim();
+    !value.is_empty() && value.split('.').all(is_cem_local_name)
+}
+
+fn is_cem_wildcard_name(value: &str) -> bool {
+    let value = value.trim();
+    if let Some(local) = value.strip_suffix(":*") {
+        is_cem_local_name(local)
+    } else {
+        is_cem_local_name(value)
+    }
+}
+
+fn is_cem_wildcard_name_list(value: &str) -> bool {
+    let value = value.trim();
+    !value.is_empty() && value.split_whitespace().all(is_cem_wildcard_name)
+}
+
+fn is_cem_wildcard_type_reference(value: &str) -> bool {
+    let value = value.trim();
+    let mut parts = value.split(':');
+    let Some(prefix) = parts.next() else {
+        return false;
+    };
+    let Some(local) = parts.next() else {
+        return false;
+    };
+    match parts.next() {
+        Some("*") => {
+            parts.next().is_none() && is_cem_local_name(prefix) && is_cem_local_name(local)
+        }
+        Some(_) => false,
+        None => is_cem_local_name(prefix) && (local == "*" || is_cem_local_name(local)),
     }
 }
 
@@ -11323,6 +11457,179 @@ mod tests {
             serde_json::json!("01.2.3")
         );
         assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
+    fn schema_identifier_name_list_and_type_reference_stay_strict_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/strict-name-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="strict-name-contracts" @namespace="https://example.test/ns/strict-name-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="id names ref"}
+    }
+    {attributes |
+        {attribute @name="id" @type="schema:identifier"}
+        {attribute @name="names" @type="schema:name-list"}
+        {attribute @name="ref" @type="schema:type-reference"}
+    }
+}"#,
+        );
+        for source in [
+            r#"{item @id=local-name}"#,
+            r#"{item @id="_local2"}"#,
+            r#"{item @names="one two-three _four"}"#,
+            r#"{item @ref=local}"#,
+            r#"{item @ref="schema:string"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_TYPE_CODE),
+                "valid strict name source produced type diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        for (source, check_kind) in [
+            (r#"{item @id="html.format"}"#, "type:identifier"),
+            (r#"{item @id="schema:type"}"#, "type:identifier"),
+            (r#"{item @id="with:*"}"#, "type:identifier"),
+            (r#"{item @names="one with:*"}"#, "type:name-list"),
+            (r#"{item @names=""}"#, "type:name-list"),
+            (r#"{item @ref="html.format"}"#, "type:type-reference"),
+            (r#"{item @ref="template:with:*"}"#, "type:type-reference"),
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics.iter().any(|diagnostic| {
+                    diagnostic.code == INVALID_ATTRIBUTE_TYPE_CODE
+                        && diagnostic.details.as_ref().is_some_and(|details| {
+                            details["checkKind"] == serde_json::json!(check_kind)
+                        })
+                }),
+                "invalid strict name source did not produce {check_kind}: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{item @ref="template:with:*"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_TYPE_CODE)
+            .expect("type-reference diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("type-reference diagnostic details");
+        assert_eq!(details["attribute"], serde_json::json!("ref"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("type:type-reference")
+        );
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("CEM type reference: local-name or prefix:local-name")
+        );
+        assert_eq!(details["actualValue"], serde_json::json!("template:with:*"));
+    }
+
+    #[test]
+    fn schema_symbol_and_wildcard_reference_types_drive_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/broad-name-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="broad-name-contracts" @namespace="https://example.test/ns/broad-name-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="symbol wildcard wildcards base"}
+    }
+    {attributes |
+        {attribute @name="symbol" @type="schema:symbol-reference"}
+        {attribute @name="wildcard" @type="schema:wildcard-name"}
+        {attribute @name="wildcards" @type="schema:wildcard-name-list"}
+        {attribute @name="base" @type="schema:wildcard-type-reference"}
+    }
+}"#,
+        );
+        for source in [
+            r#"{item @symbol=local}"#,
+            r#"{item @symbol="html.format-document"}"#,
+            r#"{item @symbol="cem-ql.color-tree"}"#,
+            r#"{item @wildcard=with}"#,
+            r#"{item @wildcard="with:*"}"#,
+            r#"{item @wildcards="from with:*"}"#,
+            r#"{item @base="schema:string"}"#,
+            r#"{item @base="template:*"}"#,
+            r#"{item @base="template:with:*"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_TYPE_CODE),
+                "valid broad name source produced type diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        for (source, check_kind) in [
+            (r#"{item @symbol="schema:type"}"#, "type:symbol-reference"),
+            (r#"{item @symbol="with:*"}"#, "type:symbol-reference"),
+            (r#"{item @symbol="bad..name"}"#, "type:symbol-reference"),
+            (r#"{item @wildcard="*"}"#, "type:wildcard-name"),
+            (r#"{item @wildcard="bad.name"}"#, "type:wildcard-name"),
+            (r#"{item @wildcards="from *"}"#, "type:wildcard-name-list"),
+            (r#"{item @base=local}"#, "type:wildcard-type-reference"),
+            (
+                r#"{item @base="html.format"}"#,
+                "type:wildcard-type-reference",
+            ),
+            (
+                r#"{item @base="template:too:many:parts"}"#,
+                "type:wildcard-type-reference",
+            ),
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics.iter().any(|diagnostic| {
+                    diagnostic.code == INVALID_ATTRIBUTE_TYPE_CODE
+                        && diagnostic.details.as_ref().is_some_and(|details| {
+                            details["checkKind"] == serde_json::json!(check_kind)
+                        })
+                }),
+                "invalid broad name source did not produce {check_kind}: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{item @symbol="with:*"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_TYPE_CODE)
+            .expect("symbol-reference diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("symbol-reference diagnostic details");
+        assert_eq!(details["attribute"], serde_json::json!("symbol"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("type:symbol-reference")
+        );
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("CEM symbol reference: identifier segments separated by dots")
+        );
+        assert_eq!(details["actualValue"], serde_json::json!("with:*"));
     }
 
     #[test]
