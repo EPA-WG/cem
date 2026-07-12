@@ -130,8 +130,8 @@ history belongs in git history and the feature-specific docs linked below.
         CLI tests now assert structured schema-definition datatype-param
         details for those failing declarations, plus
         structured `behavior`, `checkKind`, `contract`, severity, and source
-        range details for representative schema-package engine behavior
-        examples. The native tests cover warning severity,
+        range details for representative schema-package converter, artifact,
+        and example engine behavior examples. The native tests cover warning severity,
         message text, structured details, source ranges, unresolved codes,
         field-contract behavior aliases, field-contract-local behavior
         bindings, attribute behavior aliases, constraint behavior aliases, and

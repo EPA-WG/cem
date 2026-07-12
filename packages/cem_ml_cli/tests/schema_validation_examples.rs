@@ -1658,6 +1658,28 @@ fn schema_package_engine_behavior_examples_emit_structured_details() {
                 contract: "artifact-output-stage-contract",
             }],
         },
+        DetailedValidationExample {
+            name: "schema-package invalid example contract",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-example-contract.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected: &[
+                DiagnosticDetailExpectation {
+                    code: "cem.schema_package.example_check",
+                    severity: "error",
+                    behavior: "schema:field-dependency",
+                    check_kind: "dependent-required-fields",
+                    contract: "example-failing-diagnostics",
+                },
+                DiagnosticDetailExpectation {
+                    code: "cem.schema_package.example_check",
+                    severity: "error",
+                    behavior: "schema:reference-resolution",
+                    check_kind: "example-content-type-schema",
+                    contract: "example-contract",
+                },
+            ],
+        },
     ];
 
     for example in examples {
