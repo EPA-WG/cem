@@ -783,7 +783,7 @@ mod tests {
             "schema-package",
             CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
             CEM_SCHEMA_PACKAGE_URI,
-            16,
+            17,
         );
         for (id, expected_code) in [
             (
@@ -804,6 +804,10 @@ mod tests {
             ),
             (
                 "invalid-primary-content-type",
+                "cem.schema_package.content_type_conflict",
+            ),
+            (
+                "invalid-primary-content-type-missing",
                 "cem.schema_package.content_type_conflict",
             ),
         ] {

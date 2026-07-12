@@ -1,0 +1,15 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="missing-primary" @version="1.0.0" |
+    {schema
+        @uri="https://example.test/ns/missing-primary/1"
+        @source="schema/note.cem"
+    }
+
+    {content-type @value="application/vnd.example.missing-primary+cem" @alias=true}
+    {content-type @value="application/vnd.example.missing-primary-secondary+cem" @primary=false}
+
+    {namespace @prefix="missing" @uri="https://example.test/ns/missing-primary/1"}
+}

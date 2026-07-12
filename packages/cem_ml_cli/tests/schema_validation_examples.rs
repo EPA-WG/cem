@@ -502,6 +502,14 @@ fn schema_owned_examples_validate_through_cli() {
             expected_diagnostics: &["cem.schema_package.content_type_conflict"],
         },
         ValidationExample {
+            name: "schema-package invalid missing primary content type",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-primary-content-type-missing.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.schema_package.content_type_conflict"],
+        },
+        ValidationExample {
             name: "schema-package invalid converter contract",
             path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-converter-contract.cem",
             content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,

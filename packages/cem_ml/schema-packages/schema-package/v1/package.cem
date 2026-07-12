@@ -57,6 +57,15 @@
     }
 
     {example
+        @id="invalid-primary-content-type-missing"
+        @path="examples/invalid-primary-content-type-missing.cem"
+        @content-type="application/vnd.cem.schema-package+cem"
+        @schema="https://cem.dev/ns/schema-package/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_package.content_type_conflict"
+    }
+
+    {example
         @id="invalid-converter-contract"
         @path="examples/invalid-converter-contract.cem"
         @content-type="application/vnd.cem.schema-package+cem"

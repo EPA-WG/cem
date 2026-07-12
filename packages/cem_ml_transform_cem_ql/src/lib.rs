@@ -3129,7 +3129,31 @@ mod tests {
             "valid package should not fail primary content-type count: {diagnostics:#?}"
         );
 
-        let invalid = document_from_cem(
+        let invalid_missing = document_from_cem(
+            r#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="invalid-missing" @version="1.0.0" |
+    {schema @uri="https://example.test/ns/invalid-missing/1" @source="schema/invalid-missing.cem"}
+    {content-type @value="application/vnd.example.invalid-missing+cem" @alias=true}
+    {content-type @value="application/vnd.example.invalid-missing-secondary+cem" @primary=false}
+}"#,
+        );
+        let diagnostics =
+            cem_ml::schema::document_model::validate_document_model_with_behavior_evaluator(
+                &invalid_missing,
+                &model,
+                Some(&evaluator),
+            );
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "cem.schema_package.content_type_conflict"),
+            "package without a primary content type should fail exact-one primary count: {diagnostics:#?}"
+        );
+
+        let invalid_duplicate = document_from_cem(
             r#"@doc cem-ml 1
 @ns pkg = "https://cem.dev/ns/schema-package/1"
 @default pkg
@@ -3142,7 +3166,7 @@ mod tests {
         );
         let diagnostics =
             cem_ml::schema::document_model::validate_document_model_with_behavior_evaluator(
-                &invalid,
+                &invalid_duplicate,
                 &model,
                 Some(&evaluator),
             );

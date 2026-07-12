@@ -261,7 +261,7 @@ history belongs in git history and the feature-specific docs linked below.
         stay schema-owned; package-root `schema` and `content-type` child
         presence now stays schema-owned through the
         `package-required-children` child-occurrence contract and
-        `cem.schema_package.package_check`; single primary content-type
+        `cem.schema_package.package_check`; exact-one primary content-type
         cardinality now stays schema-owned through a CEM-ML behavior function
         selected by CEM-QL and emitted as
         `cem.schema_package.content_type_conflict`; converter implementation
