@@ -99,6 +99,7 @@
             @type-diagnostic="example.resource.invalid_format"
             @mediaTypes="application/json text/html"
             @mediaTypeParameters="charset profile"
+            @mediaTypeRequiredParameters="charset"
             @datatype-param-diagnostic="example.resource.invalid_format_type"
         }
         {attribute
@@ -214,7 +215,7 @@
             @code="example.resource.invalid_format_type"
             @severity="error"
             @behavior="schema:datatype-param"
-            @message="Resource format must use an allowed media type"
+            @message="Resource format must use the declared media-type constraints"
         }
         {diagnostic
             @code="example.resource.invalid_asset"

@@ -1722,6 +1722,14 @@ fn schema_datatype_param_examples_emit_structured_definition_details() {
                     datatype_param: "mediaTypeParameters",
                     param_value: "bad=name",
                 },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
+                    check_kind: "datatype-param:mediaTypeRequiredParameters",
+                    attribute: "profiled",
+                    datatype_param: "mediaTypeRequiredParameters",
+                    param_value: "bad=name",
+                },
             ],
         },
     ];

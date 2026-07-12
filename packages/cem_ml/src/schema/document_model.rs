@@ -15,7 +15,7 @@
 //!   path type checks, and integer/number `minInclusive`/`maxInclusive`/
 //!   `minExclusive`/`maxExclusive`, numeric `totalDigits`/`fractionDigits`,
 //!   string `minLength`/`maxLength`/`length`, regex `pattern`, URI scheme/path,
-//!   and media-type essence datatype-param checks.
+//!   and media-type essence/parameter datatype-param checks.
 //! - schema-owned exact, ranged, ordered, boundary, sequence, forbidden-sequence,
 //!   exact-sequence, and choice-cardinality child occurrence field contracts.
 //!
@@ -190,6 +190,7 @@ pub struct AttributeModel {
     pub uri_path_prefixes: BTreeSet<String>,
     pub media_types: BTreeSet<String>,
     pub media_type_parameters: BTreeSet<String>,
+    pub media_type_required_parameters: BTreeSet<String>,
     pub values_diagnostic: Option<String>,
     pub type_diagnostic: Option<String>,
     pub datatype_param_diagnostic: Option<String>,
@@ -1436,6 +1437,36 @@ fn validate_attribute_datatype_params(
             diagnostics,
         );
     }
+    if !attribute_model.media_type_required_parameters.is_empty()
+        && attribute_model
+            .value_type
+            .as_deref()
+            .is_some_and(is_media_type_reference)
+        && normalized_media_type_parameter_names(value)
+            .map(|actual_parameters| {
+                attribute_model
+                    .media_type_required_parameters
+                    .iter()
+                    .any(|name| !actual_parameters.contains(name))
+            })
+            .unwrap_or(false)
+    {
+        let param_value = format_value_set(&attribute_model.media_type_required_parameters);
+        emit_attribute_datatype_param_diagnostic(
+            schema_uri,
+            diagnostic_behaviors,
+            element_name,
+            attribute_name,
+            value,
+            attribute_model,
+            "mediaTypeRequiredParameters",
+            &param_value,
+            "missing required",
+            attribute_values,
+            node,
+            diagnostics,
+        );
+    }
     let value_length = value.chars().count();
     if let Some(length) = attribute_model.length.as_deref() {
         if parse_non_negative_integer_to_usize(length).is_some_and(|len| value_length != len) {
@@ -2037,6 +2068,9 @@ fn collect_attribute_models(
                     media_type_parameters: parse_ascii_lower_value_set(
                         attrs.get("mediaTypeParameters"),
                     ),
+                    media_type_required_parameters: parse_ascii_lower_value_set(
+                        attrs.get("mediaTypeRequiredParameters"),
+                    ),
                     values_diagnostic: optional_non_empty_attr(&attrs, "values-diagnostic")
                         .map(str::to_owned),
                     type_diagnostic: optional_non_empty_attr(&attrs, "type-diagnostic")
@@ -2480,6 +2514,56 @@ fn validate_attribute_datatype_param_definition(
                     "checkKind": "datatype-param:mediaTypeParameters",
                     "datatypeParam": "mediaTypeParameters",
                     "paramName": "mediaTypeParameters",
+                    "paramValue": parameter,
+                    "expectedPattern": "media type parameter name",
+                    "error": error,
+                }),
+            ));
+        }
+    }
+    if !attribute_model.media_type_required_parameters.is_empty() {
+        let value_type = attribute_model.value_type.as_deref();
+        if !value_type.is_some_and(is_media_type_reference) {
+            let param_value = format_value_set(&attribute_model.media_type_required_parameters);
+            let error = "expected schema:media-type or cemml:media-type value type for mediaTypeRequiredParameters";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid mediaTypeRequiredParameters datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:mediaTypeRequiredParameters",
+                    "datatypeParam": "mediaTypeRequiredParameters",
+                    "paramName": "mediaTypeRequiredParameters",
+                    "paramValue": param_value,
+                    "valueType": value_type.unwrap_or_default(),
+                    "expectedType": "schema:media-type",
+                    "error": error,
+                }),
+            ));
+        }
+        for parameter in &attribute_model.media_type_required_parameters {
+            if is_media_type_token(parameter) {
+                continue;
+            }
+            let error = "expected media type parameter name";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid mediaTypeRequiredParameters datatype parameter `{parameter}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:mediaTypeRequiredParameters",
+                    "datatypeParam": "mediaTypeRequiredParameters",
+                    "paramName": "mediaTypeRequiredParameters",
                     "paramValue": parameter,
                     "expectedPattern": "media type parameter name",
                     "error": error,
@@ -5523,6 +5607,7 @@ fn attribute_datatype_param_details(
         "uriPathPrefixes" => "URI path prefix",
         "mediaTypes" => "media type essence",
         "mediaTypeParameters" => "media type parameter name",
+        "mediaTypeRequiredParameters" => "media type parameter name",
         "minLength" | "maxLength" | "length" => "Unicode scalar value length",
         "totalDigits" => "numeric total digit count",
         "fractionDigits" => "numeric fractional digit count",
@@ -5656,6 +5741,39 @@ fn attribute_datatype_param_details(
                 object.insert(
                     "invalidMediaTypeParameters".to_owned(),
                     serde_json::json!(invalid_parameters),
+                );
+            }
+        }
+        if param_name == "mediaTypeRequiredParameters" {
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .media_type_required_parameters
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            if let Some(actual_essence) = normalized_media_type_essence(actual_value) {
+                object.insert(
+                    "actualMediaTypeEssence".to_owned(),
+                    serde_json::json!(actual_essence),
+                );
+            }
+            if let Some(actual_parameters) = normalized_media_type_parameter_names(actual_value) {
+                let missing_parameters = attribute_model
+                    .media_type_required_parameters
+                    .iter()
+                    .filter(|name| !actual_parameters.contains(*name))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let actual_parameters = actual_parameters.into_iter().collect::<Vec<_>>();
+                object.insert(
+                    "actualMediaTypeParameters".to_owned(),
+                    serde_json::json!(actual_parameters),
+                );
+                object.insert(
+                    "missingMediaTypeParameters".to_owned(),
+                    serde_json::json!(missing_parameters),
                 );
             }
         }
@@ -6279,6 +6397,15 @@ mod tests {
                 .attributes
                 .get("mediaTypeParameters")
                 .expect("mediaTypeParameters attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:string")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("mediaTypeRequiredParameters")
+                .expect("mediaTypeRequiredParameters attribute model")
                 .value_type
                 .as_deref(),
             Some("schema:string")
@@ -11448,6 +11575,104 @@ mod tests {
     }
 
     #[test]
+    fn schema_media_type_required_parameter_datatype_param_drives_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/media-type-required-parameter-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="media-type-required-parameter-contracts" @namespace="https://example.test/ns/media-type-required-parameter-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="content-type"}
+    }
+    {attributes |
+        {attribute @name="content-type" @type="schema:media-type" @mediaTypeRequiredParameters="charset profile"}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "valid media-type required parameter schema must compile: {:#?}",
+            model.compile_diagnostics
+        );
+
+        for source in [
+            r#"{item @content-type="text/html; charset=utf-8; profile=default"}"#,
+            r#"{item @content-type="text/html; PROFILE=default; CHARSET=utf-8"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "media type with required parameters produced diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{item @content-type="text/html; charset=utf-8"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("media-type required parameter datatype-param diagnostic");
+        assert!(diagnostic.message.contains("content-type"));
+        assert!(diagnostic.message.contains("mediaTypeRequiredParameters"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("media-type required parameter datatype-param details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/media-type-required-parameter-contracts/1")
+        );
+        assert_eq!(details["element"], serde_json::json!("item"));
+        assert_eq!(details["attribute"], serde_json::json!("content-type"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:content-type:mediaTypeRequiredParameters")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:mediaTypeRequiredParameters")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("mediaTypeRequiredParameters")
+        );
+        assert_eq!(
+            details["mediaTypeRequiredParameters"],
+            serde_json::json!("charset profile")
+        );
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["charset", "profile"])
+        );
+        assert_eq!(
+            details["actualMediaTypeEssence"],
+            serde_json::json!("text/html")
+        );
+        assert_eq!(
+            details["actualMediaTypeParameters"],
+            serde_json::json!(["charset"])
+        );
+        assert_eq!(
+            details["missingMediaTypeParameters"],
+            serde_json::json!(["profile"])
+        );
+        assert_eq!(
+            details["actualValue"],
+            serde_json::json!("text/html; charset=utf-8")
+        );
+        assert_eq!(
+            details["invalidFields"],
+            serde_json::json!(["content-type"])
+        );
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
     fn schema_media_type_parameter_datatype_param_rejects_invalid_declarations() {
         let model = compile_document_model(
             "https://example.test/ns/invalid-media-type-parameter-contracts/1",
@@ -11515,6 +11740,89 @@ mod tests {
         assert_eq!(
             details["checkKind"],
             serde_json::json!("datatype-param:mediaTypeParameters")
+        );
+        assert_eq!(
+            details["expectedType"],
+            serde_json::json!("schema:media-type")
+        );
+    }
+
+    #[test]
+    fn schema_media_type_required_parameter_datatype_param_rejects_invalid_declarations() {
+        let model = compile_document_model(
+            "https://example.test/ns/invalid-media-type-required-parameter-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-media-type-required-parameter-contracts" @namespace="https://example.test/ns/invalid-media-type-required-parameter-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="format label"}
+    }
+    {attributes |
+        {attribute @name="format" @type="schema:media-type" @mediaTypeRequiredParameters="charset bad=name"}
+        {attribute @name="label" @type="schema:string" @mediaTypeRequiredParameters="charset"}
+    }
+}"#,
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("attribute").and_then(serde_json::Value::as_str)
+                    }) == Some("format")
+            })
+            .expect("invalid mediaTypeRequiredParameters token compile diagnostic");
+        assert!(diagnostic
+            .message
+            .contains("invalid mediaTypeRequiredParameters"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid mediaTypeRequiredParameters token compile details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!(
+                "https://example.test/ns/invalid-media-type-required-parameter-contracts/1"
+            )
+        );
+        assert_eq!(details["attribute"], serde_json::json!("format"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:mediaTypeRequiredParameters")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("mediaTypeRequiredParameters")
+        );
+        assert_eq!(details["paramValue"], serde_json::json!("bad=name"));
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("attribute").and_then(serde_json::Value::as_str)
+                    }) == Some("label")
+            })
+            .expect("invalid mediaTypeRequiredParameters type compile diagnostic");
+        assert!(diagnostic.message.contains("mediaTypeRequiredParameters"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid mediaTypeRequiredParameters type compile details");
+        assert_eq!(details["attribute"], serde_json::json!("label"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:mediaTypeRequiredParameters")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("mediaTypeRequiredParameters")
         );
         assert_eq!(
             details["expectedType"],
