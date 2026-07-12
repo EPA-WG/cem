@@ -12,14 +12,14 @@
 //! - schema-owned diagnostic declarations resolved through declarative engine
 //!   behavior definitions, including severity and message metadata.
 //! - schema-owned attribute `@values`, boolean/integer/number/URI/media-type/
-//!   path type checks, and integer `minInclusive`/`maxInclusive`/
+//!   path type checks, and integer/number `minInclusive`/`maxInclusive`/
 //!   `minExclusive`/`maxExclusive`, string `minLength`/`maxLength`/`length`,
 //!   and regex `pattern` datatype-param checks.
 //! - schema-owned exact and ranged child occurrence field contracts.
 //!
 //! Ordering, scalar type checks beyond boolean/integer/number/URI/media-type/
-//! path syntax, additional datatype params, and semantic constraints remain
-//! follow-up work.
+//! path syntax, additional datatype-param families, and semantic constraints
+//! remain follow-up work.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path};
@@ -994,13 +994,24 @@ fn validate_attribute_datatype_params(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let value = value.trim();
-    if attribute_model
+    let range_cmp: Option<fn(&str, &str) -> Option<std::cmp::Ordering>> = if attribute_model
         .value_type
         .as_deref()
         .is_some_and(is_integer_type_reference)
     {
+        Some(decimal_integer_cmp)
+    } else if attribute_model
+        .value_type
+        .as_deref()
+        .is_some_and(is_number_type_reference)
+    {
+        Some(decimal_number_cmp)
+    } else {
+        None
+    };
+    if let Some(range_cmp) = range_cmp {
         if let Some(min_inclusive) = attribute_model.min_inclusive.as_deref() {
-            if decimal_integer_cmp(value, min_inclusive) == Some(std::cmp::Ordering::Less) {
+            if range_cmp(value, min_inclusive) == Some(std::cmp::Ordering::Less) {
                 emit_attribute_datatype_param_diagnostic(
                     schema_uri,
                     diagnostic_behaviors,
@@ -1018,7 +1029,7 @@ fn validate_attribute_datatype_params(
             }
         }
         if let Some(min_exclusive) = attribute_model.min_exclusive.as_deref() {
-            if decimal_integer_cmp(value, min_exclusive)
+            if range_cmp(value, min_exclusive)
                 .is_some_and(|ordering| ordering != std::cmp::Ordering::Greater)
             {
                 emit_attribute_datatype_param_diagnostic(
@@ -1038,7 +1049,7 @@ fn validate_attribute_datatype_params(
             }
         }
         if let Some(max_inclusive) = attribute_model.max_inclusive.as_deref() {
-            if decimal_integer_cmp(value, max_inclusive) == Some(std::cmp::Ordering::Greater) {
+            if range_cmp(value, max_inclusive) == Some(std::cmp::Ordering::Greater) {
                 emit_attribute_datatype_param_diagnostic(
                     schema_uri,
                     diagnostic_behaviors,
@@ -1056,7 +1067,7 @@ fn validate_attribute_datatype_params(
             }
         }
         if let Some(max_exclusive) = attribute_model.max_exclusive.as_deref() {
-            if decimal_integer_cmp(value, max_exclusive)
+            if range_cmp(value, max_exclusive)
                 .is_some_and(|ordering| ordering != std::cmp::Ordering::Less)
             {
                 emit_attribute_datatype_param_diagnostic(
@@ -1223,6 +1234,20 @@ fn decimal_integer_cmp(left: &str, right: &str) -> Option<std::cmp::Ordering> {
     let left = normalize_decimal_integer(left)?;
     let right = normalize_decimal_integer(right)?;
     Some(compare_normalized_decimal_integer(&left, &right))
+}
+
+fn decimal_number_cmp(left: &str, right: &str) -> Option<std::cmp::Ordering> {
+    let left = parse_finite_decimal_number(left)?;
+    let right = parse_finite_decimal_number(right)?;
+    left.partial_cmp(&right)
+}
+
+fn parse_finite_decimal_number(value: &str) -> Option<f64> {
+    let value = value.trim();
+    if !is_finite_decimal_number(value) {
+        return None;
+    }
+    value.parse::<f64>().ok()
 }
 
 fn normalize_decimal_integer(value: &str) -> Option<(bool, String)> {
@@ -1632,6 +1657,54 @@ fn validate_attribute_datatype_param_definition(
                 }),
             ));
         }
+    }
+    for (param_name, param_value) in [
+        ("minInclusive", attribute_model.min_inclusive.as_deref()),
+        ("maxInclusive", attribute_model.max_inclusive.as_deref()),
+        ("minExclusive", attribute_model.min_exclusive.as_deref()),
+        ("maxExclusive", attribute_model.max_exclusive.as_deref()),
+    ] {
+        let Some(param_value) = param_value else {
+            continue;
+        };
+        let Some(value_type) = attribute_model.value_type.as_deref() else {
+            continue;
+        };
+        let (valid, error) = if is_integer_type_reference(value_type) {
+            (
+                is_signed_decimal_integer(param_value),
+                "expected signed decimal integer bound for schema:integer",
+            )
+        } else if is_number_type_reference(value_type) {
+            (
+                is_finite_decimal_number(param_value),
+                "expected finite decimal number bound for schema:number",
+            )
+        } else {
+            continue;
+        };
+        if valid {
+            continue;
+        }
+        diagnostics.push(schema_compile_diagnostic(
+            INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+            format!(
+                "attribute `{}` declares invalid {param_name} datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+                attribute_model.name
+            ),
+            &attribute_model.source_map,
+            serde_json::json!({
+                "schemaUri": schema_uri,
+                "attribute": &attribute_model.name,
+                "checkKind": format!("datatype-param:{param_name}"),
+                "datatypeParam": param_name,
+                "paramName": param_name,
+                "paramValue": param_value,
+                "valueType": value_type,
+                "expectedType": value_type,
+                "error": error,
+            }),
+        ));
     }
     for (param_name, param_value) in [
         ("minLength", attribute_model.min_length.as_deref()),
@@ -3804,6 +3877,11 @@ fn attribute_datatype_param_details(
     let expected_pattern = match param_name {
         "pattern" => param_value,
         "minLength" | "maxLength" | "length" => "Unicode scalar value length",
+        "minInclusive" | "maxInclusive" | "minExclusive" | "maxExclusive"
+            if is_number_type_reference(expected_type) =>
+        {
+            "finite decimal number"
+        }
         _ => "signed decimal integer",
     };
     let actual_length = matches!(param_name, "minLength" | "maxLength" | "length")
@@ -6327,7 +6405,7 @@ mod tests {
         {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
     }
     {elements |
-        {element @name="item" @optional-attributes="mode enabled rating homepage format asset count score lower upper code label tag"}
+        {element @name="item" @optional-attributes="mode enabled rating ratio homepage format asset count score lower upper code label tag"}
     }
     {attributes |
         {attribute
@@ -6345,6 +6423,12 @@ mod tests {
             @name="rating"
             @type="schema:number"
             @type-diagnostic="example.rating_type"
+        }
+        {attribute
+            @name="ratio"
+            @type="schema:number"
+            @maxInclusive=1.0
+            @datatype-param-diagnostic="example.ratio_max"
         }
         {attribute
             @name="homepage"
@@ -6424,6 +6508,12 @@ mod tests {
             @message="Rating must be numeric"
         }
         {diagnostic
+            @code="example.ratio_max"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Ratio must satisfy its datatype parameters"
+        }
+        {diagnostic
             @code="example.homepage_type"
             @severity="error"
             @behavior="schema:scalar-type"
@@ -6501,7 +6591,7 @@ mod tests {
         );
 
         let document = parse_cem_document(
-            r#"{item @mode=tabular @enabled=maybe @rating=NaN @homepage="/relative" @format="text/html; charset" @asset="/rooted.cem" @count=0 @score=11 @lower=1 @upper=10 @code=bad_code @label=go @tag=to}"#,
+            r#"{item @mode=tabular @enabled=maybe @rating=NaN @ratio=1.5 @homepage="/relative" @format="text/html; charset" @asset="/rooted.cem" @count=0 @score=11 @lower=1 @upper=10 @code=bad_code @label=go @tag=to}"#,
         );
         let diagnostics = validate_document_model(&document, &model);
 
@@ -6573,6 +6663,39 @@ mod tests {
             serde_json::json!("finite decimal number")
         );
         assert_eq!(details["actualValue"], serde_json::json!("NaN"));
+
+        let datatype_param = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.ratio_max")
+            .expect("number datatype-param alias diagnostic");
+        assert_eq!(datatype_param.severity, Severity::Error);
+        assert!(datatype_param
+            .message
+            .starts_with("Ratio must satisfy its datatype parameters:"));
+        let details = datatype_param
+            .details
+            .as_ref()
+            .expect("number datatype-param alias details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:datatype-param")
+        );
+        assert_eq!(
+            details["diagnostic"],
+            serde_json::json!("example.ratio_max")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:maxInclusive")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("maxInclusive"));
+        assert_eq!(details["maxInclusive"], serde_json::json!("1.0"));
+        assert_eq!(details["expectedType"], serde_json::json!("schema:number"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("finite decimal number")
+        );
+        assert_eq!(details["actualValue"], serde_json::json!("1.5"));
 
         let scalar_type = diagnostics
             .iter()
@@ -7607,6 +7730,220 @@ mod tests {
         assert_eq!(details["datatypeParam"], serde_json::json!("maxExclusive"));
         assert_eq!(details["maxExclusive"], serde_json::json!("10"));
         assert_eq!(details["actualValue"], serde_json::json!("10"));
+    }
+
+    #[test]
+    fn schema_number_bound_datatype_params_drive_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/number-bound-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="number-bound-contracts" @namespace="https://example.test/ns/number-bound-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="weight ratio"}
+    }
+    {attributes |
+        {attribute @name="weight" @type="schema:number" @minInclusive=0.25 @maxExclusive=1.5}
+        {attribute @name="ratio" @type="schema:number" @minExclusive=0.0 @maxInclusive=1.0}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "valid number-bound schema must compile: {:#?}",
+            model.compile_diagnostics
+        );
+
+        for source in [
+            r#"{item @weight=0.25}"#,
+            r#"{item @weight=0.5}"#,
+            r#"{item @weight=1.499}"#,
+            r#"{item @ratio=0.1}"#,
+            r#"{item @ratio=1.0}"#,
+            r#"{item @ratio=1e0}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "valid number-bound source produced diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        for source in [
+            r#"{item @weight=0.24}"#,
+            r#"{item @weight=1.5}"#,
+            r#"{item @ratio=0}"#,
+            r#"{item @ratio=1.01}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "invalid number-bound source did not produce diagnostic: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{item @weight=0.24}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("number minInclusive attribute datatype param diagnostic");
+        assert!(diagnostic.message.contains("weight"));
+        assert!(diagnostic.message.contains("minInclusive"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("number minInclusive attribute datatype param details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/number-bound-contracts/1")
+        );
+        assert_eq!(details["element"], serde_json::json!("item"));
+        assert_eq!(details["attribute"], serde_json::json!("weight"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:weight:minInclusive")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:minInclusive")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("minInclusive"));
+        assert_eq!(details["minInclusive"], serde_json::json!("0.25"));
+        assert_eq!(details["expectedType"], serde_json::json!("schema:number"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("finite decimal number")
+        );
+        assert_eq!(details["actualValue"], serde_json::json!("0.24"));
+        assert_eq!(details["invalidFields"], serde_json::json!(["weight"]));
+        assert_eq!(details["actualValues"]["weight"], serde_json::json!("0.24"));
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+
+        let document = parse_cem_document(r#"{item @weight=1.5}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("number maxExclusive attribute datatype param diagnostic");
+        assert!(diagnostic.message.contains("maxExclusive"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("number maxExclusive attribute datatype param details");
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:weight:maxExclusive")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:maxExclusive")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("maxExclusive"));
+        assert_eq!(details["maxExclusive"], serde_json::json!("1.5"));
+        assert_eq!(details["expectedType"], serde_json::json!("schema:number"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("finite decimal number")
+        );
+        assert_eq!(details["actualValue"], serde_json::json!("1.5"));
+
+        let document = parse_cem_document(r#"{item @ratio=0}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("number minExclusive attribute datatype param diagnostic");
+        assert!(diagnostic.message.contains("minExclusive"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("number minExclusive attribute datatype param details");
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:ratio:minExclusive")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:minExclusive")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("minExclusive"));
+        assert_eq!(details["minExclusive"], serde_json::json!("0.0"));
+        assert_eq!(details["actualValue"], serde_json::json!("0"));
+
+        let document = parse_cem_document(r#"{item @ratio=1.01}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("number maxInclusive attribute datatype param diagnostic");
+        assert!(diagnostic.message.contains("maxInclusive"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("number maxInclusive attribute datatype param details");
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:ratio:maxInclusive")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:maxInclusive")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("maxInclusive"));
+        assert_eq!(details["maxInclusive"], serde_json::json!("1.0"));
+        assert_eq!(details["actualValue"], serde_json::json!("1.01"));
+    }
+
+    #[test]
+    fn schema_integer_bound_datatype_param_rejects_decimal_bound() {
+        let model = compile_document_model(
+            "https://example.test/ns/invalid-integer-bound-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-integer-bound-contracts" @namespace="https://example.test/ns/invalid-integer-bound-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="priority"}
+    }
+    {attributes |
+        {attribute @name="priority" @type="schema:integer" @minInclusive=0.5}
+    }
+}"#,
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE)
+            .expect("invalid integer bound schema compile diagnostic");
+        assert!(diagnostic.message.contains("invalid minInclusive"));
+        assert!(diagnostic.message.contains("priority"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid integer bound compile details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/invalid-integer-bound-contracts/1")
+        );
+        assert_eq!(details["attribute"], serde_json::json!("priority"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:minInclusive")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("minInclusive"));
+        assert_eq!(details["paramValue"], serde_json::json!("0.5"));
+        assert_eq!(details["expectedType"], serde_json::json!("schema:integer"));
     }
 
     #[test]

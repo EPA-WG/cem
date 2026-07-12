@@ -37,7 +37,7 @@ history belongs in git history and the feature-specific docs linked below.
       resource parse/validation, and reference resolution; field-contract-level
       bindings now exist for broader dependency and choice/case algorithms.
       Both preserve stable diagnostic family codes. Attribute-owned datatype
-      parameter checks now cover integer `minInclusive`/`maxInclusive`/
+      parameter checks now cover integer and number `minInclusive`/`maxInclusive`/
       `minExclusive`/`maxExclusive`, string `minLength`/`maxLength`/`length`,
       and regex `pattern`.
       Required-one/max-one attribute choice cardinality now executes through
@@ -75,9 +75,10 @@ history belongs in git history and the feature-specific docs linked below.
         occurrence ranges now execute through `schema:child-occurrence`; basic
         number, URI, media-type, and scope-context path scalar syntax now
         execute through `schema:scalar-type`; nested choice/case groups now
-        execute through `schema:choice-case`; datatype parameter variations
-        beyond integer inclusive/exclusive bounds, string length constraints,
-        and regex pattern remain.
+        execute through `schema:choice-case`; number inclusive/exclusive bounds
+        now reuse the existing range-parameter vocabulary; datatype parameter
+        families beyond numeric bounds, string length constraints, and regex
+        pattern remain.
   - [x] Compile behavior declarations and references into the generic schema
         model, reject missing or incompatible behavior references, and dispatch
         them through a single runtime evaluation path. The resolved behavior
@@ -108,8 +109,8 @@ history belongs in git history and the feature-specific docs linked below.
         on a conditional field contract and `schema:value-vocabulary` on an
         attribute declaration, `schema:scalar-type` number/URI/media-type/path
         syntax on attribute declarations, plus nested exact-one
-        `schema:choice-case` cardinality and `schema:datatype-param` string
-        length constraints;
+        `schema:choice-case` cardinality and `schema:datatype-param` decimal
+        number bounds and string length constraints;
         schema-package examples cover constraint-level
         `schema:resource-readable`, `schema:resource-parse`, and
         `schema:reference-resolution` bindings through operational artifact
@@ -118,8 +119,8 @@ history belongs in git history and the feature-specific docs linked below.
         converter diagnostics, and ranged `schema:child-occurrence` through the
         typed-resource schema example; schema-package CLI examples now also
         cover schema-definition failures for invalid datatype parameter
-        declarations on string length bounds and regex patterns. The native
-        tests cover warning severity,
+        declarations on integer/number bounds, string length bounds, and regex
+        patterns. The native tests cover warning severity,
         message text, structured details, source ranges, unresolved codes,
         field-contract behavior aliases, field-contract-local behavior
         bindings, attribute behavior aliases, constraint behavior aliases, and

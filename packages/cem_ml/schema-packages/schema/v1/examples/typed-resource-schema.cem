@@ -45,7 +45,10 @@
         {attribute
             @name="weight"
             @type="schema:number"
+            @minInclusive=0.0
+            @maxInclusive=1.0
             @type-diagnostic="example.resource.invalid_weight"
+            @datatype-param-diagnostic="example.resource.invalid_weight_range"
         }
         {attribute
             @name="slug"
@@ -173,6 +176,12 @@
             @severity="error"
             @behavior="schema:scalar-type"
             @message="Resource weight must be numeric"
+        }
+        {diagnostic
+            @code="example.resource.invalid_weight_range"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource weight must stay within the declared decimal bounds"
         }
         {diagnostic
             @code="example.resource.invalid_slug"

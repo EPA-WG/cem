@@ -137,10 +137,10 @@
         {attribute @name="when-attribute" @type="cemml:identifier"}
         {attribute @name="when-values" @type="cemml:name-list"}
         {attribute @name="when-present-attributes" @type="cemml:name-list"}
-        {attribute @name="minInclusive" @type="schema:integer"}
-        {attribute @name="maxInclusive" @type="schema:integer"}
-        {attribute @name="minExclusive" @type="schema:integer"}
-        {attribute @name="maxExclusive" @type="schema:integer"}
+        {attribute @name="minInclusive" @type="schema:number"}
+        {attribute @name="maxInclusive" @type="schema:number"}
+        {attribute @name="minExclusive" @type="schema:number"}
+        {attribute @name="maxExclusive" @type="schema:number"}
         {attribute @name="minLength" @type="schema:integer"}
         {attribute @name="maxLength" @type="schema:integer"}
         {attribute @name="length" @type="schema:integer"}

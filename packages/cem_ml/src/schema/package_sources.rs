@@ -659,7 +659,7 @@ mod tests {
             "schema",
             CEM_SCHEMA_CONTENT_TYPE,
             CEM_SCHEMA_URI,
-            16,
+            17,
         );
         for id in ["custom-behavior-schema", "custom-behavior-schema-strict"] {
             let example = examples
@@ -743,6 +743,10 @@ mod tests {
             ),
             (
                 "invalid-datatype-param-length",
+                "cem.schema_definition.invalid_datatype_param",
+            ),
+            (
+                "invalid-datatype-param-bound",
                 "cem.schema_definition.invalid_datatype_param",
             ),
             (
