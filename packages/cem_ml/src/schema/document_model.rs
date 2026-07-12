@@ -350,6 +350,7 @@ pub struct FieldContract {
     pub forbidden_children: BTreeSet<String>,
     pub required_children: BTreeSet<String>,
     pub max_one_children: BTreeSet<String>,
+    pub exact_children: BTreeMap<String, String>,
     pub min_children: BTreeMap<String, String>,
     pub max_children: BTreeMap<String, String>,
     pub choice_groups: Vec<ChoiceGroup>,
@@ -2328,6 +2329,7 @@ fn validate_child_range_field_contract(
 ) {
     for (range_name, range) in [
         ("min-children", &contract.min_children),
+        ("exact-children", &contract.exact_children),
         ("max-children", &contract.max_children),
     ] {
         for (child, value) in range {
@@ -3619,6 +3621,7 @@ fn collect_field_contracts(
                 forbidden_children: parse_name_set(attrs.get("forbidden-children")),
                 required_children: parse_name_set(attrs.get("required-children")),
                 max_one_children: parse_name_set(attrs.get("max-one-children")),
+                exact_children: parse_name_value_map(attrs.get("exact-children")),
                 min_children: parse_name_value_map(attrs.get("min-children")),
                 max_children: parse_name_value_map(attrs.get("max-children")),
                 choice_groups: collect_choice_groups(document, *child_id),
@@ -3863,6 +3866,15 @@ fn validate_field_contracts(
             .filter(|name| child_counts.get(*name).copied().unwrap_or_default() > 1)
             .cloned()
             .collect::<Vec<_>>();
+        let invalid_exact_children = contract
+            .exact_children
+            .iter()
+            .filter_map(|(name, exact)| {
+                let exact = parse_non_negative_integer_to_usize(exact)?;
+                let count = child_counts.get(name).copied().unwrap_or_default();
+                (count != exact).then(|| name.clone())
+            })
+            .collect::<Vec<_>>();
         let under_min_children = contract
             .min_children
             .iter()
@@ -3891,6 +3903,7 @@ fn validate_field_contracts(
             && invalid_children.is_empty()
             && missing_children.is_empty()
             && duplicate_children.is_empty()
+            && invalid_exact_children.is_empty()
             && under_min_children.is_empty()
             && over_max_children.is_empty()
         {
@@ -3964,6 +3977,12 @@ fn validate_field_contracts(
                 duplicate_children.join(", ")
             ));
         }
+        if !invalid_exact_children.is_empty() {
+            parts.push(format!(
+                "children not at exact count: {}",
+                invalid_exact_children.join(", ")
+            ));
+        }
         if !under_min_children.is_empty() {
             parts.push(format!(
                 "children below minimum: {}",
@@ -4012,6 +4031,7 @@ fn validate_field_contracts(
                 &invalid_children,
                 &missing_children,
                 &duplicate_children,
+                &invalid_exact_children,
                 &under_min_children,
                 &over_max_children,
                 child_counts,
@@ -4169,6 +4189,7 @@ fn field_contract_details(
     invalid_children: &[String],
     missing_children: &[String],
     duplicate_children: &[String],
+    invalid_exact_children: &[String],
     under_min_children: &[String],
     over_max_children: &[String],
     child_counts: &BTreeMap<String, usize>,
@@ -4258,6 +4279,10 @@ fn field_contract_details(
         serde_json::json!(&contract.max_one_children),
     );
     details.insert(
+        "exactChildren".to_owned(),
+        serde_json::json!(&contract.exact_children),
+    );
+    details.insert(
         "minChildren".to_owned(),
         serde_json::json!(&contract.min_children),
     );
@@ -4298,6 +4323,10 @@ fn field_contract_details(
     details.insert(
         "duplicateChildren".to_owned(),
         serde_json::json!(duplicate_children),
+    );
+    details.insert(
+        "invalidExactChildren".to_owned(),
+        serde_json::json!(invalid_exact_children),
     );
     details.insert(
         "underMinChildren".to_owned(),
@@ -5086,6 +5115,15 @@ mod tests {
         assert_eq!(
             model
                 .attributes
+                .get("exact-children")
+                .expect("exact-children attribute model")
+                .value_type
+                .as_deref(),
+            Some("cemml:name-value-list")
+        );
+        assert_eq!(
+            model
+                .attributes
                 .get("min-children")
                 .expect("min-children attribute model")
                 .value_type
@@ -5609,6 +5647,8 @@ mod tests {
         {element @name="child"}
         {element @name="range-group" @children="range-child"}
         {element @name="range-child"}
+        {element @name="gallery" @children="image"}
+        {element @name="image"}
         {element @name="slot" @children="title body aside"}
         {element @name="title"}
         {element @name="body"}
@@ -5678,6 +5718,14 @@ mod tests {
             @diagnostic="example.item_check"
             @behavior="schema:child-occurrence"
             @check-kind="child-occurrence-range"
+        }
+        {field-contract
+            @name="gallery-exact-images"
+            @target="gallery"
+            @exact-children="image=2"
+            @diagnostic="example.item_check"
+            @behavior="schema:child-occurrence"
+            @check-kind="exact-children"
         }
         {field-contract
             @name="slot-accepted-children"
@@ -6071,6 +6119,57 @@ mod tests {
             details["childCounts"],
             serde_json::json!({
                 "range-child": 4,
+            })
+        );
+
+        let document = parse_cem_document(r#"{gallery | {image} {image}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        assert!(
+            diagnostics.iter().all(|diagnostic| {
+                diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("contract").and_then(serde_json::Value::as_str))
+                    != Some("gallery-exact-images")
+            }),
+            "exact child count should satisfy child occurrence field contract: {diagnostics:?}"
+        );
+
+        let document = parse_cem_document(r#"{gallery | {image}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("gallery-exact-images")
+            })
+            .expect("exact child occurrence diagnostic");
+        assert!(diagnostic.message.contains("children not at exact count"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("exact child occurrence details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:child-occurrence")
+        );
+        assert_eq!(details["checkKind"], serde_json::json!("exact-children"));
+        assert_eq!(
+            details["exactChildren"],
+            serde_json::json!({
+                "image": "2",
+            })
+        );
+        assert_eq!(
+            details["invalidExactChildren"],
+            serde_json::json!(["image"])
+        );
+        assert_eq!(
+            details["childCounts"],
+            serde_json::json!({
+                "image": 1,
             })
         );
 
