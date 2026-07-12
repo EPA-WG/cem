@@ -30,7 +30,9 @@ external syntax such as JSON, HTML, or XML:
    same pattern-oriented semantics as RELAX NG: primitives and composition
    describe an accepted document shape without embedding a package's domain
    model in the validator. Higher-level meaning belongs in the package's `.cem`
-   schema.
+   schema. Schema-owned datatype parameters can refine primitives, including
+   URI scheme allow-lists and media-type essence allow-lists, without moving
+   package meaning into Rust.
 3. **Node references combine schema declaration with CEM-QL resolution.** A
    CEM-ML schema declares which fields or content positions carry a reference,
    including its type and constraints. CEM-QL supplies the query and resolution
@@ -469,7 +471,8 @@ scoped resource specifiers rather than document-relative filesystem paths:
 `./...` resolves against the active context root, protocol values resolve through
 the matching resolver, and bare values are module-map specifiers. This keeps
 package-specific schemas small while preserving strict validation boundaries for
-their own instances.
+their own instances. Attribute datatype params such as `@uriSchemes` and
+`@mediaTypes` then narrow those primitives declaratively in the schema document.
 
 ## CEMT Transformation Ownership
 

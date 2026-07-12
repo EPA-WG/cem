@@ -85,11 +85,15 @@
             @name="href"
             @type="schema:uri"
             @type-diagnostic="example.resource.invalid_href"
+            @uriSchemes="https mailto"
+            @datatype-param-diagnostic="example.resource.invalid_href_scheme"
         }
         {attribute
             @name="format"
             @type="schema:media-type"
             @type-diagnostic="example.resource.invalid_format"
+            @mediaTypes="application/json text/html"
+            @datatype-param-diagnostic="example.resource.invalid_format_type"
         }
         {attribute
             @name="asset"
@@ -165,6 +169,18 @@
             @severity="error"
             @behavior="schema:scalar-type"
             @message="Resource format must be a media type"
+        }
+        {diagnostic
+            @code="example.resource.invalid_href_scheme"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource href must use an allowed URI scheme"
+        }
+        {diagnostic
+            @code="example.resource.invalid_format_type"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource format must use an allowed media type"
         }
         {diagnostic
             @code="example.resource.invalid_asset"

@@ -39,7 +39,8 @@ history belongs in git history and the feature-specific docs linked below.
       Both preserve stable diagnostic family codes. Attribute-owned datatype
       parameter checks now cover integer and number `minInclusive`/`maxInclusive`/
       `minExclusive`/`maxExclusive`, numeric `totalDigits`/`fractionDigits`,
-      string `minLength`/`maxLength`/`length`, and regex `pattern`.
+      string `minLength`/`maxLength`/`length`, regex `pattern`, URI
+      `uriSchemes`, and media-type `mediaTypes`.
       Required-one/max-one attribute choice cardinality now executes through
       `schema:choice-case`. Broader child occurrence ranges now execute
       through `schema:child-occurrence`. Additional engine algorithms remain.
@@ -177,7 +178,8 @@ history belongs in git history and the feature-specific docs linked below.
         integer `minInclusive`, `maxInclusive`,
         `minExclusive`, and `maxExclusive` bounds, numeric `totalDigits` and
         `fractionDigits`, plus string `minLength`, `maxLength`, and `length`
-        params and regex `pattern` datatype params,
+        params, regex `pattern`, URI `uriSchemes`, and media-type `mediaTypes`
+        datatype params,
         plus min/max child occurrence ranges; it
         still needs accepted children, scalar type validation beyond
         boolean/integer/number/basic URI/media-type/path syntax, RELAX NG-style
@@ -192,8 +194,9 @@ history belongs in git history and the feature-specific docs linked below.
         `schema:uri`/`cemml:uri`, `schema:media-type`/
         `cemml:media-type`, plus `schema:path`/`cemml:path` attribute types; it
         still needs reusable string/path constraints beyond path-layout checks,
-        richer URI/media-type constraints, RELAX NG-style datatype params
-        beyond numeric bounds/digit counts and pattern, dependent field
+        URI/media-type constraints beyond initial allowed scheme/essence
+        lists, RELAX NG-style datatype params beyond numeric bounds/digit
+        counts, pattern, and allowed URI/media tokens, dependent field
         groups beyond presence-gated required fields, additional child
         occurrence variants, defaults, and richer case grouping for all schema
         elements.
@@ -216,9 +219,11 @@ history belongs in git history and the feature-specific docs linked below.
         details; path-layout checks emit pathLayout and invalidValues details;
         path type checks emit expected/actual details; nested choice/case
         checks emit declared cases, present cases, missing cases, and
-        conflicting cases; richer URI/media-type constraints, additional
-        datatype params, dependency, additional child occurrence variants, and
-        cross-reference checks need the same schema-owned detail shape.
+        conflicting cases; URI scheme and media-type essence datatype-param
+        checks emit expected values and normalized actual tokens; additional
+        URI/media-type constraints, datatype params, dependency, additional
+        child occurrence variants, and cross-reference checks need the same
+        schema-owned detail shape.
   - [ ] Extend the generic field-contract evaluator. The first evaluator runs
         from schema URI plus content type, consumes the compiled contract
         model, preserves source-map ranges, and emits contract-declared
@@ -233,7 +238,8 @@ history belongs in git history and the feature-specific docs linked below.
         occurrence range checks, required-one/max-one attribute choice checks,
         and
         package-relative path-layout checks, scope-context path type checks,
-        and nested choice/case checks; it still needs coverage for richer
+        nested choice/case checks, URI scheme constraints, and media-type
+        essence constraints; it still needs coverage for additional
         URI/media-type constraints, additional datatype params, dependency, and
         additional child occurrence variants.
   - [ ] Move schema-package manifest field rules from Rust conditionals into

@@ -14,8 +14,8 @@
 //! - schema-owned attribute `@values`, boolean/integer/number/URI/media-type/
 //!   path type checks, and integer/number `minInclusive`/`maxInclusive`/
 //!   `minExclusive`/`maxExclusive`, numeric `totalDigits`/`fractionDigits`,
-//!   string `minLength`/`maxLength`/`length`, and regex `pattern`
-//!   datatype-param checks.
+//!   string `minLength`/`maxLength`/`length`, regex `pattern`, URI scheme,
+//!   and media-type essence datatype-param checks.
 //! - schema-owned exact and ranged child occurrence field contracts.
 //!
 //! Ordering, scalar type checks beyond boolean/integer/number/URI/media-type/
@@ -30,7 +30,7 @@ use crate::events::cem::CemEventNormalizer;
 use crate::parser::builder::CemAstBuilder;
 use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
-use crate::resolver::{has_uri_scheme, is_windows_drive_path};
+use crate::resolver::{has_uri_scheme, is_windows_drive_path, uri_scheme};
 use crate::schema::package_loader::{
     load_builtin_schema_package, load_builtin_schema_package_for_content_type,
 };
@@ -147,6 +147,8 @@ pub struct AttributeModel {
     pub total_digits: Option<String>,
     pub fraction_digits: Option<String>,
     pub pattern: Option<String>,
+    pub uri_schemes: BTreeSet<String>,
+    pub media_types: BTreeSet<String>,
     pub values_diagnostic: Option<String>,
     pub type_diagnostic: Option<String>,
     pub datatype_param_diagnostic: Option<String>,
@@ -852,6 +854,20 @@ fn is_absolute_uri(value: &str) -> bool {
     has_uri_scheme(value) && !is_windows_drive_path(value)
 }
 
+fn is_uri_scheme_name(value: &str) -> bool {
+    let mut chars = value.chars();
+    chars.next().is_some_and(|ch| ch.is_ascii_alphabetic())
+        && chars.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '+' | '-' | '.'))
+}
+
+fn normalized_uri_scheme(value: &str) -> Option<String> {
+    let value = value.trim();
+    if is_windows_drive_path(value) {
+        return None;
+    }
+    uri_scheme(value).map(str::to_ascii_lowercase)
+}
+
 fn is_scoped_path_specifier(value: &str) -> bool {
     let value = value.trim();
     if value.is_empty()
@@ -900,6 +916,19 @@ fn is_media_type(value: &str) -> bool {
         return false;
     }
     parts.all(is_media_type_parameter)
+}
+
+fn normalized_media_type_essence(value: &str) -> Option<String> {
+    let value = value.trim();
+    if value.is_empty() {
+        return None;
+    }
+    let essence = value.split(';').next()?.trim();
+    if is_media_type_essence(essence) || is_legacy_content_type_alias(essence) {
+        Some(essence.to_ascii_lowercase())
+    } else {
+        None
+    }
 }
 
 fn is_media_type_essence(value: &str) -> bool {
@@ -1102,6 +1131,58 @@ fn validate_attribute_datatype_params(
                 "pattern",
                 pattern,
                 "not matching",
+                attribute_values,
+                node,
+                diagnostics,
+            );
+        }
+    }
+    if !attribute_model.uri_schemes.is_empty()
+        && attribute_model
+            .value_type
+            .as_deref()
+            .is_some_and(is_uri_type_reference)
+    {
+        if normalized_uri_scheme(value)
+            .is_some_and(|scheme| !attribute_model.uri_schemes.contains(&scheme))
+        {
+            let param_value = format_value_set(&attribute_model.uri_schemes);
+            emit_attribute_datatype_param_diagnostic(
+                schema_uri,
+                diagnostic_behaviors,
+                element_name,
+                attribute_name,
+                value,
+                attribute_model,
+                "uriSchemes",
+                &param_value,
+                "outside allowed",
+                attribute_values,
+                node,
+                diagnostics,
+            );
+        }
+    }
+    if !attribute_model.media_types.is_empty()
+        && attribute_model
+            .value_type
+            .as_deref()
+            .is_some_and(is_media_type_reference)
+    {
+        if normalized_media_type_essence(value)
+            .is_some_and(|essence| !attribute_model.media_types.contains(&essence))
+        {
+            let param_value = format_value_set(&attribute_model.media_types);
+            emit_attribute_datatype_param_diagnostic(
+                schema_uri,
+                diagnostic_behaviors,
+                element_name,
+                attribute_name,
+                value,
+                attribute_model,
+                "mediaTypes",
+                &param_value,
+                "outside allowed",
                 attribute_values,
                 node,
                 diagnostics,
@@ -1699,6 +1780,8 @@ fn collect_attribute_models(
                     fraction_digits: optional_non_empty_attr(&attrs, "fractionDigits")
                         .map(str::to_owned),
                     pattern: optional_non_empty_attr(&attrs, "pattern").map(str::to_owned),
+                    uri_schemes: parse_ascii_lower_value_set(attrs.get("uriSchemes")),
+                    media_types: parse_ascii_lower_value_set(attrs.get("mediaTypes")),
                     values_diagnostic: optional_non_empty_attr(&attrs, "values-diagnostic")
                         .map(str::to_owned),
                     type_diagnostic: optional_non_empty_attr(&attrs, "type-diagnostic")
@@ -1897,6 +1980,106 @@ fn validate_attribute_datatype_param_definition(
                     "datatypeParam": "totalDigits",
                     "paramName": "totalDigits",
                     "paramValue": param_value,
+                    "error": error,
+                }),
+            ));
+        }
+    }
+    if !attribute_model.uri_schemes.is_empty() {
+        let value_type = attribute_model.value_type.as_deref();
+        if !value_type.is_some_and(is_uri_type_reference) {
+            let param_value = format_value_set(&attribute_model.uri_schemes);
+            let error = "expected schema:uri or cemml:uri value type for uriSchemes";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriSchemes datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriSchemes",
+                    "datatypeParam": "uriSchemes",
+                    "paramName": "uriSchemes",
+                    "paramValue": param_value,
+                    "valueType": value_type.unwrap_or_default(),
+                    "expectedType": "schema:uri",
+                    "error": error,
+                }),
+            ));
+        }
+        for scheme in &attribute_model.uri_schemes {
+            if is_uri_scheme_name(scheme) {
+                continue;
+            }
+            let error = "expected URI scheme name";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriSchemes datatype parameter `{scheme}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriSchemes",
+                    "datatypeParam": "uriSchemes",
+                    "paramName": "uriSchemes",
+                    "paramValue": scheme,
+                    "expectedPattern": "URI scheme",
+                    "error": error,
+                }),
+            ));
+        }
+    }
+    if !attribute_model.media_types.is_empty() {
+        let value_type = attribute_model.value_type.as_deref();
+        if !value_type.is_some_and(is_media_type_reference) {
+            let param_value = format_value_set(&attribute_model.media_types);
+            let error = "expected schema:media-type or cemml:media-type value type for mediaTypes";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid mediaTypes datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:mediaTypes",
+                    "datatypeParam": "mediaTypes",
+                    "paramName": "mediaTypes",
+                    "paramValue": param_value,
+                    "valueType": value_type.unwrap_or_default(),
+                    "expectedType": "schema:media-type",
+                    "error": error,
+                }),
+            ));
+        }
+        for media_type in &attribute_model.media_types {
+            if is_media_type_essence(media_type) || is_legacy_content_type_alias(media_type) {
+                continue;
+            }
+            let error = "expected media type essence";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid mediaTypes datatype parameter `{media_type}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:mediaTypes",
+                    "datatypeParam": "mediaTypes",
+                    "paramName": "mediaTypes",
+                    "paramValue": media_type,
+                    "expectedPattern": "media type essence",
                     "error": error,
                 }),
             ));
@@ -4042,6 +4225,8 @@ fn attribute_datatype_param_details(
     let expected_type = attribute_model.value_type.as_deref().unwrap_or_default();
     let expected_pattern = match param_name {
         "pattern" => param_value,
+        "uriSchemes" => "URI scheme",
+        "mediaTypes" => "media type essence",
         "minLength" | "maxLength" | "length" => "Unicode scalar value length",
         "totalDigits" => "numeric total digit count",
         "fractionDigits" => "numeric fractional digit count",
@@ -4095,6 +4280,35 @@ fn attribute_datatype_param_details(
                 "actualFractionDigits".to_owned(),
                 serde_json::json!(actual_digit_counts.fraction_digits),
             );
+        }
+        if param_name == "uriSchemes" {
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .uri_schemes
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            if let Some(actual_scheme) = normalized_uri_scheme(actual_value) {
+                object.insert("actualScheme".to_owned(), serde_json::json!(actual_scheme));
+            }
+        }
+        if param_name == "mediaTypes" {
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .media_types
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            if let Some(actual_essence) = normalized_media_type_essence(actual_value) {
+                object.insert(
+                    "actualMediaTypeEssence".to_owned(),
+                    serde_json::json!(actual_essence),
+                );
+            }
         }
     }
     details
@@ -4221,6 +4435,17 @@ fn parse_name_set(value: Option<&String>) -> BTreeSet<String> {
 
 fn parse_value_set(value: Option<&String>) -> BTreeSet<String> {
     parse_name_set(value)
+}
+
+fn parse_ascii_lower_value_set(value: Option<&String>) -> BTreeSet<String> {
+    parse_name_set(value)
+        .into_iter()
+        .map(|value| value.to_ascii_lowercase())
+        .collect()
+}
+
+fn format_value_set(values: &BTreeSet<String>) -> String {
+    values.iter().cloned().collect::<Vec<_>>().join(" ")
 }
 
 fn parse_name_value_set(value: Option<&String>) -> BTreeMap<String, BTreeSet<String>> {
@@ -4605,6 +4830,24 @@ mod tests {
                 .value_type
                 .as_deref(),
             Some("schema:integer")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("uriSchemes")
+                .expect("uriSchemes attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:string")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("mediaTypes")
+                .expect("mediaTypes attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:string")
         );
         assert_eq!(
             model
@@ -6606,7 +6849,7 @@ mod tests {
         {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
     }
     {elements |
-        {element @name="item" @optional-attributes="mode enabled rating ratio homepage format asset count score lower upper code label tag serial decimal"}
+        {element @name="item" @optional-attributes="mode enabled rating ratio homepage format secureHref payload asset count score lower upper code label tag serial decimal"}
     }
     {attributes |
         {attribute
@@ -6640,6 +6883,18 @@ mod tests {
             @name="format"
             @type="schema:media-type"
             @type-diagnostic="example.format_type"
+        }
+        {attribute
+            @name="secureHref"
+            @type="schema:uri"
+            @uriSchemes="https mailto"
+            @datatype-param-diagnostic="example.secure_href_scheme"
+        }
+        {attribute
+            @name="payload"
+            @type="schema:media-type"
+            @mediaTypes="application/json text/html"
+            @datatype-param-diagnostic="example.payload_media_type"
         }
         {attribute
             @name="asset"
@@ -6739,6 +6994,18 @@ mod tests {
             @message="Format must be a media type"
         }
         {diagnostic
+            @code="example.secure_href_scheme"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Secure href must use an allowed URI scheme"
+        }
+        {diagnostic
+            @code="example.payload_media_type"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Payload must use an allowed media type"
+        }
+        {diagnostic
             @code="example.asset_type"
             @severity="error"
             @behavior="schema:scalar-type"
@@ -6816,7 +7083,7 @@ mod tests {
         );
 
         let document = parse_cem_document(
-            r#"{item @mode=tabular @enabled=maybe @rating=NaN @ratio=1.5 @homepage="/relative" @format="text/html; charset" @asset="/rooted.cem" @count=0 @score=11 @lower=1 @upper=10 @code=bad_code @label=go @tag=to @serial=1234 @decimal=12.345}"#,
+            r#"{item @mode=tabular @enabled=maybe @rating=NaN @ratio=1.5 @homepage="/relative" @format="text/html; charset" @secureHref="http://example.test/resource" @payload="image/png" @asset="/rooted.cem" @count=0 @score=11 @lower=1 @upper=10 @code=bad_code @label=go @tag=to @serial=1234 @decimal=12.345}"#,
         );
         let diagnostics = validate_document_model(&document, &model);
 
@@ -6979,6 +7246,81 @@ mod tests {
             details["actualValue"],
             serde_json::json!("text/html; charset")
         );
+
+        let datatype_param = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.secure_href_scheme")
+            .expect("URI scheme datatype-param alias diagnostic");
+        assert_eq!(datatype_param.severity, Severity::Error);
+        assert!(datatype_param
+            .message
+            .starts_with("Secure href must use an allowed URI scheme:"));
+        let details = datatype_param
+            .details
+            .as_ref()
+            .expect("URI scheme datatype-param alias details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:datatype-param")
+        );
+        assert_eq!(
+            details["diagnostic"],
+            serde_json::json!("example.secure_href_scheme")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriSchemes")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("uriSchemes"));
+        assert_eq!(details["uriSchemes"], serde_json::json!("https mailto"));
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["https", "mailto"])
+        );
+        assert_eq!(details["actualScheme"], serde_json::json!("http"));
+        assert_eq!(
+            details["actualValue"],
+            serde_json::json!("http://example.test/resource")
+        );
+
+        let datatype_param = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.payload_media_type")
+            .expect("media type datatype-param alias diagnostic");
+        assert_eq!(datatype_param.severity, Severity::Error);
+        assert!(datatype_param
+            .message
+            .starts_with("Payload must use an allowed media type:"));
+        let details = datatype_param
+            .details
+            .as_ref()
+            .expect("media type datatype-param alias details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:datatype-param")
+        );
+        assert_eq!(
+            details["diagnostic"],
+            serde_json::json!("example.payload_media_type")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:mediaTypes")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("mediaTypes"));
+        assert_eq!(
+            details["mediaTypes"],
+            serde_json::json!("application/json text/html")
+        );
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["application/json", "text/html"])
+        );
+        assert_eq!(
+            details["actualMediaTypeEssence"],
+            serde_json::json!("image/png")
+        );
+        assert_eq!(details["actualValue"], serde_json::json!("image/png"));
 
         let scalar_type = diagnostics
             .iter()

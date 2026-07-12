@@ -1,0 +1,14 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-datatype-param-uri-media" @namespace="https://example.test/ns/invalid-datatype-param-uri-media/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+
+    {attributes |
+        {attribute @name="href" @type="schema:uri" @uriSchemes="https 1bad"}
+        {attribute @name="format" @type="schema:media-type" @mediaTypes="text/html text"}
+    }
+}
