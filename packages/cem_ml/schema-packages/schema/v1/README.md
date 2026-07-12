@@ -157,8 +157,8 @@ This lets one broad diagnostic family such as
 Attribute-owned engine primitives are also schema-visible. Attribute
 declarations bind `@values` failures through `@values-diagnostic` to
 `schema:value-vocabulary`, scalar syntax failures for boolean, integer, number,
-URI, media-type, and path attributes through `@type-diagnostic` to
-`schema:scalar-type`,
+qualified-name, semantic version, URI, media-type, and path attributes through
+`@type-diagnostic` to `schema:scalar-type`,
 and datatype parameter failures for integer and number
 `@minInclusive`/`@maxInclusive`/`@minExclusive`/`@maxExclusive` bounds, string
 `@minLength`/`@maxLength`/`@length` constraints, numeric
@@ -243,9 +243,9 @@ diagnostics with their declared behavior. Integer and number `minInclusive`,
 essence/parameter-name/required-parameter `mediaTypes`/
 `mediaTypeParameters`/`mediaTypeRequiredParameters` datatype parameter variations now
 execute through
-`schema:datatype-param`; boolean, integer, number, basic absolute-URI, basic
-media-type, and scope-context path scalar syntax now execute through
-`schema:scalar-type`;
+`schema:datatype-param`; boolean, integer, number, qualified-name, semantic
+version, basic absolute-URI, basic media-type, and scope-context path scalar
+syntax now execute through `schema:scalar-type`;
 schema-definition validation also rejects numeric bound/digit-count params on
 non-numeric attributes and string length params on non-string attributes;
 required-one/max-one attribute choice cardinality and nested choice/case groups
@@ -263,7 +263,7 @@ CLI validation integration tests.
 | Example | Purpose | Expected result |
 | --- | --- | --- |
 | [`basic-schema.cem`](examples/basic-schema.cem) | Minimal schema definition with content type, element, and attribute declarations. | Pass |
-| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, conditional `schema:required-fields`, nested exact-one `schema:choice-case`, child-set, selected/ranged, ordered, boundary, and exact/required/forbidden sequence `schema:child-occurrence`, `schema:value-vocabulary`, `schema:scalar-type` number/URI/media-type/path syntax, and `schema:datatype-param` integer-bound/number-bound/digit-count/string length/pattern/URI scheme/authority/path-prefix/media-type essence/parameter-name/required-parameter attribute diagnostics, and open-content policy. | Pass |
+| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, conditional `schema:required-fields`, nested exact-one `schema:choice-case`, child-set, selected/ranged, ordered, boundary, and exact/required/forbidden sequence `schema:child-occurrence`, `schema:value-vocabulary`, `schema:scalar-type` number/qualified-name/semver/URI/media-type/path syntax, and `schema:datatype-param` integer-bound/number-bound/digit-count/string length/pattern/URI scheme/authority/path-prefix/media-type essence/parameter-name/required-parameter attribute diagnostics, and open-content policy. | Pass |
 | [`custom-behavior-schema.cem`](examples/custom-behavior-schema.cem) | Custom schema that defines a diagnostic algorithm with CEM-QL candidate matching and a CEM-ML behavior function. | Pass |
 | [`custom-behavior-schema-strict.cem`](examples/custom-behavior-schema-strict.cem) | Variant custom schema that changes the match condition and function-produced result declaratively. | Pass |
 | [`invalid-unclosed-schema.cem`](examples/invalid-unclosed-schema.cem) | Missing closing schema scope syntax diagnostic. | Fail with `cem.ast.unclosed_scope` |

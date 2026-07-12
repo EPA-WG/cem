@@ -22,7 +22,7 @@
     }
 
     {elements |
-        {element @name="resource" @required-attributes="id kind" @optional-attributes="label priority rank weight serial ratio slug code href format asset inline" @children="field*"}
+        {element @name="resource" @required-attributes="id kind" @optional-attributes="label priority rank weight serial ratio slug code href format asset inline qualified version" @children="field*"}
         {element @name="single-resource" @required-attributes="id kind" @children="field"}
         {element @name="linked-resource" @required-attributes="id kind" @optional-attributes="label" @children="field reference"}
         {element @name="field" @required-attributes="name type"}
@@ -113,6 +113,16 @@
             @minLength=3
             @maxLength=80
             @datatype-param-diagnostic="example.resource.invalid_inline"
+        }
+        {attribute
+            @name="qualified"
+            @type="schema:qualified-name"
+            @type-diagnostic="example.resource.invalid_qualified_name"
+        }
+        {attribute
+            @name="version"
+            @type="schema:semver"
+            @type-diagnostic="example.resource.invalid_version"
         }
         {attribute @name="label" @type="schema:string"}
         {attribute @name="name" @type="cemml:identifier"}
@@ -276,6 +286,18 @@
             @severity="error"
             @behavior="schema:datatype-param"
             @message="Inline resource text must stay within the declared length bounds"
+        }
+        {diagnostic
+            @code="example.resource.invalid_qualified_name"
+            @severity="error"
+            @behavior="schema:scalar-type"
+            @message="Resource qualified name must use CEM qualified-name syntax"
+        }
+        {diagnostic
+            @code="example.resource.invalid_version"
+            @severity="error"
+            @behavior="schema:scalar-type"
+            @message="Resource version must use semantic version syntax"
         }
         {diagnostic
             @code="example.resource.link_choice"

@@ -818,6 +818,25 @@ fn validate_attribute_type(
             allows_empty: false,
             message: "not a schema-declared number",
         })
+    } else if is_qualified_name_type_reference(value_type) {
+        (!is_cem_qualified_name(value)).then_some(AttributeTypeViolation {
+            name: "qualified-name",
+            check_kind: "type:qualified-name",
+            expected_values: &[],
+            expected_pattern: "CEM qualified name: local-name or prefix:local-name",
+            allows_empty: false,
+            message: "not a schema-declared qualified name",
+        })
+    } else if is_semver_type_reference(value_type) {
+        (!is_semver(value)).then_some(AttributeTypeViolation {
+            name: "semver",
+            check_kind: "type:semver",
+            expected_values: &[],
+            expected_pattern:
+                "semantic version: major.minor.patch with optional prerelease and build metadata",
+            allows_empty: false,
+            message: "not a schema-declared semantic version",
+        })
     } else if is_uri_type_reference(value_type) {
         (!is_absolute_uri(value)).then_some(AttributeTypeViolation {
             name: "uri",
@@ -928,6 +947,14 @@ fn is_string_type_reference(value_type: &str) -> bool {
     type_reference_local_name(value_type) == "string"
 }
 
+fn is_qualified_name_type_reference(value_type: &str) -> bool {
+    type_reference_local_name(value_type) == "qualified-name"
+}
+
+fn is_semver_type_reference(value_type: &str) -> bool {
+    type_reference_local_name(value_type) == "semver"
+}
+
 fn is_uri_type_reference(value_type: &str) -> bool {
     type_reference_local_name(value_type) == "uri"
 }
@@ -959,6 +986,85 @@ fn is_finite_decimal_number(value: &str) -> bool {
     !value.is_empty()
         && value.parse::<f64>().is_ok_and(|number| number.is_finite())
         && value.bytes().any(|byte| byte.is_ascii_digit())
+}
+
+fn is_cem_local_name(value: &str) -> bool {
+    let mut chars = value.chars();
+    chars
+        .next()
+        .is_some_and(|ch| ch.is_alphabetic() || ch == '_')
+        && chars.all(|ch| ch.is_alphanumeric() || matches!(ch, '_' | '-'))
+}
+
+fn is_cem_qualified_name(value: &str) -> bool {
+    let value = value.trim();
+    if value.is_empty() {
+        return false;
+    }
+    match value.split_once(':') {
+        Some((prefix, local)) => {
+            !local.contains(':') && is_cem_local_name(prefix) && is_cem_local_name(local)
+        }
+        None => is_cem_local_name(value),
+    }
+}
+
+fn is_semver(value: &str) -> bool {
+    let value = value.trim();
+    let Some((core, build)) = value
+        .split_once('+')
+        .map_or(Some((value, None)), |(core, build)| {
+            (!build.is_empty()).then_some((core, Some(build)))
+        })
+    else {
+        return false;
+    };
+    if build.is_some_and(|build| !semver_identifier_sequence_is_valid(build, false)) {
+        return false;
+    }
+    let Some((core, prerelease)) = core
+        .split_once('-')
+        .map_or(Some((core, None)), |(core, pre)| {
+            (!pre.is_empty()).then_some((core, Some(pre)))
+        })
+    else {
+        return false;
+    };
+    if prerelease.is_some_and(|pre| !semver_identifier_sequence_is_valid(pre, true)) {
+        return false;
+    }
+    let mut parts = core.split('.');
+    let Some(major) = parts.next() else {
+        return false;
+    };
+    let Some(minor) = parts.next() else {
+        return false;
+    };
+    let Some(patch) = parts.next() else {
+        return false;
+    };
+    parts.next().is_none()
+        && semver_numeric_identifier_is_valid(major)
+        && semver_numeric_identifier_is_valid(minor)
+        && semver_numeric_identifier_is_valid(patch)
+}
+
+fn semver_numeric_identifier_is_valid(value: &str) -> bool {
+    !value.is_empty()
+        && value.bytes().all(|byte| byte.is_ascii_digit())
+        && (value == "0" || !value.starts_with('0'))
+}
+
+fn semver_identifier_sequence_is_valid(value: &str, enforce_numeric_leading_zero: bool) -> bool {
+    value.split('.').all(|part| {
+        !part.is_empty()
+            && part
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+            && (!enforce_numeric_leading_zero
+                || !part.bytes().all(|byte| byte.is_ascii_digit())
+                || semver_numeric_identifier_is_valid(part))
+    })
 }
 
 fn is_absolute_uri(value: &str) -> bool {
@@ -11031,6 +11137,191 @@ mod tests {
         assert_eq!(details["actualValue"], serde_json::json!("NaN"));
         assert_eq!(details["invalidFields"], serde_json::json!(["weight"]));
         assert_eq!(details["actualValues"]["weight"], serde_json::json!("NaN"));
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
+    fn schema_qualified_name_attribute_type_drives_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/qualified-name-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="qualified-name-contracts" @namespace="https://example.test/ns/qualified-name-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="name"}
+    }
+    {attributes |
+        {attribute @name="name" @type="schema:qualified-name"}
+    }
+}"#,
+        );
+        for source in [
+            r#"{item @name=local}"#,
+            r#"{item @name="prefix:local"}"#,
+            r#"{item @name="_prefix:local-name2"}"#,
+            r#"{item @name="élem:naïve"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_TYPE_CODE),
+                "valid qualified-name source produced type diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        for source in [
+            r#"{item @name}"#,
+            r#"{item @name="1bad"}"#,
+            r#"{item @name="prefix:"}"#,
+            r#"{item @name=":local"}"#,
+            r#"{item @name="too:many:parts"}"#,
+            r#"{item @name="bad name"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_TYPE_CODE),
+                "invalid qualified-name source did not produce type diagnostic: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{item @name="too:many:parts"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_TYPE_CODE)
+            .expect("qualified-name type diagnostic");
+        assert!(diagnostic.message.contains("name"));
+        assert!(diagnostic.message.contains("too:many:parts"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("qualified-name type details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/qualified-name-contracts/1")
+        );
+        assert_eq!(details["element"], serde_json::json!("item"));
+        assert_eq!(details["attribute"], serde_json::json!("name"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-type:name")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("type:qualified-name")
+        );
+        assert_eq!(
+            details["expectedType"],
+            serde_json::json!("schema:qualified-name")
+        );
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("CEM qualified name: local-name or prefix:local-name")
+        );
+        assert_eq!(details["allowsEmpty"], serde_json::json!(false));
+        assert_eq!(details["actualValue"], serde_json::json!("too:many:parts"));
+        assert_eq!(details["invalidFields"], serde_json::json!(["name"]));
+        assert_eq!(
+            details["actualValues"]["name"],
+            serde_json::json!("too:many:parts")
+        );
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
+    fn schema_semver_attribute_type_drives_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/semver-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="semver-contracts" @namespace="https://example.test/ns/semver-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="version"}
+    }
+    {attributes |
+        {attribute @name="version" @type="schema:semver"}
+    }
+}"#,
+        );
+        for source in [
+            r#"{item @version="0.1.0"}"#,
+            r#"{item @version="1.2.3"}"#,
+            r#"{item @version="1.2.3-alpha.1"}"#,
+            r#"{item @version="1.2.3+build.5"}"#,
+            r#"{item @version="1.2.3-alpha.1+build.5"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_TYPE_CODE),
+                "valid semver source produced type diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        for source in [
+            r#"{item @version}"#,
+            r#"{item @version=1}"#,
+            r#"{item @version="1.2"}"#,
+            r#"{item @version="v1.2.3"}"#,
+            r#"{item @version="01.2.3"}"#,
+            r#"{item @version="1.2.3-01"}"#,
+            r#"{item @version="1.2.3-"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_TYPE_CODE),
+                "invalid semver source did not produce type diagnostic: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{item @version="01.2.3"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_TYPE_CODE)
+            .expect("semver type diagnostic");
+        assert!(diagnostic.message.contains("version"));
+        assert!(diagnostic.message.contains("01.2.3"));
+        let details = diagnostic.details.as_ref().expect("semver type details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/semver-contracts/1")
+        );
+        assert_eq!(details["element"], serde_json::json!("item"));
+        assert_eq!(details["attribute"], serde_json::json!("version"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-type:version")
+        );
+        assert_eq!(details["checkKind"], serde_json::json!("type:semver"));
+        assert_eq!(details["expectedType"], serde_json::json!("schema:semver"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!(
+                "semantic version: major.minor.patch with optional prerelease and build metadata"
+            )
+        );
+        assert_eq!(details["allowsEmpty"], serde_json::json!(false));
+        assert_eq!(details["actualValue"], serde_json::json!("01.2.3"));
+        assert_eq!(details["invalidFields"], serde_json::json!(["version"]));
+        assert_eq!(
+            details["actualValues"]["version"],
+            serde_json::json!("01.2.3")
+        );
         assert!(details["sourceRange"]["span"]["start"].is_u64());
     }
 
