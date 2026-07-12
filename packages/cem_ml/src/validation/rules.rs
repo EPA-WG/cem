@@ -29,6 +29,7 @@ use crate::resolver::{has_uri_scheme, is_windows_drive_path, parse_local_file_ur
 use crate::run_config::ScopeConfig;
 use crate::schema::document_model::{
     load_builtin_document_model_for_identity, validate_document_model_with_behavior_evaluator,
+    SchemaDocumentModel,
 };
 use crate::schema::package_consistency::validate_schema_package_source_consistency;
 use crate::schema::registry::{
@@ -1287,18 +1288,26 @@ impl SemanticRule for SchemaDocumentModelRule {
     }
 
     fn run(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
-        let Some(model) =
-            load_builtin_document_model_for_identity(ctx.schema_uri, ctx.content_type)
-        else {
-            return Vec::new();
-        };
-
-        validate_document_model_with_behavior_evaluator(
-            ctx.document,
-            &model,
-            ctx.schema_behavior_evaluator,
+        run_schema_document_model_rule_with_model(
+            ctx,
+            load_builtin_document_model_for_identity(ctx.schema_uri, ctx.content_type),
         )
     }
+}
+
+fn run_schema_document_model_rule_with_model(
+    ctx: &RuleContext<'_>,
+    model: Option<SchemaDocumentModel>,
+) -> Vec<Diagnostic> {
+    let Some(model) = model else {
+        return Vec::new();
+    };
+
+    validate_document_model_with_behavior_evaluator(
+        ctx.document,
+        &model,
+        ctx.schema_behavior_evaluator,
+    )
 }
 
 fn schema_document_model_descriptor() -> &'static RuleDescriptor {
@@ -2917,6 +2926,8 @@ fn relaxed_boundary_descriptor() -> &'static RuleDescriptor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::schema::document_model::compile_schema_document_model;
+    use crate::schema::package_sources::builtin_schema_package_source;
     use crate::validation::{run, RuleRegistry};
 
     fn parse(input: &str) -> crate::parser::document::CemDocument {
@@ -2960,6 +2971,32 @@ mod tests {
             upstream_diagnostics: &upstream,
             schema_behavior_evaluator: None,
         })
+    }
+
+    fn schema_document_model_rule_diagnostics_for_schema_package_source(
+        input: &str,
+        schema_source: &str,
+    ) -> Vec<Diagnostic> {
+        let doc = parse(input);
+        let upstream: Vec<Diagnostic> = doc.diagnostics.clone();
+        let model = compile_schema_document_model(CEM_SCHEMA_PACKAGE_URI, schema_source);
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "schema-package source must compile for rule test: {:#?}",
+            model.compile_diagnostics
+        );
+        run_schema_document_model_rule_with_model(
+            &RuleContext {
+                document: &doc,
+                schema_uri: Some(CEM_SCHEMA_PACKAGE_URI),
+                content_type: Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
+                source_uri: None,
+                resource_reader: None,
+                upstream_diagnostics: &upstream,
+                schema_behavior_evaluator: None,
+            },
+            Some(model),
+        )
     }
 
     #[test]
@@ -3255,6 +3292,67 @@ mod tests {
         assert!(diags
             .iter()
             .any(|d| d.code == "cem.schema_model.missing_required_attribute"));
+    }
+
+    #[test]
+    fn schema_document_model_rule_uses_schema_source_field_contracts() {
+        let source = builtin_schema_package_source("schema-package")
+            .expect("schema-package source is embedded");
+        let relaxed_schema = source.schema_source.replace(
+            r#"@required-children="schema content-type""#,
+            r#"@required-children="schema""#,
+        );
+        assert_ne!(
+            relaxed_schema, source.schema_source,
+            "schema-package source mutation should alter the field contract"
+        );
+        let manifest = r#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id=demo @version="1.0.0" |
+    {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+}"#;
+
+        let baseline = schema_document_model_rule_diagnostics_for_schema_package_source(
+            manifest,
+            source.schema_source,
+        );
+        assert!(
+            baseline.iter().any(|diagnostic| {
+                diagnostic.code == "cem.schema_package.package_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("package-required-children")
+                    && diagnostic
+                        .details
+                        .as_ref()
+                        .and_then(|details| {
+                            details
+                                .get("missingChildren")
+                                .and_then(serde_json::Value::as_array)
+                        })
+                        .is_some_and(|children| {
+                            children
+                                .iter()
+                                .any(|child| child.as_str() == Some("content-type"))
+                        })
+            }),
+            "baseline schema-package rule should require content-type child: {baseline:#?}"
+        );
+
+        let relaxed = schema_document_model_rule_diagnostics_for_schema_package_source(
+            manifest,
+            &relaxed_schema,
+        );
+        assert!(
+            relaxed.iter().all(|diagnostic| {
+                diagnostic.details.as_ref().and_then(|details| {
+                    details.get("contract").and_then(serde_json::Value::as_str)
+                }) != Some("package-required-children")
+            }),
+            "rule-layer validation should follow the mutated schema-owned field contract: {relaxed:#?}"
+        );
     }
 
     #[test]

@@ -168,7 +168,13 @@ history belongs in git history and the feature-specific docs linked below.
         a package-specific Rust branch. `document_model.rs` now mutates the
         schema-package `package-required-children` contract in-memory and
         proves the missing `content-type` validation changes through schema
-        source alone.
+        source alone; `rules.rs` now runs the schema document model rule
+        against the same source mutation and proves rule-layer validation
+        follows the `.cem` contract. CLI source-mutation coverage remains a
+        schema-loading decision because `validate --schema` currently selects
+        built-in document models by schema URI, while `--schema-package` loads
+        converter/artifact context without replacing the validation schema
+        model.
   - [ ] Expand the initial `field-contracts` vocabulary in
         `packages/cem_ml/schema-packages/schema/v1/schema/cem-schema.cem`.
         The schema language now models element-bound required/optional/
