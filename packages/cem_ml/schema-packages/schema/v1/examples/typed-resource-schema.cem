@@ -161,6 +161,7 @@
             @required-one-child="field reference"
             @max-one-child="field reference"
             @ordered-children="field reference"
+            @forbidden-child-sequence="reference field"
             @diagnostic="example.resource.child_choice"
             @behavior="schema:child-occurrence"
             @check-kind="exactly-one-child"

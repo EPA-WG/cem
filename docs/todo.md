@@ -48,7 +48,7 @@ history belongs in git history and the feature-specific docs linked below.
       executes through `schema:child-occurrence`; relative child ordering now
       also executes through `schema:child-occurrence`; boundary child
       placement now also executes through `schema:child-occurrence`; required
-      child sequences now also execute through `schema:child-occurrence`.
+      and forbidden child sequences now also execute through `schema:child-occurrence`.
       Additional engine algorithms remain.
   - [x] Allow declarative behavior to select candidate nodes and match failure
         conditions with CEM-QL, then invoke a schema-declared CEM-ML behavior
@@ -80,7 +80,7 @@ history belongs in git history and the feature-specific docs linked below.
         `schema:reference-resolution`; required-one/max-one attribute choice
         cardinality now executes through `schema:choice-case`; broader child
         occurrence ranges, child-set cardinality, relative child ordering, and
-        boundary child placement, plus required child sequences, now execute through `schema:child-occurrence`; basic
+        boundary child placement, plus required/forbidden child sequences, now execute through `schema:child-occurrence`; basic
         number, URI, media-type, and scope-context path scalar syntax now
         execute through `schema:scalar-type`; nested choice/case groups now
         execute through `schema:choice-case`; number inclusive/exclusive bounds
@@ -123,7 +123,7 @@ history belongs in git history and the feature-specific docs linked below.
         number bounds, numeric digit-count constraints, and string length
         constraints, plus URI scheme/authority and media-type
         essence/parameter-name constraints, plus child-set exact-one and
-        selected/distinct-count/ordered/boundary/sequence `schema:child-occurrence`;
+        selected/distinct-count/ordered/boundary/required-sequence/forbidden-sequence `schema:child-occurrence`;
         schema-package examples cover constraint-level
         `schema:resource-readable`, `schema:resource-parse`, and
         `schema:reference-resolution` bindings through operational artifact
@@ -133,7 +133,7 @@ history belongs in git history and the feature-specific docs linked below.
         `schema:field-dependency`, `schema:child-occurrence`, and
         `schema:path-layout` bindings through converter/artifact/example
         diagnostics,
-        and ranged, child-set, selected-count, distinct-count, ordered, boundary, and sequence `schema:child-occurrence` through the typed-resource schema
+        and ranged, child-set, selected-count, distinct-count, ordered, boundary, required-sequence, and forbidden-sequence `schema:child-occurrence` through the typed-resource schema
         example; schema-package CLI examples now also cover schema-definition
         failures for invalid datatype parameter declarations on integer/number
         bounds, numeric digit counts, string length bounds, and regex patterns.
@@ -202,11 +202,11 @@ history belongs in git history and the feature-specific docs linked below.
         plus accepted-child allow-lists, forbidden-child occurrence, exact
         child counts, child-set cardinality, total, selected, and distinct child-count
         bounds, min/max child occurrence ranges, relative child ordering, and
-        boundary child placement, plus required child sequences; it still needs scalar type validation beyond
+        boundary child placement, plus required/forbidden child sequences; it still needs scalar type validation beyond
         boolean/integer/number/basic URI/media-type/path syntax, RELAX NG-style
         datatype params beyond those initial variations, defaults, richer
         dependent-required field groups, and additional child occurrence
-        variants beyond exact/named/total/selected/distinct count bounds, child-set cardinality, relative ordering, boundary placement, and required child sequences.
+        variants beyond exact/named/total/selected/distinct count bounds, child-set cardinality, relative ordering, boundary placement, and required/forbidden child sequences.
   - [ ] Extend the compiled Rust schema contract model. `SchemaDocumentModel`
         now compiles initial `field-contract` declarations and evaluates
         required/forbidden fields, attribute `@values` vocabularies, and
@@ -218,13 +218,13 @@ history belongs in git history and the feature-specific docs linked below.
         occurrence contracts, child-set cardinality contracts, exact
         child-count contracts, total/selected/distinct child-count bound contracts,
         relative child ordering contracts, boundary child placement contracts,
-        and required child sequence contracts; it
+        and required/forbidden child sequence contracts; it
         still needs reusable string/path constraints beyond path-layout checks,
         URI/media-type constraints beyond initial allowed scheme/authority
         and media-type essence/parameter-name lists, RELAX NG-style datatype params beyond numeric bounds/digit
         counts, pattern, and allowed URI/media tokens, dependent field
         groups beyond presence-gated required fields, additional child
-        occurrence variants beyond exact/named/total/selected/distinct count bounds, child-set cardinality, relative ordering, boundary placement, and required child sequences, defaults, and richer case grouping for all schema
+        occurrence variants beyond exact/named/total/selected/distinct count bounds, child-set cardinality, relative ordering, boundary placement, and required/forbidden child sequences, defaults, and richer case grouping for all schema
         elements.
   - [ ] Extend structured diagnostic details beyond initial required/forbidden
         field checks. The first generic field-contract evaluator now emits
@@ -253,7 +253,8 @@ history belongs in git history and the feature-specific docs linked below.
         unorderedChildren, invalidChildOrder, firstChild, lastChild,
         actualFirstChild, actualLastChild, invalidFirstChild,
         invalidLastChild, requiredChildSequence, actualChildSequence,
-        matchedChildSequence, invalidChildSequence, and childCounts details;
+        matchedChildSequence, invalidChildSequence, forbiddenChildSequence,
+        matchedForbiddenChildSequence, invalidForbiddenChildSequence, and childCounts details;
         required-one/max-one attribute choice checks emit choice cardinality
         details; path-layout checks emit pathLayout and invalidValues details;
         path type checks emit expected/actual details; nested choice/case
@@ -262,7 +263,7 @@ history belongs in git history and the feature-specific docs linked below.
         children and childCounts details; URI scheme, URI authority, and
         media-type essence/parameter-name datatype-param checks emit expected values and normalized actual tokens; additional
         URI/media-type constraints, datatype params, dependency, additional
-        child occurrence variants beyond exact/named/total/selected/distinct count bounds, child-set cardinality, relative ordering, boundary placement, and required child sequences, and cross-reference checks need the same
+        child occurrence variants beyond exact/named/total/selected/distinct count bounds, child-set cardinality, relative ordering, boundary placement, and required/forbidden child sequences, and cross-reference checks need the same
         schema-owned detail shape.
   - [ ] Extend the generic field-contract evaluator. The first evaluator runs
         from schema URI plus content type, consumes the compiled contract
@@ -282,7 +283,7 @@ history belongs in git history and the feature-specific docs linked below.
         occurrence checks, child-set cardinality, exact child-count and total/selected/distinct child-count checks, URI scheme/authority
         constraints, and media-type essence/parameter-name constraints; it still needs coverage for additional
         URI/media-type constraints, additional datatype params, dependency, and
-        additional child occurrence variants beyond exact/named/total/selected/distinct count bounds, child-set cardinality, relative ordering, boundary placement, and required child sequences.
+        additional child occurrence variants beyond exact/named/total/selected/distinct count bounds, child-set cardinality, relative ordering, boundary placement, and required/forbidden child sequences.
   - [ ] Move schema-package manifest field rules from Rust conditionals into
         `packages/cem_ml/schema-packages/schema-package/v1/schema/schema-package.cem`.
         Cover `package`, `schema`, `content-type`, `namespace`, `converter`,

@@ -84,6 +84,8 @@ first or last element-child position in the current scope.
 Use `required-child-sequence` when a contiguous direct-child run must appear
 somewhere in the current scope. Extra children may appear before or after the
 run, but intervening children break the sequence.
+Use `forbidden-child-sequence` when a contiguous direct-child run must not
+appear in the current scope.
 Use `path-layout-attributes` with `path-layout-prefix` and
 `path-layout-extension` for package-relative path layout contracts, such as
 formatter artifacts under `formatters/` and colorizer artifacts under
@@ -243,7 +245,7 @@ required-one/max-one attribute choice cardinality and nested choice/case groups
 now execute through `schema:choice-case`; child-set cardinality,
 `min-children`/`max-children` named child occurrence ranges, and
 total/distinct/selected child-count bounds, plus relative child ordering,
-boundary child placement, and required child sequences, now execute through `schema:child-occurrence`; additional
+boundary child placement, and required/forbidden child sequences, now execute through `schema:child-occurrence`; additional
 datatype parameter families remain follow-up work.
 
 ## Validation Examples
@@ -254,7 +256,7 @@ CLI validation integration tests.
 | Example | Purpose | Expected result |
 | --- | --- | --- |
 | [`basic-schema.cem`](examples/basic-schema.cem) | Minimal schema definition with content type, element, and attribute declarations. | Pass |
-| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, conditional `schema:required-fields`, nested exact-one `schema:choice-case`, child-set, selected/ranged, ordered, boundary, and sequence `schema:child-occurrence`, `schema:value-vocabulary`, `schema:scalar-type` number/URI/media-type/path syntax, and `schema:datatype-param` integer-bound/number-bound/digit-count/string length/pattern/URI scheme/authority/media-type essence/parameter-name attribute diagnostics, and open-content policy. | Pass |
+| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, conditional `schema:required-fields`, nested exact-one `schema:choice-case`, child-set, selected/ranged, ordered, boundary, and required/forbidden sequence `schema:child-occurrence`, `schema:value-vocabulary`, `schema:scalar-type` number/URI/media-type/path syntax, and `schema:datatype-param` integer-bound/number-bound/digit-count/string length/pattern/URI scheme/authority/media-type essence/parameter-name attribute diagnostics, and open-content policy. | Pass |
 | [`custom-behavior-schema.cem`](examples/custom-behavior-schema.cem) | Custom schema that defines a diagnostic algorithm with CEM-QL candidate matching and a CEM-ML behavior function. | Pass |
 | [`custom-behavior-schema-strict.cem`](examples/custom-behavior-schema-strict.cem) | Variant custom schema that changes the match condition and function-produced result declaratively. | Pass |
 | [`invalid-unclosed-schema.cem`](examples/invalid-unclosed-schema.cem) | Missing closing schema scope syntax diagnostic. | Fail with `cem.ast.unclosed_scope` |
