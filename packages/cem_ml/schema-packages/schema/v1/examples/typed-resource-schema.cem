@@ -85,7 +85,8 @@
             @name="href"
             @type="schema:uri"
             @type-diagnostic="example.resource.invalid_href"
-            @uriSchemes="https mailto"
+            @uriSchemes="https"
+            @uriRequiresAuthority=true
             @datatype-param-diagnostic="example.resource.invalid_href_scheme"
         }
         {attribute
@@ -93,6 +94,7 @@
             @type="schema:media-type"
             @type-diagnostic="example.resource.invalid_format"
             @mediaTypes="application/json text/html"
+            @mediaTypeParameters="charset profile"
             @datatype-param-diagnostic="example.resource.invalid_format_type"
         }
         {attribute

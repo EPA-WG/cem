@@ -40,7 +40,8 @@ history belongs in git history and the feature-specific docs linked below.
       parameter checks now cover integer and number `minInclusive`/`maxInclusive`/
       `minExclusive`/`maxExclusive`, numeric `totalDigits`/`fractionDigits`,
       string `minLength`/`maxLength`/`length`, regex `pattern`, URI
-      `uriSchemes`, and media-type `mediaTypes`.
+      `uriSchemes`/`uriRequiresAuthority`, and media-type
+      `mediaTypes`/`mediaTypeParameters`.
       Required-one/max-one attribute choice cardinality now executes through
       `schema:choice-case`. Broader child occurrence ranges now execute
       through `schema:child-occurrence`. Additional engine algorithms remain.
@@ -114,7 +115,8 @@ history belongs in git history and the feature-specific docs linked below.
         syntax on attribute declarations, plus nested exact-one
         `schema:choice-case` cardinality and `schema:datatype-param` decimal
         number bounds, numeric digit-count constraints, and string length
-        constraints;
+        constraints, plus URI scheme/authority and media-type
+        essence/parameter-name constraints;
         schema-package examples cover constraint-level
         `schema:resource-readable`, `schema:resource-parse`, and
         `schema:reference-resolution` bindings through operational artifact
