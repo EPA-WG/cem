@@ -22,7 +22,7 @@
     }
 
     {elements |
-        {element @name="resource" @required-attributes="id kind" @optional-attributes="label priority rank weight slug code href format asset inline" @children="field*"}
+        {element @name="resource" @required-attributes="id kind" @optional-attributes="label priority rank weight serial ratio slug code href format asset inline" @children="field*"}
         {element @name="field" @required-attributes="name type"}
     }
 
@@ -49,6 +49,19 @@
             @maxInclusive=1.0
             @type-diagnostic="example.resource.invalid_weight"
             @datatype-param-diagnostic="example.resource.invalid_weight_range"
+        }
+        {attribute
+            @name="serial"
+            @type="schema:integer"
+            @totalDigits=6
+            @datatype-param-diagnostic="example.resource.invalid_serial_digits"
+        }
+        {attribute
+            @name="ratio"
+            @type="schema:number"
+            @totalDigits=4
+            @fractionDigits=2
+            @datatype-param-diagnostic="example.resource.invalid_ratio_digits"
         }
         {attribute
             @name="slug"
@@ -182,6 +195,18 @@
             @severity="error"
             @behavior="schema:datatype-param"
             @message="Resource weight must stay within the declared decimal bounds"
+        }
+        {diagnostic
+            @code="example.resource.invalid_serial_digits"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource serial must satisfy the declared total digit limit"
+        }
+        {diagnostic
+            @code="example.resource.invalid_ratio_digits"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource ratio must satisfy the declared digit limits"
         }
         {diagnostic
             @code="example.resource.invalid_slug"

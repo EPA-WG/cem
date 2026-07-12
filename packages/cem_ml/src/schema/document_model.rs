@@ -13,8 +13,9 @@
 //!   behavior definitions, including severity and message metadata.
 //! - schema-owned attribute `@values`, boolean/integer/number/URI/media-type/
 //!   path type checks, and integer/number `minInclusive`/`maxInclusive`/
-//!   `minExclusive`/`maxExclusive`, string `minLength`/`maxLength`/`length`,
-//!   and regex `pattern` datatype-param checks.
+//!   `minExclusive`/`maxExclusive`, numeric `totalDigits`/`fractionDigits`,
+//!   string `minLength`/`maxLength`/`length`, and regex `pattern`
+//!   datatype-param checks.
 //! - schema-owned exact and ranged child occurrence field contracts.
 //!
 //! Ordering, scalar type checks beyond boolean/integer/number/URI/media-type/
@@ -143,6 +144,8 @@ pub struct AttributeModel {
     pub min_length: Option<String>,
     pub max_length: Option<String>,
     pub length: Option<String>,
+    pub total_digits: Option<String>,
+    pub fraction_digits: Option<String>,
     pub pattern: Option<String>,
     pub values_diagnostic: Option<String>,
     pub type_diagnostic: Option<String>,
@@ -1160,6 +1163,62 @@ fn validate_attribute_datatype_params(
             );
         }
     }
+    let digit_counts =
+        if attribute_model.total_digits.is_some() || attribute_model.fraction_digits.is_some() {
+            attribute_model
+                .value_type
+                .as_deref()
+                .filter(|value_type| {
+                    is_integer_type_reference(value_type) || is_number_type_reference(value_type)
+                })
+                .and_then(|_| decimal_digit_counts(value))
+        } else {
+            None
+        };
+    if let (Some(total_digits), Some(digit_counts)) =
+        (attribute_model.total_digits.as_deref(), digit_counts)
+    {
+        if parse_positive_integer_to_usize(total_digits)
+            .is_some_and(|max| digit_counts.total_digits > max)
+        {
+            emit_attribute_datatype_param_diagnostic(
+                schema_uri,
+                diagnostic_behaviors,
+                element_name,
+                attribute_name,
+                value,
+                attribute_model,
+                "totalDigits",
+                total_digits,
+                "with more total digits than",
+                attribute_values,
+                node,
+                diagnostics,
+            );
+        }
+    }
+    if let (Some(fraction_digits), Some(digit_counts)) =
+        (attribute_model.fraction_digits.as_deref(), digit_counts)
+    {
+        if parse_non_negative_integer_to_usize(fraction_digits)
+            .is_some_and(|max| digit_counts.fraction_digits > max)
+        {
+            emit_attribute_datatype_param_diagnostic(
+                schema_uri,
+                diagnostic_behaviors,
+                element_name,
+                attribute_name,
+                value,
+                attribute_model,
+                "fractionDigits",
+                fraction_digits,
+                "with more fractional digits than",
+                attribute_values,
+                node,
+                diagnostics,
+            );
+        }
+    }
 }
 
 fn emit_attribute_datatype_param_diagnostic(
@@ -1228,6 +1287,87 @@ fn parse_non_negative_integer_to_usize(value: &str) -> Option<usize> {
         return None;
     }
     normalized.1.parse::<usize>().ok()
+}
+
+fn parse_positive_integer_to_usize(value: &str) -> Option<usize> {
+    let parsed = parse_non_negative_integer_to_usize(value)?;
+    (parsed > 0).then_some(parsed)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct DecimalDigitCounts {
+    total_digits: usize,
+    fraction_digits: usize,
+}
+
+fn decimal_digit_counts(value: &str) -> Option<DecimalDigitCounts> {
+    if let Some((_, digits)) = normalize_decimal_integer(value) {
+        return Some(DecimalDigitCounts {
+            total_digits: digits.len(),
+            fraction_digits: 0,
+        });
+    }
+
+    let value = value.trim();
+    if !is_finite_decimal_number(value) {
+        return None;
+    }
+    let value = value.strip_prefix(['+', '-']).unwrap_or(value);
+    let (significand, exponent) = value
+        .split_once(['e', 'E'])
+        .map(|(significand, exponent)| {
+            exponent
+                .parse::<i64>()
+                .ok()
+                .map(|exponent| (significand, exponent))
+        })
+        .unwrap_or(Some((value, 0)))?;
+    let (integer_part, fraction_part) = significand
+        .split_once('.')
+        .map(|(integer_part, fraction_part)| (integer_part, fraction_part))
+        .unwrap_or((significand, ""));
+    if !integer_part.bytes().all(|byte| byte.is_ascii_digit())
+        || !fraction_part.bytes().all(|byte| byte.is_ascii_digit())
+        || (!integer_part.bytes().any(|byte| byte.is_ascii_digit())
+            && !fraction_part.bytes().any(|byte| byte.is_ascii_digit()))
+    {
+        return None;
+    }
+
+    let mut digits = String::with_capacity(integer_part.len() + fraction_part.len());
+    digits.push_str(integer_part);
+    digits.push_str(fraction_part);
+    let decimal_position = integer_part.len() as i64 + exponent;
+    let (integer_digits, fraction_digits) = if decimal_position <= 0 {
+        let mut fraction_digits =
+            String::with_capacity((-decimal_position) as usize + digits.len());
+        fraction_digits.extend(std::iter::repeat_n('0', (-decimal_position) as usize));
+        fraction_digits.push_str(&digits);
+        (String::new(), fraction_digits)
+    } else if decimal_position as usize >= digits.len() {
+        let mut integer_digits = digits;
+        integer_digits.extend(std::iter::repeat_n(
+            '0',
+            decimal_position as usize - integer_digits.len(),
+        ));
+        (integer_digits, String::new())
+    } else {
+        let split_at = decimal_position as usize;
+        (digits[..split_at].to_owned(), digits[split_at..].to_owned())
+    };
+    let integer_digits = integer_digits.trim_start_matches('0');
+    let fraction_digits = fraction_digits.trim_end_matches('0');
+    let fraction_digit_count = fraction_digits.len();
+    let significant_fraction_digits = if integer_digits.is_empty() {
+        fraction_digits.trim_start_matches('0').len()
+    } else {
+        fraction_digit_count
+    };
+    let total_digits = (integer_digits.len() + significant_fraction_digits).max(1);
+    Some(DecimalDigitCounts {
+        total_digits,
+        fraction_digits: fraction_digit_count,
+    })
 }
 
 fn decimal_integer_cmp(left: &str, right: &str) -> Option<std::cmp::Ordering> {
@@ -1555,6 +1695,9 @@ fn collect_attribute_models(
                     min_length: optional_non_empty_attr(&attrs, "minLength").map(str::to_owned),
                     max_length: optional_non_empty_attr(&attrs, "maxLength").map(str::to_owned),
                     length: optional_non_empty_attr(&attrs, "length").map(str::to_owned),
+                    total_digits: optional_non_empty_attr(&attrs, "totalDigits").map(str::to_owned),
+                    fraction_digits: optional_non_empty_attr(&attrs, "fractionDigits")
+                        .map(str::to_owned),
                     pattern: optional_non_empty_attr(&attrs, "pattern").map(str::to_owned),
                     values_diagnostic: optional_non_empty_attr(&attrs, "values-diagnostic")
                         .map(str::to_owned),
@@ -1710,6 +1853,7 @@ fn validate_attribute_datatype_param_definition(
         ("minLength", attribute_model.min_length.as_deref()),
         ("maxLength", attribute_model.max_length.as_deref()),
         ("length", attribute_model.length.as_deref()),
+        ("fractionDigits", attribute_model.fraction_digits.as_deref()),
     ] {
         let Some(param_value) = param_value else {
             continue;
@@ -1735,6 +1879,28 @@ fn validate_attribute_datatype_param_definition(
                 "error": error,
             }),
         ));
+    }
+    if let Some(param_value) = attribute_model.total_digits.as_deref() {
+        if parse_positive_integer_to_usize(param_value).is_none() {
+            let error = "expected positive decimal integer within runtime digit-count limits";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid totalDigits datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:totalDigits",
+                    "datatypeParam": "totalDigits",
+                    "paramName": "totalDigits",
+                    "paramValue": param_value,
+                    "error": error,
+                }),
+            ));
+        }
     }
 }
 
@@ -3877,6 +4043,8 @@ fn attribute_datatype_param_details(
     let expected_pattern = match param_name {
         "pattern" => param_value,
         "minLength" | "maxLength" | "length" => "Unicode scalar value length",
+        "totalDigits" => "numeric total digit count",
+        "fractionDigits" => "numeric fractional digit count",
         "minInclusive" | "maxInclusive" | "minExclusive" | "maxExclusive"
             if is_number_type_reference(expected_type) =>
         {
@@ -3886,6 +4054,9 @@ fn attribute_datatype_param_details(
     };
     let actual_length = matches!(param_name, "minLength" | "maxLength" | "length")
         .then(|| actual_value.chars().count());
+    let actual_digit_counts = matches!(param_name, "totalDigits" | "fractionDigits")
+        .then(|| decimal_digit_counts(actual_value))
+        .flatten();
     let mut details = serde_json::json!({
         "schemaUri": schema_uri,
         "element": element_name,
@@ -3914,6 +4085,16 @@ fn attribute_datatype_param_details(
         object.insert(param_name.to_owned(), serde_json::json!(param_value));
         if let Some(actual_length) = actual_length {
             object.insert("actualLength".to_owned(), serde_json::json!(actual_length));
+        }
+        if let Some(actual_digit_counts) = actual_digit_counts {
+            object.insert(
+                "actualTotalDigits".to_owned(),
+                serde_json::json!(actual_digit_counts.total_digits),
+            );
+            object.insert(
+                "actualFractionDigits".to_owned(),
+                serde_json::json!(actual_digit_counts.fraction_digits),
+            );
         }
     }
     details
@@ -4403,6 +4584,24 @@ mod tests {
                 .attributes
                 .get("length")
                 .expect("length attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:integer")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("totalDigits")
+                .expect("totalDigits attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:integer")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("fractionDigits")
+                .expect("fractionDigits attribute model")
                 .value_type
                 .as_deref(),
             Some("schema:integer")
@@ -6407,7 +6606,7 @@ mod tests {
         {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
     }
     {elements |
-        {element @name="item" @optional-attributes="mode enabled rating ratio homepage format asset count score lower upper code label tag"}
+        {element @name="item" @optional-attributes="mode enabled rating ratio homepage format asset count score lower upper code label tag serial decimal"}
     }
     {attributes |
         {attribute
@@ -6488,6 +6687,18 @@ mod tests {
             @type="schema:string"
             @length=3
             @datatype-param-diagnostic="example.tag_length"
+        }
+        {attribute
+            @name="serial"
+            @type="schema:integer"
+            @totalDigits=3
+            @datatype-param-diagnostic="example.serial_total_digits"
+        }
+        {attribute
+            @name="decimal"
+            @type="schema:number"
+            @fractionDigits=2
+            @datatype-param-diagnostic="example.decimal_fraction_digits"
         }
     }
     {diagnostics |
@@ -6575,6 +6786,18 @@ mod tests {
             @behavior="schema:datatype-param"
             @message="Tag must satisfy its datatype parameters"
         }
+        {diagnostic
+            @code="example.serial_total_digits"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Serial must satisfy its digit-count datatype parameters"
+        }
+        {diagnostic
+            @code="example.decimal_fraction_digits"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Decimal must satisfy its fractional digit datatype parameters"
+        }
     }
 }"#,
         );
@@ -6593,7 +6816,7 @@ mod tests {
         );
 
         let document = parse_cem_document(
-            r#"{item @mode=tabular @enabled=maybe @rating=NaN @ratio=1.5 @homepage="/relative" @format="text/html; charset" @asset="/rooted.cem" @count=0 @score=11 @lower=1 @upper=10 @code=bad_code @label=go @tag=to}"#,
+            r#"{item @mode=tabular @enabled=maybe @rating=NaN @ratio=1.5 @homepage="/relative" @format="text/html; charset" @asset="/rooted.cem" @count=0 @score=11 @lower=1 @upper=10 @code=bad_code @label=go @tag=to @serial=1234 @decimal=12.345}"#,
         );
         let diagnostics = validate_document_model(&document, &model);
 
@@ -6993,6 +7216,77 @@ mod tests {
         );
         assert_eq!(details["actualLength"], serde_json::json!(2));
         assert_eq!(details["actualValue"], serde_json::json!("to"));
+
+        let datatype_param = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.serial_total_digits")
+            .expect("totalDigits datatype-param alias diagnostic");
+        assert_eq!(datatype_param.severity, Severity::Error);
+        assert!(datatype_param
+            .message
+            .starts_with("Serial must satisfy its digit-count datatype parameters:"));
+        let details = datatype_param
+            .details
+            .as_ref()
+            .expect("totalDigits datatype-param alias details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:datatype-param")
+        );
+        assert_eq!(
+            details["diagnostic"],
+            serde_json::json!("example.serial_total_digits")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:totalDigits")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("totalDigits"));
+        assert_eq!(details["totalDigits"], serde_json::json!("3"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("numeric total digit count")
+        );
+        assert_eq!(details["actualTotalDigits"], serde_json::json!(4));
+        assert_eq!(details["actualFractionDigits"], serde_json::json!(0));
+        assert_eq!(details["actualValue"], serde_json::json!("1234"));
+
+        let datatype_param = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.decimal_fraction_digits")
+            .expect("fractionDigits datatype-param alias diagnostic");
+        assert_eq!(datatype_param.severity, Severity::Error);
+        assert!(datatype_param
+            .message
+            .starts_with("Decimal must satisfy its fractional digit datatype parameters:"));
+        let details = datatype_param
+            .details
+            .as_ref()
+            .expect("fractionDigits datatype-param alias details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:datatype-param")
+        );
+        assert_eq!(
+            details["diagnostic"],
+            serde_json::json!("example.decimal_fraction_digits")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:fractionDigits")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("fractionDigits")
+        );
+        assert_eq!(details["fractionDigits"], serde_json::json!("2"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("numeric fractional digit count")
+        );
+        assert_eq!(details["actualTotalDigits"], serde_json::json!(5));
+        assert_eq!(details["actualFractionDigits"], serde_json::json!(3));
+        assert_eq!(details["actualValue"], serde_json::json!("12.345"));
     }
 
     #[test]
@@ -7906,6 +8200,142 @@ mod tests {
     }
 
     #[test]
+    fn schema_numeric_digit_datatype_params_drive_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/digit-count-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="digit-count-contracts" @namespace="https://example.test/ns/digit-count-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="serial amount"}
+    }
+    {attributes |
+        {attribute @name="serial" @type="schema:integer" @totalDigits=3}
+        {attribute @name="amount" @type="schema:number" @totalDigits=5 @fractionDigits=2}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "valid digit-count schema must compile: {:#?}",
+            model.compile_diagnostics
+        );
+
+        for source in [
+            r#"{item @serial=123}"#,
+            r#"{item @serial=000}"#,
+            r#"{item @amount=123.45}"#,
+            r#"{item @amount=1.2}"#,
+            r#"{item @amount=1.2300}"#,
+            r#"{item @amount=1.2e2}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "valid digit-count source produced diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        for source in [
+            r#"{item @serial=1234}"#,
+            r#"{item @amount=1234.56}"#,
+            r#"{item @amount=12.345}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "invalid digit-count source did not produce diagnostic: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{item @serial=1234}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("totalDigits attribute datatype param diagnostic");
+        assert!(diagnostic.message.contains("serial"));
+        assert!(diagnostic.message.contains("totalDigits"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("totalDigits attribute datatype param details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/digit-count-contracts/1")
+        );
+        assert_eq!(details["element"], serde_json::json!("item"));
+        assert_eq!(details["attribute"], serde_json::json!("serial"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:serial:totalDigits")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:totalDigits")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("totalDigits"));
+        assert_eq!(details["totalDigits"], serde_json::json!("3"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("numeric total digit count")
+        );
+        assert_eq!(details["actualTotalDigits"], serde_json::json!(4));
+        assert_eq!(details["actualFractionDigits"], serde_json::json!(0));
+        assert_eq!(details["actualValue"], serde_json::json!("1234"));
+        assert_eq!(details["invalidFields"], serde_json::json!(["serial"]));
+        assert_eq!(details["actualValues"]["serial"], serde_json::json!("1234"));
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+
+        let document = parse_cem_document(r#"{item @amount=12.345}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details
+                            .get("datatypeParam")
+                            .and_then(serde_json::Value::as_str)
+                    }) == Some("fractionDigits")
+            })
+            .expect("fractionDigits attribute datatype param diagnostic");
+        assert!(diagnostic.message.contains("fractionDigits"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("fractionDigits attribute datatype param details");
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:amount:fractionDigits")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:fractionDigits")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("fractionDigits")
+        );
+        assert_eq!(details["fractionDigits"], serde_json::json!("2"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("numeric fractional digit count")
+        );
+        assert_eq!(details["actualTotalDigits"], serde_json::json!(5));
+        assert_eq!(details["actualFractionDigits"], serde_json::json!(3));
+        assert_eq!(details["actualValue"], serde_json::json!("12.345"));
+    }
+
+    #[test]
     fn schema_integer_bound_datatype_param_rejects_decimal_bound() {
         let model = compile_document_model(
             "https://example.test/ns/invalid-integer-bound-contracts/1",
@@ -7946,6 +8376,85 @@ mod tests {
         assert_eq!(details["datatypeParam"], serde_json::json!("minInclusive"));
         assert_eq!(details["paramValue"], serde_json::json!("0.5"));
         assert_eq!(details["expectedType"], serde_json::json!("schema:integer"));
+    }
+
+    #[test]
+    fn schema_numeric_digit_datatype_params_reject_invalid_limits() {
+        let model = compile_document_model(
+            "https://example.test/ns/invalid-digit-count-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-digit-count-contracts" @namespace="https://example.test/ns/invalid-digit-count-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="serial amount"}
+    }
+    {attributes |
+        {attribute @name="serial" @type="schema:integer" @totalDigits=0}
+        {attribute @name="amount" @type="schema:number" @fractionDigits=-1}
+    }
+}"#,
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details
+                            .get("datatypeParam")
+                            .and_then(serde_json::Value::as_str)
+                    }) == Some("totalDigits")
+            })
+            .expect("invalid totalDigits schema compile diagnostic");
+        assert!(diagnostic.message.contains("invalid totalDigits"));
+        assert!(diagnostic.message.contains("serial"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid totalDigits compile details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/invalid-digit-count-contracts/1")
+        );
+        assert_eq!(details["attribute"], serde_json::json!("serial"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:totalDigits")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("totalDigits"));
+        assert_eq!(details["paramValue"], serde_json::json!("0"));
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details
+                            .get("datatypeParam")
+                            .and_then(serde_json::Value::as_str)
+                    }) == Some("fractionDigits")
+            })
+            .expect("invalid fractionDigits schema compile diagnostic");
+        assert!(diagnostic.message.contains("invalid fractionDigits"));
+        assert!(diagnostic.message.contains("amount"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid fractionDigits compile details");
+        assert_eq!(details["attribute"], serde_json::json!("amount"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:fractionDigits")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("fractionDigits")
+        );
+        assert_eq!(details["paramValue"], serde_json::json!("-1"));
     }
 
     #[test]

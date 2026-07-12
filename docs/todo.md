@@ -38,8 +38,8 @@ history belongs in git history and the feature-specific docs linked below.
       bindings now exist for broader dependency and choice/case algorithms.
       Both preserve stable diagnostic family codes. Attribute-owned datatype
       parameter checks now cover integer and number `minInclusive`/`maxInclusive`/
-      `minExclusive`/`maxExclusive`, string `minLength`/`maxLength`/`length`,
-      and regex `pattern`.
+      `minExclusive`/`maxExclusive`, numeric `totalDigits`/`fractionDigits`,
+      string `minLength`/`maxLength`/`length`, and regex `pattern`.
       Required-one/max-one attribute choice cardinality now executes through
       `schema:choice-case`. Broader child occurrence ranges now execute
       through `schema:child-occurrence`. Additional engine algorithms remain.
@@ -76,9 +76,11 @@ history belongs in git history and the feature-specific docs linked below.
         number, URI, media-type, and scope-context path scalar syntax now
         execute through `schema:scalar-type`; nested choice/case groups now
         execute through `schema:choice-case`; number inclusive/exclusive bounds
-        now reuse the existing range-parameter vocabulary; datatype parameter
-        families beyond numeric bounds, string length constraints, and regex
-        pattern remain.
+        now reuse the existing range-parameter vocabulary; numeric
+        `totalDigits` and `fractionDigits` now execute through
+        `schema:datatype-param`; datatype parameter families beyond numeric
+        bounds/digit counts, string length constraints, and regex pattern
+        remain.
   - [x] Compile behavior declarations and references into the generic schema
         model, reject missing or incompatible behavior references, and dispatch
         them through a single runtime evaluation path. The resolved behavior
@@ -110,7 +112,8 @@ history belongs in git history and the feature-specific docs linked below.
         attribute declaration, `schema:scalar-type` number/URI/media-type/path
         syntax on attribute declarations, plus nested exact-one
         `schema:choice-case` cardinality and `schema:datatype-param` decimal
-        number bounds and string length constraints;
+        number bounds, numeric digit-count constraints, and string length
+        constraints;
         schema-package examples cover constraint-level
         `schema:resource-readable`, `schema:resource-parse`, and
         `schema:reference-resolution` bindings through operational artifact
@@ -123,7 +126,8 @@ history belongs in git history and the feature-specific docs linked below.
         and ranged `schema:child-occurrence` through the typed-resource schema
         example; schema-package CLI examples now also cover schema-definition
         failures for invalid datatype parameter declarations on integer/number
-        bounds, string length bounds, and regex patterns. CLI tests now assert
+        bounds, numeric digit counts, string length bounds, and regex patterns.
+        CLI tests now assert
         structured `behavior`, `checkKind`, `contract`, severity, and source
         range details for representative schema-package engine behavior
         examples. The native tests cover warning severity,
@@ -170,8 +174,9 @@ history belongs in git history and the feature-specific docs linked below.
         and attribute `@values` vocabularies, plus
         boolean/integer/number/basic URI/media-type/path scalar syntax,
         integer `minInclusive`, `maxInclusive`,
-        `minExclusive`, and `maxExclusive` bounds plus string `minLength`,
-        `maxLength`, and `length` params and regex `pattern` datatype params,
+        `minExclusive`, and `maxExclusive` bounds, numeric `totalDigits` and
+        `fractionDigits`, plus string `minLength`, `maxLength`, and `length`
+        params and regex `pattern` datatype params,
         plus min/max child occurrence ranges; it
         still needs accepted children, scalar type validation beyond
         boolean/integer/number/basic URI/media-type/path syntax, RELAX NG-style
@@ -187,7 +192,7 @@ history belongs in git history and the feature-specific docs linked below.
         `cemml:media-type`, plus `schema:path`/`cemml:path` attribute types; it
         still needs reusable string/path constraints beyond path-layout checks,
         richer URI/media-type constraints, RELAX NG-style datatype params
-        beyond integer bounds and pattern, dependent field
+        beyond numeric bounds/digit counts and pattern, dependent field
         groups beyond presence-gated required fields, additional child
         occurrence variants, defaults, and richer case grouping for all schema
         elements.
@@ -199,8 +204,9 @@ history belongs in git history and the feature-specific docs linked below.
         value details; boolean, integer, number, basic URI, basic media-type,
         and path type checks now emit expected/actual details; integer
         `minInclusive`, `maxInclusive`,
-        `minExclusive`, and `maxExclusive` checks, string `minLength`,
-        `maxLength`, and `length` checks, plus regex `pattern` checks emit
+        `minExclusive`, and `maxExclusive` checks, numeric `totalDigits` and
+        `fractionDigits` checks, string `minLength`, `maxLength`, and `length`
+        checks, plus regex `pattern` checks emit
         datatype-param details; value-specific forbidden checks emit
         forbiddenAttributeValues and invalidValues details; child occurrence
         checks emit required/max-one/min/max children,
@@ -220,7 +226,8 @@ history belongs in git history and the feature-specific docs linked below.
         attribute `@values` plus
         boolean/integer/number/basic URI/media-type/path type, integer
         `minInclusive`/`maxInclusive`/`minExclusive`/`maxExclusive`,
-        string `minLength`/`maxLength`/`length`, and regex `pattern`
+        numeric `totalDigits`/`fractionDigits`, string
+        `minLength`/`maxLength`/`length`, and regex `pattern`
         datatype-param checks, exact-one child occurrence checks, min/max child
         occurrence range checks, required-one/max-one attribute choice checks,
         and

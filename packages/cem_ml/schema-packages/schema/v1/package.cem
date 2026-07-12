@@ -153,6 +153,15 @@
     }
 
     {example
+        @id="invalid-datatype-param-digits"
+        @path="examples/invalid-datatype-param-digits.cem"
+        @content-type="application/vnd.cem.schema+cem"
+        @schema="https://cem.dev/ns/schema/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_definition.invalid_datatype_param"
+    }
+
+    {example
         @id="invalid-unclosed-schema"
         @path="examples/invalid-unclosed-schema.cem"
         @content-type="application/vnd.cem.schema+cem"
