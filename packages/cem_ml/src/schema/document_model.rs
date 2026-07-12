@@ -16,8 +16,8 @@
 //!   `minExclusive`/`maxExclusive`, numeric `totalDigits`/`fractionDigits`,
 //!   string `minLength`/`maxLength`/`length`, regex `pattern`, URI scheme,
 //!   and media-type essence datatype-param checks.
-//! - schema-owned exact, ranged, ordered, boundary, sequence, forbidden-sequence, and
-//!   choice-cardinality child occurrence field contracts.
+//! - schema-owned exact, ranged, ordered, boundary, sequence, forbidden-sequence,
+//!   exact-sequence, and choice-cardinality child occurrence field contracts.
 //!
 //! Scalar type checks beyond boolean/integer/number/URI/media-type/path syntax,
 //! additional datatype-param families, and semantic constraints remain
@@ -361,6 +361,7 @@ pub struct FieldContract {
     pub last_child: Option<String>,
     pub required_child_sequence: Vec<String>,
     pub forbidden_child_sequence: Vec<String>,
+    pub exact_child_sequence: Vec<String>,
     pub exact_children: BTreeMap<String, String>,
     pub min_children: BTreeMap<String, String>,
     pub max_children: BTreeMap<String, String>,
@@ -457,6 +458,11 @@ struct RequiredChildSequenceEvaluation {
 #[derive(Debug, Default, PartialEq, Eq)]
 struct ForbiddenChildSequenceEvaluation {
     matched_sequence: Vec<String>,
+    invalid_sequence: bool,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+struct ExactChildSequenceEvaluation {
     invalid_sequence: bool,
 }
 
@@ -4019,6 +4025,7 @@ fn collect_field_contracts(
                 forbidden_child_sequence: parse_name_sequence(
                     attrs.get("forbidden-child-sequence"),
                 ),
+                exact_child_sequence: parse_name_sequence(attrs.get("exact-child-sequence")),
                 exact_children: parse_name_value_map(attrs.get("exact-children")),
                 min_children: parse_name_value_map(attrs.get("min-children")),
                 max_children: parse_name_value_map(attrs.get("max-children")),
@@ -4381,6 +4388,8 @@ fn validate_field_contracts(
             evaluate_required_child_sequence(&contract.required_child_sequence, child_sequence);
         let forbidden_child_sequence_evaluation =
             evaluate_forbidden_child_sequence(&contract.forbidden_child_sequence, child_sequence);
+        let exact_child_sequence_evaluation =
+            evaluate_exact_child_sequence(&contract.exact_child_sequence, child_sequence);
 
         if missing.is_empty()
             && invalid_fields.is_empty()
@@ -4410,6 +4419,7 @@ fn validate_field_contracts(
             && !boundary_child_evaluation.invalid_last_child
             && !required_child_sequence_evaluation.invalid_sequence
             && !forbidden_child_sequence_evaluation.invalid_sequence
+            && !exact_child_sequence_evaluation.invalid_sequence
         {
             continue;
         }
@@ -4568,6 +4578,12 @@ fn validate_field_contracts(
                     .join(", ")
             ));
         }
+        if exact_child_sequence_evaluation.invalid_sequence {
+            parts.push(format!(
+                "child sequence not exact: expected {}",
+                contract.exact_child_sequence.join(", ")
+            ));
+        }
         let generated_message = format!(
             "element `{element_name}` failed field contract `{}` ({}) with {}",
             contract.name,
@@ -4627,6 +4643,7 @@ fn validate_field_contracts(
                 &boundary_child_evaluation,
                 &required_child_sequence_evaluation,
                 &forbidden_child_sequence_evaluation,
+                &exact_child_sequence_evaluation,
                 child_sequence,
                 child_counts,
                 node,
@@ -4744,6 +4761,19 @@ fn evaluate_forbidden_child_sequence(
     ForbiddenChildSequenceEvaluation {
         invalid_sequence: matched_start.is_some(),
         matched_sequence,
+    }
+}
+
+fn evaluate_exact_child_sequence(
+    exact_child_sequence: &[String],
+    child_sequence: &[String],
+) -> ExactChildSequenceEvaluation {
+    if exact_child_sequence.is_empty() {
+        return ExactChildSequenceEvaluation::default();
+    }
+
+    ExactChildSequenceEvaluation {
+        invalid_sequence: exact_child_sequence != child_sequence,
     }
 }
 
@@ -4918,6 +4948,7 @@ fn field_contract_details(
     boundary_child_evaluation: &BoundaryChildrenEvaluation,
     required_child_sequence_evaluation: &RequiredChildSequenceEvaluation,
     forbidden_child_sequence_evaluation: &ForbiddenChildSequenceEvaluation,
+    exact_child_sequence_evaluation: &ExactChildSequenceEvaluation,
     child_sequence: &[String],
     child_counts: &BTreeMap<String, usize>,
     node: &CemAstNode,
@@ -5036,6 +5067,10 @@ fn field_contract_details(
     details.insert(
         "forbiddenChildSequence".to_owned(),
         serde_json::json!(&contract.forbidden_child_sequence),
+    );
+    details.insert(
+        "exactChildSequence".to_owned(),
+        serde_json::json!(&contract.exact_child_sequence),
     );
     details.insert(
         "presentRequiredOneChild".to_owned(),
@@ -5269,6 +5304,10 @@ fn field_contract_details(
     details.insert(
         "invalidForbiddenChildSequence".to_owned(),
         serde_json::json!(forbidden_child_sequence_evaluation.invalid_sequence),
+    );
+    details.insert(
+        "invalidExactChildSequence".to_owned(),
+        serde_json::json!(exact_child_sequence_evaluation.invalid_sequence),
     );
     details.insert("childCounts".to_owned(), serde_json::json!(child_counts));
     details.insert(
@@ -6301,6 +6340,15 @@ mod tests {
         assert_eq!(
             model
                 .attributes
+                .get("exact-child-sequence")
+                .expect("exact-child-sequence attribute model")
+                .value_type
+                .as_deref(),
+            Some("cemml:name-list")
+        );
+        assert_eq!(
+            model
+                .attributes
                 .get("exact-selected-children")
                 .expect("exact-selected-children attribute model")
                 .value_type
@@ -6875,6 +6923,7 @@ mod tests {
         {element @name="checkpoint"}
         {element @name="finish"}
         {element @name="route" @children="start checkpoint finish aside"}
+        {element @name="pipeline" @children="start checkpoint finish aside"}
         {element @name="bundle" @children="photo video caption"}
         {element @name="photo"}
         {element @name="video"}
@@ -7046,6 +7095,14 @@ mod tests {
             @diagnostic="example.item_check"
             @behavior="schema:child-occurrence"
             @check-kind="forbidden-child-sequence"
+        }
+        {field-contract
+            @name="pipeline-exact-child-sequence"
+            @target="pipeline"
+            @exact-child-sequence="start checkpoint finish"
+            @diagnostic="example.item_check"
+            @behavior="schema:child-occurrence"
+            @check-kind="exact-child-sequence"
         }
         {field-contract
             @name="switch-child-choice"
@@ -8068,6 +8125,56 @@ mod tests {
         );
         assert_eq!(
             details["invalidForbiddenChildSequence"],
+            serde_json::json!(true)
+        );
+
+        let document = parse_cem_document(r#"{pipeline | {start} {checkpoint} {finish}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        assert!(
+            diagnostics.iter().all(|diagnostic| {
+                diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("contract").and_then(serde_json::Value::as_str))
+                    != Some("pipeline-exact-child-sequence")
+            }),
+            "exact child sequence should satisfy exact-child-sequence field contract: {diagnostics:?}"
+        );
+
+        let document = parse_cem_document(r#"{pipeline | {start} {aside} {checkpoint} {finish}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("pipeline-exact-child-sequence")
+            })
+            .expect("exact child sequence diagnostic");
+        assert!(diagnostic.message.contains("child sequence not exact"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("exact child sequence details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:child-occurrence")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("exact-child-sequence")
+        );
+        assert_eq!(
+            details["exactChildSequence"],
+            serde_json::json!(["start", "checkpoint", "finish"])
+        );
+        assert_eq!(
+            details["actualChildSequence"],
+            serde_json::json!(["start", "aside", "checkpoint", "finish"])
+        );
+        assert_eq!(
+            details["invalidExactChildSequence"],
             serde_json::json!(true)
         );
 
