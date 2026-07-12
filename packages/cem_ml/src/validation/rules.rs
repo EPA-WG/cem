@@ -28,8 +28,8 @@ use crate::parser::{AstNodeId, CemAstNode};
 use crate::resolver::{has_uri_scheme, is_windows_drive_path, parse_local_file_uri};
 use crate::run_config::ScopeConfig;
 use crate::schema::document_model::{
-    load_builtin_document_model_for_identity, validate_document_model_with_behavior_evaluator,
-    SchemaDocumentModel,
+    load_builtin_document_model_for_identity, load_document_model_for_identity,
+    validate_document_model_with_behavior_evaluator, SchemaDocumentModel,
 };
 use crate::schema::package_consistency::validate_schema_package_source_consistency;
 use crate::schema::registry::{
@@ -1290,7 +1290,12 @@ impl SemanticRule for SchemaDocumentModelRule {
     fn run(&self, ctx: &RuleContext<'_>) -> Vec<Diagnostic> {
         run_schema_document_model_rule_with_model(
             ctx,
-            load_builtin_document_model_for_identity(ctx.schema_uri, ctx.content_type),
+            load_document_model_for_identity(
+                ctx.schema_uri,
+                ctx.content_type,
+                ctx.schema_registry,
+                ctx.schema_document_models,
+            ),
         )
     }
 }
@@ -2365,6 +2370,8 @@ fn validate_schema_package_example_source_bytes(
         content_type: Some(content_type),
         source_uri: Some(source_uri),
         resource_reader,
+        schema_registry: None,
+        schema_document_models: None,
         upstream_diagnostics: &upstream_diagnostics,
         schema_behavior_evaluator,
     }));
@@ -2968,6 +2975,8 @@ mod tests {
             content_type,
             source_uri,
             resource_reader: None,
+            schema_registry: None,
+            schema_document_models: None,
             upstream_diagnostics: &upstream,
             schema_behavior_evaluator: None,
         })
@@ -2992,6 +3001,8 @@ mod tests {
                 content_type: Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
                 source_uri: None,
                 resource_reader: None,
+                schema_registry: None,
+                schema_document_models: None,
                 upstream_diagnostics: &upstream,
                 schema_behavior_evaluator: None,
             },

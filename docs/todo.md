@@ -162,7 +162,7 @@ history belongs in git history and the feature-specific docs linked below.
       `packages/cem_ml/src/validation/rules.rs`; manifest descriptor loading
       now skips incomplete rows instead of owning field diagnostics, with an
       audit guard in `packages/cem_ml/src/schema/registry.rs`.
-  - [ ] Add failing tests first for the principle in `document_model.rs`,
+  - [x] Add failing tests first for the principle in `document_model.rs`,
         `rules.rs`, and the CLI schema examples: changing a field contract in a
         `.cem` schema must change validation behavior without adding or editing
         a package-specific Rust branch. `document_model.rs` now mutates the
@@ -170,11 +170,11 @@ history belongs in git history and the feature-specific docs linked below.
         proves the missing `content-type` validation changes through schema
         source alone; `rules.rs` now runs the schema document model rule
         against the same source mutation and proves rule-layer validation
-        follows the `.cem` contract. CLI source-mutation coverage remains a
-        schema-loading decision because `validate --schema` currently selects
-        built-in document models by schema URI, while `--schema-package` loads
-        converter/artifact context without replacing the validation schema
-        model.
+        follows the `.cem` contract. CLI source-mutation coverage now loads a
+        temporary schema package through `--schema-package`, registers its
+        CEM-ML schema source as the validation document model, and proves that
+        changing the package schema field contract changes `validate` results
+        without a Rust validation branch.
   - [ ] Expand the initial `field-contracts` vocabulary in
         `packages/cem_ml/schema-packages/schema/v1/schema/cem-schema.cem`.
         The schema language now models element-bound required/optional/

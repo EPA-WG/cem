@@ -206,6 +206,8 @@ fn xml_parity_fixture_runs_through_shared_pipeline() {
         content_type: None,
         source_uri: None,
         resource_reader: None,
+        schema_registry: None,
+        schema_document_models: None,
         upstream_diagnostics: &document.diagnostics,
         schema_behavior_evaluator: None,
     });

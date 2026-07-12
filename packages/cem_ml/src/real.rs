@@ -13,7 +13,7 @@ use crate::conversion::{
     execute_conversion_output_pipeline,
     execute_conversion_output_pipeline_from_formatted_cem_tree_with_environment,
     execute_conversion_output_pipeline_with_environment, ConversionExecution,
-    ConversionManifestError, ConversionOutputPipeline, ConversionOutputPipelineEnvironment,
+    ConversionOutputPipeline, ConversionOutputPipelineEnvironment,
     ConversionPackageArtifactDescriptor, ConversionPackageArtifactRead,
     ConversionRustFallbackDescriptor, GenericDataTextConversionOutcome, GenericDataTextDocument,
     CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE,
@@ -35,13 +35,16 @@ use crate::resolver::{
     ResolveRequest, ResolvedRead, ResolverDiagnostic,
 };
 use crate::run_config::ScopeConfig;
+use crate::schema::document_model::compile_schema_document_model;
 use crate::schema::machine::CemSchemaMachine;
 use crate::schema::package_consistency::validate_schema_package_source_consistency;
 use crate::schema::registry::{
-    content_type_essence, CEM_DOM_JSON_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_CONTENT_TYPE,
-    CEM_DOM_PROJECTION_SCHEMA_URI, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
-    CSS_CONTENT_TYPE, CSS_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, XHTML_CONTENT_TYPE,
-    XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
+    content_type_essence, schema_descriptor_from_manifest_and_schema_sources,
+    schema_source_path_from_manifest_source, CEM_DOM_JSON_PROJECTION_CONTENT_TYPE,
+    CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
+    CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI,
+    HTML_CONTENT_TYPE, HTML_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
+    XML_SCHEMA_URI,
 };
 use crate::schema::vocab::CompiledSchema;
 use crate::source::{ByteRange, BytesSource, SourceId};
@@ -858,6 +861,14 @@ fn register_validated_schema_package_manifest(
     let package_id_hint = "external-schema-package";
     let mut diagnostics = Vec::new();
 
+    register_schema_document_model_from_validated_schema_package_manifest(
+        context,
+        manifest_source,
+        manifest_uri,
+        package_id_hint,
+        &mut diagnostics,
+    );
+
     match conversion_descriptors_from_validated_schema_package_manifest(
         package_id_hint,
         manifest_source,
@@ -903,6 +914,110 @@ fn register_validated_schema_package_manifest(
     diagnostics
 }
 
+fn register_schema_document_model_from_validated_schema_package_manifest(
+    context: &mut EngineContext,
+    manifest_source: &str,
+    manifest_uri: &str,
+    package_id_hint: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let schema_source_path = match schema_source_path_from_manifest_source(manifest_source) {
+        Ok(Some(schema_source_path)) => schema_source_path,
+        Ok(None) => return,
+        Err(error) => {
+            diagnostics.push(schema_package_manifest_error_diagnostic(
+                manifest_uri,
+                "schema metadata",
+                error,
+            ));
+            return;
+        }
+    };
+    let read = match read_schema_package_schema_source(context, manifest_uri, &schema_source_path) {
+        Ok(read) => read,
+        Err(error) => {
+            diagnostics.push(schema_package_load_diagnostic(
+                Some(manifest_uri),
+                "cem.schema_package.schema_source_unreadable",
+                format!(
+                    "schema package manifest `{manifest_uri}` references unreadable schema source `{schema_source_path}`: {error}"
+                ),
+            ));
+            return;
+        }
+    };
+    let schema_source = match String::from_utf8(read.bytes) {
+        Ok(schema_source) => schema_source,
+        Err(error) => {
+            diagnostics.push(schema_package_load_diagnostic(
+                Some(&read.uri),
+                "cem.schema_package.schema_source_invalid",
+                format!(
+                    "schema package manifest `{manifest_uri}` references non-UTF-8 schema source `{}`: {error}",
+                    read.uri
+                ),
+            ));
+            return;
+        }
+    };
+    let descriptor = match schema_descriptor_from_manifest_and_schema_sources(
+        package_id_hint,
+        manifest_source,
+        &read.uri,
+        &schema_source,
+    ) {
+        Ok(descriptor) => descriptor,
+        Err(error) => {
+            diagnostics.push(schema_package_manifest_error_diagnostic(
+                manifest_uri,
+                "schema metadata",
+                error,
+            ));
+            return;
+        }
+    };
+    let model = compile_schema_document_model(&descriptor.schema_uri, &schema_source);
+    if !model.compile_diagnostics.is_empty() {
+        diagnostics.extend(model.compile_diagnostics.into_iter().map(|mut diagnostic| {
+            if diagnostic.uri.is_none() {
+                diagnostic.uri = Some(read.uri.clone());
+            }
+            diagnostic
+        }));
+        return;
+    }
+    if let Err(error) = context.schema_registry.register(descriptor) {
+        diagnostics.push(schema_package_load_diagnostic(
+            Some(manifest_uri),
+            "cem.schema_package.schema_registration_failed",
+            format!("schema package schema could not be registered: {error}"),
+        ));
+        return;
+    }
+    if !model.is_empty() {
+        context.schema_document_models.register(model);
+    }
+}
+
+fn read_schema_package_schema_source(
+    context: &EngineContext,
+    manifest_uri: &str,
+    schema_source_path: &str,
+) -> Result<ResolvedRead, ResolverDiagnostic> {
+    let manifest_template = TemplateInput {
+        uri: manifest_uri.to_owned(),
+        bytes: Vec::new(),
+        identity: Some(schema_package_manifest_identity()),
+        root_scope: ScopeConfig::default(),
+    };
+    read_template_import_source(
+        context,
+        &manifest_template,
+        schema_source_path,
+        Some(CEM_SCHEMA_CONTENT_TYPE),
+    )
+}
+
 fn schema_package_manifest_identity() -> FormatIdentity {
     FormatIdentity {
         content_type: Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE.to_owned()),
@@ -928,7 +1043,7 @@ fn schema_package_manifest_base_path(manifest_uri: &str) -> String {
 fn schema_package_manifest_error_diagnostic(
     uri: &str,
     subject: &str,
-    error: ConversionManifestError,
+    error: impl std::fmt::Display,
 ) -> Diagnostic {
     schema_package_load_diagnostic(
         Some(uri),
@@ -1442,6 +1557,8 @@ where
         content_type,
         source_uri,
         resource_reader,
+        schema_registry: context.map(|context| &context.schema_registry),
+        schema_document_models: context.map(|context| &context.schema_document_models),
         upstream_diagnostics: &document.diagnostics,
         schema_behavior_evaluator: context
             .and_then(|context| context.schema_behavior_evaluator.as_deref())
@@ -4921,34 +5038,34 @@ impl CemMlEngine for RealCemMlEngine {
     }
 
     fn validate(&self, request: ValidateRequest) -> EngineResult<ValidateResponse> {
-        let inputs = input_uris(&request.inputs, &request.context);
-        let (all_diags, scheduler_trace) = run_scheduled_validation_documents(
-            &request.context,
+        let (context, mut all_diags) =
+            context_with_loaded_schema_package_manifests(&request.context)?;
+        let inputs = input_uris(&request.inputs, &context);
+        let (mut validation_diagnostics, scheduler_trace) = run_scheduled_validation_documents(
+            &context,
             &request.inputs,
             &["validatems", "validatetimebudgetms"],
         )?;
-        let report = Report::deterministic(
-            inputs,
-            all_diags,
-            snapshot(request.fail_level, &request.context),
-        )
-        .with_scheduler_trace(&scheduler_trace);
+        all_diags.append(&mut validation_diagnostics);
+        let report =
+            Report::deterministic(inputs, all_diags, snapshot(request.fail_level, &context))
+                .with_scheduler_trace(&scheduler_trace);
         Ok(ValidateResponse { report })
     }
 
     fn check(&self, request: CheckRequest) -> EngineResult<CheckResponse> {
-        let inputs = input_uris(&request.inputs, &request.context);
-        let (all_diags, scheduler_trace) = run_scheduled_validation_documents(
-            &request.context,
+        let (context, mut all_diags) =
+            context_with_loaded_schema_package_manifests(&request.context)?;
+        let inputs = input_uris(&request.inputs, &context);
+        let (mut validation_diagnostics, scheduler_trace) = run_scheduled_validation_documents(
+            &context,
             &request.inputs,
             &["checkms", "checktimebudgetms"],
         )?;
-        let report = Report::deterministic(
-            inputs,
-            all_diags,
-            snapshot(request.fail_level, &request.context),
-        )
-        .with_scheduler_trace(&scheduler_trace);
+        all_diags.append(&mut validation_diagnostics);
+        let report =
+            Report::deterministic(inputs, all_diags, snapshot(request.fail_level, &context))
+                .with_scheduler_trace(&scheduler_trace);
         let hard_violation_count = report.summary.hard_violation_count;
         Ok(CheckResponse {
             report,

@@ -39,7 +39,8 @@ pub mod xml;
 
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::parser::document::CemDocument;
-use crate::schema::document_model::SchemaBehaviorEvaluator;
+use crate::schema::document_model::{SchemaBehaviorEvaluator, SchemaDocumentModelRegistry};
+use crate::schema::registry::SchemaRegistry;
 
 /// Stable identifier for a semantic rule, scoped to its owning schema /
 /// content type. Serialized form is `<scope>.<rule>` (e.g.
@@ -116,6 +117,8 @@ pub struct RuleContext<'a> {
     pub content_type: Option<&'a str>,
     pub source_uri: Option<&'a str>,
     pub resource_reader: Option<&'a RuleResourceReader<'a>>,
+    pub schema_registry: Option<&'a SchemaRegistry>,
+    pub schema_document_models: Option<&'a SchemaDocumentModelRegistry>,
     /// Diagnostics emitted by upstream layers (decoder, tokenizer, schema
     /// machine, AST builder). Rules may consult this list to skip
     /// downstream work when an upstream layer already failed.
@@ -238,6 +241,8 @@ pub fn run(input: &str) -> ValidationReport {
         content_type: None,
         source_uri: None,
         resource_reader: None,
+        schema_registry: None,
+        schema_document_models: None,
         upstream_diagnostics: &document.diagnostics,
         schema_behavior_evaluator: None,
     });

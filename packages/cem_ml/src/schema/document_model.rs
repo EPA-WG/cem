@@ -35,8 +35,8 @@ use crate::schema::package_loader::{
     load_builtin_schema_package, load_builtin_schema_package_for_content_type,
 };
 use crate::schema::registry::{
-    CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
-    CEM_TRANSFORM_SCHEMA_URI,
+    SchemaRegistry, CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_PACKAGE_URI,
+    CEM_SCHEMA_URI, CEM_TRANSFORM_SCHEMA_URI,
 };
 use crate::source::{BytesSource, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack};
@@ -106,6 +106,43 @@ impl SchemaDocumentModel {
 
     pub fn constraint(&self, kind: &str) -> Option<&ConstraintDefinition> {
         self.constraints.get(kind)
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct SchemaDocumentModelRegistry {
+    models_by_schema_uri: BTreeMap<String, SchemaDocumentModel>,
+}
+
+impl SchemaDocumentModelRegistry {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn register(&mut self, model: SchemaDocumentModel) {
+        self.models_by_schema_uri
+            .insert(model.schema_uri.clone(), model);
+    }
+
+    pub fn get(&self, schema_uri: &str) -> Option<&SchemaDocumentModel> {
+        self.models_by_schema_uri.get(schema_uri)
+    }
+
+    pub fn resolve_for_identity(
+        &self,
+        schema_uri: Option<&str>,
+        content_type: Option<&str>,
+        schema_registry: Option<&SchemaRegistry>,
+    ) -> Option<&SchemaDocumentModel> {
+        if let Some(schema_uri) = schema_uri {
+            return self.get(schema_uri);
+        }
+        let content_type = content_type?;
+        let schema_registry = schema_registry?;
+        schema_registry
+            .resolve_content_type(content_type)
+            .ok()
+            .and_then(|descriptor| self.get(&descriptor.schema_uri))
     }
 }
 
@@ -429,6 +466,18 @@ pub fn load_builtin_document_model_for_identity(
         package.schema_source,
     ))
     .filter(|model| !model.is_empty())
+}
+
+pub fn load_document_model_for_identity(
+    schema_uri: Option<&str>,
+    content_type: Option<&str>,
+    schema_registry: Option<&SchemaRegistry>,
+    document_models: Option<&SchemaDocumentModelRegistry>,
+) -> Option<SchemaDocumentModel> {
+    document_models
+        .and_then(|models| models.resolve_for_identity(schema_uri, content_type, schema_registry))
+        .cloned()
+        .or_else(|| load_builtin_document_model_for_identity(schema_uri, content_type))
 }
 
 pub fn validate_document_model(

@@ -397,18 +397,65 @@ pub fn builtin_schema_descriptors() -> Vec<SchemaDescriptor> {
 pub fn schema_descriptor_from_package_sources(
     source: &BuiltinSchemaPackageSource,
 ) -> Result<SchemaDescriptor, SchemaPackageDescriptorError> {
-    let manifest = parse_cem_document(source.manifest_source);
-    let schema = parse_cem_document(source.schema_source);
+    schema_descriptor_from_manifest_and_schema_sources_inner(
+        source.package_id,
+        source.manifest_source,
+        source.schema_path,
+        source.schema_source,
+        Some(source.package_id),
+    )
+}
 
+pub fn schema_descriptor_from_manifest_and_schema_sources(
+    package_id_hint: &str,
+    manifest_source: &str,
+    schema_path: &str,
+    schema_source: &str,
+) -> Result<SchemaDescriptor, SchemaPackageDescriptorError> {
+    schema_descriptor_from_manifest_and_schema_sources_inner(
+        package_id_hint,
+        manifest_source,
+        schema_path,
+        schema_source,
+        None,
+    )
+}
+
+pub fn schema_source_path_from_manifest_source(
+    manifest_source: &str,
+) -> Result<Option<String>, SchemaPackageDescriptorError> {
+    let manifest = parse_cem_document(manifest_source);
+    let package_id = first_element_id_by_local_name(&manifest, "package")
+        .ok_or(SchemaPackageDescriptorError::MissingElement { element: "package" })?;
+    Ok(
+        element_child_ids_by_local_name(&manifest, package_id, "schema")
+            .into_iter()
+            .next()
+            .map(|schema_id| collect_attrs(&manifest, schema_id))
+            .and_then(|attrs| optional_attr(&attrs, "source").map(str::to_owned)),
+    )
+}
+
+fn schema_descriptor_from_manifest_and_schema_sources_inner(
+    package_id_hint: &str,
+    manifest_source: &str,
+    schema_path: &str,
+    schema_source: &str,
+    expected_package_id: Option<&str>,
+) -> Result<SchemaDescriptor, SchemaPackageDescriptorError> {
+    let manifest = parse_cem_document(manifest_source);
+    let schema = parse_cem_document(schema_source);
     let package_id = first_element_id_by_local_name(&manifest, "package")
         .ok_or(SchemaPackageDescriptorError::MissingElement { element: "package" })?;
     let package_attrs = collect_attrs(&manifest, package_id);
-    let package_id_attr = optional_attr(&package_attrs, "id").unwrap_or(source.package_id);
-    if optional_attr(&package_attrs, "id").is_some_and(|id| id != source.package_id) {
-        return Err(SchemaPackageDescriptorError::PackageIdMismatch {
-            expected: source.package_id.to_owned(),
-            actual: package_id_attr.to_owned(),
-        });
+    let package_id_attr = optional_attr(&package_attrs, "id").unwrap_or(package_id_hint);
+    if let Some(expected_package_id) = expected_package_id {
+        if optional_attr(&package_attrs, "id").is_some_and(|id| id != expected_package_id) {
+            return Err(SchemaPackageDescriptorError::PackageIdMismatch {
+                expected: expected_package_id.to_owned(),
+                actual: package_id_attr.to_owned(),
+            });
+        }
     }
 
     let schema_root_attrs = first_element_id_by_local_name(&schema, "schema")
@@ -428,7 +475,7 @@ pub fn schema_descriptor_from_package_sources(
         .unwrap_or_default();
     let descriptor_source = optional_attr(&schema_attrs, "source")
         .map(|schema_source| package_relative_path(package_id_attr, schema_source))
-        .unwrap_or_else(|| source.schema_path.to_owned());
+        .unwrap_or_else(|| schema_path.to_owned());
 
     Ok(SchemaDescriptor {
         package_id: package_id_attr.to_owned(),

@@ -4,7 +4,7 @@ use crate::interpreter::OutputSpan;
 use crate::report::{Report, SchedulerTraceReport};
 use crate::resolver::ResolverRegistry;
 use crate::run_config::{SchedulerConfig, ScopeConfig};
-use crate::schema::document_model::SchemaBehaviorEvaluator;
+use crate::schema::document_model::{SchemaBehaviorEvaluator, SchemaDocumentModelRegistry};
 use crate::schema::registry::{
     CSS_CONTENT_TYPE, CSS_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, XHTML_CONTENT_TYPE,
     XHTML_SCHEMA_URI,
@@ -113,6 +113,7 @@ pub struct EngineContext {
     pub base_uri: Option<String>,
     pub scheduler: SchedulerConfig,
     pub schema_registry: SchemaRegistry,
+    pub schema_document_models: SchemaDocumentModelRegistry,
     pub converter_registry: ConversionRegistry,
     pub schema_package_manifests: Vec<EngineInput>,
     pub resolver_registry: ResolverRegistry,
@@ -133,6 +134,7 @@ impl Default for EngineContext {
             base_uri: None,
             scheduler: SchedulerConfig::default(),
             schema_registry: SchemaRegistry::with_builtin_schemas(),
+            schema_document_models: SchemaDocumentModelRegistry::default(),
             converter_registry: ConversionRegistry::with_builtin_converters(),
             schema_package_manifests: Vec::new(),
             resolver_registry: ResolverRegistry::default(),

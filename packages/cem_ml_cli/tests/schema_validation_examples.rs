@@ -191,6 +191,20 @@ fn validate_example(example: &ValidationExample, path: &Path) -> Output {
     ])
 }
 
+fn test_temp_dir(name: &str) -> PathBuf {
+    let root = std::env::temp_dir().join(format!("{name}-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(&root).expect("create temporary test directory");
+    root
+}
+
+fn write_test_file(path: &Path, source: &str) {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).expect("create temporary test file parent");
+    }
+    fs::write(path, source).expect("write temporary test file");
+}
+
 fn diagnostics(report: &serde_json::Value) -> &[serde_json::Value] {
     report["diagnostics"]
         .as_array()
@@ -1441,6 +1455,156 @@ fn schema_owned_examples_validate_through_cli() {
             );
         }
     }
+}
+
+#[test]
+fn schema_package_schema_source_changes_cli_validation_model() {
+    const CUSTOM_SCHEMA_URI: &str = "https://example.test/ns/custom-validation/1";
+    const CUSTOM_CONTENT_TYPE: &str = "application/vnd.example.custom-validation+cem";
+    const CUSTOM_DIAGNOSTIC: &str = "example.div.missing_marker";
+
+    let root = test_temp_dir("cem-ml-cli-schema-package-validation-model");
+    let manifest_path = root.join("package.cem");
+    let schema_path = root.join("schema/custom-validation.cem");
+    let input_path = root.join("examples/missing-name.cem");
+
+    write_test_file(
+        &manifest_path,
+        r#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="custom-validation" @version="1.0.0" |
+    {schema
+        @uri="https://example.test/ns/custom-validation/1"
+        @source="schema/custom-validation.cem"
+    }
+    {content-type @value="application/vnd.example.custom-validation+cem" @primary=true}
+    {namespace @prefix="demo" @uri="https://example.test/ns/custom-validation/1"}
+}
+"#,
+    );
+    let required_schema = r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@default schema
+
+{schema @name="custom-validation" @namespace="https://example.test/ns/custom-validation/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {content-types |
+        {content-type @value="application/vnd.example.custom-validation+cem" @primary=true}
+    }
+    {namespaces |
+        {namespace @prefix="demo" @uri="https://example.test/ns/custom-validation/1" @role="schema"}
+    }
+    {elements |
+        {element @name="div" @optional-attributes="marker"}
+    }
+    {attributes |
+        {attribute @name="marker" @type="schema:string"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="div-marker"
+            @target="div"
+            @required-attributes="marker"
+            @diagnostic="example.div.missing_marker"
+            @behavior="schema:required-fields"
+            @check-kind="required-fields"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.div.missing_marker"
+            @severity="error"
+            @behavior="schema:required-fields"
+            @message="Div marker must be declared"
+        }
+    }
+}
+"#;
+    write_test_file(&schema_path, required_schema);
+    write_test_file(
+        &input_path,
+        r#"@doc cem-ml 1
+
+{div}
+"#,
+    );
+
+    let validate_args = || {
+        vec![
+            "validate".to_owned(),
+            "--format".to_owned(),
+            "json".to_owned(),
+            "--schema-package".to_owned(),
+            manifest_path.to_string_lossy().into_owned(),
+            "--content-type".to_owned(),
+            CUSTOM_CONTENT_TYPE.to_owned(),
+            "--schema".to_owned(),
+            CUSTOM_SCHEMA_URI.to_owned(),
+            input_path.to_string_lossy().into_owned(),
+        ]
+    };
+
+    let required_output = cem_ml_owned(&validate_args());
+    assert_eq!(
+        required_output.status.code(),
+        Some(EXIT_HARD_FAILURE),
+        "required schema stderr:\n{}",
+        stderr(&required_output)
+    );
+    assert!(
+        stderr(&required_output).trim().is_empty(),
+        "required schema stderr must stay empty:\n{}",
+        stderr(&required_output)
+    );
+    let required_report: serde_json::Value =
+        serde_json::from_str(stdout(&required_output).trim()).expect("required report is JSON");
+    assert!(
+        has_diagnostic(&required_report, CUSTOM_DIAGNOSTIC),
+        "expected `{CUSTOM_DIAGNOSTIC}` after required schema:\n{}",
+        stdout(&required_output)
+    );
+
+    write_test_file(
+        &schema_path,
+        &required_schema.replace(
+            r#"@required-attributes="marker""#,
+            r#"@optional-attributes="marker""#,
+        ),
+    );
+
+    let optional_output = cem_ml_owned(&validate_args());
+    assert_eq!(
+        optional_output.status.code(),
+        Some(EXIT_OK),
+        "optional schema stderr:\n{}",
+        stderr(&optional_output)
+    );
+    assert!(
+        stderr(&optional_output).trim().is_empty(),
+        "optional schema stderr must stay empty:\n{}",
+        stderr(&optional_output)
+    );
+    let optional_report: serde_json::Value =
+        serde_json::from_str(stdout(&optional_output).trim()).expect("optional report is JSON");
+    assert_eq!(
+        optional_report["summary"]["hardViolationCount"].as_u64(),
+        Some(0),
+        "optional schema hard violations:\n{}",
+        stdout(&optional_output)
+    );
+    assert!(
+        !has_diagnostic(&optional_report, CUSTOM_DIAGNOSTIC),
+        "`{CUSTOM_DIAGNOSTIC}` should disappear after schema source mutation:\n{}",
+        stdout(&optional_output)
+    );
+
+    let _ = fs::remove_dir_all(root);
 }
 
 #[test]
