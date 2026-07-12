@@ -157,15 +157,18 @@ history belongs in git history and the feature-specific docs linked below.
       implementation compiles `required-attributes`, `optional-attributes`,
       child allow-lists, initial field contracts, and exact/ranged child
       occurrence from `.cem` in `packages/cem_ml/src/schema/document_model.rs`;
-      remaining schema-package converter/artifact field rules and example
-      schema/content-type cross-reference execution still live in
-      `packages/cem_ml/src/validation/rules.rs`, and manifest descriptor
-      loading still has Rust-owned `required_attr` checks in
-      `packages/cem_ml/src/schema/registry.rs`.
+      remaining schema-package converter/artifact operational rules and
+      example schema/content-type cross-reference execution still live in
+      `packages/cem_ml/src/validation/rules.rs`; manifest descriptor loading
+      now skips incomplete rows instead of owning field diagnostics, with an
+      audit guard in `packages/cem_ml/src/schema/registry.rs`.
   - [ ] Add failing tests first for the principle in `document_model.rs`,
         `rules.rs`, and the CLI schema examples: changing a field contract in a
         `.cem` schema must change validation behavior without adding or editing
-        a package-specific Rust branch.
+        a package-specific Rust branch. `document_model.rs` now mutates the
+        schema-package `package-required-children` contract in-memory and
+        proves the missing `content-type` validation changes through schema
+        source alone.
   - [ ] Expand the initial `field-contracts` vocabulary in
         `packages/cem_ml/schema-packages/schema/v1/schema/cem-schema.cem`.
         The schema language now models element-bound required/optional/

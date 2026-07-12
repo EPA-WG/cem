@@ -4754,6 +4754,7 @@ fn schema_compile_diagnostic(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::schema::package_sources::builtin_schema_package_source;
     use crate::schema::registry::{
         CEM_ML_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI,
         CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
@@ -5199,6 +5200,66 @@ mod tests {
             serde_json::json!(["content-type"])
         );
         assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
+    fn schema_package_field_contract_changes_validation_when_schema_source_changes() {
+        let source = builtin_schema_package_source("schema-package")
+            .expect("schema-package source is embedded");
+        let baseline_model = compile_document_model(CEM_SCHEMA_PACKAGE_URI, source.schema_source);
+        let relaxed_schema = source.schema_source.replace(
+            r#"@required-children="schema content-type""#,
+            r#"@required-children="schema""#,
+        );
+        assert_ne!(
+            relaxed_schema, source.schema_source,
+            "schema-package source mutation should alter the field contract"
+        );
+        let relaxed_model = compile_document_model(CEM_SCHEMA_PACKAGE_URI, &relaxed_schema);
+        assert!(
+            relaxed_model.compile_diagnostics.is_empty(),
+            "mutated schema-package model should still compile: {:#?}",
+            relaxed_model.compile_diagnostics
+        );
+        let document = parse_cem_document(
+            r#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id=demo @version="1.0.0" |
+    {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+}"#,
+        );
+
+        let baseline_diagnostics = validate_document_model(&document, &baseline_model);
+        assert!(
+            baseline_diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == "cem.schema_package.package_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("package-required-children")
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details
+                            .get("missingChildren")
+                            .and_then(serde_json::Value::as_array)
+                    }).is_some_and(|children| {
+                        children
+                            .iter()
+                            .any(|child| child.as_str() == Some("content-type"))
+                    })
+            }),
+            "baseline schema-package contract should require content-type child: {baseline_diagnostics:#?}"
+        );
+
+        let relaxed_diagnostics = validate_document_model(&document, &relaxed_model);
+        assert!(
+            relaxed_diagnostics.iter().all(|diagnostic| {
+                diagnostic.details.as_ref().and_then(|details| {
+                    details.get("contract").and_then(serde_json::Value::as_str)
+                }) != Some("package-required-children")
+            }),
+            "mutating the schema-owned field contract should remove the content-type child diagnostic without a Rust branch change: {relaxed_diagnostics:#?}"
+        );
     }
 
     #[test]
