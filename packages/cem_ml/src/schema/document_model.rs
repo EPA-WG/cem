@@ -924,6 +924,10 @@ fn is_number_type_reference(value_type: &str) -> bool {
     type_reference_local_name(value_type) == "number"
 }
 
+fn is_string_type_reference(value_type: &str) -> bool {
+    type_reference_local_name(value_type) == "string"
+}
+
 fn is_uri_type_reference(value_type: &str) -> bool {
     type_reference_local_name(value_type) == "uri"
 }
@@ -1467,59 +1471,67 @@ fn validate_attribute_datatype_params(
             diagnostics,
         );
     }
-    let value_length = value.chars().count();
-    if let Some(length) = attribute_model.length.as_deref() {
-        if parse_non_negative_integer_to_usize(length).is_some_and(|len| value_length != len) {
-            emit_attribute_datatype_param_diagnostic(
-                schema_uri,
-                diagnostic_behaviors,
-                element_name,
-                attribute_name,
-                value,
-                attribute_model,
-                "length",
-                length,
-                "with length different from",
-                attribute_values,
-                node,
-                diagnostics,
-            );
+    if attribute_model
+        .value_type
+        .as_deref()
+        .is_some_and(is_string_type_reference)
+    {
+        let value_length = value.chars().count();
+        if let Some(length) = attribute_model.length.as_deref() {
+            if parse_non_negative_integer_to_usize(length).is_some_and(|len| value_length != len) {
+                emit_attribute_datatype_param_diagnostic(
+                    schema_uri,
+                    diagnostic_behaviors,
+                    element_name,
+                    attribute_name,
+                    value,
+                    attribute_model,
+                    "length",
+                    length,
+                    "with length different from",
+                    attribute_values,
+                    node,
+                    diagnostics,
+                );
+            }
         }
-    }
-    if let Some(min_length) = attribute_model.min_length.as_deref() {
-        if parse_non_negative_integer_to_usize(min_length).is_some_and(|min| value_length < min) {
-            emit_attribute_datatype_param_diagnostic(
-                schema_uri,
-                diagnostic_behaviors,
-                element_name,
-                attribute_name,
-                value,
-                attribute_model,
-                "minLength",
-                min_length,
-                "shorter than",
-                attribute_values,
-                node,
-                diagnostics,
-            );
+        if let Some(min_length) = attribute_model.min_length.as_deref() {
+            if parse_non_negative_integer_to_usize(min_length).is_some_and(|min| value_length < min)
+            {
+                emit_attribute_datatype_param_diagnostic(
+                    schema_uri,
+                    diagnostic_behaviors,
+                    element_name,
+                    attribute_name,
+                    value,
+                    attribute_model,
+                    "minLength",
+                    min_length,
+                    "shorter than",
+                    attribute_values,
+                    node,
+                    diagnostics,
+                );
+            }
         }
-    }
-    if let Some(max_length) = attribute_model.max_length.as_deref() {
-        if parse_non_negative_integer_to_usize(max_length).is_some_and(|max| value_length > max) {
-            emit_attribute_datatype_param_diagnostic(
-                schema_uri,
-                diagnostic_behaviors,
-                element_name,
-                attribute_name,
-                value,
-                attribute_model,
-                "maxLength",
-                max_length,
-                "longer than",
-                attribute_values,
-                node,
-                diagnostics,
-            );
+        if let Some(max_length) = attribute_model.max_length.as_deref() {
+            if parse_non_negative_integer_to_usize(max_length).is_some_and(|max| value_length > max)
+            {
+                emit_attribute_datatype_param_diagnostic(
+                    schema_uri,
+                    diagnostic_behaviors,
+                    element_name,
+                    attribute_name,
+                    value,
+                    attribute_model,
+                    "maxLength",
+                    max_length,
+                    "longer than",
+                    attribute_values,
+                    node,
+                    diagnostics,
+                );
+            }
         }
     }
     let digit_counts =
@@ -2145,6 +2157,43 @@ fn validate_attribute_diagnostic_reference(
     }
 }
 
+fn validate_datatype_param_value_type<F>(
+    schema_uri: &str,
+    attribute_model: &AttributeModel,
+    param_name: &str,
+    param_value: &str,
+    expected_type: &str,
+    matches_type: F,
+    diagnostics: &mut Vec<Diagnostic>,
+) where
+    F: Fn(&str) -> bool,
+{
+    let value_type = attribute_model.value_type.as_deref();
+    if value_type.is_some_and(matches_type) {
+        return;
+    }
+    let error = format!("expected {expected_type} value type for {param_name}");
+    diagnostics.push(schema_compile_diagnostic(
+        INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+        format!(
+            "attribute `{}` declares invalid {param_name} datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+            attribute_model.name
+        ),
+        &attribute_model.source_map,
+        serde_json::json!({
+            "schemaUri": schema_uri,
+            "attribute": &attribute_model.name,
+            "checkKind": format!("datatype-param:{param_name}"),
+            "datatypeParam": param_name,
+            "paramName": param_name,
+            "paramValue": param_value,
+            "valueType": value_type.unwrap_or_default(),
+            "expectedType": expected_type,
+            "error": error,
+        }),
+    ));
+}
+
 fn validate_attribute_datatype_param_definition(
     schema_uri: &str,
     attribute_model: &AttributeModel,
@@ -2172,6 +2221,47 @@ fn validate_attribute_datatype_param_definition(
                 }),
             ));
         }
+    }
+    for (param_name, param_value) in [
+        ("minInclusive", attribute_model.min_inclusive.as_deref()),
+        ("maxInclusive", attribute_model.max_inclusive.as_deref()),
+        ("minExclusive", attribute_model.min_exclusive.as_deref()),
+        ("maxExclusive", attribute_model.max_exclusive.as_deref()),
+        ("totalDigits", attribute_model.total_digits.as_deref()),
+        ("fractionDigits", attribute_model.fraction_digits.as_deref()),
+    ] {
+        let Some(param_value) = param_value else {
+            continue;
+        };
+        validate_datatype_param_value_type(
+            schema_uri,
+            attribute_model,
+            param_name,
+            param_value,
+            "schema:integer or schema:number",
+            |value_type| {
+                is_integer_type_reference(value_type) || is_number_type_reference(value_type)
+            },
+            diagnostics,
+        );
+    }
+    for (param_name, param_value) in [
+        ("minLength", attribute_model.min_length.as_deref()),
+        ("maxLength", attribute_model.max_length.as_deref()),
+        ("length", attribute_model.length.as_deref()),
+    ] {
+        let Some(param_value) = param_value else {
+            continue;
+        };
+        validate_datatype_param_value_type(
+            schema_uri,
+            attribute_model,
+            param_name,
+            param_value,
+            "schema:string or cemml:string",
+            is_string_type_reference,
+            diagnostics,
+        );
     }
     for (param_name, param_value) in [
         ("minInclusive", attribute_model.min_inclusive.as_deref()),
@@ -12505,6 +12595,113 @@ mod tests {
             serde_json::json!("fractionDigits")
         );
         assert_eq!(details["paramValue"], serde_json::json!("-1"));
+    }
+
+    #[test]
+    fn schema_datatype_params_reject_incompatible_primitive_types() {
+        let model = compile_document_model(
+            "https://example.test/ns/incompatible-datatype-param-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="incompatible-datatype-param-contracts" @namespace="https://example.test/ns/incompatible-datatype-param-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="title untyped count code ratio"}
+    }
+    {attributes |
+        {attribute @name="title" @type="schema:string" @minInclusive=1}
+        {attribute @name="untyped" @maxInclusive=10}
+        {attribute @name="count" @type="schema:integer" @maxLength=3}
+        {attribute @name="code" @type="schema:string" @totalDigits=4}
+        {attribute @name="ratio" @type="schema:boolean" @fractionDigits=2}
+    }
+}"#,
+        );
+
+        for (attribute, param_name, param_value, value_type, expected_type) in [
+            (
+                "title",
+                "minInclusive",
+                "1",
+                "schema:string",
+                "schema:integer or schema:number",
+            ),
+            (
+                "untyped",
+                "maxInclusive",
+                "10",
+                "",
+                "schema:integer or schema:number",
+            ),
+            (
+                "count",
+                "maxLength",
+                "3",
+                "schema:integer",
+                "schema:string or cemml:string",
+            ),
+            (
+                "code",
+                "totalDigits",
+                "4",
+                "schema:string",
+                "schema:integer or schema:number",
+            ),
+            (
+                "ratio",
+                "fractionDigits",
+                "2",
+                "schema:boolean",
+                "schema:integer or schema:number",
+            ),
+        ] {
+            let diagnostic = model
+                .compile_diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                        && diagnostic.details.as_ref().is_some_and(|details| {
+                            details.get("attribute").and_then(serde_json::Value::as_str)
+                                == Some(attribute)
+                                && details
+                                    .get("datatypeParam")
+                                    .and_then(serde_json::Value::as_str)
+                                    == Some(param_name)
+                        })
+                })
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing incompatible {param_name} diagnostic for attribute {attribute}: {:#?}",
+                        model.compile_diagnostics
+                    )
+                });
+            assert!(diagnostic
+                .message
+                .contains(&format!("invalid {param_name}")));
+            let details = diagnostic
+                .details
+                .as_ref()
+                .expect("incompatible datatype-param details");
+            assert_eq!(
+                details["schemaUri"],
+                serde_json::json!(
+                    "https://example.test/ns/incompatible-datatype-param-contracts/1"
+                )
+            );
+            assert_eq!(details["attribute"], serde_json::json!(attribute));
+            assert_eq!(
+                details["checkKind"],
+                serde_json::json!(format!("datatype-param:{param_name}"))
+            );
+            assert_eq!(details["datatypeParam"], serde_json::json!(param_name));
+            assert_eq!(details["paramValue"], serde_json::json!(param_value));
+            assert_eq!(details["valueType"], serde_json::json!(value_type));
+            assert_eq!(details["expectedType"], serde_json::json!(expected_type));
+            assert!(details["error"]
+                .as_str()
+                .is_some_and(|error| error.contains("expected")));
+        }
     }
 
     #[test]

@@ -42,6 +42,8 @@ history belongs in git history and the feature-specific docs linked below.
       string `minLength`/`maxLength`/`length`, regex `pattern`, URI
       `uriSchemes`/`uriRequiresAuthority`/`uriPathPrefixes`, and media-type
       `mediaTypes`/`mediaTypeParameters`/`mediaTypeRequiredParameters`.
+      Schema-definition validation now rejects numeric bounds/digit-counts on
+      non-numeric attributes and string length params on non-string attributes.
       Required-one/max-one attribute choice cardinality now executes through
       `schema:choice-case`. Broader child occurrence ranges now execute
       through `schema:child-occurrence`; child-set cardinality now also
@@ -138,6 +140,8 @@ history belongs in git history and the feature-specific docs linked below.
         example; schema-package CLI examples now also cover schema-definition
         failures for invalid datatype parameter declarations on integer/number
         bounds, numeric digit counts, string length bounds, and regex patterns.
+        They also cover incompatible primitive type declarations for numeric
+        bounds, numeric digit counts, and string length params.
         CLI tests now assert structured schema-definition datatype-param
         details for those failing declarations, plus
         structured `behavior`, `checkKind`, `contract`, severity, and source
@@ -200,6 +204,8 @@ history belongs in git history and the feature-specific docs linked below.
         params, regex `pattern`, URI `uriSchemes`,
         `uriRequiresAuthority`, and `uriPathPrefixes`, and media-type `mediaTypes`,
         `mediaTypeParameters`, and `mediaTypeRequiredParameters` datatype params,
+        plus compatibility checks for numeric bounds/digit counts and string
+        length params against their target primitive families,
         plus accepted-child allow-lists, forbidden-child occurrence, exact
         child counts, child-set cardinality, total, selected, and distinct child-count
         bounds, min/max child occurrence ranges, relative child ordering, and
@@ -263,7 +269,9 @@ history belongs in git history and the feature-specific docs linked below.
         checks emit declared cases, present cases, missing cases, and
         conflicting cases; accepted-child checks emit accepted/invalid
         children and childCounts details; URI scheme, URI authority,
-        URI path-prefix, and media-type essence/parameter-name/required-parameter datatype-param checks emit expected values, normalized actual tokens, and invalid/missing parameter arrays; additional
+        URI path-prefix, and media-type essence/parameter-name/required-parameter datatype-param checks emit expected values, normalized actual tokens, and invalid/missing parameter arrays;
+        schema-definition datatype-param checks now emit expected type and
+        actual value type for incompatible numeric and string-length facets;
         URI/media-type constraints, datatype params, dependency, additional
         child occurrence variants beyond exact/named/total/selected/distinct count bounds, child-set cardinality, relative ordering, boundary placement, and exact/required/forbidden child sequences, and cross-reference checks need the same
         schema-owned detail shape.

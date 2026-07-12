@@ -4,11 +4,12 @@
 
 {schema @name="invalid-datatype-param-length" @namespace="https://example.test/ns/invalid-datatype-param-length/1" @version="1.0.0" |
     {elements |
-        {element @name="resource" @optional-attributes="label code"}
+        {element @name="resource" @optional-attributes="label code count"}
     }
 
     {attributes |
         {attribute @name="label" @type="schema:string" @minLength=-1}
         {attribute @name="code" @type="schema:string" @length=-1}
+        {attribute @name="count" @type="schema:integer" @maxLength=3}
     }
 }

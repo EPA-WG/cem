@@ -4,10 +4,12 @@
 
 {schema @name="invalid-datatype-param-bound" @namespace="https://example.test/ns/invalid-datatype-param-bound/1" @version="1.0.0" |
     {elements |
-        {element @name="resource" @optional-attributes="priority"}
+        {element @name="resource" @optional-attributes="priority title untyped"}
     }
 
     {attributes |
         {attribute @name="priority" @type="schema:integer" @minInclusive=0.5}
+        {attribute @name="title" @type="schema:string" @minInclusive=1}
+        {attribute @name="untyped" @maxInclusive=10}
     }
 }

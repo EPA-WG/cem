@@ -4,11 +4,12 @@
 
 {schema @name="invalid-datatype-param-digits" @namespace="https://example.test/ns/invalid-datatype-param-digits/1" @version="1.0.0" |
     {elements |
-        {element @name="resource" @optional-attributes="serial ratio"}
+        {element @name="resource" @optional-attributes="serial ratio code"}
     }
 
     {attributes |
         {attribute @name="serial" @type="schema:integer" @totalDigits=0}
         {attribute @name="ratio" @type="schema:number" @fractionDigits=-1}
+        {attribute @name="code" @type="schema:string" @fractionDigits=2}
     }
 }

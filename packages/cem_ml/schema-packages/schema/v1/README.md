@@ -246,6 +246,8 @@ execute through
 `schema:datatype-param`; boolean, integer, number, basic absolute-URI, basic
 media-type, and scope-context path scalar syntax now execute through
 `schema:scalar-type`;
+schema-definition validation also rejects numeric bound/digit-count params on
+non-numeric attributes and string length params on non-string attributes;
 required-one/max-one attribute choice cardinality and nested choice/case groups
 now execute through `schema:choice-case`; child-set cardinality,
 `min-children`/`max-children` named child occurrence ranges, and
@@ -274,10 +276,10 @@ CLI validation integration tests.
 | [`invalid-custom-behavior-signature.cem`](examples/invalid-custom-behavior-signature.cem) | Custom behavior function requires a parameter with no input, argument, or default binding. | Fail with `cem.schema_definition.invalid_diagnostic_behavior_contract` |
 | [`invalid-custom-behavior-unsafe-call.cem`](examples/invalid-custom-behavior-unsafe-call.cem) | Custom behavior body attempts a CEMT-style self-call instead of pure declarative result construction. | Fail with `cem.schema_behavior.function_failed` |
 | [`invalid-custom-behavior-contracts.cem`](examples/invalid-custom-behavior-contracts.cem) | Custom behaviors declare unsupported implementations, placements, missing function/result pieces, and incompatible result contracts. | Fail with `cem.schema_definition.invalid_diagnostic_behavior_contract` |
-| [`invalid-datatype-param-length.cem`](examples/invalid-datatype-param-length.cem) | String datatype parameter declarations use invalid negative length bounds. | Fail with `cem.schema_definition.invalid_datatype_param` |
-| [`invalid-datatype-param-bound.cem`](examples/invalid-datatype-param-bound.cem) | Integer datatype parameter declaration uses a decimal number bound. | Fail with `cem.schema_definition.invalid_datatype_param` |
+| [`invalid-datatype-param-length.cem`](examples/invalid-datatype-param-length.cem) | String length datatype parameter declarations use invalid negative bounds or incompatible primitive types. | Fail with `cem.schema_definition.invalid_datatype_param` |
+| [`invalid-datatype-param-bound.cem`](examples/invalid-datatype-param-bound.cem) | Numeric bound datatype parameter declarations use incompatible bound values or primitive types. | Fail with `cem.schema_definition.invalid_datatype_param` |
 | [`invalid-datatype-param-pattern.cem`](examples/invalid-datatype-param-pattern.cem) | String datatype parameter declaration uses an invalid regular expression. | Fail with `cem.schema_definition.invalid_datatype_param` |
-| [`invalid-datatype-param-digits.cem`](examples/invalid-datatype-param-digits.cem) | Numeric datatype parameter declarations use invalid digit-count limits. | Fail with `cem.schema_definition.invalid_datatype_param` |
+| [`invalid-datatype-param-digits.cem`](examples/invalid-datatype-param-digits.cem) | Numeric digit-count datatype parameter declarations use invalid limits or incompatible primitive types. | Fail with `cem.schema_definition.invalid_datatype_param` |
 | [`invalid-datatype-param-uri-media.cem`](examples/invalid-datatype-param-uri-media.cem) | URI scheme/authority/path-prefix and media-type essence/parameter-name/required-parameter datatype parameter declarations use invalid tokens. | Fail with `cem.schema_definition.invalid_datatype_param` |
 
 Validate an example explicitly against this schema:
