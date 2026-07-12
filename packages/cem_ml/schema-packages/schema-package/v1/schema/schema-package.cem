@@ -77,6 +77,7 @@
             @when-values="cemt"
             @required-attributes="template template-content-type template-schema"
             @diagnostic="cem.schema_package.converter_check"
+            @behavior="schema:required-fields"
             @check-kind="required-fields"
         }
         {field-contract
@@ -86,6 +87,7 @@
             @when-values="rust"
             @required-attributes="rust-symbol"
             @diagnostic="cem.schema_package.converter_check"
+            @behavior="schema:required-fields"
             @check-kind="required-fields"
         }
         {field-contract
@@ -115,6 +117,7 @@
             @required-children="from to"
             @max-one-children="from to"
             @diagnostic="cem.schema_package.converter_check"
+            @behavior="schema:child-occurrence"
             @check-kind="child-occurrence"
         }
         {field-contract
@@ -124,6 +127,7 @@
             @when-values="formatter colorizer formatter-helper colorizer-helper"
             @required-attributes="content-type schema target-content-type target-schema target-category function-name"
             @diagnostic="cem.schema_package.artifact_check"
+            @behavior="schema:required-fields"
             @check-kind="required-fields"
         }
         {field-contract
@@ -133,6 +137,7 @@
             @when-values="formatter"
             @required-attributes="formatter-profile"
             @diagnostic="cem.schema_package.artifact_check"
+            @behavior="schema:required-fields"
             @check-kind="required-fields"
         }
         {field-contract
@@ -142,6 +147,7 @@
             @when-values="colorizer"
             @required-attributes="color-profile"
             @diagnostic="cem.schema_package.artifact_check"
+            @behavior="schema:required-fields"
             @check-kind="required-fields"
         }
         {field-contract
@@ -153,6 +159,7 @@
             @path-layout-prefix="formatters"
             @path-layout-extension="cemt"
             @diagnostic="cem.schema_package.artifact_check"
+            @behavior="schema:path-layout"
             @check-kind="path-layout"
         }
         {field-contract
@@ -164,6 +171,7 @@
             @path-layout-prefix="colorizers"
             @path-layout-extension="cemt"
             @diagnostic="cem.schema_package.artifact_check"
+            @behavior="schema:path-layout"
             @check-kind="path-layout"
         }
         {field-contract
@@ -171,6 +179,7 @@
             @target="example"
             @required-attributes="id path content-type schema expected-result"
             @diagnostic="cem.schema_package.example_check"
+            @behavior="schema:required-fields"
             @check-kind="required-fields"
         }
         {field-contract

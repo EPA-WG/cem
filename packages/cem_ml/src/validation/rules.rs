@@ -2193,6 +2193,7 @@ fn validate_schema_package_example_source_contract(
         schema_uri,
         &source.uri,
         ctx.resource_reader,
+        ctx.schema_behavior_evaluator,
     ) else {
         return;
     };
@@ -2318,6 +2319,7 @@ fn validate_schema_package_example_source_bytes(
     schema_uri: &str,
     source_uri: &str,
     resource_reader: Option<&crate::validation::RuleResourceReader<'_>>,
+    schema_behavior_evaluator: Option<&dyn crate::schema::document_model::SchemaBehaviorEvaluator>,
 ) -> Option<Vec<Diagnostic>> {
     let document = match schema_package_example_tokenizer(content_type, schema_uri)? {
         SchemaPackageExampleTokenizer::Cem => parse_example_cem_document(bytes),
@@ -2355,7 +2357,7 @@ fn validate_schema_package_example_source_bytes(
         source_uri: Some(source_uri),
         resource_reader,
         upstream_diagnostics: &upstream_diagnostics,
-        schema_behavior_evaluator: None,
+        schema_behavior_evaluator,
     }));
     Some(diagnostics)
 }

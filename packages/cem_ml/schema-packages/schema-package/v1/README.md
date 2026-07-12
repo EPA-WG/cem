@@ -67,7 +67,9 @@ namespace URI claims match the referenced `schema/*.cem` file.
 ## Validation Examples
 
 The schema-owned examples live in [`examples/`](examples/) and are used by the
-CLI validation integration tests.
+CLI validation integration tests. Representative failing examples assert stable
+structured diagnostic details, including `behavior`, `checkKind`, `contract`,
+severity, and source range data for the engine behavior contract they exercise.
 
 | Example | Purpose | Expected result |
 | --- | --- | --- |

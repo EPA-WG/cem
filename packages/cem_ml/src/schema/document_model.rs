@@ -4364,33 +4364,22 @@ mod tests {
         assert!(schema.required_attributes.contains("version"));
         assert!(schema.child_elements.contains("elements"));
         assert!(model.element("attribute").is_some());
-        assert_eq!(
-            model
-                .attributes
-                .get("maxInclusive")
-                .expect("maxInclusive attribute model")
-                .value_type
-                .as_deref(),
-            Some("schema:integer")
-        );
-        assert_eq!(
-            model
-                .attributes
-                .get("minExclusive")
-                .expect("minExclusive attribute model")
-                .value_type
-                .as_deref(),
-            Some("schema:integer")
-        );
-        assert_eq!(
-            model
-                .attributes
-                .get("maxExclusive")
-                .expect("maxExclusive attribute model")
-                .value_type
-                .as_deref(),
-            Some("schema:integer")
-        );
+        for name in [
+            "minInclusive",
+            "maxInclusive",
+            "minExclusive",
+            "maxExclusive",
+        ] {
+            assert_eq!(
+                model
+                    .attributes
+                    .get(name)
+                    .unwrap_or_else(|| panic!("{name} attribute model"))
+                    .value_type
+                    .as_deref(),
+                Some("schema:number")
+            );
+        }
         assert_eq!(
             model
                 .attributes

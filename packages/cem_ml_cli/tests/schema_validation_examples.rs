@@ -78,6 +78,24 @@ struct ValidationExample {
     expected_diagnostics: &'static [&'static str],
 }
 
+#[derive(Debug)]
+struct DetailedValidationExample {
+    name: &'static str,
+    path: &'static str,
+    content_type: &'static str,
+    schema_uri: &'static str,
+    expected: &'static [DiagnosticDetailExpectation],
+}
+
+#[derive(Debug)]
+struct DiagnosticDetailExpectation {
+    code: &'static str,
+    severity: &'static str,
+    behavior: &'static str,
+    check_kind: &'static str,
+    contract: &'static str,
+}
+
 const SCHEMA_PACKAGE_RUNTIME_CONSTRAINT_EXAMPLE_DIAGNOSTICS: &[(&str, &str)] = &[
     (
         "converter-from-to-required",
@@ -166,6 +184,25 @@ fn has_diagnostic(report: &serde_json::Value, code: &str) -> bool {
     diagnostics(report)
         .iter()
         .any(|diagnostic| diagnostic["code"] == code)
+}
+
+fn has_diagnostic_detail(
+    report: &serde_json::Value,
+    expected: &DiagnosticDetailExpectation,
+) -> bool {
+    diagnostics(report).iter().any(|diagnostic| {
+        diagnostic["code"] == expected.code
+            && diagnostic["severity"] == expected.severity
+            && diagnostic["details"]["behavior"] == expected.behavior
+            && diagnostic["details"]["checkKind"] == expected.check_kind
+            && diagnostic["details"]["contract"] == expected.contract
+            && diagnostic["details"]["sourceRange"]["span"]["start"]
+                .as_u64()
+                .is_some()
+            && diagnostic["sourceMap"]["frames"]
+                .as_array()
+                .is_some_and(|frames| !frames.is_empty())
+    })
 }
 
 fn assert_schema_package_runtime_constraint_example_coverage(examples: &[ValidationExample]) {
@@ -1328,6 +1365,170 @@ fn schema_owned_examples_validate_through_cli() {
             assert!(
                 has_diagnostic(&report, expected),
                 "{} expected diagnostic `{}` in {}",
+                example.name,
+                expected,
+                stdout(&output)
+            );
+        }
+    }
+}
+
+#[test]
+fn schema_package_engine_behavior_examples_emit_structured_details() {
+    let examples = [
+        DetailedValidationExample {
+            name: "schema-package invalid converter contract",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-converter-contract.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected: &[
+                DiagnosticDetailExpectation {
+                    code: "cem.schema_model.invalid_attribute_value",
+                    severity: "error",
+                    behavior: "schema:value-vocabulary",
+                    check_kind: "value-vocabulary",
+                    contract: "attribute-values:template-content-type",
+                },
+                DiagnosticDetailExpectation {
+                    code: "cem.schema_model.invalid_attribute_datatype_param",
+                    severity: "error",
+                    behavior: "schema:datatype-param",
+                    check_kind: "datatype-param:minInclusive",
+                    contract: "attribute-datatype-param:cost:minInclusive",
+                },
+                DiagnosticDetailExpectation {
+                    code: "cem.schema_package.converter_check",
+                    severity: "error",
+                    behavior: "schema:required-fields",
+                    check_kind: "required-fields",
+                    contract: "converter-cemt-template-identity",
+                },
+                DiagnosticDetailExpectation {
+                    code: "cem.schema_package.converter_check",
+                    severity: "error",
+                    behavior: "schema:child-occurrence",
+                    check_kind: "child-occurrence",
+                    contract: "converter-from-to-endpoints",
+                },
+                DiagnosticDetailExpectation {
+                    code: "cem.schema_package.converter_check",
+                    severity: "error",
+                    behavior: "schema:reference-resolution",
+                    check_kind: "endpoint-content-type-schema",
+                    contract: "converter-endpoint-schema-content-type-match",
+                },
+            ],
+        },
+        DetailedValidationExample {
+            name: "schema-package invalid converter runtime constraints",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-converter-runtime-constraints.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected: &[
+                DiagnosticDetailExpectation {
+                    code: "cem.schema_model.invalid_attribute_type",
+                    severity: "error",
+                    behavior: "schema:scalar-type",
+                    check_kind: "type:boolean",
+                    contract: "attribute-type:streamable",
+                },
+                DiagnosticDetailExpectation {
+                    code: "cem.schema_package.converter_check",
+                    severity: "error",
+                    behavior: "schema:field-dependency",
+                    check_kind: "dependent-required-fields",
+                    contract: "converter-cemt-fallback-reason",
+                },
+                DiagnosticDetailExpectation {
+                    code: "cem.schema_package.converter_check",
+                    severity: "error",
+                    behavior: "schema:choice-case",
+                    check_kind: "mutual-exclusion",
+                    contract: "converter-planner-state",
+                },
+            ],
+        },
+        DetailedValidationExample {
+            name: "schema-package invalid artifact layout",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-layout.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected: &[DiagnosticDetailExpectation {
+                code: "cem.schema_package.artifact_check",
+                severity: "error",
+                behavior: "schema:path-layout",
+                check_kind: "path-layout",
+                contract: "artifact-formatter-layout",
+            }],
+        },
+        DetailedValidationExample {
+            name: "schema-package invalid artifact source unreadable",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-source-unreadable.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected: &[DiagnosticDetailExpectation {
+                code: "cem.schema_package.artifact_check",
+                severity: "error",
+                behavior: "schema:resource-readable",
+                check_kind: "artifact-source-readable",
+                contract: "artifact-output-stage-contract",
+            }],
+        },
+        DetailedValidationExample {
+            name: "schema-package invalid artifact source parse",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-source-parse.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected: &[DiagnosticDetailExpectation {
+                code: "cem.schema_package.artifact_check",
+                severity: "error",
+                behavior: "schema:resource-parse",
+                check_kind: "artifact-cemt-valid",
+                contract: "artifact-output-stage-contract",
+            }],
+        },
+    ];
+
+    for example in examples {
+        let path = workspace_path(example.path);
+        assert!(
+            path.exists(),
+            "detailed schema validation example `{}` is missing at {}",
+            example.name,
+            path.display()
+        );
+
+        let output = validate_example(
+            &ValidationExample {
+                name: example.name,
+                path: example.path,
+                content_type: example.content_type,
+                schema_uri: example.schema_uri,
+                expected_exit: EXIT_HARD_FAILURE,
+                expected_diagnostics: &[],
+            },
+            &path,
+        );
+        assert_eq!(
+            output.status.code(),
+            Some(EXIT_HARD_FAILURE),
+            "{} stderr:\n{}",
+            example.name,
+            stderr(&output)
+        );
+        assert!(
+            stderr(&output).trim().is_empty(),
+            "{} stderr must stay empty:\n{}",
+            example.name,
+            stderr(&output)
+        );
+
+        let report: serde_json::Value = serde_json::from_str(stdout(&output).trim())
+            .unwrap_or_else(|err| panic!("{} stdout is validation JSON: {err}", example.name));
+        for expected in example.expected {
+            assert!(
+                has_diagnostic_detail(&report, expected),
+                "{} expected structured diagnostic {:?} in {}",
                 example.name,
                 expected,
                 stdout(&output)
