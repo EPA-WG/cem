@@ -356,6 +356,7 @@ pub struct FieldContract {
     pub required_one_child: BTreeSet<String>,
     pub max_one_child: BTreeSet<String>,
     pub selected_children: BTreeSet<String>,
+    pub ordered_children: Vec<String>,
     pub exact_children: BTreeMap<String, String>,
     pub min_children: BTreeMap<String, String>,
     pub max_children: BTreeMap<String, String>,
@@ -427,6 +428,12 @@ struct ChoiceGroupEvaluation {
     conflicting_choice_cases: BTreeMap<String, Vec<String>>,
     missing_choice_fields: Vec<String>,
     conflicting_choice_fields: Vec<String>,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+struct OrderedChildrenEvaluation {
+    sequence: Vec<String>,
+    unordered_children: Vec<String>,
 }
 
 impl FieldContract {
@@ -630,7 +637,8 @@ fn validate_node(
         }
     }
 
-    let child_counts = child_element_counts(document, children);
+    let child_sequence = child_element_sequence(document, children);
+    let child_counts = child_element_counts(&child_sequence);
 
     validate_field_contracts(
         &model.schema_uri,
@@ -640,6 +648,7 @@ fn validate_node(
         &seen_attributes,
         &attribute_values,
         &child_counts,
+        &child_sequence,
         node,
         diagnostics,
     );
@@ -3979,6 +3988,7 @@ fn collect_field_contracts(
                 required_one_child: parse_name_set(attrs.get("required-one-child")),
                 max_one_child: parse_name_set(attrs.get("max-one-child")),
                 selected_children: parse_name_set(attrs.get("selected-children")),
+                ordered_children: parse_ordered_name_list(attrs.get("ordered-children")),
                 exact_children: parse_name_value_map(attrs.get("exact-children")),
                 min_children: parse_name_value_map(attrs.get("min-children")),
                 max_children: parse_name_value_map(attrs.get("max-children")),
@@ -4081,6 +4091,7 @@ fn validate_field_contracts(
     seen_attributes: &BTreeSet<String>,
     attribute_values: &BTreeMap<String, String>,
     child_counts: &BTreeMap<String, usize>,
+    child_sequence: &[String],
     node: &CemAstNode,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -4333,6 +4344,8 @@ fn validate_field_contracts(
             .as_deref()
             .and_then(parse_non_negative_integer_to_usize)
             .is_some_and(|max| selected_child_count > max);
+        let ordered_child_evaluation =
+            evaluate_ordered_children(&contract.ordered_children, child_sequence);
 
         if missing.is_empty()
             && invalid_fields.is_empty()
@@ -4357,6 +4370,7 @@ fn validate_field_contracts(
             && !invalid_exact_selected_children
             && !under_min_selected_children
             && !over_max_selected_children
+            && ordered_child_evaluation.unordered_children.is_empty()
         {
             continue;
         }
@@ -4485,6 +4499,12 @@ fn validate_field_contracts(
         if over_max_selected_children {
             parts.push("selected children above maximum".to_owned());
         }
+        if !ordered_child_evaluation.unordered_children.is_empty() {
+            parts.push(format!(
+                "children out of order: {}",
+                ordered_child_evaluation.unordered_children.join(", ")
+            ));
+        }
         let generated_message = format!(
             "element `{element_name}` failed field contract `{}` ({}) with {}",
             contract.name,
@@ -4540,6 +4560,7 @@ fn validate_field_contracts(
                 under_min_selected_children,
                 over_max_selected_children,
                 selected_child_count,
+                &ordered_child_evaluation,
                 child_counts,
                 node,
             ),
@@ -4564,6 +4585,37 @@ fn selected_child_count(contract: &FieldContract, child_counts: &BTreeMap<String
         .iter()
         .map(|name| child_counts.get(name).copied().unwrap_or_default())
         .sum()
+}
+
+fn evaluate_ordered_children(
+    ordered_children: &[String],
+    child_sequence: &[String],
+) -> OrderedChildrenEvaluation {
+    if ordered_children.is_empty() {
+        return OrderedChildrenEvaluation::default();
+    }
+
+    let order_indexes = ordered_children
+        .iter()
+        .enumerate()
+        .map(|(index, name)| (name.as_str(), index))
+        .collect::<BTreeMap<_, _>>();
+    let mut evaluation = OrderedChildrenEvaluation::default();
+    let mut max_seen_index = None::<usize>;
+
+    for child_name in child_sequence {
+        let Some(index) = order_indexes.get(child_name.as_str()).copied() else {
+            continue;
+        };
+        evaluation.sequence.push(child_name.clone());
+        if max_seen_index.is_some_and(|max_seen_index| index < max_seen_index) {
+            evaluation.unordered_children.push(child_name.clone());
+        }
+        max_seen_index =
+            Some(max_seen_index.map_or(index, |max_seen_index| max_seen_index.max(index)));
+    }
+
+    evaluation
 }
 
 fn evaluate_choice_groups(
@@ -4733,6 +4785,7 @@ fn field_contract_details(
     under_min_selected_children: bool,
     over_max_selected_children: bool,
     selected_child_count: usize,
+    ordered_child_evaluation: &OrderedChildrenEvaluation,
     child_counts: &BTreeMap<String, usize>,
     node: &CemAstNode,
 ) -> serde_json::Value {
@@ -4830,6 +4883,10 @@ fn field_contract_details(
     details.insert(
         "selectedChildren".to_owned(),
         serde_json::json!(&contract.selected_children),
+    );
+    details.insert(
+        "orderedChildren".to_owned(),
+        serde_json::json!(&contract.ordered_children),
     );
     details.insert(
         "presentRequiredOneChild".to_owned(),
@@ -5015,6 +5072,18 @@ fn field_contract_details(
     details.insert(
         "selectedChildCount".to_owned(),
         serde_json::json!(selected_child_count),
+    );
+    details.insert(
+        "orderedChildSequence".to_owned(),
+        serde_json::json!(&ordered_child_evaluation.sequence),
+    );
+    details.insert(
+        "unorderedChildren".to_owned(),
+        serde_json::json!(&ordered_child_evaluation.unordered_children),
+    );
+    details.insert(
+        "invalidChildOrder".to_owned(),
+        serde_json::json!(!ordered_child_evaluation.unordered_children.is_empty()),
     );
     details.insert("childCounts".to_owned(), serde_json::json!(child_counts));
     details.insert(
@@ -5391,6 +5460,23 @@ fn parse_name_set(value: Option<&String>) -> BTreeSet<String> {
         .unwrap_or_default()
 }
 
+fn parse_ordered_name_list(value: Option<&String>) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut seen = BTreeSet::new();
+    let Some(value) = value else {
+        return names;
+    };
+
+    for name in value.split_whitespace().map(str::trim) {
+        if name.is_empty() || !seen.insert(name.to_owned()) {
+            continue;
+        }
+        names.push(name.to_owned());
+    }
+
+    names
+}
+
 fn parse_value_set(value: Option<&String>) -> BTreeSet<String> {
     parse_name_set(value)
 }
@@ -5451,8 +5537,8 @@ fn parse_name_value_map(value: Option<&String>) -> BTreeMap<String, String> {
     pairs
 }
 
-fn child_element_counts(document: &CemDocument, children: &[AstNodeId]) -> BTreeMap<String, usize> {
-    let mut counts = BTreeMap::new();
+fn child_element_sequence(document: &CemDocument, children: &[AstNodeId]) -> Vec<String> {
+    let mut sequence = Vec::new();
     for child_id in children {
         let Some(child) = document.get(*child_id) else {
             continue;
@@ -5463,7 +5549,15 @@ fn child_element_counts(document: &CemDocument, children: &[AstNodeId]) -> BTree
         if should_skip_structural_name(local_name) {
             continue;
         }
-        *counts.entry(local_name.to_owned()).or_insert(0) += 1;
+        sequence.push(local_name.to_owned());
+    }
+    sequence
+}
+
+fn child_element_counts(child_sequence: &[String]) -> BTreeMap<String, usize> {
+    let mut counts = BTreeMap::new();
+    for local_name in child_sequence {
+        *counts.entry(local_name.clone()).or_insert(0) += 1;
     }
     counts
 }
@@ -5957,6 +6051,15 @@ mod tests {
                 .attributes
                 .get("selected-children")
                 .expect("selected-children attribute model")
+                .value_type
+                .as_deref(),
+            Some("cemml:name-list")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("ordered-children")
+                .expect("ordered-children attribute model")
                 .value_type
                 .as_deref(),
             Some("cemml:name-list")
@@ -6529,6 +6632,9 @@ mod tests {
         {element @name="panel" @children="header body footer"}
         {element @name="header"}
         {element @name="footer"}
+        {element @name="article" @children="intro body outro aside"}
+        {element @name="intro"}
+        {element @name="outro"}
         {element @name="bundle" @children="photo video caption"}
         {element @name="photo"}
         {element @name="video"}
@@ -6667,6 +6773,14 @@ mod tests {
             @diagnostic="example.item_check"
             @behavior="schema:child-occurrence"
             @check-kind="exact-selected-children"
+        }
+        {field-contract
+            @name="article-ordered-children"
+            @target="article"
+            @ordered-children="intro body outro"
+            @diagnostic="example.item_check"
+            @behavior="schema:child-occurrence"
+            @check-kind="ordered-children"
         }
         {field-contract
             @name="switch-child-choice"
@@ -7482,6 +7596,48 @@ mod tests {
             details["invalidExactSelectedChildren"],
             serde_json::json!(true)
         );
+
+        let document = parse_cem_document(r#"{article | {intro} {aside} {body} {body} {outro}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        assert!(
+            diagnostics.iter().all(|diagnostic| {
+                diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("contract").and_then(serde_json::Value::as_str))
+                    != Some("article-ordered-children")
+            }),
+            "relative child order should satisfy ordered-children field contract: {diagnostics:?}"
+        );
+
+        let document = parse_cem_document(r#"{article | {body} {intro} {outro}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("article-ordered-children")
+            })
+            .expect("ordered child diagnostic");
+        assert!(diagnostic.message.contains("children out of order"));
+        let details = diagnostic.details.as_ref().expect("ordered child details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:child-occurrence")
+        );
+        assert_eq!(details["checkKind"], serde_json::json!("ordered-children"));
+        assert_eq!(
+            details["orderedChildren"],
+            serde_json::json!(["intro", "body", "outro"])
+        );
+        assert_eq!(
+            details["orderedChildSequence"],
+            serde_json::json!(["body", "intro", "outro"])
+        );
+        assert_eq!(details["unorderedChildren"], serde_json::json!(["intro"]));
+        assert_eq!(details["invalidChildOrder"], serde_json::json!(true));
 
         let document = parse_cem_document(r#"{switch}"#);
         let diagnostics = validate_document_model(&document, &model);

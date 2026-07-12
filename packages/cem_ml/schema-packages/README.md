@@ -63,7 +63,9 @@ elements, attributes, text nodes, content scopes, and handoff boundaries.
 `schema/v1` defines the schema definition language expressed in CEM-ML. Schema
 documents validate as CEM-ML documents first, then as instances of the schema
 definition language. This package owns
-`application/vnd.cem.schema+cem`.
+`application/vnd.cem.schema+cem`, including schema-owned field contracts for
+child occurrence counts, child choices, child-set cardinality, and relative
+child ordering.
 
 `schema-package/v1` defines the package manifest schema for
 `schema-packages/{schema-name}/{version}/package.cem`. The schema package
