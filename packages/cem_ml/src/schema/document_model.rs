@@ -347,6 +347,7 @@ pub struct FieldContract {
     pub required_one_attributes: BTreeSet<String>,
     pub max_one_attributes: BTreeSet<String>,
     pub accepted_children: BTreeSet<String>,
+    pub forbidden_children: BTreeSet<String>,
     pub required_children: BTreeSet<String>,
     pub max_one_children: BTreeSet<String>,
     pub min_children: BTreeMap<String, String>,
@@ -3615,6 +3616,7 @@ fn collect_field_contracts(
                 required_one_attributes: parse_name_set(attrs.get("required-one-attributes")),
                 max_one_attributes: parse_name_set(attrs.get("max-one-attributes")),
                 accepted_children: parse_name_set(attrs.get("accepted-children")),
+                forbidden_children: parse_name_set(attrs.get("forbidden-children")),
                 required_children: parse_name_set(attrs.get("required-children")),
                 max_one_children: parse_name_set(attrs.get("max-one-children")),
                 min_children: parse_name_value_map(attrs.get("min-children")),
@@ -3837,6 +3839,18 @@ fn validate_field_contracts(
                 .cloned()
                 .collect::<Vec<_>>()
         };
+        let forbidden_children = contract
+            .forbidden_children
+            .iter()
+            .filter(|name| child_counts.get(*name).copied().unwrap_or_default() > 0)
+            .cloned()
+            .collect::<Vec<_>>();
+        let invalid_children = invalid_children
+            .into_iter()
+            .chain(forbidden_children.iter().cloned())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
         let missing_children = contract
             .required_children
             .iter()
@@ -3934,6 +3948,12 @@ fn validate_field_contracts(
         }
         if !invalid_children.is_empty() {
             parts.push(format!("invalid children: {}", invalid_children.join(", ")));
+        }
+        if !forbidden_children.is_empty() {
+            parts.push(format!(
+                "forbidden children present: {}",
+                forbidden_children.join(", ")
+            ));
         }
         if !missing_children.is_empty() {
             parts.push(format!("missing children: {}", missing_children.join(", ")));
@@ -4154,57 +4174,157 @@ fn field_contract_details(
     child_counts: &BTreeMap<String, usize>,
     node: &CemAstNode,
 ) -> serde_json::Value {
-    serde_json::json!({
-        "schemaUri": schema_uri,
-        "element": element_name,
-        "contract": &contract.name,
-        "target": &contract.target,
-        "diagnostic": contract.diagnostic_code(),
-        "behavior": behavior,
-        "checkKind": contract.check_kind(),
-        "requiredFields": &contract.required_attributes,
-        "optionalFields": &contract.optional_attributes,
-        "forbiddenFields": &contract.forbidden_attributes,
-        "forbiddenAttributeValues": &contract.forbidden_attribute_values,
-        "requiredOneFields": &contract.required_one_attributes,
-        "maxOneFields": &contract.max_one_attributes,
-        "presentRequiredOneFields": present_required_one_fields,
-        "presentMaxOneFields": present_max_one_fields,
-        "missingChoiceFields": missing_choice_fields,
-        "conflictingChoiceFields": conflicting_choice_fields,
-        "choiceCases": choice_group_details(contract),
-        "presentChoiceCases": &nested_choice_evaluation.present_choice_cases,
-        "missingChoiceCases": &nested_choice_evaluation.missing_choice_cases,
-        "conflictingChoiceCases": &nested_choice_evaluation.conflicting_choice_cases,
-        "acceptedChildren": &contract.accepted_children,
-        "requiredChildren": &contract.required_children,
-        "maxOneChildren": &contract.max_one_children,
-        "minChildren": &contract.min_children,
-        "maxChildren": &contract.max_children,
-        "pathLayout": {
+    let mut details = serde_json::Map::new();
+    details.insert("schemaUri".to_owned(), serde_json::json!(schema_uri));
+    details.insert("element".to_owned(), serde_json::json!(element_name));
+    details.insert("contract".to_owned(), serde_json::json!(&contract.name));
+    details.insert("target".to_owned(), serde_json::json!(&contract.target));
+    details.insert(
+        "diagnostic".to_owned(),
+        serde_json::json!(contract.diagnostic_code()),
+    );
+    details.insert("behavior".to_owned(), serde_json::json!(behavior));
+    details.insert(
+        "checkKind".to_owned(),
+        serde_json::json!(contract.check_kind()),
+    );
+    details.insert(
+        "requiredFields".to_owned(),
+        serde_json::json!(&contract.required_attributes),
+    );
+    details.insert(
+        "optionalFields".to_owned(),
+        serde_json::json!(&contract.optional_attributes),
+    );
+    details.insert(
+        "forbiddenFields".to_owned(),
+        serde_json::json!(&contract.forbidden_attributes),
+    );
+    details.insert(
+        "forbiddenAttributeValues".to_owned(),
+        serde_json::json!(&contract.forbidden_attribute_values),
+    );
+    details.insert(
+        "requiredOneFields".to_owned(),
+        serde_json::json!(&contract.required_one_attributes),
+    );
+    details.insert(
+        "maxOneFields".to_owned(),
+        serde_json::json!(&contract.max_one_attributes),
+    );
+    details.insert(
+        "presentRequiredOneFields".to_owned(),
+        serde_json::json!(present_required_one_fields),
+    );
+    details.insert(
+        "presentMaxOneFields".to_owned(),
+        serde_json::json!(present_max_one_fields),
+    );
+    details.insert(
+        "missingChoiceFields".to_owned(),
+        serde_json::json!(missing_choice_fields),
+    );
+    details.insert(
+        "conflictingChoiceFields".to_owned(),
+        serde_json::json!(conflicting_choice_fields),
+    );
+    details.insert("choiceCases".to_owned(), choice_group_details(contract));
+    details.insert(
+        "presentChoiceCases".to_owned(),
+        serde_json::json!(&nested_choice_evaluation.present_choice_cases),
+    );
+    details.insert(
+        "missingChoiceCases".to_owned(),
+        serde_json::json!(&nested_choice_evaluation.missing_choice_cases),
+    );
+    details.insert(
+        "conflictingChoiceCases".to_owned(),
+        serde_json::json!(&nested_choice_evaluation.conflicting_choice_cases),
+    );
+    details.insert(
+        "acceptedChildren".to_owned(),
+        serde_json::json!(&contract.accepted_children),
+    );
+    details.insert(
+        "forbiddenChildren".to_owned(),
+        serde_json::json!(&contract.forbidden_children),
+    );
+    details.insert(
+        "requiredChildren".to_owned(),
+        serde_json::json!(&contract.required_children),
+    );
+    details.insert(
+        "maxOneChildren".to_owned(),
+        serde_json::json!(&contract.max_one_children),
+    );
+    details.insert(
+        "minChildren".to_owned(),
+        serde_json::json!(&contract.min_children),
+    );
+    details.insert(
+        "maxChildren".to_owned(),
+        serde_json::json!(&contract.max_children),
+    );
+    details.insert(
+        "pathLayout".to_owned(),
+        serde_json::json!({
             "attributes": &contract.path_layout_attributes,
             "prefix": &contract.path_layout_prefix,
             "extension": &contract.path_layout_extension,
             "relative": true,
             "cleanSegments": true,
-        },
-        "missingFields": missing_fields,
-        "invalidFields": invalid_fields,
-        "invalidValues": invalid_values,
-        "invalidChildren": invalid_children,
-        "missingChildren": missing_children,
-        "duplicateChildren": duplicate_children,
-        "underMinChildren": under_min_children,
-        "overMaxChildren": over_max_children,
-        "childCounts": child_counts,
-        "actualValues": attribute_values,
-        "condition": {
+        }),
+    );
+    details.insert(
+        "missingFields".to_owned(),
+        serde_json::json!(missing_fields),
+    );
+    details.insert(
+        "invalidFields".to_owned(),
+        serde_json::json!(invalid_fields),
+    );
+    details.insert(
+        "invalidValues".to_owned(),
+        serde_json::json!(invalid_values),
+    );
+    details.insert(
+        "invalidChildren".to_owned(),
+        serde_json::json!(invalid_children),
+    );
+    details.insert(
+        "missingChildren".to_owned(),
+        serde_json::json!(missing_children),
+    );
+    details.insert(
+        "duplicateChildren".to_owned(),
+        serde_json::json!(duplicate_children),
+    );
+    details.insert(
+        "underMinChildren".to_owned(),
+        serde_json::json!(under_min_children),
+    );
+    details.insert(
+        "overMaxChildren".to_owned(),
+        serde_json::json!(over_max_children),
+    );
+    details.insert("childCounts".to_owned(), serde_json::json!(child_counts));
+    details.insert(
+        "actualValues".to_owned(),
+        serde_json::json!(attribute_values),
+    );
+    details.insert(
+        "condition".to_owned(),
+        serde_json::json!({
             "attribute": &contract.when_attribute,
             "values": &contract.when_values,
             "presentAttributes": &contract.when_present_attributes,
-        },
-        "sourceRange": node_source_range_details(node),
-    })
+        }),
+    );
+    details.insert(
+        "sourceRange".to_owned(),
+        serde_json::json!(node_source_range_details(node)),
+    );
+    serde_json::Value::Object(details)
 }
 
 fn attribute_value_details(
@@ -4957,6 +5077,15 @@ mod tests {
         assert_eq!(
             model
                 .attributes
+                .get("forbidden-children")
+                .expect("forbidden-children attribute model")
+                .value_type
+                .as_deref(),
+            Some("cemml:name-list")
+        );
+        assert_eq!(
+            model
+                .attributes
                 .get("min-children")
                 .expect("min-children attribute model")
                 .value_type
@@ -5559,6 +5688,14 @@ mod tests {
             @check-kind="accepted-children"
         }
         {field-contract
+            @name="slot-forbidden-children"
+            @target="slot"
+            @forbidden-children="aside"
+            @diagnostic="example.item_check"
+            @behavior="schema:child-occurrence"
+            @check-kind="forbidden-children"
+        }
+        {field-contract
             @name="asset-path-layout"
             @target="asset"
             @path-layout-attributes="path"
@@ -5981,6 +6118,52 @@ mod tests {
             serde_json::json!({
                 "aside": 1,
                 "title": 1,
+            })
+        );
+
+        let document = parse_cem_document(r#"{slot | {title} {body}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        assert!(
+            diagnostics.iter().all(|diagnostic| {
+                diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("contract").and_then(serde_json::Value::as_str))
+                    != Some("slot-forbidden-children")
+            }),
+            "absence of forbidden children should satisfy forbidden-children field contract: {diagnostics:?}"
+        );
+
+        let document = parse_cem_document(r#"{slot | {aside}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("slot-forbidden-children")
+            })
+            .expect("forbidden-children field contract diagnostic");
+        assert!(diagnostic.message.contains("forbidden children present"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("forbidden-children field contract details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:child-occurrence")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("forbidden-children")
+        );
+        assert_eq!(details["forbiddenChildren"], serde_json::json!(["aside"]));
+        assert_eq!(details["invalidChildren"], serde_json::json!(["aside"]));
+        assert_eq!(
+            details["childCounts"],
+            serde_json::json!({
+                "aside": 1,
             })
         );
 

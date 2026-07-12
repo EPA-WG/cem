@@ -189,8 +189,8 @@ history belongs in git history and the feature-specific docs linked below.
         `fractionDigits`, plus string `minLength`, `maxLength`, and `length`
         params, regex `pattern`, URI `uriSchemes`, and media-type `mediaTypes`
         datatype params,
-        plus accepted-child allow-lists and min/max child occurrence ranges; it
-        still needs scalar type validation beyond
+        plus accepted-child allow-lists, forbidden-child occurrence, and
+        min/max child occurrence ranges; it still needs scalar type validation beyond
         boolean/integer/number/basic URI/media-type/path syntax, RELAX NG-style
         datatype params beyond those initial variations, defaults, richer
         dependent-required field groups, and additional child occurrence
@@ -202,7 +202,8 @@ history belongs in git history and the feature-specific docs linked below.
         `schema:number`/`cemml:number`,
         `schema:uri`/`cemml:uri`, `schema:media-type`/
         `cemml:media-type`, plus `schema:path`/`cemml:path` attribute types,
-        and accepted-child allow-list field contracts; it
+        accepted-child allow-list field contracts, and forbidden-child
+        occurrence contracts; it
         still needs reusable string/path constraints beyond path-layout checks,
         URI/media-type constraints beyond initial allowed scheme/essence
         lists, RELAX NG-style datatype params beyond numeric bounds/digit
@@ -223,8 +224,8 @@ history belongs in git history and the feature-specific docs linked below.
         checks, plus regex `pattern` checks emit
         datatype-param details; value-specific forbidden checks emit
         forbiddenAttributeValues and invalidValues details; child occurrence
-        checks emit required/max-one/min/max children,
-        missing/duplicate/under-min/over-max children, and childCounts details;
+        checks emit required/forbidden/max-one/min/max children,
+        invalid/missing/duplicate/under-min/over-max children, and childCounts details;
         required-one/max-one attribute choice checks emit choice cardinality
         details; path-layout checks emit pathLayout and invalidValues details;
         path type checks emit expected/actual details; nested choice/case
@@ -249,7 +250,8 @@ history belongs in git history and the feature-specific docs linked below.
         occurrence range checks, required-one/max-one attribute choice checks,
         and
         package-relative path-layout checks, scope-context path type checks,
-        nested choice/case checks, accepted-child allow-lists, URI scheme
+        nested choice/case checks, accepted-child allow-lists, forbidden-child
+        occurrence checks, URI scheme
         constraints, and media-type essence constraints; it still needs coverage for additional
         URI/media-type constraints, additional datatype params, dependency, and
         additional child occurrence variants.
