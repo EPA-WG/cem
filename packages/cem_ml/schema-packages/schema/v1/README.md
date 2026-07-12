@@ -137,7 +137,8 @@ and datatype parameter failures for integer and number
 `@minInclusive`/`@maxInclusive`/`@minExclusive`/`@maxExclusive` bounds, string
 `@minLength`/`@maxLength`/`@length` constraints, numeric
 `@totalDigits`/`@fractionDigits` digit-count constraints, and regex
-`@pattern`, URI `@uriSchemes`, and media-type `@mediaTypes` constraints
+`@pattern`, URI `@uriSchemes`/`@uriRequiresAuthority`, and media-type
+`@mediaTypes`/`@mediaTypeParameters` constraints
 through `@datatype-param-diagnostic` to
 `schema:datatype-param`. In all cases the diagnostic `@code` remains the
 stable output identity while `@behavior` selects the reusable algorithm
@@ -210,8 +211,9 @@ Constraint-owned `schema:resource-readable`, `schema:resource-parse`, and
 diagnostics with their declared behavior. Integer and number `minInclusive`,
 `maxInclusive`, `minExclusive`, and `maxExclusive` bounds, numeric
 `totalDigits`/`fractionDigits` constraints, string `minLength`/`maxLength`/
-`length` constraints, regex `pattern`, URI scheme `uriSchemes`, and media-type
-essence `mediaTypes` datatype parameter variations now
+`length` constraints, regex `pattern`, URI scheme/authority
+`uriSchemes`/`uriRequiresAuthority`, and media-type essence/parameter-name
+`mediaTypes`/`mediaTypeParameters` datatype parameter variations now
 execute through
 `schema:datatype-param`; boolean, integer, number, basic absolute-URI, basic
 media-type, and scope-context path scalar syntax now execute through
