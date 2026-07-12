@@ -104,6 +104,7 @@
             @type="schema:uri"
             @type-diagnostic="example.resource.invalid_href"
             @uriSchemes="https"
+            @uriHosts="api.example.test assets.example.test"
             @uriRequiresAuthority=true
             @uriPathPrefixes="/resources/ /assets/"
             @datatype-param-diagnostic="example.resource.invalid_href_scheme"

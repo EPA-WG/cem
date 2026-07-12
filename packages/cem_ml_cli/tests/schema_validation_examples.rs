@@ -1751,6 +1751,22 @@ fn schema_datatype_param_examples_emit_structured_definition_details() {
                 SchemaDefinitionDetailExpectation {
                     code: "cem.schema_definition.invalid_datatype_param",
                     severity: "error",
+                    check_kind: "datatype-param:uriHosts",
+                    attribute: "cdn",
+                    datatype_param: "uriHosts",
+                    param_value: "bad/host",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
+                    check_kind: "datatype-param:uriHosts",
+                    attribute: "linkLabel",
+                    datatype_param: "uriHosts",
+                    param_value: "api.example.test",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
                     check_kind: "datatype-param:uriRequiresAuthority",
                     attribute: "remote",
                     datatype_param: "uriRequiresAuthority",

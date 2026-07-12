@@ -29,7 +29,7 @@
         {element @name="elements" @children="element"}
         {element @name="element" @required-attributes="name" @optional-attributes="base required-attributes optional-attributes children"}
         {element @name="attributes" @children="attribute"}
-        {element @name="attribute" @required-attributes="name" @optional-attributes="base type required values minInclusive maxInclusive minExclusive maxExclusive minLength maxLength length stringPrefixes stringSuffixes itemCount minItems maxItems totalDigits fractionDigits pattern pathPrefixes pathExtensions uriSchemes uriRequiresAuthority uriPathPrefixes mediaTypes mediaTypeSuffixes mediaTypeParameters mediaTypeParameterValues mediaTypeForbiddenParameters mediaTypeRequiredParameters values-diagnostic type-diagnostic datatype-param-diagnostic"}
+        {element @name="attribute" @required-attributes="name" @optional-attributes="base type required values minInclusive maxInclusive minExclusive maxExclusive minLength maxLength length stringPrefixes stringSuffixes itemCount minItems maxItems totalDigits fractionDigits pattern pathPrefixes pathExtensions uriSchemes uriHosts uriRequiresAuthority uriPathPrefixes mediaTypes mediaTypeSuffixes mediaTypeParameters mediaTypeParameterValues mediaTypeForbiddenParameters mediaTypeRequiredParameters values-diagnostic type-diagnostic datatype-param-diagnostic"}
         {element @name="directives" @children="directive"}
         {element @name="directive" @required-attributes="name" @optional-attributes="required value"}
         {element @name="nodes" @children="node"}
@@ -176,6 +176,7 @@
         {attribute @name="pathPrefixes" @type="schema:string"}
         {attribute @name="pathExtensions" @type="schema:string"}
         {attribute @name="uriSchemes" @type="schema:string"}
+        {attribute @name="uriHosts" @type="schema:string"}
         {attribute @name="uriRequiresAuthority" @type="schema:boolean"}
         {attribute @name="uriPathPrefixes" @type="schema:string"}
         {attribute @name="mediaTypes" @type="schema:string"}

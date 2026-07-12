@@ -11,6 +11,7 @@
         {attribute @name="template" @type="schema:path" @pathPrefixes="/absolute ./../bad"}
         {attribute @name="script" @type="schema:path" @pathExtensions="cem .cem"}
         {attribute @name="href" @type="schema:uri" @uriSchemes="https 1bad"}
+        {attribute @name="cdn" @type="schema:uri" @uriHosts="api.example.test bad/host"}
         {attribute @name="remote" @type="schema:uri" @uriRequiresAuthority=maybe}
         {attribute @name="asset" @type="schema:uri" @uriPathPrefixes="assets"}
         {attribute @name="format" @type="schema:media-type" @mediaTypes="text/html text"}
@@ -22,6 +23,7 @@
         {attribute @name="label" @type="schema:string" @mediaTypeSuffixes="json"}
         {attribute @name="title" @type="schema:string" @mediaTypeForbiddenParameters="profile"}
         {attribute @name="description" @type="schema:string" @mediaTypeParameterValues="charset=utf-8"}
+        {attribute @name="linkLabel" @type="schema:string" @uriHosts="api.example.test"}
         {attribute @name="caption" @type="schema:string" @pathPrefixes="./templates/"}
         {attribute @name="summary" @type="schema:string" @pathExtensions="cem"}
     }

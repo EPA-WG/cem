@@ -195,6 +195,7 @@ pub struct AttributeModel {
     pub path_prefixes: BTreeSet<String>,
     pub path_extensions: BTreeSet<String>,
     pub uri_schemes: BTreeSet<String>,
+    pub uri_hosts: BTreeSet<String>,
     pub uri_requires_authority: Option<String>,
     pub uri_path_prefixes: BTreeSet<String>,
     pub media_types: BTreeSet<String>,
@@ -1259,6 +1260,28 @@ fn uri_authority(value: &str) -> Option<&str> {
     (!authority.is_empty()).then_some(authority)
 }
 
+fn normalized_uri_host(value: &str) -> Option<String> {
+    let authority = uri_authority(value)?;
+    let host_port = authority
+        .rsplit_once('@')
+        .map_or(authority, |(_, host_port)| host_port)
+        .trim();
+    if host_port.starts_with('[') {
+        let close = host_port.find(']')?;
+        let tail = &host_port[close + 1..];
+        if !tail.is_empty() && !tail.starts_with(':') {
+            return None;
+        }
+        let host = &host_port[..=close];
+        return (host.len() > 2).then(|| host.to_ascii_lowercase());
+    }
+    let host = host_port
+        .split_once(':')
+        .map_or(host_port, |(host, _)| host)
+        .trim();
+    (!host.is_empty()).then(|| host.to_ascii_lowercase())
+}
+
 fn uri_path(value: &str) -> Option<&str> {
     let value = value.trim();
     if is_windows_drive_path(value) {
@@ -1285,6 +1308,34 @@ fn is_uri_path_prefix(value: &str) -> bool {
         && value.starts_with('/')
         && !value.contains(['?', '#', '\\'])
         && value.bytes().all(|byte| !byte.is_ascii_control())
+}
+
+fn is_uri_host_token(value: &str) -> bool {
+    let value = value.trim();
+    if value.is_empty()
+        || value.bytes().any(|byte| {
+            byte.is_ascii_control()
+                || byte.is_ascii_whitespace()
+                || matches!(byte, b'/' | b'?' | b'#' | b'@')
+        })
+    {
+        return false;
+    }
+    if value.starts_with('[') {
+        return value.ends_with(']')
+            && value.len() > 2
+            && value[1..value.len() - 1]
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit() || matches!(byte, b':' | b'.'));
+    }
+    value.split('.').all(|label| {
+        !label.is_empty()
+            && !label.starts_with('-')
+            && !label.ends_with('-')
+            && label
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+    })
 }
 
 fn is_scoped_path_specifier(value: &str) -> bool {
@@ -1769,6 +1820,32 @@ fn validate_attribute_datatype_params(
                 value,
                 attribute_model,
                 "uriSchemes",
+                &param_value,
+                "outside allowed",
+                attribute_values,
+                node,
+                diagnostics,
+            );
+        }
+    }
+    if !attribute_model.uri_hosts.is_empty()
+        && attribute_model
+            .value_type
+            .as_deref()
+            .is_some_and(is_uri_type_reference)
+    {
+        let matches_allowed_host = normalized_uri_host(value)
+            .is_some_and(|host| attribute_model.uri_hosts.contains(&host));
+        if !matches_allowed_host {
+            let param_value = format_value_set(&attribute_model.uri_hosts);
+            emit_attribute_datatype_param_diagnostic(
+                schema_uri,
+                diagnostic_behaviors,
+                element_name,
+                attribute_name,
+                value,
+                attribute_model,
+                "uriHosts",
                 &param_value,
                 "outside allowed",
                 attribute_values,
@@ -2717,6 +2794,7 @@ fn collect_attribute_models(
                     path_prefixes: parse_value_set(attrs.get("pathPrefixes")),
                     path_extensions: parse_value_set(attrs.get("pathExtensions")),
                     uri_schemes: parse_ascii_lower_value_set(attrs.get("uriSchemes")),
+                    uri_hosts: parse_ascii_lower_value_set(attrs.get("uriHosts")),
                     uri_requires_authority: optional_boolean_datatype_param(
                         &attrs,
                         "uriRequiresAuthority",
@@ -3178,6 +3256,56 @@ fn validate_attribute_datatype_param_definition(
                     "paramName": "uriSchemes",
                     "paramValue": scheme,
                     "expectedPattern": "URI scheme",
+                    "error": error,
+                }),
+            ));
+        }
+    }
+    if !attribute_model.uri_hosts.is_empty() {
+        let value_type = attribute_model.value_type.as_deref();
+        if !value_type.is_some_and(is_uri_type_reference) {
+            let param_value = format_value_set(&attribute_model.uri_hosts);
+            let error = "expected schema:uri or cemml:uri value type for uriHosts";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriHosts datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriHosts",
+                    "datatypeParam": "uriHosts",
+                    "paramName": "uriHosts",
+                    "paramValue": param_value,
+                    "valueType": value_type.unwrap_or_default(),
+                    "expectedType": "schema:uri",
+                    "error": error,
+                }),
+            ));
+        }
+        for host in &attribute_model.uri_hosts {
+            if is_uri_host_token(host) {
+                continue;
+            }
+            let error = "expected URI host literal";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriHosts datatype parameter `{host}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriHosts",
+                    "datatypeParam": "uriHosts",
+                    "paramName": "uriHosts",
+                    "paramValue": host,
+                    "expectedPattern": "URI host",
                     "error": error,
                 }),
             ));
@@ -6657,6 +6785,7 @@ fn attribute_datatype_param_details(
         "pathPrefixes" => "scope-context path prefix",
         "pathExtensions" => "path extension token",
         "uriSchemes" => "URI scheme",
+        "uriHosts" => "URI host",
         "uriRequiresAuthority" => "URI authority",
         "uriPathPrefixes" => "URI path prefix",
         "mediaTypes" => "media type essence",
@@ -6792,6 +6921,19 @@ fn attribute_datatype_param_details(
             );
             if let Some(actual_scheme) = normalized_uri_scheme(actual_value) {
                 object.insert("actualScheme".to_owned(), serde_json::json!(actual_scheme));
+            }
+        }
+        if param_name == "uriHosts" {
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .uri_hosts
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            if let Some(actual_host) = normalized_uri_host(actual_value) {
+                object.insert("actualUriHost".to_owned(), serde_json::json!(actual_host));
             }
         }
         if param_name == "uriRequiresAuthority" {
@@ -7658,6 +7800,15 @@ mod tests {
                 .attributes
                 .get("uriSchemes")
                 .expect("uriSchemes attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:string")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("uriHosts")
+                .expect("uriHosts attribute model")
                 .value_type
                 .as_deref(),
             Some("schema:string")
@@ -12979,6 +13130,182 @@ mod tests {
     }
 
     #[test]
+    fn schema_uri_host_datatype_param_drives_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/uri-host-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="uri-host-contracts" @namespace="https://example.test/ns/uri-host-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="href"}
+    }
+    {attributes |
+        {attribute @name="href" @type="schema:uri" @uriHosts="api.example.test assets.example.test"}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "valid URI host schema must compile: {:#?}",
+            model.compile_diagnostics
+        );
+
+        for source in [
+            r#"{item @href="https://api.example.test/resources/one"}"#,
+            r#"{item @href="https://user:pass@ASSETS.EXAMPLE.TEST:443/assets/two"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "valid URI host source produced datatype-param diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        for source in [
+            r#"{item @href="https://cdn.example.test/resources/one"}"#,
+            r#"{item @href="mailto:test@example.test"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "URI outside host allow-list did not produce datatype-param diagnostic: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document =
+            parse_cem_document(r#"{item @href="https://cdn.example.test/resources/one"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("URI host datatype-param diagnostic");
+        assert!(diagnostic.message.contains("href"));
+        assert!(diagnostic.message.contains("uriHosts"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("URI host datatype-param details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/uri-host-contracts/1")
+        );
+        assert_eq!(details["element"], serde_json::json!("item"));
+        assert_eq!(details["attribute"], serde_json::json!("href"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:href:uriHosts")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriHosts")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("uriHosts"));
+        assert_eq!(
+            details["uriHosts"],
+            serde_json::json!("api.example.test assets.example.test")
+        );
+        assert_eq!(details["expectedPattern"], serde_json::json!("URI host"));
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["api.example.test", "assets.example.test"])
+        );
+        assert_eq!(
+            details["actualUriHost"],
+            serde_json::json!("cdn.example.test")
+        );
+        assert_eq!(
+            details["actualValue"],
+            serde_json::json!("https://cdn.example.test/resources/one")
+        );
+        assert_eq!(details["invalidFields"], serde_json::json!(["href"]));
+        assert_eq!(
+            details["actualValues"]["href"],
+            serde_json::json!("https://cdn.example.test/resources/one")
+        );
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
+    fn schema_uri_host_datatype_param_rejects_invalid_declarations() {
+        let model = compile_document_model(
+            "https://example.test/ns/invalid-uri-host-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-uri-host-contracts" @namespace="https://example.test/ns/invalid-uri-host-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="href label"}
+    }
+    {attributes |
+        {attribute @name="href" @type="schema:uri" @uriHosts="api.example.test bad/host"}
+        {attribute @name="label" @type="schema:string" @uriHosts="api.example.test"}
+    }
+}"#,
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().is_some_and(|details| {
+                        details.get("attribute").and_then(serde_json::Value::as_str)
+                            == Some("label")
+                    })
+            })
+            .expect("invalid uriHosts type compile diagnostic");
+        assert!(diagnostic.message.contains("uriHosts"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid uriHosts type compile details");
+        assert_eq!(details["attribute"], serde_json::json!("label"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriHosts")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("uriHosts"));
+        assert_eq!(details["expectedType"], serde_json::json!("schema:uri"));
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().is_some_and(|details| {
+                        details.get("attribute").and_then(serde_json::Value::as_str) == Some("href")
+                            && details
+                                .get("paramValue")
+                                .and_then(serde_json::Value::as_str)
+                                == Some("bad/host")
+                    })
+            })
+            .expect("invalid uriHosts token compile diagnostic");
+        assert!(diagnostic.message.contains("invalid uriHosts"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid uriHosts token compile details");
+        assert_eq!(details["attribute"], serde_json::json!("href"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriHosts")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("uriHosts"));
+        assert_eq!(details["paramValue"], serde_json::json!("bad/host"));
+        assert_eq!(details["expectedPattern"], serde_json::json!("URI host"));
+    }
+
+    #[test]
     fn schema_uri_authority_datatype_param_rejects_invalid_declarations() {
         let model = compile_document_model(
             "https://example.test/ns/invalid-uri-authority-contracts/1",
@@ -15195,7 +15522,7 @@ mod tests {
 
 {schema @name="incompatible-datatype-param-contracts" @namespace="https://example.test/ns/incompatible-datatype-param-contracts/1" @version="1.0.0" |
     {elements |
-        {element @name="item" @optional-attributes="title untyped count code ratio score rank names"}
+        {element @name="item" @optional-attributes="title untyped count code ratio score rank names homepage"}
     }
     {attributes |
         {attribute @name="title" @type="schema:string" @minInclusive=1}
@@ -15206,6 +15533,7 @@ mod tests {
         {attribute @name="score" @type="schema:number" @stringPrefixes="score-"}
         {attribute @name="rank" @type="schema:integer" @stringSuffixes="-rank"}
         {attribute @name="names" @type="schema:string" @minItems=2}
+        {attribute @name="homepage" @type="schema:string" @uriHosts="api.example.test"}
     }
 }"#,
         );
@@ -15266,6 +15594,13 @@ mod tests {
                 "2",
                 "schema:string",
                 "schema:name-list, schema:wildcard-name-list, cemml:name-list, or cemml:wildcard-name-list",
+            ),
+            (
+                "homepage",
+                "uriHosts",
+                "api.example.test",
+                "schema:string",
+                "schema:uri",
             ),
         ] {
             let diagnostic = model
