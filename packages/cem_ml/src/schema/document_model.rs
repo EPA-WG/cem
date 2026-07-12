@@ -14,9 +14,10 @@
 //! - schema-owned attribute `@values`, boolean/integer/number/URI/media-type/
 //!   path type checks, and integer/number `minInclusive`/`maxInclusive`/
 //!   `minExclusive`/`maxExclusive`, numeric `totalDigits`/`fractionDigits`,
-//!   string `minLength`/`maxLength`/`length`/prefix/suffix, regex `pattern`,
-//!   path prefix/extension, URI scheme/path, and media-type
-//!   essence/suffix/parameter name/value datatype-param checks.
+//!   string `minLength`/`maxLength`/`length`/prefix/suffix, list
+//!   `itemCount`/`minItems`/`maxItems`, regex `pattern`, path prefix/extension,
+//!   URI scheme/path, and media-type essence/suffix/parameter name/value
+//!   datatype-param checks.
 //! - schema-owned exact, ranged, ordered, boundary, sequence, forbidden-sequence,
 //!   exact-sequence, and choice-cardinality child occurrence field contracts.
 //!
@@ -185,6 +186,9 @@ pub struct AttributeModel {
     pub length: Option<String>,
     pub string_prefixes: BTreeSet<String>,
     pub string_suffixes: BTreeSet<String>,
+    pub item_count: Option<String>,
+    pub min_items: Option<String>,
+    pub max_items: Option<String>,
     pub total_digits: Option<String>,
     pub fraction_digits: Option<String>,
     pub pattern: Option<String>,
@@ -1048,6 +1052,13 @@ fn is_string_type_reference(value_type: &str) -> bool {
     type_reference_local_name(value_type) == "string"
 }
 
+fn is_list_item_type_reference(value_type: &str) -> bool {
+    matches!(
+        type_reference_local_name(value_type),
+        "name-list" | "wildcard-name-list"
+    )
+}
+
 fn is_qualified_name_type_reference(value_type: &str) -> bool {
     type_reference_local_name(value_type) == "qualified-name"
 }
@@ -1132,6 +1143,10 @@ fn is_cem_wildcard_name(value: &str) -> bool {
 fn is_cem_wildcard_name_list(value: &str) -> bool {
     let value = value.trim();
     !value.is_empty() && value.split_whitespace().all(is_cem_wildcard_name)
+}
+
+fn list_items(value: &str) -> Vec<&str> {
+    value.split_whitespace().collect()
 }
 
 fn is_cem_wildcard_type_reference(value: &str) -> bool {
@@ -2095,6 +2110,69 @@ fn validate_attribute_datatype_params(
             }
         }
     }
+    if attribute_model
+        .value_type
+        .as_deref()
+        .is_some_and(is_list_item_type_reference)
+    {
+        let item_count = list_items(value).len();
+        if let Some(expected_item_count) = attribute_model.item_count.as_deref() {
+            if parse_non_negative_integer_to_usize(expected_item_count)
+                .is_some_and(|expected| item_count != expected)
+            {
+                emit_attribute_datatype_param_diagnostic(
+                    schema_uri,
+                    diagnostic_behaviors,
+                    element_name,
+                    attribute_name,
+                    value,
+                    attribute_model,
+                    "itemCount",
+                    expected_item_count,
+                    "with item count different from",
+                    attribute_values,
+                    node,
+                    diagnostics,
+                );
+            }
+        }
+        if let Some(min_items) = attribute_model.min_items.as_deref() {
+            if parse_non_negative_integer_to_usize(min_items).is_some_and(|min| item_count < min) {
+                emit_attribute_datatype_param_diagnostic(
+                    schema_uri,
+                    diagnostic_behaviors,
+                    element_name,
+                    attribute_name,
+                    value,
+                    attribute_model,
+                    "minItems",
+                    min_items,
+                    "with fewer items than",
+                    attribute_values,
+                    node,
+                    diagnostics,
+                );
+            }
+        }
+        if let Some(max_items) = attribute_model.max_items.as_deref() {
+            if parse_non_negative_integer_to_usize(max_items).is_some_and(|max| item_count > max) {
+                emit_attribute_datatype_param_diagnostic(
+                    schema_uri,
+                    diagnostic_behaviors,
+                    element_name,
+                    attribute_name,
+                    value,
+                    attribute_model,
+                    "maxItems",
+                    max_items,
+                    "with more items than",
+                    attribute_values,
+                    node,
+                    diagnostics,
+                );
+            }
+        }
+    }
     let digit_counts =
         if attribute_model.total_digits.is_some() || attribute_model.fraction_digits.is_some() {
             attribute_model
@@ -2629,6 +2707,9 @@ fn collect_attribute_models(
                     length: optional_non_empty_attr(&attrs, "length").map(str::to_owned),
                     string_prefixes: parse_value_set(attrs.get("stringPrefixes")),
                     string_suffixes: parse_value_set(attrs.get("stringSuffixes")),
+                    item_count: optional_non_empty_attr(&attrs, "itemCount").map(str::to_owned),
+                    min_items: optional_non_empty_attr(&attrs, "minItems").map(str::to_owned),
+                    max_items: optional_non_empty_attr(&attrs, "maxItems").map(str::to_owned),
                     total_digits: optional_non_empty_attr(&attrs, "totalDigits").map(str::to_owned),
                     fraction_digits: optional_non_empty_attr(&attrs, "fractionDigits")
                         .map(str::to_owned),
@@ -2859,6 +2940,24 @@ fn validate_attribute_datatype_param_definition(
         );
     }
     for (param_name, param_value) in [
+        ("itemCount", attribute_model.item_count.as_deref()),
+        ("minItems", attribute_model.min_items.as_deref()),
+        ("maxItems", attribute_model.max_items.as_deref()),
+    ] {
+        let Some(param_value) = param_value else {
+            continue;
+        };
+        validate_datatype_param_value_type(
+            schema_uri,
+            attribute_model,
+            param_name,
+            param_value,
+            "schema:name-list, schema:wildcard-name-list, cemml:name-list, or cemml:wildcard-name-list",
+            is_list_item_type_reference,
+            diagnostics,
+        );
+    }
+    for (param_name, param_value) in [
         ("minInclusive", attribute_model.min_inclusive.as_deref()),
         ("maxInclusive", attribute_model.max_inclusive.as_deref()),
         ("minExclusive", attribute_model.min_exclusive.as_deref()),
@@ -2910,6 +3009,9 @@ fn validate_attribute_datatype_param_definition(
         ("minLength", attribute_model.min_length.as_deref()),
         ("maxLength", attribute_model.max_length.as_deref()),
         ("length", attribute_model.length.as_deref()),
+        ("itemCount", attribute_model.item_count.as_deref()),
+        ("minItems", attribute_model.min_items.as_deref()),
+        ("maxItems", attribute_model.max_items.as_deref()),
         ("fractionDigits", attribute_model.fraction_digits.as_deref()),
     ] {
         let Some(param_value) = param_value else {
@@ -6565,6 +6667,7 @@ fn attribute_datatype_param_details(
         "mediaTypeRequiredParameters" => "media type parameter name",
         "stringPrefixes" => "string prefix",
         "stringSuffixes" => "string suffix",
+        "itemCount" | "minItems" | "maxItems" => "whitespace-separated list item count",
         "minLength" | "maxLength" | "length" => "Unicode scalar value length",
         "totalDigits" => "numeric total digit count",
         "fractionDigits" => "numeric fractional digit count",
@@ -6577,6 +6680,8 @@ fn attribute_datatype_param_details(
     };
     let actual_length = matches!(param_name, "minLength" | "maxLength" | "length")
         .then(|| actual_value.chars().count());
+    let actual_items = matches!(param_name, "itemCount" | "minItems" | "maxItems")
+        .then(|| list_items(actual_value));
     let actual_digit_counts = matches!(param_name, "totalDigits" | "fractionDigits")
         .then(|| decimal_digit_counts(actual_value))
         .flatten();
@@ -6608,6 +6713,13 @@ fn attribute_datatype_param_details(
         object.insert(param_name.to_owned(), serde_json::json!(param_value));
         if let Some(actual_length) = actual_length {
             object.insert("actualLength".to_owned(), serde_json::json!(actual_length));
+        }
+        if let Some(actual_items) = actual_items {
+            object.insert(
+                "actualItemCount".to_owned(),
+                serde_json::json!(actual_items.len()),
+            );
+            object.insert("actualItems".to_owned(), serde_json::json!(actual_items));
         }
         if let Some(actual_digit_counts) = actual_digit_counts {
             object.insert(
@@ -7512,6 +7624,17 @@ mod tests {
                 .as_deref(),
             Some("schema:string")
         );
+        for name in ["itemCount", "minItems", "maxItems"] {
+            assert_eq!(
+                model
+                    .attributes
+                    .get(name)
+                    .unwrap_or_else(|| panic!("{name} attribute model"))
+                    .value_type
+                    .as_deref(),
+                Some("schema:integer")
+            );
+        }
         assert_eq!(
             model
                 .attributes
@@ -11072,7 +11195,7 @@ mod tests {
         {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
     }
     {elements |
-        {element @name="item" @optional-attributes="mode enabled rating ratio homepage format secureHref payload asset count score lower upper code label tag slugPrefix slugSuffix serial decimal"}
+        {element @name="item" @optional-attributes="mode enabled rating ratio homepage format secureHref payload asset count score lower upper code label tag slugPrefix slugSuffix names serial decimal"}
     }
     {attributes |
         {attribute
@@ -11177,6 +11300,12 @@ mod tests {
             @type="schema:string"
             @stringSuffixes="-slug -id"
             @datatype-param-diagnostic="example.slug_suffix"
+        }
+        {attribute
+            @name="names"
+            @type="schema:name-list"
+            @minItems=2
+            @datatype-param-diagnostic="example.names_min_items"
         }
         {attribute
             @name="serial"
@@ -11301,6 +11430,12 @@ mod tests {
             @message="Slug suffix must satisfy its datatype parameters"
         }
         {diagnostic
+            @code="example.names_min_items"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Names must satisfy their list item-count datatype parameters"
+        }
+        {diagnostic
             @code="example.serial_total_digits"
             @severity="error"
             @behavior="schema:datatype-param"
@@ -11330,7 +11465,7 @@ mod tests {
         );
 
         let document = parse_cem_document(
-            r#"{item @mode=tabular @enabled=maybe @rating=NaN @ratio=1.5 @homepage="/relative" @format="text/html; charset" @secureHref="http://example.test/resource" @payload="image/png" @asset="/rooted.cem" @count=0 @score=11 @lower=1 @upper=10 @code=bad_code @label=go @tag=to @slugPrefix="token-home-slug" @slugSuffix="page-home-ref" @serial=1234 @decimal=12.345}"#,
+            r#"{item @mode=tabular @enabled=maybe @rating=NaN @ratio=1.5 @homepage="/relative" @format="text/html; charset" @secureHref="http://example.test/resource" @payload="image/png" @asset="/rooted.cem" @count=0 @score=11 @lower=1 @upper=10 @code=bad_code @label=go @tag=to @slugPrefix="token-home-slug" @slugSuffix="page-home-ref" @names=one @serial=1234 @decimal=12.345}"#,
         );
         let diagnostics = validate_document_model(&document, &model);
 
@@ -11891,6 +12026,36 @@ mod tests {
         );
         assert_eq!(details["actualString"], serde_json::json!("page-home-ref"));
         assert_eq!(details["actualValue"], serde_json::json!("page-home-ref"));
+
+        let datatype_param = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.names_min_items")
+            .expect("minItems datatype-param alias diagnostic");
+        assert_eq!(datatype_param.severity, Severity::Error);
+        assert!(datatype_param
+            .message
+            .starts_with("Names must satisfy their list item-count datatype parameters:"));
+        let details = datatype_param
+            .details
+            .as_ref()
+            .expect("minItems datatype-param alias details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:datatype-param")
+        );
+        assert_eq!(
+            details["diagnostic"],
+            serde_json::json!("example.names_min_items")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:minItems")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("minItems"));
+        assert_eq!(details["minItems"], serde_json::json!("2"));
+        assert_eq!(details["actualItemCount"], serde_json::json!(1));
+        assert_eq!(details["actualItems"], serde_json::json!(["one"]));
+        assert_eq!(details["actualValue"], serde_json::json!("one"));
 
         let datatype_param = diagnostics
             .iter()
@@ -15030,7 +15195,7 @@ mod tests {
 
 {schema @name="incompatible-datatype-param-contracts" @namespace="https://example.test/ns/incompatible-datatype-param-contracts/1" @version="1.0.0" |
     {elements |
-        {element @name="item" @optional-attributes="title untyped count code ratio score rank"}
+        {element @name="item" @optional-attributes="title untyped count code ratio score rank names"}
     }
     {attributes |
         {attribute @name="title" @type="schema:string" @minInclusive=1}
@@ -15040,6 +15205,7 @@ mod tests {
         {attribute @name="ratio" @type="schema:boolean" @fractionDigits=2}
         {attribute @name="score" @type="schema:number" @stringPrefixes="score-"}
         {attribute @name="rank" @type="schema:integer" @stringSuffixes="-rank"}
+        {attribute @name="names" @type="schema:string" @minItems=2}
     }
 }"#,
         );
@@ -15094,6 +15260,13 @@ mod tests {
                 "schema:integer",
                 "schema:string or cemml:string",
             ),
+            (
+                "names",
+                "minItems",
+                "2",
+                "schema:string",
+                "schema:name-list, schema:wildcard-name-list, cemml:name-list, or cemml:wildcard-name-list",
+            ),
         ] {
             let diagnostic = model
                 .compile_diagnostics
@@ -15140,6 +15313,231 @@ mod tests {
             assert!(details["error"]
                 .as_str()
                 .is_some_and(|error| error.contains("expected")));
+        }
+    }
+
+    #[test]
+    fn schema_list_item_count_datatype_params_drive_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/list-item-count-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="list-item-count-contracts" @namespace="https://example.test/ns/list-item-count-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="tags aliases"}
+    }
+    {attributes |
+        {attribute @name="tags" @type="schema:name-list" @minItems=2 @maxItems=3}
+        {attribute @name="aliases" @type="schema:wildcard-name-list" @itemCount=2}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "valid list item-count schema must compile: {:#?}",
+            model.compile_diagnostics
+        );
+
+        for source in [
+            r#"{item @tags="alpha beta"}"#,
+            r#"{item @tags="alpha beta gamma"}"#,
+            r#"{item @aliases="local with:*"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "valid list item-count source produced diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{item @tags=alpha}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details
+                            .get("datatypeParam")
+                            .and_then(serde_json::Value::as_str)
+                    }) == Some("minItems")
+            })
+            .expect("minItems attribute datatype param diagnostic");
+        assert!(diagnostic.message.contains("tags"));
+        assert!(diagnostic.message.contains("minItems"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("minItems attribute datatype param details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/list-item-count-contracts/1")
+        );
+        assert_eq!(details["element"], serde_json::json!("item"));
+        assert_eq!(details["attribute"], serde_json::json!("tags"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:tags:minItems")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:minItems")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("minItems"));
+        assert_eq!(details["minItems"], serde_json::json!("2"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("whitespace-separated list item count")
+        );
+        assert_eq!(details["actualItemCount"], serde_json::json!(1));
+        assert_eq!(details["actualItems"], serde_json::json!(["alpha"]));
+        assert_eq!(details["actualValue"], serde_json::json!("alpha"));
+        assert_eq!(details["invalidFields"], serde_json::json!(["tags"]));
+        assert_eq!(details["actualValues"]["tags"], serde_json::json!("alpha"));
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+
+        let document = parse_cem_document(r#"{item @tags="alpha beta gamma delta"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details
+                            .get("datatypeParam")
+                            .and_then(serde_json::Value::as_str)
+                    }) == Some("maxItems")
+            })
+            .expect("maxItems attribute datatype param diagnostic");
+        assert!(diagnostic.message.contains("maxItems"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("maxItems attribute datatype param details");
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:tags:maxItems")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:maxItems")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("maxItems"));
+        assert_eq!(details["maxItems"], serde_json::json!("3"));
+        assert_eq!(details["actualItemCount"], serde_json::json!(4));
+        assert_eq!(
+            details["actualItems"],
+            serde_json::json!(["alpha", "beta", "gamma", "delta"])
+        );
+        assert_eq!(
+            details["actualValue"],
+            serde_json::json!("alpha beta gamma delta")
+        );
+
+        let document = parse_cem_document(r#"{item @aliases="local with:* extra"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details
+                            .get("datatypeParam")
+                            .and_then(serde_json::Value::as_str)
+                    }) == Some("itemCount")
+            })
+            .expect("itemCount attribute datatype param diagnostic");
+        assert!(diagnostic.message.contains("itemCount"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("itemCount attribute datatype param details");
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:aliases:itemCount")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:itemCount")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("itemCount"));
+        assert_eq!(details["itemCount"], serde_json::json!("2"));
+        assert_eq!(details["actualItemCount"], serde_json::json!(3));
+        assert_eq!(
+            details["actualItems"],
+            serde_json::json!(["local", "with:*", "extra"])
+        );
+        assert_eq!(
+            details["actualValue"],
+            serde_json::json!("local with:* extra")
+        );
+    }
+
+    #[test]
+    fn schema_list_item_count_datatype_params_reject_invalid_counts() {
+        let model = compile_document_model(
+            "https://example.test/ns/invalid-list-item-count-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-list-item-count-contracts" @namespace="https://example.test/ns/invalid-list-item-count-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="tags aliases"}
+    }
+    {attributes |
+        {attribute @name="tags" @type="schema:name-list" @minItems=-1}
+        {attribute @name="aliases" @type="schema:wildcard-name-list" @itemCount=-1}
+    }
+}"#,
+        );
+
+        for (attribute, param_name, param_value) in
+            [("tags", "minItems", "-1"), ("aliases", "itemCount", "-1")]
+        {
+            let diagnostic = model
+                .compile_diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                        && diagnostic.details.as_ref().is_some_and(|details| {
+                            details.get("attribute").and_then(serde_json::Value::as_str)
+                                == Some(attribute)
+                                && details
+                                    .get("datatypeParam")
+                                    .and_then(serde_json::Value::as_str)
+                                    == Some(param_name)
+                        })
+                })
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing invalid {param_name} diagnostic for attribute {attribute}: {:#?}",
+                        model.compile_diagnostics
+                    )
+                });
+            assert!(diagnostic
+                .message
+                .contains(&format!("invalid {param_name}")));
+            let details = diagnostic
+                .details
+                .as_ref()
+                .expect("invalid list item-count compile details");
+            assert_eq!(
+                details["schemaUri"],
+                serde_json::json!("https://example.test/ns/invalid-list-item-count-contracts/1")
+            );
+            assert_eq!(details["attribute"], serde_json::json!(attribute));
+            assert_eq!(
+                details["checkKind"],
+                serde_json::json!(format!("datatype-param:{param_name}"))
+            );
+            assert_eq!(details["datatypeParam"], serde_json::json!(param_name));
+            assert_eq!(details["paramValue"], serde_json::json!(param_value));
         }
     }
 

@@ -32,10 +32,10 @@ external syntax such as JSON, HTML, or XML:
    describe an accepted document shape without embedding a package's domain
    model in the validator. Higher-level meaning belongs in the package's `.cem`
    schema. Schema-owned datatype parameters can refine compatible primitives,
-   including string prefix/suffix checks, URI scheme/authority/path-prefix
-   constraints, and media-type essence, parameter-name allow-lists,
-   parameter-value checks, and required-parameter checks, without moving
-   package meaning into Rust.
+   including string prefix/suffix checks, list item-count bounds, URI
+   scheme/authority/path-prefix constraints, and media-type essence,
+   parameter-name allow-lists, parameter-value checks, and required-parameter
+   checks, without moving package meaning into Rust.
 3. **Node references combine schema declaration with CEM-QL resolution.** A
    CEM-ML schema declares which fields or content positions carry a reference,
    including its type and constraints. CEM-QL supplies the query and resolution
@@ -477,9 +477,9 @@ scoped resource specifiers rather than document-relative filesystem paths:
 the matching resolver, and bare values are module-map specifiers. This keeps
 package-specific schemas small while preserving strict validation boundaries for
 their own instances. Attribute datatype params such as `@stringPrefixes`,
-`@stringSuffixes`, `@pathPrefixes`, `@pathExtensions`, `@uriSchemes`,
-`@uriRequiresAuthority`, `@uriPathPrefixes`, `@mediaTypes`, and
-`@mediaTypeSuffixes`/`@mediaTypeParameters`/
+`@stringSuffixes`, `@itemCount`, `@minItems`, `@maxItems`, `@pathPrefixes`,
+`@pathExtensions`, `@uriSchemes`, `@uriRequiresAuthority`, `@uriPathPrefixes`,
+`@mediaTypes`, and `@mediaTypeSuffixes`/`@mediaTypeParameters`/
 `@mediaTypeParameterValues`/`@mediaTypeForbiddenParameters`/
 `@mediaTypeRequiredParameters` then narrow those compatible primitives
 declaratively in the schema document.

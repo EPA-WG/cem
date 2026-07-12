@@ -4,7 +4,7 @@
 
 {schema @name="invalid-datatype-param-length" @namespace="https://example.test/ns/invalid-datatype-param-length/1" @version="1.0.0" |
     {elements |
-        {element @name="resource" @optional-attributes="label code count score rank"}
+        {element @name="resource" @optional-attributes="label code count score rank tags aliases title"}
     }
 
     {attributes |
@@ -13,5 +13,8 @@
         {attribute @name="count" @type="schema:integer" @maxLength=3}
         {attribute @name="score" @type="schema:number" @stringPrefixes="score-"}
         {attribute @name="rank" @type="schema:integer" @stringSuffixes="-rank"}
+        {attribute @name="tags" @type="schema:name-list" @minItems=-1}
+        {attribute @name="aliases" @type="schema:wildcard-name-list" @itemCount=-1}
+        {attribute @name="title" @type="schema:string" @maxItems=2}
     }
 }

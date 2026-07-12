@@ -22,7 +22,7 @@
     }
 
     {elements |
-        {element @name="resource" @required-attributes="id kind" @optional-attributes="label priority rank weight serial ratio slug code href format payload metadata asset inline qualified version" @children="field*"}
+        {element @name="resource" @required-attributes="id kind" @optional-attributes="label priority rank weight serial ratio slug tags aliases code href format payload metadata asset inline qualified version" @children="field*"}
         {element @name="single-resource" @required-attributes="id kind" @children="field"}
         {element @name="linked-resource" @required-attributes="id kind" @optional-attributes="label" @children="field reference"}
         {element @name="field" @required-attributes="name type"}
@@ -73,6 +73,19 @@
             @stringSuffixes="-slug -id"
             @pattern="[a-z][a-z0-9-]*"
             @datatype-param-diagnostic="example.resource.invalid_slug"
+        }
+        {attribute
+            @name="tags"
+            @type="schema:name-list"
+            @minItems=1
+            @maxItems=4
+            @datatype-param-diagnostic="example.resource.invalid_tags"
+        }
+        {attribute
+            @name="aliases"
+            @type="schema:wildcard-name-list"
+            @itemCount=2
+            @datatype-param-diagnostic="example.resource.invalid_aliases"
         }
         {attribute
             @name="code"
@@ -310,6 +323,18 @@
             @severity="error"
             @behavior="schema:datatype-param"
             @message="Resource slug must match the declared prefix, suffix, and pattern constraints"
+        }
+        {diagnostic
+            @code="example.resource.invalid_tags"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource tags must use the declared list item bounds"
+        }
+        {diagnostic
+            @code="example.resource.invalid_aliases"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Resource aliases must use the declared list item count"
         }
         {diagnostic
             @code="example.resource.invalid_code"
