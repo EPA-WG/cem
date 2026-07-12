@@ -361,6 +361,9 @@ pub struct FieldContract {
     pub exact_total_children: Option<String>,
     pub min_total_children: Option<String>,
     pub max_total_children: Option<String>,
+    pub exact_distinct_children: Option<String>,
+    pub min_distinct_children: Option<String>,
+    pub max_distinct_children: Option<String>,
     pub choice_groups: Vec<ChoiceGroup>,
     pub path_layout_attributes: BTreeSet<String>,
     pub path_layout_prefix: Option<String>,
@@ -2565,6 +2568,18 @@ fn validate_child_range_field_contract(
             contract.exact_total_children.as_deref(),
         ),
         ("max-total-children", contract.max_total_children.as_deref()),
+        (
+            "min-distinct-children",
+            contract.min_distinct_children.as_deref(),
+        ),
+        (
+            "exact-distinct-children",
+            contract.exact_distinct_children.as_deref(),
+        ),
+        (
+            "max-distinct-children",
+            contract.max_distinct_children.as_deref(),
+        ),
     ] {
         let Some(value) = value else {
             continue;
@@ -2647,6 +2662,36 @@ fn validate_child_range_field_contract(
                         "checkKind": "field-contract-child-range",
                         "minTotalChildren": min_value,
                         "maxTotalChildren": max_value,
+                        "error": error,
+                    }),
+                ));
+            }
+        }
+    }
+
+    if let (Some(min_value), Some(max_value)) = (
+        contract.min_distinct_children.as_deref(),
+        contract.max_distinct_children.as_deref(),
+    ) {
+        if let (Some(min), Some(max)) = (
+            parse_non_negative_integer_to_usize(min_value),
+            parse_non_negative_integer_to_usize(max_value),
+        ) {
+            if min > max {
+                let error = "min-distinct-children exceeds max-distinct-children";
+                diagnostics.push(schema_compile_diagnostic(
+                    INVALID_SCHEMA_FIELD_CONTRACT_CODE,
+                    format!(
+                        "field contract `{}` declares invalid distinct child occurrence range in schema `{schema_uri}`: {error}",
+                        contract.name
+                    ),
+                    &contract.source_map,
+                    serde_json::json!({
+                        "schemaUri": schema_uri,
+                        "contract": &contract.name,
+                        "checkKind": "field-contract-child-range",
+                        "minDistinctChildren": min_value,
+                        "maxDistinctChildren": max_value,
                         "error": error,
                     }),
                 ));
@@ -3896,6 +3941,12 @@ fn collect_field_contracts(
                     .map(str::to_owned),
                 max_total_children: optional_non_empty_attr(&attrs, "max-total-children")
                     .map(str::to_owned),
+                exact_distinct_children: optional_non_empty_attr(&attrs, "exact-distinct-children")
+                    .map(str::to_owned),
+                min_distinct_children: optional_non_empty_attr(&attrs, "min-distinct-children")
+                    .map(str::to_owned),
+                max_distinct_children: optional_non_empty_attr(&attrs, "max-distinct-children")
+                    .map(str::to_owned),
                 choice_groups: collect_choice_groups(document, *child_id),
                 path_layout_attributes: parse_name_set(attrs.get("path-layout-attributes")),
                 path_layout_prefix: optional_non_empty_attr(&attrs, "path-layout-prefix")
@@ -4197,6 +4248,22 @@ fn validate_field_contracts(
             .as_deref()
             .and_then(parse_non_negative_integer_to_usize)
             .is_some_and(|max| total_child_count > max);
+        let distinct_child_count = child_counts.len();
+        let invalid_exact_distinct_children = contract
+            .exact_distinct_children
+            .as_deref()
+            .and_then(parse_non_negative_integer_to_usize)
+            .is_some_and(|exact| distinct_child_count != exact);
+        let under_min_distinct_children = contract
+            .min_distinct_children
+            .as_deref()
+            .and_then(parse_non_negative_integer_to_usize)
+            .is_some_and(|min| distinct_child_count < min);
+        let over_max_distinct_children = contract
+            .max_distinct_children
+            .as_deref()
+            .and_then(parse_non_negative_integer_to_usize)
+            .is_some_and(|max| distinct_child_count > max);
 
         if missing.is_empty()
             && invalid_fields.is_empty()
@@ -4215,6 +4282,9 @@ fn validate_field_contracts(
             && !invalid_exact_total_children
             && !under_min_total_children
             && !over_max_total_children
+            && !invalid_exact_distinct_children
+            && !under_min_distinct_children
+            && !over_max_distinct_children
         {
             continue;
         }
@@ -4325,6 +4395,15 @@ fn validate_field_contracts(
         if over_max_total_children {
             parts.push("total children above maximum".to_owned());
         }
+        if invalid_exact_distinct_children {
+            parts.push("distinct children not at exact count".to_owned());
+        }
+        if under_min_distinct_children {
+            parts.push("distinct children below minimum".to_owned());
+        }
+        if over_max_distinct_children {
+            parts.push("distinct children above maximum".to_owned());
+        }
         let generated_message = format!(
             "element `{element_name}` failed field contract `{}` ({}) with {}",
             contract.name,
@@ -4372,6 +4451,10 @@ fn validate_field_contracts(
                 under_min_total_children,
                 over_max_total_children,
                 total_child_count,
+                invalid_exact_distinct_children,
+                under_min_distinct_children,
+                over_max_distinct_children,
+                distinct_child_count,
                 child_counts,
                 node,
             ),
@@ -4549,6 +4632,10 @@ fn field_contract_details(
     under_min_total_children: bool,
     over_max_total_children: bool,
     total_child_count: usize,
+    invalid_exact_distinct_children: bool,
+    under_min_distinct_children: bool,
+    over_max_distinct_children: bool,
+    distinct_child_count: usize,
     child_counts: &BTreeMap<String, usize>,
     node: &CemAstNode,
 ) -> serde_json::Value {
@@ -4693,6 +4780,27 @@ fn field_contract_details(
             .and_then(parse_non_negative_integer_to_usize)),
     );
     details.insert(
+        "exactDistinctChildren".to_owned(),
+        serde_json::json!(contract
+            .exact_distinct_children
+            .as_deref()
+            .and_then(parse_non_negative_integer_to_usize)),
+    );
+    details.insert(
+        "minDistinctChildren".to_owned(),
+        serde_json::json!(contract
+            .min_distinct_children
+            .as_deref()
+            .and_then(parse_non_negative_integer_to_usize)),
+    );
+    details.insert(
+        "maxDistinctChildren".to_owned(),
+        serde_json::json!(contract
+            .max_distinct_children
+            .as_deref()
+            .and_then(parse_non_negative_integer_to_usize)),
+    );
+    details.insert(
         "pathLayout".to_owned(),
         serde_json::json!({
             "attributes": &contract.path_layout_attributes,
@@ -4753,6 +4861,22 @@ fn field_contract_details(
     details.insert(
         "totalChildCount".to_owned(),
         serde_json::json!(total_child_count),
+    );
+    details.insert(
+        "invalidExactDistinctChildren".to_owned(),
+        serde_json::json!(invalid_exact_distinct_children),
+    );
+    details.insert(
+        "underMinDistinctChildren".to_owned(),
+        serde_json::json!(under_min_distinct_children),
+    );
+    details.insert(
+        "overMaxDistinctChildren".to_owned(),
+        serde_json::json!(over_max_distinct_children),
+    );
+    details.insert(
+        "distinctChildCount".to_owned(),
+        serde_json::json!(distinct_child_count),
     );
     details.insert("childCounts".to_owned(), serde_json::json!(child_counts));
     details.insert(
@@ -5666,6 +5790,33 @@ mod tests {
         assert_eq!(
             model
                 .attributes
+                .get("exact-distinct-children")
+                .expect("exact-distinct-children attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:integer")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("min-distinct-children")
+                .expect("min-distinct-children attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:integer")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("max-distinct-children")
+                .expect("max-distinct-children attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:integer")
+        );
+        assert_eq!(
+            model
+                .attributes
                 .get("min-children")
                 .expect("min-children attribute model")
                 .value_type
@@ -6197,6 +6348,13 @@ mod tests {
         {element @name="deck" @children="card marker"}
         {element @name="card"}
         {element @name="marker"}
+        {element @name="palette" @children="swatch tone accent"}
+        {element @name="swatch"}
+        {element @name="tone"}
+        {element @name="accent"}
+        {element @name="panel" @children="header body footer"}
+        {element @name="header"}
+        {element @name="footer"}
         {element @name="switch" @children="primary secondary"}
         {element @name="primary"}
         {element @name="secondary"}
@@ -6294,6 +6452,23 @@ mod tests {
             @diagnostic="example.item_check"
             @behavior="schema:child-occurrence"
             @check-kind="exact-total-children"
+        }
+        {field-contract
+            @name="palette-distinct-children"
+            @target="palette"
+            @min-distinct-children=2
+            @max-distinct-children=2
+            @diagnostic="example.item_check"
+            @behavior="schema:child-occurrence"
+            @check-kind="distinct-child-range"
+        }
+        {field-contract
+            @name="panel-exact-distinct-children"
+            @target="panel"
+            @exact-distinct-children=2
+            @diagnostic="example.item_check"
+            @behavior="schema:child-occurrence"
+            @check-kind="exact-distinct-children"
         }
         {field-contract
             @name="switch-child-choice"
@@ -6865,6 +7040,118 @@ mod tests {
         assert_eq!(details["totalChildCount"], serde_json::json!(1));
         assert_eq!(
             details["invalidExactTotalChildren"],
+            serde_json::json!(true)
+        );
+
+        let document = parse_cem_document(r#"{palette | {swatch} {swatch} {tone}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        assert!(
+            diagnostics.iter().all(|diagnostic| {
+                diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("contract").and_then(serde_json::Value::as_str))
+                    != Some("palette-distinct-children")
+            }),
+            "two distinct child names should satisfy distinct child range: {diagnostics:?}"
+        );
+
+        let document = parse_cem_document(r#"{palette | {swatch} {swatch}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("palette-distinct-children")
+            })
+            .expect("under-min distinct child diagnostic");
+        assert!(diagnostic
+            .message
+            .contains("distinct children below minimum"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("under-min distinct child details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:child-occurrence")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("distinct-child-range")
+        );
+        assert_eq!(details["minDistinctChildren"], serde_json::json!(2));
+        assert_eq!(details["maxDistinctChildren"], serde_json::json!(2));
+        assert_eq!(details["distinctChildCount"], serde_json::json!(1));
+        assert_eq!(details["underMinDistinctChildren"], serde_json::json!(true));
+        assert_eq!(details["overMaxDistinctChildren"], serde_json::json!(false));
+        assert_eq!(
+            details["invalidExactDistinctChildren"],
+            serde_json::json!(false)
+        );
+
+        let document = parse_cem_document(r#"{palette | {swatch} {tone} {accent}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("palette-distinct-children")
+            })
+            .expect("over-max distinct child diagnostic");
+        assert!(diagnostic
+            .message
+            .contains("distinct children above maximum"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("over-max distinct child details");
+        assert_eq!(details["distinctChildCount"], serde_json::json!(3));
+        assert_eq!(
+            details["underMinDistinctChildren"],
+            serde_json::json!(false)
+        );
+        assert_eq!(details["overMaxDistinctChildren"], serde_json::json!(true));
+
+        let document = parse_cem_document(r#"{panel | {header} {body}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        assert!(
+            diagnostics.iter().all(|diagnostic| {
+                diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("contract").and_then(serde_json::Value::as_str))
+                    != Some("panel-exact-distinct-children")
+            }),
+            "exact distinct child count should satisfy distinct child field contract: {diagnostics:?}"
+        );
+
+        let document = parse_cem_document(r#"{panel | {header}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("panel-exact-distinct-children")
+            })
+            .expect("exact distinct child diagnostic");
+        assert!(diagnostic
+            .message
+            .contains("distinct children not at exact count"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("exact distinct child details");
+        assert_eq!(details["exactDistinctChildren"], serde_json::json!(2));
+        assert_eq!(details["distinctChildCount"], serde_json::json!(1));
+        assert_eq!(
+            details["invalidExactDistinctChildren"],
             serde_json::json!(true)
         );
 
@@ -7458,6 +7745,15 @@ mod tests {
             @behavior="schema:child-occurrence"
             @check-kind="total-child-occurrence-range"
         }
+        {field-contract
+            @name="bad-distinct-child-range"
+            @target="group"
+            @min-distinct-children=-1
+            @max-distinct-children=3
+            @diagnostic="example.group_child_range"
+            @behavior="schema:child-occurrence"
+            @check-kind="distinct-child-range"
+        }
     }
     {diagnostics |
         {diagnostic
@@ -7520,6 +7816,36 @@ mod tests {
             serde_json::json!("field-contract-child-range")
         );
         assert_eq!(details["range"], serde_json::json!("min-total-children"));
+        assert_eq!(details["value"], serde_json::json!("-1"));
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_FIELD_CONTRACT_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("bad-distinct-child-range")
+            })
+            .expect("invalid distinct child range compile diagnostic");
+        assert!(diagnostic.message.contains("invalid min-distinct-children"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid distinct child range compile details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/field-contract-child-range/1")
+        );
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("bad-distinct-child-range")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("field-contract-child-range")
+        );
+        assert_eq!(details["range"], serde_json::json!("min-distinct-children"));
         assert_eq!(details["value"], serde_json::json!("-1"));
     }
 

@@ -70,6 +70,9 @@ expressed as `child=count` name-value pairs.
 Use `min-total-children`, `max-total-children`, and
 `exact-total-children` when the contract is over the total number of element
 children in the current scope instead of over one child name.
+Use `min-distinct-children`, `max-distinct-children`, and
+`exact-distinct-children` when the contract is over the number of different
+child element names present in the current scope.
 Use `path-layout-attributes` with `path-layout-prefix` and
 `path-layout-extension` for package-relative path layout contracts, such as
 formatter artifacts under `formatters/` and colorizer artifacts under
@@ -227,8 +230,8 @@ media-type, and scope-context path scalar syntax now execute through
 `schema:scalar-type`;
 required-one/max-one attribute choice cardinality and nested choice/case groups
 now execute through `schema:choice-case`; child-set cardinality,
-`min-children`/`max-children` named child occurrence ranges, and total
-child-count bounds now execute through
+`min-children`/`max-children` named child occurrence ranges, and
+total/distinct child-count bounds now execute through
 `schema:child-occurrence`; additional
 datatype parameter families remain follow-up work.
 

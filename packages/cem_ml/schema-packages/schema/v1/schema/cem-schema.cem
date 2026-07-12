@@ -54,7 +54,7 @@
         {element @name="param" @required-attributes="name type" @optional-attributes="required default nullable"}
         {element @name="body" @children="*"}
         {element @name="field-contracts" @children="field-contract"}
-        {element @name="field-contract" @required-attributes="name target" @optional-attributes="diagnostic behavior check-kind required-attributes optional-attributes forbidden-attributes forbidden-attribute-values required-one-attributes max-one-attributes accepted-children forbidden-children required-children max-one-children required-one-child max-one-child exact-children min-children max-children exact-total-children min-total-children max-total-children path-layout-attributes path-layout-prefix path-layout-extension when-attribute when-values when-present-attributes" @children="choice*"}
+        {element @name="field-contract" @required-attributes="name target" @optional-attributes="diagnostic behavior check-kind required-attributes optional-attributes forbidden-attributes forbidden-attribute-values required-one-attributes max-one-attributes accepted-children forbidden-children required-children max-one-children required-one-child max-one-child exact-children min-children max-children exact-total-children min-total-children max-total-children exact-distinct-children min-distinct-children max-distinct-children path-layout-attributes path-layout-prefix path-layout-extension when-attribute when-values when-present-attributes" @children="choice*"}
         {element @name="choice" @required-attributes="name mode" @children="case*"}
         {element @name="case" @optional-attributes="name attributes children"}
         {element @name="constraints" @children="constraint"}
@@ -97,6 +97,9 @@
         {attribute @name="exact-total-children" @type="schema:integer"}
         {attribute @name="min-total-children" @type="schema:integer"}
         {attribute @name="max-total-children" @type="schema:integer"}
+        {attribute @name="exact-distinct-children" @type="schema:integer"}
+        {attribute @name="min-distinct-children" @type="schema:integer"}
+        {attribute @name="max-distinct-children" @type="schema:integer"}
         {attribute @name="path-layout-attributes" @type="cemml:name-list"}
         {attribute @name="path-layout-prefix" @type="cemml:path"}
         {attribute @name="path-layout-extension" @type="cemml:identifier"}
@@ -428,6 +431,9 @@
                 {detail @name="exactTotalChildren" @type="schema:integer"}
                 {detail @name="minTotalChildren" @type="schema:integer"}
                 {detail @name="maxTotalChildren" @type="schema:integer"}
+                {detail @name="exactDistinctChildren" @type="schema:integer"}
+                {detail @name="minDistinctChildren" @type="schema:integer"}
+                {detail @name="maxDistinctChildren" @type="schema:integer"}
                 {detail @name="invalidChildren" @type="schema:array"}
                 {detail @name="missingChildren" @type="schema:array"}
                 {detail @name="duplicateChildren" @type="schema:array"}
@@ -438,6 +444,10 @@
                 {detail @name="underMinTotalChildren" @type="schema:boolean"}
                 {detail @name="overMaxTotalChildren" @type="schema:boolean"}
                 {detail @name="totalChildCount" @type="schema:integer"}
+                {detail @name="invalidExactDistinctChildren" @type="schema:boolean"}
+                {detail @name="underMinDistinctChildren" @type="schema:boolean"}
+                {detail @name="overMaxDistinctChildren" @type="schema:boolean"}
+                {detail @name="distinctChildCount" @type="schema:integer"}
                 {detail @name="childCounts" @type="schema:object"}
                 {detail @name="sourceRange" @type="schema:object" @source="candidate"}
             }
