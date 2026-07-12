@@ -90,6 +90,7 @@
             @type-diagnostic="example.resource.invalid_href"
             @uriSchemes="https"
             @uriRequiresAuthority=true
+            @uriPathPrefixes="/resources/ /assets/"
             @datatype-param-diagnostic="example.resource.invalid_href_scheme"
         }
         {attribute
@@ -207,7 +208,7 @@
             @code="example.resource.invalid_href_scheme"
             @severity="error"
             @behavior="schema:datatype-param"
-            @message="Resource href must use an allowed URI scheme"
+            @message="Resource href must use the declared URI constraints"
         }
         {diagnostic
             @code="example.resource.invalid_format_type"

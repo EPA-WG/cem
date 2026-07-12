@@ -1701,6 +1701,14 @@ fn schema_datatype_param_examples_emit_structured_definition_details() {
                 SchemaDefinitionDetailExpectation {
                     code: "cem.schema_definition.invalid_datatype_param",
                     severity: "error",
+                    check_kind: "datatype-param:uriPathPrefixes",
+                    attribute: "asset",
+                    datatype_param: "uriPathPrefixes",
+                    param_value: "assets",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
                     check_kind: "datatype-param:mediaTypes",
                     attribute: "format",
                     datatype_param: "mediaTypes",

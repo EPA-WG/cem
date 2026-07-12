@@ -40,7 +40,7 @@ history belongs in git history and the feature-specific docs linked below.
       parameter checks now cover integer and number `minInclusive`/`maxInclusive`/
       `minExclusive`/`maxExclusive`, numeric `totalDigits`/`fractionDigits`,
       string `minLength`/`maxLength`/`length`, regex `pattern`, URI
-      `uriSchemes`/`uriRequiresAuthority`, and media-type
+      `uriSchemes`/`uriRequiresAuthority`/`uriPathPrefixes`, and media-type
       `mediaTypes`/`mediaTypeParameters`.
       Required-one/max-one attribute choice cardinality now executes through
       `schema:choice-case`. Broader child occurrence ranges now execute
@@ -122,7 +122,7 @@ history belongs in git history and the feature-specific docs linked below.
         syntax on attribute declarations, plus nested exact-one
         `schema:choice-case` cardinality and `schema:datatype-param` decimal
         number bounds, numeric digit-count constraints, and string length
-        constraints, plus URI scheme/authority and media-type
+        constraints, plus URI scheme/authority/path-prefix and media-type
         essence/parameter-name constraints, plus child-set exact-one and
         selected/distinct-count/ordered/boundary/exact-sequence/required-sequence/forbidden-sequence `schema:child-occurrence`;
         schema-package examples cover constraint-level
@@ -197,8 +197,8 @@ history belongs in git history and the feature-specific docs linked below.
         integer `minInclusive`, `maxInclusive`,
         `minExclusive`, and `maxExclusive` bounds, numeric `totalDigits` and
         `fractionDigits`, plus string `minLength`, `maxLength`, and `length`
-        params, regex `pattern`, URI `uriSchemes` and
-        `uriRequiresAuthority`, and media-type `mediaTypes` and
+        params, regex `pattern`, URI `uriSchemes`,
+        `uriRequiresAuthority`, and `uriPathPrefixes`, and media-type `mediaTypes` and
         `mediaTypeParameters` datatype params,
         plus accepted-child allow-lists, forbidden-child occurrence, exact
         child counts, child-set cardinality, total, selected, and distinct child-count
@@ -221,7 +221,7 @@ history belongs in git history and the feature-specific docs linked below.
         relative child ordering contracts, boundary child placement contracts,
         and exact/required/forbidden child sequence contracts; it
         still needs reusable string/path constraints beyond path-layout checks,
-        URI/media-type constraints beyond initial allowed scheme/authority
+        URI/media-type constraints beyond initial allowed scheme/authority/path-prefix
         and media-type essence/parameter-name lists, RELAX NG-style datatype params beyond numeric bounds/digit
         counts, pattern, and allowed URI/media tokens, dependent field
         groups beyond presence-gated required fields, additional child
@@ -262,8 +262,8 @@ history belongs in git history and the feature-specific docs linked below.
         path type checks emit expected/actual details; nested choice/case
         checks emit declared cases, present cases, missing cases, and
         conflicting cases; accepted-child checks emit accepted/invalid
-        children and childCounts details; URI scheme, URI authority, and
-        media-type essence/parameter-name datatype-param checks emit expected values and normalized actual tokens; additional
+        children and childCounts details; URI scheme, URI authority,
+        URI path-prefix, and media-type essence/parameter-name datatype-param checks emit expected values and normalized actual tokens; additional
         URI/media-type constraints, datatype params, dependency, additional
         child occurrence variants beyond exact/named/total/selected/distinct count bounds, child-set cardinality, relative ordering, boundary placement, and exact/required/forbidden child sequences, and cross-reference checks need the same
         schema-owned detail shape.
@@ -282,7 +282,7 @@ history belongs in git history and the feature-specific docs linked below.
         and
         package-relative path-layout checks, scope-context path type checks,
         nested choice/case checks, accepted-child allow-lists, forbidden-child
-        occurrence checks, child-set cardinality, exact child-count and total/selected/distinct child-count checks, URI scheme/authority
+        occurrence checks, child-set cardinality, exact child-count and total/selected/distinct child-count checks, URI scheme/authority/path-prefix
         constraints, and media-type essence/parameter-name constraints; it still needs coverage for additional
         URI/media-type constraints, additional datatype params, dependency, and
         additional child occurrence variants beyond exact/named/total/selected/distinct count bounds, child-set cardinality, relative ordering, boundary placement, and exact/required/forbidden child sequences.

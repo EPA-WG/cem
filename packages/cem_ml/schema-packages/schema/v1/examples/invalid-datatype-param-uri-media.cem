@@ -10,6 +10,7 @@
     {attributes |
         {attribute @name="href" @type="schema:uri" @uriSchemes="https 1bad"}
         {attribute @name="remote" @type="schema:uri" @uriRequiresAuthority=maybe}
+        {attribute @name="asset" @type="schema:uri" @uriPathPrefixes="assets"}
         {attribute @name="format" @type="schema:media-type" @mediaTypes="text/html text"}
         {attribute @name="payload" @type="schema:media-type" @mediaTypeParameters="charset bad=name"}
     }
