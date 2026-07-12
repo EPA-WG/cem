@@ -33,8 +33,8 @@ external syntax such as JSON, HTML, or XML:
    model in the validator. Higher-level meaning belongs in the package's `.cem`
    schema. Schema-owned datatype parameters can refine compatible primitives,
    including URI scheme/authority/path-prefix constraints and media-type
-   essence, parameter-name allow-lists, and required-parameter checks, without
-   moving package meaning into Rust.
+   essence, parameter-name allow-lists, parameter-value checks, and
+   required-parameter checks, without moving package meaning into Rust.
 3. **Node references combine schema declaration with CEM-QL resolution.** A
    CEM-ML schema declares which fields or content positions carry a reference,
    including its type and constraints. CEM-QL supplies the query and resolution
@@ -478,8 +478,9 @@ package-specific schemas small while preserving strict validation boundaries for
 their own instances. Attribute datatype params such as `@pathPrefixes`,
 `@pathExtensions`, `@uriSchemes`, `@uriRequiresAuthority`, `@uriPathPrefixes`,
 `@mediaTypes`, and `@mediaTypeSuffixes`/`@mediaTypeParameters`/
-`@mediaTypeForbiddenParameters`/`@mediaTypeRequiredParameters` then narrow
-those compatible primitives declaratively in the schema document.
+`@mediaTypeParameterValues`/`@mediaTypeForbiddenParameters`/
+`@mediaTypeRequiredParameters` then narrow those compatible primitives
+declaratively in the schema document.
 
 ## CEMT Transformation Ownership
 

@@ -43,7 +43,8 @@ history belongs in git history and the feature-specific docs linked below.
       `pathPrefixes`/`pathExtensions`, URI
       `uriSchemes`/`uriRequiresAuthority`/`uriPathPrefixes`, and media-type
       `mediaTypes`/`mediaTypeSuffixes`/`mediaTypeParameters`/
-      `mediaTypeForbiddenParameters`/`mediaTypeRequiredParameters`.
+      `mediaTypeParameterValues`/`mediaTypeForbiddenParameters`/
+      `mediaTypeRequiredParameters`.
       Schema-definition validation now rejects numeric bounds/digit-counts on
       non-numeric attributes and string length params on non-string attributes.
       Required-one/max-one attribute choice cardinality now executes through
@@ -93,8 +94,8 @@ history belongs in git history and the feature-specific docs linked below.
         `schema:choice-case`; number inclusive/exclusive bounds
         now reuse the existing range-parameter vocabulary; numeric
         `totalDigits` and `fractionDigits` now execute through
-        `schema:datatype-param`; media-type structured suffix and forbidden
-        parameter constraints now also execute through
+        `schema:datatype-param`; media-type structured suffix, parameter
+        value, and forbidden parameter constraints now also execute through
         `schema:datatype-param`; scope-context path prefix and extension
         constraints now also execute through `schema:datatype-param`;
         datatype parameter families beyond the covered numeric bounds/digit
@@ -135,7 +136,7 @@ history belongs in git history and the feature-specific docs linked below.
         `schema:choice-case` cardinality and `schema:datatype-param` decimal
         number bounds, numeric digit-count constraints, and string length
         constraints, plus path prefix/extension, URI scheme/authority/path-prefix, and media-type
-        essence/structured-suffix/parameter-name/forbidden-parameter/required-parameter constraints, plus child-set exact-one and
+        essence/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter constraints, plus child-set exact-one and
         selected/distinct-count/ordered/boundary/exact-sequence/required-sequence/forbidden-sequence `schema:child-occurrence`;
         schema-package examples cover constraint-level
         `schema:resource-readable`, `schema:resource-parse`, and
@@ -216,7 +217,7 @@ history belongs in git history and the feature-specific docs linked below.
         params, regex `pattern`, path `pathPrefixes`/`pathExtensions`,
         URI `uriSchemes`,
         `uriRequiresAuthority`, and `uriPathPrefixes`, and media-type `mediaTypes`,
-        `mediaTypeSuffixes`, `mediaTypeParameters`,
+        `mediaTypeSuffixes`, `mediaTypeParameters`, `mediaTypeParameterValues`,
         `mediaTypeForbiddenParameters`, and `mediaTypeRequiredParameters` datatype params,
         plus compatibility checks for numeric bounds/digit counts and string
         length params against their target primitive families,
@@ -250,7 +251,7 @@ history belongs in git history and the feature-specific docs linked below.
         still needs reusable string constraints and path constraints beyond
         prefix/extension and path-layout checks,
         URI/media-type constraints beyond initial allowed scheme/authority/path-prefix
-        and media-type essence/structured-suffix/parameter-name/forbidden-parameter/required-parameter lists, RELAX NG-style datatype params beyond numeric bounds/digit
+        and media-type essence/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter lists, RELAX NG-style datatype params beyond numeric bounds/digit
         counts, pattern, and allowed URI/media tokens, dependent field
         groups beyond presence-gated required fields, additional child
         occurrence variants beyond exact/named/total/selected/distinct count bounds, child-set cardinality, relative ordering, boundary placement, and exact/required/forbidden child sequences, defaults, and richer case grouping for all schema
@@ -295,7 +296,7 @@ history belongs in git history and the feature-specific docs linked below.
         checks emit declared cases, present cases, missing cases, and
         conflicting cases; accepted-child checks emit accepted/invalid
         children and childCounts details; URI scheme, URI authority,
-        URI path-prefix, and media-type essence/structured-suffix/parameter-name/forbidden-parameter/required-parameter datatype-param checks emit expected values, normalized actual tokens, and invalid/missing parameter arrays;
+        URI path-prefix, and media-type essence/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter datatype-param checks emit expected values, normalized actual tokens, and invalid/missing parameter arrays;
         schema-definition datatype-param checks now emit expected type and
         actual value type for incompatible numeric and string-length facets;
         URI/media-type constraints, datatype params, dependency, additional
@@ -320,7 +321,7 @@ history belongs in git history and the feature-specific docs linked below.
         path prefix/extension constraints,
         nested choice/case checks, accepted-child allow-lists, forbidden-child
         occurrence checks, child-set cardinality, exact child-count and total/selected/distinct child-count checks, URI scheme/authority/path-prefix
-        constraints, and media-type essence/structured-suffix/parameter-name/forbidden-parameter/required-parameter constraints; it still needs coverage for additional
+        constraints, and media-type essence/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter constraints; it still needs coverage for additional
         URI/media-type constraints, additional datatype params, dependency, and
         additional child occurrence variants beyond exact/named/total/selected/distinct count bounds, child-set cardinality, relative ordering, boundary placement, and exact/required/forbidden child sequences.
   - [ ] Move schema-package manifest field rules from Rust conditionals into

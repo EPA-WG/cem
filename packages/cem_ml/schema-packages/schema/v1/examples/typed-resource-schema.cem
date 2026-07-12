@@ -99,6 +99,7 @@
             @type-diagnostic="example.resource.invalid_format"
             @mediaTypes="application/json text/html"
             @mediaTypeParameters="charset profile"
+            @mediaTypeParameterValues="charset=utf-8 profile=default"
             @mediaTypeRequiredParameters="charset"
             @datatype-param-diagnostic="example.resource.invalid_format_type"
         }
