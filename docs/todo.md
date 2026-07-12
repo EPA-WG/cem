@@ -193,11 +193,11 @@ history belongs in git history and the feature-specific docs linked below.
         `uriRequiresAuthority`, and media-type `mediaTypes` and
         `mediaTypeParameters` datatype params,
         plus accepted-child allow-lists, forbidden-child occurrence, exact
-        child counts, and min/max child occurrence ranges; it still needs scalar type validation beyond
+        child counts, total child-count bounds, and min/max child occurrence ranges; it still needs scalar type validation beyond
         boolean/integer/number/basic URI/media-type/path syntax, RELAX NG-style
         datatype params beyond those initial variations, defaults, richer
         dependent-required field groups, and additional child occurrence
-        variants.
+        variants beyond exact/named/total count bounds.
   - [ ] Extend the compiled Rust schema contract model. `SchemaDocumentModel`
         now compiles initial `field-contract` declarations and evaluates
         required/forbidden fields, attribute `@values` vocabularies, and
@@ -206,13 +206,14 @@ history belongs in git history and the feature-specific docs linked below.
         `schema:uri`/`cemml:uri`, `schema:media-type`/
         `cemml:media-type`, plus `schema:path`/`cemml:path` attribute types,
         accepted-child allow-list field contracts, forbidden-child
-        occurrence contracts, and exact child-count contracts; it
+        occurrence contracts, exact child-count contracts, and total
+        child-count bound contracts; it
         still needs reusable string/path constraints beyond path-layout checks,
         URI/media-type constraints beyond initial allowed scheme/authority
         and media-type essence/parameter-name lists, RELAX NG-style datatype params beyond numeric bounds/digit
         counts, pattern, and allowed URI/media tokens, dependent field
         groups beyond presence-gated required fields, additional child
-        occurrence variants, defaults, and richer case grouping for all schema
+        occurrence variants beyond exact/named/total count bounds, defaults, and richer case grouping for all schema
         elements.
   - [ ] Extend structured diagnostic details beyond initial required/forbidden
         field checks. The first generic field-contract evaluator now emits
@@ -228,7 +229,10 @@ history belongs in git history and the feature-specific docs linked below.
         datatype-param details; value-specific forbidden checks emit
         forbiddenAttributeValues and invalidValues details; child occurrence
         checks emit required/forbidden/exact/max-one/min/max children,
-        invalid/missing/duplicate/invalid-exact/under-min/over-max children, and childCounts details;
+        exact/min/max total children, invalid/missing/duplicate/
+        invalid-exact/under-min/over-max named children,
+        invalid-exact/under-min/over-max total-child flags,
+        totalChildCount, and childCounts details;
         required-one/max-one attribute choice checks emit choice cardinality
         details; path-layout checks emit pathLayout and invalidValues details;
         path type checks emit expected/actual details; nested choice/case
@@ -237,7 +241,7 @@ history belongs in git history and the feature-specific docs linked below.
         children and childCounts details; URI scheme, URI authority, and
         media-type essence/parameter-name datatype-param checks emit expected values and normalized actual tokens; additional
         URI/media-type constraints, datatype params, dependency, additional
-        child occurrence variants, and cross-reference checks need the same
+        child occurrence variants beyond exact/named/total count bounds, and cross-reference checks need the same
         schema-owned detail shape.
   - [ ] Extend the generic field-contract evaluator. The first evaluator runs
         from schema URI plus content type, consumes the compiled contract
@@ -249,15 +253,15 @@ history belongs in git history and the feature-specific docs linked below.
         `minInclusive`/`maxInclusive`/`minExclusive`/`maxExclusive`,
         numeric `totalDigits`/`fractionDigits`, string
         `minLength`/`maxLength`/`length`, and regex `pattern`
-        datatype-param checks, exact-one and exact-count child occurrence
-        checks, min/max child occurrence range checks, required-one/max-one attribute choice checks,
+        datatype-param checks, exact-one, exact-count, total-count, and
+        min/max child occurrence range checks, required-one/max-one attribute choice checks,
         and
         package-relative path-layout checks, scope-context path type checks,
         nested choice/case checks, accepted-child allow-lists, forbidden-child
-        occurrence checks, exact child-count checks, URI scheme/authority
+        occurrence checks, exact child-count and total child-count checks, URI scheme/authority
         constraints, and media-type essence/parameter-name constraints; it still needs coverage for additional
         URI/media-type constraints, additional datatype params, dependency, and
-        additional child occurrence variants.
+        additional child occurrence variants beyond exact/named/total count bounds.
   - [ ] Move schema-package manifest field rules from Rust conditionals into
         `packages/cem_ml/schema-packages/schema-package/v1/schema/schema-package.cem`.
         Cover `package`, `schema`, `content-type`, `namespace`, `converter`,

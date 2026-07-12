@@ -63,6 +63,9 @@ Use `required-children` plus `max-one-children` for exact-one child occurrence
 contracts, such as schema package converter `from`/`to` endpoints.
 Use `min-children` and `max-children` for broader child occurrence ranges
 expressed as `child=count` name-value pairs.
+Use `min-total-children`, `max-total-children`, and
+`exact-total-children` when the contract is over the total number of element
+children in the current scope instead of over one child name.
 Use `path-layout-attributes` with `path-layout-prefix` and
 `path-layout-extension` for package-relative path layout contracts, such as
 formatter artifacts under `formatters/` and colorizer artifacts under
@@ -219,8 +222,9 @@ execute through
 media-type, and scope-context path scalar syntax now execute through
 `schema:scalar-type`;
 required-one/max-one attribute choice cardinality and nested choice/case groups
-now execute through `schema:choice-case`; `min-children`/`max-children` child
-occurrence ranges now execute through `schema:child-occurrence`; additional
+now execute through `schema:choice-case`; `min-children`/`max-children` named
+child occurrence ranges and total child-count bounds now execute through
+`schema:child-occurrence`; additional
 datatype parameter families remain follow-up work.
 
 ## Validation Examples
@@ -231,7 +235,7 @@ CLI validation integration tests.
 | Example | Purpose | Expected result |
 | --- | --- | --- |
 | [`basic-schema.cem`](examples/basic-schema.cem) | Minimal schema definition with content type, element, and attribute declarations. | Pass |
-| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, conditional `schema:required-fields`, nested exact-one `schema:choice-case`, ranged `schema:child-occurrence`, `schema:value-vocabulary`, `schema:scalar-type` number/URI/media-type/path syntax, and `schema:datatype-param` integer-bound/number-bound/digit-count/string length/pattern/URI scheme/authority/media-type essence/parameter-name attribute diagnostics, and open-content policy. | Pass |
+| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, conditional `schema:required-fields`, nested exact-one `schema:choice-case`, named and total-count ranged `schema:child-occurrence`, `schema:value-vocabulary`, `schema:scalar-type` number/URI/media-type/path syntax, and `schema:datatype-param` integer-bound/number-bound/digit-count/string length/pattern/URI scheme/authority/media-type essence/parameter-name attribute diagnostics, and open-content policy. | Pass |
 | [`custom-behavior-schema.cem`](examples/custom-behavior-schema.cem) | Custom schema that defines a diagnostic algorithm with CEM-QL candidate matching and a CEM-ML behavior function. | Pass |
 | [`custom-behavior-schema-strict.cem`](examples/custom-behavior-schema-strict.cem) | Variant custom schema that changes the match condition and function-produced result declaratively. | Pass |
 | [`invalid-unclosed-schema.cem`](examples/invalid-unclosed-schema.cem) | Missing closing schema scope syntax diagnostic. | Fail with `cem.ast.unclosed_scope` |

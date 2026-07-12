@@ -140,6 +140,8 @@
             @target="resource"
             @min-children="field=1"
             @max-children="field=8"
+            @min-total-children=1
+            @max-total-children=8
             @diagnostic="example.resource.field_range"
             @behavior="schema:child-occurrence"
             @check-kind="child-occurrence-range"
