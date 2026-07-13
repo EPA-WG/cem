@@ -205,6 +205,7 @@
             @selected-children="field"
             @min-selected-children=1
             @max-selected-children=8
+            @exact-selected-distinct-children=1
             @first-child="field"
             @last-child="field"
             @required-child-sequence="field"

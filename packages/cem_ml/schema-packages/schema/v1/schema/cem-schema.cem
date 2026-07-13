@@ -54,7 +54,7 @@
         {element @name="param" @required-attributes="name type" @optional-attributes="required default nullable"}
         {element @name="body" @children="*"}
         {element @name="field-contracts" @children="field-contract"}
-        {element @name="field-contract" @required-attributes="name target" @optional-attributes="diagnostic behavior check-kind required-attributes optional-attributes forbidden-attributes forbidden-attribute-values required-one-attributes max-one-attributes accepted-children forbidden-children required-children max-one-children required-one-child max-one-child selected-children ordered-children forbidden-ordered-children first-child last-child forbidden-first-child forbidden-last-child required-child-sequence forbidden-child-sequence exact-child-sequence prefix-child-sequence suffix-child-sequence exact-children min-children max-children exact-total-children min-total-children max-total-children exact-distinct-children min-distinct-children max-distinct-children exact-selected-children min-selected-children max-selected-children path-layout-attributes path-layout-prefix path-layout-extension when-attribute when-values when-present-attributes when-absent-attributes when-present-children when-absent-children" @children="choice*"}
+        {element @name="field-contract" @required-attributes="name target" @optional-attributes="diagnostic behavior check-kind required-attributes optional-attributes forbidden-attributes forbidden-attribute-values required-one-attributes max-one-attributes accepted-children forbidden-children required-children max-one-children required-one-child max-one-child selected-children ordered-children forbidden-ordered-children first-child last-child forbidden-first-child forbidden-last-child required-child-sequence forbidden-child-sequence exact-child-sequence prefix-child-sequence suffix-child-sequence exact-children min-children max-children exact-total-children min-total-children max-total-children exact-distinct-children min-distinct-children max-distinct-children exact-selected-children min-selected-children max-selected-children exact-selected-distinct-children min-selected-distinct-children max-selected-distinct-children path-layout-attributes path-layout-prefix path-layout-extension when-attribute when-values when-present-attributes when-absent-attributes when-present-children when-absent-children" @children="choice*"}
         {element @name="choice" @required-attributes="name mode" @children="case*"}
         {element @name="case" @optional-attributes="name attributes children"}
         {element @name="constraints" @children="constraint"}
@@ -115,6 +115,9 @@
         {attribute @name="exact-selected-children" @type="schema:integer"}
         {attribute @name="min-selected-children" @type="schema:integer"}
         {attribute @name="max-selected-children" @type="schema:integer"}
+        {attribute @name="exact-selected-distinct-children" @type="schema:integer"}
+        {attribute @name="min-selected-distinct-children" @type="schema:integer"}
+        {attribute @name="max-selected-distinct-children" @type="schema:integer"}
         {attribute @name="path-layout-attributes" @type="cemml:name-list"}
         {attribute @name="path-layout-prefix" @type="cemml:path"}
         {attribute @name="path-layout-extension" @type="cemml:identifier"}
@@ -549,6 +552,13 @@
                 {detail @name="underMinSelectedChildren" @type="schema:boolean"}
                 {detail @name="overMaxSelectedChildren" @type="schema:boolean"}
                 {detail @name="selectedChildCount" @type="schema:integer"}
+                {detail @name="exactSelectedDistinctChildren" @type="schema:integer"}
+                {detail @name="minSelectedDistinctChildren" @type="schema:integer"}
+                {detail @name="maxSelectedDistinctChildren" @type="schema:integer"}
+                {detail @name="invalidExactSelectedDistinctChildren" @type="schema:boolean"}
+                {detail @name="underMinSelectedDistinctChildren" @type="schema:boolean"}
+                {detail @name="overMaxSelectedDistinctChildren" @type="schema:boolean"}
+                {detail @name="selectedDistinctChildCount" @type="schema:integer"}
                 {detail @name="orderedChildSequence" @type="schema:array"}
                 {detail @name="unorderedChildren" @type="schema:array"}
                 {detail @name="invalidChildOrder" @type="schema:boolean"}

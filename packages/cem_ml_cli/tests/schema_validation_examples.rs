@@ -4106,6 +4106,7 @@ fn schema_runtime_child_occurrence_counts_emit_structured_details() {
         {element @name="main" @children="*"}
         {element @name="footer" @children="*"}
         {element @name="aside" @children="*"}
+        {element @name="header" @children="*"}
         {element @name="p"}
         {element @name="span"}
         {element @name="small"}
@@ -4202,6 +4203,16 @@ fn schema_runtime_child_occurrence_counts_emit_structured_details() {
             @check-kind="exact-selected-children"
         }
         {field-contract
+            @name="header-selected-distinct-count-range"
+            @target="header"
+            @selected-children="span small mark"
+            @min-selected-distinct-children=2
+            @max-selected-distinct-children=2
+            @diagnostic="example.layout.child_count"
+            @behavior="schema:child-occurrence"
+            @check-kind="selected-distinct-child-range"
+        }
+        {field-contract
             @name="strong-span-without-small-mark"
             @target="strong"
             @when-present-children="span"
@@ -4236,6 +4247,7 @@ fn schema_runtime_child_occurrence_counts_emit_structured_details() {
 {main | {span} {small}}
 {footer | {span} {small} {mark}}
 {aside | {span} {small} {mark}}
+{header | {span} {small}}
 {strong | {span} {mark}}
 {strong | {span} {small}}
 "#,
@@ -4253,6 +4265,7 @@ fn schema_runtime_child_occurrence_counts_emit_structured_details() {
 {main | {span}}
 {footer | {span} {mark}}
 {aside | {span} {mark}}
+{header | {span} {small} {mark}}
 {strong | {span}}
 "#,
     );
@@ -4495,6 +4508,38 @@ fn schema_runtime_child_occurrence_counts_emit_structured_details() {
     assert_eq!(exact_selected_details["selectedChildCount"], 1);
     assert_eq!(exact_selected_details["invalidExactSelectedChildren"], true);
 
+    let selected_distinct_diagnostic =
+        diagnostic_for_contract("header-selected-distinct-count-range");
+    let selected_distinct_details = &selected_distinct_diagnostic["details"];
+    assert_eq!(selected_distinct_diagnostic["severity"], "error");
+    assert_eq!(
+        selected_distinct_details["behavior"],
+        "schema:child-occurrence"
+    );
+    assert_eq!(
+        selected_distinct_details["checkKind"],
+        "selected-distinct-child-range"
+    );
+    assert_eq!(
+        selected_distinct_details["selectedChildren"],
+        serde_json::json!(["mark", "small", "span"])
+    );
+    assert_eq!(selected_distinct_details["minSelectedDistinctChildren"], 2);
+    assert_eq!(selected_distinct_details["maxSelectedDistinctChildren"], 2);
+    assert_eq!(selected_distinct_details["selectedDistinctChildCount"], 3);
+    assert_eq!(
+        selected_distinct_details["underMinSelectedDistinctChildren"],
+        false
+    );
+    assert_eq!(
+        selected_distinct_details["overMaxSelectedDistinctChildren"],
+        true
+    );
+    assert_eq!(
+        selected_distinct_details["invalidExactSelectedDistinctChildren"],
+        false
+    );
+
     let conditional_child_diagnostic = diagnostic_for_contract("strong-span-without-small-mark");
     let conditional_child_details = &conditional_child_diagnostic["details"];
     assert_eq!(conditional_child_diagnostic["severity"], "error");
@@ -4541,6 +4586,7 @@ fn schema_runtime_child_occurrence_counts_emit_structured_details() {
         exact_distinct_diagnostic,
         selected_range_diagnostic,
         exact_selected_diagnostic,
+        selected_distinct_diagnostic,
         conditional_child_diagnostic,
     ] {
         assert!(diagnostic["details"]["sourceRange"]["span"]["start"].is_u64());

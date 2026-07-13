@@ -189,7 +189,7 @@ history belongs in git history and the feature-specific docs linked below.
         number bounds, numeric digit-count constraints, and string
         length/prefix/suffix constraints, list item-count constraints, plus path prefix/extension, URI scheme/host/port/authority/path-prefix/path-extension/query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment, and media-type
         essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter constraints, plus child-set exact-one and
-        selected/distinct-count/ordered/forbidden-ordered/boundary/forbidden-boundary/
+        selected-count/selected-distinct-count/distinct-count/ordered/forbidden-ordered/boundary/forbidden-boundary/
         exact-sequence/required-sequence/forbidden-sequence/prefix-sequence/suffix-sequence
         `schema:child-occurrence`;
         schema-package examples cover constraint-level
@@ -201,7 +201,7 @@ history belongs in git history and the feature-specific docs linked below.
         `schema:field-dependency`, `schema:child-occurrence`,
         `schema:accepted-children`, and `schema:path-layout` bindings through
         converter/artifact/example diagnostics,
-        and ranged, child-set, selected-count, distinct-count, ordered,
+        and ranged, child-set, selected-count, selected-distinct-count, distinct-count, ordered,
         forbidden-ordered, boundary, forbidden-boundary, exact-sequence, required-sequence,
         forbidden-sequence, prefix-sequence, and suffix-sequence `schema:child-occurrence`
         through the typed-resource schema
@@ -332,14 +332,14 @@ history belongs in git history and the feature-specific docs linked below.
         and media-type params, against their target primitive families,
         plus accepted-child allow-lists, forbidden-child occurrence,
         max-one child occurrence, exact child counts, child-set cardinality,
-        total, selected, and distinct child-count
+        total, selected, selected-distinct, and distinct child-count
         bounds, min/max child occurrence ranges, required/forbidden relative child
         ordering, and required/forbidden boundary child placement, plus exact/required/forbidden/prefix/suffix child
         sequences; it still needs RELAX NG-style datatype params beyond the
         initial scalar and datatype variations, default value materialization,
         richer dependent-required field groups
         beyond value/presence/absence/child-structure gates, and additional child occurrence
-        variants beyond exact/named/total/selected/distinct count bounds,
+        variants beyond exact/named/total/selected/selected-distinct/distinct count bounds,
         child-set cardinality, required/forbidden relative ordering,
         required/forbidden boundary placement, and
         exact/required/forbidden/prefix/suffix child sequences.
@@ -360,7 +360,7 @@ history belongs in git history and the feature-specific docs linked below.
         `cemml:media-type`, plus `schema:path`/`cemml:path` attribute types,
         accepted-child allow-list field contracts, forbidden-child
         occurrence contracts, child-set cardinality contracts, exact
-        child-count contracts, total/selected/distinct child-count bound contracts,
+        child-count contracts, total/selected/selected-distinct/distinct child-count bound contracts,
         attribute and child presence/absence conditional selectors,
         required/forbidden relative child ordering contracts,
         required/forbidden boundary child placement contracts,
@@ -374,7 +374,7 @@ history belongs in git history and the feature-specific docs linked below.
         string length/prefix/suffix, list item counts, pattern, and allowed
         URI/media tokens, default value materialization, dependent field
         groups beyond value/presence/child-structure-gated required/forbidden fields, additional child
-        occurrence variants beyond exact/named/total/selected/distinct count
+        occurrence variants beyond exact/named/total/selected/selected-distinct/distinct count
         bounds, child-set cardinality, required/forbidden relative ordering,
         required/forbidden boundary placement,
         and exact/required/forbidden/prefix/suffix child sequences, and richer case grouping
@@ -406,7 +406,9 @@ history belongs in git history and the feature-specific docs linked below.
         invalid-exact/under-min/over-max distinct-child flags,
         distinctChildCount, selectedChildren, exact/min/max selected children,
         invalid-exact/under-min/over-max selected-child flags,
-        selectedChildCount, orderedChildren, orderedChildSequence,
+        selectedChildCount, exact/min/max selected distinct children,
+        invalid-exact/under-min/over-max selected-distinct-child flags,
+        selectedDistinctChildCount, orderedChildren, orderedChildSequence,
         unorderedChildren, invalidChildOrder, forbiddenOrderedChildren,
         matchedForbiddenOrderedChildren, invalidForbiddenChildOrder,
         firstChild, lastChild,
@@ -435,7 +437,7 @@ history belongs in git history and the feature-specific docs linked below.
         and media-type facets; datatype-param result contracts now declare the
         emitted runtime family details;
         URI/media-type constraints, dependency, additional
-        child occurrence variants beyond exact/named/total/selected/distinct count bounds, child-set cardinality, required/forbidden relative ordering, required/forbidden boundary placement, and exact/required/forbidden/prefix/suffix child sequences, and cross-reference checks need the same
+        child occurrence variants beyond exact/named/total/selected/selected-distinct/distinct count bounds, child-set cardinality, required/forbidden relative ordering, required/forbidden boundary placement, and exact/required/forbidden/prefix/suffix child sequences, and cross-reference checks need the same
         schema-owned detail shape.
   - [ ] Extend the generic field-contract evaluator. The first evaluator runs
         from schema URI plus content type, consumes the compiled contract
@@ -450,16 +452,16 @@ history belongs in git history and the feature-specific docs linked below.
         numeric `totalDigits`/`fractionDigits`, string
         `minLength`/`maxLength`/`length`, string `stringPrefixes`/`stringSuffixes`,
         list `itemCount`/`minItems`/`maxItems`, and regex `pattern`
-        datatype-param checks, exact-one, child-choice, exact-count, total-count, selected-count, distinct-count, and
+        datatype-param checks, exact-one, child-choice, exact-count, total-count, selected-count, selected-distinct-count, distinct-count, and
         min/max child occurrence range checks, required-one/max-one attribute choice checks,
         and
         package-relative path-layout checks, scope-context path type checks,
         string prefix/suffix constraints, list item-count constraints, path prefix/extension constraints,
         nested choice/case checks, accepted-child allow-lists, forbidden-child
-        occurrence checks, child-set cardinality, exact child-count and total/selected/distinct child-count checks, URI scheme/host/port/authority/path-prefix/path-extension/query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment
+        occurrence checks, child-set cardinality, exact child-count and total/selected/selected-distinct/distinct child-count checks, URI scheme/host/port/authority/path-prefix/path-extension/query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment
         constraints, and media-type essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter constraints; it still needs coverage for additional
         URI/media-type constraints, additional datatype params, dependency variants, and
-        additional child occurrence variants beyond exact/named/total/selected/distinct count bounds, child-set cardinality, required/forbidden relative ordering, required/forbidden boundary placement, and exact/required/forbidden/prefix/suffix child sequences.
+        additional child occurrence variants beyond exact/named/total/selected/selected-distinct/distinct count bounds, child-set cardinality, required/forbidden relative ordering, required/forbidden boundary placement, and exact/required/forbidden/prefix/suffix child sequences.
   - [ ] Move schema-package manifest field rules from Rust conditionals into
         `packages/cem_ml/schema-packages/schema-package/v1/schema/schema-package.cem`.
         Cover `package`, `schema`, `content-type`, `namespace`, `converter`,
