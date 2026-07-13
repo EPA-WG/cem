@@ -267,6 +267,11 @@
         {constraint @kind="planned-cemt-rust-fallback" @target="converter" @policy="planned CEMT converters may declare rust-symbol as fallback hook"}
         {constraint @kind="cemt-native-fallback-reason" @target="converter" @policy="CEMT converters that declare rust-symbol fallback hooks must also declare fallback-reason"}
         {constraint @kind="schema-source-metadata-consistency" @target="package schema content-type namespace" @policy="when package source is local, package schema URI, content type claims, and namespace URI claims must match the referenced schema source"}
+        {constraint @kind="schema-source-readable" @target="schema" @diagnostic="cem.schema_package.schema_source_unreadable" @behavior="schema:resource-readable" @policy="schema source paths must resolve to readable local CEM-ML resources"}
+        {constraint @kind="schema-source-valid" @target="schema" @diagnostic="cem.schema_package.schema_source_invalid" @behavior="schema:resource-parse" @policy="schema source paths must parse to CEM-ML documents with a schema root"}
+        {constraint @kind="schema-uri-consistency" @target="schema" @diagnostic="cem.schema_package.schema_uri_mismatch" @behavior="schema:reference-resolution" @policy="package schema URI must match the namespace declared by the schema source"}
+        {constraint @kind="schema-content-type-consistency" @target="content-type" @diagnostic="cem.schema_package.schema_content_type_mismatch" @behavior="schema:reference-resolution" @policy="package content-type claims must match content types declared by the schema source"}
+        {constraint @kind="schema-namespace-consistency" @target="namespace" @diagnostic="cem.schema_package.schema_namespace_mismatch" @behavior="schema:reference-resolution" @policy="package namespace claims must be declared by the schema source"}
         {constraint @kind="artifact-output-stage-contract" @target="artifact" @policy="formatter, colorizer, formatter-helper, and colorizer-helper artifacts that provide runtime CEMT output stages or helpers must use package-relative CEMT paths under formatters/ or colorizers/, declare target-content-type, target-schema, target-category, function-name, function-profile when the CEMT declaration has a profile, and the applicable formatter-profile or color-profile"}
         {constraint @kind="example-contract" @target="example" @policy="schema-package examples must declare source path, content type, schema URL, pass/fail result, and expected diagnostics for failing examples; when example schema is known, content type must be registered by that schema"}
         {constraint @kind="converter-template-source-readable" @target="converter" @diagnostic="cem.schema_package.converter_check" @behavior="schema:resource-readable" @policy="CEMT converter template paths must resolve to readable resources"}
@@ -292,11 +297,11 @@
         {diagnostic @code="cem.schema_package.converter_check" @severity="error" @behavior="schema:field-contract"}
         {diagnostic @code="cem.schema_package.artifact_check" @severity="error" @behavior="schema:field-contract"}
         {diagnostic @code="cem.schema_package.example_check" @severity="error" @behavior="schema:field-contract"}
-        {diagnostic @code="cem.schema_package.schema_source_unreadable" @severity="error"}
-        {diagnostic @code="cem.schema_package.schema_source_invalid" @severity="error"}
-        {diagnostic @code="cem.schema_package.schema_uri_mismatch" @severity="error"}
-        {diagnostic @code="cem.schema_package.schema_content_type_mismatch" @severity="error"}
-        {diagnostic @code="cem.schema_package.schema_namespace_mismatch" @severity="error"}
+        {diagnostic @code="cem.schema_package.schema_source_unreadable" @severity="error" @behavior="schema:resource-readable"}
+        {diagnostic @code="cem.schema_package.schema_source_invalid" @severity="error" @behavior="schema:resource-parse"}
+        {diagnostic @code="cem.schema_package.schema_uri_mismatch" @severity="error" @behavior="schema:reference-resolution"}
+        {diagnostic @code="cem.schema_package.schema_content_type_mismatch" @severity="error" @behavior="schema:reference-resolution"}
+        {diagnostic @code="cem.schema_package.schema_namespace_mismatch" @severity="error" @behavior="schema:reference-resolution"}
     }
 
     {open-content |

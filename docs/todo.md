@@ -602,11 +602,19 @@ history belongs in git history and the feature-specific docs linked below.
         field-specific codes are now test-pinned absent, and the production
         source anti-pattern audit explicitly blocks the retired helper/token
         names.
-  - [ ] Keep Rust validators only for operational execution that cannot be
+  - [x] Keep Rust validators only for operational execution that cannot be
         represented as field data: resource read failures, parser failures,
         CEMT compilation, CEMT function lookup, host-hook availability, and
         source-file I/O. Those checks must still be declared as schema-owned
         constraints/rules in `.cem`, with Rust only as the execution placement.
+        Schema package source readability, source parse validity, schema URI,
+        content-type, and namespace consistency are now split into explicit
+        schema-owned `schema:resource-readable`, `schema:resource-parse`, and
+        `schema:reference-resolution` constraints; converter, artifact, and
+        example runtime checks already use schema-owned operational constraint
+        declarations. Remaining fully declarative replacement of cross-node
+        lookups and CEMT body/output assertions is deferred to the low-priority
+        vocabulary items below.
   - [x] Refactor `SchemaPackageConverterContractRule` toward operational-only
         checks for template readability/compilation and endpoint
         schema/content-type compatibility. CEMT template identity, Rust symbol,

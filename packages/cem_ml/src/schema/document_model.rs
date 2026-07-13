@@ -10607,6 +10607,45 @@ mod tests {
             converter_endpoint_content_type.engine_behavior,
             Some(EngineDiagnosticBehavior::ReferenceResolution)
         );
+        for (constraint_name, diagnostic, behavior, engine_behavior) in [
+            (
+                "schema-source-readable",
+                "cem.schema_package.schema_source_unreadable",
+                "schema:resource-readable",
+                EngineDiagnosticBehavior::ResourceReadable,
+            ),
+            (
+                "schema-source-valid",
+                "cem.schema_package.schema_source_invalid",
+                "schema:resource-parse",
+                EngineDiagnosticBehavior::ResourceParse,
+            ),
+            (
+                "schema-uri-consistency",
+                "cem.schema_package.schema_uri_mismatch",
+                "schema:reference-resolution",
+                EngineDiagnosticBehavior::ReferenceResolution,
+            ),
+            (
+                "schema-content-type-consistency",
+                "cem.schema_package.schema_content_type_mismatch",
+                "schema:reference-resolution",
+                EngineDiagnosticBehavior::ReferenceResolution,
+            ),
+            (
+                "schema-namespace-consistency",
+                "cem.schema_package.schema_namespace_mismatch",
+                "schema:reference-resolution",
+                EngineDiagnosticBehavior::ReferenceResolution,
+            ),
+        ] {
+            let constraint = model
+                .constraint(constraint_name)
+                .unwrap_or_else(|| panic!("{constraint_name} constraint"));
+            assert_eq!(constraint.diagnostic.as_deref(), Some(diagnostic));
+            assert_eq!(constraint.behavior.as_deref(), Some(behavior));
+            assert_eq!(constraint.engine_behavior, Some(engine_behavior));
+        }
         let artifact = model.element("artifact").unwrap();
         assert!(artifact
             .field_contracts

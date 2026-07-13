@@ -14,23 +14,23 @@ use std::path::{Path, PathBuf};
 pub(crate) const SCHEMA_PACKAGE_SOURCE_CONSISTENCY_CONSTRAINT_DIAGNOSTICS: &[(&str, &str)] = &[
     (
         "cem.schema_package.schema_source_unreadable",
-        "schema-source-metadata-consistency",
+        "schema-source-readable",
     ),
     (
         "cem.schema_package.schema_source_invalid",
-        "schema-source-metadata-consistency",
+        "schema-source-valid",
     ),
     (
         "cem.schema_package.schema_uri_mismatch",
-        "schema-source-metadata-consistency",
+        "schema-uri-consistency",
     ),
     (
         "cem.schema_package.schema_content_type_mismatch",
-        "schema-source-metadata-consistency",
+        "schema-content-type-consistency",
     ),
     (
         "cem.schema_package.schema_namespace_mismatch",
-        "schema-source-metadata-consistency",
+        "schema-namespace-consistency",
     ),
 ];
 

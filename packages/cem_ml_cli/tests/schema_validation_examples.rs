@@ -140,7 +140,7 @@ const SCHEMA_PACKAGE_RUNTIME_CONSTRAINT_EXAMPLE_DIAGNOSTICS: &[(&str, &str)] = &
         "cem.schema_package.converter_check",
     ),
     (
-        "schema-source-metadata-consistency",
+        "schema-uri-consistency",
         "cem.schema_package.schema_uri_mismatch",
     ),
     (
