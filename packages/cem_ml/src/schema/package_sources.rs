@@ -259,6 +259,16 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
         path: "schema-packages/xhtml/v1/colorizers/xhtml-color-document.cemt",
         source: include_str!("../../schema-packages/xhtml/v1/colorizers/xhtml-color-document.cemt"),
     },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "svg",
+        path: "schema-packages/svg/v1/formatters/svg-format-document.cemt",
+        source: include_str!("../../schema-packages/svg/v1/formatters/svg-format-document.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "svg",
+        path: "schema-packages/svg/v1/colorizers/svg-color-document.cemt",
+        source: include_str!("../../schema-packages/svg/v1/colorizers/svg-color-document.cemt"),
+    },
 ];
 
 static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
@@ -424,8 +434,9 @@ mod tests {
         CSS_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
         JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI,
         MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, RELAX_NG_COMPACT_CONTENT_TYPE,
-        RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI,
-        XML_CONTENT_TYPE, XML_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+        RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE, SVG_CONTENT_TYPE, SVG_SCHEMA_URI,
+        XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, YAML_CONTENT_TYPE,
+        YAML_SCHEMA_URI,
     };
     use crate::source::{BytesSource, SourceId};
     use crate::tokenizer::cem::CemTokenizer;
@@ -1511,6 +1522,47 @@ mod tests {
     }
 
     #[test]
+    fn svg_package_examples_are_manifest_indexed() {
+        let examples =
+            manifest_indexed_package_examples("svg", SVG_CONTENT_TYPE, SVG_SCHEMA_URI, 6);
+
+        for (id, expected_result, expected_code) in [
+            ("basic-icon", SchemaPackageExampleExpectedResult::Pass, None),
+            ("bar-chart", SchemaPackageExampleExpectedResult::Pass, None),
+            (
+                "unnamed-icon",
+                SchemaPackageExampleExpectedResult::Pass,
+                Some("cem.svg.accessible_name_missing"),
+            ),
+            (
+                "invalid-missing-namespace",
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.svg.namespace_missing"),
+            ),
+            (
+                "invalid-script",
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.svg.script_rejected"),
+            ),
+            (
+                "invalid-external-image",
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.svg.external_resource_rejected"),
+            ),
+        ] {
+            let example = examples
+                .iter()
+                .find(|example| example.id == id)
+                .unwrap_or_else(|| panic!("SVG example `{id}`"));
+            assert_eq!(example.expected_result, expected_result);
+            let expected_codes = expected_code
+                .map(|code| vec![code.to_owned()])
+                .unwrap_or_default();
+            assert_eq!(example.expected_diagnostic_codes, expected_codes);
+        }
+    }
+
+    #[test]
     fn builtin_schema_package_catalog_matches_core_folder_frame() {
         for source in builtin_schema_package_sources() {
             let root = package_root(source.package_id);
@@ -2212,5 +2264,26 @@ mod tests {
         assert!(colorizer
             .source
             .contains(r#"@content-type="application/xhtml+xml""#));
+    }
+
+    #[test]
+    fn catalog_exposes_svg_output_artifact_sources() {
+        let formatter = builtin_schema_package_artifact_source(
+            "svg",
+            "schema-packages/svg/v1/formatters/svg-format-document.cemt",
+        )
+        .expect("SVG formatter source");
+        let colorizer = builtin_schema_package_artifact_source(
+            "svg",
+            "schema-packages/svg/v1/colorizers/svg-color-document.cemt",
+        )
+        .expect("SVG colorizer source");
+
+        assert!(formatter.source.contains(r#"@name="svg.format-document""#));
+        assert!(formatter.source.contains(r#"@category="svg-document""#));
+        assert!(colorizer.source.contains(r#"@name="svg.color-document""#));
+        assert!(colorizer
+            .source
+            .contains(r#"@content-type="image/svg+xml""#));
     }
 }

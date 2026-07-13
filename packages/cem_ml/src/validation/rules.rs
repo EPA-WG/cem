@@ -54,6 +54,7 @@ use crate::transform_template::{
 use crate::validation::{
     html::{validate_html_source_bytes, HtmlSourceValidationRequest},
     relax_ng::{validate_relax_ng_source_bytes, RelaxNgSourceValidationRequest},
+    svg::{validate_svg_source_bytes, SvgSourceValidationRequest},
     xhtml::{validate_xhtml_source_bytes, XhtmlSourceValidationRequest},
     xml::{validate_xml_source_bytes, XmlSourceValidationRequest},
     RuleContext, RuleDescriptor, RuleId, RuleInput, RuleRegistry, RuleResourceRead, SemanticRule,
@@ -2362,6 +2363,13 @@ fn validate_schema_package_example_source_bytes(
                 content_type: Some(content_type),
             }));
         }
+        SchemaPackageExampleTokenizer::Svg => {
+            return Some(validate_svg_source_bytes(SvgSourceValidationRequest {
+                bytes,
+                source_uri,
+                content_type: Some(content_type),
+            }));
+        }
         SchemaPackageExampleTokenizer::Xml => {
             return Some(validate_xml_source_bytes(XmlSourceValidationRequest {
                 bytes,
@@ -2401,6 +2409,7 @@ enum SchemaPackageExampleTokenizer {
     Cem,
     Html,
     RelaxNg,
+    Svg,
     Xml,
     Xhtml,
 }
@@ -2423,12 +2432,15 @@ fn schema_package_example_tokenizer(
     if content_type == XHTML_CONTENT_TYPE || schema_uri == XHTML_SCHEMA_URI {
         return Some(SchemaPackageExampleTokenizer::Xhtml);
     }
+    if content_type == SVG_CONTENT_TYPE || schema_uri == SVG_SCHEMA_URI {
+        return Some(SchemaPackageExampleTokenizer::Svg);
+    }
     if matches!(
         content_type.as_str(),
-        XML_CONTENT_TYPE | SVG_CONTENT_TYPE | MATHML_CONTENT_TYPE | XSLT_CONTENT_TYPE
+        XML_CONTENT_TYPE | MATHML_CONTENT_TYPE | XSLT_CONTENT_TYPE
     ) || matches!(
         schema_uri,
-        XML_SCHEMA_URI | SVG_SCHEMA_URI | MATHML_SCHEMA_URI | XSLT_SCHEMA_URI
+        XML_SCHEMA_URI | MATHML_SCHEMA_URI | XSLT_SCHEMA_URI
     ) {
         return Some(SchemaPackageExampleTokenizer::Xml);
     }

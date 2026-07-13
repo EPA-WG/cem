@@ -36,6 +36,7 @@
 pub mod html;
 pub mod relax_ng;
 pub mod rules;
+pub mod svg;
 pub mod xhtml;
 pub mod xml;
 

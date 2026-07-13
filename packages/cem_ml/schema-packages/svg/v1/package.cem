@@ -12,4 +12,128 @@
 
     {namespace @prefix="cemsvg" @uri="https://cem.dev/ns/data/svg/1"}
     {namespace @prefix="svg" @uri="http://www.w3.org/2000/svg"}
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/svg-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="image/svg+xml"
+        @target-schema="https://cem.dev/ns/data/svg/1"
+        @target-category="svg-document"
+        @function-name="svg.format-document"
+        @formatter-profile="compact"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/svg-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="image/svg+xml"
+        @target-schema="https://cem.dev/ns/data/svg/1"
+        @target-category="svg-document"
+        @function-name="svg.format-document"
+        @formatter-profile="pretty"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/svg-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="image/svg+xml"
+        @target-schema="https://cem.dev/ns/data/svg/1"
+        @target-category="svg-document"
+        @function-name="svg.format-document"
+        @formatter-profile="tabular"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/svg-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="image/svg+xml"
+        @target-schema="https://cem.dev/ns/data/svg/1"
+        @target-category="svg-document"
+        @function-name="svg.color-document"
+        @color-profile="terminal"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/svg-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="image/svg+xml"
+        @target-schema="https://cem.dev/ns/data/svg/1"
+        @target-category="svg-document"
+        @function-name="svg.color-document"
+        @color-profile="html"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/svg-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="image/svg+xml"
+        @target-schema="https://cem.dev/ns/data/svg/1"
+        @target-category="svg-document"
+        @function-name="svg.color-document"
+        @color-profile="md"
+    }
+
+    {example
+        @id="basic-icon"
+        @path="examples/basic-icon.svg"
+        @content-type="image/svg+xml"
+        @schema="https://cem.dev/ns/data/svg/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="bar-chart"
+        @path="examples/bar-chart.svg"
+        @content-type="image/svg+xml"
+        @schema="https://cem.dev/ns/data/svg/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="unnamed-icon"
+        @path="examples/unnamed-icon.svg"
+        @content-type="image/svg+xml"
+        @schema="https://cem.dev/ns/data/svg/1"
+        @expected-result="pass"
+        @expected-diagnostics="cem.svg.accessible_name_missing"
+    }
+
+    {example
+        @id="invalid-missing-namespace"
+        @path="examples/invalid-missing-namespace.svg"
+        @content-type="image/svg+xml"
+        @schema="https://cem.dev/ns/data/svg/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.svg.namespace_missing"
+    }
+
+    {example
+        @id="invalid-script"
+        @path="examples/invalid-script.svg"
+        @content-type="image/svg+xml"
+        @schema="https://cem.dev/ns/data/svg/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.svg.script_rejected"
+    }
+
+    {example
+        @id="invalid-external-image"
+        @path="examples/invalid-external-image.svg"
+        @content-type="image/svg+xml"
+        @schema="https://cem.dev/ns/data/svg/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.svg.external_resource_rejected"
+    }
 }

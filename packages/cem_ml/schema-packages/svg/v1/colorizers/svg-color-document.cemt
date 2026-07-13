@@ -1,0 +1,18 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {color-function
+        @name="svg.color-document"
+        @category="svg-document"
+        @subject="tokens"
+        @produces="tokens"
+        @content-type="image/svg+xml"
+        @schema="https://cem.dev/ns/data/svg/1"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="array" @required=true}
+    }
+}

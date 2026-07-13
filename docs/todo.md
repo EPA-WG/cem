@@ -834,7 +834,13 @@ XML and markup family formats:
       validation now reports XHTML-owned namespace, root, head/body order,
       not-well-formed XML, and profile diagnostics, and catalog tests guard
       XHTML artifact/example manifest drift.
-- [ ] `svg/v1` (`image/svg+xml`).
+- [x] `svg/v1` (`image/svg+xml`). Baseline `compact`/`pretty`/`tabular`
+      formatter and `terminal`/`html`/`md` colorizer selectors are declared
+      over CEMT artifacts, top-level SVG examples are declared from
+      `package.cem`, library schema-package example validation now reports
+      SVG-owned namespace/root, script, external-resource, not-well-formed XML,
+      and accessible-name diagnostics, and catalog tests guard SVG
+      artifact/example manifest drift.
 - [ ] `mathml/v1` (`application/mathml+xml`, MathML aliases).
 - [ ] `xslt/v1` (`application/xslt+xml`, XSLT aliases).
 
