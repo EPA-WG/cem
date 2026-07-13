@@ -19,8 +19,9 @@
 //!   `itemCount`/`minItems`/`maxItems`, regex `pattern`, path prefix/extension,
 //!   URI scheme/host/port/path/query/query-parameter/fragment, and media-type
 //!   essence/type/subtype/suffix/parameter name/value datatype-param checks.
-//! - schema-owned exact, ranged, ordered, required/forbidden boundary,
-//!   required/forbidden/exact sequence, prefix/suffix sequence, and
+//! - schema-owned exact, ranged, required/forbidden ordered,
+//!   required/forbidden boundary, required/forbidden/exact sequence,
+//!   prefix/suffix sequence, and
 //!   choice-cardinality child occurrence field contracts.
 //!
 //! Remaining follow-up work is in semantic constraints and scalar/field-contract
@@ -387,6 +388,7 @@ pub struct FieldContract {
     pub max_one_child: BTreeSet<String>,
     pub selected_children: BTreeSet<String>,
     pub ordered_children: Vec<String>,
+    pub forbidden_ordered_children: Vec<String>,
     pub first_child: Option<String>,
     pub last_child: Option<String>,
     pub forbidden_first_child: Option<String>,
@@ -476,6 +478,12 @@ struct ChoiceGroupEvaluation {
 struct OrderedChildrenEvaluation {
     sequence: Vec<String>,
     unordered_children: Vec<String>,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+struct ForbiddenOrderedChildrenEvaluation {
+    matched_sequence: Vec<String>,
+    invalid_order: bool,
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -6476,6 +6484,9 @@ fn collect_field_contracts(
                 max_one_child: parse_name_set(attrs.get("max-one-child")),
                 selected_children: parse_name_set(attrs.get("selected-children")),
                 ordered_children: parse_ordered_name_list(attrs.get("ordered-children")),
+                forbidden_ordered_children: parse_ordered_name_list(
+                    attrs.get("forbidden-ordered-children"),
+                ),
                 first_child: optional_non_empty_attr(&attrs, "first-child").map(str::to_owned),
                 last_child: optional_non_empty_attr(&attrs, "last-child").map(str::to_owned),
                 forbidden_first_child: optional_non_empty_attr(&attrs, "forbidden-first-child")
@@ -6849,6 +6860,10 @@ fn validate_field_contracts(
             .is_some_and(|max| selected_child_count > max);
         let ordered_child_evaluation =
             evaluate_ordered_children(&contract.ordered_children, child_sequence);
+        let forbidden_ordered_child_evaluation = evaluate_forbidden_ordered_children(
+            &contract.forbidden_ordered_children,
+            child_sequence,
+        );
         let boundary_child_evaluation = evaluate_boundary_children(contract, child_sequence);
         let required_child_sequence_evaluation =
             evaluate_required_child_sequence(&contract.required_child_sequence, child_sequence);
@@ -6883,6 +6898,7 @@ fn validate_field_contracts(
             && !under_min_selected_children
             && !over_max_selected_children
             && ordered_child_evaluation.unordered_children.is_empty()
+            && !forbidden_ordered_child_evaluation.invalid_order
             && !boundary_child_evaluation.invalid_first_child
             && !boundary_child_evaluation.invalid_last_child
             && !boundary_child_evaluation.invalid_forbidden_first_child
@@ -7026,6 +7042,14 @@ fn validate_field_contracts(
                 ordered_child_evaluation.unordered_children.join(", ")
             ));
         }
+        if forbidden_ordered_child_evaluation.invalid_order {
+            parts.push(format!(
+                "forbidden child order present: {}",
+                forbidden_ordered_child_evaluation
+                    .matched_sequence
+                    .join(", ")
+            ));
+        }
         if boundary_child_evaluation.invalid_first_child {
             if let Some(expected) = contract.first_child.as_deref() {
                 parts.push(format!("first child mismatch: expected {expected}"));
@@ -7134,6 +7158,7 @@ fn validate_field_contracts(
                 over_max_selected_children,
                 selected_child_count,
                 &ordered_child_evaluation,
+                &forbidden_ordered_child_evaluation,
                 &boundary_child_evaluation,
                 &required_child_sequence_evaluation,
                 &forbidden_child_sequence_evaluation,
@@ -7195,6 +7220,33 @@ fn evaluate_ordered_children(
     }
 
     evaluation
+}
+
+fn evaluate_forbidden_ordered_children(
+    forbidden_ordered_children: &[String],
+    child_sequence: &[String],
+) -> ForbiddenOrderedChildrenEvaluation {
+    if forbidden_ordered_children.is_empty() {
+        return ForbiddenOrderedChildrenEvaluation::default();
+    }
+
+    let mut matched_sequence = Vec::new();
+    let mut expected_index = 0usize;
+    for child_name in child_sequence {
+        if forbidden_ordered_children.get(expected_index) != Some(child_name) {
+            continue;
+        }
+        matched_sequence.push(child_name.clone());
+        expected_index += 1;
+        if expected_index == forbidden_ordered_children.len() {
+            return ForbiddenOrderedChildrenEvaluation {
+                matched_sequence,
+                invalid_order: true,
+            };
+        }
+    }
+
+    ForbiddenOrderedChildrenEvaluation::default()
 }
 
 fn evaluate_boundary_children(
@@ -7460,6 +7512,7 @@ fn field_contract_details(
     over_max_selected_children: bool,
     selected_child_count: usize,
     ordered_child_evaluation: &OrderedChildrenEvaluation,
+    forbidden_ordered_child_evaluation: &ForbiddenOrderedChildrenEvaluation,
     boundary_child_evaluation: &BoundaryChildrenEvaluation,
     required_child_sequence_evaluation: &RequiredChildSequenceEvaluation,
     forbidden_child_sequence_evaluation: &ForbiddenChildSequenceEvaluation,
@@ -7567,6 +7620,10 @@ fn field_contract_details(
     details.insert(
         "orderedChildren".to_owned(),
         serde_json::json!(&contract.ordered_children),
+    );
+    details.insert(
+        "forbiddenOrderedChildren".to_owned(),
+        serde_json::json!(&contract.forbidden_ordered_children),
     );
     details.insert(
         "firstChild".to_owned(),
@@ -7800,6 +7857,14 @@ fn field_contract_details(
     details.insert(
         "invalidChildOrder".to_owned(),
         serde_json::json!(!ordered_child_evaluation.unordered_children.is_empty()),
+    );
+    details.insert(
+        "matchedForbiddenOrderedChildren".to_owned(),
+        serde_json::json!(&forbidden_ordered_child_evaluation.matched_sequence),
+    );
+    details.insert(
+        "invalidForbiddenChildOrder".to_owned(),
+        serde_json::json!(forbidden_ordered_child_evaluation.invalid_order),
     );
     details.insert(
         "actualFirstChild".to_owned(),
@@ -9571,6 +9636,15 @@ mod tests {
         assert_eq!(
             model
                 .attributes
+                .get("forbidden-ordered-children")
+                .expect("forbidden-ordered-children attribute model")
+                .value_type
+                .as_deref(),
+            Some("cemml:name-list")
+        );
+        assert_eq!(
+            model
+                .attributes
                 .get("first-child")
                 .expect("first-child attribute model")
                 .value_type
@@ -9924,6 +9998,8 @@ mod tests {
             .expect("child-occurrence result declaration");
         for (detail_name, value_type) in [
             ("actualChildSequence", "schema:array"),
+            ("forbiddenOrderedChildren", "schema:array"),
+            ("matchedForbiddenOrderedChildren", "schema:array"),
             ("forbiddenFirstChild", "schema:identifier"),
             ("forbiddenLastChild", "schema:identifier"),
             ("requiredChildSequence", "schema:array"),
@@ -9932,6 +10008,7 @@ mod tests {
             ("prefixChildSequence", "schema:array"),
             ("suffixChildSequence", "schema:array"),
             ("invalidChildSequence", "schema:boolean"),
+            ("invalidForbiddenChildOrder", "schema:boolean"),
             ("invalidForbiddenFirstChild", "schema:boolean"),
             ("invalidForbiddenLastChild", "schema:boolean"),
             ("invalidForbiddenChildSequence", "schema:boolean"),
@@ -10745,6 +10822,14 @@ mod tests {
             @diagnostic="example.item_check"
             @behavior="schema:child-occurrence"
             @check-kind="ordered-children"
+        }
+        {field-contract
+            @name="article-forbidden-ordered-children"
+            @target="article"
+            @forbidden-ordered-children="outro intro"
+            @diagnostic="example.item_check"
+            @behavior="schema:child-occurrence"
+            @check-kind="forbidden-ordered-children"
         }
         {field-contract
             @name="frame-boundary-children"
@@ -11626,13 +11711,15 @@ mod tests {
         let diagnostics = validate_document_model(&document, &model);
         assert!(
             diagnostics.iter().all(|diagnostic| {
-                diagnostic
+                let contract = diagnostic
                     .details
                     .as_ref()
                     .and_then(|details| details.get("contract").and_then(serde_json::Value::as_str))
-                    != Some("article-ordered-children")
+                    .unwrap_or_default();
+                contract != "article-ordered-children"
+                    && contract != "article-forbidden-ordered-children"
             }),
-            "relative child order should satisfy ordered-children field contract: {diagnostics:?}"
+            "relative child order should satisfy article order field contracts: {diagnostics:?}"
         );
 
         let document = parse_cem_document(r#"{article | {body} {intro} {outro}}"#);
@@ -11663,6 +11750,47 @@ mod tests {
         );
         assert_eq!(details["unorderedChildren"], serde_json::json!(["intro"]));
         assert_eq!(details["invalidChildOrder"], serde_json::json!(true));
+
+        let document = parse_cem_document(r#"{article | {outro} {aside} {intro} {body}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("article-forbidden-ordered-children")
+            })
+            .expect("forbidden ordered child diagnostic");
+        assert!(diagnostic.message.contains("forbidden child order present"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("forbidden ordered child details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:child-occurrence")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("forbidden-ordered-children")
+        );
+        assert_eq!(
+            details["forbiddenOrderedChildren"],
+            serde_json::json!(["outro", "intro"])
+        );
+        assert_eq!(
+            details["actualChildSequence"],
+            serde_json::json!(["outro", "aside", "intro", "body"])
+        );
+        assert_eq!(
+            details["matchedForbiddenOrderedChildren"],
+            serde_json::json!(["outro", "intro"])
+        );
+        assert_eq!(
+            details["invalidForbiddenChildOrder"],
+            serde_json::json!(true)
+        );
 
         let document = parse_cem_document(r#"{frame | {header} {aside} {body} {footer}}"#);
         let diagnostics = validate_document_model(&document, &model);

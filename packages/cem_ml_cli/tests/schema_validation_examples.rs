@@ -3480,6 +3480,14 @@ fn schema_runtime_child_occurrence_sequence_emits_structured_details() {
             @check-kind="ordered-children"
         }
         {field-contract
+            @name="article-forbidden-ordered-children"
+            @target="article"
+            @forbidden-ordered-children="footer header"
+            @diagnostic="example.layout.child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="forbidden-ordered-children"
+        }
+        {field-contract
             @name="section-boundary-children"
             @target="section"
             @first-child="header"
@@ -3576,6 +3584,7 @@ fn schema_runtime_child_occurrence_sequence_emits_structured_details() {
         r#"@doc cem-ml 1
 
 {article | {main} {header} {footer}}
+{article | {footer} {aside} {header} {main}}
 {section | {main} {header} {footer}}
 {nav | {header} {aside} {main} {footer}}
 {ul | {aside} {li} {span} {footer}}
@@ -3669,6 +3678,35 @@ fn schema_runtime_child_occurrence_sequence_emits_structured_details() {
         serde_json::json!(["header"])
     );
     assert_eq!(ordered_details["invalidChildOrder"], true);
+
+    let forbidden_ordered_diagnostic =
+        diagnostic_for_contract("article-forbidden-ordered-children");
+    let forbidden_ordered_details = &forbidden_ordered_diagnostic["details"];
+    assert_eq!(forbidden_ordered_diagnostic["severity"], "error");
+    assert_eq!(
+        forbidden_ordered_details["behavior"],
+        "schema:child-occurrence"
+    );
+    assert_eq!(
+        forbidden_ordered_details["checkKind"],
+        "forbidden-ordered-children"
+    );
+    assert_eq!(
+        forbidden_ordered_details["forbiddenOrderedChildren"],
+        serde_json::json!(["footer", "header"])
+    );
+    assert_eq!(
+        forbidden_ordered_details["actualChildSequence"],
+        serde_json::json!(["footer", "aside", "header", "main"])
+    );
+    assert_eq!(
+        forbidden_ordered_details["matchedForbiddenOrderedChildren"],
+        serde_json::json!(["footer", "header"])
+    );
+    assert_eq!(
+        forbidden_ordered_details["invalidForbiddenChildOrder"],
+        true
+    );
 
     let boundary_diagnostic = diagnostic_for_contract("section-boundary-children");
     let boundary_details = &boundary_diagnostic["details"];
@@ -3830,6 +3868,7 @@ fn schema_runtime_child_occurrence_sequence_emits_structured_details() {
 
     for diagnostic in [
         ordered_diagnostic,
+        forbidden_ordered_diagnostic,
         boundary_diagnostic,
         required_sequence_diagnostic,
         forbidden_sequence_diagnostic,
