@@ -41,7 +41,9 @@ Serializer converters may also declare output-contract metadata:
 `parity`. For CEMT schema-output producers, this metadata plans the structured
 pipeline as CEMT transform, CEM tree formatting, CEM tree coloring, then final
 writer. A missing visual `color-profile` still means a semantic no-color CEM
-tree color stage before the writer. When a CEMT converter declares
+tree color stage before the writer. Declaring a formatter or color profile also
+requires `output-syntax` and `encoding-category` so the pipeline identity is
+complete. When a CEMT converter declares
 formatter/coloring output profiles, validation reads the referenced template
 through the local package path or template resolver and compiles it as a
 formatted CEM-tree producer before writer output is allowed. A CEMT converter

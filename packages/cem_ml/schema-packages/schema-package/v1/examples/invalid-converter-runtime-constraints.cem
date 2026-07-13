@@ -32,6 +32,7 @@
         @readiness="later"
         @lossiness="hand-wave"
         @output-syntax="pixels"
+        @formatter-profile="compact"
         @parity="same-enough"
         @cost=1 |
         {from @content-type="application/cem" @schema="https://cem.dev/ns/cem-ml/1"}

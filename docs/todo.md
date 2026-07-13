@@ -514,7 +514,10 @@ history belongs in git history and the feature-specific docs linked below.
         incomplete schema-invalid rows and materializes only complete runtime
         fixture descriptors; converter descriptor extraction now skips
         incomplete schema-invalid rows missing `id`, `implementation`, known
-        implementation value, `from`/`to`, or endpoint `content-type`.
+        implementation value, `from`/`to`, or endpoint `content-type`;
+        formatter/color output profiles now require `output-syntax` and
+        `encoding-category` through schema-owned `converter_check`
+        field-dependency contracts.
   - [ ] Finish artifact cases in `schema-package.cem`. Formatter, colorizer,
         formatter-helper, and colorizer-helper required field metadata now
         lives in schema-owned `field-contract` declarations; formatter/
@@ -598,7 +601,8 @@ history belongs in git history and the feature-specific docs linked below.
         generic `@values`, `schema:boolean`, `minInclusive`/`maxInclusive`,
         value-specific forbidden field, and child occurrence checks; CEMT
         template content-type/schema exact values are now covered by generic
-        `@values`, and the remaining converter operational/cross-reference
+        `@values`; formatter/color output-profile dependencies are now
+        schema-owned field-dependency contracts, and the remaining converter operational/cross-reference
         branches emit `converter_check` with `checkKind` details.
   - [ ] Refactor `schema_descriptor_from_package_sources`,
         `collect_package_examples`, and `required_attr` in

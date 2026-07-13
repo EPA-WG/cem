@@ -154,6 +154,24 @@
             @check-kind="mutual-exclusion"
         }
         {field-contract
+            @name="converter-output-formatter-profile"
+            @target="converter"
+            @when-present-attributes="formatter-profile"
+            @required-attributes="output-syntax encoding-category"
+            @diagnostic="cem.schema_package.converter_check"
+            @behavior="schema:field-dependency"
+            @check-kind="converter-output-contract"
+        }
+        {field-contract
+            @name="converter-output-color-profile"
+            @target="converter"
+            @when-present-attributes="color-profile"
+            @required-attributes="output-syntax encoding-category"
+            @diagnostic="cem.schema_package.converter_check"
+            @behavior="schema:field-dependency"
+            @check-kind="converter-output-contract"
+        }
+        {field-contract
             @name="converter-from-to-endpoints"
             @target="converter"
             @required-children="from to"

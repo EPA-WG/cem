@@ -10520,6 +10520,48 @@ mod tests {
             planner_state.engine_behavior,
             Some(EngineDiagnosticBehavior::FieldContract)
         );
+        let output_formatter_profile = converter
+            .field_contracts
+            .iter()
+            .find(|contract| contract.name == "converter-output-formatter-profile")
+            .expect("converter output formatter profile contract");
+        assert_eq!(
+            output_formatter_profile.behavior.as_deref(),
+            Some("schema:field-dependency")
+        );
+        assert_eq!(
+            output_formatter_profile.when_present_attributes,
+            BTreeSet::from(["formatter-profile".to_owned()])
+        );
+        assert_eq!(
+            output_formatter_profile.required_attributes,
+            BTreeSet::from(["encoding-category".to_owned(), "output-syntax".to_owned()])
+        );
+        assert_eq!(
+            output_formatter_profile.engine_behavior,
+            Some(EngineDiagnosticBehavior::FieldContract)
+        );
+        let output_color_profile = converter
+            .field_contracts
+            .iter()
+            .find(|contract| contract.name == "converter-output-color-profile")
+            .expect("converter output color profile contract");
+        assert_eq!(
+            output_color_profile.behavior.as_deref(),
+            Some("schema:field-dependency")
+        );
+        assert_eq!(
+            output_color_profile.when_present_attributes,
+            BTreeSet::from(["color-profile".to_owned()])
+        );
+        assert_eq!(
+            output_color_profile.required_attributes,
+            BTreeSet::from(["encoding-category".to_owned(), "output-syntax".to_owned()])
+        );
+        assert_eq!(
+            output_color_profile.engine_behavior,
+            Some(EngineDiagnosticBehavior::FieldContract)
+        );
         let artifact = model.element("artifact").unwrap();
         assert!(artifact
             .field_contracts

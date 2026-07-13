@@ -3417,6 +3417,7 @@ mod tests {
                     @streamable=maybe
                     @lossiness="hand-wave"
                     @output-syntax="pdf"
+                    @formatter-profile="compact"
                     @parity="mostly-equal"
                     @readiness=later
                     @explicit-only=true
@@ -3504,6 +3505,9 @@ mod tests {
                 "attribute": "implementation",
                 "values": ["cemt"],
                 "presentAttributes": [],
+                "absentAttributes": [],
+                "presentChildren": [],
+                "absentChildren": [],
             })
         );
 
@@ -3522,7 +3526,7 @@ mod tests {
             .expect("CEMT fallback reason details");
         assert_eq!(
             details["behavior"],
-            serde_json::json!("schema:field-dependency")
+            serde_json::json!("schema:dependent-required-fields")
         );
         assert_eq!(
             details["missingFields"],
@@ -3534,6 +3538,9 @@ mod tests {
                 "attribute": "implementation",
                 "values": ["cemt"],
                 "presentAttributes": ["rust-symbol"],
+                "absentAttributes": [],
+                "presentChildren": [],
+                "absentChildren": [],
             })
         );
 
@@ -3577,7 +3584,10 @@ mod tests {
             .details
             .as_ref()
             .expect("converter planner state details");
-        assert_eq!(details["behavior"], serde_json::json!("schema:choice-case"));
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:mutual-exclusion")
+        );
         assert_eq!(details["missingFields"], serde_json::json!([]));
         assert_eq!(details["invalidFields"], serde_json::json!(["implicit"]));
         assert_eq!(
@@ -3598,6 +3608,50 @@ mod tests {
                 "attribute": "explicit-only",
                 "values": ["true"],
                 "presentAttributes": [],
+                "absentAttributes": [],
+                "presentChildren": [],
+                "absentChildren": [],
+            })
+        );
+
+        let output_profile = diags
+            .iter()
+            .find(|d| {
+                d.code == "cem.schema_package.converter_check"
+                    && d.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("converter-output-formatter-profile")
+            })
+            .expect("schema-owned converter output formatter profile field contract diagnostic");
+        let details = output_profile
+            .details
+            .as_ref()
+            .expect("converter output profile details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:field-dependency")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("converter-output-contract")
+        );
+        assert_eq!(
+            details["requiredFields"],
+            serde_json::json!(["encoding-category", "output-syntax"])
+        );
+        assert_eq!(
+            details["missingFields"],
+            serde_json::json!(["encoding-category"])
+        );
+        assert_eq!(
+            details["condition"],
+            serde_json::json!({
+                "attribute": null,
+                "values": [],
+                "presentAttributes": ["formatter-profile"],
+                "absentAttributes": [],
+                "presentChildren": [],
+                "absentChildren": [],
             })
         );
 
@@ -3754,6 +3808,9 @@ mod tests {
                 "attribute": "expected-result",
                 "values": ["fail"],
                 "presentAttributes": [],
+                "absentAttributes": [],
+                "presentChildren": [],
+                "absentChildren": [],
             })
         );
 

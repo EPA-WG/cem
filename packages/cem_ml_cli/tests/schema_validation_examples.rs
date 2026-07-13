@@ -5235,6 +5235,13 @@ fn schema_package_engine_behavior_examples_emit_structured_details() {
                     check_kind: "mutual-exclusion",
                     contract: "converter-planner-state",
                 },
+                DiagnosticDetailExpectation {
+                    code: "cem.schema_package.converter_check",
+                    severity: "error",
+                    behavior: "schema:field-dependency",
+                    check_kind: "converter-output-contract",
+                    contract: "converter-output-formatter-profile",
+                },
             ],
         },
         DetailedValidationExample {
