@@ -496,7 +496,7 @@ history belongs in git history and the feature-specific docs linked below.
         execution diagnostics that are still emitted; the operational
         `schema_registration_failed` runtime diagnostic is now declared beside
         converter registration failures.
-  - [ ] Model converter cases in `schema-package.cem`: `implementation=cemt`
+  - [x] Model converter cases in `schema-package.cem`: `implementation=cemt`
         and `implementation=rust` required attribute contracts plus CEMT
         native fallback `fallback-reason` now live in schema-owned
         `field-contract` declarations and emit
@@ -519,7 +519,11 @@ history belongs in git history and the feature-specific docs linked below.
         `encoding-category` through schema-owned `converter_check`
         field-dependency contracts; converter template source readability and
         template compile constraints are now pinned by schema-owned example
-        fixtures and compiled constraint model assertions.
+        fixtures and compiled constraint model assertions. The remaining
+        endpoint `schema`/`content-type` compatibility check stays declared as
+        the schema-owned `endpoint-content-type-schema`
+        `schema:reference-resolution` constraint and executed by Rust until
+        the generic cross-node/reference vocabulary exists.
   - [ ] Finish artifact cases in `schema-package.cem`. Formatter, colorizer,
         formatter-helper, and colorizer-helper required field metadata now
         lives in schema-owned `field-contract` declarations; formatter/
@@ -593,7 +597,7 @@ history belongs in git history and the feature-specific docs linked below.
         CEMT compilation, CEMT function lookup, host-hook availability, and
         source-file I/O. Those checks must still be declared as schema-owned
         constraints/rules in `.cem`, with Rust only as the execution placement.
-  - [ ] Refactor `SchemaPackageConverterContractRule` toward operational-only
+  - [x] Refactor `SchemaPackageConverterContractRule` toward operational-only
         checks for template readability/compilation and endpoint
         schema/content-type compatibility. CEMT template identity, Rust symbol,
         CEMT fallback reason requirements, converter planner-state conflicts,
@@ -608,7 +612,10 @@ history belongs in git history and the feature-specific docs linked below.
         source-readability and compile constraints are pinned as schema-owned
         resource-readable/resource-parse constraints, and the remaining
         converter operational/cross-reference branches emit `converter_check`
-        with `checkKind` details.
+        with `checkKind` details. Endpoint schema/content-type compatibility
+        remains a schema-owned `schema:reference-resolution` constraint with
+        Rust execution placement because fully declarative cross-node registry
+        lookups need the deferred generic vocabulary below.
   - [ ] Refactor `schema_descriptor_from_package_sources`,
         `collect_package_examples`, and `required_attr` in
         `packages/cem_ml/src/schema/registry.rs` so descriptor extraction runs
@@ -806,6 +813,30 @@ Projection and debug/interchange formats:
       `application/vnd.cem.ast+json`).
 - [ ] `cem-events-projection/v1` (`application/vnd.cem.events+cem-bin`,
       `application/vnd.cem.events+json`).
+
+## Low Priority Deferred Design
+
+- [ ] Design richer declarative cross-node/reference vocabulary for
+      schema-owned constraints currently declared in CEM-ML but executed by
+      Rust. Immediate background: `schema-package.cem` declares converter
+      endpoint compatibility as
+      `{constraint @kind="endpoint-content-type-schema" @target="from to"
+      @diagnostic="cem.schema_package.converter_check"
+      @behavior="schema:reference-resolution" ...}`, and
+      `SchemaPackageConverterContractRule` executes it by reading each
+      endpoint's `@schema`, resolving that URI through `SchemaRegistry`, then
+      checking whether `content_type_essence(@content-type)` is included in
+      the referenced schema's registered content-type essences. Similar
+      Rust-executed reference-resolution shapes exist for example
+      content-type/schema compatibility and artifact CEMT function lookup/
+      metadata matching. The future vocabulary should let a schema declare:
+      candidate selection, reference attributes, registry/document lookup
+      target, normalized comparison such as media-type essence or URI equality,
+      expected/invalid value detail projection, source-range propagation, and
+      whether execution is pure CEM-ML/CEM-QL or engine-assisted. Reuse
+      `schema:reference-resolution`, CEM-QL candidate selection, and
+      schema-declared behavior functions where possible; avoid introducing
+      package-specific syntax for converter endpoints.
 
 # [] believes schema + registry
 stop for sync up with author
