@@ -133,6 +133,8 @@ history belongs in git history and the feature-specific docs linked below.
         `schema:choice-case` result contract now exposes emitted flat/grouped
         choice details. Required, forbidden, and mutual-exclusion field result
         contracts now expose their emitted field/value details, and the
+        `schema:value-vocabulary` and `schema:scalar-type` result contracts
+        now expose emitted attribute value/type detail keys. The
         `schema:datatype-param` result contract now exposes emitted
         string/list/digit/path/URI/media-type detail keys.
   - [x] Compile behavior declarations and references into the generic schema

@@ -9700,6 +9700,52 @@ mod tests {
             }));
             assert!(behavior.result.is_some());
         }
+        let value_vocabulary_result = model
+            .behaviors
+            .get("value-vocabulary")
+            .and_then(|behavior| behavior.result.as_ref())
+            .expect("value-vocabulary result declaration");
+        for (detail_name, value_type) in [
+            ("contract", "schema:identifier"),
+            ("valueType", "schema:type-reference"),
+            ("expectedValues", "schema:array"),
+            ("actualValue", "schema:string"),
+            ("invalidFields", "schema:array"),
+            ("actualValues", "schema:object"),
+        ] {
+            assert!(
+                value_vocabulary_result
+                    .details
+                    .iter()
+                    .any(|detail| detail.name == detail_name && detail.value_type == value_type),
+                "value-vocabulary result must declare {detail_name} as {value_type}"
+            );
+        }
+        let scalar_type_result = model
+            .behaviors
+            .get("scalar-type")
+            .and_then(|behavior| behavior.result.as_ref())
+            .expect("scalar-type result declaration");
+        for (detail_name, value_type) in [
+            ("contract", "schema:identifier"),
+            ("type", "schema:identifier"),
+            ("valueType", "schema:type-reference"),
+            ("expectedType", "schema:type-reference"),
+            ("expectedValues", "schema:array"),
+            ("expectedPattern", "schema:string"),
+            ("allowsEmpty", "schema:boolean"),
+            ("actualValue", "schema:string"),
+            ("invalidFields", "schema:array"),
+            ("actualValues", "schema:object"),
+        ] {
+            assert!(
+                scalar_type_result
+                    .details
+                    .iter()
+                    .any(|detail| detail.name == detail_name && detail.value_type == value_type),
+                "scalar-type result must declare {detail_name} as {value_type}"
+            );
+        }
         let datatype_param_result = model
             .behaviors
             .get("datatype-param")

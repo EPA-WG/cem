@@ -180,7 +180,10 @@ constraints, and regex `@pattern`, path `@pathPrefixes`/`@pathExtensions`, URI
 through `@datatype-param-diagnostic` to
 `schema:datatype-param`. In all cases the diagnostic `@code` remains the
 stable output identity while `@behavior` selects the reusable algorithm
-contract.
+contract. The `schema:value-vocabulary` and `schema:scalar-type` result
+contracts declare the emitted attribute value/type detail keys, and the
+`schema:datatype-param` result contract declares the emitted datatype-specific
+detail keys.
 
 Operational constraints bind their execution behavior at the `{constraint}`
 declaration while keeping the diagnostic family code stable. Constraint
@@ -264,7 +267,8 @@ required-parameter `mediaTypes`/`mediaTypeTypes`/`mediaTypeSubtypes`/`mediaTypeS
 family-specific string/list/digit/path/URI/media-type details; identifier, name-list, type-reference,
 symbol-reference, wildcard-name/list/type-reference, boolean, integer, number,
 qualified-name, semantic version, basic absolute-URI, basic media-type, and
-scope-context path scalar syntax now execute through `schema:scalar-type`;
+scope-context path scalar syntax now execute through `schema:scalar-type`,
+whose result contract declares emitted scalar value/type details;
 schema-definition validation also rejects numeric bound/digit-count params on
 non-numeric attributes, string length/prefix/suffix params on non-string attributes,
 and list item-count params on non-list attributes;
