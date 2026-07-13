@@ -647,7 +647,7 @@ history belongs in git history and the feature-specific docs linked below.
         extraction now falls back to the embedded package id, schema root
         namespace/version, and embedded schema path instead of owning missing
         manifest field diagnostics, and `required_attr` has been removed.
-  - [ ] Update runtime diagnostic declaration tests and CLI example coverage to
+  - [x] Update runtime diagnostic declaration tests and CLI example coverage to
         assert generic contract-family codes plus structured details instead of
         schema-package-specific field diagnostics. A production-source audit
         now guards against reintroducing schema-package field-specific
@@ -663,8 +663,11 @@ history belongs in git history and the feature-specific docs linked below.
         Formatter/colorizer CEMT body metadata term checks are centralized on
         the operational stage contract type and test-pinned; moving those terms
         into schema needs a schema vocabulary for CEMT body/output assertions.
-        Keep expanding that audit for narrow operational `matches!` lists as
-        new declarative contracts move into schema.
+        Schema-source readability, parse validity, URI, content-type, and
+        namespace consistency diagnostics now emit structured behavior details
+        with source maps and are covered by checked-in CLI examples. Keep
+        expanding that audit for narrow operational `matches!` lists as new
+        declarative contracts move into schema.
 
 - [ ] Complete the schema-package folder frame for
       `packages/cem_ml/schema-packages`: every `{package-id}/vN/` folder must be

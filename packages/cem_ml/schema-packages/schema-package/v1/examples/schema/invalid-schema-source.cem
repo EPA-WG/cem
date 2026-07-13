@@ -1,0 +1,5 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{not-schema @name="broken-schema-source-invalid"}

@@ -1,0 +1,14 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="broken-schema-source-invalid" @version="1.0.0" |
+    {schema
+        @uri="https://example.test/ns/broken-schema-source-invalid/1"
+        @source="schema/invalid-schema-source.cem"
+    }
+
+    {content-type @value="application/vnd.example.broken-schema-source-invalid+cem" @primary=true}
+
+    {namespace @prefix="broken" @uri="https://example.test/ns/broken-schema-source-invalid/1"}
+}

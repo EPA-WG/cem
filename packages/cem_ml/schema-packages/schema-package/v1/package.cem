@@ -93,6 +93,15 @@
     }
 
     {example
+        @id="invalid-converter-template-unreadable"
+        @path="examples/invalid-converter-template-unreadable.cem"
+        @content-type="application/vnd.cem.schema-package+cem"
+        @schema="https://cem.dev/ns/schema-package/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_package.converter_check"
+    }
+
+    {example
         @id="invalid-artifact-contract"
         @path="examples/invalid-artifact-contract.cem"
         @content-type="application/vnd.cem.schema-package+cem"
@@ -143,7 +152,25 @@
         @content-type="application/vnd.cem.schema-package+cem"
         @schema="https://cem.dev/ns/schema-package/1"
         @expected-result="fail"
-        @expected-diagnostics="cem.schema_package.schema_uri_mismatch"
+        @expected-diagnostics="cem.schema_package.schema_uri_mismatch cem.schema_package.schema_content_type_mismatch cem.schema_package.schema_namespace_mismatch"
+    }
+
+    {example
+        @id="invalid-schema-source-unreadable"
+        @path="examples/invalid-schema-source-unreadable.cem"
+        @content-type="application/vnd.cem.schema-package+cem"
+        @schema="https://cem.dev/ns/schema-package/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_package.schema_source_unreadable"
+    }
+
+    {example
+        @id="invalid-schema-source-invalid"
+        @path="examples/invalid-schema-source-invalid.cem"
+        @content-type="application/vnd.cem.schema-package+cem"
+        @schema="https://cem.dev/ns/schema-package/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_package.schema_source_invalid"
     }
 
     {example

@@ -843,10 +843,9 @@ mod tests {
             include_str!("../validation/rules.rs"),
             "diag_at(",
         );
-        codes.extend(schema_package_diagnostic_codes_after_call(
-            include_str!("package_consistency.rs"),
-            "schema_package_consistency_diagnostic(",
-        ));
+        codes.extend(schema_package_diagnostic_code_literals(include_str!(
+            "package_consistency.rs"
+        )));
         codes
     }
 

@@ -140,8 +140,24 @@ const SCHEMA_PACKAGE_RUNTIME_CONSTRAINT_EXAMPLE_DIAGNOSTICS: &[(&str, &str)] = &
         "cem.schema_package.converter_check",
     ),
     (
+        "schema-source-readable",
+        "cem.schema_package.schema_source_unreadable",
+    ),
+    (
+        "schema-source-valid",
+        "cem.schema_package.schema_source_invalid",
+    ),
+    (
         "schema-uri-consistency",
         "cem.schema_package.schema_uri_mismatch",
+    ),
+    (
+        "schema-content-type-consistency",
+        "cem.schema_package.schema_content_type_mismatch",
+    ),
+    (
+        "schema-namespace-consistency",
+        "cem.schema_package.schema_namespace_mismatch",
     ),
     (
         "artifact-output-stage-contract",
@@ -605,6 +621,22 @@ fn schema_owned_examples_validate_through_cli() {
                 "cem.schema_package.schema_content_type_mismatch",
                 "cem.schema_package.schema_namespace_mismatch",
             ],
+        },
+        ValidationExample {
+            name: "schema-package invalid schema source unreadable",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-schema-source-unreadable.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.schema_package.schema_source_unreadable"],
+        },
+        ValidationExample {
+            name: "schema-package invalid schema source invalid",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-schema-source-invalid.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.schema_package.schema_source_invalid"],
         },
         ValidationExample {
             name: "schema-package invalid example contract",
@@ -5277,6 +5309,61 @@ fn schema_package_engine_behavior_examples_emit_structured_details() {
                 check_kind: "converter-template-contract",
                 contract: "converter-template-output-stage-contract",
             }],
+        },
+        DetailedValidationExample {
+            name: "schema-package invalid schema source unreadable",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-schema-source-unreadable.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected: &[DiagnosticDetailExpectation {
+                code: "cem.schema_package.schema_source_unreadable",
+                severity: "error",
+                behavior: "schema:resource-readable",
+                check_kind: "schema-source-readable",
+                contract: "schema-source-readable",
+            }],
+        },
+        DetailedValidationExample {
+            name: "schema-package invalid schema source invalid",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-schema-source-invalid.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected: &[DiagnosticDetailExpectation {
+                code: "cem.schema_package.schema_source_invalid",
+                severity: "error",
+                behavior: "schema:resource-parse",
+                check_kind: "schema-source-valid",
+                contract: "schema-source-valid",
+            }],
+        },
+        DetailedValidationExample {
+            name: "schema-package invalid schema metadata",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-schema-metadata.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected: &[
+                DiagnosticDetailExpectation {
+                    code: "cem.schema_package.schema_uri_mismatch",
+                    severity: "error",
+                    behavior: "schema:reference-resolution",
+                    check_kind: "schema-uri-consistency",
+                    contract: "schema-uri-consistency",
+                },
+                DiagnosticDetailExpectation {
+                    code: "cem.schema_package.schema_content_type_mismatch",
+                    severity: "error",
+                    behavior: "schema:reference-resolution",
+                    check_kind: "schema-content-type-consistency",
+                    contract: "schema-content-type-consistency",
+                },
+                DiagnosticDetailExpectation {
+                    code: "cem.schema_package.schema_namespace_mismatch",
+                    severity: "error",
+                    behavior: "schema:reference-resolution",
+                    check_kind: "schema-namespace-consistency",
+                    contract: "schema-namespace-consistency",
+                },
+            ],
         },
         DetailedValidationExample {
             name: "schema-package invalid artifact layout",

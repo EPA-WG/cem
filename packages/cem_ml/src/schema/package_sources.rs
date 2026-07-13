@@ -783,11 +783,15 @@ mod tests {
             "schema-package",
             CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
             CEM_SCHEMA_PACKAGE_URI,
-            17,
+            20,
         );
         for (id, expected_code) in [
             (
                 "invalid-converter-contract",
+                "cem.schema_package.converter_check",
+            ),
+            (
+                "invalid-converter-template-unreadable",
                 "cem.schema_package.converter_check",
             ),
             (
@@ -799,16 +803,51 @@ mod tests {
                 "cem.schema_package.example_check",
             ),
             (
-                "invalid-schema-metadata",
-                "cem.schema_package.schema_uri_mismatch",
-            ),
-            (
                 "invalid-primary-content-type",
                 "cem.schema_package.content_type_conflict",
             ),
             (
                 "invalid-primary-content-type-missing",
                 "cem.schema_package.content_type_conflict",
+            ),
+        ] {
+            let example = examples
+                .iter()
+                .find(|example| example.id == id)
+                .unwrap_or_else(|| panic!("schema-package example `{id}`"));
+            assert_eq!(
+                example.expected_result,
+                SchemaPackageExampleExpectedResult::Fail
+            );
+            assert_eq!(
+                example.expected_diagnostic_codes,
+                vec![expected_code.to_owned()]
+            );
+        }
+        let invalid_schema_metadata = examples
+            .iter()
+            .find(|example| example.id == "invalid-schema-metadata")
+            .expect("schema-package invalid schema metadata example");
+        assert_eq!(
+            invalid_schema_metadata.expected_result,
+            SchemaPackageExampleExpectedResult::Fail
+        );
+        assert_eq!(
+            invalid_schema_metadata.expected_diagnostic_codes,
+            vec![
+                "cem.schema_package.schema_uri_mismatch".to_owned(),
+                "cem.schema_package.schema_content_type_mismatch".to_owned(),
+                "cem.schema_package.schema_namespace_mismatch".to_owned(),
+            ]
+        );
+        for (id, expected_code) in [
+            (
+                "invalid-schema-source-unreadable",
+                "cem.schema_package.schema_source_unreadable",
+            ),
+            (
+                "invalid-schema-source-invalid",
+                "cem.schema_package.schema_source_invalid",
             ),
         ] {
             let example = examples
