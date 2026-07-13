@@ -2458,6 +2458,250 @@ fn schema_runtime_path_layout_emits_structured_details() {
 }
 
 #[test]
+fn schema_runtime_child_occurrence_choice_emits_structured_details() {
+    const CUSTOM_SCHEMA_URI: &str = "https://example.test/ns/child-choice-runtime/1";
+    const CUSTOM_CONTENT_TYPE: &str = "application/vnd.example.child-choice-runtime+cem";
+    const CUSTOM_DIAGNOSTIC: &str = "example.section.child_choice";
+
+    let root = test_temp_dir("cem-ml-cli-child-choice-runtime");
+    let manifest_path = root.join("package.cem");
+    let schema_path = root.join("schema/child-choice-runtime.cem");
+    let valid_input_path = root.join("examples/valid-child-choice.cem");
+    let missing_input_path = root.join("examples/missing-child-choice.cem");
+    let conflicting_input_path = root.join("examples/conflicting-child-choice.cem");
+
+    write_test_file(
+        &manifest_path,
+        r#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="child-choice-runtime" @version="1.0.0" |
+    {schema
+        @uri="https://example.test/ns/child-choice-runtime/1"
+        @source="schema/child-choice-runtime.cem"
+    }
+    {content-type @value="application/vnd.example.child-choice-runtime+cem" @primary=true}
+    {namespace @prefix="demo" @uri="https://example.test/ns/child-choice-runtime/1"}
+}
+"#,
+    );
+    write_test_file(
+        &schema_path,
+        r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@default schema
+
+{schema @name="child-choice-runtime" @namespace="https://example.test/ns/child-choice-runtime/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {content-types |
+        {content-type @value="application/vnd.example.child-choice-runtime+cem" @primary=true}
+    }
+    {namespaces |
+        {namespace @prefix="demo" @uri="https://example.test/ns/child-choice-runtime/1" @role="schema"}
+    }
+    {elements |
+        {element @name="section" @children="header* footer* aside*"}
+        {element @name="header"}
+        {element @name="footer"}
+        {element @name="aside"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="section-heading-or-trailing-choice"
+            @target="section"
+            @required-one-child="header footer"
+            @max-one-child="header footer"
+            @diagnostic="example.section.child_choice"
+            @behavior="schema:child-occurrence"
+            @check-kind="exactly-one-child"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.section.child_choice"
+            @severity="error"
+            @behavior="schema:child-occurrence"
+            @message="Section must choose exactly one structural child"
+        }
+    }
+}
+"#,
+    );
+    write_test_file(
+        &valid_input_path,
+        r#"@doc cem-ml 1
+
+{section | {header}}
+"#,
+    );
+    write_test_file(
+        &missing_input_path,
+        r#"@doc cem-ml 1
+
+{section | {aside}}
+"#,
+    );
+    write_test_file(
+        &conflicting_input_path,
+        r#"@doc cem-ml 1
+
+{section | {header} {footer}}
+"#,
+    );
+
+    let validate = |input_path: &Path| {
+        cem_ml_owned(&[
+            "validate".to_owned(),
+            "--format".to_owned(),
+            "json".to_owned(),
+            "--schema-package".to_owned(),
+            manifest_path.to_string_lossy().into_owned(),
+            "--content-type".to_owned(),
+            CUSTOM_CONTENT_TYPE.to_owned(),
+            "--schema".to_owned(),
+            CUSTOM_SCHEMA_URI.to_owned(),
+            input_path.to_string_lossy().into_owned(),
+        ])
+    };
+
+    let valid_output = validate(&valid_input_path);
+    assert_eq!(
+        valid_output.status.code(),
+        Some(EXIT_OK),
+        "child choice valid stderr:\n{}",
+        stderr(&valid_output)
+    );
+    assert!(
+        stderr(&valid_output).trim().is_empty(),
+        "child choice valid stderr must stay empty:\n{}",
+        stderr(&valid_output)
+    );
+    let valid_report: serde_json::Value = serde_json::from_str(stdout(&valid_output).trim())
+        .expect("child choice valid report is JSON");
+    assert!(
+        !has_diagnostic(&valid_report, CUSTOM_DIAGNOSTIC),
+        "`{CUSTOM_DIAGNOSTIC}` should not be emitted for a single choice child:\n{}",
+        stdout(&valid_output)
+    );
+
+    let missing_output = validate(&missing_input_path);
+    assert_eq!(
+        missing_output.status.code(),
+        Some(EXIT_HARD_FAILURE),
+        "missing child choice runtime stderr:\n{}",
+        stderr(&missing_output)
+    );
+    assert!(
+        stderr(&missing_output).trim().is_empty(),
+        "missing child choice runtime stderr must stay empty:\n{}",
+        stderr(&missing_output)
+    );
+    let missing_report: serde_json::Value = serde_json::from_str(stdout(&missing_output).trim())
+        .expect("missing child choice runtime report is JSON");
+    let missing_diagnostic = diagnostics(&missing_report)
+        .iter()
+        .find(|diagnostic| diagnostic["code"] == CUSTOM_DIAGNOSTIC)
+        .unwrap_or_else(|| {
+            panic!(
+                "expected `{CUSTOM_DIAGNOSTIC}` in missing child choice report:\n{}",
+                stdout(&missing_output)
+            )
+        });
+    let missing_details = &missing_diagnostic["details"];
+    assert_eq!(missing_diagnostic["severity"], "error");
+    assert_eq!(missing_details["behavior"], "schema:child-occurrence");
+    assert_eq!(missing_details["checkKind"], "exactly-one-child");
+    assert_eq!(
+        missing_details["contract"],
+        "section-heading-or-trailing-choice"
+    );
+    assert_eq!(
+        missing_details["requiredOneChild"],
+        serde_json::json!(["footer", "header"])
+    );
+    assert_eq!(
+        missing_details["maxOneChild"],
+        serde_json::json!(["footer", "header"])
+    );
+    assert_eq!(
+        missing_details["presentRequiredOneChild"],
+        serde_json::json!([])
+    );
+    assert_eq!(
+        missing_details["missingChoiceChildren"],
+        serde_json::json!(["footer", "header"])
+    );
+    assert_eq!(
+        missing_details["conflictingChoiceChildren"],
+        serde_json::json!([])
+    );
+    assert!(missing_details["sourceRange"]["span"]["start"].is_u64());
+    assert!(missing_diagnostic["sourceMap"]["frames"]
+        .as_array()
+        .is_some_and(|frames| !frames.is_empty()));
+
+    let conflicting_output = validate(&conflicting_input_path);
+    assert_eq!(
+        conflicting_output.status.code(),
+        Some(EXIT_HARD_FAILURE),
+        "conflicting child choice runtime stderr:\n{}",
+        stderr(&conflicting_output)
+    );
+    assert!(
+        stderr(&conflicting_output).trim().is_empty(),
+        "conflicting child choice runtime stderr must stay empty:\n{}",
+        stderr(&conflicting_output)
+    );
+    let conflicting_report: serde_json::Value =
+        serde_json::from_str(stdout(&conflicting_output).trim())
+            .expect("conflicting child choice runtime report is JSON");
+    let conflicting_diagnostic = diagnostics(&conflicting_report)
+        .iter()
+        .find(|diagnostic| diagnostic["code"] == CUSTOM_DIAGNOSTIC)
+        .unwrap_or_else(|| {
+            panic!(
+                "expected `{CUSTOM_DIAGNOSTIC}` in conflicting child choice report:\n{}",
+                stdout(&conflicting_output)
+            )
+        });
+    let conflicting_details = &conflicting_diagnostic["details"];
+    assert_eq!(conflicting_diagnostic["severity"], "error");
+    assert_eq!(conflicting_details["behavior"], "schema:child-occurrence");
+    assert_eq!(conflicting_details["checkKind"], "exactly-one-child");
+    assert_eq!(
+        conflicting_details["contract"],
+        "section-heading-or-trailing-choice"
+    );
+    assert_eq!(
+        conflicting_details["presentRequiredOneChild"],
+        serde_json::json!(["footer", "header"])
+    );
+    assert_eq!(
+        conflicting_details["presentMaxOneChild"],
+        serde_json::json!(["footer", "header"])
+    );
+    assert_eq!(
+        conflicting_details["missingChoiceChildren"],
+        serde_json::json!([])
+    );
+    assert_eq!(
+        conflicting_details["conflictingChoiceChildren"],
+        serde_json::json!(["footer", "header"])
+    );
+    assert!(conflicting_details["sourceRange"]["span"]["start"].is_u64());
+    assert!(conflicting_diagnostic["sourceMap"]["frames"]
+        .as_array()
+        .is_some_and(|frames| !frames.is_empty()));
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn schema_datatype_param_examples_emit_structured_definition_details() {
     let examples = [
         SchemaDefinitionDetailExample {
