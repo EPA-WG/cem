@@ -16,7 +16,7 @@
 //!   `minExclusive`/`maxExclusive`, numeric `totalDigits`/`fractionDigits`,
 //!   string `minLength`/`maxLength`/`length`/prefix/suffix, list
 //!   `itemCount`/`minItems`/`maxItems`, regex `pattern`, path prefix/extension,
-//!   URI scheme/host/port/path/query/fragment, and media-type
+//!   URI scheme/host/port/path/query/query-parameter/fragment, and media-type
 //!   essence/type/subtype/suffix/parameter name/value datatype-param checks.
 //! - schema-owned exact, ranged, ordered, boundary, sequence, forbidden-sequence,
 //!   exact-sequence, and choice-cardinality child occurrence field contracts.
@@ -201,6 +201,11 @@ pub struct AttributeModel {
     pub uri_path_prefixes: BTreeSet<String>,
     pub uri_path_extensions: BTreeSet<String>,
     pub uri_queries: BTreeSet<String>,
+    pub uri_query_parameters: BTreeSet<String>,
+    pub uri_query_parameter_value_tokens: BTreeSet<String>,
+    pub uri_query_parameter_values: BTreeMap<String, BTreeSet<String>>,
+    pub uri_query_forbidden_parameters: BTreeSet<String>,
+    pub uri_query_required_parameters: BTreeSet<String>,
     pub uri_fragments: BTreeSet<String>,
     pub media_types: BTreeSet<String>,
     pub media_type_types: BTreeSet<String>,
@@ -1346,6 +1351,32 @@ fn uri_query(value: &str) -> Option<&str> {
     Some(query)
 }
 
+fn uri_query_parameter_values(value: &str) -> Option<BTreeMap<String, BTreeSet<String>>> {
+    let value = value.trim();
+    if is_windows_drive_path(value) {
+        return None;
+    }
+    let _ = uri_scheme(value)?;
+    let Some(query) = uri_query(value) else {
+        return Some(BTreeMap::new());
+    };
+    let mut values = BTreeMap::<String, BTreeSet<String>>::new();
+    for pair in query.split('&').filter(|pair| !pair.is_empty()) {
+        let (name, value) = pair
+            .split_once('=')
+            .map_or((pair, ""), |(name, value)| (name.trim(), value.trim()));
+        values
+            .entry(name.to_owned())
+            .or_default()
+            .insert(value.to_owned());
+    }
+    Some(values)
+}
+
+fn uri_query_parameter_names(value: &str) -> Option<BTreeSet<String>> {
+    Some(uri_query_parameter_values(value)?.keys().cloned().collect())
+}
+
 fn uri_fragment(value: &str) -> Option<&str> {
     let value = value.trim();
     if is_windows_drive_path(value) {
@@ -1418,6 +1449,24 @@ fn is_uri_query_token(value: &str) -> bool {
         && !value
             .bytes()
             .any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace() || byte == b'#')
+}
+
+fn is_uri_query_parameter_name_token(value: &str) -> bool {
+    let value = value.trim();
+    !value.is_empty()
+        && !value.bytes().any(|byte| {
+            byte.is_ascii_control()
+                || byte.is_ascii_whitespace()
+                || matches!(byte, b'=' | b'&' | b'#')
+        })
+}
+
+fn is_uri_query_parameter_value_token(value: &str) -> bool {
+    let value = value.trim();
+    !value.is_empty()
+        && !value.bytes().any(|byte| {
+            byte.is_ascii_control() || byte.is_ascii_whitespace() || matches!(byte, b'&' | b'#')
+        })
 }
 
 fn is_uri_fragment_token(value: &str) -> bool {
@@ -2071,6 +2120,132 @@ fn validate_attribute_datatype_params(
             "uriQueries",
             &param_value,
             "outside allowed",
+            attribute_values,
+            node,
+            diagnostics,
+        );
+    }
+    if !attribute_model.uri_query_parameters.is_empty()
+        && attribute_model
+            .value_type
+            .as_deref()
+            .is_some_and(is_uri_type_reference)
+        && uri_query_parameter_names(value)
+            .map(|actual_parameters| {
+                actual_parameters
+                    .iter()
+                    .any(|name| !attribute_model.uri_query_parameters.contains(name))
+            })
+            .unwrap_or(false)
+    {
+        let param_value = format_value_set(&attribute_model.uri_query_parameters);
+        emit_attribute_datatype_param_diagnostic(
+            schema_uri,
+            diagnostic_behaviors,
+            element_name,
+            attribute_name,
+            value,
+            attribute_model,
+            "uriQueryParameters",
+            &param_value,
+            "outside allowed",
+            attribute_values,
+            node,
+            diagnostics,
+        );
+    }
+    if !attribute_model.uri_query_parameter_values.is_empty()
+        && attribute_model
+            .value_type
+            .as_deref()
+            .is_some_and(is_uri_type_reference)
+        && uri_query_parameter_values(value)
+            .map(|actual_parameter_values| {
+                actual_parameter_values.iter().any(|(name, actual_values)| {
+                    attribute_model
+                        .uri_query_parameter_values
+                        .get(name)
+                        .is_some_and(|allowed_values| {
+                            actual_values
+                                .iter()
+                                .any(|actual_value| !allowed_values.contains(actual_value))
+                        })
+                })
+            })
+            .unwrap_or(false)
+    {
+        let param_value = format_name_value_set(&attribute_model.uri_query_parameter_values);
+        emit_attribute_datatype_param_diagnostic(
+            schema_uri,
+            diagnostic_behaviors,
+            element_name,
+            attribute_name,
+            value,
+            attribute_model,
+            "uriQueryParameterValues",
+            &param_value,
+            "outside allowed",
+            attribute_values,
+            node,
+            diagnostics,
+        );
+    }
+    if !attribute_model.uri_query_forbidden_parameters.is_empty()
+        && attribute_model
+            .value_type
+            .as_deref()
+            .is_some_and(is_uri_type_reference)
+        && uri_query_parameter_names(value)
+            .map(|actual_parameters| {
+                actual_parameters.iter().any(|name| {
+                    attribute_model
+                        .uri_query_forbidden_parameters
+                        .contains(name)
+                })
+            })
+            .unwrap_or(false)
+    {
+        let param_value = format_value_set(&attribute_model.uri_query_forbidden_parameters);
+        emit_attribute_datatype_param_diagnostic(
+            schema_uri,
+            diagnostic_behaviors,
+            element_name,
+            attribute_name,
+            value,
+            attribute_model,
+            "uriQueryForbiddenParameters",
+            &param_value,
+            "with forbidden",
+            attribute_values,
+            node,
+            diagnostics,
+        );
+    }
+    if !attribute_model.uri_query_required_parameters.is_empty()
+        && attribute_model
+            .value_type
+            .as_deref()
+            .is_some_and(is_uri_type_reference)
+        && uri_query_parameter_names(value)
+            .map(|actual_parameters| {
+                attribute_model
+                    .uri_query_required_parameters
+                    .iter()
+                    .any(|name| !actual_parameters.contains(name))
+            })
+            .unwrap_or(false)
+    {
+        let param_value = format_value_set(&attribute_model.uri_query_required_parameters);
+        emit_attribute_datatype_param_diagnostic(
+            schema_uri,
+            diagnostic_behaviors,
+            element_name,
+            attribute_name,
+            value,
+            attribute_model,
+            "uriQueryRequiredParameters",
+            &param_value,
+            "missing required",
             attribute_values,
             node,
             diagnostics,
@@ -3049,6 +3224,19 @@ fn collect_attribute_models(
                     uri_path_prefixes: parse_value_set(attrs.get("uriPathPrefixes")),
                     uri_path_extensions: parse_value_set(attrs.get("uriPathExtensions")),
                     uri_queries: parse_value_set(attrs.get("uriQueries")),
+                    uri_query_parameters: parse_value_set(attrs.get("uriQueryParameters")),
+                    uri_query_parameter_value_tokens: parse_value_set(
+                        attrs.get("uriQueryParameterValues"),
+                    ),
+                    uri_query_parameter_values: parse_name_value_set(
+                        attrs.get("uriQueryParameterValues"),
+                    ),
+                    uri_query_forbidden_parameters: parse_value_set(
+                        attrs.get("uriQueryForbiddenParameters"),
+                    ),
+                    uri_query_required_parameters: parse_value_set(
+                        attrs.get("uriQueryRequiredParameters"),
+                    ),
                     uri_fragments: parse_value_set(attrs.get("uriFragments")),
                     media_types: parse_ascii_lower_value_set(attrs.get("mediaTypes")),
                     media_type_types: parse_ascii_lower_value_set(attrs.get("mediaTypeTypes")),
@@ -3806,6 +3994,231 @@ fn validate_attribute_datatype_param_definition(
                     "paramName": "uriQueries",
                     "paramValue": query,
                     "expectedPattern": "URI query",
+                    "error": error,
+                }),
+            ));
+        }
+    }
+    if !attribute_model.uri_query_parameters.is_empty() {
+        let value_type = attribute_model.value_type.as_deref();
+        if !value_type.is_some_and(is_uri_type_reference) {
+            let param_value = format_value_set(&attribute_model.uri_query_parameters);
+            let error = "expected schema:uri or cemml:uri value type for uriQueryParameters";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriQueryParameters datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriQueryParameters",
+                    "datatypeParam": "uriQueryParameters",
+                    "paramName": "uriQueryParameters",
+                    "paramValue": param_value,
+                    "valueType": value_type.unwrap_or_default(),
+                    "expectedType": "schema:uri",
+                    "error": error,
+                }),
+            ));
+        }
+        for parameter in &attribute_model.uri_query_parameters {
+            if is_uri_query_parameter_name_token(parameter) {
+                continue;
+            }
+            let error = "expected URI query parameter name";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriQueryParameters datatype parameter `{parameter}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriQueryParameters",
+                    "datatypeParam": "uriQueryParameters",
+                    "paramName": "uriQueryParameters",
+                    "paramValue": parameter,
+                    "expectedPattern": "URI query parameter name",
+                    "error": error,
+                }),
+            ));
+        }
+    }
+    if !attribute_model.uri_query_parameter_value_tokens.is_empty() {
+        let value_type = attribute_model.value_type.as_deref();
+        let param_value = format_value_set(&attribute_model.uri_query_parameter_value_tokens);
+        if !value_type.is_some_and(is_uri_type_reference) {
+            let error = "expected schema:uri or cemml:uri value type for uriQueryParameterValues";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriQueryParameterValues datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriQueryParameterValues",
+                    "datatypeParam": "uriQueryParameterValues",
+                    "paramName": "uriQueryParameterValues",
+                    "paramValue": param_value,
+                    "valueType": value_type.unwrap_or_default(),
+                    "expectedType": "schema:uri",
+                    "error": error,
+                }),
+            ));
+        }
+        for token in &attribute_model.uri_query_parameter_value_tokens {
+            let Some((parameter, value)) = token.split_once('=') else {
+                let error = "expected URI query parameter name=value pair";
+                diagnostics.push(schema_compile_diagnostic(
+                    INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                    format!(
+                        "attribute `{}` declares invalid uriQueryParameterValues datatype parameter `{token}` in schema `{schema_uri}`: {error}",
+                        attribute_model.name
+                    ),
+                    &attribute_model.source_map,
+                    serde_json::json!({
+                        "schemaUri": schema_uri,
+                        "attribute": &attribute_model.name,
+                        "checkKind": "datatype-param:uriQueryParameterValues",
+                        "datatypeParam": "uriQueryParameterValues",
+                        "paramName": "uriQueryParameterValues",
+                        "paramValue": token,
+                        "expectedPattern": "URI query parameter name=value pair",
+                        "error": error,
+                    }),
+                ));
+                continue;
+            };
+            if !is_uri_query_parameter_name_token(parameter.trim())
+                || !is_uri_query_parameter_value_token(value.trim())
+            {
+                let error = "expected URI query parameter name=value pair";
+                diagnostics.push(schema_compile_diagnostic(
+                    INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                    format!(
+                        "attribute `{}` declares invalid uriQueryParameterValues datatype parameter `{token}` in schema `{schema_uri}`: {error}",
+                        attribute_model.name
+                    ),
+                    &attribute_model.source_map,
+                    serde_json::json!({
+                        "schemaUri": schema_uri,
+                        "attribute": &attribute_model.name,
+                        "checkKind": "datatype-param:uriQueryParameterValues",
+                        "datatypeParam": "uriQueryParameterValues",
+                        "paramName": "uriQueryParameterValues",
+                        "paramValue": token,
+                        "expectedPattern": "URI query parameter name=value pair",
+                        "error": error,
+                    }),
+                ));
+            }
+        }
+    }
+    if !attribute_model.uri_query_forbidden_parameters.is_empty() {
+        let value_type = attribute_model.value_type.as_deref();
+        if !value_type.is_some_and(is_uri_type_reference) {
+            let param_value = format_value_set(&attribute_model.uri_query_forbidden_parameters);
+            let error =
+                "expected schema:uri or cemml:uri value type for uriQueryForbiddenParameters";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriQueryForbiddenParameters datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriQueryForbiddenParameters",
+                    "datatypeParam": "uriQueryForbiddenParameters",
+                    "paramName": "uriQueryForbiddenParameters",
+                    "paramValue": param_value,
+                    "valueType": value_type.unwrap_or_default(),
+                    "expectedType": "schema:uri",
+                    "error": error,
+                }),
+            ));
+        }
+        for parameter in &attribute_model.uri_query_forbidden_parameters {
+            if is_uri_query_parameter_name_token(parameter) {
+                continue;
+            }
+            let error = "expected URI query parameter name";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriQueryForbiddenParameters datatype parameter `{parameter}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriQueryForbiddenParameters",
+                    "datatypeParam": "uriQueryForbiddenParameters",
+                    "paramName": "uriQueryForbiddenParameters",
+                    "paramValue": parameter,
+                    "expectedPattern": "URI query parameter name",
+                    "error": error,
+                }),
+            ));
+        }
+    }
+    if !attribute_model.uri_query_required_parameters.is_empty() {
+        let value_type = attribute_model.value_type.as_deref();
+        if !value_type.is_some_and(is_uri_type_reference) {
+            let param_value = format_value_set(&attribute_model.uri_query_required_parameters);
+            let error =
+                "expected schema:uri or cemml:uri value type for uriQueryRequiredParameters";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriQueryRequiredParameters datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriQueryRequiredParameters",
+                    "datatypeParam": "uriQueryRequiredParameters",
+                    "paramName": "uriQueryRequiredParameters",
+                    "paramValue": param_value,
+                    "valueType": value_type.unwrap_or_default(),
+                    "expectedType": "schema:uri",
+                    "error": error,
+                }),
+            ));
+        }
+        for parameter in &attribute_model.uri_query_required_parameters {
+            if is_uri_query_parameter_name_token(parameter) {
+                continue;
+            }
+            let error = "expected URI query parameter name";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriQueryRequiredParameters datatype parameter `{parameter}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriQueryRequiredParameters",
+                    "datatypeParam": "uriQueryRequiredParameters",
+                    "paramName": "uriQueryRequiredParameters",
+                    "paramValue": parameter,
+                    "expectedPattern": "URI query parameter name",
                     "error": error,
                 }),
             ));
@@ -7347,6 +7760,10 @@ fn attribute_datatype_param_details(
         "uriPathPrefixes" => "URI path prefix",
         "uriPathExtensions" => "URI path extension token",
         "uriQueries" => "URI query",
+        "uriQueryParameters" => "URI query parameter name",
+        "uriQueryParameterValues" => "URI query parameter value",
+        "uriQueryForbiddenParameters" => "URI query parameter name",
+        "uriQueryRequiredParameters" => "URI query parameter name",
         "uriFragments" => "URI fragment",
         "mediaTypes" => "media type essence",
         "mediaTypeTypes" => "media type type",
@@ -7568,6 +7985,147 @@ fn attribute_datatype_param_details(
             );
             if let Some(actual_query) = uri_query(actual_value) {
                 object.insert("actualUriQuery".to_owned(), serde_json::json!(actual_query));
+            }
+        }
+        if param_name == "uriQueryParameters" {
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .uri_query_parameters
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            if let Some(actual_query) = uri_query(actual_value) {
+                object.insert("actualUriQuery".to_owned(), serde_json::json!(actual_query));
+            }
+            if let Some(actual_parameters) = uri_query_parameter_names(actual_value) {
+                let actual_parameters = actual_parameters.into_iter().collect::<Vec<_>>();
+                let invalid_parameters = actual_parameters
+                    .iter()
+                    .filter(|name| !attribute_model.uri_query_parameters.contains(*name))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                object.insert(
+                    "actualUriQueryParameters".to_owned(),
+                    serde_json::json!(actual_parameters),
+                );
+                object.insert(
+                    "invalidUriQueryParameters".to_owned(),
+                    serde_json::json!(invalid_parameters),
+                );
+            }
+        }
+        if param_name == "uriQueryParameterValues" {
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .uri_query_parameter_values
+                    .iter()
+                    .flat_map(|(name, values)| {
+                        values
+                            .iter()
+                            .map(|value| format!("{name}={value}"))
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>()),
+            );
+            if let Some(actual_query) = uri_query(actual_value) {
+                object.insert("actualUriQuery".to_owned(), serde_json::json!(actual_query));
+            }
+            if let Some(actual_parameter_values) = uri_query_parameter_values(actual_value) {
+                let actual_parameters = actual_parameter_values.keys().cloned().collect::<Vec<_>>();
+                let actual_parameter_values_json = actual_parameter_values
+                    .iter()
+                    .map(|(name, values)| {
+                        (name.clone(), values.iter().cloned().collect::<Vec<_>>())
+                    })
+                    .collect::<BTreeMap<_, _>>();
+                let invalid_parameter_values = actual_parameter_values
+                    .iter()
+                    .filter_map(|(name, values)| {
+                        let allowed_values =
+                            attribute_model.uri_query_parameter_values.get(name)?;
+                        let invalid_values = values
+                            .iter()
+                            .filter(|value| !allowed_values.contains(*value))
+                            .cloned()
+                            .collect::<Vec<_>>();
+                        (!invalid_values.is_empty()).then(|| (name.clone(), invalid_values))
+                    })
+                    .collect::<BTreeMap<_, _>>();
+                object.insert(
+                    "actualUriQueryParameters".to_owned(),
+                    serde_json::json!(actual_parameters),
+                );
+                object.insert(
+                    "actualUriQueryParameterValues".to_owned(),
+                    serde_json::json!(actual_parameter_values_json),
+                );
+                object.insert(
+                    "invalidUriQueryParameterValues".to_owned(),
+                    serde_json::json!(invalid_parameter_values),
+                );
+            }
+        }
+        if param_name == "uriQueryForbiddenParameters" {
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .uri_query_forbidden_parameters
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            if let Some(actual_query) = uri_query(actual_value) {
+                object.insert("actualUriQuery".to_owned(), serde_json::json!(actual_query));
+            }
+            if let Some(actual_parameters) = uri_query_parameter_names(actual_value) {
+                let forbidden_parameters = attribute_model
+                    .uri_query_forbidden_parameters
+                    .iter()
+                    .filter(|name| actual_parameters.contains(*name))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let actual_parameters = actual_parameters.into_iter().collect::<Vec<_>>();
+                object.insert(
+                    "actualUriQueryParameters".to_owned(),
+                    serde_json::json!(actual_parameters),
+                );
+                object.insert(
+                    "forbiddenUriQueryParameters".to_owned(),
+                    serde_json::json!(forbidden_parameters),
+                );
+            }
+        }
+        if param_name == "uriQueryRequiredParameters" {
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .uri_query_required_parameters
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            if let Some(actual_query) = uri_query(actual_value) {
+                object.insert("actualUriQuery".to_owned(), serde_json::json!(actual_query));
+            }
+            if let Some(actual_parameters) = uri_query_parameter_names(actual_value) {
+                let missing_parameters = attribute_model
+                    .uri_query_required_parameters
+                    .iter()
+                    .filter(|name| !actual_parameters.contains(*name))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let actual_parameters = actual_parameters.into_iter().collect::<Vec<_>>();
+                object.insert(
+                    "actualUriQueryParameters".to_owned(),
+                    serde_json::json!(actual_parameters),
+                );
+                object.insert(
+                    "missingUriQueryParameters".to_owned(),
+                    serde_json::json!(missing_parameters),
+                );
             }
         }
         if param_name == "uriFragments" {
@@ -8549,6 +9107,22 @@ mod tests {
                 .as_deref(),
             Some("schema:string")
         );
+        for name in [
+            "uriQueryParameters",
+            "uriQueryParameterValues",
+            "uriQueryForbiddenParameters",
+            "uriQueryRequiredParameters",
+        ] {
+            assert_eq!(
+                model
+                    .attributes
+                    .get(name)
+                    .unwrap_or_else(|| panic!("{name} attribute model"))
+                    .value_type
+                    .as_deref(),
+                Some("schema:string")
+            );
+        }
         assert_eq!(
             model
                 .attributes
@@ -14809,6 +15383,299 @@ mod tests {
     }
 
     #[test]
+    fn schema_uri_query_parameter_datatype_params_drive_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/uri-query-parameter-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="uri-query-parameter-contracts" @namespace="https://example.test/ns/uri-query-parameter-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="params value blocked required"}
+    }
+    {attributes |
+        {attribute @name="params" @type="schema:uri" @uriQueryParameters="view lang"}
+        {attribute @name="value" @type="schema:uri" @uriQueryParameterValues="view=resource lang=en"}
+        {attribute @name="blocked" @type="schema:uri" @uriQueryForbiddenParameters="debug trace"}
+        {attribute @name="required" @type="schema:uri" @uriQueryRequiredParameters="view lang"}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "valid URI query-parameter schema must compile: {:#?}",
+            model.compile_diagnostics
+        );
+
+        for source in [
+            r#"{item @params="https://example.test/docs?view=resource&lang=en"}"#,
+            r#"{item @params="https://example.test/docs"}"#,
+            r#"{item @value="https://example.test/docs?view=resource&lang=en"}"#,
+            r#"{item @blocked="https://example.test/docs?view=resource"}"#,
+            r#"{item @required="https://example.test/docs?view=resource&lang=en"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "valid URI query-parameter source produced datatype-param diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(
+            r#"{item @params="https://example.test/docs?view=resource&debug=true"}"#,
+        );
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("URI query parameter allow-list diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("URI query parameter allow-list details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/uri-query-parameter-contracts/1")
+        );
+        assert_eq!(details["attribute"], serde_json::json!("params"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:params:uriQueryParameters")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriQueryParameters")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("uriQueryParameters")
+        );
+        assert_eq!(
+            details["uriQueryParameters"],
+            serde_json::json!("lang view")
+        );
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["lang", "view"])
+        );
+        assert_eq!(
+            details["actualUriQuery"],
+            serde_json::json!("view=resource&debug=true")
+        );
+        assert_eq!(
+            details["actualUriQueryParameters"],
+            serde_json::json!(["debug", "view"])
+        );
+        assert_eq!(
+            details["invalidUriQueryParameters"],
+            serde_json::json!(["debug"])
+        );
+
+        let document =
+            parse_cem_document(r#"{item @value="https://example.test/docs?view=legacy&lang=en"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("URI query parameter value diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("URI query parameter value details");
+        assert_eq!(details["attribute"], serde_json::json!("value"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriQueryParameterValues")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("uriQueryParameterValues")
+        );
+        assert_eq!(
+            details["uriQueryParameterValues"],
+            serde_json::json!("lang=en view=resource")
+        );
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["lang=en", "view=resource"])
+        );
+        assert_eq!(
+            details["actualUriQueryParameters"],
+            serde_json::json!(["lang", "view"])
+        );
+        assert_eq!(
+            details["actualUriQueryParameterValues"]["lang"],
+            serde_json::json!(["en"])
+        );
+        assert_eq!(
+            details["actualUriQueryParameterValues"]["view"],
+            serde_json::json!(["legacy"])
+        );
+        assert_eq!(
+            details["invalidUriQueryParameterValues"]["view"],
+            serde_json::json!(["legacy"])
+        );
+
+        let document = parse_cem_document(
+            r#"{item @blocked="https://example.test/docs?debug=true&view=resource"}"#,
+        );
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("URI forbidden query parameter diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("URI forbidden query parameter details");
+        assert_eq!(details["attribute"], serde_json::json!("blocked"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriQueryForbiddenParameters")
+        );
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["debug", "trace"])
+        );
+        assert_eq!(
+            details["actualUriQueryParameters"],
+            serde_json::json!(["debug", "view"])
+        );
+        assert_eq!(
+            details["forbiddenUriQueryParameters"],
+            serde_json::json!(["debug"])
+        );
+
+        let document =
+            parse_cem_document(r#"{item @required="https://example.test/docs?view=resource"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("URI required query parameter diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("URI required query parameter details");
+        assert_eq!(details["attribute"], serde_json::json!("required"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriQueryRequiredParameters")
+        );
+        assert_eq!(
+            details["actualUriQueryParameters"],
+            serde_json::json!(["view"])
+        );
+        assert_eq!(
+            details["missingUriQueryParameters"],
+            serde_json::json!(["lang"])
+        );
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
+    fn schema_uri_query_parameter_datatype_params_reject_invalid_declarations() {
+        let model = compile_document_model(
+            "https://example.test/ns/invalid-uri-query-parameter-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-uri-query-parameter-contracts" @namespace="https://example.test/ns/invalid-uri-query-parameter-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="params value blocked required"}
+    }
+    {attributes |
+        {attribute @name="params" @type="schema:uri" @uriQueryParameters="view bad=name"}
+        {attribute @name="value" @type="schema:uri" @uriQueryParameterValues="view=resource bad bad&name=value empty="}
+        {attribute @name="blocked" @type="schema:uri" @uriQueryForbiddenParameters="debug bad=name"}
+        {attribute @name="required" @type="schema:uri" @uriQueryRequiredParameters="view bad=name"}
+    }
+}"#,
+        );
+
+        for (attribute, datatype_param, param_value, expected_pattern) in [
+            (
+                "params",
+                "uriQueryParameters",
+                "bad=name",
+                "URI query parameter name",
+            ),
+            (
+                "value",
+                "uriQueryParameterValues",
+                "bad",
+                "URI query parameter name=value pair",
+            ),
+            (
+                "value",
+                "uriQueryParameterValues",
+                "bad&name=value",
+                "URI query parameter name=value pair",
+            ),
+            (
+                "value",
+                "uriQueryParameterValues",
+                "empty=",
+                "URI query parameter name=value pair",
+            ),
+            (
+                "blocked",
+                "uriQueryForbiddenParameters",
+                "bad=name",
+                "URI query parameter name",
+            ),
+            (
+                "required",
+                "uriQueryRequiredParameters",
+                "bad=name",
+                "URI query parameter name",
+            ),
+        ] {
+            let diagnostic = model
+                .compile_diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                        && diagnostic.details.as_ref().is_some_and(|details| {
+                            details.get("attribute").and_then(serde_json::Value::as_str)
+                                == Some(attribute)
+                                && details
+                                    .get("datatypeParam")
+                                    .and_then(serde_json::Value::as_str)
+                                    == Some(datatype_param)
+                                && details
+                                    .get("paramValue")
+                                    .and_then(serde_json::Value::as_str)
+                                    == Some(param_value)
+                        })
+                })
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing invalid {datatype_param} diagnostic for {attribute}={param_value}: {:#?}",
+                        model.compile_diagnostics
+                    )
+                });
+            let details = diagnostic
+                .details
+                .as_ref()
+                .expect("invalid URI query parameter compile details");
+            assert_eq!(
+                details["checkKind"],
+                serde_json::json!(format!("datatype-param:{datatype_param}"))
+            );
+            assert_eq!(
+                details["expectedPattern"],
+                serde_json::json!(expected_pattern)
+            );
+        }
+    }
+
+    #[test]
     fn schema_uri_fragment_datatype_param_drives_validation_from_cem_source() {
         let model = compile_document_model(
             "https://example.test/ns/uri-fragment-contracts/1",
@@ -17334,7 +18201,7 @@ mod tests {
 
 {schema @name="incompatible-datatype-param-contracts" @namespace="https://example.test/ns/incompatible-datatype-param-contracts/1" @version="1.0.0" |
     {elements |
-        {element @name="item" @optional-attributes="title untyped count code ratio score rank names homepage homepagePort download bookmarkQuery bookmark formatType format"}
+        {element @name="item" @optional-attributes="title untyped count code ratio score rank names homepage homepagePort download bookmarkQuery queryParams queryParamValue forbiddenQuery requiredQuery bookmark formatType format"}
     }
     {attributes |
         {attribute @name="title" @type="schema:string" @minInclusive=1}
@@ -17349,6 +18216,10 @@ mod tests {
         {attribute @name="homepagePort" @type="schema:string" @uriPorts="443"}
         {attribute @name="download" @type="schema:string" @uriPathExtensions="cem"}
         {attribute @name="bookmarkQuery" @type="schema:string" @uriQueries="tab=install"}
+        {attribute @name="queryParams" @type="schema:string" @uriQueryParameters="view"}
+        {attribute @name="queryParamValue" @type="schema:string" @uriQueryParameterValues="view=resource"}
+        {attribute @name="forbiddenQuery" @type="schema:string" @uriQueryForbiddenParameters="debug"}
+        {attribute @name="requiredQuery" @type="schema:string" @uriQueryRequiredParameters="view"}
         {attribute @name="bookmark" @type="schema:string" @uriFragments="overview"}
         {attribute @name="formatType" @type="schema:string" @mediaTypeTypes="application"}
         {attribute @name="format" @type="schema:string" @mediaTypeSubtypes="json"}
@@ -17438,6 +18309,34 @@ mod tests {
                 "bookmarkQuery",
                 "uriQueries",
                 "tab=install",
+                "schema:string",
+                "schema:uri",
+            ),
+            (
+                "queryParams",
+                "uriQueryParameters",
+                "view",
+                "schema:string",
+                "schema:uri",
+            ),
+            (
+                "queryParamValue",
+                "uriQueryParameterValues",
+                "view=resource",
+                "schema:string",
+                "schema:uri",
+            ),
+            (
+                "forbiddenQuery",
+                "uriQueryForbiddenParameters",
+                "debug",
+                "schema:string",
+                "schema:uri",
+            ),
+            (
+                "requiredQuery",
+                "uriQueryRequiredParameters",
+                "view",
                 "schema:string",
                 "schema:uri",
             ),

@@ -110,6 +110,10 @@
             @uriPathPrefixes="/resources/ /assets/"
             @uriPathExtensions="cem json"
             @uriQueries="view=resource view=asset"
+            @uriQueryParameters="view"
+            @uriQueryParameterValues="view=resource view=asset"
+            @uriQueryForbiddenParameters="debug"
+            @uriQueryRequiredParameters="view"
             @uriFragments="resource asset"
             @datatype-param-diagnostic="example.resource.invalid_href_scheme"
         }
