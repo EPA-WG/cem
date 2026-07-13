@@ -204,6 +204,9 @@ history belongs in git history and the feature-specific docs linked below.
         through a schema-package-loaded custom schema; CLI runtime coverage
         now also proves passing, missing, and conflicting child-choice
         `schema:child-occurrence` details through a schema-package-loaded
+        custom schema; CLI runtime coverage now also proves ordered,
+        boundary, required-sequence, forbidden-sequence, and exact-sequence
+        `schema:child-occurrence` details through a schema-package-loaded
         custom schema; schema-package CLI examples now also cover schema-definition
         failures for invalid datatype parameter declarations on integer/number
         bounds, numeric digit counts, string length/prefix/suffix params, list

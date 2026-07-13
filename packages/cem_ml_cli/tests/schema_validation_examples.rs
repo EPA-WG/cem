@@ -2702,6 +2702,327 @@ fn schema_runtime_child_occurrence_choice_emits_structured_details() {
 }
 
 #[test]
+fn schema_runtime_child_occurrence_sequence_emits_structured_details() {
+    const CUSTOM_SCHEMA_URI: &str = "https://example.test/ns/child-sequence-runtime/1";
+    const CUSTOM_CONTENT_TYPE: &str = "application/vnd.example.child-sequence-runtime+cem";
+    const CUSTOM_DIAGNOSTIC: &str = "example.layout.child_sequence";
+
+    let root = test_temp_dir("cem-ml-cli-child-sequence-runtime");
+    let manifest_path = root.join("package.cem");
+    let schema_path = root.join("schema/child-sequence-runtime.cem");
+    let valid_input_path = root.join("examples/valid-child-sequences.cem");
+    let invalid_input_path = root.join("examples/invalid-child-sequences.cem");
+
+    write_test_file(
+        &manifest_path,
+        r#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="child-sequence-runtime" @version="1.0.0" |
+    {schema
+        @uri="https://example.test/ns/child-sequence-runtime/1"
+        @source="schema/child-sequence-runtime.cem"
+    }
+    {content-type @value="application/vnd.example.child-sequence-runtime+cem" @primary=true}
+    {namespace @prefix="demo" @uri="https://example.test/ns/child-sequence-runtime/1"}
+}
+"#,
+    );
+    write_test_file(
+        &schema_path,
+        r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@default schema
+
+{schema @name="child-sequence-runtime" @namespace="https://example.test/ns/child-sequence-runtime/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {content-types |
+        {content-type @value="application/vnd.example.child-sequence-runtime+cem" @primary=true}
+    }
+    {namespaces |
+        {namespace @prefix="demo" @uri="https://example.test/ns/child-sequence-runtime/1" @role="schema"}
+    }
+    {elements |
+        {element @name="article" @children="*"}
+        {element @name="section" @children="*"}
+        {element @name="nav" @children="*"}
+        {element @name="ul" @children="*"}
+        {element @name="div" @children="*"}
+        {element @name="header"}
+        {element @name="main"}
+        {element @name="footer"}
+        {element @name="aside"}
+        {element @name="li"}
+        {element @name="span"}
+        {element @name="p"}
+        {element @name="strong"}
+        {element @name="small"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="article-ordered-children"
+            @target="article"
+            @ordered-children="header main footer"
+            @diagnostic="example.layout.child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="ordered-children"
+        }
+        {field-contract
+            @name="section-boundary-children"
+            @target="section"
+            @first-child="header"
+            @last-child="footer"
+            @diagnostic="example.layout.child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="boundary-children"
+        }
+        {field-contract
+            @name="nav-required-child-sequence"
+            @target="nav"
+            @required-child-sequence="header main footer"
+            @diagnostic="example.layout.child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="required-child-sequence"
+        }
+        {field-contract
+            @name="ul-forbidden-child-sequence"
+            @target="ul"
+            @forbidden-child-sequence="li span"
+            @diagnostic="example.layout.child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="forbidden-child-sequence"
+        }
+        {field-contract
+            @name="div-exact-child-sequence"
+            @target="div"
+            @exact-child-sequence="span p strong"
+            @diagnostic="example.layout.child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="exact-child-sequence"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.layout.child_sequence"
+            @severity="error"
+            @behavior="schema:child-occurrence"
+            @message="Layout children must satisfy the declared sequence contracts"
+        }
+    }
+}
+"#,
+    );
+    write_test_file(
+        &valid_input_path,
+        r#"@doc cem-ml 1
+
+{article | {header} {aside} {main} {footer}}
+{section | {header} {main} {footer}}
+{nav | {aside} {header} {main} {footer} {aside}}
+{ul | {li} {aside} {span}}
+{div | {span} {p} {strong}}
+"#,
+    );
+    write_test_file(
+        &invalid_input_path,
+        r#"@doc cem-ml 1
+
+{article | {main} {header} {footer}}
+{section | {main} {header} {footer}}
+{nav | {header} {aside} {main} {footer}}
+{ul | {aside} {li} {span} {footer}}
+{div | {span} {small} {p} {strong}}
+"#,
+    );
+
+    let validate = |input_path: &Path| {
+        cem_ml_owned(&[
+            "validate".to_owned(),
+            "--format".to_owned(),
+            "json".to_owned(),
+            "--schema-package".to_owned(),
+            manifest_path.to_string_lossy().into_owned(),
+            "--content-type".to_owned(),
+            CUSTOM_CONTENT_TYPE.to_owned(),
+            "--schema".to_owned(),
+            CUSTOM_SCHEMA_URI.to_owned(),
+            input_path.to_string_lossy().into_owned(),
+        ])
+    };
+
+    let valid_output = validate(&valid_input_path);
+    assert_eq!(
+        valid_output.status.code(),
+        Some(EXIT_OK),
+        "child sequence valid stderr:\n{}",
+        stderr(&valid_output)
+    );
+    assert!(
+        stderr(&valid_output).trim().is_empty(),
+        "child sequence valid stderr must stay empty:\n{}",
+        stderr(&valid_output)
+    );
+    let valid_report: serde_json::Value = serde_json::from_str(stdout(&valid_output).trim())
+        .expect("child sequence valid report is JSON");
+    assert!(
+        !has_diagnostic(&valid_report, CUSTOM_DIAGNOSTIC),
+        "`{CUSTOM_DIAGNOSTIC}` should not be emitted for valid child sequences:\n{}",
+        stdout(&valid_output)
+    );
+
+    let invalid_output = validate(&invalid_input_path);
+    assert_eq!(
+        invalid_output.status.code(),
+        Some(EXIT_HARD_FAILURE),
+        "child sequence invalid stderr:\n{}",
+        stderr(&invalid_output)
+    );
+    assert!(
+        stderr(&invalid_output).trim().is_empty(),
+        "child sequence invalid stderr must stay empty:\n{}",
+        stderr(&invalid_output)
+    );
+    let invalid_report: serde_json::Value = serde_json::from_str(stdout(&invalid_output).trim())
+        .expect("child sequence invalid report is JSON");
+    let diagnostic_for_contract = |contract: &str| {
+        diagnostics(&invalid_report)
+            .iter()
+            .find(|diagnostic| {
+                diagnostic["code"] == CUSTOM_DIAGNOSTIC
+                    && diagnostic["details"]["contract"] == contract
+            })
+            .unwrap_or_else(|| {
+                panic!(
+                    "expected `{CUSTOM_DIAGNOSTIC}` contract `{contract}` in child sequence report:\n{}",
+                    stdout(&invalid_output)
+                )
+            })
+    };
+
+    let ordered_diagnostic = diagnostic_for_contract("article-ordered-children");
+    let ordered_details = &ordered_diagnostic["details"];
+    assert_eq!(ordered_diagnostic["severity"], "error");
+    assert_eq!(ordered_details["behavior"], "schema:child-occurrence");
+    assert_eq!(ordered_details["checkKind"], "ordered-children");
+    assert_eq!(
+        ordered_details["orderedChildren"],
+        serde_json::json!(["header", "main", "footer"])
+    );
+    assert_eq!(
+        ordered_details["orderedChildSequence"],
+        serde_json::json!(["main", "header", "footer"])
+    );
+    assert_eq!(
+        ordered_details["unorderedChildren"],
+        serde_json::json!(["header"])
+    );
+    assert_eq!(ordered_details["invalidChildOrder"], true);
+
+    let boundary_diagnostic = diagnostic_for_contract("section-boundary-children");
+    let boundary_details = &boundary_diagnostic["details"];
+    assert_eq!(boundary_diagnostic["severity"], "error");
+    assert_eq!(boundary_details["behavior"], "schema:child-occurrence");
+    assert_eq!(boundary_details["checkKind"], "boundary-children");
+    assert_eq!(boundary_details["firstChild"], "header");
+    assert_eq!(boundary_details["lastChild"], "footer");
+    assert_eq!(boundary_details["actualFirstChild"], "main");
+    assert_eq!(boundary_details["actualLastChild"], "footer");
+    assert_eq!(boundary_details["invalidFirstChild"], true);
+    assert_eq!(boundary_details["invalidLastChild"], false);
+
+    let required_sequence_diagnostic = diagnostic_for_contract("nav-required-child-sequence");
+    let required_sequence_details = &required_sequence_diagnostic["details"];
+    assert_eq!(required_sequence_diagnostic["severity"], "error");
+    assert_eq!(
+        required_sequence_details["behavior"],
+        "schema:child-occurrence"
+    );
+    assert_eq!(
+        required_sequence_details["checkKind"],
+        "required-child-sequence"
+    );
+    assert_eq!(
+        required_sequence_details["requiredChildSequence"],
+        serde_json::json!(["header", "main", "footer"])
+    );
+    assert_eq!(
+        required_sequence_details["actualChildSequence"],
+        serde_json::json!(["header", "aside", "main", "footer"])
+    );
+    assert_eq!(
+        required_sequence_details["matchedChildSequence"],
+        serde_json::json!([])
+    );
+    assert_eq!(required_sequence_details["invalidChildSequence"], true);
+
+    let forbidden_sequence_diagnostic = diagnostic_for_contract("ul-forbidden-child-sequence");
+    let forbidden_sequence_details = &forbidden_sequence_diagnostic["details"];
+    assert_eq!(forbidden_sequence_diagnostic["severity"], "error");
+    assert_eq!(
+        forbidden_sequence_details["behavior"],
+        "schema:child-occurrence"
+    );
+    assert_eq!(
+        forbidden_sequence_details["checkKind"],
+        "forbidden-child-sequence"
+    );
+    assert_eq!(
+        forbidden_sequence_details["forbiddenChildSequence"],
+        serde_json::json!(["li", "span"])
+    );
+    assert_eq!(
+        forbidden_sequence_details["actualChildSequence"],
+        serde_json::json!(["aside", "li", "span", "footer"])
+    );
+    assert_eq!(
+        forbidden_sequence_details["matchedForbiddenChildSequence"],
+        serde_json::json!(["li", "span"])
+    );
+    assert_eq!(
+        forbidden_sequence_details["invalidForbiddenChildSequence"],
+        true
+    );
+
+    let exact_sequence_diagnostic = diagnostic_for_contract("div-exact-child-sequence");
+    let exact_sequence_details = &exact_sequence_diagnostic["details"];
+    assert_eq!(exact_sequence_diagnostic["severity"], "error");
+    assert_eq!(
+        exact_sequence_details["behavior"],
+        "schema:child-occurrence"
+    );
+    assert_eq!(exact_sequence_details["checkKind"], "exact-child-sequence");
+    assert_eq!(
+        exact_sequence_details["exactChildSequence"],
+        serde_json::json!(["span", "p", "strong"])
+    );
+    assert_eq!(
+        exact_sequence_details["actualChildSequence"],
+        serde_json::json!(["span", "small", "p", "strong"])
+    );
+    assert_eq!(exact_sequence_details["invalidExactChildSequence"], true);
+
+    for diagnostic in [
+        ordered_diagnostic,
+        boundary_diagnostic,
+        required_sequence_diagnostic,
+        forbidden_sequence_diagnostic,
+        exact_sequence_diagnostic,
+    ] {
+        assert!(diagnostic["details"]["sourceRange"]["span"]["start"].is_u64());
+        assert!(diagnostic["sourceMap"]["frames"]
+            .as_array()
+            .is_some_and(|frames| !frames.is_empty()));
+    }
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn schema_datatype_param_examples_emit_structured_definition_details() {
     let examples = [
         SchemaDefinitionDetailExample {
