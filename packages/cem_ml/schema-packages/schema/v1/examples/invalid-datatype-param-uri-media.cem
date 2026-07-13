@@ -12,6 +12,7 @@
         {attribute @name="script" @type="schema:path" @pathExtensions="cem .cem"}
         {attribute @name="href" @type="schema:uri" @uriSchemes="https 1bad"}
         {attribute @name="cdn" @type="schema:uri" @uriHosts="api.example.test bad/host"}
+        {attribute @name="portal" @type="schema:uri" @uriPorts="443 0443 65536"}
         {attribute @name="remote" @type="schema:uri" @uriRequiresAuthority=maybe}
         {attribute @name="asset" @type="schema:uri" @uriPathPrefixes="assets"}
         {attribute @name="download" @type="schema:uri" @uriPathExtensions="cem .json"}
@@ -29,6 +30,7 @@
         {attribute @name="typeLabel" @type="schema:string" @mediaTypeTypes="application"}
         {attribute @name="subtitle" @type="schema:string" @mediaTypeSubtypes="json"}
         {attribute @name="linkLabel" @type="schema:string" @uriHosts="api.example.test"}
+        {attribute @name="portLabel" @type="schema:string" @uriPorts="443"}
         {attribute @name="downloadLabel" @type="schema:string" @uriPathExtensions="cem"}
         {attribute @name="caption" @type="schema:string" @pathPrefixes="./templates/"}
         {attribute @name="summary" @type="schema:string" @pathExtensions="cem"}

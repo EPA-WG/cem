@@ -105,6 +105,7 @@
             @type-diagnostic="example.resource.invalid_href"
             @uriSchemes="https"
             @uriHosts="api.example.test assets.example.test"
+            @uriPorts="443 8443"
             @uriRequiresAuthority=true
             @uriPathPrefixes="/resources/ /assets/"
             @uriPathExtensions="cem json"
