@@ -47,6 +47,8 @@ Field contracts can be gated by value selectors such as `when-attribute` plus
 combining both selector families on one dependency contract.
 Use presence selectors for dependent-required rules such as "when this
 attribute is present, require these other attributes".
+Use `forbidden-attributes` with the same selectors when a present or valued
+gate makes another attribute invalid.
 Use `forbidden-attribute-values` for value-specific exclusions, such as a
 schema-owned mutual exclusion where one attribute value makes another attribute
 value invalid while leaving other values legal.
@@ -247,6 +249,9 @@ The first field-contract-backed and attribute-owned engine behavior aliases now
 compile and execute through diagnostic `@behavior`; field-contract-local
 `schema:field-dependency` and `schema:choice-case` bindings now compile and
 stamp operational diagnostics while preserving broad diagnostic family codes.
+The `schema:field-dependency` alias covers required, forbidden, and
+forbidden-value field dependencies, and its result contract declares the emitted
+required/missing/forbidden/invalid field and value details.
 Constraint-owned `schema:resource-readable`, `schema:resource-parse`, and
 `schema:reference-resolution` bindings now compile and stamp operational
 diagnostics with their declared behavior. Integer and number `minInclusive`,

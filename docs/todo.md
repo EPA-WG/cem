@@ -127,8 +127,9 @@ history belongs in git history and the feature-specific docs linked below.
         Presence-gated dependent-required field groups with multiple required
         gate attributes now execute through `schema:field-dependency`;
         combined value-and-presence-gated dependent field groups now also
-        execute through `schema:field-dependency`; richer dependency shapes
-        beyond those gates remain. The `schema:path-layout` result contract now
+        execute through `schema:field-dependency`; gated forbidden-field and
+        forbidden-value dependencies now also execute through
+        `schema:field-dependency`. The `schema:path-layout` result contract now
         exposes the emitted path layout and invalid-value details, and the
         `schema:choice-case` result contract now exposes emitted flat/grouped
         choice details. Required, forbidden, and mutual-exclusion field result

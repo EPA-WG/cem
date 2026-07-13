@@ -9546,27 +9546,47 @@ mod tests {
                 "forbidden-fields result must declare {detail_name} as {value_type}"
             );
         }
-        for behavior_name in ["dependent-required-fields", "field-dependency"] {
-            let result = model
-                .behaviors
-                .get(behavior_name)
-                .and_then(|behavior| behavior.result.as_ref())
-                .unwrap_or_else(|| panic!("{behavior_name} result declaration"));
-            for (detail_name, value_type) in [
-                ("requiredFields", "schema:array"),
-                ("missingFields", "schema:array"),
-                ("condition", "schema:object"),
-                ("actualValues", "schema:object"),
-            ] {
-                assert!(
-                    result
-                        .details
-                        .iter()
-                        .any(|detail| detail.name == detail_name
-                            && detail.value_type == value_type),
-                    "{behavior_name} result must declare {detail_name} as {value_type}"
-                );
-            }
+        let dependent_required_result = model
+            .behaviors
+            .get("dependent-required-fields")
+            .and_then(|behavior| behavior.result.as_ref())
+            .expect("dependent-required-fields result declaration");
+        for (detail_name, value_type) in [
+            ("requiredFields", "schema:array"),
+            ("missingFields", "schema:array"),
+            ("condition", "schema:object"),
+            ("actualValues", "schema:object"),
+        ] {
+            assert!(
+                dependent_required_result
+                    .details
+                    .iter()
+                    .any(|detail| detail.name == detail_name && detail.value_type == value_type),
+                "dependent-required-fields result must declare {detail_name} as {value_type}"
+            );
+        }
+        let field_dependency_result = model
+            .behaviors
+            .get("field-dependency")
+            .and_then(|behavior| behavior.result.as_ref())
+            .expect("field-dependency result declaration");
+        for (detail_name, value_type) in [
+            ("requiredFields", "schema:array"),
+            ("forbiddenFields", "schema:array"),
+            ("forbiddenAttributeValues", "schema:object"),
+            ("missingFields", "schema:array"),
+            ("invalidFields", "schema:array"),
+            ("invalidValues", "schema:object"),
+            ("condition", "schema:object"),
+            ("actualValues", "schema:object"),
+        ] {
+            assert!(
+                field_dependency_result
+                    .details
+                    .iter()
+                    .any(|detail| detail.name == detail_name && detail.value_type == value_type),
+                "field-dependency result must declare {detail_name} as {value_type}"
+            );
         }
         let mutual_exclusion_result = model
             .behaviors
@@ -12096,6 +12116,156 @@ mod tests {
         );
         assert_eq!(details["requiredFields"], serde_json::json!(["format"]));
         assert_eq!(details["missingFields"], serde_json::json!(["format"]));
+    }
+
+    #[test]
+    fn schema_field_dependency_supports_forbidden_field_shapes() {
+        let model = compile_document_model(
+            "https://example.test/ns/forbidden-dependent-fields/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="forbidden-dependent-fields" @namespace="https://example.test/ns/forbidden-dependent-fields/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="asset" @optional-attributes="kind source debug mode"}
+    }
+    {attributes |
+        {attribute @name="kind" @type="schema:string"}
+        {attribute @name="source" @type="schema:string"}
+        {attribute @name="debug" @type="schema:string"}
+        {attribute @name="mode" @type="schema:string"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="remote-debug-forbidden"
+            @target="asset"
+            @when-attribute="kind"
+            @when-values="remote"
+            @forbidden-attributes="debug"
+            @diagnostic="example.asset_dependency"
+            @behavior="schema:field-dependency"
+            @check-kind="dependent-forbidden-fields"
+        }
+        {field-contract
+            @name="source-blocked-mode"
+            @target="asset"
+            @when-present-attributes="source"
+            @forbidden-attribute-values="mode=blocked"
+            @diagnostic="example.asset_dependency"
+            @behavior="schema:field-dependency"
+            @check-kind="dependent-forbidden-values"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.asset_dependency"
+            @severity="error"
+            @behavior="schema:field-dependency"
+        }
+    }
+}"#,
+        );
+
+        for source in [
+            r#"{asset @kind="local" @debug="true"}"#,
+            r#"{asset @mode="blocked"}"#,
+            r#"{asset @source="cdn" @mode="open"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics.iter().all(|diagnostic| {
+                    diagnostic.details.as_ref().and_then(|details| {
+                        details.get("behavior").and_then(serde_json::Value::as_str)
+                    }) != Some("schema:field-dependency")
+                }),
+                "forbidden field dependency should not fire for {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{asset @kind="remote" @debug="true"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic =
+            diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("remote-debug-forbidden")
+                })
+                .expect("value-gated forbidden field dependency diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("value-gated forbidden field dependency details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:field-dependency")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("dependent-forbidden-fields")
+        );
+        assert_eq!(details["forbiddenFields"], serde_json::json!(["debug"]));
+        assert_eq!(details["invalidFields"], serde_json::json!(["debug"]));
+        assert_eq!(details["invalidValues"], serde_json::json!({}));
+        assert_eq!(
+            details["condition"],
+            serde_json::json!({
+                "attribute": "kind",
+                "values": ["remote"],
+                "presentAttributes": [],
+            })
+        );
+
+        let document = parse_cem_document(r#"{asset @source="cdn" @mode="blocked"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic =
+            diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("source-blocked-mode")
+                })
+                .expect("presence-gated forbidden value dependency diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("presence-gated forbidden value dependency details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:field-dependency")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("dependent-forbidden-values")
+        );
+        assert_eq!(
+            details["forbiddenAttributeValues"],
+            serde_json::json!({
+                "mode": ["blocked"],
+            })
+        );
+        assert_eq!(details["invalidFields"], serde_json::json!(["mode"]));
+        assert_eq!(
+            details["invalidValues"],
+            serde_json::json!({
+                "mode": "blocked",
+            })
+        );
+        assert_eq!(
+            details["condition"],
+            serde_json::json!({
+                "attribute": null,
+                "values": [],
+                "presentAttributes": ["source"],
+            })
+        );
     }
 
     #[test]
