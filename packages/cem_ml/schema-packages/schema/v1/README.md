@@ -265,7 +265,8 @@ schema-definition validation also rejects numeric bound/digit-count params on
 non-numeric attributes, string length/prefix/suffix params on non-string attributes,
 and list item-count params on non-list attributes;
 required-one/max-one attribute choice cardinality and nested choice/case groups
-now execute through `schema:choice-case`; child-set cardinality,
+now execute through `schema:choice-case`, whose result contract declares the
+flat and grouped choice details emitted by the engine; child-set cardinality,
 `min-children`/`max-children` named child occurrence ranges, and
 total/distinct/selected child-count bounds, plus relative child ordering,
 boundary child placement, and exact/required/forbidden child sequences, now execute through `schema:child-occurrence`; additional

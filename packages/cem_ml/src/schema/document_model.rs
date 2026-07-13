@@ -9531,6 +9531,33 @@ mod tests {
                 );
             }
         }
+        let choice_case_result = model
+            .behaviors
+            .get("choice-case")
+            .and_then(|behavior| behavior.result.as_ref())
+            .expect("choice-case result declaration");
+        for (detail_name, value_type) in [
+            ("requiredOneFields", "schema:array"),
+            ("maxOneFields", "schema:array"),
+            ("presentRequiredOneFields", "schema:array"),
+            ("presentMaxOneFields", "schema:array"),
+            ("missingChoiceFields", "schema:array"),
+            ("conflictingChoiceFields", "schema:array"),
+            ("choiceCases", "schema:array"),
+            ("presentChoiceCases", "schema:object"),
+            ("missingChoiceCases", "schema:array"),
+            ("conflictingChoiceCases", "schema:object"),
+            ("actualValues", "schema:object"),
+            ("childCounts", "schema:object"),
+        ] {
+            assert!(
+                choice_case_result
+                    .details
+                    .iter()
+                    .any(|detail| detail.name == detail_name && detail.value_type == value_type),
+                "choice-case result must declare {detail_name} as {value_type}"
+            );
+        }
         let accepted_children_result = model
             .behaviors
             .get("accepted-children")

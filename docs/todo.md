@@ -67,7 +67,9 @@ history belongs in git history and the feature-specific docs linked below.
       `pathLayout` and `invalidValues` result details. Combined
       value-and-presence-gated dependent field groups now execute through
       `schema:field-dependency`, and dependency result contracts declare their
-      required/missing field, condition, and actual-value details.
+      required/missing field, condition, and actual-value details. The
+      `schema:choice-case` behavior contract now declares flat and grouped
+      choice result details emitted by the engine.
       Additional engine algorithms remain.
   - [x] Allow declarative behavior to select candidate nodes and match failure
         conditions with CEM-QL, then invoke a schema-declared CEM-ML behavior
@@ -123,7 +125,9 @@ history belongs in git history and the feature-specific docs linked below.
         combined value-and-presence-gated dependent field groups now also
         execute through `schema:field-dependency`; richer dependency shapes
         beyond those gates remain. The `schema:path-layout` result contract now
-        exposes the emitted path layout and invalid-value details.
+        exposes the emitted path layout and invalid-value details, and the
+        `schema:choice-case` result contract now exposes emitted flat/grouped
+        choice details.
   - [x] Compile behavior declarations and references into the generic schema
         model, reject missing or incompatible behavior references, and dispatch
         them through a single runtime evaluation path. The resolved behavior
@@ -309,7 +313,7 @@ history belongs in git history and the feature-specific docs linked below.
         forbiddenAttributeValues and invalidValues details; child occurrence
         checks emit required/forbidden/exact/max-one/min/max children,
         required-one/max-one child choices, present/missing/conflicting child
-        choices,
+        choices; choice-case checks emit flat and grouped choice details;
         exact/min/max total children, invalid/missing/duplicate/
         invalid-exact/under-min/over-max named children,
         invalid-exact/under-min/over-max total-child flags,
