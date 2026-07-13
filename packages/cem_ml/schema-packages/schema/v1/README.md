@@ -49,6 +49,9 @@ and `when-absent-children`, or by combining selector families on one dependency
 contract. Use attribute selectors for dependent-required rules such as "when
 this attribute is present and that attribute is absent, require these other
 attributes".
+Use child selectors with `schema:field-dependency` when direct-child structure
+implies required or forbidden attributes, such as requiring a label when a
+reference child is present and no fallback child is present.
 Use `forbidden-attributes` with the same selectors when a present or valued
 gate makes another attribute invalid.
 Use `forbidden-attribute-values` for value-specific exclusions, such as a
@@ -263,8 +266,9 @@ compile and execute through diagnostic `@behavior`; field-contract-local
 `schema:field-dependency` and `schema:choice-case` bindings now compile and
 stamp operational diagnostics while preserving broad diagnostic family codes.
 The `schema:field-dependency` alias covers required, forbidden, and
-forbidden-value field dependencies, and its result contract declares the emitted
-required/missing/forbidden/invalid field and value details.
+forbidden-value field dependencies gated by values, attribute presence, or
+child structure, and its result contract declares the emitted
+required/missing/forbidden/invalid field, value, and condition details.
 Constraint-owned `schema:resource-readable`, `schema:resource-parse`, and
 `schema:reference-resolution` bindings now compile and stamp operational
 diagnostics with their declared behavior; their result contracts declare the
@@ -315,7 +319,7 @@ CLI validation integration tests.
 | Example | Purpose | Expected result |
 | --- | --- | --- |
 | [`basic-schema.cem`](examples/basic-schema.cem) | Minimal schema definition with content type, element, and attribute declarations. | Pass |
-| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, conditional `schema:required-fields`, nested exact-one `schema:choice-case`, child-set, selected/ranged, child presence/absence-gated, ordered/forbidden-ordered, boundary/forbidden-boundary, and exact/required/forbidden/prefix/suffix sequence `schema:child-occurrence`, attribute default metadata, `schema:value-vocabulary`, `schema:scalar-type` number/qualified-name/semver/URI/media-type/path syntax, and `schema:datatype-param` integer-bound/number-bound/digit-count/string length/prefix/suffix/list item-count/pattern/path prefix/extension/URI scheme/host/port/authority/path-prefix/path-extension/query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/media-type essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter attribute diagnostics, and open-content policy. | Pass |
+| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, conditional `schema:required-fields`, child-gated `schema:field-dependency`, nested exact-one `schema:choice-case`, child-set, selected/ranged, child presence/absence-gated, ordered/forbidden-ordered, boundary/forbidden-boundary, and exact/required/forbidden/prefix/suffix sequence `schema:child-occurrence`, attribute default metadata, `schema:value-vocabulary`, `schema:scalar-type` number/qualified-name/semver/URI/media-type/path syntax, and `schema:datatype-param` integer-bound/number-bound/digit-count/string length/prefix/suffix/list item-count/pattern/path prefix/extension/URI scheme/host/port/authority/path-prefix/path-extension/query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/media-type essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter attribute diagnostics, and open-content policy. | Pass |
 | [`custom-behavior-schema.cem`](examples/custom-behavior-schema.cem) | Custom schema that defines a diagnostic algorithm with CEM-QL candidate matching and a CEM-ML behavior function. | Pass |
 | [`custom-behavior-schema-strict.cem`](examples/custom-behavior-schema-strict.cem) | Variant custom schema that changes the match condition and function-produced result declaratively. | Pass |
 | [`invalid-unclosed-schema.cem`](examples/invalid-unclosed-schema.cem) | Missing closing schema scope syntax diagnostic. | Fail with `cem.ast.unclosed_scope` |

@@ -25,7 +25,7 @@
         {element @name="resource" @required-attributes="id kind" @optional-attributes="label priority rank weight serial ratio slug tags aliases code href format payload metadata asset inline qualified version" @children="field*"}
         {element @name="single-resource" @required-attributes="id kind" @children="field"}
         {element @name="linked-resource" @required-attributes="id kind" @optional-attributes="label" @children="field reference"}
-        {element @name="conditional-resource" @required-attributes="id kind" @children="field reference fallback"}
+        {element @name="conditional-resource" @required-attributes="id kind" @optional-attributes="label" @children="field reference fallback"}
         {element @name="field" @required-attributes="name type"}
         {element @name="reference" @required-attributes="href"}
         {element @name="fallback"}
@@ -243,6 +243,16 @@
             @diagnostic="example.resource.child_choice"
             @behavior="schema:child-occurrence"
             @check-kind="conditional-required-children"
+        }
+        {field-contract
+            @name="conditional-resource-reference-label"
+            @target="conditional-resource"
+            @when-present-children="reference"
+            @when-absent-children="fallback"
+            @required-attributes="label"
+            @diagnostic="example.resource.missing_label"
+            @behavior="schema:field-dependency"
+            @check-kind="child-gated-dependent-required-fields"
         }
         {field-contract
             @name="conditional-resource-forbidden-boundaries"

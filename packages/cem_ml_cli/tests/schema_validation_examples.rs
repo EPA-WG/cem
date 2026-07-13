@@ -1856,6 +1856,16 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
             @behavior="schema:field-dependency"
             @check-kind="dependent-required-fields"
         }
+        {field-contract
+            @name="article-section-title"
+            @target="article"
+            @when-present-children="section"
+            @when-absent-children="span"
+            @required-attributes="title"
+            @diagnostic="example.asset.dependency"
+            @behavior="schema:field-dependency"
+            @check-kind="child-gated-dependent-required-fields"
+        }
     }
     {diagnostics |
         {diagnostic
@@ -1879,6 +1889,8 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
 {span @class="remote" @role="open"}
 {article @title="card" @id="article-1"}
 {article @title="card" @role="note"}
+{article @title="card" @id="article-2" | {section}}
+{article | {section} {span}}
 "#,
     );
     write_test_file(
@@ -1889,6 +1901,7 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
 {section @class="remote" @title="card" @id="section-1"}
 {span @class="remote" @title="debug" @role="blocked"}
 {article @title="card"}
+{article | {section}}
 "#,
     );
 
@@ -1976,6 +1989,13 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
             behavior: "schema:field-dependency",
             check_kind: "dependent-required-fields",
             contract: "title-without-role-id",
+        },
+        DiagnosticDetailExpectation {
+            code: CUSTOM_DIAGNOSTIC,
+            severity: "error",
+            behavior: "schema:field-dependency",
+            check_kind: "child-gated-dependent-required-fields",
+            contract: "article-section-title",
         },
     ] {
         assert!(
@@ -2070,6 +2090,42 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
     assert_eq!(
         absent_role_details["missingFields"],
         serde_json::json!(["id"])
+    );
+
+    let child_gated_expected = DiagnosticDetailExpectation {
+        code: CUSTOM_DIAGNOSTIC,
+        severity: "error",
+        behavior: "schema:field-dependency",
+        check_kind: "child-gated-dependent-required-fields",
+        contract: "article-section-title",
+    };
+    let child_gated = find_diagnostic_detail(&report, &child_gated_expected)
+        .expect("child-gated dependency diagnostic");
+    let child_gated_details = &child_gated["details"];
+    assert_eq!(
+        child_gated_details["condition"],
+        serde_json::json!({
+            "attribute": null,
+            "values": [],
+            "presentAttributes": [],
+            "absentAttributes": [],
+            "presentChildren": ["section"],
+            "absentChildren": ["span"],
+        })
+    );
+    assert_eq!(
+        child_gated_details["requiredFields"],
+        serde_json::json!(["title"])
+    );
+    assert_eq!(
+        child_gated_details["missingFields"],
+        serde_json::json!(["title"])
+    );
+    assert_eq!(
+        child_gated_details["childCounts"],
+        serde_json::json!({
+            "section": 1,
+        })
     );
 
     let _ = fs::remove_dir_all(root);

@@ -13006,6 +13006,104 @@ mod tests {
     }
 
     #[test]
+    fn schema_field_dependency_supports_child_condition_selectors() {
+        let model = compile_document_model(
+            "https://example.test/ns/child-gated-dependent-fields/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="child-gated-dependent-fields" @namespace="https://example.test/ns/child-gated-dependent-fields/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="asset" @optional-attributes="label" @children="reference fallback"}
+        {element @name="reference"}
+        {element @name="fallback"}
+    }
+    {attributes |
+        {attribute @name="label" @type="schema:string"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="reference-without-fallback-label"
+            @target="asset"
+            @when-present-children="reference"
+            @when-absent-children="fallback"
+            @required-attributes="label"
+            @diagnostic="example.asset_label_required"
+            @behavior="schema:field-dependency"
+            @check-kind="child-gated-dependent-required-fields"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.asset_label_required"
+            @severity="error"
+            @behavior="schema:field-dependency"
+        }
+    }
+}"#,
+        );
+
+        for source in [
+            r#"{asset | {fallback}}"#,
+            r#"{asset | {reference} {fallback}}"#,
+            r#"{asset @label="Linked" | {reference}}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics.iter().all(|diagnostic| {
+                    diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) != Some("reference-without-fallback-label")
+                }),
+                "child-gated field dependency should not fire for {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{asset | {reference}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.asset_label_required")
+            .expect("child-gated field dependency diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("child-gated field dependency details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:field-dependency")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("child-gated-dependent-required-fields")
+        );
+        assert_eq!(details["requiredFields"], serde_json::json!(["label"]));
+        assert_eq!(details["missingFields"], serde_json::json!(["label"]));
+        assert_eq!(
+            details["condition"],
+            serde_json::json!({
+                "attribute": null,
+                "values": [],
+                "presentAttributes": [],
+                "absentAttributes": [],
+                "presentChildren": ["reference"],
+                "absentChildren": ["fallback"],
+            })
+        );
+        assert_eq!(
+            details["childCounts"],
+            serde_json::json!({
+                "reference": 1,
+            })
+        );
+    }
+
+    #[test]
     fn schema_field_dependency_supports_forbidden_field_shapes() {
         let model = compile_document_model(
             "https://example.test/ns/forbidden-dependent-fields/1",
