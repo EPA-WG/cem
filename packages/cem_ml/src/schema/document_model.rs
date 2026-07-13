@@ -21,9 +21,8 @@
 //! - schema-owned exact, ranged, ordered, boundary, sequence, forbidden-sequence,
 //!   exact-sequence, and choice-cardinality child occurrence field contracts.
 //!
-//! Scalar type checks beyond boolean/integer/number/URI/media-type/path syntax,
-//! additional datatype-param families, and semantic constraints remain
-//! follow-up work.
+//! Remaining follow-up work is in semantic constraints and scalar/field-contract
+//! families beyond the currently declared schema vocabulary.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path};

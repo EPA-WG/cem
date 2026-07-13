@@ -122,8 +122,8 @@ history belongs in git history and the feature-specific docs linked below.
         prefix and suffix constraints now also execute through
         `schema:datatype-param`; name-list and wildcard-name-list item-count
         constraints now also execute through `schema:datatype-param`; regex
-        pattern now also executes through `schema:datatype-param`. Additional
-        datatype parameter families beyond these covered sets remain.
+        pattern now also executes through `schema:datatype-param`. This covers
+        the currently declared attribute datatype-parameter vocabulary.
         Presence-gated dependent-required field groups with multiple required
         gate attributes now execute through `schema:field-dependency`;
         combined value-and-presence-gated dependent field groups now also

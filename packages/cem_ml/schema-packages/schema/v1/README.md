@@ -277,8 +277,9 @@ now execute through `schema:choice-case`, whose result contract declares the
 flat and grouped choice details emitted by the engine; child-set cardinality,
 `min-children`/`max-children` named child occurrence ranges, and
 total/distinct/selected child-count bounds, plus relative child ordering,
-boundary child placement, and exact/required/forbidden child sequences, now execute through `schema:child-occurrence`; additional
-datatype parameter families remain follow-up work.
+boundary child placement, and exact/required/forbidden child sequences, now execute through `schema:child-occurrence`; the
+currently declared attribute datatype-parameter vocabulary is covered by
+`schema:datatype-param`.
 
 ## Validation Examples
 
