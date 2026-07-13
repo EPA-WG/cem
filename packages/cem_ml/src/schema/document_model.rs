@@ -19,9 +19,9 @@
 //!   `itemCount`/`minItems`/`maxItems`, regex `pattern`, path prefix/extension,
 //!   URI scheme/host/port/path/query/query-parameter/fragment, and media-type
 //!   essence/type/subtype/suffix/parameter name/value datatype-param checks.
-//! - schema-owned exact, ranged, ordered, boundary, required/forbidden/exact
-//!   sequence, prefix/suffix sequence, and choice-cardinality child occurrence
-//!   field contracts.
+//! - schema-owned exact, ranged, ordered, required/forbidden boundary,
+//!   required/forbidden/exact sequence, prefix/suffix sequence, and
+//!   choice-cardinality child occurrence field contracts.
 //!
 //! Remaining follow-up work is in semantic constraints and scalar/field-contract
 //! families beyond the currently declared schema vocabulary.
@@ -389,6 +389,8 @@ pub struct FieldContract {
     pub ordered_children: Vec<String>,
     pub first_child: Option<String>,
     pub last_child: Option<String>,
+    pub forbidden_first_child: Option<String>,
+    pub forbidden_last_child: Option<String>,
     pub required_child_sequence: Vec<String>,
     pub forbidden_child_sequence: Vec<String>,
     pub exact_child_sequence: Vec<String>,
@@ -482,6 +484,8 @@ struct BoundaryChildrenEvaluation {
     actual_last_child: Option<String>,
     invalid_first_child: bool,
     invalid_last_child: bool,
+    invalid_forbidden_first_child: bool,
+    invalid_forbidden_last_child: bool,
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -6474,6 +6478,10 @@ fn collect_field_contracts(
                 ordered_children: parse_ordered_name_list(attrs.get("ordered-children")),
                 first_child: optional_non_empty_attr(&attrs, "first-child").map(str::to_owned),
                 last_child: optional_non_empty_attr(&attrs, "last-child").map(str::to_owned),
+                forbidden_first_child: optional_non_empty_attr(&attrs, "forbidden-first-child")
+                    .map(str::to_owned),
+                forbidden_last_child: optional_non_empty_attr(&attrs, "forbidden-last-child")
+                    .map(str::to_owned),
                 required_child_sequence: parse_name_sequence(attrs.get("required-child-sequence")),
                 forbidden_child_sequence: parse_name_sequence(
                     attrs.get("forbidden-child-sequence"),
@@ -6877,6 +6885,8 @@ fn validate_field_contracts(
             && ordered_child_evaluation.unordered_children.is_empty()
             && !boundary_child_evaluation.invalid_first_child
             && !boundary_child_evaluation.invalid_last_child
+            && !boundary_child_evaluation.invalid_forbidden_first_child
+            && !boundary_child_evaluation.invalid_forbidden_last_child
             && !required_child_sequence_evaluation.invalid_sequence
             && !forbidden_child_sequence_evaluation.invalid_sequence
             && !exact_child_sequence_evaluation.invalid_sequence
@@ -7024,6 +7034,16 @@ fn validate_field_contracts(
         if boundary_child_evaluation.invalid_last_child {
             if let Some(expected) = contract.last_child.as_deref() {
                 parts.push(format!("last child mismatch: expected {expected}"));
+            }
+        }
+        if boundary_child_evaluation.invalid_forbidden_first_child {
+            if let Some(forbidden) = contract.forbidden_first_child.as_deref() {
+                parts.push(format!("forbidden first child present: {forbidden}"));
+            }
+        }
+        if boundary_child_evaluation.invalid_forbidden_last_child {
+            if let Some(forbidden) = contract.forbidden_last_child.as_deref() {
+                parts.push(format!("forbidden last child present: {forbidden}"));
             }
         }
         if required_child_sequence_evaluation.invalid_sequence {
@@ -7192,6 +7212,14 @@ fn evaluate_boundary_children(
             .last_child
             .as_deref()
             .is_some_and(|expected| actual_last_child.as_deref() != Some(expected)),
+        invalid_forbidden_first_child: contract
+            .forbidden_first_child
+            .as_deref()
+            .is_some_and(|forbidden| actual_first_child.as_deref() == Some(forbidden)),
+        invalid_forbidden_last_child: contract
+            .forbidden_last_child
+            .as_deref()
+            .is_some_and(|forbidden| actual_last_child.as_deref() == Some(forbidden)),
         actual_first_child,
         actual_last_child,
     }
@@ -7549,6 +7577,14 @@ fn field_contract_details(
         serde_json::json!(&contract.last_child),
     );
     details.insert(
+        "forbiddenFirstChild".to_owned(),
+        serde_json::json!(&contract.forbidden_first_child),
+    );
+    details.insert(
+        "forbiddenLastChild".to_owned(),
+        serde_json::json!(&contract.forbidden_last_child),
+    );
+    details.insert(
         "requiredChildSequence".to_owned(),
         serde_json::json!(&contract.required_child_sequence),
     );
@@ -7780,6 +7816,14 @@ fn field_contract_details(
     details.insert(
         "invalidLastChild".to_owned(),
         serde_json::json!(boundary_child_evaluation.invalid_last_child),
+    );
+    details.insert(
+        "invalidForbiddenFirstChild".to_owned(),
+        serde_json::json!(boundary_child_evaluation.invalid_forbidden_first_child),
+    );
+    details.insert(
+        "invalidForbiddenLastChild".to_owned(),
+        serde_json::json!(boundary_child_evaluation.invalid_forbidden_last_child),
     );
     details.insert(
         "actualChildSequence".to_owned(),
@@ -9545,6 +9589,24 @@ mod tests {
         assert_eq!(
             model
                 .attributes
+                .get("forbidden-first-child")
+                .expect("forbidden-first-child attribute model")
+                .value_type
+                .as_deref(),
+            Some("cemml:identifier")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("forbidden-last-child")
+                .expect("forbidden-last-child attribute model")
+                .value_type
+                .as_deref(),
+            Some("cemml:identifier")
+        );
+        assert_eq!(
+            model
+                .attributes
                 .get("required-child-sequence")
                 .expect("required-child-sequence attribute model")
                 .value_type
@@ -9862,12 +9924,16 @@ mod tests {
             .expect("child-occurrence result declaration");
         for (detail_name, value_type) in [
             ("actualChildSequence", "schema:array"),
+            ("forbiddenFirstChild", "schema:identifier"),
+            ("forbiddenLastChild", "schema:identifier"),
             ("requiredChildSequence", "schema:array"),
             ("forbiddenChildSequence", "schema:array"),
             ("exactChildSequence", "schema:array"),
             ("prefixChildSequence", "schema:array"),
             ("suffixChildSequence", "schema:array"),
             ("invalidChildSequence", "schema:boolean"),
+            ("invalidForbiddenFirstChild", "schema:boolean"),
+            ("invalidForbiddenLastChild", "schema:boolean"),
             ("invalidForbiddenChildSequence", "schema:boolean"),
             ("invalidExactChildSequence", "schema:boolean"),
             ("invalidPrefixChildSequence", "schema:boolean"),
@@ -10688,6 +10754,15 @@ mod tests {
             @diagnostic="example.item_check"
             @behavior="schema:child-occurrence"
             @check-kind="boundary-children"
+        }
+        {field-contract
+            @name="frame-forbidden-boundary-children"
+            @target="frame"
+            @forbidden-first-child="aside"
+            @forbidden-last-child="aside"
+            @diagnostic="example.item_check"
+            @behavior="schema:child-occurrence"
+            @check-kind="forbidden-boundary-children"
         }
         {field-contract
             @name="flow-required-child-sequence"
@@ -11593,11 +11668,14 @@ mod tests {
         let diagnostics = validate_document_model(&document, &model);
         assert!(
             diagnostics.iter().all(|diagnostic| {
-                diagnostic
+                let contract = diagnostic
                     .details
                     .as_ref()
-                    .and_then(|details| details.get("contract").and_then(serde_json::Value::as_str))
-                    != Some("frame-boundary-children")
+                    .and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    });
+                contract != Some("frame-boundary-children")
+                    && contract != Some("frame-forbidden-boundary-children")
             }),
             "matching child boundaries should satisfy boundary child field contract: {diagnostics:?}"
         );
@@ -11650,6 +11728,70 @@ mod tests {
         assert_eq!(details["actualLastChild"], serde_json::json!("body"));
         assert_eq!(details["invalidFirstChild"], serde_json::json!(false));
         assert_eq!(details["invalidLastChild"], serde_json::json!(true));
+
+        let document = parse_cem_document(r#"{frame | {aside} {header} {footer}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("frame-forbidden-boundary-children")
+            })
+            .expect("forbidden first child boundary diagnostic");
+        assert!(diagnostic.message.contains("forbidden first child present"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("forbidden first child boundary details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:child-occurrence")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("forbidden-boundary-children")
+        );
+        assert_eq!(details["forbiddenFirstChild"], serde_json::json!("aside"));
+        assert_eq!(details["forbiddenLastChild"], serde_json::json!("aside"));
+        assert_eq!(details["actualFirstChild"], serde_json::json!("aside"));
+        assert_eq!(details["actualLastChild"], serde_json::json!("footer"));
+        assert_eq!(
+            details["invalidForbiddenFirstChild"],
+            serde_json::json!(true)
+        );
+        assert_eq!(
+            details["invalidForbiddenLastChild"],
+            serde_json::json!(false)
+        );
+
+        let document = parse_cem_document(r#"{frame | {header} {footer} {aside}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("frame-forbidden-boundary-children")
+            })
+            .expect("forbidden last child boundary diagnostic");
+        assert!(diagnostic.message.contains("forbidden last child present"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("forbidden last child boundary details");
+        assert_eq!(details["actualFirstChild"], serde_json::json!("header"));
+        assert_eq!(details["actualLastChild"], serde_json::json!("aside"));
+        assert_eq!(
+            details["invalidForbiddenFirstChild"],
+            serde_json::json!(false)
+        );
+        assert_eq!(
+            details["invalidForbiddenLastChild"],
+            serde_json::json!(true)
+        );
 
         let document =
             parse_cem_document(r#"{flow | {aside} {start} {checkpoint} {finish} {aside}}"#);

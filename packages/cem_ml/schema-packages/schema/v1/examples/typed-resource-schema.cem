@@ -243,6 +243,15 @@
             @behavior="schema:child-occurrence"
             @check-kind="conditional-required-children"
         }
+        {field-contract
+            @name="conditional-resource-forbidden-boundaries"
+            @target="conditional-resource"
+            @forbidden-first-child="fallback"
+            @forbidden-last-child="reference"
+            @diagnostic="example.resource.child_choice"
+            @behavior="schema:child-occurrence"
+            @check-kind="forbidden-boundary-children"
+        }
     }
 
     {diagnostics |

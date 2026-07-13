@@ -3456,6 +3456,8 @@ fn schema_runtime_child_occurrence_sequence_emits_structured_details() {
         {element @name="div" @children="*"}
         {element @name="dialog" @children="*"}
         {element @name="form" @children="*"}
+        {element @name="fieldset" @children="*"}
+        {element @name="label" @children="*"}
         {element @name="header"}
         {element @name="main"}
         {element @name="footer"}
@@ -3465,6 +3467,8 @@ fn schema_runtime_child_occurrence_sequence_emits_structured_details() {
         {element @name="p"}
         {element @name="strong"}
         {element @name="small"}
+        {element @name="legend"}
+        {element @name="input"}
     }
     {field-contracts |
         {field-contract
@@ -3524,6 +3528,22 @@ fn schema_runtime_child_occurrence_sequence_emits_structured_details() {
             @behavior="schema:child-occurrence"
             @check-kind="suffix-child-sequence"
         }
+        {field-contract
+            @name="fieldset-forbidden-first-child"
+            @target="fieldset"
+            @forbidden-first-child="legend"
+            @diagnostic="example.layout.child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="forbidden-first-child"
+        }
+        {field-contract
+            @name="label-forbidden-last-child"
+            @target="label"
+            @forbidden-last-child="input"
+            @diagnostic="example.layout.child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="forbidden-last-child"
+        }
     }
     {diagnostics |
         {diagnostic
@@ -3547,6 +3567,8 @@ fn schema_runtime_child_occurrence_sequence_emits_structured_details() {
 {div | {span} {p} {strong}}
 {dialog | {header} {main} {aside}}
 {form | {aside} {main} {footer}}
+{fieldset | {input} {legend}}
+{label | {input} {span}}
 "#,
     );
     write_test_file(
@@ -3560,6 +3582,8 @@ fn schema_runtime_child_occurrence_sequence_emits_structured_details() {
 {div | {span} {small} {p} {strong}}
 {dialog | {aside} {header} {main}}
 {form | {main} {footer} {aside}}
+{fieldset | {legend} {input}}
+{label | {span} {input}}
 "#,
     );
 
@@ -3773,6 +3797,37 @@ fn schema_runtime_child_occurrence_sequence_emits_structured_details() {
     assert_eq!(suffix_sequence_details["invalidPrefixChildSequence"], false);
     assert_eq!(suffix_sequence_details["invalidSuffixChildSequence"], true);
 
+    let forbidden_first_diagnostic = diagnostic_for_contract("fieldset-forbidden-first-child");
+    let forbidden_first_details = &forbidden_first_diagnostic["details"];
+    assert_eq!(forbidden_first_diagnostic["severity"], "error");
+    assert_eq!(
+        forbidden_first_details["behavior"],
+        "schema:child-occurrence"
+    );
+    assert_eq!(
+        forbidden_first_details["checkKind"],
+        "forbidden-first-child"
+    );
+    assert_eq!(forbidden_first_details["forbiddenFirstChild"], "legend");
+    assert_eq!(forbidden_first_details["actualFirstChild"], "legend");
+    assert_eq!(forbidden_first_details["actualLastChild"], "input");
+    assert_eq!(forbidden_first_details["invalidForbiddenFirstChild"], true);
+    assert_eq!(forbidden_first_details["invalidForbiddenLastChild"], false);
+
+    let forbidden_last_diagnostic = diagnostic_for_contract("label-forbidden-last-child");
+    let forbidden_last_details = &forbidden_last_diagnostic["details"];
+    assert_eq!(forbidden_last_diagnostic["severity"], "error");
+    assert_eq!(
+        forbidden_last_details["behavior"],
+        "schema:child-occurrence"
+    );
+    assert_eq!(forbidden_last_details["checkKind"], "forbidden-last-child");
+    assert_eq!(forbidden_last_details["forbiddenLastChild"], "input");
+    assert_eq!(forbidden_last_details["actualFirstChild"], "span");
+    assert_eq!(forbidden_last_details["actualLastChild"], "input");
+    assert_eq!(forbidden_last_details["invalidForbiddenFirstChild"], false);
+    assert_eq!(forbidden_last_details["invalidForbiddenLastChild"], true);
+
     for diagnostic in [
         ordered_diagnostic,
         boundary_diagnostic,
@@ -3781,6 +3836,8 @@ fn schema_runtime_child_occurrence_sequence_emits_structured_details() {
         exact_sequence_diagnostic,
         prefix_sequence_diagnostic,
         suffix_sequence_diagnostic,
+        forbidden_first_diagnostic,
+        forbidden_last_diagnostic,
     ] {
         assert!(diagnostic["details"]["sourceRange"]["span"]["start"].is_u64());
         assert!(diagnostic["sourceMap"]["frames"]
