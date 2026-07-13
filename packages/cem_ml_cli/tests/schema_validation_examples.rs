@@ -1807,6 +1807,22 @@ fn schema_datatype_param_examples_emit_structured_definition_details() {
                 SchemaDefinitionDetailExpectation {
                     code: "cem.schema_definition.invalid_datatype_param",
                     severity: "error",
+                    check_kind: "datatype-param:mediaTypeSubtypes",
+                    attribute: "subtyped",
+                    datatype_param: "mediaTypeSubtypes",
+                    param_value: "bad/subtype",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
+                    check_kind: "datatype-param:mediaTypeSubtypes",
+                    attribute: "subtitle",
+                    datatype_param: "mediaTypeSubtypes",
+                    param_value: "json",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
                     check_kind: "datatype-param:mediaTypeParameters",
                     attribute: "payload",
                     datatype_param: "mediaTypeParameters",

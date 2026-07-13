@@ -16,6 +16,7 @@
         {attribute @name="asset" @type="schema:uri" @uriPathPrefixes="assets"}
         {attribute @name="download" @type="schema:uri" @uriPathExtensions="cem .json"}
         {attribute @name="format" @type="schema:media-type" @mediaTypes="text/html text"}
+        {attribute @name="subtyped" @type="schema:media-type" @mediaTypeSubtypes="json bad/subtype"}
         {attribute @name="structured" @type="schema:media-type" @mediaTypeSuffixes="json bad=suffix"}
         {attribute @name="payload" @type="schema:media-type" @mediaTypeParameters="charset bad=name"}
         {attribute @name="encoding" @type="schema:media-type" @mediaTypeParameterValues="charset=utf-8 bad bad/name=value"}
@@ -24,6 +25,7 @@
         {attribute @name="label" @type="schema:string" @mediaTypeSuffixes="json"}
         {attribute @name="title" @type="schema:string" @mediaTypeForbiddenParameters="profile"}
         {attribute @name="description" @type="schema:string" @mediaTypeParameterValues="charset=utf-8"}
+        {attribute @name="subtitle" @type="schema:string" @mediaTypeSubtypes="json"}
         {attribute @name="linkLabel" @type="schema:string" @uriHosts="api.example.test"}
         {attribute @name="downloadLabel" @type="schema:string" @uriPathExtensions="cem"}
         {attribute @name="caption" @type="schema:string" @pathPrefixes="./templates/"}
