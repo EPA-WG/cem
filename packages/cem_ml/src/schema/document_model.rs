@@ -748,6 +748,13 @@ fn validate_node(
         }
     }
 
+    materialize_default_attribute_values(
+        element_model,
+        &model.attributes,
+        &mut seen_attributes,
+        &mut attribute_values,
+    );
+
     let child_sequence = child_element_sequence(document, children);
     let child_counts = child_element_counts(&child_sequence);
 
@@ -804,6 +811,31 @@ fn validate_node(
             element_model.allow_any_child,
             diagnostics,
         );
+    }
+}
+
+fn materialize_default_attribute_values(
+    element_model: &ElementModel,
+    attribute_models: &BTreeMap<String, AttributeModel>,
+    seen_attributes: &mut BTreeSet<String>,
+    attribute_values: &mut BTreeMap<String, String>,
+) {
+    for attribute_name in element_model
+        .required_attributes
+        .iter()
+        .chain(element_model.optional_attributes.iter())
+    {
+        if attribute_name.ends_with(":*") || seen_attributes.contains(attribute_name) {
+            continue;
+        }
+        let Some(attribute_model) = attribute_models.get(attribute_name) else {
+            continue;
+        };
+        let Some(default_value) = attribute_model.default_value.as_ref() else {
+            continue;
+        };
+        seen_attributes.insert(attribute_name.clone());
+        attribute_values.insert(attribute_name.clone(), default_value.clone());
     }
 }
 
@@ -14987,6 +15019,110 @@ mod tests {
                 .as_ref()
                 .is_some_and(|source_map| !source_map.frames.is_empty()));
         }
+    }
+
+    #[test]
+    fn schema_attribute_defaults_materialize_for_field_contracts() {
+        let model = compile_document_model(
+            "https://example.test/ns/attribute-default-materialization/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="attribute-default-materialization" @namespace="https://example.test/ns/attribute-default-materialization/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="item" @optional-attributes="mode label"}
+    }
+    {attributes |
+        {attribute @name="mode" @type="schema:identifier" @values="draft published" @default="draft"}
+        {attribute @name="label" @type="schema:string"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="draft-requires-label"
+            @target="item"
+            @diagnostic="example.default_materialized"
+            @check-kind="field-dependency"
+            @when-attribute="mode"
+            @when-values="draft"
+            @required-attributes="label"}
+    }
+    {diagnostics |
+        {diagnostic @code="example.default_materialized" @severity="error" @behavior="schema:field-contract"}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "default materialization schema should compile without diagnostics: {:#?}",
+            model.compile_diagnostics
+        );
+
+        let document = parse_cem_document(r#"{item}"#);
+        let diagnostics = validate_document_model(&document, &model);
+
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.default_materialized")
+            .expect("default-driven field contract diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("default-driven field contract details");
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("draft-requires-label")
+        );
+        assert_eq!(details["missingFields"], serde_json::json!(["label"]));
+        assert_eq!(details["actualValues"]["mode"], serde_json::json!("draft"));
+        assert_eq!(details["condition"]["attribute"], serde_json::json!("mode"));
+        assert_eq!(details["condition"]["values"], serde_json::json!(["draft"]));
+
+        let document = parse_cem_document(r#"{item @mode=published}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != "example.default_materialized"),
+            "explicit values should override default materialization: {diagnostics:#?}"
+        );
+    }
+
+    #[test]
+    fn schema_attribute_defaults_satisfy_required_attributes() {
+        let model = compile_document_model(
+            "https://example.test/ns/attribute-default-required/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="attribute-default-required" @namespace="https://example.test/ns/attribute-default-required/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @required-attributes="mode"}
+    }
+    {attributes |
+        {attribute @name="mode" @type="schema:identifier" @values="compact pretty" @default="compact"}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "required default schema should compile without diagnostics: {:#?}",
+            model.compile_diagnostics
+        );
+
+        let document = parse_cem_document(r#"{item}"#);
+        let diagnostics = validate_document_model(&document, &model);
+
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != MISSING_REQUIRED_ATTRIBUTE_CODE),
+            "schema-owned defaults should satisfy required attributes: {diagnostics:#?}"
+        );
     }
 
     #[test]

@@ -310,8 +310,8 @@ history belongs in git history and the feature-specific docs linked below.
         value-specific forbidden fields, exact-one child occurrence contracts,
         required-one/max-one attribute choice cardinality, nested choice/case
         groups, package-relative path-layout contracts, diagnostic families,
-        attribute default metadata and validation, and attribute `@values`
-        vocabularies, plus
+        attribute default metadata, validation, and validation-time
+        materialization, and attribute `@values` vocabularies, plus
         boolean/integer/number/identifier/name-list/type-reference/
         symbol-reference/wildcard-reference/qualified-name/semver/basic
         URI/media-type/path scalar syntax,
@@ -336,8 +336,7 @@ history belongs in git history and the feature-specific docs linked below.
         bounds, min/max child occurrence ranges, required/forbidden relative child
         ordering, and required/forbidden boundary child placement, plus exact/required/forbidden/prefix/suffix child
         sequences; it still needs RELAX NG-style datatype params beyond the
-        initial scalar and datatype variations, default value materialization,
-        richer dependent-required field groups
+        initial scalar and datatype variations, richer dependent-required field groups
         beyond value/presence/absence/child-structure gates, and additional child occurrence
         variants beyond exact/named/total/selected/selected-distinct/distinct count bounds,
         child-set cardinality, required/forbidden relative ordering,
@@ -365,14 +364,14 @@ history belongs in git history and the feature-specific docs linked below.
         required/forbidden relative child ordering contracts,
         required/forbidden boundary child placement contracts,
         exact/required/forbidden/prefix/suffix child sequence contracts, and attribute
-        default metadata and validation; it
+        default metadata, validation, and validation-time materialization; it
         still needs reusable string constraints beyond length/prefix/suffix/pattern and path constraints beyond
         prefix/extension and path-layout checks,
         URI/media-type constraints beyond initial allowed scheme/host/port/authority/path-prefix/path-extension/query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment
         and media-type essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter lists,
         RELAX NG-style datatype params beyond numeric bounds/digit counts,
         string length/prefix/suffix, list item counts, pattern, and allowed
-        URI/media tokens, default value materialization, dependent field
+        URI/media tokens, dependent field
         groups beyond value/presence/child-structure-gated required/forbidden fields, additional child
         occurrence variants beyond exact/named/total/selected/selected-distinct/distinct count
         bounds, child-set cardinality, required/forbidden relative ordering,
