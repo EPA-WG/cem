@@ -9509,6 +9509,28 @@ mod tests {
                     && parameter.required));
             assert!(behavior.result.is_some());
         }
+        for behavior_name in ["dependent-required-fields", "field-dependency"] {
+            let result = model
+                .behaviors
+                .get(behavior_name)
+                .and_then(|behavior| behavior.result.as_ref())
+                .unwrap_or_else(|| panic!("{behavior_name} result declaration"));
+            for (detail_name, value_type) in [
+                ("requiredFields", "schema:array"),
+                ("missingFields", "schema:array"),
+                ("condition", "schema:object"),
+                ("actualValues", "schema:object"),
+            ] {
+                assert!(
+                    result
+                        .details
+                        .iter()
+                        .any(|detail| detail.name == detail_name
+                            && detail.value_type == value_type),
+                    "{behavior_name} result must declare {detail_name} as {value_type}"
+                );
+            }
+        }
         let accepted_children_result = model
             .behaviors
             .get("accepted-children")
@@ -11789,6 +11811,102 @@ mod tests {
             })
         );
         assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
+    fn schema_field_dependency_combines_value_and_presence_gates() {
+        let model = compile_document_model(
+            "https://example.test/ns/conditional-dependent-fields/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="conditional-dependent-fields" @namespace="https://example.test/ns/conditional-dependent-fields/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="asset" @optional-attributes="kind source token format"}
+    }
+    {attributes |
+        {attribute @name="kind" @type="schema:string"}
+        {attribute @name="source" @type="schema:string"}
+        {attribute @name="token" @type="schema:string"}
+        {attribute @name="format" @type="schema:string"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="remote-source-token-format"
+            @target="asset"
+            @when-attribute="kind"
+            @when-values="remote"
+            @when-present-attributes="source token"
+            @required-attributes="format"
+            @diagnostic="example.asset_format_required"
+            @behavior="schema:field-dependency"
+            @check-kind="dependent-required-fields"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.asset_format_required"
+            @severity="error"
+            @behavior="schema:field-dependency"
+        }
+    }
+}"#,
+        );
+
+        for source in [
+            r#"{asset @kind="local" @source="local" @token="abc"}"#,
+            r#"{asset @kind="remote" @source="cdn"}"#,
+            r#"{asset @kind="remote" @token="abc"}"#,
+            r#"{asset @kind="remote" @source="cdn" @token="abc" @format="json"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics.iter().all(|diagnostic| {
+                    diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) != Some("remote-source-token-format")
+                }),
+                "combined field dependency gate should not fire for {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{asset @kind="remote" @source="cdn" @token="abc"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.asset_format_required")
+            .expect("combined field dependency diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("combined field dependency details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:field-dependency")
+        );
+        assert_eq!(
+            details["condition"],
+            serde_json::json!({
+                "attribute": "kind",
+                "values": ["remote"],
+                "presentAttributes": ["source", "token"],
+            })
+        );
+        assert_eq!(
+            details["actualValues"],
+            serde_json::json!({
+                "kind": "remote",
+                "source": "cdn",
+                "token": "abc",
+            })
+        );
+        assert_eq!(details["requiredFields"], serde_json::json!(["format"]));
+        assert_eq!(details["missingFields"], serde_json::json!(["format"]));
     }
 
     #[test]

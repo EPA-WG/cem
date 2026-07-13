@@ -64,7 +64,10 @@ history belongs in git history and the feature-specific docs linked below.
       through `schema:accepted-children`. Presence-gated dependent-required
       field groups now execute when all declared `when-present-attributes` are
       present. The `schema:path-layout` behavior contract now declares its
-      `pathLayout` and `invalidValues` result details.
+      `pathLayout` and `invalidValues` result details. Combined
+      value-and-presence-gated dependent field groups now execute through
+      `schema:field-dependency`, and dependency result contracts declare their
+      required/missing field, condition, and actual-value details.
       Additional engine algorithms remain.
   - [x] Allow declarative behavior to select candidate nodes and match failure
         conditions with CEM-QL, then invoke a schema-declared CEM-ML behavior
@@ -117,9 +120,10 @@ history belongs in git history and the feature-specific docs linked below.
         datatype parameter families beyond these covered sets remain.
         Presence-gated dependent-required field groups with multiple required
         gate attributes now execute through `schema:field-dependency`;
-        richer dependency shapes beyond all-present gates remain. The
-        `schema:path-layout` result contract now exposes the emitted path
-        layout and invalid-value details.
+        combined value-and-presence-gated dependent field groups now also
+        execute through `schema:field-dependency`; richer dependency shapes
+        beyond those gates remain. The `schema:path-layout` result contract now
+        exposes the emitted path layout and invalid-value details.
   - [x] Compile behavior declarations and references into the generic schema
         model, reject missing or incompatible behavior references, and dispatch
         them through a single runtime evaluation path. The resolved behavior
@@ -256,8 +260,8 @@ history belongs in git history and the feature-specific docs linked below.
         bounds, min/max child occurrence ranges, relative child ordering, and
         boundary child placement, plus exact/required/forbidden child sequences; it still needs RELAX NG-style
         datatype params beyond the initial scalar and datatype variations,
-        defaults, richer dependent-required field groups beyond all-present
-        gates, and additional child occurrence
+        defaults, richer dependent-required field groups beyond combined
+        value/presence gates, and additional child occurrence
         variants beyond exact/named/total/selected/distinct count bounds, child-set cardinality, relative ordering, boundary placement, and exact/required/forbidden child sequences.
   - [ ] Extend the compiled Rust schema contract model. `SchemaDocumentModel`
         now compiles initial `field-contract` declarations and evaluates

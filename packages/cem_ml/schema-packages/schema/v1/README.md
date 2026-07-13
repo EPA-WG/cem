@@ -43,7 +43,8 @@ fields, forbidden fields, and actual values. They should not require one
 diagnostic code per individual metadata or schema field.
 
 Field contracts can be gated by value selectors such as `when-attribute` plus
-`when-values`, and by presence selectors such as `when-present-attributes`.
+`when-values`, by presence selectors such as `when-present-attributes`, or by
+combining both selector families on one dependency contract.
 Use presence selectors for dependent-required rules such as "when this
 attribute is present, require these other attributes".
 Use `forbidden-attribute-values` for value-specific exclusions, such as a
