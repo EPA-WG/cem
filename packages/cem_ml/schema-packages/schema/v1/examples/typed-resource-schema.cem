@@ -115,6 +115,7 @@
             @type="schema:media-type"
             @type-diagnostic="example.resource.invalid_format"
             @mediaTypes="application/json text/html"
+            @mediaTypeTypes="application text"
             @mediaTypeSubtypes="json html"
             @mediaTypeParameters="charset profile"
             @mediaTypeParameterValues="charset=utf-8 profile=default"
