@@ -478,8 +478,9 @@ the matching resolver, and bare values are module-map specifiers. This keeps
 package-specific schemas small while preserving strict validation boundaries for
 their own instances. Attribute datatype params such as `@stringPrefixes`,
 `@stringSuffixes`, `@itemCount`, `@minItems`, `@maxItems`, `@pathPrefixes`,
-`@pathExtensions`, `@uriSchemes`, `@uriHosts`, `@uriRequiresAuthority`, `@uriPathPrefixes`,
-`@mediaTypes`, and `@mediaTypeSuffixes`/`@mediaTypeParameters`/
+`@pathExtensions`, `@uriSchemes`, `@uriHosts`, `@uriRequiresAuthority`,
+`@uriPathPrefixes`, `@uriPathExtensions`, `@mediaTypes`, and
+`@mediaTypeSuffixes`/`@mediaTypeParameters`/
 `@mediaTypeParameterValues`/`@mediaTypeForbiddenParameters`/
 `@mediaTypeRequiredParameters` then narrow those compatible primitives
 declaratively in the schema document.

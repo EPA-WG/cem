@@ -1783,6 +1783,22 @@ fn schema_datatype_param_examples_emit_structured_definition_details() {
                 SchemaDefinitionDetailExpectation {
                     code: "cem.schema_definition.invalid_datatype_param",
                     severity: "error",
+                    check_kind: "datatype-param:uriPathExtensions",
+                    attribute: "download",
+                    datatype_param: "uriPathExtensions",
+                    param_value: ".json",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
+                    check_kind: "datatype-param:uriPathExtensions",
+                    attribute: "downloadLabel",
+                    datatype_param: "uriPathExtensions",
+                    param_value: "cem",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
                     check_kind: "datatype-param:mediaTypes",
                     attribute: "format",
                     datatype_param: "mediaTypes",

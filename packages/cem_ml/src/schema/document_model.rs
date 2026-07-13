@@ -198,6 +198,7 @@ pub struct AttributeModel {
     pub uri_hosts: BTreeSet<String>,
     pub uri_requires_authority: Option<String>,
     pub uri_path_prefixes: BTreeSet<String>,
+    pub uri_path_extensions: BTreeSet<String>,
     pub media_types: BTreeSet<String>,
     pub media_type_suffixes: BTreeSet<String>,
     pub media_type_parameters: BTreeSet<String>,
@@ -1303,6 +1304,13 @@ fn uri_path_has_allowed_prefix(value: &str, prefixes: &BTreeSet<String>) -> bool
     uri_path(value).is_some_and(|path| prefixes.iter().any(|prefix| path.starts_with(prefix)))
 }
 
+fn uri_path_extension(value: &str) -> Option<String> {
+    let path = uri_path(value)?;
+    let segment = path.rsplit('/').next().unwrap_or(path);
+    let (_, extension) = segment.rsplit_once('.')?;
+    is_path_extension_token(extension).then(|| extension.to_owned())
+}
+
 fn is_uri_path_prefix(value: &str) -> bool {
     !value.is_empty()
         && value.starts_with('/')
@@ -1896,6 +1904,30 @@ fn validate_attribute_datatype_params(
             value,
             attribute_model,
             "uriPathPrefixes",
+            &param_value,
+            "outside allowed",
+            attribute_values,
+            node,
+            diagnostics,
+        );
+    }
+    if !attribute_model.uri_path_extensions.is_empty()
+        && attribute_model
+            .value_type
+            .as_deref()
+            .is_some_and(is_uri_type_reference)
+        && !uri_path_extension(value)
+            .is_some_and(|extension| attribute_model.uri_path_extensions.contains(&extension))
+    {
+        let param_value = format_value_set(&attribute_model.uri_path_extensions);
+        emit_attribute_datatype_param_diagnostic(
+            schema_uri,
+            diagnostic_behaviors,
+            element_name,
+            attribute_name,
+            value,
+            attribute_model,
+            "uriPathExtensions",
             &param_value,
             "outside allowed",
             attribute_values,
@@ -2800,6 +2832,7 @@ fn collect_attribute_models(
                         "uriRequiresAuthority",
                     ),
                     uri_path_prefixes: parse_value_set(attrs.get("uriPathPrefixes")),
+                    uri_path_extensions: parse_value_set(attrs.get("uriPathExtensions")),
                     media_types: parse_ascii_lower_value_set(attrs.get("mediaTypes")),
                     media_type_suffixes: parse_ascii_lower_value_set(
                         attrs.get("mediaTypeSuffixes"),
@@ -3402,6 +3435,56 @@ fn validate_attribute_datatype_param_definition(
                     "paramName": "uriPathPrefixes",
                     "paramValue": prefix,
                     "expectedPattern": "URI path prefix",
+                    "error": error,
+                }),
+            ));
+        }
+    }
+    if !attribute_model.uri_path_extensions.is_empty() {
+        let value_type = attribute_model.value_type.as_deref();
+        if !value_type.is_some_and(is_uri_type_reference) {
+            let param_value = format_value_set(&attribute_model.uri_path_extensions);
+            let error = "expected schema:uri or cemml:uri value type for uriPathExtensions";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriPathExtensions datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriPathExtensions",
+                    "datatypeParam": "uriPathExtensions",
+                    "paramName": "uriPathExtensions",
+                    "paramValue": param_value,
+                    "valueType": value_type.unwrap_or_default(),
+                    "expectedType": "schema:uri",
+                    "error": error,
+                }),
+            ));
+        }
+        for extension in &attribute_model.uri_path_extensions {
+            if is_path_extension_token(extension) {
+                continue;
+            }
+            let error = "expected URI path extension token without leading dot";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriPathExtensions datatype parameter `{extension}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriPathExtensions",
+                    "datatypeParam": "uriPathExtensions",
+                    "paramName": "uriPathExtensions",
+                    "paramValue": extension,
+                    "expectedPattern": "URI path extension token",
                     "error": error,
                 }),
             ));
@@ -6788,6 +6871,7 @@ fn attribute_datatype_param_details(
         "uriHosts" => "URI host",
         "uriRequiresAuthority" => "URI authority",
         "uriPathPrefixes" => "URI path prefix",
+        "uriPathExtensions" => "URI path extension token",
         "mediaTypes" => "media type essence",
         "mediaTypeSuffixes" => "media type structured suffix",
         "mediaTypeParameters" => "media type parameter name",
@@ -6955,6 +7039,25 @@ fn attribute_datatype_param_details(
             );
             if let Some(actual_path) = uri_path(actual_value) {
                 object.insert("actualUriPath".to_owned(), serde_json::json!(actual_path));
+            }
+        }
+        if param_name == "uriPathExtensions" {
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .uri_path_extensions
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            if let Some(actual_path) = uri_path(actual_value) {
+                object.insert("actualUriPath".to_owned(), serde_json::json!(actual_path));
+            }
+            if let Some(actual_extension) = uri_path_extension(actual_value) {
+                object.insert(
+                    "actualUriPathExtension".to_owned(),
+                    serde_json::json!(actual_extension),
+                );
             }
         }
         if param_name == "mediaTypes" {
@@ -7845,6 +7948,15 @@ mod tests {
                 .attributes
                 .get("uriPathPrefixes")
                 .expect("uriPathPrefixes attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:string")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("uriPathExtensions")
+                .expect("uriPathExtensions attribute model")
                 .value_type
                 .as_deref(),
             Some("schema:string")
@@ -13550,6 +13662,191 @@ mod tests {
     }
 
     #[test]
+    fn schema_uri_path_extension_datatype_param_drives_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/uri-path-extension-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="uri-path-extension-contracts" @namespace="https://example.test/ns/uri-path-extension-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="href"}
+    }
+    {attributes |
+        {attribute @name="href" @type="schema:uri" @uriPathExtensions="cem json"}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "valid URI path extension schema must compile: {:#?}",
+            model.compile_diagnostics
+        );
+
+        for source in [
+            r#"{item @href="https://example.test/assets/schema.cem"}"#,
+            r#"{item @href="https://example.test/assets/data.json?cache=false"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "valid URI path extension source produced datatype-param diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        for source in [
+            r#"{item @href="https://example.test/assets/image.png"}"#,
+            r#"{item @href="urn:example:test"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "URI outside path extension allow-list did not produce datatype-param diagnostic: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document =
+            parse_cem_document(r#"{item @href="https://example.test/assets/image.png"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("URI path extension datatype-param diagnostic");
+        assert!(diagnostic.message.contains("href"));
+        assert!(diagnostic.message.contains("uriPathExtensions"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("URI path extension datatype-param details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/uri-path-extension-contracts/1")
+        );
+        assert_eq!(details["element"], serde_json::json!("item"));
+        assert_eq!(details["attribute"], serde_json::json!("href"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:href:uriPathExtensions")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriPathExtensions")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("uriPathExtensions")
+        );
+        assert_eq!(details["uriPathExtensions"], serde_json::json!("cem json"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("URI path extension token")
+        );
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["cem", "json"])
+        );
+        assert_eq!(
+            details["actualUriPath"],
+            serde_json::json!("/assets/image.png")
+        );
+        assert_eq!(details["actualUriPathExtension"], serde_json::json!("png"));
+        assert_eq!(
+            details["actualValue"],
+            serde_json::json!("https://example.test/assets/image.png")
+        );
+        assert_eq!(details["invalidFields"], serde_json::json!(["href"]));
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
+    fn schema_uri_path_extension_datatype_param_rejects_invalid_declarations() {
+        let model = compile_document_model(
+            "https://example.test/ns/invalid-uri-path-extension-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-uri-path-extension-contracts" @namespace="https://example.test/ns/invalid-uri-path-extension-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="href label"}
+    }
+    {attributes |
+        {attribute @name="href" @type="schema:uri" @uriPathExtensions="cem .json"}
+        {attribute @name="label" @type="schema:string" @uriPathExtensions="cem"}
+    }
+}"#,
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().is_some_and(|details| {
+                        details.get("attribute").and_then(serde_json::Value::as_str)
+                            == Some("label")
+                    })
+            })
+            .expect("invalid uriPathExtensions type compile diagnostic");
+        assert!(diagnostic.message.contains("uriPathExtensions"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid uriPathExtensions type compile details");
+        assert_eq!(details["attribute"], serde_json::json!("label"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriPathExtensions")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("uriPathExtensions")
+        );
+        assert_eq!(details["expectedType"], serde_json::json!("schema:uri"));
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().is_some_and(|details| {
+                        details.get("attribute").and_then(serde_json::Value::as_str) == Some("href")
+                            && details
+                                .get("paramValue")
+                                .and_then(serde_json::Value::as_str)
+                                == Some(".json")
+                    })
+            })
+            .expect("invalid uriPathExtensions token compile diagnostic");
+        assert!(diagnostic.message.contains("invalid uriPathExtensions"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid uriPathExtensions token compile details");
+        assert_eq!(details["attribute"], serde_json::json!("href"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriPathExtensions")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("uriPathExtensions")
+        );
+        assert_eq!(details["paramValue"], serde_json::json!(".json"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("URI path extension token")
+        );
+    }
+
+    #[test]
     fn schema_media_type_attribute_type_drives_validation_from_cem_source() {
         let model = compile_document_model(
             "https://example.test/ns/media-type-contracts/1",
@@ -15522,7 +15819,7 @@ mod tests {
 
 {schema @name="incompatible-datatype-param-contracts" @namespace="https://example.test/ns/incompatible-datatype-param-contracts/1" @version="1.0.0" |
     {elements |
-        {element @name="item" @optional-attributes="title untyped count code ratio score rank names homepage"}
+        {element @name="item" @optional-attributes="title untyped count code ratio score rank names homepage download"}
     }
     {attributes |
         {attribute @name="title" @type="schema:string" @minInclusive=1}
@@ -15534,6 +15831,7 @@ mod tests {
         {attribute @name="rank" @type="schema:integer" @stringSuffixes="-rank"}
         {attribute @name="names" @type="schema:string" @minItems=2}
         {attribute @name="homepage" @type="schema:string" @uriHosts="api.example.test"}
+        {attribute @name="download" @type="schema:string" @uriPathExtensions="cem"}
     }
 }"#,
         );
@@ -15599,6 +15897,13 @@ mod tests {
                 "homepage",
                 "uriHosts",
                 "api.example.test",
+                "schema:string",
+                "schema:uri",
+            ),
+            (
+                "download",
+                "uriPathExtensions",
+                "cem",
                 "schema:string",
                 "schema:uri",
             ),
