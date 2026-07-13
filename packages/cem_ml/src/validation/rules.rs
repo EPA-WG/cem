@@ -53,6 +53,7 @@ use crate::transform_template::{
 };
 use crate::validation::{
     html::{validate_html_source_bytes, HtmlSourceValidationRequest},
+    mathml::{validate_mathml_source_bytes, MathMlSourceValidationRequest},
     relax_ng::{validate_relax_ng_source_bytes, RelaxNgSourceValidationRequest},
     svg::{validate_svg_source_bytes, SvgSourceValidationRequest},
     xhtml::{validate_xhtml_source_bytes, XhtmlSourceValidationRequest},
@@ -2370,6 +2371,15 @@ fn validate_schema_package_example_source_bytes(
                 content_type: Some(content_type),
             }));
         }
+        SchemaPackageExampleTokenizer::MathMl => {
+            return Some(validate_mathml_source_bytes(
+                MathMlSourceValidationRequest {
+                    bytes,
+                    source_uri,
+                    content_type: Some(content_type),
+                },
+            ));
+        }
         SchemaPackageExampleTokenizer::Xml => {
             return Some(validate_xml_source_bytes(XmlSourceValidationRequest {
                 bytes,
@@ -2408,6 +2418,7 @@ fn validate_schema_package_example_source_bytes(
 enum SchemaPackageExampleTokenizer {
     Cem,
     Html,
+    MathMl,
     RelaxNg,
     Svg,
     Xml,
@@ -2437,11 +2448,16 @@ fn schema_package_example_tokenizer(
     }
     if matches!(
         content_type.as_str(),
-        XML_CONTENT_TYPE | MATHML_CONTENT_TYPE | XSLT_CONTENT_TYPE
-    ) || matches!(
-        schema_uri,
-        XML_SCHEMA_URI | MATHML_SCHEMA_URI | XSLT_SCHEMA_URI
-    ) {
+        MATHML_CONTENT_TYPE
+            | "application/mathml-presentation+xml"
+            | "application/mathml-content+xml"
+    ) || schema_uri == MATHML_SCHEMA_URI
+    {
+        return Some(SchemaPackageExampleTokenizer::MathMl);
+    }
+    if matches!(content_type.as_str(), XML_CONTENT_TYPE | XSLT_CONTENT_TYPE)
+        || matches!(schema_uri, XML_SCHEMA_URI | XSLT_SCHEMA_URI)
+    {
         return Some(SchemaPackageExampleTokenizer::Xml);
     }
     if matches!(

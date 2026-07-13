@@ -269,6 +269,20 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
         path: "schema-packages/svg/v1/colorizers/svg-color-document.cemt",
         source: include_str!("../../schema-packages/svg/v1/colorizers/svg-color-document.cemt"),
     },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "mathml",
+        path: "schema-packages/mathml/v1/formatters/mathml-format-document.cemt",
+        source: include_str!(
+            "../../schema-packages/mathml/v1/formatters/mathml-format-document.cemt"
+        ),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "mathml",
+        path: "schema-packages/mathml/v1/colorizers/mathml-color-document.cemt",
+        source: include_str!(
+            "../../schema-packages/mathml/v1/colorizers/mathml-color-document.cemt"
+        ),
+    },
 ];
 
 static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
@@ -433,10 +447,10 @@ mod tests {
         CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSS_CONTENT_TYPE,
         CSS_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
         JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI,
-        MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, RELAX_NG_COMPACT_CONTENT_TYPE,
-        RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE, SVG_CONTENT_TYPE, SVG_SCHEMA_URI,
-        XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, YAML_CONTENT_TYPE,
-        YAML_SCHEMA_URI,
+        MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI,
+        RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE,
+        SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
+        XML_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
     };
     use crate::source::{BytesSource, SourceId};
     use crate::tokenizer::cem::CemTokenizer;
@@ -1563,6 +1577,83 @@ mod tests {
     }
 
     #[test]
+    fn mathml_package_examples_are_manifest_indexed() {
+        let package = builtin_schema_package_source("mathml").expect("package source");
+        let examples =
+            schema_package_examples_from_package_sources(package).expect("package examples");
+        let declared_paths = examples
+            .iter()
+            .map(|example| example.path.clone())
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(
+            declared_paths,
+            top_level_example_paths("mathml"),
+            "mathml top-level examples must be discoverable from package.cem"
+        );
+        assert_eq!(examples.len(), 7);
+        assert!(examples
+            .iter()
+            .all(|example| example.schema == MATHML_SCHEMA_URI));
+
+        for (id, content_type, expected_result, expected_code) in [
+            (
+                "basic-presentation",
+                MATHML_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "content-expression",
+                "application/mathml-content+xml",
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "semantics-external-annotation",
+                MATHML_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                Some("cem.mathml.external_annotation_rejected"),
+            ),
+            (
+                "invalid-missing-namespace",
+                MATHML_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.mathml.namespace_missing"),
+            ),
+            (
+                "invalid-root-not-math",
+                MATHML_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.mathml.root_not_math"),
+            ),
+            (
+                "invalid-content-profile-presentation-only",
+                "application/mathml-content+xml",
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.mathml.malformed_expression"),
+            ),
+            (
+                "invalid-not-well-formed",
+                MATHML_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.mathml.not_well_formed_xml"),
+            ),
+        ] {
+            let example = examples
+                .iter()
+                .find(|example| example.id == id)
+                .unwrap_or_else(|| panic!("MathML example `{id}`"));
+            assert_eq!(example.content_type, content_type);
+            assert_eq!(example.expected_result, expected_result);
+            let expected_codes = expected_code
+                .map(|code| vec![code.to_owned()])
+                .unwrap_or_default();
+            assert_eq!(example.expected_diagnostic_codes, expected_codes);
+        }
+    }
+
+    #[test]
     fn builtin_schema_package_catalog_matches_core_folder_frame() {
         for source in builtin_schema_package_sources() {
             let root = package_root(source.package_id);
@@ -2285,5 +2376,30 @@ mod tests {
         assert!(colorizer
             .source
             .contains(r#"@content-type="image/svg+xml""#));
+    }
+
+    #[test]
+    fn catalog_exposes_mathml_output_artifact_sources() {
+        let formatter = builtin_schema_package_artifact_source(
+            "mathml",
+            "schema-packages/mathml/v1/formatters/mathml-format-document.cemt",
+        )
+        .expect("MathML formatter source");
+        let colorizer = builtin_schema_package_artifact_source(
+            "mathml",
+            "schema-packages/mathml/v1/colorizers/mathml-color-document.cemt",
+        )
+        .expect("MathML colorizer source");
+
+        assert!(formatter
+            .source
+            .contains(r#"@name="mathml.format-document""#));
+        assert!(formatter.source.contains(r#"@category="mathml-document""#));
+        assert!(colorizer
+            .source
+            .contains(r#"@name="mathml.color-document""#));
+        assert!(colorizer
+            .source
+            .contains(r#"@content-type="application/mathml+xml""#));
     }
 }

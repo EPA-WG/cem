@@ -34,6 +34,7 @@
 //!   `▷` content boundary on elements that carry content.
 
 pub mod html;
+pub mod mathml;
 pub mod relax_ng;
 pub mod rules;
 pub mod svg;

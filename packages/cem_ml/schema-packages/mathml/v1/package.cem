@@ -14,4 +14,137 @@
 
     {namespace @prefix="cemmathml" @uri="https://cem.dev/ns/data/mathml/1"}
     {namespace @prefix="mathml" @uri="http://www.w3.org/1998/Math/MathML"}
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/mathml-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/mathml+xml"
+        @target-schema="https://cem.dev/ns/data/mathml/1"
+        @target-category="mathml-document"
+        @function-name="mathml.format-document"
+        @formatter-profile="compact"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/mathml-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/mathml+xml"
+        @target-schema="https://cem.dev/ns/data/mathml/1"
+        @target-category="mathml-document"
+        @function-name="mathml.format-document"
+        @formatter-profile="pretty"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/mathml-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/mathml+xml"
+        @target-schema="https://cem.dev/ns/data/mathml/1"
+        @target-category="mathml-document"
+        @function-name="mathml.format-document"
+        @formatter-profile="tabular"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/mathml-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/mathml+xml"
+        @target-schema="https://cem.dev/ns/data/mathml/1"
+        @target-category="mathml-document"
+        @function-name="mathml.color-document"
+        @color-profile="terminal"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/mathml-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/mathml+xml"
+        @target-schema="https://cem.dev/ns/data/mathml/1"
+        @target-category="mathml-document"
+        @function-name="mathml.color-document"
+        @color-profile="html"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/mathml-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/mathml+xml"
+        @target-schema="https://cem.dev/ns/data/mathml/1"
+        @target-category="mathml-document"
+        @function-name="mathml.color-document"
+        @color-profile="md"
+    }
+
+    {example
+        @id="basic-presentation"
+        @path="examples/basic-presentation.mml"
+        @content-type="application/mathml+xml"
+        @schema="https://cem.dev/ns/data/mathml/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="content-expression"
+        @path="examples/content-expression.mathml"
+        @content-type="application/mathml-content+xml"
+        @schema="https://cem.dev/ns/data/mathml/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="semantics-external-annotation"
+        @path="examples/semantics-external-annotation.mml"
+        @content-type="application/mathml+xml"
+        @schema="https://cem.dev/ns/data/mathml/1"
+        @expected-result="pass"
+        @expected-diagnostics="cem.mathml.external_annotation_rejected"
+    }
+
+    {example
+        @id="invalid-missing-namespace"
+        @path="examples/invalid-missing-namespace.mml"
+        @content-type="application/mathml+xml"
+        @schema="https://cem.dev/ns/data/mathml/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.mathml.namespace_missing"
+    }
+
+    {example
+        @id="invalid-root-not-math"
+        @path="examples/invalid-root-not-math.mml"
+        @content-type="application/mathml+xml"
+        @schema="https://cem.dev/ns/data/mathml/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.mathml.root_not_math"
+    }
+
+    {example
+        @id="invalid-content-profile-presentation-only"
+        @path="examples/invalid-content-profile-presentation-only.mml"
+        @content-type="application/mathml-content+xml"
+        @schema="https://cem.dev/ns/data/mathml/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.mathml.malformed_expression"
+    }
+
+    {example
+        @id="invalid-not-well-formed"
+        @path="examples/invalid-not-well-formed.mml"
+        @content-type="application/mathml+xml"
+        @schema="https://cem.dev/ns/data/mathml/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.mathml.not_well_formed_xml"
+    }
 }

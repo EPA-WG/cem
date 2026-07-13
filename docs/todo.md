@@ -841,7 +841,14 @@ XML and markup family formats:
       SVG-owned namespace/root, script, external-resource, not-well-formed XML,
       and accessible-name diagnostics, and catalog tests guard SVG
       artifact/example manifest drift.
-- [ ] `mathml/v1` (`application/mathml+xml`, MathML aliases).
+- [x] `mathml/v1` (`application/mathml+xml`, MathML aliases). Baseline
+      `compact`/`pretty`/`tabular` formatter and `terminal`/`html`/`md`
+      colorizer selectors are declared over CEMT artifacts, top-level MathML
+      primary and alias-profile examples are declared from `package.cem`,
+      library schema-package example validation now reports MathML-owned
+      namespace/root, profile, external-annotation, and not-well-formed XML
+      diagnostics, and catalog tests guard MathML artifact/example manifest
+      drift.
 - [ ] `xslt/v1` (`application/xslt+xml`, XSLT aliases).
 
 Projection and debug/interchange formats:
