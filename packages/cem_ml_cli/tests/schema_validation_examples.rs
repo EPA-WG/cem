@@ -1880,6 +1880,235 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
 }
 
 #[test]
+fn schema_runtime_choice_case_groups_emit_structured_details() {
+    const CUSTOM_SCHEMA_URI: &str = "https://example.test/ns/choice-runtime/1";
+    const CUSTOM_CONTENT_TYPE: &str = "application/vnd.example.choice-runtime+cem";
+    const CUSTOM_DIAGNOSTIC: &str = "example.item.choice";
+
+    let root = test_temp_dir("cem-ml-cli-choice-case-runtime");
+    let manifest_path = root.join("package.cem");
+    let schema_path = root.join("schema/choice-runtime.cem");
+    let missing_input_path = root.join("examples/missing-choice.cem");
+    let conflicting_input_path = root.join("examples/conflicting-choice.cem");
+
+    write_test_file(
+        &manifest_path,
+        r#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="choice-runtime" @version="1.0.0" |
+    {schema
+        @uri="https://example.test/ns/choice-runtime/1"
+        @source="schema/choice-runtime.cem"
+    }
+    {content-type @value="application/vnd.example.choice-runtime+cem" @primary=true}
+    {namespace @prefix="demo" @uri="https://example.test/ns/choice-runtime/1"}
+}
+"#,
+    );
+    write_test_file(
+        &schema_path,
+        r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@default schema
+
+{schema @name="choice-runtime" @namespace="https://example.test/ns/choice-runtime/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {content-types |
+        {content-type @value="application/vnd.example.choice-runtime+cem" @primary=true}
+    }
+    {namespaces |
+        {namespace @prefix="demo" @uri="https://example.test/ns/choice-runtime/1" @role="schema"}
+    }
+    {elements |
+        {element @name="item" @optional-attributes="href inline" @children="body"}
+        {element @name="body"}
+    }
+    {attributes |
+        {attribute @name="href" @type="schema:string"}
+        {attribute @name="inline" @type="schema:string"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="item-link-source-choice"
+            @target="item"
+            @diagnostic="example.item.choice"
+            @behavior="schema:choice-case"
+            @check-kind="choice-case" |
+            {choice @name="link-source" @mode="exactly-one" |
+                {case @name="href-link" @attributes="href"}
+                {case @name="inline-link" @attributes="inline"}
+                {case @name="body-link" @children="body"}
+            }
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.item.choice"
+            @severity="error"
+            @behavior="schema:choice-case"
+            @message="Item must choose exactly one link source"
+        }
+    }
+}
+"#,
+    );
+    write_test_file(
+        &missing_input_path,
+        r#"@doc cem-ml 1
+
+{item}
+"#,
+    );
+    write_test_file(
+        &conflicting_input_path,
+        r#"@doc cem-ml 1
+
+{item @href="/demo" @inline="text" | {body}}
+"#,
+    );
+
+    let validate = |input_path: &Path| {
+        cem_ml_owned(&[
+            "validate".to_owned(),
+            "--format".to_owned(),
+            "json".to_owned(),
+            "--schema-package".to_owned(),
+            manifest_path.to_string_lossy().into_owned(),
+            "--content-type".to_owned(),
+            CUSTOM_CONTENT_TYPE.to_owned(),
+            "--schema".to_owned(),
+            CUSTOM_SCHEMA_URI.to_owned(),
+            input_path.to_string_lossy().into_owned(),
+        ])
+    };
+
+    let missing_output = validate(&missing_input_path);
+    assert_eq!(
+        missing_output.status.code(),
+        Some(EXIT_HARD_FAILURE),
+        "missing choice runtime stderr:\n{}",
+        stderr(&missing_output)
+    );
+    assert!(
+        stderr(&missing_output).trim().is_empty(),
+        "missing choice runtime stderr must stay empty:\n{}",
+        stderr(&missing_output)
+    );
+    let missing_report: serde_json::Value = serde_json::from_str(stdout(&missing_output).trim())
+        .expect("missing choice runtime report is JSON");
+    let missing_diagnostic = diagnostics(&missing_report)
+        .iter()
+        .find(|diagnostic| diagnostic["code"] == CUSTOM_DIAGNOSTIC)
+        .unwrap_or_else(|| {
+            panic!(
+                "expected `{CUSTOM_DIAGNOSTIC}` in missing choice runtime report:\n{}",
+                stdout(&missing_output)
+            )
+        });
+    let missing_details = &missing_diagnostic["details"];
+    assert_eq!(missing_diagnostic["severity"], "error");
+    assert_eq!(missing_details["behavior"], "schema:choice-case");
+    assert_eq!(missing_details["checkKind"], "choice-case");
+    assert_eq!(missing_details["contract"], "item-link-source-choice");
+    assert_eq!(
+        missing_details["missingChoiceCases"],
+        serde_json::json!(["link-source"])
+    );
+    assert_eq!(
+        missing_details["missingChoiceFields"],
+        serde_json::json!(["body", "href", "inline"])
+    );
+    assert_eq!(
+        missing_details["conflictingChoiceCases"],
+        serde_json::json!({})
+    );
+    assert_eq!(
+        missing_details["conflictingChoiceFields"],
+        serde_json::json!([])
+    );
+    assert_eq!(
+        missing_details["choiceCases"],
+        serde_json::json!([
+            {
+                "name": "link-source",
+                "mode": "exactly-one",
+                "cases": [
+                    {"name": "href-link", "attributes": ["href"], "children": []},
+                    {"name": "inline-link", "attributes": ["inline"], "children": []},
+                    {"name": "body-link", "attributes": [], "children": ["body"]},
+                ],
+            }
+        ])
+    );
+    assert!(missing_details["sourceRange"]["span"]["start"].is_u64());
+    assert!(missing_diagnostic["sourceMap"]["frames"]
+        .as_array()
+        .is_some_and(|frames| !frames.is_empty()));
+
+    let conflicting_output = validate(&conflicting_input_path);
+    assert_eq!(
+        conflicting_output.status.code(),
+        Some(EXIT_HARD_FAILURE),
+        "conflicting choice runtime stderr:\n{}",
+        stderr(&conflicting_output)
+    );
+    assert!(
+        stderr(&conflicting_output).trim().is_empty(),
+        "conflicting choice runtime stderr must stay empty:\n{}",
+        stderr(&conflicting_output)
+    );
+    let conflicting_report: serde_json::Value =
+        serde_json::from_str(stdout(&conflicting_output).trim())
+            .expect("conflicting choice runtime report is JSON");
+    let conflicting_diagnostic = diagnostics(&conflicting_report)
+        .iter()
+        .find(|diagnostic| diagnostic["code"] == CUSTOM_DIAGNOSTIC)
+        .unwrap_or_else(|| {
+            panic!(
+                "expected `{CUSTOM_DIAGNOSTIC}` in conflicting choice runtime report:\n{}",
+                stdout(&conflicting_output)
+            )
+        });
+    let conflicting_details = &conflicting_diagnostic["details"];
+    assert_eq!(conflicting_diagnostic["severity"], "error");
+    assert_eq!(conflicting_details["behavior"], "schema:choice-case");
+    assert_eq!(conflicting_details["checkKind"], "choice-case");
+    assert_eq!(conflicting_details["contract"], "item-link-source-choice");
+    assert_eq!(
+        conflicting_details["missingChoiceCases"],
+        serde_json::json!([])
+    );
+    assert_eq!(
+        conflicting_details["presentChoiceCases"]["link-source"],
+        serde_json::json!(["href-link", "inline-link", "body-link"])
+    );
+    assert_eq!(
+        conflicting_details["conflictingChoiceCases"]["link-source"],
+        serde_json::json!(["href-link", "inline-link", "body-link"])
+    );
+    assert_eq!(
+        conflicting_details["conflictingChoiceFields"],
+        serde_json::json!(["body", "href", "inline"])
+    );
+    assert_eq!(
+        conflicting_details["invalidFields"],
+        serde_json::json!(["body", "href", "inline"])
+    );
+    assert!(conflicting_details["sourceRange"]["span"]["start"].is_u64());
+    assert!(conflicting_diagnostic["sourceMap"]["frames"]
+        .as_array()
+        .is_some_and(|frames| !frames.is_empty()));
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn schema_datatype_param_examples_emit_structured_definition_details() {
     let examples = [
         SchemaDefinitionDetailExample {
