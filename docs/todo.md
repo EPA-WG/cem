@@ -284,7 +284,8 @@ history belongs in git history and the feature-specific docs linked below.
   - [ ] Expand the initial `field-contracts` vocabulary in
         `packages/cem_ml/schema-packages/schema/v1/schema/cem-schema.cem`.
         The schema language now models element-bound required/optional/
-        forbidden fields, value and presence conditional selectors,
+        forbidden fields, value and multi-attribute presence conditional selectors,
+        dependent-required groups with all-present and combined value/presence gates,
         value-specific forbidden fields, exact-one child occurrence contracts,
         required-one/max-one attribute choice cardinality, nested choice/case
         groups, package-relative path-layout contracts, diagnostic families,

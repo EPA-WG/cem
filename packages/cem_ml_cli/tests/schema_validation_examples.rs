@@ -1749,7 +1749,8 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
     let root = test_temp_dir("cem-ml-cli-field-dependency-runtime");
     let manifest_path = root.join("package.cem");
     let schema_path = root.join("schema/dependency-runtime.cem");
-    let input_path = root.join("examples/invalid-dependencies.cem");
+    let valid_input_path = root.join("examples/valid-dependencies.cem");
+    let invalid_input_path = root.join("examples/invalid-dependencies.cem");
 
     write_test_file(
         &manifest_path,
@@ -1786,30 +1787,52 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
         {namespace @prefix="demo" @uri="https://example.test/ns/dependency-runtime/1" @role="schema"}
     }
     {elements |
-        {element @name="asset" @optional-attributes="kind source debug mode"}
+        {element @name="div" @optional-attributes="class id title role" @children="*"}
+        {element @name="section" @optional-attributes="class id title role" @children="*"}
+        {element @name="span" @optional-attributes="class id title role" @children="*"}
     }
     {attributes |
-        {attribute @name="kind" @type="schema:string"}
-        {attribute @name="source" @type="schema:string"}
-        {attribute @name="debug" @type="schema:string"}
-        {attribute @name="mode" @type="schema:string"}
+        {attribute @name="class" @type="schema:string"}
+        {attribute @name="id" @type="schema:string"}
+        {attribute @name="title" @type="schema:string"}
+        {attribute @name="role" @type="schema:string"}
     }
     {field-contracts |
         {field-contract
-            @name="remote-debug-forbidden"
-            @target="asset"
-            @when-attribute="kind"
+            @name="class-title-id"
+            @target="div"
+            @when-present-attributes="class title"
+            @required-attributes="id"
+            @diagnostic="example.asset.dependency"
+            @behavior="schema:field-dependency"
+            @check-kind="dependent-required-fields"
+        }
+        {field-contract
+            @name="remote-section-role"
+            @target="section"
+            @when-attribute="class"
             @when-values="remote"
-            @forbidden-attributes="debug"
+            @when-present-attributes="id title"
+            @required-attributes="role"
+            @diagnostic="example.asset.dependency"
+            @behavior="schema:field-dependency"
+            @check-kind="dependent-required-fields"
+        }
+        {field-contract
+            @name="remote-title-forbidden"
+            @target="span"
+            @when-attribute="class"
+            @when-values="remote"
+            @forbidden-attributes="title"
             @diagnostic="example.asset.dependency"
             @behavior="schema:field-dependency"
             @check-kind="dependent-forbidden-fields"
         }
         {field-contract
-            @name="source-blocked-mode"
-            @target="asset"
-            @when-present-attributes="source"
-            @forbidden-attribute-values="mode=blocked"
+            @name="class-blocked-role"
+            @target="span"
+            @when-present-attributes="class"
+            @forbidden-attribute-values="role=blocked"
             @diagnostic="example.asset.dependency"
             @behavior="schema:field-dependency"
             @check-kind="dependent-forbidden-values"
@@ -1827,25 +1850,62 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
 "#,
     );
     write_test_file(
-        &input_path,
+        &valid_input_path,
         r#"@doc cem-ml 1
 
-{asset @kind="remote" @source="cdn" @debug="true" @mode="blocked"}
+{div @class="local"}
+{div @class="local" @title="ready" @id="item-1"}
+{section @class="remote" @title="card"}
+{section @class="remote" @title="card" @id="section-1" @role="region"}
+{span @class="remote" @role="open"}
+"#,
+    );
+    write_test_file(
+        &invalid_input_path,
+        r#"@doc cem-ml 1
+
+{div @class="local" @title="needs-id"}
+{section @class="remote" @title="card" @id="section-1"}
+{span @class="remote" @title="debug" @role="blocked"}
 "#,
     );
 
-    let output = cem_ml_owned(&[
-        "validate".to_owned(),
-        "--format".to_owned(),
-        "json".to_owned(),
-        "--schema-package".to_owned(),
-        manifest_path.to_string_lossy().into_owned(),
-        "--content-type".to_owned(),
-        CUSTOM_CONTENT_TYPE.to_owned(),
-        "--schema".to_owned(),
-        CUSTOM_SCHEMA_URI.to_owned(),
-        input_path.to_string_lossy().into_owned(),
-    ]);
+    let validate = |input_path: &Path| {
+        cem_ml_owned(&[
+            "validate".to_owned(),
+            "--format".to_owned(),
+            "json".to_owned(),
+            "--schema-package".to_owned(),
+            manifest_path.to_string_lossy().into_owned(),
+            "--content-type".to_owned(),
+            CUSTOM_CONTENT_TYPE.to_owned(),
+            "--schema".to_owned(),
+            CUSTOM_SCHEMA_URI.to_owned(),
+            input_path.to_string_lossy().into_owned(),
+        ])
+    };
+
+    let valid_output = validate(&valid_input_path);
+    assert_eq!(
+        valid_output.status.code(),
+        Some(EXIT_OK),
+        "field dependency valid stderr:\n{}",
+        stderr(&valid_output)
+    );
+    assert!(
+        stderr(&valid_output).trim().is_empty(),
+        "field dependency valid stderr must stay empty:\n{}",
+        stderr(&valid_output)
+    );
+    let valid_report: serde_json::Value = serde_json::from_str(stdout(&valid_output).trim())
+        .expect("field dependency valid report is JSON");
+    assert!(
+        !has_diagnostic(&valid_report, CUSTOM_DIAGNOSTIC),
+        "`{CUSTOM_DIAGNOSTIC}` should not be emitted for valid field dependencies:\n{}",
+        stdout(&valid_output)
+    );
+
+    let output = validate(&invalid_input_path);
     assert_eq!(
         output.status.code(),
         Some(EXIT_HARD_FAILURE),
@@ -1864,15 +1924,29 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
             code: CUSTOM_DIAGNOSTIC,
             severity: "error",
             behavior: "schema:field-dependency",
+            check_kind: "dependent-required-fields",
+            contract: "class-title-id",
+        },
+        DiagnosticDetailExpectation {
+            code: CUSTOM_DIAGNOSTIC,
+            severity: "error",
+            behavior: "schema:field-dependency",
+            check_kind: "dependent-required-fields",
+            contract: "remote-section-role",
+        },
+        DiagnosticDetailExpectation {
+            code: CUSTOM_DIAGNOSTIC,
+            severity: "error",
+            behavior: "schema:field-dependency",
             check_kind: "dependent-forbidden-fields",
-            contract: "remote-debug-forbidden",
+            contract: "remote-title-forbidden",
         },
         DiagnosticDetailExpectation {
             code: CUSTOM_DIAGNOSTIC,
             severity: "error",
             behavior: "schema:field-dependency",
             check_kind: "dependent-forbidden-values",
-            contract: "source-blocked-mode",
+            contract: "class-blocked-role",
         },
     ] {
         assert!(
@@ -1882,6 +1956,60 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
             stdout(&output)
         );
     }
+
+    let source_token_expected = DiagnosticDetailExpectation {
+        code: CUSTOM_DIAGNOSTIC,
+        severity: "error",
+        behavior: "schema:field-dependency",
+        check_kind: "dependent-required-fields",
+        contract: "class-title-id",
+    };
+    let source_token = find_diagnostic_detail(&report, &source_token_expected)
+        .expect("source/token dependency diagnostic");
+    let source_token_details = &source_token["details"];
+    assert_eq!(
+        source_token_details["condition"],
+        serde_json::json!({
+            "attribute": null,
+            "values": [],
+            "presentAttributes": ["class", "title"],
+        })
+    );
+    assert_eq!(
+        source_token_details["requiredFields"],
+        serde_json::json!(["id"])
+    );
+    assert_eq!(
+        source_token_details["missingFields"],
+        serde_json::json!(["id"])
+    );
+
+    let remote_source_token_expected = DiagnosticDetailExpectation {
+        code: CUSTOM_DIAGNOSTIC,
+        severity: "error",
+        behavior: "schema:field-dependency",
+        check_kind: "dependent-required-fields",
+        contract: "remote-section-role",
+    };
+    let remote_source_token = find_diagnostic_detail(&report, &remote_source_token_expected)
+        .expect("remote source/token dependency diagnostic");
+    let remote_source_token_details = &remote_source_token["details"];
+    assert_eq!(
+        remote_source_token_details["condition"],
+        serde_json::json!({
+            "attribute": "class",
+            "values": ["remote"],
+            "presentAttributes": ["id", "title"],
+        })
+    );
+    assert_eq!(
+        remote_source_token_details["actualValues"]["class"],
+        "remote"
+    );
+    assert_eq!(
+        remote_source_token_details["missingFields"],
+        serde_json::json!(["role"])
+    );
 
     let _ = fs::remove_dir_all(root);
 }
