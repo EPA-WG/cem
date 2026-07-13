@@ -40,6 +40,7 @@ pub mod rules;
 pub mod svg;
 pub mod xhtml;
 pub mod xml;
+pub mod xslt;
 
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::parser::document::CemDocument;

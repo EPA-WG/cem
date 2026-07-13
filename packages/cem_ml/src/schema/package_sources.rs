@@ -283,6 +283,18 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
             "../../schema-packages/mathml/v1/colorizers/mathml-color-document.cemt"
         ),
     },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xslt",
+        path: "schema-packages/xslt/v1/formatters/xslt-format-stylesheet.cemt",
+        source: include_str!(
+            "../../schema-packages/xslt/v1/formatters/xslt-format-stylesheet.cemt"
+        ),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xslt",
+        path: "schema-packages/xslt/v1/colorizers/xslt-color-stylesheet.cemt",
+        source: include_str!("../../schema-packages/xslt/v1/colorizers/xslt-color-stylesheet.cemt"),
+    },
 ];
 
 static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
@@ -450,7 +462,7 @@ mod tests {
         MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI,
         RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE,
         SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
-        XML_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+        XML_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
     };
     use crate::source::{BytesSource, SourceId};
     use crate::tokenizer::cem::CemTokenizer;
@@ -1654,6 +1666,101 @@ mod tests {
     }
 
     #[test]
+    fn xslt_package_examples_are_manifest_indexed() {
+        let package = builtin_schema_package_source("xslt").expect("package source");
+        let examples =
+            schema_package_examples_from_package_sources(package).expect("package examples");
+        let declared_paths = examples
+            .iter()
+            .map(|example| example.path.clone())
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(
+            declared_paths,
+            top_level_example_paths("xslt"),
+            "xslt top-level examples must be discoverable from package.cem"
+        );
+        assert_eq!(examples.len(), 10);
+        assert!(examples
+            .iter()
+            .all(|example| example.schema == XSLT_SCHEMA_URI));
+
+        for (id, content_type, expected_result, expected_code) in [
+            (
+                "basic-stylesheet",
+                XSLT_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "named-template",
+                "text/xsl",
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "legacy-custom-element-stylesheet",
+                "custom-element-xslt",
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "legacy-custom-element-fragment",
+                "custom-element-xslt",
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "unsupported-extension-warning",
+                XSLT_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                Some("legacy_xslt.unsupported_construct"),
+            ),
+            (
+                "invalid-missing-namespace",
+                XSLT_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.xslt.namespace_missing"),
+            ),
+            (
+                "invalid-missing-version",
+                XSLT_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.xslt.version_missing"),
+            ),
+            (
+                "invalid-external-include",
+                XSLT_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.xslt.external_uri_rejected"),
+            ),
+            (
+                "invalid-missing-entrypoint",
+                XSLT_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.xslt.entrypoint_missing"),
+            ),
+            (
+                "invalid-not-well-formed",
+                XSLT_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.xslt.not_well_formed_xml"),
+            ),
+        ] {
+            let example = examples
+                .iter()
+                .find(|example| example.id == id)
+                .unwrap_or_else(|| panic!("XSLT example `{id}`"));
+            assert_eq!(example.content_type, content_type);
+            assert_eq!(example.expected_result, expected_result);
+            let expected_codes = expected_code
+                .map(|code| vec![code.to_owned()])
+                .unwrap_or_default();
+            assert_eq!(example.expected_diagnostic_codes, expected_codes);
+        }
+    }
+
+    #[test]
     fn builtin_schema_package_catalog_matches_core_folder_frame() {
         for source in builtin_schema_package_sources() {
             let root = package_root(source.package_id);
@@ -2401,5 +2508,30 @@ mod tests {
         assert!(colorizer
             .source
             .contains(r#"@content-type="application/mathml+xml""#));
+    }
+
+    #[test]
+    fn catalog_exposes_xslt_output_artifact_sources() {
+        let formatter = builtin_schema_package_artifact_source(
+            "xslt",
+            "schema-packages/xslt/v1/formatters/xslt-format-stylesheet.cemt",
+        )
+        .expect("XSLT formatter source");
+        let colorizer = builtin_schema_package_artifact_source(
+            "xslt",
+            "schema-packages/xslt/v1/colorizers/xslt-color-stylesheet.cemt",
+        )
+        .expect("XSLT colorizer source");
+
+        assert!(formatter
+            .source
+            .contains(r#"@name="xslt.format-stylesheet""#));
+        assert!(formatter.source.contains(r#"@category="xslt-stylesheet""#));
+        assert!(colorizer
+            .source
+            .contains(r#"@name="xslt.color-stylesheet""#));
+        assert!(colorizer
+            .source
+            .contains(r#"@content-type="application/xslt+xml""#));
     }
 }

@@ -17,4 +17,162 @@
 
     {namespace @prefix="cemxslt" @uri="https://cem.dev/ns/transform/xslt/1"}
     {namespace @prefix="xsl" @uri="http://www.w3.org/1999/XSL/Transform"}
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/xslt-format-stylesheet.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/xslt+xml"
+        @target-schema="https://cem.dev/ns/transform/xslt/1"
+        @target-category="xslt-stylesheet"
+        @function-name="xslt.format-stylesheet"
+        @formatter-profile="compact"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/xslt-format-stylesheet.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/xslt+xml"
+        @target-schema="https://cem.dev/ns/transform/xslt/1"
+        @target-category="xslt-stylesheet"
+        @function-name="xslt.format-stylesheet"
+        @formatter-profile="pretty"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/xslt-format-stylesheet.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/xslt+xml"
+        @target-schema="https://cem.dev/ns/transform/xslt/1"
+        @target-category="xslt-stylesheet"
+        @function-name="xslt.format-stylesheet"
+        @formatter-profile="tabular"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/xslt-color-stylesheet.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/xslt+xml"
+        @target-schema="https://cem.dev/ns/transform/xslt/1"
+        @target-category="xslt-stylesheet"
+        @function-name="xslt.color-stylesheet"
+        @color-profile="terminal"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/xslt-color-stylesheet.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/xslt+xml"
+        @target-schema="https://cem.dev/ns/transform/xslt/1"
+        @target-category="xslt-stylesheet"
+        @function-name="xslt.color-stylesheet"
+        @color-profile="html"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/xslt-color-stylesheet.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/xslt+xml"
+        @target-schema="https://cem.dev/ns/transform/xslt/1"
+        @target-category="xslt-stylesheet"
+        @function-name="xslt.color-stylesheet"
+        @color-profile="md"
+    }
+
+    {example
+        @id="basic-stylesheet"
+        @path="examples/basic-stylesheet.xsl"
+        @content-type="application/xslt+xml"
+        @schema="https://cem.dev/ns/transform/xslt/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="named-template"
+        @path="examples/named-template.xslt"
+        @content-type="text/xsl"
+        @schema="https://cem.dev/ns/transform/xslt/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="legacy-custom-element-stylesheet"
+        @path="examples/legacy-custom-element-stylesheet.xsl"
+        @content-type="custom-element-xslt"
+        @schema="https://cem.dev/ns/transform/xslt/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="legacy-custom-element-fragment"
+        @path="examples/legacy-custom-element-fragment.html"
+        @content-type="custom-element-xslt"
+        @schema="https://cem.dev/ns/transform/xslt/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="unsupported-extension-warning"
+        @path="examples/unsupported-extension-warning.xsl"
+        @content-type="application/xslt+xml"
+        @schema="https://cem.dev/ns/transform/xslt/1"
+        @expected-result="pass"
+        @expected-diagnostics="legacy_xslt.unsupported_construct"
+    }
+
+    {example
+        @id="invalid-missing-namespace"
+        @path="examples/invalid-missing-namespace.xsl"
+        @content-type="application/xslt+xml"
+        @schema="https://cem.dev/ns/transform/xslt/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.xslt.namespace_missing"
+    }
+
+    {example
+        @id="invalid-missing-version"
+        @path="examples/invalid-missing-version.xsl"
+        @content-type="application/xslt+xml"
+        @schema="https://cem.dev/ns/transform/xslt/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.xslt.version_missing"
+    }
+
+    {example
+        @id="invalid-external-include"
+        @path="examples/invalid-external-include.xsl"
+        @content-type="application/xslt+xml"
+        @schema="https://cem.dev/ns/transform/xslt/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.xslt.external_uri_rejected"
+    }
+
+    {example
+        @id="invalid-missing-entrypoint"
+        @path="examples/invalid-missing-entrypoint.xsl"
+        @content-type="application/xslt+xml"
+        @schema="https://cem.dev/ns/transform/xslt/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.xslt.entrypoint_missing"
+    }
+
+    {example
+        @id="invalid-not-well-formed"
+        @path="examples/invalid-not-well-formed.xsl"
+        @content-type="application/xslt+xml"
+        @schema="https://cem.dev/ns/transform/xslt/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.xslt.not_well_formed_xml"
+    }
 }

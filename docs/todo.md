@@ -849,7 +849,14 @@ XML and markup family formats:
       namespace/root, profile, external-annotation, and not-well-formed XML
       diagnostics, and catalog tests guard MathML artifact/example manifest
       drift.
-- [ ] `xslt/v1` (`application/xslt+xml`, XSLT aliases).
+- [x] `xslt/v1` (`application/xslt+xml`, XSLT aliases). Baseline
+      `compact`/`pretty`/`tabular` formatter and `terminal`/`html`/`md`
+      colorizer selectors are declared over CEMT artifacts, top-level XSLT
+      primary and compatibility-alias examples are declared from `package.cem`,
+      library schema-package example validation now reports XSLT-owned
+      namespace/root, version, external-URI, entrypoint, unsupported construct,
+      and not-well-formed XML diagnostics, and catalog tests guard XSLT
+      artifact/example manifest drift.
 
 Projection and debug/interchange formats:
 

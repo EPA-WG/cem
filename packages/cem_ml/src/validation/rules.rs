@@ -58,6 +58,7 @@ use crate::validation::{
     svg::{validate_svg_source_bytes, SvgSourceValidationRequest},
     xhtml::{validate_xhtml_source_bytes, XhtmlSourceValidationRequest},
     xml::{validate_xml_source_bytes, XmlSourceValidationRequest},
+    xslt::{validate_xslt_source_bytes, XsltSourceValidationRequest},
     RuleContext, RuleDescriptor, RuleId, RuleInput, RuleRegistry, RuleResourceRead, SemanticRule,
     TriggerLayer,
 };
@@ -2380,6 +2381,13 @@ fn validate_schema_package_example_source_bytes(
                 },
             ));
         }
+        SchemaPackageExampleTokenizer::Xslt => {
+            return Some(validate_xslt_source_bytes(XsltSourceValidationRequest {
+                bytes,
+                source_uri,
+                content_type: Some(content_type),
+            }));
+        }
         SchemaPackageExampleTokenizer::Xml => {
             return Some(validate_xml_source_bytes(XmlSourceValidationRequest {
                 bytes,
@@ -2423,6 +2431,7 @@ enum SchemaPackageExampleTokenizer {
     Svg,
     Xml,
     Xhtml,
+    Xslt,
 }
 
 fn schema_package_example_tokenizer(
@@ -2455,9 +2464,19 @@ fn schema_package_example_tokenizer(
     {
         return Some(SchemaPackageExampleTokenizer::MathMl);
     }
-    if matches!(content_type.as_str(), XML_CONTENT_TYPE | XSLT_CONTENT_TYPE)
-        || matches!(schema_uri, XML_SCHEMA_URI | XSLT_SCHEMA_URI)
+    if matches!(
+        content_type.as_str(),
+        XSLT_CONTENT_TYPE
+            | "text/xsl"
+            | "custom-element-xslt"
+            | "text/custom-element-xslt"
+            | "application/custom-element-xslt"
+            | "text/x-custom-element-xslt"
+    ) || schema_uri == XSLT_SCHEMA_URI
     {
+        return Some(SchemaPackageExampleTokenizer::Xslt);
+    }
+    if content_type == XML_CONTENT_TYPE || schema_uri == XML_SCHEMA_URI {
         return Some(SchemaPackageExampleTokenizer::Xml);
     }
     if matches!(
