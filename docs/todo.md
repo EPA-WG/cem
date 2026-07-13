@@ -333,7 +333,8 @@ history belongs in git history and the feature-specific docs linked below.
         length/prefix/suffix/pattern params, plus list item-count, path, URI,
         and media-type params, against their target primitive families, plus
         selected child occurrence bounds against their required
-        `selected-children` selector,
+        `selected-children` selector, plus exact child occurrence bounds
+        against their declared min/max envelopes,
         plus accepted-child allow-lists, forbidden-child occurrence,
         max-one child occurrence, exact child counts, child-set cardinality,
         total, selected, selected-distinct, and distinct child-count

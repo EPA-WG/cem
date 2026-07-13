@@ -5390,6 +5390,60 @@ fn validate_child_range_field_contract(
         ));
     }
 
+    for (child, exact_value) in &contract.exact_children {
+        let Some(exact) = parse_non_negative_integer_to_usize(exact_value) else {
+            continue;
+        };
+        if let Some(min_value) = contract.min_children.get(child) {
+            if let Some(min) = parse_non_negative_integer_to_usize(min_value) {
+                if exact < min {
+                    let error = "exact-children is below min-children";
+                    diagnostics.push(schema_compile_diagnostic(
+                        INVALID_SCHEMA_FIELD_CONTRACT_CODE,
+                        format!(
+                            "field contract `{}` declares invalid child occurrence range `{child}` in schema `{schema_uri}`: {error}",
+                            contract.name
+                        ),
+                        &contract.source_map,
+                        serde_json::json!({
+                            "schemaUri": schema_uri,
+                            "contract": &contract.name,
+                            "checkKind": "field-contract-child-range",
+                            "child": child,
+                            "exactChildren": exact_value,
+                            "minChildren": min_value,
+                            "error": error,
+                        }),
+                    ));
+                }
+            }
+        }
+        if let Some(max_value) = contract.max_children.get(child) {
+            if let Some(max) = parse_non_negative_integer_to_usize(max_value) {
+                if exact > max {
+                    let error = "exact-children exceeds max-children";
+                    diagnostics.push(schema_compile_diagnostic(
+                        INVALID_SCHEMA_FIELD_CONTRACT_CODE,
+                        format!(
+                            "field contract `{}` declares invalid child occurrence range `{child}` in schema `{schema_uri}`: {error}",
+                            contract.name
+                        ),
+                        &contract.source_map,
+                        serde_json::json!({
+                            "schemaUri": schema_uri,
+                            "contract": &contract.name,
+                            "checkKind": "field-contract-child-range",
+                            "child": child,
+                            "exactChildren": exact_value,
+                            "maxChildren": max_value,
+                            "error": error,
+                        }),
+                    ));
+                }
+            }
+        }
+    }
+
     if let (Some(min_value), Some(max_value)) = (
         contract.min_total_children.as_deref(),
         contract.max_total_children.as_deref(),
@@ -5412,6 +5466,66 @@ fn validate_child_range_field_contract(
                         "contract": &contract.name,
                         "checkKind": "field-contract-child-range",
                         "minTotalChildren": min_value,
+                        "maxTotalChildren": max_value,
+                        "error": error,
+                    }),
+                ));
+            }
+        }
+    }
+
+    if let (Some(exact_value), Some(min_value)) = (
+        contract.exact_total_children.as_deref(),
+        contract.min_total_children.as_deref(),
+    ) {
+        if let (Some(exact), Some(min)) = (
+            parse_non_negative_integer_to_usize(exact_value),
+            parse_non_negative_integer_to_usize(min_value),
+        ) {
+            if exact < min {
+                let error = "exact-total-children is below min-total-children";
+                diagnostics.push(schema_compile_diagnostic(
+                    INVALID_SCHEMA_FIELD_CONTRACT_CODE,
+                    format!(
+                        "field contract `{}` declares invalid total child occurrence range in schema `{schema_uri}`: {error}",
+                        contract.name
+                    ),
+                    &contract.source_map,
+                    serde_json::json!({
+                        "schemaUri": schema_uri,
+                        "contract": &contract.name,
+                        "checkKind": "field-contract-child-range",
+                        "exactTotalChildren": exact_value,
+                        "minTotalChildren": min_value,
+                        "error": error,
+                    }),
+                ));
+            }
+        }
+    }
+
+    if let (Some(exact_value), Some(max_value)) = (
+        contract.exact_total_children.as_deref(),
+        contract.max_total_children.as_deref(),
+    ) {
+        if let (Some(exact), Some(max)) = (
+            parse_non_negative_integer_to_usize(exact_value),
+            parse_non_negative_integer_to_usize(max_value),
+        ) {
+            if exact > max {
+                let error = "exact-total-children exceeds max-total-children";
+                diagnostics.push(schema_compile_diagnostic(
+                    INVALID_SCHEMA_FIELD_CONTRACT_CODE,
+                    format!(
+                        "field contract `{}` declares invalid total child occurrence range in schema `{schema_uri}`: {error}",
+                        contract.name
+                    ),
+                    &contract.source_map,
+                    serde_json::json!({
+                        "schemaUri": schema_uri,
+                        "contract": &contract.name,
+                        "checkKind": "field-contract-child-range",
+                        "exactTotalChildren": exact_value,
                         "maxTotalChildren": max_value,
                         "error": error,
                     }),
@@ -5450,6 +5564,66 @@ fn validate_child_range_field_contract(
         }
     }
 
+    if let (Some(exact_value), Some(min_value)) = (
+        contract.exact_distinct_children.as_deref(),
+        contract.min_distinct_children.as_deref(),
+    ) {
+        if let (Some(exact), Some(min)) = (
+            parse_non_negative_integer_to_usize(exact_value),
+            parse_non_negative_integer_to_usize(min_value),
+        ) {
+            if exact < min {
+                let error = "exact-distinct-children is below min-distinct-children";
+                diagnostics.push(schema_compile_diagnostic(
+                    INVALID_SCHEMA_FIELD_CONTRACT_CODE,
+                    format!(
+                        "field contract `{}` declares invalid distinct child occurrence range in schema `{schema_uri}`: {error}",
+                        contract.name
+                    ),
+                    &contract.source_map,
+                    serde_json::json!({
+                        "schemaUri": schema_uri,
+                        "contract": &contract.name,
+                        "checkKind": "field-contract-child-range",
+                        "exactDistinctChildren": exact_value,
+                        "minDistinctChildren": min_value,
+                        "error": error,
+                    }),
+                ));
+            }
+        }
+    }
+
+    if let (Some(exact_value), Some(max_value)) = (
+        contract.exact_distinct_children.as_deref(),
+        contract.max_distinct_children.as_deref(),
+    ) {
+        if let (Some(exact), Some(max)) = (
+            parse_non_negative_integer_to_usize(exact_value),
+            parse_non_negative_integer_to_usize(max_value),
+        ) {
+            if exact > max {
+                let error = "exact-distinct-children exceeds max-distinct-children";
+                diagnostics.push(schema_compile_diagnostic(
+                    INVALID_SCHEMA_FIELD_CONTRACT_CODE,
+                    format!(
+                        "field contract `{}` declares invalid distinct child occurrence range in schema `{schema_uri}`: {error}",
+                        contract.name
+                    ),
+                    &contract.source_map,
+                    serde_json::json!({
+                        "schemaUri": schema_uri,
+                        "contract": &contract.name,
+                        "checkKind": "field-contract-child-range",
+                        "exactDistinctChildren": exact_value,
+                        "maxDistinctChildren": max_value,
+                        "error": error,
+                    }),
+                ));
+            }
+        }
+    }
+
     if let (Some(min_value), Some(max_value)) = (
         contract.min_selected_children.as_deref(),
         contract.max_selected_children.as_deref(),
@@ -5480,6 +5654,66 @@ fn validate_child_range_field_contract(
         }
     }
 
+    if let (Some(exact_value), Some(min_value)) = (
+        contract.exact_selected_children.as_deref(),
+        contract.min_selected_children.as_deref(),
+    ) {
+        if let (Some(exact), Some(min)) = (
+            parse_non_negative_integer_to_usize(exact_value),
+            parse_non_negative_integer_to_usize(min_value),
+        ) {
+            if exact < min {
+                let error = "exact-selected-children is below min-selected-children";
+                diagnostics.push(schema_compile_diagnostic(
+                    INVALID_SCHEMA_FIELD_CONTRACT_CODE,
+                    format!(
+                        "field contract `{}` declares invalid selected child occurrence range in schema `{schema_uri}`: {error}",
+                        contract.name
+                    ),
+                    &contract.source_map,
+                    serde_json::json!({
+                        "schemaUri": schema_uri,
+                        "contract": &contract.name,
+                        "checkKind": "field-contract-child-range",
+                        "exactSelectedChildren": exact_value,
+                        "minSelectedChildren": min_value,
+                        "error": error,
+                    }),
+                ));
+            }
+        }
+    }
+
+    if let (Some(exact_value), Some(max_value)) = (
+        contract.exact_selected_children.as_deref(),
+        contract.max_selected_children.as_deref(),
+    ) {
+        if let (Some(exact), Some(max)) = (
+            parse_non_negative_integer_to_usize(exact_value),
+            parse_non_negative_integer_to_usize(max_value),
+        ) {
+            if exact > max {
+                let error = "exact-selected-children exceeds max-selected-children";
+                diagnostics.push(schema_compile_diagnostic(
+                    INVALID_SCHEMA_FIELD_CONTRACT_CODE,
+                    format!(
+                        "field contract `{}` declares invalid selected child occurrence range in schema `{schema_uri}`: {error}",
+                        contract.name
+                    ),
+                    &contract.source_map,
+                    serde_json::json!({
+                        "schemaUri": schema_uri,
+                        "contract": &contract.name,
+                        "checkKind": "field-contract-child-range",
+                        "exactSelectedChildren": exact_value,
+                        "maxSelectedChildren": max_value,
+                        "error": error,
+                    }),
+                ));
+            }
+        }
+    }
+
     if let (Some(min_value), Some(max_value)) = (
         contract.min_selected_distinct_children.as_deref(),
         contract.max_selected_distinct_children.as_deref(),
@@ -5502,6 +5736,68 @@ fn validate_child_range_field_contract(
                         "contract": &contract.name,
                         "checkKind": "field-contract-child-range",
                         "minSelectedDistinctChildren": min_value,
+                        "maxSelectedDistinctChildren": max_value,
+                        "error": error,
+                    }),
+                ));
+            }
+        }
+    }
+
+    if let (Some(exact_value), Some(min_value)) = (
+        contract.exact_selected_distinct_children.as_deref(),
+        contract.min_selected_distinct_children.as_deref(),
+    ) {
+        if let (Some(exact), Some(min)) = (
+            parse_non_negative_integer_to_usize(exact_value),
+            parse_non_negative_integer_to_usize(min_value),
+        ) {
+            if exact < min {
+                let error =
+                    "exact-selected-distinct-children is below min-selected-distinct-children";
+                diagnostics.push(schema_compile_diagnostic(
+                    INVALID_SCHEMA_FIELD_CONTRACT_CODE,
+                    format!(
+                        "field contract `{}` declares invalid selected distinct child occurrence range in schema `{schema_uri}`: {error}",
+                        contract.name
+                    ),
+                    &contract.source_map,
+                    serde_json::json!({
+                        "schemaUri": schema_uri,
+                        "contract": &contract.name,
+                        "checkKind": "field-contract-child-range",
+                        "exactSelectedDistinctChildren": exact_value,
+                        "minSelectedDistinctChildren": min_value,
+                        "error": error,
+                    }),
+                ));
+            }
+        }
+    }
+
+    if let (Some(exact_value), Some(max_value)) = (
+        contract.exact_selected_distinct_children.as_deref(),
+        contract.max_selected_distinct_children.as_deref(),
+    ) {
+        if let (Some(exact), Some(max)) = (
+            parse_non_negative_integer_to_usize(exact_value),
+            parse_non_negative_integer_to_usize(max_value),
+        ) {
+            if exact > max {
+                let error =
+                    "exact-selected-distinct-children exceeds max-selected-distinct-children";
+                diagnostics.push(schema_compile_diagnostic(
+                    INVALID_SCHEMA_FIELD_CONTRACT_CODE,
+                    format!(
+                        "field contract `{}` declares invalid selected distinct child occurrence range in schema `{schema_uri}`: {error}",
+                        contract.name
+                    ),
+                    &contract.source_map,
+                    serde_json::json!({
+                        "schemaUri": schema_uri,
+                        "contract": &contract.name,
+                        "checkKind": "field-contract-child-range",
+                        "exactSelectedDistinctChildren": exact_value,
                         "maxSelectedDistinctChildren": max_value,
                         "error": error,
                     }),
@@ -14832,6 +15128,53 @@ mod tests {
             @behavior="schema:child-occurrence"
             @check-kind="selected-distinct-child-range"
         }
+        {field-contract
+            @name="bad-child-exact-envelope"
+            @target="group"
+            @min-children="child=2"
+            @exact-children="child=1"
+            @diagnostic="example.group_child_range"
+            @behavior="schema:child-occurrence"
+            @check-kind="child-occurrence-range"
+        }
+        {field-contract
+            @name="bad-total-exact-envelope"
+            @target="group"
+            @exact-total-children=4
+            @max-total-children=3
+            @diagnostic="example.group_child_range"
+            @behavior="schema:child-occurrence"
+            @check-kind="total-child-occurrence-range"
+        }
+        {field-contract
+            @name="bad-distinct-exact-envelope"
+            @target="group"
+            @min-distinct-children=2
+            @exact-distinct-children=1
+            @diagnostic="example.group_child_range"
+            @behavior="schema:child-occurrence"
+            @check-kind="distinct-child-range"
+        }
+        {field-contract
+            @name="bad-selected-exact-envelope"
+            @target="group"
+            @selected-children="child"
+            @exact-selected-children=4
+            @max-selected-children=3
+            @diagnostic="example.group_child_range"
+            @behavior="schema:child-occurrence"
+            @check-kind="selected-child-range"
+        }
+        {field-contract
+            @name="bad-selected-distinct-exact-envelope"
+            @target="group"
+            @selected-children="child"
+            @min-selected-distinct-children=2
+            @exact-selected-distinct-children=1
+            @diagnostic="example.group_child_range"
+            @behavior="schema:child-occurrence"
+            @check-kind="selected-distinct-child-range"
+        }
     }
     {diagnostics |
         {diagnostic
@@ -15057,6 +15400,133 @@ mod tests {
         assert_eq!(
             details["requiredSelector"],
             serde_json::json!("selected-children")
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_FIELD_CONTRACT_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("bad-child-exact-envelope")
+            })
+            .expect("bad child exact envelope compile diagnostic");
+        assert!(diagnostic
+            .message
+            .contains("exact-children is below min-children"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("bad child exact envelope details");
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("bad-child-exact-envelope")
+        );
+        assert_eq!(details["child"], serde_json::json!("child"));
+        assert_eq!(details["exactChildren"], serde_json::json!("1"));
+        assert_eq!(details["minChildren"], serde_json::json!("2"));
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_FIELD_CONTRACT_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("bad-total-exact-envelope")
+            })
+            .expect("bad total exact envelope compile diagnostic");
+        assert!(diagnostic
+            .message
+            .contains("exact-total-children exceeds max-total-children"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("bad total exact envelope details");
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("bad-total-exact-envelope")
+        );
+        assert_eq!(details["exactTotalChildren"], serde_json::json!("4"));
+        assert_eq!(details["maxTotalChildren"], serde_json::json!("3"));
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_FIELD_CONTRACT_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("bad-distinct-exact-envelope")
+            })
+            .expect("bad distinct exact envelope compile diagnostic");
+        assert!(diagnostic
+            .message
+            .contains("exact-distinct-children is below min-distinct-children"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("bad distinct exact envelope details");
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("bad-distinct-exact-envelope")
+        );
+        assert_eq!(details["exactDistinctChildren"], serde_json::json!("1"));
+        assert_eq!(details["minDistinctChildren"], serde_json::json!("2"));
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_FIELD_CONTRACT_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("bad-selected-exact-envelope")
+            })
+            .expect("bad selected exact envelope compile diagnostic");
+        assert!(diagnostic
+            .message
+            .contains("exact-selected-children exceeds max-selected-children"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("bad selected exact envelope details");
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("bad-selected-exact-envelope")
+        );
+        assert_eq!(details["exactSelectedChildren"], serde_json::json!("4"));
+        assert_eq!(details["maxSelectedChildren"], serde_json::json!("3"));
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_FIELD_CONTRACT_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("bad-selected-distinct-exact-envelope")
+            })
+            .expect("bad selected distinct exact envelope compile diagnostic");
+        assert!(diagnostic
+            .message
+            .contains("exact-selected-distinct-children is below min-selected-distinct-children"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("bad selected distinct exact envelope details");
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("bad-selected-distinct-exact-envelope")
+        );
+        assert_eq!(
+            details["exactSelectedDistinctChildren"],
+            serde_json::json!("1")
+        );
+        assert_eq!(
+            details["minSelectedDistinctChildren"],
+            serde_json::json!("2")
         );
     }
 
