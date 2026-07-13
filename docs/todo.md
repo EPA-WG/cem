@@ -290,7 +290,7 @@ history belongs in git history and the feature-specific docs linked below.
         value-specific forbidden fields, exact-one child occurrence contracts,
         required-one/max-one attribute choice cardinality, nested choice/case
         groups, package-relative path-layout contracts, diagnostic families,
-        and attribute `@values` vocabularies, plus
+        attribute default metadata, and attribute `@values` vocabularies, plus
         boolean/integer/number/identifier/name-list/type-reference/
         symbol-reference/wildcard-reference/qualified-name/semver/basic
         URI/media-type/path scalar syntax,
@@ -313,11 +313,14 @@ history belongs in git history and the feature-specific docs linked below.
         max-one child occurrence, exact child counts, child-set cardinality,
         total, selected, and distinct child-count
         bounds, min/max child occurrence ranges, relative child ordering, and
-        boundary child placement, plus exact/required/forbidden child sequences; it still needs RELAX NG-style
-        datatype params beyond the initial scalar and datatype variations,
-        defaults, richer dependent-required field groups beyond combined
-        value/presence gates, and additional child occurrence
-        variants beyond exact/named/total/selected/distinct count bounds, child-set cardinality, relative ordering, boundary placement, and exact/required/forbidden child sequences.
+        boundary child placement, plus exact/required/forbidden child
+        sequences; it still needs RELAX NG-style datatype params beyond the
+        initial scalar and datatype variations, default value
+        validation/materialization, richer dependent-required field groups
+        beyond combined value/presence gates, and additional child occurrence
+        variants beyond exact/named/total/selected/distinct count bounds,
+        child-set cardinality, relative ordering, boundary placement, and
+        exact/required/forbidden child sequences.
   - [ ] Extend the compiled Rust schema contract model. `SchemaDocumentModel`
         now compiles initial `field-contract` declarations and evaluates
         required/forbidden fields, attribute `@values` vocabularies, and
@@ -338,15 +341,20 @@ history belongs in git history and the feature-specific docs linked below.
         child-count contracts, total/selected/distinct child-count bound contracts,
         child presence/absence conditional selectors, relative child ordering
         contracts, boundary child placement contracts,
-        and exact/required/forbidden child sequence contracts; it
+        exact/required/forbidden child sequence contracts, and attribute
+        default metadata; it
         still needs reusable string constraints beyond length/prefix/suffix/pattern and path constraints beyond
         prefix/extension and path-layout checks,
         URI/media-type constraints beyond initial allowed scheme/host/port/authority/path-prefix/path-extension/query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment
-        and media-type essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter lists, RELAX NG-style datatype params beyond numeric bounds/digit
-        counts, string length/prefix/suffix, list item counts, pattern, and allowed URI/media tokens, dependent field
+        and media-type essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter lists,
+        RELAX NG-style datatype params beyond numeric bounds/digit counts,
+        string length/prefix/suffix, list item counts, pattern, and allowed
+        URI/media tokens, default value validation/materialization, dependent field
         groups beyond all-present presence-gated required fields, additional child
-        occurrence variants beyond exact/named/total/selected/distinct count bounds, child-set cardinality, relative ordering, boundary placement, and exact/required/forbidden child sequences, defaults, and richer case grouping for all schema
-        elements.
+        occurrence variants beyond exact/named/total/selected/distinct count
+        bounds, child-set cardinality, relative ordering, boundary placement,
+        and exact/required/forbidden child sequences, and richer case grouping
+        for all schema elements.
   - [ ] Extend structured diagnostic details beyond initial required/forbidden
         field checks. The first generic field-contract evaluator now emits
         schema URI, element, contract name, check kind, required/optional/

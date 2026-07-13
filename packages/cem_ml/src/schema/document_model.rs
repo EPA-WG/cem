@@ -175,6 +175,7 @@ impl ElementModel {
 pub struct AttributeModel {
     pub name: String,
     pub value_type: Option<String>,
+    pub default_value: Option<String>,
     pub allowed_values: BTreeSet<String>,
     pub min_inclusive: Option<String>,
     pub max_inclusive: Option<String>,
@@ -3210,6 +3211,7 @@ fn collect_attribute_models(
                 AttributeModel {
                     name: name.to_owned(),
                     value_type: optional_non_empty_attr(&attrs, "type").map(str::to_owned),
+                    default_value: attrs.get("default").cloned(),
                     allowed_values: parse_value_set(attrs.get("values")),
                     min_inclusive: optional_non_empty_attr(&attrs, "minInclusive")
                         .map(str::to_owned),
@@ -8968,6 +8970,11 @@ mod tests {
         assert!(schema.required_attributes.contains("version"));
         assert!(schema.child_elements.contains("elements"));
         assert!(model.element("attribute").is_some());
+        assert!(model
+            .element("attribute")
+            .expect("attribute element model")
+            .optional_attributes
+            .contains("default"));
         for name in [
             "minInclusive",
             "maxInclusive",
@@ -13397,6 +13404,50 @@ mod tests {
                         && details["checkKind"] == "diagnostic-behavior-resolution"
                 })
         }));
+    }
+
+    #[test]
+    fn schema_attribute_defaults_compile_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/attribute-defaults/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="attribute-defaults" @namespace="https://example.test/ns/attribute-defaults/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="mode label"}
+    }
+    {attributes |
+        {attribute @name="mode" @type="schema:identifier" @values="compact pretty" @default="compact"}
+        {attribute @name="label" @type="schema:string" @default=" Untitled "}
+    }
+}"#,
+        );
+
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "attribute defaults should compile without diagnostics: {:#?}",
+            model.compile_diagnostics
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("mode")
+                .expect("mode attribute model")
+                .default_value
+                .as_deref(),
+            Some("compact")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("label")
+                .expect("label attribute model")
+                .default_value
+                .as_deref(),
+            Some(" Untitled ")
+        );
     }
 
     #[test]

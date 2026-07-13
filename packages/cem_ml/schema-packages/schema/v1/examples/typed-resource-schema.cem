@@ -168,7 +168,7 @@
             @type="schema:semver"
             @type-diagnostic="example.resource.invalid_version"
         }
-        {attribute @name="label" @type="schema:string"}
+        {attribute @name="label" @type="schema:string" @default="untitled"}
         {attribute @name="name" @type="cemml:identifier"}
         {attribute @name="type" @type="schema:type-reference"}
     }

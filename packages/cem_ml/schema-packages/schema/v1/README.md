@@ -290,7 +290,9 @@ total/distinct/selected child-count bounds, child presence/absence condition
 selectors, plus relative child ordering, boundary child placement, and
 exact/required/forbidden child sequences, now execute through `schema:child-occurrence`; the
 currently declared attribute datatype-parameter vocabulary is covered by
-`schema:datatype-param`.
+`schema:datatype-param`. Attribute declarations can now carry literal
+`@default` metadata; applying omitted defaults to candidate input remains a
+runtime contract step.
 
 ## Validation Examples
 
@@ -300,7 +302,7 @@ CLI validation integration tests.
 | Example | Purpose | Expected result |
 | --- | --- | --- |
 | [`basic-schema.cem`](examples/basic-schema.cem) | Minimal schema definition with content type, element, and attribute declarations. | Pass |
-| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, conditional `schema:required-fields`, nested exact-one `schema:choice-case`, child-set, selected/ranged, child presence/absence-gated, ordered, boundary, and exact/required/forbidden sequence `schema:child-occurrence`, `schema:value-vocabulary`, `schema:scalar-type` number/qualified-name/semver/URI/media-type/path syntax, and `schema:datatype-param` integer-bound/number-bound/digit-count/string length/prefix/suffix/list item-count/pattern/path prefix/extension/URI scheme/host/port/authority/path-prefix/path-extension/query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/media-type essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter attribute diagnostics, and open-content policy. | Pass |
+| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, conditional `schema:required-fields`, nested exact-one `schema:choice-case`, child-set, selected/ranged, child presence/absence-gated, ordered, boundary, and exact/required/forbidden sequence `schema:child-occurrence`, attribute default metadata, `schema:value-vocabulary`, `schema:scalar-type` number/qualified-name/semver/URI/media-type/path syntax, and `schema:datatype-param` integer-bound/number-bound/digit-count/string length/prefix/suffix/list item-count/pattern/path prefix/extension/URI scheme/host/port/authority/path-prefix/path-extension/query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/media-type essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter attribute diagnostics, and open-content policy. | Pass |
 | [`custom-behavior-schema.cem`](examples/custom-behavior-schema.cem) | Custom schema that defines a diagnostic algorithm with CEM-QL candidate matching and a CEM-ML behavior function. | Pass |
 | [`custom-behavior-schema-strict.cem`](examples/custom-behavior-schema-strict.cem) | Variant custom schema that changes the match condition and function-produced result declaratively. | Pass |
 | [`invalid-unclosed-schema.cem`](examples/invalid-unclosed-schema.cem) | Missing closing schema scope syntax diagnostic. | Fail with `cem.ast.unclosed_scope` |
