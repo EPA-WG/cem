@@ -13116,7 +13116,9 @@ mod tests {
         {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
     }
     {elements |
-        {element @name="asset" @optional-attributes="kind source debug mode"}
+        {element @name="asset" @optional-attributes="kind source debug mode" @children="reference fallback"}
+        {element @name="reference"}
+        {element @name="fallback"}
     }
     {attributes |
         {attribute @name="kind" @type="schema:string"}
@@ -13144,6 +13146,26 @@ mod tests {
             @behavior="schema:field-dependency"
             @check-kind="dependent-forbidden-values"
         }
+        {field-contract
+            @name="reference-debug-forbidden"
+            @target="asset"
+            @when-present-children="reference"
+            @when-absent-children="fallback"
+            @forbidden-attributes="debug"
+            @diagnostic="example.asset_dependency"
+            @behavior="schema:field-dependency"
+            @check-kind="child-gated-dependent-forbidden-fields"
+        }
+        {field-contract
+            @name="reference-blocked-mode"
+            @target="asset"
+            @when-present-children="reference"
+            @when-absent-children="fallback"
+            @forbidden-attribute-values="mode=blocked"
+            @diagnostic="example.asset_dependency"
+            @behavior="schema:field-dependency"
+            @check-kind="child-gated-dependent-forbidden-values"
+        }
     }
     {diagnostics |
         {diagnostic
@@ -13159,6 +13181,8 @@ mod tests {
             r#"{asset @kind="local" @debug="true"}"#,
             r#"{asset @mode="blocked"}"#,
             r#"{asset @source="cdn" @mode="open"}"#,
+            r#"{asset @debug="true" | {reference} {fallback}}"#,
+            r#"{asset @mode="blocked" | {fallback}}"#,
         ] {
             let document = parse_cem_document(source);
             let diagnostics = validate_document_model(&document, &model);
@@ -13255,6 +13279,91 @@ mod tests {
                 "absentAttributes": [],
                 "presentChildren": [],
                 "absentChildren": [],
+            })
+        );
+
+        let document = parse_cem_document(r#"{asset @debug="true" | {reference}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic =
+            diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("reference-debug-forbidden")
+                })
+                .expect("child-gated forbidden field dependency diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("child-gated forbidden field dependency details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:field-dependency")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("child-gated-dependent-forbidden-fields")
+        );
+        assert_eq!(details["forbiddenFields"], serde_json::json!(["debug"]));
+        assert_eq!(details["invalidFields"], serde_json::json!(["debug"]));
+        assert_eq!(
+            details["condition"],
+            serde_json::json!({
+                "attribute": null,
+                "values": [],
+                "presentAttributes": [],
+                "absentAttributes": [],
+                "presentChildren": ["reference"],
+                "absentChildren": ["fallback"],
+            })
+        );
+
+        let document = parse_cem_document(r#"{asset @mode="blocked" | {reference}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic =
+            diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("reference-blocked-mode")
+                })
+                .expect("child-gated forbidden value dependency diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("child-gated forbidden value dependency details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:field-dependency")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("child-gated-dependent-forbidden-values")
+        );
+        assert_eq!(
+            details["forbiddenAttributeValues"],
+            serde_json::json!({
+                "mode": ["blocked"],
+            })
+        );
+        assert_eq!(details["invalidFields"], serde_json::json!(["mode"]));
+        assert_eq!(
+            details["invalidValues"],
+            serde_json::json!({
+                "mode": "blocked",
+            })
+        );
+        assert_eq!(
+            details["condition"],
+            serde_json::json!({
+                "attribute": null,
+                "values": [],
+                "presentAttributes": [],
+                "absentAttributes": [],
+                "presentChildren": ["reference"],
+                "absentChildren": ["fallback"],
             })
         );
     }

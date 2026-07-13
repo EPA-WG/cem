@@ -25,7 +25,7 @@
         {element @name="resource" @required-attributes="id kind" @optional-attributes="label priority rank weight serial ratio slug tags aliases code href format payload metadata asset inline qualified version" @children="field*"}
         {element @name="single-resource" @required-attributes="id kind" @children="field"}
         {element @name="linked-resource" @required-attributes="id kind" @optional-attributes="label" @children="field reference"}
-        {element @name="conditional-resource" @required-attributes="id kind" @optional-attributes="label" @children="field reference fallback"}
+        {element @name="conditional-resource" @required-attributes="id kind" @optional-attributes="label inline format" @children="field reference fallback"}
         {element @name="field" @required-attributes="name type"}
         {element @name="reference" @required-attributes="href"}
         {element @name="fallback"}
@@ -250,9 +250,29 @@
             @when-present-children="reference"
             @when-absent-children="fallback"
             @required-attributes="label"
-            @diagnostic="example.resource.missing_label"
+            @diagnostic="example.resource.reference_dependency"
             @behavior="schema:field-dependency"
             @check-kind="child-gated-dependent-required-fields"
+        }
+        {field-contract
+            @name="conditional-resource-reference-format-forbidden"
+            @target="conditional-resource"
+            @when-present-children="reference"
+            @when-absent-children="fallback"
+            @forbidden-attributes="format"
+            @diagnostic="example.resource.reference_dependency"
+            @behavior="schema:field-dependency"
+            @check-kind="child-gated-dependent-forbidden-fields"
+        }
+        {field-contract
+            @name="conditional-resource-reference-inline-legacy"
+            @target="conditional-resource"
+            @when-present-children="reference"
+            @when-absent-children="fallback"
+            @forbidden-attribute-values="inline=legacy"
+            @diagnostic="example.resource.reference_dependency"
+            @behavior="schema:field-dependency"
+            @check-kind="child-gated-dependent-forbidden-values"
         }
         {field-contract
             @name="conditional-resource-forbidden-boundaries"
@@ -272,6 +292,12 @@
             @severity="warning"
             @behavior="schema:required-fields"
             @message="Page resources should declare a label"
+        }
+        {diagnostic
+            @code="example.resource.reference_dependency"
+            @severity="warning"
+            @behavior="schema:field-dependency"
+            @message="Referenced resources must use compatible field metadata"
         }
         {diagnostic
             @code="example.resource.invalid_kind"

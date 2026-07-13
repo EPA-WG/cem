@@ -68,10 +68,10 @@ history belongs in git history and the feature-specific docs linked below.
       present and all declared `when-absent-attributes` are absent. The
       `schema:path-layout` behavior contract now declares its
       `pathLayout` and `invalidValues` result details. Combined
-      value, presence, and child-structure-gated dependent field groups now
-      execute through `schema:field-dependency`, and dependency result
-      contracts declare their required/missing field, condition, and
-      actual-value details. The
+      value, presence, and child-structure-gated required/forbidden dependent
+      field groups now execute through `schema:field-dependency`, and
+      dependency result contracts declare their required/missing/forbidden/
+      invalid field, condition, and actual-value details. The
       `schema:choice-case` behavior contract now declares flat and grouped
       choice result details emitted by the engine. Required, forbidden, and
       mutual-exclusion field behavior contracts now declare their emitted
@@ -137,7 +137,7 @@ history belongs in git history and the feature-specific docs linked below.
         gate attributes now execute through `schema:field-dependency`;
         combined value-and-presence-gated dependent field groups now also
         execute through `schema:field-dependency`; child-structure-gated
-        dependent field groups now also execute through
+        required, forbidden, and forbidden-value dependencies now also execute through
         `schema:field-dependency`; gated forbidden-field and
         forbidden-value dependencies now also execute through
         `schema:field-dependency`. The `schema:path-layout` result contract now
@@ -180,8 +180,8 @@ history belongs in git history and the feature-specific docs linked below.
         severity, and source ranges so the example set documents the minimal
         behavior library available to schema authors. The typed-resource schema
         example now covers the initial `schema:required-fields` behavior alias
-        on a conditional field contract, child-structure-gated
-        `schema:field-dependency`, and `schema:value-vocabulary` on an
+        on a conditional field contract, child-structure-gated required/
+        forbidden `schema:field-dependency`, and `schema:value-vocabulary` on an
         attribute declaration, `schema:scalar-type`
         number/qualified-name/semver/URI/media-type/path
         syntax on attribute declarations, plus nested exact-one
@@ -210,8 +210,9 @@ history belongs in git history and the feature-specific docs linked below.
         schema; CLI runtime coverage now also proves gated forbidden-field and
         forbidden-value `schema:field-dependency` details through a
         schema-package-loaded custom schema; CLI runtime coverage now also
-        proves child-structure-gated `schema:field-dependency` details through
-        a schema-package-loaded custom schema; CLI runtime coverage now also
+        proves child-structure-gated required/forbidden
+        `schema:field-dependency` details through a schema-package-loaded
+        custom schema; CLI runtime coverage now also
         proves passing and failing `schema:required-fields`,
         `schema:forbidden-fields`, and `schema:mutual-exclusion` details
         through a schema-package-loaded custom schema; CLI runtime coverage
@@ -304,7 +305,8 @@ history belongs in git history and the feature-specific docs linked below.
         forbidden fields, value, multi-attribute presence/absence, and child
         presence/absence conditional selectors,
         dependent-required groups with all-present/all-absent and combined
-        value/presence/child-structure gates,
+        value/presence/child-structure gates, including gated forbidden
+        fields and forbidden values,
         value-specific forbidden fields, exact-one child occurrence contracts,
         required-one/max-one attribute choice cardinality, nested choice/case
         groups, package-relative path-layout contracts, diagnostic families,
@@ -371,7 +373,7 @@ history belongs in git history and the feature-specific docs linked below.
         RELAX NG-style datatype params beyond numeric bounds/digit counts,
         string length/prefix/suffix, list item counts, pattern, and allowed
         URI/media tokens, default value materialization, dependent field
-        groups beyond value/presence/child-structure-gated required fields, additional child
+        groups beyond value/presence/child-structure-gated required/forbidden fields, additional child
         occurrence variants beyond exact/named/total/selected/distinct count
         bounds, child-set cardinality, required/forbidden relative ordering,
         required/forbidden boundary placement,

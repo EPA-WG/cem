@@ -1866,6 +1866,26 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
             @behavior="schema:field-dependency"
             @check-kind="child-gated-dependent-required-fields"
         }
+        {field-contract
+            @name="article-section-role-forbidden"
+            @target="article"
+            @when-present-children="section"
+            @when-absent-children="span"
+            @forbidden-attributes="role"
+            @diagnostic="example.asset.dependency"
+            @behavior="schema:field-dependency"
+            @check-kind="child-gated-dependent-forbidden-fields"
+        }
+        {field-contract
+            @name="article-section-blocked-class"
+            @target="article"
+            @when-present-children="section"
+            @when-absent-children="span"
+            @forbidden-attribute-values="class=blocked"
+            @diagnostic="example.asset.dependency"
+            @behavior="schema:field-dependency"
+            @check-kind="child-gated-dependent-forbidden-values"
+        }
     }
     {diagnostics |
         {diagnostic
@@ -1891,6 +1911,8 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
 {article @title="card" @role="note"}
 {article @title="card" @id="article-2" | {section}}
 {article | {section} {span}}
+{article @role="note" | {section} {span}}
+{article @class="blocked" | {section} {span}}
 "#,
     );
     write_test_file(
@@ -1902,6 +1924,8 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
 {span @class="remote" @title="debug" @role="blocked"}
 {article @title="card"}
 {article | {section}}
+{article @title="card" @id="article-3" @role="note" | {section}}
+{article @title="card" @id="article-4" @class="blocked" | {section}}
 "#,
     );
 
@@ -1996,6 +2020,20 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
             behavior: "schema:field-dependency",
             check_kind: "child-gated-dependent-required-fields",
             contract: "article-section-title",
+        },
+        DiagnosticDetailExpectation {
+            code: CUSTOM_DIAGNOSTIC,
+            severity: "error",
+            behavior: "schema:field-dependency",
+            check_kind: "child-gated-dependent-forbidden-fields",
+            contract: "article-section-role-forbidden",
+        },
+        DiagnosticDetailExpectation {
+            code: CUSTOM_DIAGNOSTIC,
+            severity: "error",
+            behavior: "schema:field-dependency",
+            check_kind: "child-gated-dependent-forbidden-values",
+            contract: "article-section-blocked-class",
         },
     ] {
         assert!(
@@ -2125,6 +2163,75 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
         child_gated_details["childCounts"],
         serde_json::json!({
             "section": 1,
+        })
+    );
+
+    let child_gated_forbidden_expected = DiagnosticDetailExpectation {
+        code: CUSTOM_DIAGNOSTIC,
+        severity: "error",
+        behavior: "schema:field-dependency",
+        check_kind: "child-gated-dependent-forbidden-fields",
+        contract: "article-section-role-forbidden",
+    };
+    let child_gated_forbidden = find_diagnostic_detail(&report, &child_gated_forbidden_expected)
+        .expect("child-gated forbidden field dependency diagnostic");
+    let child_gated_forbidden_details = &child_gated_forbidden["details"];
+    assert_eq!(
+        child_gated_forbidden_details["condition"],
+        serde_json::json!({
+            "attribute": null,
+            "values": [],
+            "presentAttributes": [],
+            "absentAttributes": [],
+            "presentChildren": ["section"],
+            "absentChildren": ["span"],
+        })
+    );
+    assert_eq!(
+        child_gated_forbidden_details["forbiddenFields"],
+        serde_json::json!(["role"])
+    );
+    assert_eq!(
+        child_gated_forbidden_details["invalidFields"],
+        serde_json::json!(["role"])
+    );
+
+    let child_gated_forbidden_value_expected = DiagnosticDetailExpectation {
+        code: CUSTOM_DIAGNOSTIC,
+        severity: "error",
+        behavior: "schema:field-dependency",
+        check_kind: "child-gated-dependent-forbidden-values",
+        contract: "article-section-blocked-class",
+    };
+    let child_gated_forbidden_value =
+        find_diagnostic_detail(&report, &child_gated_forbidden_value_expected)
+            .expect("child-gated forbidden value dependency diagnostic");
+    let child_gated_forbidden_value_details = &child_gated_forbidden_value["details"];
+    assert_eq!(
+        child_gated_forbidden_value_details["condition"],
+        serde_json::json!({
+            "attribute": null,
+            "values": [],
+            "presentAttributes": [],
+            "absentAttributes": [],
+            "presentChildren": ["section"],
+            "absentChildren": ["span"],
+        })
+    );
+    assert_eq!(
+        child_gated_forbidden_value_details["forbiddenAttributeValues"],
+        serde_json::json!({
+            "class": ["blocked"],
+        })
+    );
+    assert_eq!(
+        child_gated_forbidden_value_details["invalidFields"],
+        serde_json::json!(["class"])
+    );
+    assert_eq!(
+        child_gated_forbidden_value_details["invalidValues"],
+        serde_json::json!({
+            "class": "blocked",
         })
     );
 
