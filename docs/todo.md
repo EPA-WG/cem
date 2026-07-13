@@ -860,8 +860,14 @@ XML and markup family formats:
 
 Projection and debug/interchange formats:
 
-- [ ] `cem-dom-projection/v1` (`application/vnd.cem.dom+cem-bin`,
-      `application/vnd.cem.dom+json`).
+- [x] `cem-dom-projection/v1` (`application/vnd.cem.dom+cem-bin`,
+      `application/vnd.cem.dom+json`). Existing CEMT-primary HTML/XML
+      converter edges remain cataloged with Rust fallbacks, top-level binary
+      and JSON projection examples are declared from `package.cem`, library
+      schema-package example validation now reports DOM projection binary
+      magic/version/schema/content-type/truncation and JSON parse/shape
+      diagnostics, and catalog tests guard DOM projection example manifest
+      drift.
 - [ ] `cem-ast-projection/v1` (`application/vnd.cem.ast+cem-bin`,
       `application/vnd.cem.ast+json`).
 - [ ] `cem-events-projection/v1` (`application/vnd.cem.events+cem-bin`,

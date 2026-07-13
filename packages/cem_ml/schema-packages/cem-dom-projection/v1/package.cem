@@ -106,4 +106,46 @@
         {from @content-type="application/vnd.cem.dom+cem-bin" @schema="https://cem.dev/ns/projection/dom/1"}
         {to @content-type="application/vnd.cem.dom+json" @schema="https://cem.dev/ns/projection/dom/1"}
     }
+
+    {example
+        @id="basic-dom"
+        @path="examples/basic-dom.cem-bin"
+        @content-type="application/vnd.cem.dom+cem-bin"
+        @schema="https://cem.dev/ns/projection/dom/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="basic-dom-json"
+        @path="examples/basic-dom.dom.json"
+        @content-type="application/vnd.cem.dom+json"
+        @schema="https://cem.dev/ns/projection/dom/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="nested-dom-json"
+        @path="examples/nested-dom.dom.json"
+        @content-type="application/vnd.cem.dom+json"
+        @schema="https://cem.dev/ns/projection/dom/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="invalid-kind-json"
+        @path="examples/invalid-kind.dom.json"
+        @content-type="application/vnd.cem.dom+json"
+        @schema="https://cem.dev/ns/projection/dom/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.projection.dom.json_shape"
+    }
+
+    {example
+        @id="invalid-binary"
+        @path="examples/invalid-binary.cem-bin"
+        @content-type="application/vnd.cem.dom+cem-bin"
+        @schema="https://cem.dev/ns/projection/dom/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.projection.dom.binary_magic"
+    }
 }

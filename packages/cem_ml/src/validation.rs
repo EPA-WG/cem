@@ -33,6 +33,7 @@
 //! - `cem.lint.relaxed_content_boundary` — recommend the explicit `|` /
 //!   `▷` content boundary on elements that carry content.
 
+pub mod cem_dom_projection;
 pub mod html;
 pub mod mathml;
 pub mod relax_ng;

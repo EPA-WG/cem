@@ -33,13 +33,15 @@ use crate::schema::document_model::{
 };
 use crate::schema::package_consistency::validate_schema_package_source_consistency;
 use crate::schema::registry::{
-    content_type_essence, SchemaRegistry, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI,
-    CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
-    CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
-    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
-    MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI, RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI,
-    RELAX_NG_XML_CONTENT_TYPE, SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE,
-    XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI,
+    content_type_essence, SchemaRegistry, CEM_DOM_JSON_PROJECTION_CONTENT_TYPE,
+    CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE,
+    CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI,
+    CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
+    CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, HTML_CONTENT_TYPE,
+    HTML_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI, RELAX_NG_COMPACT_CONTENT_TYPE,
+    RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE, SVG_CONTENT_TYPE, SVG_SCHEMA_URI,
+    XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_CONTENT_TYPE,
+    XSLT_SCHEMA_URI,
 };
 use crate::source::{BytesSource, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack};
@@ -52,6 +54,9 @@ use crate::transform_template::{
     TransformTemplateModuleParseRequest, TransformTemplateModulePreflight,
 };
 use crate::validation::{
+    cem_dom_projection::{
+        validate_cem_dom_projection_source_bytes, CemDomProjectionSourceValidationRequest,
+    },
     html::{validate_html_source_bytes, HtmlSourceValidationRequest},
     mathml::{validate_mathml_source_bytes, MathMlSourceValidationRequest},
     relax_ng::{validate_relax_ng_source_bytes, RelaxNgSourceValidationRequest},
@@ -2341,6 +2346,15 @@ fn validate_schema_package_example_source_bytes(
     schema_behavior_evaluator: Option<&dyn crate::schema::document_model::SchemaBehaviorEvaluator>,
 ) -> Option<Vec<Diagnostic>> {
     let document = match schema_package_example_tokenizer(content_type, schema_uri)? {
+        SchemaPackageExampleTokenizer::CemDomProjection => {
+            return Some(validate_cem_dom_projection_source_bytes(
+                CemDomProjectionSourceValidationRequest {
+                    bytes,
+                    source_uri,
+                    content_type: Some(content_type),
+                },
+            ));
+        }
         SchemaPackageExampleTokenizer::Cem => parse_example_cem_document(bytes),
         SchemaPackageExampleTokenizer::Html => {
             return Some(validate_html_source_bytes(HtmlSourceValidationRequest {
@@ -2425,6 +2439,7 @@ fn validate_schema_package_example_source_bytes(
 #[derive(Debug, Clone, Copy)]
 enum SchemaPackageExampleTokenizer {
     Cem,
+    CemDomProjection,
     Html,
     MathMl,
     RelaxNg,
@@ -2439,6 +2454,13 @@ fn schema_package_example_tokenizer(
     schema_uri: &str,
 ) -> Option<SchemaPackageExampleTokenizer> {
     let content_type = content_type_essence(content_type);
+    if matches!(
+        content_type.as_str(),
+        CEM_DOM_PROJECTION_CONTENT_TYPE | CEM_DOM_JSON_PROJECTION_CONTENT_TYPE
+    ) || schema_uri == CEM_DOM_PROJECTION_SCHEMA_URI
+    {
+        return Some(SchemaPackageExampleTokenizer::CemDomProjection);
+    }
     if content_type == HTML_CONTENT_TYPE || schema_uri == HTML_SCHEMA_URI {
         return Some(SchemaPackageExampleTokenizer::Html);
     }
