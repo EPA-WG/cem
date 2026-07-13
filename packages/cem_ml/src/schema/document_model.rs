@@ -9509,6 +9509,44 @@ mod tests {
                     && parameter.required));
             assert!(behavior.result.is_some());
         }
+        let required_fields_result = model
+            .behaviors
+            .get("required-fields")
+            .and_then(|behavior| behavior.result.as_ref())
+            .expect("required-fields result declaration");
+        for (detail_name, value_type) in [
+            ("requiredFields", "schema:array"),
+            ("missingFields", "schema:array"),
+            ("condition", "schema:object"),
+            ("actualValues", "schema:object"),
+        ] {
+            assert!(
+                required_fields_result
+                    .details
+                    .iter()
+                    .any(|detail| detail.name == detail_name && detail.value_type == value_type),
+                "required-fields result must declare {detail_name} as {value_type}"
+            );
+        }
+        let forbidden_fields_result = model
+            .behaviors
+            .get("forbidden-fields")
+            .and_then(|behavior| behavior.result.as_ref())
+            .expect("forbidden-fields result declaration");
+        for (detail_name, value_type) in [
+            ("forbiddenFields", "schema:array"),
+            ("invalidFields", "schema:array"),
+            ("condition", "schema:object"),
+            ("actualValues", "schema:object"),
+        ] {
+            assert!(
+                forbidden_fields_result
+                    .details
+                    .iter()
+                    .any(|detail| detail.name == detail_name && detail.value_type == value_type),
+                "forbidden-fields result must declare {detail_name} as {value_type}"
+            );
+        }
         for behavior_name in ["dependent-required-fields", "field-dependency"] {
             let result = model
                 .behaviors
@@ -9530,6 +9568,26 @@ mod tests {
                     "{behavior_name} result must declare {detail_name} as {value_type}"
                 );
             }
+        }
+        let mutual_exclusion_result = model
+            .behaviors
+            .get("mutual-exclusion")
+            .and_then(|behavior| behavior.result.as_ref())
+            .expect("mutual-exclusion result declaration");
+        for (detail_name, value_type) in [
+            ("forbiddenAttributeValues", "schema:object"),
+            ("invalidValues", "schema:object"),
+            ("invalidFields", "schema:array"),
+            ("condition", "schema:object"),
+            ("actualValues", "schema:object"),
+        ] {
+            assert!(
+                mutual_exclusion_result
+                    .details
+                    .iter()
+                    .any(|detail| detail.name == detail_name && detail.value_type == value_type),
+                "mutual-exclusion result must declare {detail_name} as {value_type}"
+            );
         }
         let choice_case_result = model
             .behaviors

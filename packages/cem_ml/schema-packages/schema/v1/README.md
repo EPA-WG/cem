@@ -146,6 +146,9 @@ declares named behavior contracts backed by that primitive:
 `schema:dependent-required-fields`, `schema:mutual-exclusion`,
 `schema:field-dependency`, `schema:choice-case`,
 `schema:child-occurrence`, and `schema:path-layout`.
+The required, forbidden, dependency, mutual-exclusion, and choice-case
+contracts declare the structured detail fields that the engine emits for those
+diagnostic results.
 
 Individual `{field-contract}` declarations can also bind `@diagnostic` plus
 `@behavior`. The diagnostic code remains the report identity, while the

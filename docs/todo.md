@@ -69,7 +69,9 @@ history belongs in git history and the feature-specific docs linked below.
       `schema:field-dependency`, and dependency result contracts declare their
       required/missing field, condition, and actual-value details. The
       `schema:choice-case` behavior contract now declares flat and grouped
-      choice result details emitted by the engine.
+      choice result details emitted by the engine. Required, forbidden, and
+      mutual-exclusion field behavior contracts now declare their emitted
+      field/value result details.
       Additional engine algorithms remain.
   - [x] Allow declarative behavior to select candidate nodes and match failure
         conditions with CEM-QL, then invoke a schema-declared CEM-ML behavior
@@ -127,7 +129,8 @@ history belongs in git history and the feature-specific docs linked below.
         beyond those gates remain. The `schema:path-layout` result contract now
         exposes the emitted path layout and invalid-value details, and the
         `schema:choice-case` result contract now exposes emitted flat/grouped
-        choice details.
+        choice details. Required, forbidden, and mutual-exclusion field result
+        contracts now expose their emitted field/value details.
   - [x] Compile behavior declarations and references into the generic schema
         model, reject missing or incompatible behavior references, and dispatch
         them through a single runtime evaluation path. The resolved behavior
@@ -299,8 +302,9 @@ history belongs in git history and the feature-specific docs linked below.
         field checks. The first generic field-contract evaluator now emits
         schema URI, element, contract name, check kind, required/optional/
         forbidden fields, missing/invalid fields, actual values, condition, and
-        source-map range, and attribute `@values` checks emit expected/actual
-        value details; boolean, integer, number, identifier, name-list,
+        source-map range; required, forbidden, and mutual-exclusion field
+        result contracts declare their emitted field/value details; attribute
+        `@values` checks emit expected/actual value details; boolean, integer, number, identifier, name-list,
         type-reference, symbol-reference, wildcard reference, qualified-name,
         semver, basic URI, basic media-type, and path type checks now emit
         expected/actual details; integer
