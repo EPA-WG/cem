@@ -559,7 +559,7 @@ history belongs in git history and the feature-specific docs linked below.
         matching constraints are schema-owned and now pinned in the compiled
         schema model and CLI structured-detail examples while Rust remains the
         execution placement for source I/O and validation.
-  - [ ] Continue replacing one-code-per-field diagnostics with contract-family
+  - [x] Continue replacing one-code-per-field diagnostics with contract-family
         diagnostics declared in schema source. Artifact missing-metadata checks
         now emit `cem.schema_package.artifact_check`; converter and example
         field diagnostics now emit schema-declared `converter_check` and
@@ -598,8 +598,10 @@ history belongs in git history and the feature-specific docs linked below.
         removed for package/schema metadata; stale converter template and
         endpoint-specific diagnostic declarations have been retired in favor of
         `cem.schema_package.converter_check`; stale schema-package diagnostic
-        declarations for retired package/converter field-specific codes are
-        now test-pinned absent.
+        declarations for retired package, converter, artifact, and example
+        field-specific codes are now test-pinned absent, and the production
+        source anti-pattern audit explicitly blocks the retired helper/token
+        names.
   - [ ] Keep Rust validators only for operational execution that cannot be
         represented as field data: resource read failures, parser failures,
         CEMT compilation, CEMT function lookup, host-hook availability, and
