@@ -215,7 +215,11 @@ history belongs in git history and the feature-specific docs linked below.
         `schema:child-occurrence` details through a schema-package-loaded
         custom schema; CLI runtime coverage now also proves passing and
         failing attribute `schema:value-vocabulary` and `schema:scalar-type`
-        details through a schema-package-loaded custom schema;
+        details through a schema-package-loaded custom schema; CLI runtime
+        coverage now also proves operational payload details for
+        `schema:resource-readable`, `schema:resource-parse`, and
+        `schema:reference-resolution` through checked-in schema-package
+        examples;
         schema-package CLI examples now also cover schema-definition
         failures for invalid datatype parameter declarations on integer/number
         bounds, numeric digit counts, string length/prefix/suffix params, list

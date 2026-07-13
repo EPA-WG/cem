@@ -217,11 +217,11 @@ fn has_diagnostic(report: &serde_json::Value, code: &str) -> bool {
         .any(|diagnostic| diagnostic["code"] == code)
 }
 
-fn has_diagnostic_detail(
-    report: &serde_json::Value,
+fn find_diagnostic_detail<'a>(
+    report: &'a serde_json::Value,
     expected: &DiagnosticDetailExpectation,
-) -> bool {
-    diagnostics(report).iter().any(|diagnostic| {
+) -> Option<&'a serde_json::Value> {
+    diagnostics(report).iter().find(|diagnostic| {
         diagnostic["code"] == expected.code
             && diagnostic["severity"] == expected.severity
             && diagnostic["details"]["behavior"] == expected.behavior
@@ -234,6 +234,13 @@ fn has_diagnostic_detail(
                 .as_array()
                 .is_some_and(|frames| !frames.is_empty())
     })
+}
+
+fn has_diagnostic_detail(
+    report: &serde_json::Value,
+    expected: &DiagnosticDetailExpectation,
+) -> bool {
+    find_diagnostic_detail(report, expected).is_some()
 }
 
 fn has_schema_definition_detail(
@@ -4657,6 +4664,157 @@ fn schema_package_engine_behavior_examples_emit_structured_details() {
             );
         }
     }
+}
+
+#[test]
+fn schema_package_resource_behavior_examples_emit_structured_payloads() {
+    let validate_schema_package_example = |name: &'static str, relative_path: &'static str| {
+        let path = workspace_path(relative_path);
+        assert!(
+            path.exists(),
+            "schema-package resource behavior example `{name}` is missing at {}",
+            path.display()
+        );
+
+        let output = validate_example(
+            &ValidationExample {
+                name,
+                path: relative_path,
+                content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+                schema_uri: CEM_SCHEMA_PACKAGE_URI,
+                expected_exit: EXIT_HARD_FAILURE,
+                expected_diagnostics: &[],
+            },
+            &path,
+        );
+        assert_eq!(
+            output.status.code(),
+            Some(EXIT_HARD_FAILURE),
+            "{name} stderr:\n{}",
+            stderr(&output)
+        );
+        assert!(
+            stderr(&output).trim().is_empty(),
+            "{name} stderr must stay empty:\n{}",
+            stderr(&output)
+        );
+        serde_json::from_str::<serde_json::Value>(stdout(&output).trim())
+            .unwrap_or_else(|err| panic!("{name} stdout is validation JSON: {err}"))
+    };
+
+    let unreadable_report = validate_schema_package_example(
+        "schema-package invalid artifact source unreadable",
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-source-unreadable.cem",
+    );
+    let unreadable_expected = DiagnosticDetailExpectation {
+        code: "cem.schema_package.artifact_check",
+        severity: "error",
+        behavior: "schema:resource-readable",
+        check_kind: "artifact-source-readable",
+        contract: "artifact-output-stage-contract",
+    };
+    let unreadable = find_diagnostic_detail(&unreadable_report, &unreadable_expected)
+        .unwrap_or_else(|| {
+            panic!(
+                "expected structured resource-readable diagnostic {:?} in {}",
+                unreadable_expected, unreadable_report
+            )
+        });
+    let details = &unreadable["details"];
+    assert_eq!(details["element"], "artifact");
+    assert_eq!(details["target"], "artifact");
+    assert_eq!(details["path"], "formatters/missing.cemt");
+    assert_eq!(details["invalidFields"], serde_json::json!(["path"]));
+    assert_eq!(details["invalidValues"]["path"], "formatters/missing.cemt");
+    assert_eq!(details["actualValues"]["function-name"], "bad.missing");
+    assert!(details["error"]
+        .as_str()
+        .is_some_and(|error| error.contains("No such file")));
+
+    let parse_report = validate_schema_package_example(
+        "schema-package invalid artifact source parse",
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-source-parse.cem",
+    );
+    let parse_expected = DiagnosticDetailExpectation {
+        code: "cem.schema_package.artifact_check",
+        severity: "error",
+        behavior: "schema:resource-parse",
+        check_kind: "artifact-cemt-valid",
+        contract: "artifact-output-stage-contract",
+    };
+    let parse = find_diagnostic_detail(&parse_report, &parse_expected).unwrap_or_else(|| {
+        panic!(
+            "expected structured resource-parse diagnostic {:?} in {}",
+            parse_expected, parse_report
+        )
+    });
+    let details = &parse["details"];
+    assert_eq!(details["element"], "artifact");
+    assert_eq!(details["target"], "artifact");
+    assert_eq!(
+        details["path"],
+        "formatters/invalid-artifact-source-parse.cemt"
+    );
+    assert_eq!(details["invalidFields"], serde_json::json!(["path"]));
+    assert_eq!(
+        details["invalidValues"]["path"],
+        "formatters/invalid-artifact-source-parse.cemt"
+    );
+    assert_eq!(details["actualValues"]["function-name"], "bad.invalid");
+    assert_eq!(
+        details["sourceDiagnostic"]["code"],
+        "cem.transform_template.declaration_required"
+    );
+    assert_eq!(details["sourceDiagnostic"]["severity"], "Fatal");
+    assert!(details["sourceDiagnostic"]["message"]
+        .as_str()
+        .is_some_and(|message| message.contains("@category")));
+
+    let reference_report = validate_schema_package_example(
+        "schema-package invalid example contract",
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-example-contract.cem",
+    );
+    let reference_expected = DiagnosticDetailExpectation {
+        code: "cem.schema_package.example_check",
+        severity: "error",
+        behavior: "schema:reference-resolution",
+        check_kind: "example-content-type-schema",
+        contract: "example-contract",
+    };
+    let reference =
+        find_diagnostic_detail(&reference_report, &reference_expected).unwrap_or_else(|| {
+            panic!(
+                "expected structured reference-resolution diagnostic {:?} in {}",
+                reference_expected, reference_report
+            )
+        });
+    let details = &reference["details"];
+    assert_eq!(details["element"], "example");
+    assert_eq!(details["target"], "example");
+    assert_eq!(details["exampleId"], "wrong-content-type");
+    assert_eq!(details["schema"], XML_SCHEMA_URI);
+    assert_eq!(
+        details["invalidFields"],
+        serde_json::json!(["content-type"])
+    );
+    assert_eq!(details["invalidValues"]["content-type"], HTML_CONTENT_TYPE);
+    assert_eq!(details["actualValues"]["id"], "wrong-content-type");
+    assert_eq!(details["actualValues"]["content-type"], HTML_CONTENT_TYPE);
+    let expected_content_types = details["expectedValues"]["content-type"]
+        .as_array()
+        .expect("reference-resolution expected content-type values");
+    assert!(
+        expected_content_types
+            .iter()
+            .any(|value| value == XML_CONTENT_TYPE),
+        "expected XML content type in reference-resolution payload: {details}"
+    );
+    assert!(
+        expected_content_types
+            .iter()
+            .any(|value| value == "text/xml"),
+        "expected text XML content type in reference-resolution payload: {details}"
+    );
 }
 
 #[test]
