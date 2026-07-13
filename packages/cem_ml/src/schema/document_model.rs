@@ -407,6 +407,8 @@ pub struct FieldContract {
     pub when_attribute: Option<String>,
     pub when_values: BTreeSet<String>,
     pub when_present_attributes: BTreeSet<String>,
+    pub when_present_children: BTreeSet<String>,
+    pub when_absent_children: BTreeSet<String>,
     pub source_map: SourceMapStack,
 }
 
@@ -493,11 +495,29 @@ struct ExactChildSequenceEvaluation {
 }
 
 impl FieldContract {
-    fn applies_to(&self, attributes: &BTreeMap<String, String>) -> bool {
+    fn applies_to(
+        &self,
+        attributes: &BTreeMap<String, String>,
+        child_counts: &BTreeMap<String, usize>,
+    ) -> bool {
         if !self
             .when_present_attributes
             .iter()
             .all(|name| attributes.contains_key(name))
+        {
+            return false;
+        }
+        if !self
+            .when_present_children
+            .iter()
+            .all(|name| child_counts.get(name).copied().unwrap_or_default() > 0)
+        {
+            return false;
+        }
+        if !self
+            .when_absent_children
+            .iter()
+            .all(|name| child_counts.get(name).copied().unwrap_or_default() == 0)
         {
             return false;
         }
@@ -6401,6 +6421,8 @@ fn collect_field_contracts(
                     .map(str::to_owned),
                 when_values: parse_name_set(attrs.get("when-values")),
                 when_present_attributes: parse_name_set(attrs.get("when-present-attributes")),
+                when_present_children: parse_name_set(attrs.get("when-present-children")),
+                when_absent_children: parse_name_set(attrs.get("when-absent-children")),
                 source_map: document
                     .get(*child_id)
                     .map(source_stack_for_node)
@@ -6493,7 +6515,7 @@ fn validate_field_contracts(
             .behavior
             .as_deref()
             .filter(|_| contract.engine_behavior == Some(EngineDiagnosticBehavior::FieldContract));
-        if !contract.applies_to(attribute_values) {
+        if !contract.applies_to(attribute_values, child_counts) {
             continue;
         }
         let missing = contract
@@ -7664,6 +7686,8 @@ fn field_contract_details(
             "attribute": &contract.when_attribute,
             "values": &contract.when_values,
             "presentAttributes": &contract.when_present_attributes,
+            "presentChildren": &contract.when_present_children,
+            "absentChildren": &contract.when_absent_children,
         }),
     );
     details.insert(
@@ -9446,6 +9470,21 @@ mod tests {
                 .as_deref(),
             Some("cemml:name-value-list")
         );
+        for name in [
+            "when-present-attributes",
+            "when-present-children",
+            "when-absent-children",
+        ] {
+            assert_eq!(
+                model
+                    .attributes
+                    .get(name)
+                    .unwrap_or_else(|| panic!("{name} attribute model"))
+                    .value_type
+                    .as_deref(),
+                Some("cemml:name-list")
+            );
+        }
         let field_contract_behavior = model
             .behaviors
             .get("field-contract")
@@ -10600,6 +10639,8 @@ mod tests {
                 "attribute": null,
                 "values": [],
                 "presentAttributes": ["name"],
+                "presentChildren": [],
+                "absentChildren": [],
             })
         );
 
@@ -12074,6 +12115,8 @@ mod tests {
                 "attribute": null,
                 "values": [],
                 "presentAttributes": ["source", "token"],
+                "presentChildren": [],
+                "absentChildren": [],
             })
         );
         assert!(details["sourceRange"]["span"]["start"].is_u64());
@@ -12161,6 +12204,8 @@ mod tests {
                 "attribute": "kind",
                 "values": ["remote"],
                 "presentAttributes": ["source", "token"],
+                "presentChildren": [],
+                "absentChildren": [],
             })
         );
         assert_eq!(
@@ -12173,6 +12218,102 @@ mod tests {
         );
         assert_eq!(details["requiredFields"], serde_json::json!(["format"]));
         assert_eq!(details["missingFields"], serde_json::json!(["format"]));
+    }
+
+    #[test]
+    fn schema_field_contracts_support_child_condition_selectors() {
+        let model = compile_document_model(
+            "https://example.test/ns/conditional-child-occurrence/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="conditional-child-occurrence" @namespace="https://example.test/ns/conditional-child-occurrence/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="card" @children="header main footer aside"}
+        {element @name="header"}
+        {element @name="main"}
+        {element @name="footer"}
+        {element @name="aside"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="header-without-footer-main"
+            @target="card"
+            @when-present-children="header"
+            @when-absent-children="footer"
+            @required-children="main"
+            @diagnostic="example.card_main_required"
+            @behavior="schema:child-occurrence"
+            @check-kind="conditional-required-children"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.card_main_required"
+            @severity="error"
+            @behavior="schema:child-occurrence"
+        }
+    }
+}"#,
+        );
+
+        for source in [
+            r#"{card | {aside}}"#,
+            r#"{card | {header} {footer}}"#,
+            r#"{card | {header} {main}}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics.iter().all(|diagnostic| {
+                    diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) != Some("header-without-footer-main")
+                }),
+                "child condition selector should not fire for {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{card | {header}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.card_main_required")
+            .expect("child-gated child occurrence diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("child-gated child occurrence details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:child-occurrence")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("conditional-required-children")
+        );
+        assert_eq!(details["requiredChildren"], serde_json::json!(["main"]));
+        assert_eq!(details["missingChildren"], serde_json::json!(["main"]));
+        assert_eq!(
+            details["condition"],
+            serde_json::json!({
+                "attribute": null,
+                "values": [],
+                "presentAttributes": [],
+                "presentChildren": ["header"],
+                "absentChildren": ["footer"],
+            })
+        );
+        assert_eq!(
+            details["childCounts"],
+            serde_json::json!({
+                "header": 1,
+            })
+        );
     }
 
     #[test]
@@ -12276,6 +12417,8 @@ mod tests {
                 "attribute": "kind",
                 "values": ["remote"],
                 "presentAttributes": [],
+                "presentChildren": [],
+                "absentChildren": [],
             })
         );
 
@@ -12321,6 +12464,8 @@ mod tests {
                 "attribute": null,
                 "values": [],
                 "presentAttributes": ["source"],
+                "presentChildren": [],
+                "absentChildren": [],
             })
         );
     }

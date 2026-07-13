@@ -1973,6 +1973,8 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
             "attribute": null,
             "values": [],
             "presentAttributes": ["class", "title"],
+            "presentChildren": [],
+            "absentChildren": [],
         })
     );
     assert_eq!(
@@ -2000,6 +2002,8 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
             "attribute": "class",
             "values": ["remote"],
             "presentAttributes": ["id", "title"],
+            "presentChildren": [],
+            "absentChildren": [],
         })
     );
     assert_eq!(
@@ -3721,7 +3725,7 @@ fn schema_runtime_child_occurrence_counts_emit_structured_details() {
         {element @name="p"}
         {element @name="span"}
         {element @name="small"}
-        {element @name="strong"}
+        {element @name="strong" @children="*"}
         {element @name="li"}
         {element @name="mark"}
     }
@@ -3813,6 +3817,16 @@ fn schema_runtime_child_occurrence_counts_emit_structured_details() {
             @behavior="schema:child-occurrence"
             @check-kind="exact-selected-children"
         }
+        {field-contract
+            @name="strong-span-without-small-mark"
+            @target="strong"
+            @when-present-children="span"
+            @when-absent-children="small"
+            @required-children="mark"
+            @diagnostic="example.layout.child_count"
+            @behavior="schema:child-occurrence"
+            @check-kind="conditional-required-children"
+        }
     }
     {diagnostics |
         {diagnostic
@@ -3838,6 +3852,8 @@ fn schema_runtime_child_occurrence_counts_emit_structured_details() {
 {main | {span} {small}}
 {footer | {span} {small} {mark}}
 {aside | {span} {small} {mark}}
+{strong | {span} {mark}}
+{strong | {span} {small}}
 "#,
     );
     write_test_file(
@@ -3853,6 +3869,7 @@ fn schema_runtime_child_occurrence_counts_emit_structured_details() {
 {main | {span}}
 {footer | {span} {mark}}
 {aside | {span} {mark}}
+{strong | {span}}
 "#,
     );
 
@@ -4094,6 +4111,40 @@ fn schema_runtime_child_occurrence_counts_emit_structured_details() {
     assert_eq!(exact_selected_details["selectedChildCount"], 1);
     assert_eq!(exact_selected_details["invalidExactSelectedChildren"], true);
 
+    let conditional_child_diagnostic = diagnostic_for_contract("strong-span-without-small-mark");
+    let conditional_child_details = &conditional_child_diagnostic["details"];
+    assert_eq!(conditional_child_diagnostic["severity"], "error");
+    assert_eq!(
+        conditional_child_details["behavior"],
+        "schema:child-occurrence"
+    );
+    assert_eq!(
+        conditional_child_details["checkKind"],
+        "conditional-required-children"
+    );
+    assert_eq!(
+        conditional_child_details["requiredChildren"],
+        serde_json::json!(["mark"])
+    );
+    assert_eq!(
+        conditional_child_details["missingChildren"],
+        serde_json::json!(["mark"])
+    );
+    assert_eq!(
+        conditional_child_details["condition"],
+        serde_json::json!({
+            "attribute": null,
+            "values": [],
+            "presentAttributes": [],
+            "presentChildren": ["span"],
+            "absentChildren": ["small"],
+        })
+    );
+    assert_eq!(
+        conditional_child_details["childCounts"],
+        serde_json::json!({"span": 1})
+    );
+
     for diagnostic in [
         under_range_diagnostic,
         over_range_diagnostic,
@@ -4105,6 +4156,7 @@ fn schema_runtime_child_occurrence_counts_emit_structured_details() {
         exact_distinct_diagnostic,
         selected_range_diagnostic,
         exact_selected_diagnostic,
+        conditional_child_diagnostic,
     ] {
         assert!(diagnostic["details"]["sourceRange"]["span"]["start"].is_u64());
         assert!(diagnostic["sourceMap"]["frames"]
