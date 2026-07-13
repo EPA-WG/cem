@@ -524,7 +524,7 @@ history belongs in git history and the feature-specific docs linked below.
         the schema-owned `endpoint-content-type-schema`
         `schema:reference-resolution` constraint and executed by Rust until
         the generic cross-node/reference vocabulary exists.
-  - [ ] Finish artifact cases in `schema-package.cem`. Formatter, colorizer,
+  - [x] Finish artifact cases in `schema-package.cem`. Formatter, colorizer,
         formatter-helper, and colorizer-helper required field metadata now
         lives in schema-owned `field-contract` declarations; formatter/
         colorizer stage directory and `.cemt` source-path layout now live in
@@ -539,9 +539,13 @@ history belongs in git history and the feature-specific docs linked below.
         formatter/colorizer profile required-field checks, or the `generated`
         boolean datatype check; runtime conversion selection now routes
         formatter/colorizer stage-kind-to-function-kind mapping through the
-        schema-pinned CEMT stage contract groups. Remaining artifact work is to
-        audit deeper CEMT body/output assertions once the schema vocabulary for
-        those assertions exists.
+        schema-pinned CEMT stage contract groups. Artifact source readability,
+        CEMT parse validity, function lookup, and function metadata contract
+        constraints are now pinned in the compiled schema model and CLI
+        structured-detail examples. Deeper CEMT body/output assertions are
+        deferred to the low-priority vocabulary item below because they need
+        generic CEMT body/output assertion syntax rather than package-specific
+        schema-package rules.
   - [ ] Model example cases in `schema-package.cem`: required example
         metadata and failing-example `expected-diagnostics` now live in
         schema-owned `field-contract` declarations and emit
@@ -837,6 +841,23 @@ Projection and debug/interchange formats:
       `schema:reference-resolution`, CEM-QL candidate selection, and
       schema-declared behavior functions where possible; avoid introducing
       package-specific syntax for converter endpoints.
+- [ ] Design declarative CEMT body/output assertion vocabulary for
+      schema-owned artifact constraints currently centralized in Rust helper
+      checks. Immediate background: schema-package artifact declarations now
+      express source readability (`artifact-source-readable`), CEMT parse
+      validity (`artifact-cemt-valid`), CEMT output function lookup
+      (`artifact-function-declared`), and output-function metadata matching
+      (`artifact-function-contract`) as schema-owned constraints using
+      `schema:resource-readable`, `schema:resource-parse`, and
+      `schema:reference-resolution`. Rust still executes the CEMT-specific
+      body/output inspection by parsing the CEMT module, selecting the declared
+      output function by `@function-name`, and comparing function kind,
+      target content type/schema/category, and optional function profile
+      against manifest attributes. Future syntax should let schemas declare
+      CEMT body/output selectors, function metadata projections, profile
+      expectations, normalized media-type/URI comparisons, expected/invalid
+      detail projection, and source-range propagation without hard-coding
+      schema-package artifact semantics.
 
 # [] believes schema + registry
 stop for sync up with author

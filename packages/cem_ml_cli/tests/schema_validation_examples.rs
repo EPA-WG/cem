@@ -5292,6 +5292,32 @@ fn schema_package_engine_behavior_examples_emit_structured_details() {
             }],
         },
         DetailedValidationExample {
+            name: "schema-package invalid artifact contract",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-contract.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected: &[DiagnosticDetailExpectation {
+                code: "cem.schema_package.artifact_check",
+                severity: "error",
+                behavior: "schema:reference-resolution",
+                check_kind: "artifact-function-contract",
+                contract: "artifact-output-stage-contract",
+            }],
+        },
+        DetailedValidationExample {
+            name: "schema-package invalid artifact function missing",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-function-missing.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected: &[DiagnosticDetailExpectation {
+                code: "cem.schema_package.artifact_check",
+                severity: "error",
+                behavior: "schema:reference-resolution",
+                check_kind: "artifact-function-declared",
+                contract: "artifact-output-stage-contract",
+            }],
+        },
+        DetailedValidationExample {
             name: "schema-package invalid artifact source unreadable",
             path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-source-unreadable.cem",
             content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,

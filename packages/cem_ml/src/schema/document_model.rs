@@ -10662,6 +10662,36 @@ mod tests {
             artifact_cemt_valid.engine_behavior,
             Some(EngineDiagnosticBehavior::ResourceParse)
         );
+        let artifact_function_declared = model
+            .constraint("artifact-function-declared")
+            .expect("artifact function declaration constraint");
+        assert_eq!(
+            artifact_function_declared.diagnostic.as_deref(),
+            Some("cem.schema_package.artifact_check")
+        );
+        assert_eq!(
+            artifact_function_declared.behavior.as_deref(),
+            Some("schema:reference-resolution")
+        );
+        assert_eq!(
+            artifact_function_declared.engine_behavior,
+            Some(EngineDiagnosticBehavior::ReferenceResolution)
+        );
+        let artifact_function_contract = model
+            .constraint("artifact-function-contract")
+            .expect("artifact function metadata contract");
+        assert_eq!(
+            artifact_function_contract.diagnostic.as_deref(),
+            Some("cem.schema_package.artifact_check")
+        );
+        assert_eq!(
+            artifact_function_contract.behavior.as_deref(),
+            Some("schema:reference-resolution")
+        );
+        assert_eq!(
+            artifact_function_contract.engine_behavior,
+            Some(EngineDiagnosticBehavior::ReferenceResolution)
+        );
         let example_content_type_schema = model
             .constraint("example-content-type-schema")
             .expect("example content type/schema constraint");
