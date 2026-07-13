@@ -634,7 +634,7 @@ history belongs in git history and the feature-specific docs linked below.
         remains a schema-owned `schema:reference-resolution` constraint with
         Rust execution placement because fully declarative cross-node registry
         lookups need the deferred generic vocabulary below.
-  - [ ] Refactor `schema_descriptor_from_package_sources`,
+  - [x] Refactor `schema_descriptor_from_package_sources`,
         `collect_package_examples`, and `required_attr` in
         `packages/cem_ml/src/schema/registry.rs` so descriptor extraction runs
         after generic schema validation. Loader errors may remain typed, but
