@@ -12,4 +12,119 @@
 
     {namespace @prefix="cemxhtml" @uri="https://cem.dev/ns/data/xhtml/1"}
     {namespace @prefix="xhtml" @uri="http://www.w3.org/1999/xhtml"}
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/xhtml-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/xhtml+xml"
+        @target-schema="https://cem.dev/ns/data/xhtml/1"
+        @target-category="xhtml-document"
+        @function-name="xhtml.format-document"
+        @formatter-profile="compact"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/xhtml-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/xhtml+xml"
+        @target-schema="https://cem.dev/ns/data/xhtml/1"
+        @target-category="xhtml-document"
+        @function-name="xhtml.format-document"
+        @formatter-profile="pretty"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/xhtml-format-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/xhtml+xml"
+        @target-schema="https://cem.dev/ns/data/xhtml/1"
+        @target-category="xhtml-document"
+        @function-name="xhtml.format-document"
+        @formatter-profile="tabular"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/xhtml-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/xhtml+xml"
+        @target-schema="https://cem.dev/ns/data/xhtml/1"
+        @target-category="xhtml-document"
+        @function-name="xhtml.color-document"
+        @color-profile="terminal"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/xhtml-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/xhtml+xml"
+        @target-schema="https://cem.dev/ns/data/xhtml/1"
+        @target-category="xhtml-document"
+        @function-name="xhtml.color-document"
+        @color-profile="html"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/xhtml-color-document.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/xhtml+xml"
+        @target-schema="https://cem.dev/ns/data/xhtml/1"
+        @target-category="xhtml-document"
+        @function-name="xhtml.color-document"
+        @color-profile="md"
+    }
+
+    {example
+        @id="basic-document"
+        @path="examples/basic-document.xhtml"
+        @content-type="application/xhtml+xml"
+        @schema="https://cem.dev/ns/data/xhtml/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="form-page"
+        @path="examples/form-page.xhtml"
+        @content-type="application/xhtml+xml"
+        @schema="https://cem.dev/ns/data/xhtml/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="invalid-missing-namespace"
+        @path="examples/invalid-missing-namespace.xhtml"
+        @content-type="application/xhtml+xml"
+        @schema="https://cem.dev/ns/data/xhtml/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.xhtml.namespace_missing"
+    }
+
+    {example
+        @id="invalid-body-before-head"
+        @path="examples/invalid-body-before-head.xhtml"
+        @content-type="application/xhtml+xml"
+        @schema="https://cem.dev/ns/data/xhtml/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.xhtml.head_body_order"
+    }
+
+    {example
+        @id="invalid-not-well-formed"
+        @path="examples/invalid-not-well-formed.xhtml"
+        @content-type="application/xhtml+xml"
+        @schema="https://cem.dev/ns/data/xhtml/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.xhtml.not_well_formed_xml"
+    }
 }

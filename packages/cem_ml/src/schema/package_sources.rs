@@ -247,6 +247,18 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
             "../../schema-packages/relax-ng/v1/colorizers/relax-ng-color-schema.cemt"
         ),
     },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xhtml",
+        path: "schema-packages/xhtml/v1/formatters/xhtml-format-document.cemt",
+        source: include_str!(
+            "../../schema-packages/xhtml/v1/formatters/xhtml-format-document.cemt"
+        ),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "xhtml",
+        path: "schema-packages/xhtml/v1/colorizers/xhtml-color-document.cemt",
+        source: include_str!("../../schema-packages/xhtml/v1/colorizers/xhtml-color-document.cemt"),
+    },
 ];
 
 static BUILTIN_SCHEMA_PACKAGE_SOURCES: &[BuiltinSchemaPackageSource] = &[
@@ -412,8 +424,8 @@ mod tests {
         CSS_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
         JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI,
         MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, RELAX_NG_COMPACT_CONTENT_TYPE,
-        RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE, XML_CONTENT_TYPE, XML_SCHEMA_URI,
-        YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+        RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI,
+        XML_CONTENT_TYPE, XML_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
     };
     use crate::source::{BytesSource, SourceId};
     use crate::tokenizer::cem::CemTokenizer;
@@ -1459,6 +1471,46 @@ mod tests {
     }
 
     #[test]
+    fn xhtml_package_examples_are_manifest_indexed() {
+        let examples =
+            manifest_indexed_package_examples("xhtml", XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, 5);
+
+        for (id, expected_result, expected_code) in [
+            (
+                "basic-document",
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            ("form-page", SchemaPackageExampleExpectedResult::Pass, None),
+            (
+                "invalid-missing-namespace",
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.xhtml.namespace_missing"),
+            ),
+            (
+                "invalid-body-before-head",
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.xhtml.head_body_order"),
+            ),
+            (
+                "invalid-not-well-formed",
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.xhtml.not_well_formed_xml"),
+            ),
+        ] {
+            let example = examples
+                .iter()
+                .find(|example| example.id == id)
+                .unwrap_or_else(|| panic!("XHTML example `{id}`"));
+            assert_eq!(example.expected_result, expected_result);
+            let expected_codes = expected_code
+                .map(|code| vec![code.to_owned()])
+                .unwrap_or_default();
+            assert_eq!(example.expected_diagnostic_codes, expected_codes);
+        }
+    }
+
+    #[test]
     fn builtin_schema_package_catalog_matches_core_folder_frame() {
         for source in builtin_schema_package_sources() {
             let root = package_root(source.package_id);
@@ -2137,5 +2189,28 @@ mod tests {
         assert!(colorizer
             .source
             .contains(r#"@content-type="application/relax-ng+xml""#));
+    }
+
+    #[test]
+    fn catalog_exposes_xhtml_output_artifact_sources() {
+        let formatter = builtin_schema_package_artifact_source(
+            "xhtml",
+            "schema-packages/xhtml/v1/formatters/xhtml-format-document.cemt",
+        )
+        .expect("XHTML formatter source");
+        let colorizer = builtin_schema_package_artifact_source(
+            "xhtml",
+            "schema-packages/xhtml/v1/colorizers/xhtml-color-document.cemt",
+        )
+        .expect("XHTML colorizer source");
+
+        assert!(formatter
+            .source
+            .contains(r#"@name="xhtml.format-document""#));
+        assert!(formatter.source.contains(r#"@category="xhtml-document""#));
+        assert!(colorizer.source.contains(r#"@name="xhtml.color-document""#));
+        assert!(colorizer
+            .source
+            .contains(r#"@content-type="application/xhtml+xml""#));
     }
 }

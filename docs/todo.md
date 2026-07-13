@@ -827,7 +827,13 @@ XML and markup family formats:
       RELAX NG example validation now reports schema-owned missing-start,
       unknown-element, XML-parse, and compact-parse diagnostics, and catalog
       tests guard RELAX NG artifact/example manifest drift.
-- [ ] `xhtml/v1` (`application/xhtml+xml`).
+- [x] `xhtml/v1` (`application/xhtml+xml`). Baseline
+      `compact`/`pretty`/`tabular` formatter and `terminal`/`html`/`md`
+      colorizer selectors are declared over CEMT artifacts, top-level XHTML
+      examples are declared from `package.cem`, library schema-package example
+      validation now reports XHTML-owned namespace, root, head/body order,
+      not-well-formed XML, and profile diagnostics, and catalog tests guard
+      XHTML artifact/example manifest drift.
 - [ ] `svg/v1` (`image/svg+xml`).
 - [ ] `mathml/v1` (`application/mathml+xml`, MathML aliases).
 - [ ] `xslt/v1` (`application/xslt+xml`, XSLT aliases).
