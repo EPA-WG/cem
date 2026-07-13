@@ -213,7 +213,10 @@ history belongs in git history and the feature-specific docs linked below.
         custom schema; CLI runtime coverage now also proves per-child,
         total-child, distinct-child, and selected-child count
         `schema:child-occurrence` details through a schema-package-loaded
-        custom schema; schema-package CLI examples now also cover schema-definition
+        custom schema; CLI runtime coverage now also proves passing and
+        failing attribute `schema:value-vocabulary` and `schema:scalar-type`
+        details through a schema-package-loaded custom schema;
+        schema-package CLI examples now also cover schema-definition
         failures for invalid datatype parameter declarations on integer/number
         bounds, numeric digit counts, string length/prefix/suffix params, list
         item-count params, regex patterns, path prefixes/extensions, URI

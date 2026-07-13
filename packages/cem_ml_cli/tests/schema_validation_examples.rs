@@ -2143,6 +2143,204 @@ fn schema_runtime_field_contract_primitives_emit_structured_details() {
 }
 
 #[test]
+fn schema_runtime_attribute_value_and_scalar_type_emit_structured_details() {
+    const CUSTOM_SCHEMA_URI: &str = "https://example.test/ns/attribute-runtime/1";
+    const CUSTOM_CONTENT_TYPE: &str = "application/vnd.example.attribute-runtime+cem";
+    const VALUE_DIAGNOSTIC: &str = "example.div.invalid_class";
+    const TYPE_DIAGNOSTIC: &str = "example.div.invalid_id";
+
+    let root = test_temp_dir("cem-ml-cli-attribute-runtime");
+    let manifest_path = root.join("package.cem");
+    let schema_path = root.join("schema/attribute-runtime.cem");
+    let valid_input_path = root.join("examples/valid-attributes.cem");
+    let invalid_input_path = root.join("examples/invalid-attributes.cem");
+
+    write_test_file(
+        &manifest_path,
+        r#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="attribute-runtime" @version="1.0.0" |
+    {schema
+        @uri="https://example.test/ns/attribute-runtime/1"
+        @source="schema/attribute-runtime.cem"
+    }
+    {content-type @value="application/vnd.example.attribute-runtime+cem" @primary=true}
+    {namespace @prefix="demo" @uri="https://example.test/ns/attribute-runtime/1"}
+}
+"#,
+    );
+    write_test_file(
+        &schema_path,
+        r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@default schema
+
+{schema @name="attribute-runtime" @namespace="https://example.test/ns/attribute-runtime/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {content-types |
+        {content-type @value="application/vnd.example.attribute-runtime+cem" @primary=true}
+    }
+    {namespaces |
+        {namespace @prefix="demo" @uri="https://example.test/ns/attribute-runtime/1" @role="schema"}
+    }
+    {elements |
+        {element @name="div" @optional-attributes="class id" @children="*"}
+    }
+    {attributes |
+        {attribute
+            @name="class"
+            @type="schema:string"
+            @values="card panel"
+            @values-diagnostic="example.div.invalid_class"
+        }
+        {attribute
+            @name="id"
+            @type="schema:integer"
+            @type-diagnostic="example.div.invalid_id"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.div.invalid_class"
+            @severity="error"
+            @behavior="schema:value-vocabulary"
+            @message="Div class must use the declared vocabulary"
+        }
+        {diagnostic
+            @code="example.div.invalid_id"
+            @severity="error"
+            @behavior="schema:scalar-type"
+            @message="Div id must be an integer for this schema"
+        }
+    }
+}
+"#,
+    );
+    write_test_file(
+        &valid_input_path,
+        r#"@doc cem-ml 1
+
+{div @class="card" @id=7}
+"#,
+    );
+    write_test_file(
+        &invalid_input_path,
+        r#"@doc cem-ml 1
+
+{div @class="unknown" @id="abc"}
+"#,
+    );
+
+    let validate = |input_path: &Path| {
+        cem_ml_owned(&[
+            "validate".to_owned(),
+            "--format".to_owned(),
+            "json".to_owned(),
+            "--schema-package".to_owned(),
+            manifest_path.to_string_lossy().into_owned(),
+            "--content-type".to_owned(),
+            CUSTOM_CONTENT_TYPE.to_owned(),
+            "--schema".to_owned(),
+            CUSTOM_SCHEMA_URI.to_owned(),
+            input_path.to_string_lossy().into_owned(),
+        ])
+    };
+
+    let valid_output = validate(&valid_input_path);
+    assert_eq!(
+        valid_output.status.code(),
+        Some(EXIT_OK),
+        "attribute runtime valid stderr:\n{}",
+        stderr(&valid_output)
+    );
+    assert!(
+        stderr(&valid_output).trim().is_empty(),
+        "attribute runtime valid stderr must stay empty:\n{}",
+        stderr(&valid_output)
+    );
+    let valid_report: serde_json::Value = serde_json::from_str(stdout(&valid_output).trim())
+        .expect("attribute runtime valid report is JSON");
+    for code in [VALUE_DIAGNOSTIC, TYPE_DIAGNOSTIC] {
+        assert!(
+            !has_diagnostic(&valid_report, code),
+            "`{code}` should not be emitted for valid attribute contracts:\n{}",
+            stdout(&valid_output)
+        );
+    }
+
+    let invalid_output = validate(&invalid_input_path);
+    assert_eq!(
+        invalid_output.status.code(),
+        Some(EXIT_HARD_FAILURE),
+        "attribute runtime invalid stderr:\n{}",
+        stderr(&invalid_output)
+    );
+    assert!(
+        stderr(&invalid_output).trim().is_empty(),
+        "attribute runtime invalid stderr must stay empty:\n{}",
+        stderr(&invalid_output)
+    );
+    let invalid_report: serde_json::Value = serde_json::from_str(stdout(&invalid_output).trim())
+        .expect("attribute runtime invalid report is JSON");
+    let diagnostic_for_code = |code: &str| {
+        diagnostics(&invalid_report)
+            .iter()
+            .find(|diagnostic| diagnostic["code"] == code)
+            .unwrap_or_else(|| {
+                panic!(
+                    "expected `{code}` in attribute runtime invalid report:\n{}",
+                    stdout(&invalid_output)
+                )
+            })
+    };
+
+    let value_diagnostic = diagnostic_for_code(VALUE_DIAGNOSTIC);
+    let value_details = &value_diagnostic["details"];
+    assert_eq!(value_diagnostic["severity"], "error");
+    assert_eq!(value_details["behavior"], "schema:value-vocabulary");
+    assert_eq!(value_details["checkKind"], "value-vocabulary");
+    assert_eq!(value_details["contract"], "attribute-values:class");
+    assert_eq!(value_details["attribute"], "class");
+    assert_eq!(value_details["valueType"], "schema:string");
+    assert_eq!(
+        value_details["expectedValues"],
+        serde_json::json!(["card", "panel"])
+    );
+    assert_eq!(value_details["actualValue"], "unknown");
+    assert_eq!(value_details["invalidFields"], serde_json::json!(["class"]));
+    assert_eq!(value_details["actualValues"]["class"], "unknown");
+
+    let type_diagnostic = diagnostic_for_code(TYPE_DIAGNOSTIC);
+    let type_details = &type_diagnostic["details"];
+    assert_eq!(type_diagnostic["severity"], "error");
+    assert_eq!(type_details["behavior"], "schema:scalar-type");
+    assert_eq!(type_details["type"], "integer");
+    assert_eq!(type_details["checkKind"], "type:integer");
+    assert_eq!(type_details["contract"], "attribute-type:id");
+    assert_eq!(type_details["attribute"], "id");
+    assert_eq!(type_details["valueType"], "schema:integer");
+    assert_eq!(type_details["expectedType"], "schema:integer");
+    assert_eq!(type_details["actualValue"], "abc");
+    assert_eq!(type_details["invalidFields"], serde_json::json!(["id"]));
+    assert_eq!(type_details["actualValues"]["id"], "abc");
+
+    for diagnostic in [value_diagnostic, type_diagnostic] {
+        assert!(diagnostic["details"]["sourceRange"]["span"]["start"].is_u64());
+        assert!(diagnostic["sourceMap"]["frames"]
+            .as_array()
+            .is_some_and(|frames| !frames.is_empty()));
+    }
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn schema_runtime_choice_case_groups_emit_structured_details() {
     const CUSTOM_SCHEMA_URI: &str = "https://example.test/ns/choice-runtime/1";
     const CUSTOM_CONTENT_TYPE: &str = "application/vnd.example.choice-runtime+cem";
