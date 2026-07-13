@@ -22,7 +22,8 @@
 //!   parameter name/value datatype-param checks.
 //! - schema-owned exact, ranged, selected/selected-distinct count,
 //!   required/forbidden ordered, required/forbidden boundary,
-//!   required/forbidden/exact sequence, prefix/suffix sequence, and
+//!   required/forbidden/exact sequence, prefix/suffix and forbidden
+//!   prefix/suffix sequence, and
 //!   choice-cardinality child occurrence field contracts.
 //!
 //! Remaining follow-up work is in semantic constraints and scalar/field-contract
@@ -401,6 +402,8 @@ pub struct FieldContract {
     pub exact_child_sequence: Vec<String>,
     pub prefix_child_sequence: Vec<String>,
     pub suffix_child_sequence: Vec<String>,
+    pub forbidden_prefix_child_sequence: Vec<String>,
+    pub forbidden_suffix_child_sequence: Vec<String>,
     pub exact_children: BTreeMap<String, String>,
     pub min_children: BTreeMap<String, String>,
     pub max_children: BTreeMap<String, String>,
@@ -527,6 +530,8 @@ struct ExactChildSequenceEvaluation {
 struct ChildSequenceEdgeEvaluation {
     invalid_prefix_sequence: bool,
     invalid_suffix_sequence: bool,
+    invalid_forbidden_prefix_sequence: bool,
+    invalid_forbidden_suffix_sequence: bool,
 }
 
 impl FieldContract {
@@ -6707,6 +6712,12 @@ fn collect_field_contracts(
                 exact_child_sequence: parse_name_sequence(attrs.get("exact-child-sequence")),
                 prefix_child_sequence: parse_name_sequence(attrs.get("prefix-child-sequence")),
                 suffix_child_sequence: parse_name_sequence(attrs.get("suffix-child-sequence")),
+                forbidden_prefix_child_sequence: parse_name_sequence(
+                    attrs.get("forbidden-prefix-child-sequence"),
+                ),
+                forbidden_suffix_child_sequence: parse_name_sequence(
+                    attrs.get("forbidden-suffix-child-sequence"),
+                ),
                 exact_children: parse_name_value_map(attrs.get("exact-children")),
                 min_children: parse_name_value_map(attrs.get("min-children")),
                 max_children: parse_name_value_map(attrs.get("max-children")),
@@ -7155,6 +7166,8 @@ fn validate_field_contracts(
             && !exact_child_sequence_evaluation.invalid_sequence
             && !child_sequence_edge_evaluation.invalid_prefix_sequence
             && !child_sequence_edge_evaluation.invalid_suffix_sequence
+            && !child_sequence_edge_evaluation.invalid_forbidden_prefix_sequence
+            && !child_sequence_edge_evaluation.invalid_forbidden_suffix_sequence
         {
             continue;
         }
@@ -7356,6 +7369,18 @@ fn validate_field_contracts(
             parts.push(format!(
                 "child sequence suffix mismatch: expected {}",
                 contract.suffix_child_sequence.join(", ")
+            ));
+        }
+        if child_sequence_edge_evaluation.invalid_forbidden_prefix_sequence {
+            parts.push(format!(
+                "forbidden child sequence prefix present: {}",
+                contract.forbidden_prefix_child_sequence.join(", ")
+            ));
+        }
+        if child_sequence_edge_evaluation.invalid_forbidden_suffix_sequence {
+            parts.push(format!(
+                "forbidden child sequence suffix present: {}",
+                contract.forbidden_suffix_child_sequence.join(", ")
             ));
         }
         let generated_message = format!(
@@ -7612,6 +7637,10 @@ fn evaluate_child_sequence_edges(
             && !child_sequence.starts_with(&contract.prefix_child_sequence),
         invalid_suffix_sequence: !contract.suffix_child_sequence.is_empty()
             && !child_sequence.ends_with(&contract.suffix_child_sequence),
+        invalid_forbidden_prefix_sequence: !contract.forbidden_prefix_child_sequence.is_empty()
+            && child_sequence.starts_with(&contract.forbidden_prefix_child_sequence),
+        invalid_forbidden_suffix_sequence: !contract.forbidden_suffix_child_sequence.is_empty()
+            && child_sequence.ends_with(&contract.forbidden_suffix_child_sequence),
     }
 }
 
@@ -7937,6 +7966,14 @@ fn field_contract_details(
         serde_json::json!(&contract.suffix_child_sequence),
     );
     details.insert(
+        "forbiddenPrefixChildSequence".to_owned(),
+        serde_json::json!(&contract.forbidden_prefix_child_sequence),
+    );
+    details.insert(
+        "forbiddenSuffixChildSequence".to_owned(),
+        serde_json::json!(&contract.forbidden_suffix_child_sequence),
+    );
+    details.insert(
         "presentRequiredOneChild".to_owned(),
         serde_json::json!(present_required_one_child),
     );
@@ -8233,6 +8270,14 @@ fn field_contract_details(
     details.insert(
         "invalidSuffixChildSequence".to_owned(),
         serde_json::json!(child_sequence_edge_evaluation.invalid_suffix_sequence),
+    );
+    details.insert(
+        "invalidForbiddenPrefixChildSequence".to_owned(),
+        serde_json::json!(child_sequence_edge_evaluation.invalid_forbidden_prefix_sequence),
+    );
+    details.insert(
+        "invalidForbiddenSuffixChildSequence".to_owned(),
+        serde_json::json!(child_sequence_edge_evaluation.invalid_forbidden_suffix_sequence),
     );
     details.insert("childCounts".to_owned(), serde_json::json!(child_counts));
     details.insert(
@@ -10069,6 +10114,24 @@ mod tests {
         assert_eq!(
             model
                 .attributes
+                .get("forbidden-prefix-child-sequence")
+                .expect("forbidden-prefix-child-sequence attribute model")
+                .value_type
+                .as_deref(),
+            Some("cemml:name-list")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("forbidden-suffix-child-sequence")
+                .expect("forbidden-suffix-child-sequence attribute model")
+                .value_type
+                .as_deref(),
+            Some("cemml:name-list")
+        );
+        assert_eq!(
+            model
+                .attributes
                 .get("exact-selected-children")
                 .expect("exact-selected-children attribute model")
                 .value_type
@@ -10385,6 +10448,8 @@ mod tests {
             ("exactChildSequence", "schema:array"),
             ("prefixChildSequence", "schema:array"),
             ("suffixChildSequence", "schema:array"),
+            ("forbiddenPrefixChildSequence", "schema:array"),
+            ("forbiddenSuffixChildSequence", "schema:array"),
             ("invalidChildSequence", "schema:boolean"),
             ("invalidForbiddenChildOrder", "schema:boolean"),
             ("invalidExactSelectedDistinctChildren", "schema:boolean"),
@@ -10396,6 +10461,8 @@ mod tests {
             ("invalidExactChildSequence", "schema:boolean"),
             ("invalidPrefixChildSequence", "schema:boolean"),
             ("invalidSuffixChildSequence", "schema:boolean"),
+            ("invalidForbiddenPrefixChildSequence", "schema:boolean"),
+            ("invalidForbiddenSuffixChildSequence", "schema:boolean"),
         ] {
             assert!(
                 child_occurrence_result
@@ -13150,6 +13217,157 @@ mod tests {
                 "relative": true,
                 "cleanSegments": true,
             })
+        );
+    }
+
+    #[test]
+    fn schema_forbidden_child_edge_sequences_drive_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/forbidden-edge-sequences/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="forbidden-edge-sequences" @namespace="https://example.test/ns/forbidden-edge-sequences/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="flow" @children="start checkpoint finish aside error"}
+        {element @name="start"}
+        {element @name="checkpoint"}
+        {element @name="finish"}
+        {element @name="aside"}
+        {element @name="error"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="flow-forbidden-prefix"
+            @target="flow"
+            @forbidden-prefix-child-sequence="error start"
+            @diagnostic="example.flow_edge"
+            @behavior="schema:child-occurrence"
+            @check-kind="forbidden-prefix-child-sequence"
+        }
+        {field-contract
+            @name="flow-forbidden-suffix"
+            @target="flow"
+            @forbidden-suffix-child-sequence="finish error"
+            @diagnostic="example.flow_edge"
+            @behavior="schema:child-occurrence"
+            @check-kind="forbidden-suffix-child-sequence"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.flow_edge"
+            @severity="error"
+            @behavior="schema:child-occurrence"
+        }
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "forbidden edge sequence schema must compile: {:#?}",
+            model.compile_diagnostics
+        );
+
+        for source in [
+            r#"{flow | {start} {error} {finish}}"#,
+            r#"{flow | {error} {finish} {start}}"#,
+            r#"{flow | {finish} {error} {start}}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics
+                    .iter()
+                    .all(|diagnostic| diagnostic.code != "example.flow_edge"),
+                "forbidden edge sequence should not fire for {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{flow | {error} {start} {checkpoint}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.flow_edge"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("flow-forbidden-prefix")
+            })
+            .expect("forbidden prefix child sequence diagnostic");
+        assert!(diagnostic
+            .message
+            .contains("forbidden child sequence prefix present"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("forbidden prefix child sequence details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:child-occurrence")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("forbidden-prefix-child-sequence")
+        );
+        assert_eq!(
+            details["forbiddenPrefixChildSequence"],
+            serde_json::json!(["error", "start"])
+        );
+        assert_eq!(
+            details["actualChildSequence"],
+            serde_json::json!(["error", "start", "checkpoint"])
+        );
+        assert_eq!(
+            details["invalidForbiddenPrefixChildSequence"],
+            serde_json::json!(true)
+        );
+        assert_eq!(
+            details["invalidForbiddenSuffixChildSequence"],
+            serde_json::json!(false)
+        );
+
+        let document = parse_cem_document(r#"{flow | {start} {finish} {error}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.flow_edge"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("flow-forbidden-suffix")
+            })
+            .expect("forbidden suffix child sequence diagnostic");
+        assert!(diagnostic
+            .message
+            .contains("forbidden child sequence suffix present"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("forbidden suffix child sequence details");
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("forbidden-suffix-child-sequence")
+        );
+        assert_eq!(
+            details["forbiddenSuffixChildSequence"],
+            serde_json::json!(["finish", "error"])
+        );
+        assert_eq!(
+            details["actualChildSequence"],
+            serde_json::json!(["start", "finish", "error"])
+        );
+        assert_eq!(
+            details["invalidForbiddenPrefixChildSequence"],
+            serde_json::json!(false)
+        );
+        assert_eq!(
+            details["invalidForbiddenSuffixChildSequence"],
+            serde_json::json!(true)
         );
     }
 
