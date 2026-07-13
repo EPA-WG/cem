@@ -9824,6 +9824,63 @@ mod tests {
                 "datatype-param result must declare {detail_name} as {value_type}"
             );
         }
+        let resource_readable_result = model
+            .behaviors
+            .get("resource-readable")
+            .and_then(|behavior| behavior.result.as_ref())
+            .expect("resource-readable result declaration");
+        for (detail_name, value_type) in [
+            ("constraint", "schema:identifier"),
+            ("path", "schema:path"),
+            ("error", "schema:string"),
+            ("sourceRange", "schema:object"),
+        ] {
+            assert!(
+                resource_readable_result
+                    .details
+                    .iter()
+                    .any(|detail| detail.name == detail_name && detail.value_type == value_type),
+                "resource-readable result must declare {detail_name} as {value_type}"
+            );
+        }
+        let resource_parse_result = model
+            .behaviors
+            .get("resource-parse")
+            .and_then(|behavior| behavior.result.as_ref())
+            .expect("resource-parse result declaration");
+        for (detail_name, value_type) in [
+            ("constraint", "schema:identifier"),
+            ("path", "schema:path"),
+            ("sourceDiagnostic", "schema:object"),
+            ("sourceRange", "schema:object"),
+        ] {
+            assert!(
+                resource_parse_result
+                    .details
+                    .iter()
+                    .any(|detail| detail.name == detail_name && detail.value_type == value_type),
+                "resource-parse result must declare {detail_name} as {value_type}"
+            );
+        }
+        let reference_resolution_result = model
+            .behaviors
+            .get("reference-resolution")
+            .and_then(|behavior| behavior.result.as_ref())
+            .expect("reference-resolution result declaration");
+        for (detail_name, value_type) in [
+            ("constraint", "schema:identifier"),
+            ("expectedValues", "schema:object"),
+            ("invalidValues", "schema:object"),
+            ("sourceRange", "schema:object"),
+        ] {
+            assert!(
+                reference_resolution_result
+                    .details
+                    .iter()
+                    .any(|detail| detail.name == detail_name && detail.value_type == value_type),
+                "reference-resolution result must declare {detail_name} as {value_type}"
+            );
+        }
     }
 
     #[test]

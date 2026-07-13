@@ -195,6 +195,9 @@ checks to `schema:resource-readable`, parser/validation checks to
 `schema:reference-resolution`. This lets a schema-package diagnostic such as
 `cem.schema_package.artifact_check` remain the report identity while individual
 constraint `checkKind` values select different engine algorithms.
+Their result contracts declare the emitted resource path, read error,
+parse/source diagnostic, expected-value, invalid-value, and source-range
+details.
 
 Function behaviors bind to a schema-declared function with `@function`, declare
 typed `{inputs}`, optional typed `{parameters}`, and a `{result}` shape with
@@ -254,7 +257,9 @@ forbidden-value field dependencies, and its result contract declares the emitted
 required/missing/forbidden/invalid field and value details.
 Constraint-owned `schema:resource-readable`, `schema:resource-parse`, and
 `schema:reference-resolution` bindings now compile and stamp operational
-diagnostics with their declared behavior. Integer and number `minInclusive`,
+diagnostics with their declared behavior; their result contracts declare the
+emitted path/error/source-diagnostic and reference expected/invalid value
+details. Integer and number `minInclusive`,
 `maxInclusive`, `minExclusive`, and `maxExclusive` bounds, numeric
 `totalDigits`/`fractionDigits` constraints, string `minLength`/`maxLength`/
 `length`/`stringPrefixes`/`stringSuffixes` constraints, list

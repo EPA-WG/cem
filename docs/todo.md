@@ -73,8 +73,11 @@ history belongs in git history and the feature-specific docs linked below.
       mutual-exclusion field behavior contracts now declare their emitted
       field/value result details. The `schema:datatype-param` result contract
       now declares the emitted family-specific string/list/digit/path/URI/
-      media-type detail keys.
-      Additional engine algorithms remain.
+      media-type detail keys. Constraint-owned resource-read, resource-parse,
+      and reference-resolution behavior contracts now declare their emitted
+      path, error, source diagnostic, expected-value, and invalid-value
+      details. The minimal engine-provided behavior library is now published;
+      the complete schema-package and CLI example matrix remains.
   - [x] Allow declarative behavior to select candidate nodes and match failure
         conditions with CEM-QL, then invoke a schema-declared CEM-ML behavior
         function to calculate the result and structured diagnostic details.
@@ -86,7 +89,7 @@ history belongs in git history and the feature-specific docs linked below.
         Rust code. Diagnostic-scoped `{arguments}` bind cross-diagnostic
         non-default parameter overrides, and schema-package CLI examples now
         cover invalid CEM-QL `@select` and `@match` expressions.
-  - [ ] Publish a minimal useful library of CEM engine-provided algorithms that
+  - [x] Publish a minimal useful library of CEM engine-provided algorithms that
         schema authors can consume through diagnostic `@code` behavior
         references. Cover the common algorithmic variations needed to create a
         schema, including required/forbidden fields, value vocabularies and
@@ -137,7 +140,11 @@ history belongs in git history and the feature-specific docs linked below.
         `schema:value-vocabulary` and `schema:scalar-type` result contracts
         now expose emitted attribute value/type detail keys. The
         `schema:datatype-param` result contract now exposes emitted
-        string/list/digit/path/URI/media-type detail keys.
+        string/list/digit/path/URI/media-type detail keys. Constraint-owned
+        `schema:resource-readable`, `schema:resource-parse`, and
+        `schema:reference-resolution` result contracts now expose emitted
+        resource path, error/source-diagnostic, expected-value, and
+        invalid-value detail keys.
   - [x] Compile behavior declarations and references into the generic schema
         model, reject missing or incompatible behavior references, and dispatch
         them through a single runtime evaluation path. The resolved behavior
