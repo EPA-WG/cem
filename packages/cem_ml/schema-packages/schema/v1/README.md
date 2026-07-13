@@ -291,8 +291,9 @@ selectors, plus relative child ordering, boundary child placement, and
 exact/required/forbidden child sequences, now execute through `schema:child-occurrence`; the
 currently declared attribute datatype-parameter vocabulary is covered by
 `schema:datatype-param`. Attribute declarations can now carry literal
-`@default` metadata; applying omitted defaults to candidate input remains a
-runtime contract step.
+`@default` metadata, and default values are validated against declared scalar
+types, value vocabularies, and datatype parameters; applying omitted defaults
+to candidate input remains a runtime contract step.
 
 ## Validation Examples
 
@@ -320,6 +321,7 @@ CLI validation integration tests.
 | [`invalid-datatype-param-pattern.cem`](examples/invalid-datatype-param-pattern.cem) | String datatype parameter declaration uses an invalid regular expression. | Fail with `cem.schema_definition.invalid_datatype_param` |
 | [`invalid-datatype-param-digits.cem`](examples/invalid-datatype-param-digits.cem) | Numeric digit-count datatype parameter declarations use invalid limits or incompatible primitive types. | Fail with `cem.schema_definition.invalid_datatype_param` |
 | [`invalid-datatype-param-uri-media.cem`](examples/invalid-datatype-param-uri-media.cem) | Path prefix/extension, URI scheme/host/port/authority/path-prefix/path-extension/query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment, and media-type essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter datatype parameter declarations use invalid tokens or incompatible primitive types. | Fail with `cem.schema_definition.invalid_datatype_param` |
+| [`invalid-attribute-default.cem`](examples/invalid-attribute-default.cem) | Attribute defaults violate declared scalar type, value vocabulary, and datatype parameter constraints. | Fail with `cem.schema_definition.invalid_default_value` |
 
 Validate an example explicitly against this schema:
 

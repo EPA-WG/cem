@@ -11,8 +11,9 @@
 //! - schema-owned field contracts for element-bound conditional checks.
 //! - schema-owned diagnostic declarations resolved through declarative engine
 //!   behavior definitions, including severity and message metadata.
-//! - schema-owned attribute `@values`, boolean/integer/number/URI/media-type/
-//!   path type checks, and integer/number `minInclusive`/`maxInclusive`/
+//! - schema-owned attribute defaults, `@values`,
+//!   boolean/integer/number/URI/media-type/path type checks, and integer/number
+//!   `minInclusive`/`maxInclusive`/
 //!   `minExclusive`/`maxExclusive`, numeric `totalDigits`/`fractionDigits`,
 //!   string `minLength`/`maxLength`/`length`/prefix/suffix, list
 //!   `itemCount`/`minItems`/`maxItems`, regex `pattern`, path prefix/extension,
@@ -31,7 +32,7 @@ use crate::diagnostics::{Diagnostic, Severity};
 use crate::events::cem::CemEventNormalizer;
 use crate::parser::builder::CemAstBuilder;
 use crate::parser::document::CemDocument;
-use crate::parser::{AstNodeId, CemAstNode};
+use crate::parser::{AstNodeId, CemAstNode, ExpandedName};
 use crate::resolver::{has_uri_scheme, is_windows_drive_path, uri_scheme};
 use crate::schema::package_loader::{
     load_builtin_schema_package, load_builtin_schema_package_for_content_type,
@@ -62,6 +63,7 @@ pub const INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE: &str =
     "cem.schema_definition.invalid_diagnostic_behavior_contract";
 pub const INVALID_SCHEMA_FIELD_CONTRACT_CODE: &str = "cem.schema_definition.invalid_field_contract";
 pub const INVALID_SCHEMA_DATATYPE_PARAM_CODE: &str = "cem.schema_definition.invalid_datatype_param";
+pub const INVALID_SCHEMA_DEFAULT_VALUE_CODE: &str = "cem.schema_definition.invalid_default_value";
 pub const SCHEMA_BEHAVIOR_QUERY_INVALID_CODE: &str = "cem.schema_behavior.query_invalid";
 pub const SCHEMA_BEHAVIOR_QUERY_FAILED_CODE: &str = "cem.schema_behavior.query_failed";
 pub const SCHEMA_BEHAVIOR_RESULT_INVALID_CODE: &str = "cem.schema_behavior.result_invalid";
@@ -3102,6 +3104,11 @@ fn compile_document_model_from_document_with_seen(
             attribute_model,
             &mut model.compile_diagnostics,
         );
+        validate_attribute_default_definition(
+            schema_uri,
+            attribute_model,
+            &mut model.compile_diagnostics,
+        );
         validate_attribute_diagnostic_reference(
             schema_uri,
             attribute_model,
@@ -3351,6 +3358,69 @@ fn validate_attribute_diagnostic_reference(
                 "behavior": &behavior.behavior,
                 "expectedBehavior": expected_engine_behavior.reference(),
                 "checkKind": "diagnostic-behavior-contract",
+            }),
+        ));
+    }
+}
+
+fn validate_attribute_default_definition(
+    schema_uri: &str,
+    attribute_model: &AttributeModel,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(default_value) = attribute_model.default_value.as_deref() else {
+        return;
+    };
+
+    let default_node = CemAstNode::Attribute {
+        node_id: 0,
+        expanded_name: ExpandedName {
+            namespace_uri: String::new(),
+            local_name: "default".to_owned(),
+            schema_id: None,
+        },
+        value: Some(default_value.to_owned()),
+        source: attribute_model.source_map.clone(),
+    };
+    let attribute_values =
+        BTreeMap::from([(attribute_model.name.clone(), default_value.to_owned())]);
+    let diagnostic_behaviors = BTreeMap::new();
+    let mut default_diagnostics = Vec::new();
+    validate_attribute_contracts(
+        schema_uri,
+        &diagnostic_behaviors,
+        "schema:attribute-default",
+        &attribute_model.name,
+        default_value,
+        attribute_model,
+        &attribute_values,
+        &default_node,
+        &mut default_diagnostics,
+    );
+
+    for diagnostic in default_diagnostics {
+        let violation_details = diagnostic.details.unwrap_or_else(|| serde_json::json!({}));
+        let violation_check_kind = violation_details
+            .get("checkKind")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or(diagnostic.code.as_str())
+            .to_owned();
+        diagnostics.push(schema_compile_diagnostic(
+            INVALID_SCHEMA_DEFAULT_VALUE_CODE,
+            format!(
+                "attribute `{}` declares invalid default value `{default_value}` in schema `{schema_uri}`: {}",
+                attribute_model.name, diagnostic.message
+            ),
+            &attribute_model.source_map,
+            serde_json::json!({
+                "schemaUri": schema_uri,
+                "attribute": &attribute_model.name,
+                "checkKind": format!("attribute-default:{violation_check_kind}"),
+                "defaultValue": default_value,
+                "valueType": attribute_model.value_type.as_deref().unwrap_or_default(),
+                "violationCode": diagnostic.code,
+                "violationCheckKind": violation_check_kind,
+                "violation": violation_details,
             }),
         ));
     }
@@ -13448,6 +13518,72 @@ mod tests {
                 .as_deref(),
             Some(" Untitled ")
         );
+    }
+
+    #[test]
+    fn schema_attribute_default_values_validate_against_declared_contracts() {
+        let model = compile_document_model(
+            "https://example.test/ns/invalid-attribute-defaults/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-attribute-defaults" @namespace="https://example.test/ns/invalid-attribute-defaults/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="count mode code"}
+    }
+    {attributes |
+        {attribute @name="count" @type="schema:integer" @default="many"}
+        {attribute @name="mode" @type="schema:identifier" @values="compact pretty" @default="tabular"}
+        {attribute @name="code" @type="schema:string" @minLength=2 @default="x"}
+    }
+}"#,
+        );
+
+        for (attribute, check_kind, default_value, violation_code) in [
+            (
+                "count",
+                "attribute-default:type:integer",
+                "many",
+                INVALID_ATTRIBUTE_TYPE_CODE,
+            ),
+            (
+                "mode",
+                "attribute-default:value-vocabulary",
+                "tabular",
+                INVALID_ATTRIBUTE_VALUE_CODE,
+            ),
+            (
+                "code",
+                "attribute-default:datatype-param:minLength",
+                "x",
+                INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE,
+            ),
+        ] {
+            let diagnostic = model
+                .compile_diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.code == INVALID_SCHEMA_DEFAULT_VALUE_CODE
+                        && diagnostic.details.as_ref().is_some_and(|details| {
+                            details["attribute"] == attribute
+                                && details["checkKind"] == check_kind
+                                && details["defaultValue"] == default_value
+                                && details["violationCode"] == violation_code
+                        })
+                })
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing invalid default diagnostic for {attribute}: {:#?}",
+                        model.compile_diagnostics
+                    )
+                });
+            assert!(diagnostic.message.contains("invalid default value"));
+            assert!(diagnostic
+                .source_map
+                .as_ref()
+                .is_some_and(|source_map| !source_map.frames.is_empty()));
+        }
     }
 
     #[test]
