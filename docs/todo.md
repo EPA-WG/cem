@@ -673,7 +673,7 @@ history belongs in git history and the feature-specific docs linked below.
       `packages/cem_ml/schema-packages`: every `{package-id}/vN/` folder must be
       discoverable from `package.cem` with a `.cem` schema source, example
       references, CEMT formatter artifacts, and CEMT colorizer artifacts.
-  - [ ] Extend the schema-package manifest and validators so package examples
+  - [x] Extend the schema-package manifest and validators so package examples
         and formatter/colorizer artifacts are declared from `package.cem`.
         Examples must include source path, content type, schema URL, expected
         pass/fail result, and expected diagnostics. Artifacts must include

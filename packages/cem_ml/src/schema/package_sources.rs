@@ -600,6 +600,23 @@ mod tests {
         }
     }
 
+    fn assert_manifest_artifact_attr(
+        package_id: &str,
+        artifact_kind: &str,
+        artifact_path: &str,
+        attrs: &BTreeMap<String, String>,
+        attr_name: &str,
+    ) {
+        assert!(
+            matches!(attrs.get(attr_name), Some(value) if !value.trim().is_empty()),
+            "{} `{}` artifact `{}` must declare non-empty `{}` in package.cem",
+            package_id,
+            artifact_kind,
+            artifact_path,
+            attr_name
+        );
+    }
+
     fn output_artifact_directory(kind: &str) -> Option<&'static str> {
         match kind {
             "formatter" | "formatter-helper" => Some("formatters"),
@@ -1471,6 +1488,53 @@ mod tests {
                     package.package_id,
                     path
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn builtin_output_artifacts_declare_manifest_metadata_required_for_loading() {
+        const OUTPUT_STAGE_REQUIRED_ATTRS: &[&str] = &[
+            "content-type",
+            "schema",
+            "target-content-type",
+            "target-schema",
+            "target-category",
+            "function-name",
+        ];
+
+        for package in builtin_schema_package_sources() {
+            let package_id = package.package_id;
+            for attrs in package_manifest_artifact_attrs(package_id, package.manifest_source) {
+                let Some(kind) = attrs.get("kind").map(String::as_str) else {
+                    continue;
+                };
+                if output_artifact_directory(kind).is_none() {
+                    continue;
+                }
+                let path = attrs.get("path").map(String::as_str).unwrap_or("<missing>");
+
+                for attr_name in OUTPUT_STAGE_REQUIRED_ATTRS {
+                    assert_manifest_artifact_attr(package_id, kind, path, &attrs, attr_name);
+                }
+
+                match kind {
+                    "formatter" => assert_manifest_artifact_attr(
+                        package_id,
+                        kind,
+                        path,
+                        &attrs,
+                        "formatter-profile",
+                    ),
+                    "colorizer" => assert_manifest_artifact_attr(
+                        package_id,
+                        kind,
+                        path,
+                        &attrs,
+                        "color-profile",
+                    ),
+                    _ => {}
+                }
             }
         }
     }
