@@ -60,8 +60,9 @@ history belongs in git history and the feature-specific docs linked below.
       also executes through `schema:child-occurrence`; boundary child
       placement now also executes through `schema:child-occurrence`; exact,
       required, and forbidden child sequences now also execute through
-      `schema:child-occurrence`. Presence-gated dependent-required field
-      groups now execute when all declared `when-present-attributes` are
+      `schema:child-occurrence`; accepted-child allow-lists also execute
+      through `schema:accepted-children`. Presence-gated dependent-required
+      field groups now execute when all declared `when-present-attributes` are
       present.
       Additional engine algorithms remain.
   - [x] Allow declarative behavior to select candidate nodes and match failure
@@ -85,16 +86,18 @@ history belongs in git history and the feature-specific docs linked below.
         semantic validators. The bootstrap schema now declares initial
         field-contract-backed aliases for `schema:required-fields`,
         `schema:forbidden-fields`, `schema:dependent-required-fields`,
-        `schema:mutual-exclusion`, `schema:child-occurrence`, and
-        `schema:path-layout`, broader `schema:field-dependency` and
-        `schema:choice-case` aliases, plus attribute-owned aliases for
+        `schema:mutual-exclusion`, `schema:child-occurrence`,
+        `schema:accepted-children`, and `schema:path-layout`, broader
+        `schema:field-dependency` and `schema:choice-case` aliases, plus attribute-owned aliases for
         `schema:value-vocabulary`, `schema:scalar-type`, and
         `schema:datatype-param`, plus constraint-owned bindings for
         `schema:resource-readable`, `schema:resource-parse`, and
         `schema:reference-resolution`; required-one/max-one attribute choice
         cardinality now executes through `schema:choice-case`; broader child
         occurrence ranges, child-set cardinality, relative child ordering, and
-        boundary child placement, plus exact/required/forbidden child sequences, now execute through `schema:child-occurrence`; basic
+        boundary child placement, plus exact/required/forbidden child sequences, now execute through `schema:child-occurrence`;
+        accepted-child allow-lists now execute through
+        `schema:accepted-children`; basic
         identifier, name-list, type-reference, explicit symbol/wildcard
         reference, number, qualified-name, semantic version, URI, media-type,
         and scope-context path scalar syntax now execute through
@@ -157,8 +160,8 @@ history belongs in git history and the feature-specific docs linked below.
         `schema:required-fields`, `schema:forbidden-fields`,
         `schema:dependent-required-fields`, `schema:mutual-exclusion`,
         `schema:field-dependency`, `schema:child-occurrence`, and
-        `schema:path-layout` bindings through converter/artifact/example
-        diagnostics,
+        `schema:accepted-children` and `schema:path-layout` bindings through
+        converter/artifact/example diagnostics,
         and ranged, child-set, selected-count, distinct-count, ordered, boundary, exact-sequence, required-sequence, and forbidden-sequence `schema:child-occurrence` through the typed-resource schema
         example; CLI runtime coverage now also proves regex `pattern`
         `schema:datatype-param` details through a schema-package-loaded custom

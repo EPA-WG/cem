@@ -9509,6 +9509,24 @@ mod tests {
                     && parameter.required));
             assert!(behavior.result.is_some());
         }
+        let accepted_children_result = model
+            .behaviors
+            .get("accepted-children")
+            .and_then(|behavior| behavior.result.as_ref())
+            .expect("accepted-children result declaration");
+        for (detail_name, value_type) in [
+            ("acceptedChildren", "schema:array"),
+            ("invalidChildren", "schema:array"),
+            ("childCounts", "schema:object"),
+        ] {
+            assert!(
+                accepted_children_result
+                    .details
+                    .iter()
+                    .any(|detail| detail.name == detail_name && detail.value_type == value_type),
+                "accepted-children result must declare {detail_name} as {value_type}"
+            );
+        }
         for (behavior_name, primitive, engine_behavior) in [
             (
                 "value-vocabulary",
