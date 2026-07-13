@@ -685,21 +685,52 @@
                 {detail @name="schemaUri" @type="schema:uri" @required=true}
                 {detail @name="element" @type="schema:identifier" @required=true}
                 {detail @name="attribute" @type="schema:identifier" @required=true}
+                {detail @name="contract" @type="schema:identifier" @required=true}
                 {detail @name="diagnostic" @type="schema:diagnostic-code" @required=true}
                 {detail @name="behavior" @type="schema:behavior-reference" @required=true}
                 {detail @name="checkKind" @type="schema:identifier" @required=true}
                 {detail @name="datatypeParam" @type="schema:identifier" @required=true}
+                {detail @name="paramName" @type="schema:identifier" @required=true}
                 {detail @name="paramValue" @type="schema:string" @required=true}
+                {detail @name="type" @type="schema:identifier"}
+                {detail @name="valueType" @type="schema:type-reference"}
+                {detail @name="expectedType" @type="schema:type-reference"}
+                {detail @name="expectedPattern" @type="schema:string"}
                 {detail @name="expectedValues" @type="schema:array"}
                 {detail @name="actualValue" @type="schema:string" @required=true}
+                {detail @name="actualValues" @type="schema:object"}
+                {detail @name="invalidFields" @type="schema:array"}
                 {detail @name="actualLength" @type="schema:integer"}
+                {detail @name="actualString" @type="schema:string"}
+                {detail @name="actualItemCount" @type="schema:integer"}
+                {detail @name="actualItems" @type="schema:array"}
                 {detail @name="actualTotalDigits" @type="schema:integer"}
                 {detail @name="actualFractionDigits" @type="schema:integer"}
+                {detail @name="actualPath" @type="schema:path"}
+                {detail @name="actualPathExtension" @type="schema:string"}
                 {detail @name="actualScheme" @type="schema:string"}
+                {detail @name="actualUriHost" @type="schema:string"}
+                {detail @name="actualUriPort" @type="schema:string"}
+                {detail @name="actualUriAuthority" @type="schema:string"}
                 {detail @name="actualUriPath" @type="schema:string"}
+                {detail @name="actualUriPathExtension" @type="schema:string"}
+                {detail @name="actualUriQuery" @type="schema:string"}
+                {detail @name="actualUriQueryParameters" @type="schema:array"}
+                {detail @name="invalidUriQueryParameters" @type="schema:array"}
+                {detail @name="actualUriQueryParameterValues" @type="schema:object"}
+                {detail @name="invalidUriQueryParameterValues" @type="schema:object"}
+                {detail @name="forbiddenUriQueryParameters" @type="schema:array"}
+                {detail @name="missingUriQueryParameters" @type="schema:array"}
+                {detail @name="actualUriFragment" @type="schema:string"}
                 {detail @name="actualMediaTypeEssence" @type="schema:media-type"}
+                {detail @name="actualMediaTypeType" @type="schema:string"}
+                {detail @name="actualMediaTypeSubtype" @type="schema:string"}
+                {detail @name="actualMediaTypeSuffix" @type="schema:string"}
                 {detail @name="actualMediaTypeParameters" @type="schema:array"}
                 {detail @name="invalidMediaTypeParameters" @type="schema:array"}
+                {detail @name="actualMediaTypeParameterValues" @type="schema:object"}
+                {detail @name="invalidMediaTypeParameterValues" @type="schema:object"}
+                {detail @name="forbiddenMediaTypeParameters" @type="schema:array"}
                 {detail @name="missingMediaTypeParameters" @type="schema:array"}
                 {detail @name="sourceRange" @type="schema:object" @source="candidate"}
             }

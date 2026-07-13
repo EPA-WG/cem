@@ -9700,6 +9700,65 @@ mod tests {
             }));
             assert!(behavior.result.is_some());
         }
+        let datatype_param_result = model
+            .behaviors
+            .get("datatype-param")
+            .and_then(|behavior| behavior.result.as_ref())
+            .expect("datatype-param result declaration");
+        for (detail_name, value_type) in [
+            ("contract", "schema:identifier"),
+            ("datatypeParam", "schema:identifier"),
+            ("paramName", "schema:identifier"),
+            ("paramValue", "schema:string"),
+            ("type", "schema:identifier"),
+            ("valueType", "schema:type-reference"),
+            ("expectedType", "schema:type-reference"),
+            ("expectedPattern", "schema:string"),
+            ("expectedValues", "schema:array"),
+            ("actualValue", "schema:string"),
+            ("actualValues", "schema:object"),
+            ("invalidFields", "schema:array"),
+            ("actualLength", "schema:integer"),
+            ("actualString", "schema:string"),
+            ("actualItemCount", "schema:integer"),
+            ("actualItems", "schema:array"),
+            ("actualTotalDigits", "schema:integer"),
+            ("actualFractionDigits", "schema:integer"),
+            ("actualPath", "schema:path"),
+            ("actualPathExtension", "schema:string"),
+            ("actualScheme", "schema:string"),
+            ("actualUriHost", "schema:string"),
+            ("actualUriPort", "schema:string"),
+            ("actualUriAuthority", "schema:string"),
+            ("actualUriPath", "schema:string"),
+            ("actualUriPathExtension", "schema:string"),
+            ("actualUriQuery", "schema:string"),
+            ("actualUriQueryParameters", "schema:array"),
+            ("invalidUriQueryParameters", "schema:array"),
+            ("actualUriQueryParameterValues", "schema:object"),
+            ("invalidUriQueryParameterValues", "schema:object"),
+            ("forbiddenUriQueryParameters", "schema:array"),
+            ("missingUriQueryParameters", "schema:array"),
+            ("actualUriFragment", "schema:string"),
+            ("actualMediaTypeEssence", "schema:media-type"),
+            ("actualMediaTypeType", "schema:string"),
+            ("actualMediaTypeSubtype", "schema:string"),
+            ("actualMediaTypeSuffix", "schema:string"),
+            ("actualMediaTypeParameters", "schema:array"),
+            ("invalidMediaTypeParameters", "schema:array"),
+            ("actualMediaTypeParameterValues", "schema:object"),
+            ("invalidMediaTypeParameterValues", "schema:object"),
+            ("forbiddenMediaTypeParameters", "schema:array"),
+            ("missingMediaTypeParameters", "schema:array"),
+        ] {
+            assert!(
+                datatype_param_result
+                    .details
+                    .iter()
+                    .any(|detail| detail.name == detail_name && detail.value_type == value_type),
+                "datatype-param result must declare {detail_name} as {value_type}"
+            );
+        }
     }
 
     #[test]

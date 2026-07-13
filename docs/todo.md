@@ -71,7 +71,9 @@ history belongs in git history and the feature-specific docs linked below.
       `schema:choice-case` behavior contract now declares flat and grouped
       choice result details emitted by the engine. Required, forbidden, and
       mutual-exclusion field behavior contracts now declare their emitted
-      field/value result details.
+      field/value result details. The `schema:datatype-param` result contract
+      now declares the emitted family-specific string/list/digit/path/URI/
+      media-type detail keys.
       Additional engine algorithms remain.
   - [x] Allow declarative behavior to select candidate nodes and match failure
         conditions with CEM-QL, then invoke a schema-declared CEM-ML behavior
@@ -130,7 +132,9 @@ history belongs in git history and the feature-specific docs linked below.
         exposes the emitted path layout and invalid-value details, and the
         `schema:choice-case` result contract now exposes emitted flat/grouped
         choice details. Required, forbidden, and mutual-exclusion field result
-        contracts now expose their emitted field/value details.
+        contracts now expose their emitted field/value details, and the
+        `schema:datatype-param` result contract now exposes emitted
+        string/list/digit/path/URI/media-type detail keys.
   - [x] Compile behavior declarations and references into the generic schema
         model, reject missing or incompatible behavior references, and dispatch
         them through a single runtime evaluation path. The resolved behavior
@@ -345,8 +349,9 @@ history belongs in git history and the feature-specific docs linked below.
         URI path-prefix/path-extension/query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment, and media-type essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter datatype-param checks emit expected values, normalized actual tokens, and invalid/missing parameter arrays;
         schema-definition datatype-param checks now emit expected type and
         actual value type for incompatible numeric, string, list, path, URI,
-        and media-type facets;
-        URI/media-type constraints, datatype params, dependency, additional
+        and media-type facets; datatype-param result contracts now declare the
+        emitted runtime family details;
+        URI/media-type constraints, dependency, additional
         child occurrence variants beyond exact/named/total/selected/distinct count bounds, child-set cardinality, relative ordering, boundary placement, and exact/required/forbidden child sequences, and cross-reference checks need the same
         schema-owned detail shape.
   - [ ] Extend the generic field-contract evaluator. The first evaluator runs

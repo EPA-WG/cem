@@ -260,7 +260,8 @@ essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/
 required-parameter `mediaTypes`/`mediaTypeTypes`/`mediaTypeSubtypes`/`mediaTypeSuffixes`/`mediaTypeParameters`/
 `mediaTypeParameterValues`/`mediaTypeForbiddenParameters`/
 `mediaTypeRequiredParameters` datatype parameter variations now execute through
-`schema:datatype-param`; identifier, name-list, type-reference,
+`schema:datatype-param`, whose result contract declares the emitted
+family-specific string/list/digit/path/URI/media-type details; identifier, name-list, type-reference,
 symbol-reference, wildcard-name/list/type-reference, boolean, integer, number,
 qualified-name, semantic version, basic absolute-URI, basic media-type, and
 scope-context path scalar syntax now execute through `schema:scalar-type`;
