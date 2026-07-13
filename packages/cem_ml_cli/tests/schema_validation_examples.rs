@@ -1608,6 +1608,132 @@ fn schema_package_schema_source_changes_cli_validation_model() {
 }
 
 #[test]
+fn schema_runtime_pattern_datatype_param_emits_structured_details() {
+    const CUSTOM_SCHEMA_URI: &str = "https://example.test/ns/pattern-runtime/1";
+    const CUSTOM_CONTENT_TYPE: &str = "application/vnd.example.pattern-runtime+cem";
+    const CUSTOM_DIAGNOSTIC: &str = "example.item.invalid_code";
+
+    let root = test_temp_dir("cem-ml-cli-pattern-runtime");
+    let manifest_path = root.join("package.cem");
+    let schema_path = root.join("schema/pattern-runtime.cem");
+    let input_path = root.join("examples/invalid-code.cem");
+
+    write_test_file(
+        &manifest_path,
+        r#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="pattern-runtime" @version="1.0.0" |
+    {schema
+        @uri="https://example.test/ns/pattern-runtime/1"
+        @source="schema/pattern-runtime.cem"
+    }
+    {content-type @value="application/vnd.example.pattern-runtime+cem" @primary=true}
+    {namespace @prefix="demo" @uri="https://example.test/ns/pattern-runtime/1"}
+}
+"#,
+    );
+    write_test_file(
+        &schema_path,
+        r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@default schema
+
+{schema @name="pattern-runtime" @namespace="https://example.test/ns/pattern-runtime/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {content-types |
+        {content-type @value="application/vnd.example.pattern-runtime+cem" @primary=true}
+    }
+    {namespaces |
+        {namespace @prefix="demo" @uri="https://example.test/ns/pattern-runtime/1" @role="schema"}
+    }
+    {elements |
+        {element @name="item" @optional-attributes="code"}
+    }
+    {attributes |
+        {attribute
+            @name="code"
+            @type="schema:string"
+            @pattern="[A-Z][A-Z0-9-]*"
+            @datatype-param-diagnostic="example.item.invalid_code"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.item.invalid_code"
+            @severity="error"
+            @behavior="schema:datatype-param"
+            @message="Item code must match the declared pattern"
+        }
+    }
+}
+"#,
+    );
+    write_test_file(
+        &input_path,
+        r#"@doc cem-ml 1
+
+{item @code="bad_code"}
+"#,
+    );
+
+    let output = cem_ml_owned(&[
+        "validate".to_owned(),
+        "--format".to_owned(),
+        "json".to_owned(),
+        "--schema-package".to_owned(),
+        manifest_path.to_string_lossy().into_owned(),
+        "--content-type".to_owned(),
+        CUSTOM_CONTENT_TYPE.to_owned(),
+        "--schema".to_owned(),
+        CUSTOM_SCHEMA_URI.to_owned(),
+        input_path.to_string_lossy().into_owned(),
+    ]);
+    assert_eq!(
+        output.status.code(),
+        Some(EXIT_HARD_FAILURE),
+        "pattern runtime stderr:\n{}",
+        stderr(&output)
+    );
+    assert!(
+        stderr(&output).trim().is_empty(),
+        "pattern runtime stderr must stay empty:\n{}",
+        stderr(&output)
+    );
+    let report: serde_json::Value =
+        serde_json::from_str(stdout(&output).trim()).expect("pattern runtime report is JSON");
+    let diagnostic = diagnostics(&report)
+        .iter()
+        .find(|diagnostic| diagnostic["code"] == CUSTOM_DIAGNOSTIC)
+        .unwrap_or_else(|| {
+            panic!(
+                "expected `{CUSTOM_DIAGNOSTIC}` in pattern runtime report:\n{}",
+                stdout(&output)
+            )
+        });
+    let details = &diagnostic["details"];
+    assert_eq!(diagnostic["severity"], "error");
+    assert_eq!(details["behavior"], "schema:datatype-param");
+    assert_eq!(details["checkKind"], "datatype-param:pattern");
+    assert_eq!(details["contract"], "attribute-datatype-param:code:pattern");
+    assert_eq!(details["datatypeParam"], "pattern");
+    assert_eq!(details["pattern"], "[A-Z][A-Z0-9-]*");
+    assert_eq!(details["actualValue"], "bad_code");
+    assert_eq!(details["invalidFields"], serde_json::json!(["code"]));
+    assert!(details["sourceRange"]["span"]["start"].is_u64());
+    assert!(diagnostic["sourceMap"]["frames"]
+        .as_array()
+        .is_some_and(|frames| !frames.is_empty()));
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn schema_datatype_param_examples_emit_structured_definition_details() {
     let examples = [
         SchemaDefinitionDetailExample {

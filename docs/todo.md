@@ -106,11 +106,9 @@ history belongs in git history and the feature-specific docs linked below.
         constraints now also execute through `schema:datatype-param`; string
         prefix and suffix constraints now also execute through
         `schema:datatype-param`; name-list and wildcard-name-list item-count
-        constraints now also execute through `schema:datatype-param`;
-        datatype parameter families beyond the covered numeric bounds/digit
-        counts, string length/prefix/suffix constraints, list item-count
-        constraints, regex pattern, initial path constraints, and initial URI/media-type token lists
-        remain.
+        constraints now also execute through `schema:datatype-param`; regex
+        pattern now also executes through `schema:datatype-param`. Additional
+        datatype parameter families beyond these covered sets remain.
   - [x] Compile behavior declarations and references into the generic schema
         model, reject missing or incompatible behavior references, and dispatch
         them through a single runtime evaluation path. The resolved behavior
@@ -157,7 +155,9 @@ history belongs in git history and the feature-specific docs linked below.
         `schema:path-layout` bindings through converter/artifact/example
         diagnostics,
         and ranged, child-set, selected-count, distinct-count, ordered, boundary, exact-sequence, required-sequence, and forbidden-sequence `schema:child-occurrence` through the typed-resource schema
-        example; schema-package CLI examples now also cover schema-definition
+        example; CLI runtime coverage now also proves regex `pattern`
+        `schema:datatype-param` details through a schema-package-loaded custom
+        schema; schema-package CLI examples now also cover schema-definition
         failures for invalid datatype parameter declarations on integer/number
         bounds, numeric digit counts, string length/prefix/suffix params, list
         item-count params, regex patterns, path prefixes/extensions, URI
