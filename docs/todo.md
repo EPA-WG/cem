@@ -197,6 +197,8 @@ history belongs in git history and the feature-specific docs linked below.
         forbidden-value `schema:field-dependency` details through a
         schema-package-loaded custom schema; CLI runtime coverage now also
         proves missing and conflicting grouped `schema:choice-case` details
+        through a schema-package-loaded custom schema; CLI runtime coverage
+        now also proves passing and failing `schema:accepted-children` details
         through a schema-package-loaded custom schema; schema-package CLI examples now
         also cover schema-definition
         failures for invalid datatype parameter declarations on integer/number
