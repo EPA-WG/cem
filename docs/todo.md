@@ -319,7 +319,8 @@ history belongs in git history and the feature-specific docs linked below.
         `minExclusive`, and `maxExclusive` bounds, numeric `totalDigits` and
         `fractionDigits`, plus string `minLength`, `maxLength`, and `length`
         params, string `stringPrefixes` and `stringSuffixes`, list `itemCount`,
-        `minItems`, and `maxItems`, regex `pattern`, path `pathPrefixes`/`pathExtensions`,
+        `minItems`, and `maxItems`, regex `pattern`, `whiteSpace` normalization,
+        path `pathPrefixes`/`pathExtensions`,
         URI `uriSchemes`,
         `uriHosts`, `uriPorts`, `uriRequiresAuthority`, `uriPathPrefixes`, and
         `uriPathExtensions`/`uriQueries`/`uriQueryParameters`/
@@ -336,7 +337,7 @@ history belongs in git history and the feature-specific docs linked below.
         bounds, min/max child occurrence ranges, required/forbidden relative child
         ordering, and required/forbidden boundary child placement, plus exact/required/forbidden/prefix/suffix child
         sequences; it still needs RELAX NG-style datatype params beyond the
-        initial scalar and datatype variations, richer dependent-required field groups
+        initial scalar/datatype variations and whitespace normalization, richer dependent-required field groups
         beyond value/presence/absence/child-structure gates, and additional child occurrence
         variants beyond exact/named/total/selected/selected-distinct/distinct count bounds,
         child-set cardinality, required/forbidden relative ordering,
@@ -364,14 +365,15 @@ history belongs in git history and the feature-specific docs linked below.
         required/forbidden relative child ordering contracts,
         required/forbidden boundary child placement contracts,
         exact/required/forbidden/prefix/suffix child sequence contracts, and attribute
-        default metadata, validation, and validation-time materialization; it
+        default metadata, validation, validation-time materialization, and
+        `whiteSpace` datatype-param normalization; it
         still needs reusable string constraints beyond length/prefix/suffix/pattern and path constraints beyond
         prefix/extension and path-layout checks,
         URI/media-type constraints beyond initial allowed scheme/host/port/authority/path-prefix/path-extension/query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment
         and media-type essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter lists,
         RELAX NG-style datatype params beyond numeric bounds/digit counts,
         string length/prefix/suffix, list item counts, pattern, and allowed
-        URI/media tokens, dependent field
+        URI/media tokens and whitespace normalization, dependent field
         groups beyond value/presence/child-structure-gated required/forbidden fields, additional child
         occurrence variants beyond exact/named/total/selected/selected-distinct/distinct count
         bounds, child-set cardinality, required/forbidden relative ordering,

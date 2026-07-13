@@ -16,9 +16,10 @@
 //!   `minInclusive`/`maxInclusive`/
 //!   `minExclusive`/`maxExclusive`, numeric `totalDigits`/`fractionDigits`,
 //!   string `minLength`/`maxLength`/`length`/prefix/suffix, list
-//!   `itemCount`/`minItems`/`maxItems`, regex `pattern`, path prefix/extension,
-//!   URI scheme/host/port/path/query/query-parameter/fragment, and media-type
-//!   essence/type/subtype/suffix/parameter name/value datatype-param checks.
+//!   `itemCount`/`minItems`/`maxItems`, regex `pattern`, `whiteSpace`
+//!   normalization, path prefix/extension, URI scheme/host/port/path/query/
+//!   query-parameter/fragment, and media-type essence/type/subtype/suffix/
+//!   parameter name/value datatype-param checks.
 //! - schema-owned exact, ranged, selected/selected-distinct count,
 //!   required/forbidden ordered, required/forbidden boundary,
 //!   required/forbidden/exact sequence, prefix/suffix sequence, and
@@ -27,6 +28,7 @@
 //! Remaining follow-up work is in semantic constraints and scalar/field-contract
 //! families beyond the currently declared schema vocabulary.
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path};
 
@@ -196,6 +198,7 @@ pub struct AttributeModel {
     pub total_digits: Option<String>,
     pub fraction_digits: Option<String>,
     pub pattern: Option<String>,
+    pub white_space: Option<String>,
     pub path_prefixes: BTreeSet<String>,
     pub path_extensions: BTreeSet<String>,
     pub uri_schemes: BTreeSet<String>,
@@ -719,12 +722,10 @@ fn validate_node(
         let Some((attr_prefix, attr_local, attr_value)) = attribute_parts(attr) else {
             continue;
         };
+        let raw_value = attr_value.unwrap_or_default();
         seen_attributes.insert(attr_local.to_owned());
-        attribute_values.insert(
-            attr_local.to_owned(),
-            attr_value.unwrap_or_default().to_owned(),
-        );
         if !element_model.allows_attribute(attr_prefix, attr_local) {
+            attribute_values.insert(attr_local.to_owned(), raw_value.to_owned());
             diagnostics.push(diag_at(
                 UNKNOWN_ATTRIBUTE_CODE,
                 format!(
@@ -734,17 +735,21 @@ fn validate_node(
                 attr,
             ));
         } else if let Some(attribute_model) = model.attributes.get(attr_local) {
+            let field_value = field_contract_attribute_value(raw_value, attribute_model);
+            attribute_values.insert(attr_local.to_owned(), field_value.into_owned());
             validate_attribute_contracts(
                 &model.schema_uri,
                 &model.diagnostic_behaviors,
                 local,
                 attr_local,
-                attr_value.unwrap_or_default(),
+                raw_value,
                 attribute_model,
                 &attribute_values,
                 attr,
                 diagnostics,
             );
+        } else {
+            attribute_values.insert(attr_local.to_owned(), raw_value.to_owned());
         }
     }
 
@@ -834,9 +839,63 @@ fn materialize_default_attribute_values(
         let Some(default_value) = attribute_model.default_value.as_ref() else {
             continue;
         };
+        let field_value = field_contract_attribute_value(default_value, attribute_model);
         seen_attributes.insert(attribute_name.clone());
-        attribute_values.insert(attribute_name.clone(), default_value.clone());
+        attribute_values.insert(attribute_name.clone(), field_value.into_owned());
     }
+}
+
+fn validation_attribute_value<'a>(
+    value: &'a str,
+    attribute_model: &AttributeModel,
+) -> Cow<'a, str> {
+    match attribute_model.white_space.as_deref() {
+        Some("preserve") => Cow::Borrowed(value),
+        Some("replace") => Cow::Owned(replace_xml_whitespace(value)),
+        Some("collapse") => Cow::Owned(collapse_xml_whitespace(value)),
+        _ => Cow::Borrowed(value.trim()),
+    }
+}
+
+fn field_contract_attribute_value<'a>(
+    value: &'a str,
+    attribute_model: &AttributeModel,
+) -> Cow<'a, str> {
+    if attribute_model.white_space.is_some() {
+        validation_attribute_value(value, attribute_model)
+    } else {
+        Cow::Borrowed(value)
+    }
+}
+
+fn replace_xml_whitespace(value: &str) -> String {
+    value
+        .chars()
+        .map(|ch| match ch {
+            '\t' | '\n' | '\r' => ' ',
+            _ => ch,
+        })
+        .collect()
+}
+
+fn collapse_xml_whitespace(value: &str) -> String {
+    let mut collapsed = String::new();
+    let mut pending_space = false;
+    for ch in value.chars().map(|ch| match ch {
+        '\t' | '\n' | '\r' => ' ',
+        _ => ch,
+    }) {
+        if ch == ' ' {
+            pending_space = !collapsed.is_empty();
+            continue;
+        }
+        if pending_space {
+            collapsed.push(' ');
+            pending_space = false;
+        }
+        collapsed.push(ch);
+    }
+    collapsed
 }
 
 fn validate_attribute_contracts(
@@ -850,6 +909,8 @@ fn validate_attribute_contracts(
     node: &CemAstNode,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let effective_value = validation_attribute_value(value, attribute_model);
+    let value = effective_value.as_ref();
     let type_valid = validate_attribute_type(
         schema_uri,
         diagnostic_behaviors,
@@ -1878,7 +1939,6 @@ fn validate_attribute_datatype_params(
     node: &CemAstNode,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let value = value.trim();
     let range_cmp: Option<fn(&str, &str) -> Option<std::cmp::Ordering>> = if attribute_model
         .value_type
         .as_deref()
@@ -3030,7 +3090,6 @@ fn validate_attribute_value(
     node: &CemAstNode,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let value = value.trim();
     if attribute_model.allowed_values.is_empty() || attribute_model.allowed_values.contains(value) {
         return;
     }
@@ -3304,6 +3363,7 @@ fn collect_attribute_models(
                     fraction_digits: optional_non_empty_attr(&attrs, "fractionDigits")
                         .map(str::to_owned),
                     pattern: optional_non_empty_attr(&attrs, "pattern").map(str::to_owned),
+                    white_space: optional_non_empty_attr(&attrs, "whiteSpace").map(str::to_owned),
                     path_prefixes: parse_value_set(attrs.get("pathPrefixes")),
                     path_extensions: parse_value_set(attrs.get("pathExtensions")),
                     uri_schemes: parse_ascii_lower_value_set(attrs.get("uriSchemes")),
@@ -3446,8 +3506,10 @@ fn validate_attribute_default_definition(
         value: Some(default_value.to_owned()),
         source: attribute_model.source_map.clone(),
     };
-    let attribute_values =
-        BTreeMap::from([(attribute_model.name.clone(), default_value.to_owned())]);
+    let attribute_values = BTreeMap::from([(
+        attribute_model.name.clone(),
+        field_contract_attribute_value(default_value, attribute_model).into_owned(),
+    )]);
     let diagnostic_behaviors = BTreeMap::new();
     let mut default_diagnostics = Vec::new();
     validate_attribute_contracts(
@@ -3559,6 +3621,38 @@ fn validate_attribute_datatype_param_definition(
                     "paramName": "pattern",
                     "paramValue": pattern,
                     "pattern": pattern,
+                    "error": error,
+                }),
+            ));
+        }
+    }
+    if let Some(white_space) = attribute_model.white_space.as_deref() {
+        validate_datatype_param_value_type(
+            schema_uri,
+            attribute_model,
+            "whiteSpace",
+            white_space,
+            "schema:string or cemml:string",
+            is_string_type_reference,
+            diagnostics,
+        );
+        if !matches!(white_space, "preserve" | "replace" | "collapse") {
+            let error = "expected one of preserve, replace, or collapse";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid whiteSpace datatype parameter `{white_space}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:whiteSpace",
+                    "datatypeParam": "whiteSpace",
+                    "paramName": "whiteSpace",
+                    "paramValue": white_space,
+                    "expectedValues": ["preserve", "replace", "collapse"],
                     "error": error,
                 }),
             ));
@@ -8293,6 +8387,13 @@ fn attribute_datatype_param_details(
             object.insert(
                 "actualFractionDigits".to_owned(),
                 serde_json::json!(actual_digit_counts.fraction_digits),
+            );
+        }
+        if let Some(white_space) = attribute_model.white_space.as_deref() {
+            object.insert("whiteSpace".to_owned(), serde_json::json!(white_space));
+            object.insert(
+                "normalizedValue".to_owned(),
+                serde_json::json!(actual_value),
             );
         }
         if param_name == "stringPrefixes" {
@@ -21546,6 +21647,140 @@ mod tests {
         );
         assert_eq!(details["datatypeParam"], serde_json::json!("length"));
         assert_eq!(details["paramValue"], serde_json::json!("-1"));
+    }
+
+    #[test]
+    fn schema_white_space_datatype_param_drives_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/white-space-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="white-space-contracts" @namespace="https://example.test/ns/white-space-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="collapsed preserved replaced"}
+    }
+    {attributes |
+        {attribute @name="collapsed" @type="schema:string" @whiteSpace=collapse @length=3}
+        {attribute @name="preserved" @type="schema:string" @whiteSpace=preserve @length=3}
+        {attribute @name="replaced" @type="schema:string" @whiteSpace=replace @pattern="a b"}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "valid whiteSpace schema must compile: {:#?}",
+            model.compile_diagnostics
+        );
+
+        let document = parse_cem_document(
+            "{item @collapsed=\" a   b \" @preserved=\" a \" @replaced=\"a\tb\"}",
+        );
+        let diagnostics = validate_document_model(&document, &model);
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+            "valid whiteSpace-normalized source produced diagnostics: {diagnostics:?}"
+        );
+
+        let document = parse_cem_document(r#"{item @collapsed=" a   bc "}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("whiteSpace-normalized length diagnostic");
+        assert!(diagnostic.message.contains("collapsed"));
+        assert!(diagnostic.message.contains("length"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("whiteSpace-normalized length details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/white-space-contracts/1")
+        );
+        assert_eq!(details["attribute"], serde_json::json!("collapsed"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:length")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("length"));
+        assert_eq!(details["whiteSpace"], serde_json::json!("collapse"));
+        assert_eq!(details["normalizedValue"], serde_json::json!("a bc"));
+        assert_eq!(details["actualValue"], serde_json::json!("a bc"));
+        assert_eq!(
+            details["actualValues"]["collapsed"],
+            serde_json::json!("a bc")
+        );
+        assert_eq!(details["actualLength"], serde_json::json!(4));
+        assert_eq!(details["length"], serde_json::json!("3"));
+    }
+
+    #[test]
+    fn schema_white_space_datatype_param_rejects_invalid_definition() {
+        let model = compile_document_model(
+            "https://example.test/ns/invalid-white-space-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-white-space-contracts" @namespace="https://example.test/ns/invalid-white-space-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="label count"}
+    }
+    {attributes |
+        {attribute @name="label" @type="schema:string" @whiteSpace=compress}
+        {attribute @name="count" @type="schema:integer" @whiteSpace=collapse}
+    }
+}"#,
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().is_some_and(|details| {
+                        details["attribute"] == "label"
+                            && details["datatypeParam"] == "whiteSpace"
+                            && details["paramValue"] == "compress"
+                    })
+            })
+            .expect("invalid whiteSpace value diagnostic");
+        assert!(diagnostic.message.contains("invalid whiteSpace"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid whiteSpace value details");
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:whiteSpace")
+        );
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["preserve", "replace", "collapse"])
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().is_some_and(|details| {
+                        details["attribute"] == "count"
+                            && details["datatypeParam"] == "whiteSpace"
+                            && details["expectedType"] == "schema:string or cemml:string"
+                    })
+            })
+            .expect("incompatible whiteSpace value type diagnostic");
+        assert!(diagnostic.message.contains("whiteSpace"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("incompatible whiteSpace type details");
+        assert_eq!(details["valueType"], serde_json::json!("schema:integer"));
     }
 
     #[test]

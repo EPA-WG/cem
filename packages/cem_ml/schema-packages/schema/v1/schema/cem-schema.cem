@@ -29,7 +29,7 @@
         {element @name="elements" @children="element"}
         {element @name="element" @required-attributes="name" @optional-attributes="base required-attributes optional-attributes children"}
         {element @name="attributes" @children="attribute"}
-        {element @name="attribute" @required-attributes="name" @optional-attributes="base type required default values minInclusive maxInclusive minExclusive maxExclusive minLength maxLength length stringPrefixes stringSuffixes itemCount minItems maxItems totalDigits fractionDigits pattern pathPrefixes pathExtensions uriSchemes uriHosts uriPorts uriRequiresAuthority uriPathPrefixes uriPathExtensions uriQueries uriQueryParameters uriQueryParameterValues uriQueryForbiddenParameters uriQueryRequiredParameters uriFragments mediaTypes mediaTypeTypes mediaTypeSubtypes mediaTypeSuffixes mediaTypeParameters mediaTypeParameterValues mediaTypeForbiddenParameters mediaTypeRequiredParameters values-diagnostic type-diagnostic datatype-param-diagnostic"}
+        {element @name="attribute" @required-attributes="name" @optional-attributes="base type required default values minInclusive maxInclusive minExclusive maxExclusive minLength maxLength length stringPrefixes stringSuffixes itemCount minItems maxItems totalDigits fractionDigits pattern whiteSpace pathPrefixes pathExtensions uriSchemes uriHosts uriPorts uriRequiresAuthority uriPathPrefixes uriPathExtensions uriQueries uriQueryParameters uriQueryParameterValues uriQueryForbiddenParameters uriQueryRequiredParameters uriFragments mediaTypes mediaTypeTypes mediaTypeSubtypes mediaTypeSuffixes mediaTypeParameters mediaTypeParameterValues mediaTypeForbiddenParameters mediaTypeRequiredParameters values-diagnostic type-diagnostic datatype-param-diagnostic"}
         {element @name="directives" @children="directive"}
         {element @name="directive" @required-attributes="name" @optional-attributes="required value"}
         {element @name="nodes" @children="node"}
@@ -184,6 +184,7 @@
         {attribute @name="totalDigits" @type="schema:integer"}
         {attribute @name="fractionDigits" @type="schema:integer"}
         {attribute @name="pattern" @type="schema:string"}
+        {attribute @name="whiteSpace" @type="schema:white-space"}
         {attribute @name="pathPrefixes" @type="schema:string"}
         {attribute @name="pathExtensions" @type="schema:string"}
         {attribute @name="uriSchemes" @type="schema:string"}
@@ -247,6 +248,7 @@
         {type @name="function-return-type" @base="cemml:identifier" @values="any string boolean number integer array object json"}
         {type @name="function-visibility" @base="cemml:identifier" @values="private package public"}
         {type @name="diagnostic-severity" @base="cemml:identifier" @values="debug info warning error fatal"}
+        {type @name="white-space" @base="cemml:identifier" @values="preserve replace collapse"}
         {type @name="boolean-or-policy" @base="cemml:string"}
     }
 
@@ -742,6 +744,8 @@
                 {detail @name="expectedPattern" @type="schema:string"}
                 {detail @name="expectedValues" @type="schema:array"}
                 {detail @name="actualValue" @type="schema:string" @required=true}
+                {detail @name="whiteSpace" @type="schema:white-space"}
+                {detail @name="normalizedValue" @type="schema:string"}
                 {detail @name="actualValues" @type="schema:object"}
                 {detail @name="invalidFields" @type="schema:array"}
                 {detail @name="actualLength" @type="schema:integer"}
