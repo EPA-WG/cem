@@ -196,7 +196,10 @@ history belongs in git history and the feature-specific docs linked below.
         schema; CLI runtime coverage now also proves gated forbidden-field and
         forbidden-value `schema:field-dependency` details through a
         schema-package-loaded custom schema; CLI runtime coverage now also
-        proves missing and conflicting grouped `schema:choice-case` details
+        proves passing and failing `schema:required-fields`,
+        `schema:forbidden-fields`, and `schema:mutual-exclusion` details
+        through a schema-package-loaded custom schema; CLI runtime coverage
+        now also proves missing and conflicting grouped `schema:choice-case` details
         through a schema-package-loaded custom schema; CLI runtime coverage
         now also proves passing and failing `schema:accepted-children` details
         through a schema-package-loaded custom schema; CLI runtime coverage

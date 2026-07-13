@@ -1880,6 +1880,269 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
 }
 
 #[test]
+fn schema_runtime_field_contract_primitives_emit_structured_details() {
+    const CUSTOM_SCHEMA_URI: &str = "https://example.test/ns/field-contract-runtime/1";
+    const CUSTOM_CONTENT_TYPE: &str = "application/vnd.example.field-contract-runtime+cem";
+    const REQUIRED_DIAGNOSTIC: &str = "example.div.required_id";
+    const FORBIDDEN_DIAGNOSTIC: &str = "example.div.forbidden_title";
+    const MUTUAL_DIAGNOSTIC: &str = "example.span.mutual_class";
+
+    let root = test_temp_dir("cem-ml-cli-field-contract-runtime");
+    let manifest_path = root.join("package.cem");
+    let schema_path = root.join("schema/field-contract-runtime.cem");
+    let valid_input_path = root.join("examples/valid-fields.cem");
+    let invalid_input_path = root.join("examples/invalid-fields.cem");
+
+    write_test_file(
+        &manifest_path,
+        r#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="field-contract-runtime" @version="1.0.0" |
+    {schema
+        @uri="https://example.test/ns/field-contract-runtime/1"
+        @source="schema/field-contract-runtime.cem"
+    }
+    {content-type @value="application/vnd.example.field-contract-runtime+cem" @primary=true}
+    {namespace @prefix="demo" @uri="https://example.test/ns/field-contract-runtime/1"}
+}
+"#,
+    );
+    write_test_file(
+        &schema_path,
+        r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@default schema
+
+{schema @name="field-contract-runtime" @namespace="https://example.test/ns/field-contract-runtime/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {content-types |
+        {content-type @value="application/vnd.example.field-contract-runtime+cem" @primary=true}
+    }
+    {namespaces |
+        {namespace @prefix="demo" @uri="https://example.test/ns/field-contract-runtime/1" @role="schema"}
+    }
+    {elements |
+        {element @name="div" @optional-attributes="id class title" @children="*"}
+        {element @name="span" @optional-attributes="class" @children="*"}
+    }
+    {attributes |
+        {attribute @name="id" @type="schema:string"}
+        {attribute @name="class" @type="schema:string"}
+        {attribute @name="title" @type="schema:string"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="card-id-required"
+            @target="div"
+            @when-attribute="class"
+            @when-values="card"
+            @required-attributes="id"
+            @diagnostic="example.div.required_id"
+            @behavior="schema:required-fields"
+            @check-kind="required-fields"
+        }
+        {field-contract
+            @name="card-title-forbidden"
+            @target="div"
+            @when-attribute="class"
+            @when-values="card"
+            @forbidden-attributes="title"
+            @diagnostic="example.div.forbidden_title"
+            @behavior="schema:forbidden-fields"
+            @check-kind="forbidden-fields"
+        }
+        {field-contract
+            @name="span-blocked-class"
+            @target="span"
+            @forbidden-attribute-values="class=blocked"
+            @diagnostic="example.span.mutual_class"
+            @behavior="schema:mutual-exclusion"
+            @check-kind="mutual-exclusion"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.div.required_id"
+            @severity="error"
+            @behavior="schema:required-fields"
+            @message="Card divs must declare an id"
+        }
+        {diagnostic
+            @code="example.div.forbidden_title"
+            @severity="error"
+            @behavior="schema:forbidden-fields"
+            @message="Card divs must not declare title"
+        }
+        {diagnostic
+            @code="example.span.mutual_class"
+            @severity="error"
+            @behavior="schema:mutual-exclusion"
+            @message="Span class must avoid blocked value"
+        }
+    }
+}
+"#,
+    );
+    write_test_file(
+        &valid_input_path,
+        r#"@doc cem-ml 1
+
+{div @class="card" @id="card-1"}
+{span @class="open"}
+"#,
+    );
+    write_test_file(
+        &invalid_input_path,
+        r#"@doc cem-ml 1
+
+{div @class="card" @title="debug"}
+{span @class="blocked"}
+"#,
+    );
+
+    let validate = |input_path: &Path| {
+        cem_ml_owned(&[
+            "validate".to_owned(),
+            "--format".to_owned(),
+            "json".to_owned(),
+            "--schema-package".to_owned(),
+            manifest_path.to_string_lossy().into_owned(),
+            "--content-type".to_owned(),
+            CUSTOM_CONTENT_TYPE.to_owned(),
+            "--schema".to_owned(),
+            CUSTOM_SCHEMA_URI.to_owned(),
+            input_path.to_string_lossy().into_owned(),
+        ])
+    };
+
+    let valid_output = validate(&valid_input_path);
+    assert_eq!(
+        valid_output.status.code(),
+        Some(EXIT_OK),
+        "field contract valid stderr:\n{}",
+        stderr(&valid_output)
+    );
+    assert!(
+        stderr(&valid_output).trim().is_empty(),
+        "field contract valid stderr must stay empty:\n{}",
+        stderr(&valid_output)
+    );
+    let valid_report: serde_json::Value = serde_json::from_str(stdout(&valid_output).trim())
+        .expect("field contract valid report is JSON");
+    for code in [REQUIRED_DIAGNOSTIC, FORBIDDEN_DIAGNOSTIC, MUTUAL_DIAGNOSTIC] {
+        assert!(
+            !has_diagnostic(&valid_report, code),
+            "`{code}` should not be emitted for valid field contracts:\n{}",
+            stdout(&valid_output)
+        );
+    }
+
+    let invalid_output = validate(&invalid_input_path);
+    assert_eq!(
+        invalid_output.status.code(),
+        Some(EXIT_HARD_FAILURE),
+        "field contract invalid stderr:\n{}",
+        stderr(&invalid_output)
+    );
+    assert!(
+        stderr(&invalid_output).trim().is_empty(),
+        "field contract invalid stderr must stay empty:\n{}",
+        stderr(&invalid_output)
+    );
+    let invalid_report: serde_json::Value = serde_json::from_str(stdout(&invalid_output).trim())
+        .expect("field contract invalid report is JSON");
+    let diagnostic_for_code = |code: &str| {
+        diagnostics(&invalid_report)
+            .iter()
+            .find(|diagnostic| diagnostic["code"] == code)
+            .unwrap_or_else(|| {
+                panic!(
+                    "expected `{code}` in field contract invalid report:\n{}",
+                    stdout(&invalid_output)
+                )
+            })
+    };
+
+    let required_diagnostic = diagnostic_for_code(REQUIRED_DIAGNOSTIC);
+    let required_details = &required_diagnostic["details"];
+    assert_eq!(required_diagnostic["severity"], "error");
+    assert_eq!(required_details["behavior"], "schema:required-fields");
+    assert_eq!(required_details["checkKind"], "required-fields");
+    assert_eq!(required_details["contract"], "card-id-required");
+    assert_eq!(
+        required_details["requiredFields"],
+        serde_json::json!(["id"])
+    );
+    assert_eq!(required_details["missingFields"], serde_json::json!(["id"]));
+    assert_eq!(required_details["condition"]["attribute"], "class");
+    assert_eq!(
+        required_details["condition"]["values"],
+        serde_json::json!(["card"])
+    );
+    assert_eq!(required_details["actualValues"]["class"], "card");
+
+    let forbidden_diagnostic = diagnostic_for_code(FORBIDDEN_DIAGNOSTIC);
+    let forbidden_details = &forbidden_diagnostic["details"];
+    assert_eq!(forbidden_diagnostic["severity"], "error");
+    assert_eq!(forbidden_details["behavior"], "schema:forbidden-fields");
+    assert_eq!(forbidden_details["checkKind"], "forbidden-fields");
+    assert_eq!(forbidden_details["contract"], "card-title-forbidden");
+    assert_eq!(
+        forbidden_details["forbiddenFields"],
+        serde_json::json!(["title"])
+    );
+    assert_eq!(
+        forbidden_details["invalidFields"],
+        serde_json::json!(["title"])
+    );
+    assert_eq!(forbidden_details["condition"]["attribute"], "class");
+    assert_eq!(
+        forbidden_details["condition"]["values"],
+        serde_json::json!(["card"])
+    );
+    assert_eq!(forbidden_details["actualValues"]["title"], "debug");
+
+    let mutual_diagnostic = diagnostic_for_code(MUTUAL_DIAGNOSTIC);
+    let mutual_details = &mutual_diagnostic["details"];
+    assert_eq!(mutual_diagnostic["severity"], "error");
+    assert_eq!(mutual_details["behavior"], "schema:mutual-exclusion");
+    assert_eq!(mutual_details["checkKind"], "mutual-exclusion");
+    assert_eq!(mutual_details["contract"], "span-blocked-class");
+    assert_eq!(
+        mutual_details["forbiddenAttributeValues"],
+        serde_json::json!({
+            "class": ["blocked"],
+        })
+    );
+    assert_eq!(
+        mutual_details["invalidValues"],
+        serde_json::json!({
+            "class": "blocked",
+        })
+    );
+    assert_eq!(
+        mutual_details["invalidFields"],
+        serde_json::json!(["class"])
+    );
+    assert_eq!(mutual_details["actualValues"]["class"], "blocked");
+
+    for diagnostic in [required_diagnostic, forbidden_diagnostic, mutual_diagnostic] {
+        assert!(diagnostic["details"]["sourceRange"]["span"]["start"].is_u64());
+        assert!(diagnostic["sourceMap"]["frames"]
+            .as_array()
+            .is_some_and(|frames| !frames.is_empty()));
+    }
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn schema_runtime_choice_case_groups_emit_structured_details() {
     const CUSTOM_SCHEMA_URI: &str = "https://example.test/ns/choice-runtime/1";
     const CUSTOM_CONTENT_TYPE: &str = "application/vnd.example.choice-runtime+cem";
