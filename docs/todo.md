@@ -868,8 +868,13 @@ Projection and debug/interchange formats:
       magic/version/schema/content-type/truncation and JSON parse/shape
       diagnostics, and catalog tests guard DOM projection example manifest
       drift.
-- [ ] `cem-ast-projection/v1` (`application/vnd.cem.ast+cem-bin`,
-      `application/vnd.cem.ast+json`).
+- [x] `cem-ast-projection/v1` (`application/vnd.cem.ast+cem-bin`,
+      `application/vnd.cem.ast+json`). Top-level binary and JSON projection
+      examples are declared from `package.cem`, library schema-package example
+      validation now reports AST projection binary
+      magic/version/schema/content-type/truncation and JSON parse/shape
+      diagnostics, and catalog tests guard AST projection example manifest
+      drift.
 - [ ] `cem-events-projection/v1` (`application/vnd.cem.events+cem-bin`,
       `application/vnd.cem.events+json`).
 
