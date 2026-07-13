@@ -570,6 +570,8 @@
                 {detail @name="diagnostic" @type="schema:diagnostic-code" @required=true}
                 {detail @name="behavior" @type="schema:behavior-reference" @required=true}
                 {detail @name="checkKind" @type="schema:identifier" @required=true}
+                {detail @name="pathLayout" @type="schema:object"}
+                {detail @name="invalidValues" @type="schema:object"}
                 {detail @name="sourceRange" @type="schema:object" @source="candidate"}
             }
         }

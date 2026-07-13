@@ -63,7 +63,8 @@ history belongs in git history and the feature-specific docs linked below.
       `schema:child-occurrence`; accepted-child allow-lists also execute
       through `schema:accepted-children`. Presence-gated dependent-required
       field groups now execute when all declared `when-present-attributes` are
-      present.
+      present. The `schema:path-layout` behavior contract now declares its
+      `pathLayout` and `invalidValues` result details.
       Additional engine algorithms remain.
   - [x] Allow declarative behavior to select candidate nodes and match failure
         conditions with CEM-QL, then invoke a schema-declared CEM-ML behavior
@@ -116,7 +117,9 @@ history belongs in git history and the feature-specific docs linked below.
         datatype parameter families beyond these covered sets remain.
         Presence-gated dependent-required field groups with multiple required
         gate attributes now execute through `schema:field-dependency`;
-        richer dependency shapes beyond all-present gates remain.
+        richer dependency shapes beyond all-present gates remain. The
+        `schema:path-layout` result contract now exposes the emitted path
+        layout and invalid-value details.
   - [x] Compile behavior declarations and references into the generic schema
         model, reject missing or incompatible behavior references, and dispatch
         them through a single runtime evaluation path. The resolved behavior
@@ -159,8 +162,8 @@ history belongs in git history and the feature-specific docs linked below.
         and example diagnostics, plus field-contract-level
         `schema:required-fields`, `schema:forbidden-fields`,
         `schema:dependent-required-fields`, `schema:mutual-exclusion`,
-        `schema:field-dependency`, `schema:child-occurrence`, and
-        `schema:accepted-children` and `schema:path-layout` bindings through
+        `schema:field-dependency`, `schema:child-occurrence`,
+        `schema:accepted-children`, and `schema:path-layout` bindings through
         converter/artifact/example diagnostics,
         and ranged, child-set, selected-count, distinct-count, ordered, boundary, exact-sequence, required-sequence, and forbidden-sequence `schema:child-occurrence` through the typed-resource schema
         example; CLI runtime coverage now also proves regex `pattern`

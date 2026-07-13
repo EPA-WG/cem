@@ -9527,6 +9527,23 @@ mod tests {
                 "accepted-children result must declare {detail_name} as {value_type}"
             );
         }
+        let path_layout_result = model
+            .behaviors
+            .get("path-layout")
+            .and_then(|behavior| behavior.result.as_ref())
+            .expect("path-layout result declaration");
+        for (detail_name, value_type) in [
+            ("pathLayout", "schema:object"),
+            ("invalidValues", "schema:object"),
+        ] {
+            assert!(
+                path_layout_result
+                    .details
+                    .iter()
+                    .any(|detail| detail.name == detail_name && detail.value_type == value_type),
+                "path-layout result must declare {detail_name} as {value_type}"
+            );
+        }
         for (behavior_name, primitive, engine_behavior) in [
             (
                 "value-vocabulary",
