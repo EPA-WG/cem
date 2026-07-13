@@ -16,7 +16,7 @@
 //!   `minExclusive`/`maxExclusive`, numeric `totalDigits`/`fractionDigits`,
 //!   string `minLength`/`maxLength`/`length`/prefix/suffix, list
 //!   `itemCount`/`minItems`/`maxItems`, regex `pattern`, path prefix/extension,
-//!   URI scheme/host/port/path, and media-type essence/type/subtype/suffix/
+//!   URI scheme/host/port/path/fragment, and media-type essence/type/subtype/suffix/
 //!   parameter name/value datatype-param checks.
 //! - schema-owned exact, ranged, ordered, boundary, sequence, forbidden-sequence,
 //!   exact-sequence, and choice-cardinality child occurrence field contracts.
@@ -200,6 +200,7 @@ pub struct AttributeModel {
     pub uri_requires_authority: Option<String>,
     pub uri_path_prefixes: BTreeSet<String>,
     pub uri_path_extensions: BTreeSet<String>,
+    pub uri_fragments: BTreeSet<String>,
     pub media_types: BTreeSet<String>,
     pub media_type_types: BTreeSet<String>,
     pub media_type_subtypes: BTreeSet<String>,
@@ -1333,6 +1334,16 @@ fn uri_path_extension(value: &str) -> Option<String> {
     is_path_extension_token(extension).then(|| extension.to_owned())
 }
 
+fn uri_fragment(value: &str) -> Option<&str> {
+    let value = value.trim();
+    if is_windows_drive_path(value) {
+        return None;
+    }
+    let _ = uri_scheme(value)?;
+    let (_, fragment) = value.split_once('#')?;
+    Some(fragment)
+}
+
 fn is_uri_path_prefix(value: &str) -> bool {
     !value.is_empty()
         && value.starts_with('/')
@@ -1386,6 +1397,14 @@ fn normalized_uri_port_token(value: &str) -> Option<String> {
 fn is_uri_port_token(value: &str) -> bool {
     let value = value.trim();
     normalized_uri_port_token(value).is_some_and(|normalized| normalized == value)
+}
+
+fn is_uri_fragment_token(value: &str) -> bool {
+    let value = value.trim();
+    !value.is_empty()
+        && !value
+            .bytes()
+            .any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace() || byte == b'#')
 }
 
 fn is_scoped_path_specifier(value: &str) -> bool {
@@ -2005,6 +2024,31 @@ fn validate_attribute_datatype_params(
             value,
             attribute_model,
             "uriPathExtensions",
+            &param_value,
+            "outside allowed",
+            attribute_values,
+            node,
+            diagnostics,
+        );
+    }
+    if !attribute_model.uri_fragments.is_empty()
+        && attribute_model
+            .value_type
+            .as_deref()
+            .is_some_and(is_uri_type_reference)
+        && !uri_fragment(value).is_some_and(|fragment| {
+            !fragment.is_empty() && attribute_model.uri_fragments.contains(fragment)
+        })
+    {
+        let param_value = format_value_set(&attribute_model.uri_fragments);
+        emit_attribute_datatype_param_diagnostic(
+            schema_uri,
+            diagnostic_behaviors,
+            element_name,
+            attribute_name,
+            value,
+            attribute_model,
+            "uriFragments",
             &param_value,
             "outside allowed",
             attribute_values,
@@ -2959,6 +3003,7 @@ fn collect_attribute_models(
                     ),
                     uri_path_prefixes: parse_value_set(attrs.get("uriPathPrefixes")),
                     uri_path_extensions: parse_value_set(attrs.get("uriPathExtensions")),
+                    uri_fragments: parse_value_set(attrs.get("uriFragments")),
                     media_types: parse_ascii_lower_value_set(attrs.get("mediaTypes")),
                     media_type_types: parse_ascii_lower_value_set(attrs.get("mediaTypeTypes")),
                     media_type_subtypes: parse_ascii_lower_value_set(
@@ -3665,6 +3710,56 @@ fn validate_attribute_datatype_param_definition(
                     "paramName": "uriPathExtensions",
                     "paramValue": extension,
                     "expectedPattern": "URI path extension token",
+                    "error": error,
+                }),
+            ));
+        }
+    }
+    if !attribute_model.uri_fragments.is_empty() {
+        let value_type = attribute_model.value_type.as_deref();
+        if !value_type.is_some_and(is_uri_type_reference) {
+            let param_value = format_value_set(&attribute_model.uri_fragments);
+            let error = "expected schema:uri or cemml:uri value type for uriFragments";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriFragments datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriFragments",
+                    "datatypeParam": "uriFragments",
+                    "paramName": "uriFragments",
+                    "paramValue": param_value,
+                    "valueType": value_type.unwrap_or_default(),
+                    "expectedType": "schema:uri",
+                    "error": error,
+                }),
+            ));
+        }
+        for fragment in &attribute_model.uri_fragments {
+            if is_uri_fragment_token(fragment) {
+                continue;
+            }
+            let error = "expected URI fragment token without leading `#`";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriFragments datatype parameter `{fragment}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriFragments",
+                    "datatypeParam": "uriFragments",
+                    "paramName": "uriFragments",
+                    "paramValue": fragment,
+                    "expectedPattern": "URI fragment",
                     "error": error,
                 }),
             ));
@@ -7155,6 +7250,7 @@ fn attribute_datatype_param_details(
         "uriRequiresAuthority" => "URI authority",
         "uriPathPrefixes" => "URI path prefix",
         "uriPathExtensions" => "URI path extension token",
+        "uriFragments" => "URI fragment",
         "mediaTypes" => "media type essence",
         "mediaTypeTypes" => "media type type",
         "mediaTypeSubtypes" => "media type subtype",
@@ -7361,6 +7457,22 @@ fn attribute_datatype_param_details(
                 object.insert(
                     "actualUriPathExtension".to_owned(),
                     serde_json::json!(actual_extension),
+                );
+            }
+        }
+        if param_name == "uriFragments" {
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .uri_fragments
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            if let Some(actual_fragment) = uri_fragment(actual_value) {
+                object.insert(
+                    "actualUriFragment".to_owned(),
+                    serde_json::json!(actual_fragment),
                 );
             }
         }
@@ -8314,6 +8426,15 @@ mod tests {
                 .attributes
                 .get("uriPathExtensions")
                 .expect("uriPathExtensions attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:string")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("uriFragments")
+                .expect("uriFragments attribute model")
                 .value_type
                 .as_deref(),
             Some("schema:string")
@@ -14399,6 +14520,181 @@ mod tests {
     }
 
     #[test]
+    fn schema_uri_fragment_datatype_param_drives_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/uri-fragment-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="uri-fragment-contracts" @namespace="https://example.test/ns/uri-fragment-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="href"}
+    }
+    {attributes |
+        {attribute @name="href" @type="schema:uri" @uriFragments="overview install/cli"}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "valid URI fragment schema must compile: {:#?}",
+            model.compile_diagnostics
+        );
+
+        for source in [
+            r#"{item @href="https://example.test/docs#overview"}"#,
+            r#"{item @href="https://example.test/docs?tab=install#install/cli"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "valid URI fragment source produced datatype-param diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        for source in [
+            r#"{item @href="https://example.test/docs#api"}"#,
+            r#"{item @href="https://example.test/docs"}"#,
+            r#"{item @href="https://example.test/docs#"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "URI outside fragment allow-list did not produce datatype-param diagnostic: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{item @href="https://example.test/docs#api"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("URI fragment datatype-param diagnostic");
+        assert!(diagnostic.message.contains("href"));
+        assert!(diagnostic.message.contains("uriFragments"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("URI fragment datatype-param details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/uri-fragment-contracts/1")
+        );
+        assert_eq!(details["element"], serde_json::json!("item"));
+        assert_eq!(details["attribute"], serde_json::json!("href"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:href:uriFragments")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriFragments")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("uriFragments"));
+        assert_eq!(
+            details["uriFragments"],
+            serde_json::json!("install/cli overview")
+        );
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("URI fragment")
+        );
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["install/cli", "overview"])
+        );
+        assert_eq!(details["actualUriFragment"], serde_json::json!("api"));
+        assert_eq!(
+            details["actualValue"],
+            serde_json::json!("https://example.test/docs#api")
+        );
+        assert_eq!(details["invalidFields"], serde_json::json!(["href"]));
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
+    fn schema_uri_fragment_datatype_param_rejects_invalid_declarations() {
+        let model = compile_document_model(
+            "https://example.test/ns/invalid-uri-fragment-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-uri-fragment-contracts" @namespace="https://example.test/ns/invalid-uri-fragment-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="href label"}
+    }
+    {attributes |
+        {attribute @name="href" @type="schema:uri" @uriFragments="overview #bad"}
+        {attribute @name="label" @type="schema:string" @uriFragments="overview"}
+    }
+}"#,
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().is_some_and(|details| {
+                        details.get("attribute").and_then(serde_json::Value::as_str)
+                            == Some("label")
+                    })
+            })
+            .expect("invalid uriFragments type compile diagnostic");
+        assert!(diagnostic.message.contains("uriFragments"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid uriFragments type compile details");
+        assert_eq!(details["attribute"], serde_json::json!("label"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriFragments")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("uriFragments"));
+        assert_eq!(details["expectedType"], serde_json::json!("schema:uri"));
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().is_some_and(|details| {
+                        details.get("attribute").and_then(serde_json::Value::as_str) == Some("href")
+                            && details
+                                .get("paramValue")
+                                .and_then(serde_json::Value::as_str)
+                                == Some("#bad")
+                    })
+            })
+            .expect("invalid uriFragments token compile diagnostic");
+        assert!(diagnostic.message.contains("invalid uriFragments"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid uriFragments token compile details");
+        assert_eq!(details["attribute"], serde_json::json!("href"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriFragments")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("uriFragments"));
+        assert_eq!(details["paramValue"], serde_json::json!("#bad"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("URI fragment")
+        );
+    }
+
+    #[test]
     fn schema_media_type_attribute_type_drives_validation_from_cem_source() {
         let model = compile_document_model(
             "https://example.test/ns/media-type-contracts/1",
@@ -16749,7 +17045,7 @@ mod tests {
 
 {schema @name="incompatible-datatype-param-contracts" @namespace="https://example.test/ns/incompatible-datatype-param-contracts/1" @version="1.0.0" |
     {elements |
-        {element @name="item" @optional-attributes="title untyped count code ratio score rank names homepage homepagePort download formatType format"}
+        {element @name="item" @optional-attributes="title untyped count code ratio score rank names homepage homepagePort download bookmark formatType format"}
     }
     {attributes |
         {attribute @name="title" @type="schema:string" @minInclusive=1}
@@ -16763,6 +17059,7 @@ mod tests {
         {attribute @name="homepage" @type="schema:string" @uriHosts="api.example.test"}
         {attribute @name="homepagePort" @type="schema:string" @uriPorts="443"}
         {attribute @name="download" @type="schema:string" @uriPathExtensions="cem"}
+        {attribute @name="bookmark" @type="schema:string" @uriFragments="overview"}
         {attribute @name="formatType" @type="schema:string" @mediaTypeTypes="application"}
         {attribute @name="format" @type="schema:string" @mediaTypeSubtypes="json"}
     }
@@ -16844,6 +17141,13 @@ mod tests {
                 "download",
                 "uriPathExtensions",
                 "cem",
+                "schema:string",
+                "schema:uri",
+            ),
+            (
+                "bookmark",
+                "uriFragments",
+                "overview",
                 "schema:string",
                 "schema:uri",
             ),

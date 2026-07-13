@@ -33,7 +33,7 @@ external syntax such as JSON, HTML, or XML:
    model in the validator. Higher-level meaning belongs in the package's `.cem`
    schema. Schema-owned datatype parameters can refine compatible primitives,
    including string prefix/suffix checks, list item-count bounds, URI
-   scheme/host/port/authority/path-prefix/path-extension constraints, and media-type essence, type, subtype,
+   scheme/host/port/authority/path-prefix/path-extension/fragment constraints, and media-type essence, type, subtype,
    parameter-name allow-lists, parameter-value checks, and required-parameter
    checks, without moving package meaning into Rust.
 3. **Node references combine schema declaration with CEM-QL resolution.** A
@@ -479,7 +479,7 @@ package-specific schemas small while preserving strict validation boundaries for
 their own instances. Attribute datatype params such as `@stringPrefixes`,
 `@stringSuffixes`, `@itemCount`, `@minItems`, `@maxItems`, `@pathPrefixes`,
 `@pathExtensions`, `@uriSchemes`, `@uriHosts`, `@uriPorts`,
-`@uriRequiresAuthority`, `@uriPathPrefixes`, `@uriPathExtensions`, `@mediaTypes`, and
+`@uriRequiresAuthority`, `@uriPathPrefixes`, `@uriPathExtensions`, `@uriFragments`, `@mediaTypes`, and
 `@mediaTypeTypes`/`@mediaTypeSubtypes`/`@mediaTypeSuffixes`/`@mediaTypeParameters`/
 `@mediaTypeParameterValues`/`@mediaTypeForbiddenParameters`/
 `@mediaTypeRequiredParameters` then narrow those compatible primitives
