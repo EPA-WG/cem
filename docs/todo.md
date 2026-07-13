@@ -190,7 +190,7 @@ history belongs in git history and the feature-specific docs linked below.
         length/prefix/suffix constraints, list item-count constraints, plus path prefix/extension, URI scheme/host/port/authority/path-prefix/path-extension/query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment, and media-type
         essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter constraints, plus child-set exact-one and
         selected-count/selected-distinct-count/distinct-count/ordered/forbidden-ordered/boundary/forbidden-boundary/
-        exact-sequence/required-sequence/forbidden-sequence/prefix-sequence/suffix-sequence
+        exact-sequence/required-sequence/forbidden-sequence/prefix-sequence/suffix-sequence/forbidden-prefix-sequence/forbidden-suffix-sequence
         `schema:child-occurrence`;
         schema-package examples cover constraint-level
         `schema:resource-readable`, `schema:resource-parse`, and
@@ -203,7 +203,7 @@ history belongs in git history and the feature-specific docs linked below.
         converter/artifact/example diagnostics,
         and ranged, child-set, selected-count, selected-distinct-count, distinct-count, ordered,
         forbidden-ordered, boundary, forbidden-boundary, exact-sequence, required-sequence,
-        forbidden-sequence, prefix-sequence, and suffix-sequence `schema:child-occurrence`
+        forbidden-sequence, prefix-sequence, suffix-sequence, forbidden-prefix-sequence, and forbidden-suffix-sequence `schema:child-occurrence`
         through the typed-resource schema
         example; CLI runtime coverage now also proves regex `pattern`
         `schema:datatype-param` details through a schema-package-loaded custom
@@ -228,7 +228,7 @@ history belongs in git history and the feature-specific docs linked below.
         `schema:child-occurrence` details through a schema-package-loaded
         custom schema; CLI runtime coverage now also proves ordered,
         forbidden-ordered, boundary, required-sequence, forbidden-sequence, exact-sequence,
-        prefix-sequence, and suffix-sequence `schema:child-occurrence` details
+        prefix-sequence, suffix-sequence, forbidden-prefix-sequence, and forbidden-suffix-sequence `schema:child-occurrence` details
         through a schema-package-loaded custom schema; CLI runtime coverage
         now also proves per-child,
         total-child, distinct-child, and selected-child count

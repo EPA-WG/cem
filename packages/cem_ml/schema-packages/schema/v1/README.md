@@ -110,6 +110,9 @@ children.
 Use `prefix-child-sequence` and `suffix-child-sequence` when the direct
 element-child stream must start or end with a declared run while still allowing
 other children outside that edge.
+Use `forbidden-prefix-child-sequence` and
+`forbidden-suffix-child-sequence` when the direct element-child stream may
+contain a run elsewhere, but must not start or end with that run.
 Use `path-layout-attributes` with `path-layout-prefix` and
 `path-layout-extension` for package-relative path layout contracts, such as
 formatter artifacts under `formatters/` and colorizer artifacts under
@@ -308,7 +311,7 @@ flat and grouped choice details emitted by the engine; child-set cardinality,
 total/distinct/selected occurrence and selected-distinct child-count bounds,
 child presence/absence condition selectors, required/forbidden relative child
 ordering, required/forbidden boundary child placement, and
-exact/required/forbidden/prefix/suffix child sequences, now
+exact/required/forbidden/prefix/suffix/forbidden-prefix/forbidden-suffix child sequences, now
 execute through `schema:child-occurrence`; the
 currently declared attribute datatype-parameter vocabulary is covered by
 `schema:datatype-param`. Attribute declarations can now carry literal
@@ -324,7 +327,7 @@ CLI validation integration tests.
 | Example | Purpose | Expected result |
 | --- | --- | --- |
 | [`basic-schema.cem`](examples/basic-schema.cem) | Minimal schema definition with content type, element, and attribute declarations. | Pass |
-| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, conditional `schema:required-fields`, child-gated required/forbidden `schema:field-dependency`, nested exact-one `schema:choice-case`, child-set, selected/ranged/selected-distinct, child presence/absence-gated, ordered/forbidden-ordered, boundary/forbidden-boundary, and exact/required/forbidden/prefix/suffix sequence `schema:child-occurrence`, attribute default metadata, `schema:value-vocabulary`, `schema:scalar-type` number/qualified-name/semver/URI/media-type/path syntax, and `schema:datatype-param` integer-bound/number-bound/digit-count/string length/prefix/suffix/list item-count/pattern/path prefix/extension/URI scheme/host/port/authority/path-prefix/path-extension/query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/media-type essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter attribute diagnostics, and open-content policy. | Pass |
+| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, conditional `schema:required-fields`, child-gated required/forbidden `schema:field-dependency`, nested exact-one `schema:choice-case`, child-set, selected/ranged/selected-distinct, child presence/absence-gated, ordered/forbidden-ordered, boundary/forbidden-boundary, and exact/required/forbidden/prefix/suffix/forbidden-prefix/forbidden-suffix sequence `schema:child-occurrence`, attribute default metadata, `schema:value-vocabulary`, `schema:scalar-type` number/qualified-name/semver/URI/media-type/path syntax, and `schema:datatype-param` integer-bound/number-bound/digit-count/string length/prefix/suffix/list item-count/pattern/path prefix/extension/URI scheme/host/port/authority/path-prefix/path-extension/query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/media-type essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter attribute diagnostics, and open-content policy. | Pass |
 | [`custom-behavior-schema.cem`](examples/custom-behavior-schema.cem) | Custom schema that defines a diagnostic algorithm with CEM-QL candidate matching and a CEM-ML behavior function. | Pass |
 | [`custom-behavior-schema-strict.cem`](examples/custom-behavior-schema-strict.cem) | Variant custom schema that changes the match condition and function-produced result declaratively. | Pass |
 | [`invalid-unclosed-schema.cem`](examples/invalid-unclosed-schema.cem) | Missing closing schema scope syntax diagnostic. | Fail with `cem.ast.unclosed_scope` |

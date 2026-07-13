@@ -3662,9 +3662,9 @@ fn schema_runtime_child_occurrence_sequence_emits_structured_details() {
         {element @name="fieldset" @children="*"}
         {element @name="label" @children="*"}
         {element @name="header"}
-        {element @name="main"}
+        {element @name="main" @children="*"}
         {element @name="footer"}
-        {element @name="aside"}
+        {element @name="aside" @children="*"}
         {element @name="li"}
         {element @name="span"}
         {element @name="p"}
@@ -3740,6 +3740,22 @@ fn schema_runtime_child_occurrence_sequence_emits_structured_details() {
             @check-kind="suffix-child-sequence"
         }
         {field-contract
+            @name="aside-forbidden-prefix-child-sequence"
+            @target="aside"
+            @forbidden-prefix-child-sequence="footer header"
+            @diagnostic="example.layout.child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="forbidden-prefix-child-sequence"
+        }
+        {field-contract
+            @name="main-forbidden-suffix-child-sequence"
+            @target="main"
+            @forbidden-suffix-child-sequence="footer header"
+            @diagnostic="example.layout.child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="forbidden-suffix-child-sequence"
+        }
+        {field-contract
             @name="fieldset-forbidden-first-child"
             @target="fieldset"
             @forbidden-first-child="legend"
@@ -3778,6 +3794,8 @@ fn schema_runtime_child_occurrence_sequence_emits_structured_details() {
 {div | {span} {p} {strong}}
 {dialog | {header} {main} {aside}}
 {form | {aside} {main} {footer}}
+{aside | {header} {footer}}
+{main | {header} {footer}}
 {fieldset | {input} {legend}}
 {label | {input} {span}}
 "#,
@@ -3794,6 +3812,8 @@ fn schema_runtime_child_occurrence_sequence_emits_structured_details() {
 {div | {span} {small} {p} {strong}}
 {dialog | {aside} {header} {main}}
 {form | {main} {footer} {aside}}
+{aside | {footer} {header} {main}}
+{main | {aside} {footer} {header}}
 {fieldset | {legend} {input}}
 {label | {span} {input}}
 "#,
@@ -4038,6 +4058,64 @@ fn schema_runtime_child_occurrence_sequence_emits_structured_details() {
     assert_eq!(suffix_sequence_details["invalidPrefixChildSequence"], false);
     assert_eq!(suffix_sequence_details["invalidSuffixChildSequence"], true);
 
+    let forbidden_prefix_sequence_diagnostic =
+        diagnostic_for_contract("aside-forbidden-prefix-child-sequence");
+    let forbidden_prefix_sequence_details = &forbidden_prefix_sequence_diagnostic["details"];
+    assert_eq!(forbidden_prefix_sequence_diagnostic["severity"], "error");
+    assert_eq!(
+        forbidden_prefix_sequence_details["behavior"],
+        "schema:child-occurrence"
+    );
+    assert_eq!(
+        forbidden_prefix_sequence_details["checkKind"],
+        "forbidden-prefix-child-sequence"
+    );
+    assert_eq!(
+        forbidden_prefix_sequence_details["forbiddenPrefixChildSequence"],
+        serde_json::json!(["footer", "header"])
+    );
+    assert_eq!(
+        forbidden_prefix_sequence_details["actualChildSequence"],
+        serde_json::json!(["footer", "header", "main"])
+    );
+    assert_eq!(
+        forbidden_prefix_sequence_details["invalidForbiddenPrefixChildSequence"],
+        true
+    );
+    assert_eq!(
+        forbidden_prefix_sequence_details["invalidForbiddenSuffixChildSequence"],
+        false
+    );
+
+    let forbidden_suffix_sequence_diagnostic =
+        diagnostic_for_contract("main-forbidden-suffix-child-sequence");
+    let forbidden_suffix_sequence_details = &forbidden_suffix_sequence_diagnostic["details"];
+    assert_eq!(forbidden_suffix_sequence_diagnostic["severity"], "error");
+    assert_eq!(
+        forbidden_suffix_sequence_details["behavior"],
+        "schema:child-occurrence"
+    );
+    assert_eq!(
+        forbidden_suffix_sequence_details["checkKind"],
+        "forbidden-suffix-child-sequence"
+    );
+    assert_eq!(
+        forbidden_suffix_sequence_details["forbiddenSuffixChildSequence"],
+        serde_json::json!(["footer", "header"])
+    );
+    assert_eq!(
+        forbidden_suffix_sequence_details["actualChildSequence"],
+        serde_json::json!(["aside", "footer", "header"])
+    );
+    assert_eq!(
+        forbidden_suffix_sequence_details["invalidForbiddenPrefixChildSequence"],
+        false
+    );
+    assert_eq!(
+        forbidden_suffix_sequence_details["invalidForbiddenSuffixChildSequence"],
+        true
+    );
+
     let forbidden_first_diagnostic = diagnostic_for_contract("fieldset-forbidden-first-child");
     let forbidden_first_details = &forbidden_first_diagnostic["details"];
     assert_eq!(forbidden_first_diagnostic["severity"], "error");
@@ -4078,6 +4156,8 @@ fn schema_runtime_child_occurrence_sequence_emits_structured_details() {
         exact_sequence_diagnostic,
         prefix_sequence_diagnostic,
         suffix_sequence_diagnostic,
+        forbidden_prefix_sequence_diagnostic,
+        forbidden_suffix_sequence_diagnostic,
         forbidden_first_diagnostic,
         forbidden_last_diagnostic,
     ] {

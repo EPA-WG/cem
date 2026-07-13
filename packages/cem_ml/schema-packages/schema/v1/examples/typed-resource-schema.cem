@@ -231,6 +231,8 @@
             @ordered-children="field reference"
             @forbidden-ordered-children="reference field"
             @forbidden-child-sequence="reference field"
+            @forbidden-prefix-child-sequence="reference field"
+            @forbidden-suffix-child-sequence="field reference"
             @diagnostic="example.resource.child_choice"
             @behavior="schema:child-occurrence"
             @check-kind="exactly-one-child"
