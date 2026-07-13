@@ -1171,6 +1171,26 @@ mod tests {
     }
 
     #[test]
+    fn schema_package_schema_does_not_declare_retired_field_specific_diagnostics() {
+        let declared = schema_package_schema_diagnostic_codes();
+        let retired = [
+            "cem.schema_package.missing_schema",
+            "cem.schema_package.converter_identity_missing",
+            "cem.schema_package.converter_identity_mismatch",
+            "cem.schema_package.implementation_missing",
+        ];
+        let stale = retired
+            .iter()
+            .filter(|code| declared.contains(**code))
+            .collect::<Vec<_>>();
+
+        assert!(
+            stale.is_empty(),
+            "schema-package field diagnostics must stay on generic schema-owned contract families; stale diagnostic declarations remain: {stale:?}"
+        );
+    }
+
+    #[test]
     fn schema_package_production_sources_do_not_emit_field_specific_diagnostics() {
         let findings = schema_package_field_rule_antipatterns();
 

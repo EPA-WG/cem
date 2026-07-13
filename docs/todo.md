@@ -488,6 +488,14 @@ history belongs in git history and the feature-specific docs linked below.
         value validation and CEMT template content-type/schema exact values now
         stay schema-owned through the generic `@values` vocabulary instead of
         package-specific runtime branches.
+        Stale schema-package diagnostic declarations for retired package/
+        converter field-specific codes (`missing_schema`,
+        `converter_identity_missing`, `converter_identity_mismatch`, and
+        `implementation_missing`) have been removed so the schema vocabulary
+        only publishes the generic contract-family diagnostics plus operational
+        execution diagnostics that are still emitted; the operational
+        `schema_registration_failed` runtime diagnostic is now declared beside
+        converter registration failures.
   - [ ] Model converter cases in `schema-package.cem`: `implementation=cemt`
         and `implementation=rust` required attribute contracts plus CEMT
         native fallback `fallback-reason` now live in schema-owned
@@ -572,7 +580,9 @@ history belongs in git history and the feature-specific docs linked below.
         descriptor top-level `MissingAttribute` extraction errors have been
         removed for package/schema metadata; stale converter template and
         endpoint-specific diagnostic declarations have been retired in favor of
-        `cem.schema_package.converter_check`.
+        `cem.schema_package.converter_check`; stale schema-package diagnostic
+        declarations for retired package/converter field-specific codes are
+        now test-pinned absent.
   - [ ] Keep Rust validators only for operational execution that cannot be
         represented as field data: resource read failures, parser failures,
         CEMT compilation, CEMT function lookup, host-hook availability, and
