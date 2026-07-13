@@ -3651,6 +3651,14 @@ fn schema_runtime_child_occurrence_counts_emit_structured_details() {
             @check-kind="distinct-child-range"
         }
         {field-contract
+            @name="div-max-one-span"
+            @target="div"
+            @max-one-children="span"
+            @diagnostic="example.layout.child_count"
+            @behavior="schema:child-occurrence"
+            @check-kind="max-one-children"
+        }
+        {field-contract
             @name="main-exact-distinct-count"
             @target="main"
             @exact-distinct-children=2
@@ -3698,7 +3706,7 @@ fn schema_runtime_child_occurrence_counts_emit_structured_details() {
 {nav | {li} {li}}
 {ul | {li} {li}}
 {ol | {li} {li}}
-{div | {span} {span} {small}}
+{div | {span} {small}}
 {main | {span} {small}}
 {footer | {span} {small} {mark}}
 {aside | {span} {small} {mark}}
@@ -3888,6 +3896,24 @@ fn schema_runtime_child_occurrence_counts_emit_structured_details() {
         false
     );
 
+    let max_one_child_diagnostic = diagnostic_for_contract("div-max-one-span");
+    let max_one_child_details = &max_one_child_diagnostic["details"];
+    assert_eq!(max_one_child_diagnostic["severity"], "error");
+    assert_eq!(max_one_child_details["behavior"], "schema:child-occurrence");
+    assert_eq!(max_one_child_details["checkKind"], "max-one-children");
+    assert_eq!(
+        max_one_child_details["maxOneChildren"],
+        serde_json::json!(["span"])
+    );
+    assert_eq!(
+        max_one_child_details["duplicateChildren"],
+        serde_json::json!(["span"])
+    );
+    assert_eq!(
+        max_one_child_details["childCounts"],
+        serde_json::json!({"span": 2})
+    );
+
     let exact_distinct_diagnostic = diagnostic_for_contract("main-exact-distinct-count");
     let exact_distinct_details = &exact_distinct_diagnostic["details"];
     assert_eq!(exact_distinct_diagnostic["severity"], "error");
@@ -3947,6 +3973,7 @@ fn schema_runtime_child_occurrence_counts_emit_structured_details() {
         total_range_diagnostic,
         exact_total_diagnostic,
         distinct_range_diagnostic,
+        max_one_child_diagnostic,
         exact_distinct_diagnostic,
         selected_range_diagnostic,
         exact_selected_diagnostic,

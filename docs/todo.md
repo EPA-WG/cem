@@ -307,8 +307,9 @@ history belongs in git history and the feature-specific docs linked below.
         plus compatibility checks for numeric bounds/digit counts and string
         length/prefix/suffix/pattern params, plus list item-count, path, URI,
         and media-type params, against their target primitive families,
-        plus accepted-child allow-lists, forbidden-child occurrence, exact
-        child counts, child-set cardinality, total, selected, and distinct child-count
+        plus accepted-child allow-lists, forbidden-child occurrence,
+        max-one child occurrence, exact child counts, child-set cardinality,
+        total, selected, and distinct child-count
         bounds, min/max child occurrence ranges, relative child ordering, and
         boundary child placement, plus exact/required/forbidden child sequences; it still needs RELAX NG-style
         datatype params beyond the initial scalar and datatype variations,
