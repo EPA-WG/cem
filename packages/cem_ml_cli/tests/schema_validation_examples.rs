@@ -3023,6 +3023,432 @@ fn schema_runtime_child_occurrence_sequence_emits_structured_details() {
 }
 
 #[test]
+fn schema_runtime_child_occurrence_counts_emit_structured_details() {
+    const CUSTOM_SCHEMA_URI: &str = "https://example.test/ns/child-count-runtime/1";
+    const CUSTOM_CONTENT_TYPE: &str = "application/vnd.example.child-count-runtime+cem";
+    const CUSTOM_DIAGNOSTIC: &str = "example.layout.child_count";
+
+    let root = test_temp_dir("cem-ml-cli-child-count-runtime");
+    let manifest_path = root.join("package.cem");
+    let schema_path = root.join("schema/child-count-runtime.cem");
+    let valid_input_path = root.join("examples/valid-child-counts.cem");
+    let invalid_input_path = root.join("examples/invalid-child-counts.cem");
+
+    write_test_file(
+        &manifest_path,
+        r#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="child-count-runtime" @version="1.0.0" |
+    {schema
+        @uri="https://example.test/ns/child-count-runtime/1"
+        @source="schema/child-count-runtime.cem"
+    }
+    {content-type @value="application/vnd.example.child-count-runtime+cem" @primary=true}
+    {namespace @prefix="demo" @uri="https://example.test/ns/child-count-runtime/1"}
+}
+"#,
+    );
+    write_test_file(
+        &schema_path,
+        r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@default schema
+
+{schema @name="child-count-runtime" @namespace="https://example.test/ns/child-count-runtime/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {content-types |
+        {content-type @value="application/vnd.example.child-count-runtime+cem" @primary=true}
+    }
+    {namespaces |
+        {namespace @prefix="demo" @uri="https://example.test/ns/child-count-runtime/1" @role="schema"}
+    }
+    {elements |
+        {element @name="section" @children="*"}
+        {element @name="article" @children="*"}
+        {element @name="nav" @children="*"}
+        {element @name="ul" @children="*"}
+        {element @name="ol" @children="*"}
+        {element @name="div" @children="*"}
+        {element @name="main" @children="*"}
+        {element @name="footer" @children="*"}
+        {element @name="aside" @children="*"}
+        {element @name="p"}
+        {element @name="span"}
+        {element @name="small"}
+        {element @name="strong"}
+        {element @name="li"}
+        {element @name="mark"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="section-p-count-range"
+            @target="section"
+            @min-children="p=2"
+            @max-children="p=3"
+            @diagnostic="example.layout.child_count"
+            @behavior="schema:child-occurrence"
+            @check-kind="child-occurrence-range"
+        }
+        {field-contract
+            @name="article-p-count-range"
+            @target="article"
+            @min-children="p=1"
+            @max-children="p=2"
+            @diagnostic="example.layout.child_count"
+            @behavior="schema:child-occurrence"
+            @check-kind="child-occurrence-range"
+        }
+        {field-contract
+            @name="nav-exact-li-count"
+            @target="nav"
+            @exact-children="li=2"
+            @diagnostic="example.layout.child_count"
+            @behavior="schema:child-occurrence"
+            @check-kind="exact-children"
+        }
+        {field-contract
+            @name="ul-total-count-range"
+            @target="ul"
+            @min-total-children=2
+            @max-total-children=3
+            @diagnostic="example.layout.child_count"
+            @behavior="schema:child-occurrence"
+            @check-kind="total-child-occurrence-range"
+        }
+        {field-contract
+            @name="ol-exact-total-count"
+            @target="ol"
+            @exact-total-children=2
+            @diagnostic="example.layout.child_count"
+            @behavior="schema:child-occurrence"
+            @check-kind="exact-total-children"
+        }
+        {field-contract
+            @name="div-distinct-count-range"
+            @target="div"
+            @min-distinct-children=2
+            @max-distinct-children=2
+            @diagnostic="example.layout.child_count"
+            @behavior="schema:child-occurrence"
+            @check-kind="distinct-child-range"
+        }
+        {field-contract
+            @name="main-exact-distinct-count"
+            @target="main"
+            @exact-distinct-children=2
+            @diagnostic="example.layout.child_count"
+            @behavior="schema:child-occurrence"
+            @check-kind="exact-distinct-children"
+        }
+        {field-contract
+            @name="footer-selected-count-range"
+            @target="footer"
+            @selected-children="span small"
+            @min-selected-children=2
+            @max-selected-children=3
+            @diagnostic="example.layout.child_count"
+            @behavior="schema:child-occurrence"
+            @check-kind="selected-child-range"
+        }
+        {field-contract
+            @name="aside-exact-selected-count"
+            @target="aside"
+            @selected-children="span small"
+            @exact-selected-children=2
+            @diagnostic="example.layout.child_count"
+            @behavior="schema:child-occurrence"
+            @check-kind="exact-selected-children"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.layout.child_count"
+            @severity="error"
+            @behavior="schema:child-occurrence"
+            @message="Layout children must satisfy the declared count contracts"
+        }
+    }
+}
+"#,
+    );
+    write_test_file(
+        &valid_input_path,
+        r#"@doc cem-ml 1
+
+{section | {p} {p}}
+{article | {p} {p}}
+{nav | {li} {li}}
+{ul | {li} {li}}
+{ol | {li} {li}}
+{div | {span} {span} {small}}
+{main | {span} {small}}
+{footer | {span} {small} {mark}}
+{aside | {span} {small} {mark}}
+"#,
+    );
+    write_test_file(
+        &invalid_input_path,
+        r#"@doc cem-ml 1
+
+{section | {p}}
+{article | {p} {p} {p}}
+{nav | {li}}
+{ul | {li}}
+{ol | {li}}
+{div | {span} {span}}
+{main | {span}}
+{footer | {span} {mark}}
+{aside | {span} {mark}}
+"#,
+    );
+
+    let validate = |input_path: &Path| {
+        cem_ml_owned(&[
+            "validate".to_owned(),
+            "--format".to_owned(),
+            "json".to_owned(),
+            "--schema-package".to_owned(),
+            manifest_path.to_string_lossy().into_owned(),
+            "--content-type".to_owned(),
+            CUSTOM_CONTENT_TYPE.to_owned(),
+            "--schema".to_owned(),
+            CUSTOM_SCHEMA_URI.to_owned(),
+            input_path.to_string_lossy().into_owned(),
+        ])
+    };
+
+    let valid_output = validate(&valid_input_path);
+    assert_eq!(
+        valid_output.status.code(),
+        Some(EXIT_OK),
+        "child count valid stderr:\n{}",
+        stderr(&valid_output)
+    );
+    assert!(
+        stderr(&valid_output).trim().is_empty(),
+        "child count valid stderr must stay empty:\n{}",
+        stderr(&valid_output)
+    );
+    let valid_report: serde_json::Value = serde_json::from_str(stdout(&valid_output).trim())
+        .expect("child count valid report is JSON");
+    assert!(
+        !has_diagnostic(&valid_report, CUSTOM_DIAGNOSTIC),
+        "`{CUSTOM_DIAGNOSTIC}` should not be emitted for valid child counts:\n{}",
+        stdout(&valid_output)
+    );
+
+    let invalid_output = validate(&invalid_input_path);
+    assert_eq!(
+        invalid_output.status.code(),
+        Some(EXIT_HARD_FAILURE),
+        "child count invalid stderr:\n{}",
+        stderr(&invalid_output)
+    );
+    assert!(
+        stderr(&invalid_output).trim().is_empty(),
+        "child count invalid stderr must stay empty:\n{}",
+        stderr(&invalid_output)
+    );
+    let invalid_report: serde_json::Value = serde_json::from_str(stdout(&invalid_output).trim())
+        .expect("child count invalid report is JSON");
+    let diagnostic_for_contract = |contract: &str| {
+        diagnostics(&invalid_report)
+            .iter()
+            .find(|diagnostic| {
+                diagnostic["code"] == CUSTOM_DIAGNOSTIC
+                    && diagnostic["details"]["contract"] == contract
+            })
+            .unwrap_or_else(|| {
+                panic!(
+                    "expected `{CUSTOM_DIAGNOSTIC}` contract `{contract}` in child count report:\n{}",
+                    stdout(&invalid_output)
+                )
+            })
+    };
+
+    let under_range_diagnostic = diagnostic_for_contract("section-p-count-range");
+    let under_range_details = &under_range_diagnostic["details"];
+    assert_eq!(under_range_diagnostic["severity"], "error");
+    assert_eq!(under_range_details["behavior"], "schema:child-occurrence");
+    assert_eq!(under_range_details["checkKind"], "child-occurrence-range");
+    assert_eq!(
+        under_range_details["minChildren"],
+        serde_json::json!({"p": "2"})
+    );
+    assert_eq!(
+        under_range_details["maxChildren"],
+        serde_json::json!({"p": "3"})
+    );
+    assert_eq!(
+        under_range_details["underMinChildren"],
+        serde_json::json!(["p"])
+    );
+    assert_eq!(
+        under_range_details["overMaxChildren"],
+        serde_json::json!([])
+    );
+    assert_eq!(
+        under_range_details["childCounts"],
+        serde_json::json!({"p": 1})
+    );
+
+    let over_range_diagnostic = diagnostic_for_contract("article-p-count-range");
+    let over_range_details = &over_range_diagnostic["details"];
+    assert_eq!(over_range_diagnostic["severity"], "error");
+    assert_eq!(over_range_details["behavior"], "schema:child-occurrence");
+    assert_eq!(over_range_details["checkKind"], "child-occurrence-range");
+    assert_eq!(
+        over_range_details["underMinChildren"],
+        serde_json::json!([])
+    );
+    assert_eq!(
+        over_range_details["overMaxChildren"],
+        serde_json::json!(["p"])
+    );
+    assert_eq!(
+        over_range_details["childCounts"],
+        serde_json::json!({"p": 3})
+    );
+
+    let exact_child_diagnostic = diagnostic_for_contract("nav-exact-li-count");
+    let exact_child_details = &exact_child_diagnostic["details"];
+    assert_eq!(exact_child_diagnostic["severity"], "error");
+    assert_eq!(exact_child_details["behavior"], "schema:child-occurrence");
+    assert_eq!(exact_child_details["checkKind"], "exact-children");
+    assert_eq!(
+        exact_child_details["exactChildren"],
+        serde_json::json!({"li": "2"})
+    );
+    assert_eq!(
+        exact_child_details["invalidExactChildren"],
+        serde_json::json!(["li"])
+    );
+    assert_eq!(
+        exact_child_details["childCounts"],
+        serde_json::json!({"li": 1})
+    );
+
+    let total_range_diagnostic = diagnostic_for_contract("ul-total-count-range");
+    let total_range_details = &total_range_diagnostic["details"];
+    assert_eq!(total_range_diagnostic["severity"], "error");
+    assert_eq!(total_range_details["behavior"], "schema:child-occurrence");
+    assert_eq!(
+        total_range_details["checkKind"],
+        "total-child-occurrence-range"
+    );
+    assert_eq!(total_range_details["minTotalChildren"], 2);
+    assert_eq!(total_range_details["maxTotalChildren"], 3);
+    assert_eq!(total_range_details["totalChildCount"], 1);
+    assert_eq!(total_range_details["underMinTotalChildren"], true);
+    assert_eq!(total_range_details["overMaxTotalChildren"], false);
+    assert_eq!(total_range_details["invalidExactTotalChildren"], false);
+
+    let exact_total_diagnostic = diagnostic_for_contract("ol-exact-total-count");
+    let exact_total_details = &exact_total_diagnostic["details"];
+    assert_eq!(exact_total_diagnostic["severity"], "error");
+    assert_eq!(exact_total_details["behavior"], "schema:child-occurrence");
+    assert_eq!(exact_total_details["checkKind"], "exact-total-children");
+    assert_eq!(exact_total_details["exactTotalChildren"], 2);
+    assert_eq!(exact_total_details["totalChildCount"], 1);
+    assert_eq!(exact_total_details["invalidExactTotalChildren"], true);
+
+    let distinct_range_diagnostic = diagnostic_for_contract("div-distinct-count-range");
+    let distinct_range_details = &distinct_range_diagnostic["details"];
+    assert_eq!(distinct_range_diagnostic["severity"], "error");
+    assert_eq!(
+        distinct_range_details["behavior"],
+        "schema:child-occurrence"
+    );
+    assert_eq!(distinct_range_details["checkKind"], "distinct-child-range");
+    assert_eq!(distinct_range_details["minDistinctChildren"], 2);
+    assert_eq!(distinct_range_details["maxDistinctChildren"], 2);
+    assert_eq!(distinct_range_details["distinctChildCount"], 1);
+    assert_eq!(distinct_range_details["underMinDistinctChildren"], true);
+    assert_eq!(distinct_range_details["overMaxDistinctChildren"], false);
+    assert_eq!(
+        distinct_range_details["invalidExactDistinctChildren"],
+        false
+    );
+
+    let exact_distinct_diagnostic = diagnostic_for_contract("main-exact-distinct-count");
+    let exact_distinct_details = &exact_distinct_diagnostic["details"];
+    assert_eq!(exact_distinct_diagnostic["severity"], "error");
+    assert_eq!(
+        exact_distinct_details["behavior"],
+        "schema:child-occurrence"
+    );
+    assert_eq!(
+        exact_distinct_details["checkKind"],
+        "exact-distinct-children"
+    );
+    assert_eq!(exact_distinct_details["exactDistinctChildren"], 2);
+    assert_eq!(exact_distinct_details["distinctChildCount"], 1);
+    assert_eq!(exact_distinct_details["invalidExactDistinctChildren"], true);
+
+    let selected_range_diagnostic = diagnostic_for_contract("footer-selected-count-range");
+    let selected_range_details = &selected_range_diagnostic["details"];
+    assert_eq!(selected_range_diagnostic["severity"], "error");
+    assert_eq!(
+        selected_range_details["behavior"],
+        "schema:child-occurrence"
+    );
+    assert_eq!(selected_range_details["checkKind"], "selected-child-range");
+    assert_eq!(
+        selected_range_details["selectedChildren"],
+        serde_json::json!(["small", "span"])
+    );
+    assert_eq!(selected_range_details["minSelectedChildren"], 2);
+    assert_eq!(selected_range_details["maxSelectedChildren"], 3);
+    assert_eq!(selected_range_details["selectedChildCount"], 1);
+    assert_eq!(selected_range_details["underMinSelectedChildren"], true);
+    assert_eq!(selected_range_details["overMaxSelectedChildren"], false);
+    assert_eq!(
+        selected_range_details["invalidExactSelectedChildren"],
+        false
+    );
+
+    let exact_selected_diagnostic = diagnostic_for_contract("aside-exact-selected-count");
+    let exact_selected_details = &exact_selected_diagnostic["details"];
+    assert_eq!(exact_selected_diagnostic["severity"], "error");
+    assert_eq!(
+        exact_selected_details["behavior"],
+        "schema:child-occurrence"
+    );
+    assert_eq!(
+        exact_selected_details["checkKind"],
+        "exact-selected-children"
+    );
+    assert_eq!(exact_selected_details["exactSelectedChildren"], 2);
+    assert_eq!(exact_selected_details["selectedChildCount"], 1);
+    assert_eq!(exact_selected_details["invalidExactSelectedChildren"], true);
+
+    for diagnostic in [
+        under_range_diagnostic,
+        over_range_diagnostic,
+        exact_child_diagnostic,
+        total_range_diagnostic,
+        exact_total_diagnostic,
+        distinct_range_diagnostic,
+        exact_distinct_diagnostic,
+        selected_range_diagnostic,
+        exact_selected_diagnostic,
+    ] {
+        assert!(diagnostic["details"]["sourceRange"]["span"]["start"].is_u64());
+        assert!(diagnostic["sourceMap"]["frames"]
+            .as_array()
+            .is_some_and(|frames| !frames.is_empty()));
+    }
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn schema_datatype_param_examples_emit_structured_definition_details() {
     let examples = [
         SchemaDefinitionDetailExample {
