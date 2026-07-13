@@ -819,8 +819,14 @@ XML and markup family formats:
       executable script/resource/custom-element failures, and charset conflict
       warning metadata, with catalog tests guarding HTML artifact/example
       manifest drift while preserving the Rust HTML-to-DOM converter metadata.
-- [ ] `relax-ng/v1` (`application/relax-ng+xml`,
-      `application/relax-ng-compact-syntax`).
+- [x] `relax-ng/v1` (`application/relax-ng+xml`,
+      `application/relax-ng-compact-syntax`). Baseline
+      `compact`/`pretty`/`tabular` formatter and `terminal`/`html`/`md`
+      colorizer selectors are declared over CEMT artifacts, top-level RELAX NG
+      XML and compact-syntax examples are declared from `package.cem`,
+      RELAX NG example validation now reports schema-owned missing-start,
+      unknown-element, XML-parse, and compact-parse diagnostics, and catalog
+      tests guard RELAX NG artifact/example manifest drift.
 - [ ] `xhtml/v1` (`application/xhtml+xml`).
 - [ ] `svg/v1` (`image/svg+xml`).
 - [ ] `mathml/v1` (`application/mathml+xml`, MathML aliases).

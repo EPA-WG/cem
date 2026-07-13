@@ -13,4 +13,127 @@
 
     {namespace @prefix="cemrng" @uri="https://cem.dev/ns/data/relax-ng/1"}
     {namespace @prefix="rng" @uri="http://relaxng.org/ns/structure/1.0"}
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/relax-ng-format-schema.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/relax-ng+xml"
+        @target-schema="https://cem.dev/ns/data/relax-ng/1"
+        @target-category="relax-ng-schema"
+        @function-name="relax-ng.format-schema"
+        @formatter-profile="compact"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/relax-ng-format-schema.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/relax-ng+xml"
+        @target-schema="https://cem.dev/ns/data/relax-ng/1"
+        @target-category="relax-ng-schema"
+        @function-name="relax-ng.format-schema"
+        @formatter-profile="pretty"
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/relax-ng-format-schema.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/relax-ng+xml"
+        @target-schema="https://cem.dev/ns/data/relax-ng/1"
+        @target-category="relax-ng-schema"
+        @function-name="relax-ng.format-schema"
+        @formatter-profile="tabular"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/relax-ng-color-schema.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/relax-ng+xml"
+        @target-schema="https://cem.dev/ns/data/relax-ng/1"
+        @target-category="relax-ng-schema"
+        @function-name="relax-ng.color-schema"
+        @color-profile="terminal"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/relax-ng-color-schema.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/relax-ng+xml"
+        @target-schema="https://cem.dev/ns/data/relax-ng/1"
+        @target-category="relax-ng-schema"
+        @function-name="relax-ng.color-schema"
+        @color-profile="html"
+    }
+
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/relax-ng-color-schema.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/relax-ng+xml"
+        @target-schema="https://cem.dev/ns/data/relax-ng/1"
+        @target-category="relax-ng-schema"
+        @function-name="relax-ng.color-schema"
+        @color-profile="md"
+    }
+
+    {example
+        @id="basic-schema-xml"
+        @path="examples/basic-schema.rng"
+        @content-type="application/relax-ng+xml"
+        @schema="https://cem.dev/ns/data/relax-ng/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="datatype-schema"
+        @path="examples/datatype-schema.rng"
+        @content-type="application/relax-ng+xml"
+        @schema="https://cem.dev/ns/data/relax-ng/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="basic-schema-compact"
+        @path="examples/basic-schema.rnc"
+        @content-type="application/relax-ng-compact-syntax"
+        @schema="https://cem.dev/ns/data/relax-ng/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="invalid-missing-start"
+        @path="examples/invalid-missing-start.rng"
+        @content-type="application/relax-ng+xml"
+        @schema="https://cem.dev/ns/data/relax-ng/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.relax_ng.missing_start"
+    }
+
+    {example
+        @id="invalid-unknown-element"
+        @path="examples/invalid-unknown-element.rng"
+        @content-type="application/relax-ng+xml"
+        @schema="https://cem.dev/ns/data/relax-ng/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.relax_ng.unknown_element"
+    }
+
+    {example
+        @id="invalid-unclosed-compact"
+        @path="examples/invalid-unclosed-compact.rnc"
+        @content-type="application/relax-ng-compact-syntax"
+        @schema="https://cem.dev/ns/data/relax-ng/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.relax_ng.compact_parse_error"
+    }
 }

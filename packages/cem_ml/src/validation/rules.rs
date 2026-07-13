@@ -37,9 +37,9 @@ use crate::schema::registry::{
     CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
     CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
     CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
-    MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE, SVG_CONTENT_TYPE,
-    SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
-    XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI,
+    MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI, RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI,
+    RELAX_NG_XML_CONTENT_TYPE, SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE,
+    XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI,
 };
 use crate::source::{BytesSource, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack};
@@ -53,6 +53,7 @@ use crate::transform_template::{
 };
 use crate::validation::{
     html::{validate_html_source_bytes, HtmlSourceValidationRequest},
+    relax_ng::{validate_relax_ng_source_bytes, RelaxNgSourceValidationRequest},
     xml::{validate_xml_source_bytes, XmlSourceValidationRequest},
     RuleContext, RuleDescriptor, RuleId, RuleInput, RuleRegistry, RuleResourceRead, SemanticRule,
     TriggerLayer,
@@ -2344,6 +2345,15 @@ fn validate_schema_package_example_source_bytes(
                 content_type: Some(content_type),
             }));
         }
+        SchemaPackageExampleTokenizer::RelaxNg => {
+            return Some(validate_relax_ng_source_bytes(
+                RelaxNgSourceValidationRequest {
+                    bytes,
+                    source_uri,
+                    content_type: Some(content_type),
+                },
+            ));
+        }
         SchemaPackageExampleTokenizer::Xml => {
             return Some(validate_xml_source_bytes(XmlSourceValidationRequest {
                 bytes,
@@ -2382,6 +2392,7 @@ fn validate_schema_package_example_source_bytes(
 enum SchemaPackageExampleTokenizer {
     Cem,
     Html,
+    RelaxNg,
     Xml,
 }
 
@@ -2395,12 +2406,18 @@ fn schema_package_example_tokenizer(
     }
     if matches!(
         content_type.as_str(),
+        RELAX_NG_XML_CONTENT_TYPE | RELAX_NG_COMPACT_CONTENT_TYPE
+    ) || schema_uri == RELAX_NG_SCHEMA_URI
+    {
+        return Some(SchemaPackageExampleTokenizer::RelaxNg);
+    }
+    if matches!(
+        content_type.as_str(),
         XML_CONTENT_TYPE
             | XHTML_CONTENT_TYPE
             | SVG_CONTENT_TYPE
             | MATHML_CONTENT_TYPE
             | XSLT_CONTENT_TYPE
-            | RELAX_NG_XML_CONTENT_TYPE
     ) || matches!(
         schema_uri,
         XML_SCHEMA_URI | XHTML_SCHEMA_URI | SVG_SCHEMA_URI | MATHML_SCHEMA_URI | XSLT_SCHEMA_URI
