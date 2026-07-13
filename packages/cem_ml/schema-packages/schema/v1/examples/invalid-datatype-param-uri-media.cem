@@ -16,6 +16,7 @@
         {attribute @name="remote" @type="schema:uri" @uriRequiresAuthority=maybe}
         {attribute @name="asset" @type="schema:uri" @uriPathPrefixes="assets"}
         {attribute @name="download" @type="schema:uri" @uriPathExtensions="cem .json"}
+        {attribute @name="query" @type="schema:uri" @uriQueries="view=resource ?bad"}
         {attribute @name="anchor" @type="schema:uri" @uriFragments="overview #bad"}
         {attribute @name="format" @type="schema:media-type" @mediaTypes="text/html text"}
         {attribute @name="typed" @type="schema:media-type" @mediaTypeTypes="application bad/type"}
@@ -33,6 +34,7 @@
         {attribute @name="linkLabel" @type="schema:string" @uriHosts="api.example.test"}
         {attribute @name="portLabel" @type="schema:string" @uriPorts="443"}
         {attribute @name="downloadLabel" @type="schema:string" @uriPathExtensions="cem"}
+        {attribute @name="queryLabel" @type="schema:string" @uriQueries="view=resource"}
         {attribute @name="anchorLabel" @type="schema:string" @uriFragments="overview"}
         {attribute @name="caption" @type="schema:string" @pathPrefixes="./templates/"}
         {attribute @name="summary" @type="schema:string" @pathExtensions="cem"}

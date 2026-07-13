@@ -1823,6 +1823,22 @@ fn schema_datatype_param_examples_emit_structured_definition_details() {
                 SchemaDefinitionDetailExpectation {
                     code: "cem.schema_definition.invalid_datatype_param",
                     severity: "error",
+                    check_kind: "datatype-param:uriQueries",
+                    attribute: "query",
+                    datatype_param: "uriQueries",
+                    param_value: "?bad",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
+                    check_kind: "datatype-param:uriQueries",
+                    attribute: "queryLabel",
+                    datatype_param: "uriQueries",
+                    param_value: "view=resource",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
                     check_kind: "datatype-param:uriFragments",
                     attribute: "anchor",
                     datatype_param: "uriFragments",
