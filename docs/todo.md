@@ -193,7 +193,10 @@ history belongs in git history and the feature-specific docs linked below.
         and ranged, child-set, selected-count, distinct-count, ordered, boundary, exact-sequence, required-sequence, and forbidden-sequence `schema:child-occurrence` through the typed-resource schema
         example; CLI runtime coverage now also proves regex `pattern`
         `schema:datatype-param` details through a schema-package-loaded custom
-        schema; schema-package CLI examples now also cover schema-definition
+        schema; CLI runtime coverage now also proves gated forbidden-field and
+        forbidden-value `schema:field-dependency` details through a
+        schema-package-loaded custom schema; schema-package CLI examples now
+        also cover schema-definition
         failures for invalid datatype parameter declarations on integer/number
         bounds, numeric digit counts, string length/prefix/suffix params, list
         item-count params, regex patterns, path prefixes/extensions, URI

@@ -1734,6 +1734,152 @@ fn schema_runtime_pattern_datatype_param_emits_structured_details() {
 }
 
 #[test]
+fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() {
+    const CUSTOM_SCHEMA_URI: &str = "https://example.test/ns/dependency-runtime/1";
+    const CUSTOM_CONTENT_TYPE: &str = "application/vnd.example.dependency-runtime+cem";
+    const CUSTOM_DIAGNOSTIC: &str = "example.asset.dependency";
+
+    let root = test_temp_dir("cem-ml-cli-field-dependency-runtime");
+    let manifest_path = root.join("package.cem");
+    let schema_path = root.join("schema/dependency-runtime.cem");
+    let input_path = root.join("examples/invalid-dependencies.cem");
+
+    write_test_file(
+        &manifest_path,
+        r#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="dependency-runtime" @version="1.0.0" |
+    {schema
+        @uri="https://example.test/ns/dependency-runtime/1"
+        @source="schema/dependency-runtime.cem"
+    }
+    {content-type @value="application/vnd.example.dependency-runtime+cem" @primary=true}
+    {namespace @prefix="demo" @uri="https://example.test/ns/dependency-runtime/1"}
+}
+"#,
+    );
+    write_test_file(
+        &schema_path,
+        r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@default schema
+
+{schema @name="dependency-runtime" @namespace="https://example.test/ns/dependency-runtime/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {content-types |
+        {content-type @value="application/vnd.example.dependency-runtime+cem" @primary=true}
+    }
+    {namespaces |
+        {namespace @prefix="demo" @uri="https://example.test/ns/dependency-runtime/1" @role="schema"}
+    }
+    {elements |
+        {element @name="asset" @optional-attributes="kind source debug mode"}
+    }
+    {attributes |
+        {attribute @name="kind" @type="schema:string"}
+        {attribute @name="source" @type="schema:string"}
+        {attribute @name="debug" @type="schema:string"}
+        {attribute @name="mode" @type="schema:string"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="remote-debug-forbidden"
+            @target="asset"
+            @when-attribute="kind"
+            @when-values="remote"
+            @forbidden-attributes="debug"
+            @diagnostic="example.asset.dependency"
+            @behavior="schema:field-dependency"
+            @check-kind="dependent-forbidden-fields"
+        }
+        {field-contract
+            @name="source-blocked-mode"
+            @target="asset"
+            @when-present-attributes="source"
+            @forbidden-attribute-values="mode=blocked"
+            @diagnostic="example.asset.dependency"
+            @behavior="schema:field-dependency"
+            @check-kind="dependent-forbidden-values"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.asset.dependency"
+            @severity="error"
+            @behavior="schema:field-dependency"
+            @message="Asset dependency constraints must hold"
+        }
+    }
+}
+"#,
+    );
+    write_test_file(
+        &input_path,
+        r#"@doc cem-ml 1
+
+{asset @kind="remote" @source="cdn" @debug="true" @mode="blocked"}
+"#,
+    );
+
+    let output = cem_ml_owned(&[
+        "validate".to_owned(),
+        "--format".to_owned(),
+        "json".to_owned(),
+        "--schema-package".to_owned(),
+        manifest_path.to_string_lossy().into_owned(),
+        "--content-type".to_owned(),
+        CUSTOM_CONTENT_TYPE.to_owned(),
+        "--schema".to_owned(),
+        CUSTOM_SCHEMA_URI.to_owned(),
+        input_path.to_string_lossy().into_owned(),
+    ]);
+    assert_eq!(
+        output.status.code(),
+        Some(EXIT_HARD_FAILURE),
+        "field dependency runtime stderr:\n{}",
+        stderr(&output)
+    );
+    assert!(
+        stderr(&output).trim().is_empty(),
+        "field dependency runtime stderr must stay empty:\n{}",
+        stderr(&output)
+    );
+    let report: serde_json::Value = serde_json::from_str(stdout(&output).trim())
+        .expect("field dependency runtime report is JSON");
+    for expected in [
+        DiagnosticDetailExpectation {
+            code: CUSTOM_DIAGNOSTIC,
+            severity: "error",
+            behavior: "schema:field-dependency",
+            check_kind: "dependent-forbidden-fields",
+            contract: "remote-debug-forbidden",
+        },
+        DiagnosticDetailExpectation {
+            code: CUSTOM_DIAGNOSTIC,
+            severity: "error",
+            behavior: "schema:field-dependency",
+            check_kind: "dependent-forbidden-values",
+            contract: "source-blocked-mode",
+        },
+    ] {
+        assert!(
+            has_diagnostic_detail(&report, &expected),
+            "expected structured field-dependency diagnostic {:?} in {}",
+            expected,
+            stdout(&output)
+        );
+    }
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn schema_datatype_param_examples_emit_structured_definition_details() {
     let examples = [
         SchemaDefinitionDetailExample {
