@@ -455,12 +455,14 @@ mod tests {
         schema_package_examples_from_package_sources, SchemaPackageExampleExpectedResult,
         CEM_AST_JSON_PROJECTION_CONTENT_TYPE, CEM_AST_PROJECTION_CONTENT_TYPE,
         CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_JSON_PROJECTION_CONTENT_TYPE,
-        CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE,
-        CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI,
-        CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
-        CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI,
-        CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI,
-        CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
+        CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
+        CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE, CEM_EVENTS_PROJECTION_CONTENT_TYPE,
+        CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI,
+        CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_QL_CONTENT_TYPE,
+        CEM_QL_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+        CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE,
+        CEM_TRANSFORM_SCHEMA_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI, CSV_CONTENT_TYPE,
+        CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
         JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI,
         MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI,
         RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE,
@@ -1884,6 +1886,72 @@ mod tests {
                 .iter()
                 .find(|example| example.id == id)
                 .unwrap_or_else(|| panic!("CEM AST projection example `{id}`"));
+            assert_eq!(example.content_type, content_type);
+            assert_eq!(example.expected_result, expected_result);
+            let expected_codes = expected_code
+                .map(|code| vec![code.to_owned()])
+                .unwrap_or_default();
+            assert_eq!(example.expected_diagnostic_codes, expected_codes);
+        }
+    }
+
+    #[test]
+    fn cem_events_projection_package_examples_are_manifest_indexed() {
+        let package =
+            builtin_schema_package_source("cem-events-projection").expect("package source");
+        let examples =
+            schema_package_examples_from_package_sources(package).expect("package examples");
+        let declared_paths = examples
+            .iter()
+            .map(|example| example.path.clone())
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(
+            declared_paths,
+            top_level_example_paths("cem-events-projection"),
+            "cem-events-projection top-level examples must be discoverable from package.cem"
+        );
+        assert_eq!(examples.len(), 5);
+        assert!(examples
+            .iter()
+            .all(|example| example.schema == CEM_EVENTS_PROJECTION_SCHEMA_URI));
+
+        for (id, content_type, expected_result, expected_code) in [
+            (
+                "basic-events",
+                CEM_EVENTS_PROJECTION_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "basic-events-json",
+                CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "nested-events-json",
+                CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "invalid-kind-json",
+                CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.projection.events.json_shape"),
+            ),
+            (
+                "invalid-binary",
+                CEM_EVENTS_PROJECTION_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.projection.events.binary_magic"),
+            ),
+        ] {
+            let example = examples
+                .iter()
+                .find(|example| example.id == id)
+                .unwrap_or_else(|| panic!("CEM events projection example `{id}`"));
             assert_eq!(example.content_type, content_type);
             assert_eq!(example.expected_result, expected_result);
             let expected_codes = expected_code

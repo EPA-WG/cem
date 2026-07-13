@@ -875,8 +875,13 @@ Projection and debug/interchange formats:
       magic/version/schema/content-type/truncation and JSON parse/shape
       diagnostics, and catalog tests guard AST projection example manifest
       drift.
-- [ ] `cem-events-projection/v1` (`application/vnd.cem.events+cem-bin`,
-      `application/vnd.cem.events+json`).
+- [x] `cem-events-projection/v1` (`application/vnd.cem.events+cem-bin`,
+      `application/vnd.cem.events+json`). Top-level binary and JSON event
+      projection examples are declared from `package.cem`, library
+      schema-package example validation now reports events projection binary
+      magic/version/schema/content-type/truncation and JSON parse/shape
+      diagnostics, and catalog tests guard events projection example manifest
+      drift.
 
 ## Low Priority Deferred Design
 

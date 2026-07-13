@@ -35,6 +35,7 @@
 
 pub mod cem_ast_projection;
 pub mod cem_dom_projection;
+pub mod cem_events_projection;
 pub mod html;
 pub mod mathml;
 pub mod relax_ng;

@@ -25,4 +25,46 @@
         {from @content-type="application/vnd.cem.events+cem-bin" @schema="https://cem.dev/ns/projection/events/1"}
         {to @content-type="application/vnd.cem.events+json" @schema="https://cem.dev/ns/projection/events/1"}
     }
+
+    {example
+        @id="basic-events"
+        @path="examples/basic-events.cem-bin"
+        @content-type="application/vnd.cem.events+cem-bin"
+        @schema="https://cem.dev/ns/projection/events/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="basic-events-json"
+        @path="examples/basic-events.events.json"
+        @content-type="application/vnd.cem.events+json"
+        @schema="https://cem.dev/ns/projection/events/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="nested-events-json"
+        @path="examples/nested-events.events.json"
+        @content-type="application/vnd.cem.events+json"
+        @schema="https://cem.dev/ns/projection/events/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="invalid-kind-json"
+        @path="examples/invalid-kind.events.json"
+        @content-type="application/vnd.cem.events+json"
+        @schema="https://cem.dev/ns/projection/events/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.projection.events.json_shape"
+    }
+
+    {example
+        @id="invalid-binary"
+        @path="examples/invalid-binary.cem-bin"
+        @content-type="application/vnd.cem.events+cem-bin"
+        @schema="https://cem.dev/ns/projection/events/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.projection.events.binary_magic"
+    }
 }
