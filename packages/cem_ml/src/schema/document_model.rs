@@ -424,8 +424,12 @@ pub struct FieldContract {
     pub when_values: BTreeSet<String>,
     pub when_present_attributes: BTreeSet<String>,
     pub when_absent_attributes: BTreeSet<String>,
+    pub when_any_present_attributes: BTreeSet<String>,
+    pub when_any_absent_attributes: BTreeSet<String>,
     pub when_present_children: BTreeSet<String>,
     pub when_absent_children: BTreeSet<String>,
+    pub when_any_present_children: BTreeSet<String>,
+    pub when_any_absent_children: BTreeSet<String>,
     pub source_map: SourceMapStack,
 }
 
@@ -545,6 +549,22 @@ impl FieldContract {
         {
             return false;
         }
+        if !self.when_any_present_attributes.is_empty()
+            && !self
+                .when_any_present_attributes
+                .iter()
+                .any(|name| attributes.contains_key(name))
+        {
+            return false;
+        }
+        if !self.when_any_absent_attributes.is_empty()
+            && !self
+                .when_any_absent_attributes
+                .iter()
+                .any(|name| !attributes.contains_key(name))
+        {
+            return false;
+        }
         if !self
             .when_present_children
             .iter()
@@ -556,6 +576,22 @@ impl FieldContract {
             .when_absent_children
             .iter()
             .all(|name| child_counts.get(name).copied().unwrap_or_default() == 0)
+        {
+            return false;
+        }
+        if !self.when_any_present_children.is_empty()
+            && !self
+                .when_any_present_children
+                .iter()
+                .any(|name| child_counts.get(name).copied().unwrap_or_default() > 0)
+        {
+            return false;
+        }
+        if !self.when_any_absent_children.is_empty()
+            && !self
+                .when_any_absent_children
+                .iter()
+                .any(|name| child_counts.get(name).copied().unwrap_or_default() == 0)
         {
             return false;
         }
@@ -6718,8 +6754,14 @@ fn collect_field_contracts(
                 when_values: parse_name_set(attrs.get("when-values")),
                 when_present_attributes: parse_name_set(attrs.get("when-present-attributes")),
                 when_absent_attributes: parse_name_set(attrs.get("when-absent-attributes")),
+                when_any_present_attributes: parse_name_set(
+                    attrs.get("when-any-present-attributes"),
+                ),
+                when_any_absent_attributes: parse_name_set(attrs.get("when-any-absent-attributes")),
                 when_present_children: parse_name_set(attrs.get("when-present-children")),
                 when_absent_children: parse_name_set(attrs.get("when-absent-children")),
+                when_any_present_children: parse_name_set(attrs.get("when-any-present-children")),
+                when_any_absent_children: parse_name_set(attrs.get("when-any-absent-children")),
                 source_map: document
                     .get(*child_id)
                     .map(source_stack_for_node)
@@ -8197,17 +8239,41 @@ fn field_contract_details(
         "actualValues".to_owned(),
         serde_json::json!(attribute_values),
     );
-    details.insert(
-        "condition".to_owned(),
-        serde_json::json!({
+    let mut condition = serde_json::json!({
             "attribute": &contract.when_attribute,
             "values": &contract.when_values,
             "presentAttributes": &contract.when_present_attributes,
             "absentAttributes": &contract.when_absent_attributes,
             "presentChildren": &contract.when_present_children,
             "absentChildren": &contract.when_absent_children,
-        }),
-    );
+    });
+    if let Some(condition) = condition.as_object_mut() {
+        if !contract.when_any_present_attributes.is_empty() {
+            condition.insert(
+                "anyPresentAttributes".to_owned(),
+                serde_json::json!(&contract.when_any_present_attributes),
+            );
+        }
+        if !contract.when_any_absent_attributes.is_empty() {
+            condition.insert(
+                "anyAbsentAttributes".to_owned(),
+                serde_json::json!(&contract.when_any_absent_attributes),
+            );
+        }
+        if !contract.when_any_present_children.is_empty() {
+            condition.insert(
+                "anyPresentChildren".to_owned(),
+                serde_json::json!(&contract.when_any_present_children),
+            );
+        }
+        if !contract.when_any_absent_children.is_empty() {
+            condition.insert(
+                "anyAbsentChildren".to_owned(),
+                serde_json::json!(&contract.when_any_absent_children),
+            );
+        }
+    }
+    details.insert("condition".to_owned(), condition);
     details.insert(
         "sourceRange".to_owned(),
         serde_json::json!(node_source_range_details(node)),
@@ -10075,8 +10141,12 @@ mod tests {
         for name in [
             "when-present-attributes",
             "when-absent-attributes",
+            "when-any-present-attributes",
+            "when-any-absent-attributes",
             "when-present-children",
             "when-absent-children",
+            "when-any-present-children",
+            "when-any-absent-children",
         ] {
             assert_eq!(
                 model
@@ -13480,6 +13550,127 @@ mod tests {
     }
 
     #[test]
+    fn schema_field_dependency_supports_any_attribute_gates() {
+        let model = compile_document_model(
+            "https://example.test/ns/any-attribute-dependent-fields/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="any-attribute-dependent-fields" @namespace="https://example.test/ns/any-attribute-dependent-fields/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="asset" @optional-attributes="source token format"}
+    }
+    {attributes |
+        {attribute @name="source" @type="schema:string"}
+        {attribute @name="token" @type="schema:string"}
+        {attribute @name="format" @type="schema:string"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="source-or-token-format"
+            @target="asset"
+            @when-any-present-attributes="source token"
+            @required-attributes="format"
+            @diagnostic="example.asset_any_required"
+            @behavior="schema:field-dependency"
+            @check-kind="dependent-required-fields"
+        }
+        {field-contract
+            @name="format-missing-source-or-token"
+            @target="asset"
+            @when-present-attributes="format"
+            @when-any-absent-attributes="source token"
+            @required-attributes="source token"
+            @diagnostic="example.asset_any_required"
+            @behavior="schema:field-dependency"
+            @check-kind="dependent-required-fields"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.asset_any_required"
+            @severity="error"
+            @behavior="schema:field-dependency"
+        }
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "any-attribute schema must compile: {:#?}",
+            model.compile_diagnostics
+        );
+
+        for source in [
+            r#"{asset}"#,
+            r#"{asset @source="cdn" @token="abc" @format="json"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics
+                    .iter()
+                    .all(|diagnostic| { diagnostic.code != "example.asset_any_required" }),
+                "any-attribute gates should not fire for {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{asset @source="cdn"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.asset_any_required"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("source-or-token-format")
+            })
+            .expect("any-present attribute dependency diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("any-present attribute dependency details");
+        assert_eq!(details["missingFields"], serde_json::json!(["format"]));
+        assert_eq!(
+            details["condition"]["anyPresentAttributes"],
+            serde_json::json!(["source", "token"])
+        );
+        assert_eq!(
+            details["condition"]["presentAttributes"],
+            serde_json::json!([])
+        );
+
+        let document = parse_cem_document(r#"{asset @source="cdn" @format="json"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.asset_any_required"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("format-missing-source-or-token")
+            })
+            .expect("any-absent attribute dependency diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("any-absent attribute dependency details");
+        assert_eq!(details["missingFields"], serde_json::json!(["token"]));
+        assert_eq!(
+            details["condition"]["presentAttributes"],
+            serde_json::json!(["format"])
+        );
+        assert_eq!(
+            details["condition"]["anyAbsentAttributes"],
+            serde_json::json!(["source", "token"])
+        );
+    }
+
+    #[test]
     fn schema_field_dependency_combines_value_and_presence_gates() {
         let model = compile_document_model(
             "https://example.test/ns/conditional-dependent-fields/1",
@@ -13672,6 +13863,132 @@ mod tests {
             serde_json::json!({
                 "header": 1,
             })
+        );
+    }
+
+    #[test]
+    fn schema_field_dependency_supports_any_child_condition_selectors() {
+        let model = compile_document_model(
+            "https://example.test/ns/any-child-dependent-fields/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="any-child-dependent-fields" @namespace="https://example.test/ns/any-child-dependent-fields/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="asset" @optional-attributes="label title" @children="reference fallback thumbnail"}
+        {element @name="reference"}
+        {element @name="fallback"}
+        {element @name="thumbnail"}
+    }
+    {attributes |
+        {attribute @name="label" @type="schema:string"}
+        {attribute @name="title" @type="schema:string"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="reference-or-fallback-title"
+            @target="asset"
+            @when-any-present-children="reference fallback"
+            @required-attributes="title"
+            @diagnostic="example.asset_any_child_required"
+            @behavior="schema:field-dependency"
+            @check-kind="child-gated-dependent-required-fields"
+        }
+        {field-contract
+            @name="reference-missing-companion-label"
+            @target="asset"
+            @when-present-children="reference"
+            @when-any-absent-children="fallback thumbnail"
+            @required-attributes="label"
+            @diagnostic="example.asset_any_child_required"
+            @behavior="schema:field-dependency"
+            @check-kind="child-gated-dependent-required-fields"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.asset_any_child_required"
+            @severity="error"
+            @behavior="schema:field-dependency"
+        }
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "any-child schema must compile: {:#?}",
+            model.compile_diagnostics
+        );
+
+        for source in [
+            r#"{asset}"#,
+            r#"{asset @title="Linked" | {fallback}}"#,
+            r#"{asset @label="Linked" @title="Linked" | {reference} {fallback} {thumbnail}}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics
+                    .iter()
+                    .all(|diagnostic| { diagnostic.code != "example.asset_any_child_required" }),
+                "any-child gates should not fire for {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{asset | {fallback}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.asset_any_child_required"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("reference-or-fallback-title")
+            })
+            .expect("any-present child dependency diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("any-present child dependency details");
+        assert_eq!(details["missingFields"], serde_json::json!(["title"]));
+        assert_eq!(
+            details["condition"]["anyPresentChildren"],
+            serde_json::json!(["fallback", "reference"])
+        );
+        assert_eq!(
+            details["childCounts"],
+            serde_json::json!({
+                "fallback": 1,
+            })
+        );
+
+        let document = parse_cem_document(r#"{asset @title="Linked" | {reference} {fallback}}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.asset_any_child_required"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("reference-missing-companion-label")
+            })
+            .expect("any-absent child dependency diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("any-absent child dependency details");
+        assert_eq!(details["missingFields"], serde_json::json!(["label"]));
+        assert_eq!(
+            details["condition"]["presentChildren"],
+            serde_json::json!(["reference"])
+        );
+        assert_eq!(
+            details["condition"]["anyAbsentChildren"],
+            serde_json::json!(["fallback", "thumbnail"])
         );
     }
 

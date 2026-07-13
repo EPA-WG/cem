@@ -304,7 +304,8 @@ history belongs in git history and the feature-specific docs linked below.
         The schema language now models element-bound required/optional/
         forbidden fields, value, multi-attribute presence/absence, and child
         presence/absence conditional selectors,
-        dependent-required groups with all-present/all-absent and combined
+        dependent-required groups with all-present/all-absent and
+        any-present/any-absent attribute/child gates and combined
         value/presence/child-structure gates, including gated forbidden
         fields and forbidden values,
         value-specific forbidden fields, exact-one child occurrence contracts,
@@ -338,7 +339,7 @@ history belongs in git history and the feature-specific docs linked below.
         ordering, and required/forbidden boundary child placement, plus exact/required/forbidden/prefix/suffix child
         sequences; it still needs RELAX NG-style datatype params beyond the
         initial scalar/datatype variations and whitespace normalization, richer dependent-required field groups
-        beyond value/presence/absence/child-structure gates, and additional child occurrence
+        beyond all/any value/presence/absence/child-structure gates, and additional child occurrence
         variants beyond exact/named/total/selected/selected-distinct/distinct count bounds,
         child-set cardinality, required/forbidden relative ordering,
         required/forbidden boundary placement, and
@@ -361,7 +362,7 @@ history belongs in git history and the feature-specific docs linked below.
         accepted-child allow-list field contracts, forbidden-child
         occurrence contracts, child-set cardinality contracts, exact
         child-count contracts, total/selected/selected-distinct/distinct child-count bound contracts,
-        attribute and child presence/absence conditional selectors,
+        attribute and child all/any presence/absence conditional selectors,
         required/forbidden relative child ordering contracts,
         required/forbidden boundary child placement contracts,
         exact/required/forbidden/prefix/suffix child sequence contracts, and attribute
@@ -374,7 +375,7 @@ history belongs in git history and the feature-specific docs linked below.
         RELAX NG-style datatype params beyond numeric bounds/digit counts,
         string length/prefix/suffix, list item counts, pattern, and allowed
         URI/media tokens and whitespace normalization, dependent field
-        groups beyond value/presence/child-structure-gated required/forbidden fields, additional child
+        groups beyond all/any value/presence/child-structure-gated required/forbidden fields, additional child
         occurrence variants beyond exact/named/total/selected/selected-distinct/distinct count
         bounds, child-set cardinality, required/forbidden relative ordering,
         required/forbidden boundary placement,
