@@ -4,10 +4,11 @@
 
 {schema @name="invalid-datatype-param-pattern" @namespace="https://example.test/ns/invalid-datatype-param-pattern/1" @version="1.0.0" |
     {elements |
-        {element @name="resource" @optional-attributes="code"}
+        {element @name="resource" @optional-attributes="code count"}
     }
 
     {attributes |
         {attribute @name="code" @type="schema:string" @pattern="["}
+        {attribute @name="count" @type="schema:integer" @pattern="[0-9]+"}
     }
 }

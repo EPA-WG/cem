@@ -3378,6 +3378,15 @@ fn validate_attribute_datatype_param_definition(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if let Some(pattern) = attribute_model.pattern.as_deref() {
+        validate_datatype_param_value_type(
+            schema_uri,
+            attribute_model,
+            "pattern",
+            pattern,
+            "schema:string or cemml:string",
+            is_string_type_reference,
+            diagnostics,
+        );
         if let Err(error) = compile_full_value_pattern(pattern) {
             let error = error.to_string();
             diagnostics.push(schema_compile_diagnostic(
@@ -18201,7 +18210,7 @@ mod tests {
 
 {schema @name="incompatible-datatype-param-contracts" @namespace="https://example.test/ns/incompatible-datatype-param-contracts/1" @version="1.0.0" |
     {elements |
-        {element @name="item" @optional-attributes="title untyped count code ratio score rank names homepage homepagePort download bookmarkQuery queryParams queryParamValue forbiddenQuery requiredQuery bookmark formatType format"}
+        {element @name="item" @optional-attributes="title untyped count code ratio score rank names patterned homepage homepagePort download bookmarkQuery queryParams queryParamValue forbiddenQuery requiredQuery bookmark formatType format"}
     }
     {attributes |
         {attribute @name="title" @type="schema:string" @minInclusive=1}
@@ -18212,6 +18221,7 @@ mod tests {
         {attribute @name="score" @type="schema:number" @stringPrefixes="score-"}
         {attribute @name="rank" @type="schema:integer" @stringSuffixes="-rank"}
         {attribute @name="names" @type="schema:string" @minItems=2}
+        {attribute @name="patterned" @type="schema:integer" @pattern="[0-9]+"}
         {attribute @name="homepage" @type="schema:string" @uriHosts="api.example.test"}
         {attribute @name="homepagePort" @type="schema:string" @uriPorts="443"}
         {attribute @name="download" @type="schema:string" @uriPathExtensions="cem"}
@@ -18283,6 +18293,13 @@ mod tests {
                 "2",
                 "schema:string",
                 "schema:name-list, schema:wildcard-name-list, cemml:name-list, or cemml:wildcard-name-list",
+            ),
+            (
+                "patterned",
+                "pattern",
+                "[0-9]+",
+                "schema:integer",
+                "schema:string or cemml:string",
             ),
             (
                 "homepage",

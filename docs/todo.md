@@ -49,7 +49,7 @@ history belongs in git history and the feature-specific docs linked below.
       `mediaTypeParameterValues`/`mediaTypeForbiddenParameters`/
       `mediaTypeRequiredParameters`.
       Schema-definition validation now rejects numeric bounds/digit-counts on
-      non-numeric attributes and string length/prefix/suffix params on
+      non-numeric attributes and string length/prefix/suffix/pattern params on
       non-string attributes, plus list item-count params on non-list attributes.
       Required-one/max-one attribute choice cardinality now executes through
       `schema:choice-case`. Broader child occurrence ranges now execute
@@ -160,8 +160,8 @@ history belongs in git history and the feature-specific docs linked below.
         bounds, numeric digit counts, string length/prefix/suffix params, list
         item-count params, and regex patterns.
         They also cover incompatible primitive type declarations for numeric
-        bounds, numeric digit counts, string length/prefix/suffix params, and
-        list item-count params.
+        bounds, numeric digit counts, string length/prefix/suffix/pattern
+        params, and list item-count params.
         CLI tests now assert structured schema-definition datatype-param
         details for those failing declarations, plus
         structured `behavior`, `checkKind`, `contract`, severity, and source
@@ -234,7 +234,7 @@ history belongs in git history and the feature-specific docs linked below.
         `mediaTypeTypes`, `mediaTypeSubtypes`, `mediaTypeSuffixes`, `mediaTypeParameters`, `mediaTypeParameterValues`,
         `mediaTypeForbiddenParameters`, and `mediaTypeRequiredParameters` datatype params,
         plus compatibility checks for numeric bounds/digit counts and string
-        length/prefix/suffix params, plus list item-count params, against their
+        length/prefix/suffix/pattern params, plus list item-count params, against their
         target primitive families,
         plus accepted-child allow-lists, forbidden-child occurrence, exact
         child counts, child-set cardinality, total, selected, and distinct child-count

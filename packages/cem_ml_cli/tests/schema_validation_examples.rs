@@ -1697,14 +1697,24 @@ fn schema_datatype_param_examples_emit_structured_definition_details() {
         SchemaDefinitionDetailExample {
             name: "schema invalid datatype param pattern",
             path: "packages/cem_ml/schema-packages/schema/v1/examples/invalid-datatype-param-pattern.cem",
-            expected: &[SchemaDefinitionDetailExpectation {
-                code: "cem.schema_definition.invalid_datatype_param",
-                severity: "error",
-                check_kind: "datatype-param:pattern",
-                attribute: "code",
-                datatype_param: "pattern",
-                param_value: "[",
-            }],
+            expected: &[
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
+                    check_kind: "datatype-param:pattern",
+                    attribute: "code",
+                    datatype_param: "pattern",
+                    param_value: "[",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
+                    check_kind: "datatype-param:pattern",
+                    attribute: "count",
+                    datatype_param: "pattern",
+                    param_value: "[0-9]+",
+                },
+            ],
         },
         SchemaDefinitionDetailExample {
             name: "schema invalid datatype param digits",
