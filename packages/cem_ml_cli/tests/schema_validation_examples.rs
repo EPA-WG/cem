@@ -2280,6 +2280,184 @@ fn schema_runtime_accepted_children_emits_structured_details() {
 }
 
 #[test]
+fn schema_runtime_path_layout_emits_structured_details() {
+    const CUSTOM_SCHEMA_URI: &str = "https://example.test/ns/path-layout-runtime/1";
+    const CUSTOM_CONTENT_TYPE: &str = "application/vnd.example.path-layout-runtime+cem";
+    const CUSTOM_DIAGNOSTIC: &str = "example.link.path_layout";
+
+    let root = test_temp_dir("cem-ml-cli-path-layout-runtime");
+    let manifest_path = root.join("package.cem");
+    let schema_path = root.join("schema/path-layout-runtime.cem");
+    let valid_input_path = root.join("examples/valid-path.cem");
+    let invalid_input_path = root.join("examples/invalid-path.cem");
+
+    write_test_file(
+        &manifest_path,
+        r#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="path-layout-runtime" @version="1.0.0" |
+    {schema
+        @uri="https://example.test/ns/path-layout-runtime/1"
+        @source="schema/path-layout-runtime.cem"
+    }
+    {content-type @value="application/vnd.example.path-layout-runtime+cem" @primary=true}
+    {namespace @prefix="demo" @uri="https://example.test/ns/path-layout-runtime/1"}
+}
+"#,
+    );
+    write_test_file(
+        &schema_path,
+        r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@default schema
+
+{schema @name="path-layout-runtime" @namespace="https://example.test/ns/path-layout-runtime/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {content-types |
+        {content-type @value="application/vnd.example.path-layout-runtime+cem" @primary=true}
+    }
+    {namespaces |
+        {namespace @prefix="demo" @uri="https://example.test/ns/path-layout-runtime/1" @role="schema"}
+    }
+    {elements |
+        {element @name="a" @optional-attributes="href" @children="*"}
+    }
+    {attributes |
+        {attribute @name="href" @type="schema:path"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="link-asset-path-layout"
+            @target="a"
+            @path-layout-attributes="href"
+            @path-layout-prefix="assets"
+            @path-layout-extension="cemt"
+            @diagnostic="example.link.path_layout"
+            @behavior="schema:path-layout"
+            @check-kind="path-layout"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.link.path_layout"
+            @severity="error"
+            @behavior="schema:path-layout"
+            @message="Link href must use the declared asset layout"
+        }
+    }
+}
+"#,
+    );
+    write_test_file(
+        &valid_input_path,
+        r#"@doc cem-ml 1
+
+{a @href="assets/demo.cemt" | Asset}
+"#,
+    );
+    write_test_file(
+        &invalid_input_path,
+        r#"@doc cem-ml 1
+
+{a @href="transforms/demo.cem" | Asset}
+"#,
+    );
+
+    let validate = |input_path: &Path| {
+        cem_ml_owned(&[
+            "validate".to_owned(),
+            "--format".to_owned(),
+            "json".to_owned(),
+            "--schema-package".to_owned(),
+            manifest_path.to_string_lossy().into_owned(),
+            "--content-type".to_owned(),
+            CUSTOM_CONTENT_TYPE.to_owned(),
+            "--schema".to_owned(),
+            CUSTOM_SCHEMA_URI.to_owned(),
+            input_path.to_string_lossy().into_owned(),
+        ])
+    };
+
+    let valid_output = validate(&valid_input_path);
+    assert_eq!(
+        valid_output.status.code(),
+        Some(EXIT_OK),
+        "path layout valid stderr:\n{}",
+        stderr(&valid_output)
+    );
+    assert!(
+        stderr(&valid_output).trim().is_empty(),
+        "path layout valid stderr must stay empty:\n{}",
+        stderr(&valid_output)
+    );
+    let valid_report: serde_json::Value = serde_json::from_str(stdout(&valid_output).trim())
+        .expect("path layout valid report is JSON");
+    assert!(
+        !has_diagnostic(&valid_report, CUSTOM_DIAGNOSTIC),
+        "`{CUSTOM_DIAGNOSTIC}` should not be emitted for matching path layout:\n{}",
+        stdout(&valid_output)
+    );
+
+    let invalid_output = validate(&invalid_input_path);
+    assert_eq!(
+        invalid_output.status.code(),
+        Some(EXIT_HARD_FAILURE),
+        "path layout invalid stderr:\n{}",
+        stderr(&invalid_output)
+    );
+    assert!(
+        stderr(&invalid_output).trim().is_empty(),
+        "path layout invalid stderr must stay empty:\n{}",
+        stderr(&invalid_output)
+    );
+    let invalid_report: serde_json::Value = serde_json::from_str(stdout(&invalid_output).trim())
+        .expect("path layout invalid report is JSON");
+    let diagnostic = diagnostics(&invalid_report)
+        .iter()
+        .find(|diagnostic| diagnostic["code"] == CUSTOM_DIAGNOSTIC)
+        .unwrap_or_else(|| {
+            panic!(
+                "expected `{CUSTOM_DIAGNOSTIC}` in path layout invalid report:\n{}",
+                stdout(&invalid_output)
+            )
+        });
+    let details = &diagnostic["details"];
+    assert_eq!(diagnostic["severity"], "error");
+    assert_eq!(details["behavior"], "schema:path-layout");
+    assert_eq!(details["checkKind"], "path-layout");
+    assert_eq!(details["contract"], "link-asset-path-layout");
+    assert_eq!(details["invalidFields"], serde_json::json!(["href"]));
+    assert_eq!(
+        details["invalidValues"],
+        serde_json::json!({
+            "href": "transforms/demo.cem",
+        })
+    );
+    assert_eq!(
+        details["pathLayout"],
+        serde_json::json!({
+            "attributes": ["href"],
+            "prefix": "assets",
+            "extension": "cemt",
+            "relative": true,
+            "cleanSegments": true,
+        })
+    );
+    assert!(details["sourceRange"]["span"]["start"].is_u64());
+    assert!(diagnostic["sourceMap"]["frames"]
+        .as_array()
+        .is_some_and(|frames| !frames.is_empty()));
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn schema_datatype_param_examples_emit_structured_definition_details() {
     let examples = [
         SchemaDefinitionDetailExample {
