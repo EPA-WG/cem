@@ -11660,6 +11660,103 @@ mod tests {
     }
 
     #[test]
+    fn schema_field_dependency_requires_all_present_gate_attributes() {
+        let model = compile_document_model(
+            "https://example.test/ns/dependent-field-groups/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="dependent-field-groups" @namespace="https://example.test/ns/dependent-field-groups/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="item" @optional-attributes="source token format"}
+    }
+    {attributes |
+        {attribute @name="source" @type="schema:string"}
+        {attribute @name="token" @type="schema:string"}
+        {attribute @name="format" @type="schema:string"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="source-token-format"
+            @target="item"
+            @when-present-attributes="source token"
+            @required-attributes="format"
+            @diagnostic="example.item_format_required"
+            @behavior="schema:field-dependency"
+            @check-kind="dependent-required-fields"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.item_format_required"
+            @severity="error"
+            @behavior="schema:field-dependency"
+        }
+    }
+}"#,
+        );
+
+        for source in [
+            r#"{item @source="local"}"#,
+            r#"{item @token="abc"}"#,
+            r#"{item @source="local" @token="abc" @format="json"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics.iter().all(|diagnostic| {
+                    diagnostic
+                        .details
+                        .as_ref()
+                        .and_then(|details| {
+                            details.get("contract").and_then(serde_json::Value::as_str)
+                        })
+                        != Some("source-token-format")
+                }),
+                "field dependency should not fire unless all gate attributes are present: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{item @source="local" @token="abc"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.item_format_required")
+            .expect("all-present field dependency diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("all-present field dependency details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:field-dependency")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("dependent-required-fields")
+        );
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("source-token-format")
+        );
+        assert_eq!(details["requiredFields"], serde_json::json!(["format"]));
+        assert_eq!(details["missingFields"], serde_json::json!(["format"]));
+        assert_eq!(
+            details["condition"],
+            serde_json::json!({
+                "attribute": null,
+                "values": [],
+                "presentAttributes": ["source", "token"],
+            })
+        );
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
     fn schema_diagnostic_behavior_aliases_dispatch_to_field_contract_engine() {
         let model = compile_document_model(
             "https://example.test/ns/diagnostic-behavior-alias/1",

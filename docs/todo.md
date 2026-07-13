@@ -60,7 +60,9 @@ history belongs in git history and the feature-specific docs linked below.
       also executes through `schema:child-occurrence`; boundary child
       placement now also executes through `schema:child-occurrence`; exact,
       required, and forbidden child sequences now also execute through
-      `schema:child-occurrence`.
+      `schema:child-occurrence`. Presence-gated dependent-required field
+      groups now execute when all declared `when-present-attributes` are
+      present.
       Additional engine algorithms remain.
   - [x] Allow declarative behavior to select candidate nodes and match failure
         conditions with CEM-QL, then invoke a schema-declared CEM-ML behavior
@@ -109,6 +111,9 @@ history belongs in git history and the feature-specific docs linked below.
         constraints now also execute through `schema:datatype-param`; regex
         pattern now also executes through `schema:datatype-param`. Additional
         datatype parameter families beyond these covered sets remain.
+        Presence-gated dependent-required field groups with multiple required
+        gate attributes now execute through `schema:field-dependency`;
+        richer dependency shapes beyond all-present gates remain.
   - [x] Compile behavior declarations and references into the generic schema
         model, reject missing or incompatible behavior references, and dispatch
         them through a single runtime evaluation path. The resolved behavior
@@ -244,8 +249,9 @@ history belongs in git history and the feature-specific docs linked below.
         child counts, child-set cardinality, total, selected, and distinct child-count
         bounds, min/max child occurrence ranges, relative child ordering, and
         boundary child placement, plus exact/required/forbidden child sequences; it still needs RELAX NG-style
-        datatype params beyond the initial scalar and datatype variations, defaults, richer
-        dependent-required field groups, and additional child occurrence
+        datatype params beyond the initial scalar and datatype variations,
+        defaults, richer dependent-required field groups beyond all-present
+        gates, and additional child occurrence
         variants beyond exact/named/total/selected/distinct count bounds, child-set cardinality, relative ordering, boundary placement, and exact/required/forbidden child sequences.
   - [ ] Extend the compiled Rust schema contract model. `SchemaDocumentModel`
         now compiles initial `field-contract` declarations and evaluates
@@ -272,7 +278,7 @@ history belongs in git history and the feature-specific docs linked below.
         URI/media-type constraints beyond initial allowed scheme/host/port/authority/path-prefix/path-extension/query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment
         and media-type essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter lists, RELAX NG-style datatype params beyond numeric bounds/digit
         counts, string length/prefix/suffix, list item counts, pattern, and allowed URI/media tokens, dependent field
-        groups beyond presence-gated required fields, additional child
+        groups beyond all-present presence-gated required fields, additional child
         occurrence variants beyond exact/named/total/selected/distinct count bounds, child-set cardinality, relative ordering, boundary placement, and exact/required/forbidden child sequences, defaults, and richer case grouping for all schema
         elements.
   - [ ] Extend structured diagnostic details beyond initial required/forbidden
