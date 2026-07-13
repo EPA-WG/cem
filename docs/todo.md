@@ -50,7 +50,9 @@ history belongs in git history and the feature-specific docs linked below.
       `mediaTypeRequiredParameters`.
       Schema-definition validation now rejects numeric bounds/digit-counts on
       non-numeric attributes and string length/prefix/suffix/pattern params on
-      non-string attributes, plus list item-count params on non-list attributes.
+      non-string attributes, list item-count params on non-list attributes,
+      path params on non-path attributes, URI params on non-URI attributes, and
+      media-type params on non-media-type attributes.
       Required-one/max-one attribute choice cardinality now executes through
       `schema:choice-case`. Broader child occurrence ranges now execute
       through `schema:child-occurrence`; child-set cardinality now also
@@ -158,10 +160,12 @@ history belongs in git history and the feature-specific docs linked below.
         example; schema-package CLI examples now also cover schema-definition
         failures for invalid datatype parameter declarations on integer/number
         bounds, numeric digit counts, string length/prefix/suffix params, list
-        item-count params, and regex patterns.
+        item-count params, regex patterns, path prefixes/extensions, URI
+        tokens/parameters, and media-type tokens/parameters.
         They also cover incompatible primitive type declarations for numeric
         bounds, numeric digit counts, string length/prefix/suffix/pattern
-        params, and list item-count params.
+        params, list item-count params, path params, URI params, and
+        media-type params.
         CLI tests now assert structured schema-definition datatype-param
         details for those failing declarations, plus
         structured `behavior`, `checkKind`, `contract`, severity, and source
@@ -234,8 +238,8 @@ history belongs in git history and the feature-specific docs linked below.
         `mediaTypeTypes`, `mediaTypeSubtypes`, `mediaTypeSuffixes`, `mediaTypeParameters`, `mediaTypeParameterValues`,
         `mediaTypeForbiddenParameters`, and `mediaTypeRequiredParameters` datatype params,
         plus compatibility checks for numeric bounds/digit counts and string
-        length/prefix/suffix/pattern params, plus list item-count params, against their
-        target primitive families,
+        length/prefix/suffix/pattern params, plus list item-count, path, URI,
+        and media-type params, against their target primitive families,
         plus accepted-child allow-lists, forbidden-child occurrence, exact
         child counts, child-set cardinality, total, selected, and distinct child-count
         bounds, min/max child occurrence ranges, relative child ordering, and
@@ -316,7 +320,8 @@ history belongs in git history and the feature-specific docs linked below.
         children and childCounts details; URI scheme, URI host, URI port, URI authority,
         URI path-prefix/path-extension/query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment, and media-type essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter datatype-param checks emit expected values, normalized actual tokens, and invalid/missing parameter arrays;
         schema-definition datatype-param checks now emit expected type and
-        actual value type for incompatible numeric and string facets;
+        actual value type for incompatible numeric, string, list, path, URI,
+        and media-type facets;
         URI/media-type constraints, datatype params, dependency, additional
         child occurrence variants beyond exact/named/total/selected/distinct count bounds, child-set cardinality, relative ordering, boundary placement, and exact/required/forbidden child sequences, and cross-reference checks need the same
         schema-owned detail shape.
