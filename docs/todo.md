@@ -331,7 +331,9 @@ history belongs in git history and the feature-specific docs linked below.
         `mediaTypeForbiddenParameters`, and `mediaTypeRequiredParameters` datatype params,
         plus compatibility checks for numeric bounds/digit counts and string
         length/prefix/suffix/pattern params, plus list item-count, path, URI,
-        and media-type params, against their target primitive families,
+        and media-type params, against their target primitive families, plus
+        selected child occurrence bounds against their required
+        `selected-children` selector,
         plus accepted-child allow-lists, forbidden-child occurrence,
         max-one child occurrence, exact child counts, child-set cardinality,
         total, selected, selected-distinct, and distinct child-count

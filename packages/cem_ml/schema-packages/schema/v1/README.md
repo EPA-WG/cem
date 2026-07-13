@@ -89,6 +89,8 @@ Use `selected-children` with `min-selected-distinct-children`,
 `max-selected-distinct-children`, or `exact-selected-distinct-children` when
 the contract is over the number of different declared child names present,
 ignoring unselected child names.
+Schema-definition validation rejects selected child occurrence bounds that do
+not declare `selected-children`.
 Use `ordered-children` when the declared child-name set must appear in that
 relative order among direct element children. Unlisted children are ignored;
 requiredness and multiplicity remain separate child occurrence contracts.

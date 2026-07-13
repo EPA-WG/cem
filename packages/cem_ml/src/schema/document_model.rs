@@ -5308,6 +5308,55 @@ fn validate_child_range_field_contract(
         ));
     }
 
+    let selected_child_range_names = [
+        (
+            "min-selected-children",
+            contract.min_selected_children.as_deref(),
+        ),
+        (
+            "exact-selected-children",
+            contract.exact_selected_children.as_deref(),
+        ),
+        (
+            "max-selected-children",
+            contract.max_selected_children.as_deref(),
+        ),
+        (
+            "min-selected-distinct-children",
+            contract.min_selected_distinct_children.as_deref(),
+        ),
+        (
+            "exact-selected-distinct-children",
+            contract.exact_selected_distinct_children.as_deref(),
+        ),
+        (
+            "max-selected-distinct-children",
+            contract.max_selected_distinct_children.as_deref(),
+        ),
+    ]
+    .into_iter()
+    .filter_map(|(range_name, value)| value.map(|_| range_name))
+    .collect::<Vec<_>>();
+    if contract.selected_children.is_empty() && !selected_child_range_names.is_empty() {
+        let error = "selected child occurrence ranges require selected-children";
+        diagnostics.push(schema_compile_diagnostic(
+            INVALID_SCHEMA_FIELD_CONTRACT_CODE,
+            format!(
+                "field contract `{}` declares selected child occurrence ranges without selected-children in schema `{schema_uri}`: {error}",
+                contract.name
+            ),
+            &contract.source_map,
+            serde_json::json!({
+                "schemaUri": schema_uri,
+                "contract": &contract.name,
+                "checkKind": "field-contract-child-range",
+                "ranges": selected_child_range_names,
+                "requiredSelector": "selected-children",
+                "error": error,
+            }),
+        ));
+    }
+
     for (child, min_value) in &contract.min_children {
         let Some(max_value) = contract.max_children.get(child) else {
             continue;
@@ -14767,6 +14816,22 @@ mod tests {
             @behavior="schema:child-occurrence"
             @check-kind="selected-distinct-child-range"
         }
+        {field-contract
+            @name="missing-selected-child-set"
+            @target="group"
+            @min-selected-children=1
+            @diagnostic="example.group_child_range"
+            @behavior="schema:child-occurrence"
+            @check-kind="selected-child-range"
+        }
+        {field-contract
+            @name="missing-selected-distinct-child-set"
+            @target="group"
+            @exact-selected-distinct-children=1
+            @diagnostic="example.group_child_range"
+            @behavior="schema:child-occurrence"
+            @check-kind="selected-distinct-child-range"
+        }
     }
     {diagnostics |
         {diagnostic
@@ -14925,6 +14990,74 @@ mod tests {
             serde_json::json!("min-selected-distinct-children")
         );
         assert_eq!(details["value"], serde_json::json!("-1"));
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_FIELD_CONTRACT_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("missing-selected-child-set")
+            })
+            .expect("missing selected child selector compile diagnostic");
+        assert!(diagnostic
+            .message
+            .contains("selected child occurrence ranges without selected-children"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("missing selected child selector details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/field-contract-child-range/1")
+        );
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("missing-selected-child-set")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("field-contract-child-range")
+        );
+        assert_eq!(
+            details["ranges"],
+            serde_json::json!(["min-selected-children"])
+        );
+        assert_eq!(
+            details["requiredSelector"],
+            serde_json::json!("selected-children")
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_FIELD_CONTRACT_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("missing-selected-distinct-child-set")
+            })
+            .expect("missing selected distinct child selector compile diagnostic");
+        assert!(diagnostic
+            .message
+            .contains("selected child occurrence ranges without selected-children"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("missing selected distinct child selector details");
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("missing-selected-distinct-child-set")
+        );
+        assert_eq!(
+            details["ranges"],
+            serde_json::json!(["exact-selected-distinct-children"])
+        );
+        assert_eq!(
+            details["requiredSelector"],
+            serde_json::json!("selected-children")
+        );
     }
 
     #[test]
