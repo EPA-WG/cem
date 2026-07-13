@@ -208,6 +208,8 @@
             @first-child="field"
             @last-child="field"
             @required-child-sequence="field"
+            @prefix-child-sequence="field"
+            @suffix-child-sequence="field"
             @diagnostic="example.resource.field_range"
             @behavior="schema:child-occurrence"
             @check-kind="child-occurrence-range"

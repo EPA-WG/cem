@@ -3454,6 +3454,8 @@ fn schema_runtime_child_occurrence_sequence_emits_structured_details() {
         {element @name="nav" @children="*"}
         {element @name="ul" @children="*"}
         {element @name="div" @children="*"}
+        {element @name="dialog" @children="*"}
+        {element @name="form" @children="*"}
         {element @name="header"}
         {element @name="main"}
         {element @name="footer"}
@@ -3506,6 +3508,22 @@ fn schema_runtime_child_occurrence_sequence_emits_structured_details() {
             @behavior="schema:child-occurrence"
             @check-kind="exact-child-sequence"
         }
+        {field-contract
+            @name="dialog-prefix-child-sequence"
+            @target="dialog"
+            @prefix-child-sequence="header main"
+            @diagnostic="example.layout.child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="prefix-child-sequence"
+        }
+        {field-contract
+            @name="form-suffix-child-sequence"
+            @target="form"
+            @suffix-child-sequence="main footer"
+            @diagnostic="example.layout.child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="suffix-child-sequence"
+        }
     }
     {diagnostics |
         {diagnostic
@@ -3527,6 +3545,8 @@ fn schema_runtime_child_occurrence_sequence_emits_structured_details() {
 {nav | {aside} {header} {main} {footer} {aside}}
 {ul | {li} {aside} {span}}
 {div | {span} {p} {strong}}
+{dialog | {header} {main} {aside}}
+{form | {aside} {main} {footer}}
 "#,
     );
     write_test_file(
@@ -3538,6 +3558,8 @@ fn schema_runtime_child_occurrence_sequence_emits_structured_details() {
 {nav | {header} {aside} {main} {footer}}
 {ul | {aside} {li} {span} {footer}}
 {div | {span} {small} {p} {strong}}
+{dialog | {aside} {header} {main}}
+{form | {main} {footer} {aside}}
 "#,
     );
 
@@ -3707,12 +3729,58 @@ fn schema_runtime_child_occurrence_sequence_emits_structured_details() {
     );
     assert_eq!(exact_sequence_details["invalidExactChildSequence"], true);
 
+    let prefix_sequence_diagnostic = diagnostic_for_contract("dialog-prefix-child-sequence");
+    let prefix_sequence_details = &prefix_sequence_diagnostic["details"];
+    assert_eq!(prefix_sequence_diagnostic["severity"], "error");
+    assert_eq!(
+        prefix_sequence_details["behavior"],
+        "schema:child-occurrence"
+    );
+    assert_eq!(
+        prefix_sequence_details["checkKind"],
+        "prefix-child-sequence"
+    );
+    assert_eq!(
+        prefix_sequence_details["prefixChildSequence"],
+        serde_json::json!(["header", "main"])
+    );
+    assert_eq!(
+        prefix_sequence_details["actualChildSequence"],
+        serde_json::json!(["aside", "header", "main"])
+    );
+    assert_eq!(prefix_sequence_details["invalidPrefixChildSequence"], true);
+    assert_eq!(prefix_sequence_details["invalidSuffixChildSequence"], false);
+
+    let suffix_sequence_diagnostic = diagnostic_for_contract("form-suffix-child-sequence");
+    let suffix_sequence_details = &suffix_sequence_diagnostic["details"];
+    assert_eq!(suffix_sequence_diagnostic["severity"], "error");
+    assert_eq!(
+        suffix_sequence_details["behavior"],
+        "schema:child-occurrence"
+    );
+    assert_eq!(
+        suffix_sequence_details["checkKind"],
+        "suffix-child-sequence"
+    );
+    assert_eq!(
+        suffix_sequence_details["suffixChildSequence"],
+        serde_json::json!(["main", "footer"])
+    );
+    assert_eq!(
+        suffix_sequence_details["actualChildSequence"],
+        serde_json::json!(["main", "footer", "aside"])
+    );
+    assert_eq!(suffix_sequence_details["invalidPrefixChildSequence"], false);
+    assert_eq!(suffix_sequence_details["invalidSuffixChildSequence"], true);
+
     for diagnostic in [
         ordered_diagnostic,
         boundary_diagnostic,
         required_sequence_diagnostic,
         forbidden_sequence_diagnostic,
         exact_sequence_diagnostic,
+        prefix_sequence_diagnostic,
+        suffix_sequence_diagnostic,
     ] {
         assert!(diagnostic["details"]["sourceRange"]["span"]["start"].is_u64());
         assert!(diagnostic["sourceMap"]["frames"]
