@@ -1,0 +1,34 @@
+@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="bad-converter-template-source" @version="1.0.0" |
+    {schema
+        @uri="https://example.test/ns/note-html/1"
+        @source="schema/note-html.cem"
+    }
+
+    {content-type @value="application/vnd.example.note+cem" @primary=true}
+    {content-type @value="text/html" @alias=true}
+
+    {namespace @prefix="note" @uri="https://example.test/ns/note-html/1"}
+
+    {converter
+        @id="note-to-html-missing-template"
+        @implementation="cemt"
+        @template="converters/missing-output-pipeline.cemt"
+        @template-content-type="application/vnd.cem.transform+cem"
+        @template-schema="https://cem.dev/ns/transform/cem/1"
+        @template-entrypoint="main"
+        @streamable=true
+        @lossiness="lossless"
+        @output-syntax="html"
+        @encoding-category="html-document"
+        @formatter-profile="compact"
+        @color-profile="classes"
+        @parity="parse-equivalent"
+        @cost=100 |
+        {from @content-type="application/vnd.example.note+cem" @schema="https://example.test/ns/note-html/1"}
+        {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+    }
+}

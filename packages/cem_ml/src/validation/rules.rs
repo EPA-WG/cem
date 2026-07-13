@@ -4179,6 +4179,14 @@ mod tests {
             serde_json::json!("converter-template-output-stage-contract")
         );
         assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:resource-parse")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("converter-template-contract")
+        );
+        assert_eq!(
             details["diagnostic"],
             serde_json::json!("cem.schema_package.converter_check")
         );
@@ -4224,6 +4232,10 @@ mod tests {
         assert_eq!(
             diagnostic.details.as_ref().expect("source details")["contract"],
             serde_json::json!("converter-template-output-stage-contract")
+        );
+        assert_eq!(
+            diagnostic.details.as_ref().expect("source details")["behavior"],
+            serde_json::json!("schema:resource-readable")
         );
         assert!(diags
             .iter()

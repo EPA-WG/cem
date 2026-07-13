@@ -517,7 +517,9 @@ history belongs in git history and the feature-specific docs linked below.
         implementation value, `from`/`to`, or endpoint `content-type`;
         formatter/color output profiles now require `output-syntax` and
         `encoding-category` through schema-owned `converter_check`
-        field-dependency contracts.
+        field-dependency contracts; converter template source readability and
+        template compile constraints are now pinned by schema-owned example
+        fixtures and compiled constraint model assertions.
   - [ ] Finish artifact cases in `schema-package.cem`. Formatter, colorizer,
         formatter-helper, and colorizer-helper required field metadata now
         lives in schema-owned `field-contract` declarations; formatter/
@@ -602,8 +604,11 @@ history belongs in git history and the feature-specific docs linked below.
         value-specific forbidden field, and child occurrence checks; CEMT
         template content-type/schema exact values are now covered by generic
         `@values`; formatter/color output-profile dependencies are now
-        schema-owned field-dependency contracts, and the remaining converter operational/cross-reference
-        branches emit `converter_check` with `checkKind` details.
+        schema-owned field-dependency contracts; converter template
+        source-readability and compile constraints are pinned as schema-owned
+        resource-readable/resource-parse constraints, and the remaining
+        converter operational/cross-reference branches emit `converter_check`
+        with `checkKind` details.
   - [ ] Refactor `schema_descriptor_from_package_sources`,
         `collect_package_examples`, and `required_attr` in
         `packages/cem_ml/src/schema/registry.rs` so descriptor extraction runs

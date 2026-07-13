@@ -571,6 +571,14 @@ fn schema_owned_examples_validate_through_cli() {
             expected_diagnostics: &["cem.schema_package.converter_check"],
         },
         ValidationExample {
+            name: "schema-package invalid converter template unreadable",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-converter-template-unreadable.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.schema_package.converter_check"],
+        },
+        ValidationExample {
             name: "schema-package invalid artifact contract",
             path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-contract.cem",
             content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
@@ -5243,6 +5251,32 @@ fn schema_package_engine_behavior_examples_emit_structured_details() {
                     contract: "converter-output-formatter-profile",
                 },
             ],
+        },
+        DetailedValidationExample {
+            name: "schema-package invalid converter template unreadable",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-converter-template-unreadable.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected: &[DiagnosticDetailExpectation {
+                code: "cem.schema_package.converter_check",
+                severity: "error",
+                behavior: "schema:resource-readable",
+                check_kind: "converter-template-source-readable",
+                contract: "converter-template-output-stage-contract",
+            }],
+        },
+        DetailedValidationExample {
+            name: "schema-package invalid converter template contract",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-converter-template-contract.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected: &[DiagnosticDetailExpectation {
+                code: "cem.schema_package.converter_check",
+                severity: "error",
+                behavior: "schema:resource-parse",
+                check_kind: "converter-template-contract",
+                contract: "converter-template-output-stage-contract",
+            }],
         },
         DetailedValidationExample {
             name: "schema-package invalid artifact layout",

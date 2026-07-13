@@ -10562,6 +10562,51 @@ mod tests {
             output_color_profile.engine_behavior,
             Some(EngineDiagnosticBehavior::FieldContract)
         );
+        let converter_template_source_readable = model
+            .constraint("converter-template-source-readable")
+            .expect("converter template source readability constraint");
+        assert_eq!(
+            converter_template_source_readable.diagnostic.as_deref(),
+            Some("cem.schema_package.converter_check")
+        );
+        assert_eq!(
+            converter_template_source_readable.behavior.as_deref(),
+            Some("schema:resource-readable")
+        );
+        assert_eq!(
+            converter_template_source_readable.engine_behavior,
+            Some(EngineDiagnosticBehavior::ResourceReadable)
+        );
+        let converter_template_contract = model
+            .constraint("converter-template-contract")
+            .expect("converter template compile constraint");
+        assert_eq!(
+            converter_template_contract.diagnostic.as_deref(),
+            Some("cem.schema_package.converter_check")
+        );
+        assert_eq!(
+            converter_template_contract.behavior.as_deref(),
+            Some("schema:resource-parse")
+        );
+        assert_eq!(
+            converter_template_contract.engine_behavior,
+            Some(EngineDiagnosticBehavior::ResourceParse)
+        );
+        let converter_endpoint_content_type = model
+            .constraint("endpoint-content-type-schema")
+            .expect("converter endpoint content type/schema constraint");
+        assert_eq!(
+            converter_endpoint_content_type.diagnostic.as_deref(),
+            Some("cem.schema_package.converter_check")
+        );
+        assert_eq!(
+            converter_endpoint_content_type.behavior.as_deref(),
+            Some("schema:reference-resolution")
+        );
+        assert_eq!(
+            converter_endpoint_content_type.engine_behavior,
+            Some(EngineDiagnosticBehavior::ReferenceResolution)
+        );
         let artifact = model.element("artifact").unwrap();
         assert!(artifact
             .field_contracts
