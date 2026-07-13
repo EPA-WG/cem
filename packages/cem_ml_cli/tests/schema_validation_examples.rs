@@ -1893,6 +1893,7 @@ fn schema_runtime_field_contract_primitives_emit_structured_details() {
     const REQUIRED_DIAGNOSTIC: &str = "example.div.required_id";
     const FORBIDDEN_DIAGNOSTIC: &str = "example.div.forbidden_title";
     const MUTUAL_DIAGNOSTIC: &str = "example.span.mutual_class";
+    const GENERIC_DIAGNOSTIC: &str = "example.section.generic_role";
 
     let root = test_temp_dir("cem-ml-cli-field-contract-runtime");
     let manifest_path = root.join("package.cem");
@@ -1937,11 +1938,13 @@ fn schema_runtime_field_contract_primitives_emit_structured_details() {
     {elements |
         {element @name="div" @optional-attributes="id class title" @children="*"}
         {element @name="span" @optional-attributes="class" @children="*"}
+        {element @name="section" @optional-attributes="role" @children="*"}
     }
     {attributes |
         {attribute @name="id" @type="schema:string"}
         {attribute @name="class" @type="schema:string"}
         {attribute @name="title" @type="schema:string"}
+        {attribute @name="role" @type="schema:string"}
     }
     {field-contracts |
         {field-contract
@@ -1972,6 +1975,13 @@ fn schema_runtime_field_contract_primitives_emit_structured_details() {
             @behavior="schema:mutual-exclusion"
             @check-kind="mutual-exclusion"
         }
+        {field-contract
+            @name="section-role-required"
+            @target="section"
+            @required-attributes="role"
+            @diagnostic="example.section.generic_role"
+            @check-kind="required-fields"
+        }
     }
     {diagnostics |
         {diagnostic
@@ -1992,6 +2002,12 @@ fn schema_runtime_field_contract_primitives_emit_structured_details() {
             @behavior="schema:mutual-exclusion"
             @message="Span class must avoid blocked value"
         }
+        {diagnostic
+            @code="example.section.generic_role"
+            @severity="error"
+            @behavior="schema:field-contract"
+            @message="Section role is required through the generic field contract behavior"
+        }
     }
 }
 "#,
@@ -2002,6 +2018,7 @@ fn schema_runtime_field_contract_primitives_emit_structured_details() {
 
 {div @class="card" @id="card-1"}
 {span @class="open"}
+{section @role="region"}
 "#,
     );
     write_test_file(
@@ -2010,6 +2027,7 @@ fn schema_runtime_field_contract_primitives_emit_structured_details() {
 
 {div @class="card" @title="debug"}
 {span @class="blocked"}
+{section}
 "#,
     );
 
@@ -2042,7 +2060,12 @@ fn schema_runtime_field_contract_primitives_emit_structured_details() {
     );
     let valid_report: serde_json::Value = serde_json::from_str(stdout(&valid_output).trim())
         .expect("field contract valid report is JSON");
-    for code in [REQUIRED_DIAGNOSTIC, FORBIDDEN_DIAGNOSTIC, MUTUAL_DIAGNOSTIC] {
+    for code in [
+        REQUIRED_DIAGNOSTIC,
+        FORBIDDEN_DIAGNOSTIC,
+        MUTUAL_DIAGNOSTIC,
+        GENERIC_DIAGNOSTIC,
+    ] {
         assert!(
             !has_diagnostic(&valid_report, code),
             "`{code}` should not be emitted for valid field contracts:\n{}",
@@ -2139,7 +2162,28 @@ fn schema_runtime_field_contract_primitives_emit_structured_details() {
     );
     assert_eq!(mutual_details["actualValues"]["class"], "blocked");
 
-    for diagnostic in [required_diagnostic, forbidden_diagnostic, mutual_diagnostic] {
+    let generic_diagnostic = diagnostic_for_code(GENERIC_DIAGNOSTIC);
+    let generic_details = &generic_diagnostic["details"];
+    assert_eq!(generic_diagnostic["severity"], "error");
+    assert_eq!(generic_details["behavior"], "schema:field-contract");
+    assert_eq!(generic_details["checkKind"], "required-fields");
+    assert_eq!(generic_details["contract"], "section-role-required");
+    assert_eq!(generic_details["target"], "section");
+    assert_eq!(
+        generic_details["requiredFields"],
+        serde_json::json!(["role"])
+    );
+    assert_eq!(
+        generic_details["missingFields"],
+        serde_json::json!(["role"])
+    );
+
+    for diagnostic in [
+        required_diagnostic,
+        forbidden_diagnostic,
+        mutual_diagnostic,
+        generic_diagnostic,
+    ] {
         assert!(diagnostic["details"]["sourceRange"]["span"]["start"].is_u64());
         assert!(diagnostic["sourceMap"]["frames"]
             .as_array()

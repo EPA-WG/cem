@@ -166,7 +166,7 @@ history belongs in git history and the feature-specific docs linked below.
         and execution placements, missing function/result/body pieces,
         incompatible result/return contracts, invalid engine behavior
         arguments, and invalid behavior body evaluation.
-  - [ ] Add schema-package and CLI examples for every engine-provided algorithm
+  - [x] Add schema-package and CLI examples for every engine-provided algorithm
         and its meaningful parameter or matching variations. Include passing
         and failing fixtures, expected diagnostic codes, structured details,
         severity, and source ranges so the example set documents the minimal
@@ -199,6 +199,8 @@ history belongs in git history and the feature-specific docs linked below.
         proves passing and failing `schema:required-fields`,
         `schema:forbidden-fields`, and `schema:mutual-exclusion` details
         through a schema-package-loaded custom schema; CLI runtime coverage
+        now also proves generic `schema:field-contract` details through a
+        schema-package-loaded custom schema; CLI runtime coverage
         now also proves missing and conflicting grouped `schema:choice-case` details
         through a schema-package-loaded custom schema; CLI runtime coverage
         now also proves passing and failing `schema:accepted-children` details
@@ -240,7 +242,9 @@ history belongs in git history and the feature-specific docs linked below.
         and list item-count datatype-param bindings, constraint behavior aliases, and
         unknown behaviors; the CLI example set also includes a schema that
         fails an unknown behavior
-        reference. The complete algorithm matrix remains.
+        reference. This completes the current audited algorithm matrix from
+        `cem-schema.cem` and the schema-package `single-primary-content-type`
+        function behavior.
   - [x] Add a custom-schema example that defines a new algorithm using only
         CEM-ML, CEM-QL, and a declarative function, then prove that changing the
         declared match or function changes validation behavior without adding
