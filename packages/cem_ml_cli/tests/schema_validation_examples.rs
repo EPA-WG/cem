@@ -5365,6 +5365,35 @@ fn schema_package_engine_behavior_examples_emit_structured_details() {
                 },
             ],
         },
+        DetailedValidationExample {
+            name: "schema-package invalid example source contract",
+            path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-example-source-contract.cem",
+            content_type: CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_PACKAGE_URI,
+            expected: &[
+                DiagnosticDetailExpectation {
+                    code: "cem.schema_package.example_check",
+                    severity: "error",
+                    behavior: "schema:resource-readable",
+                    check_kind: "example-source-readable",
+                    contract: "example-contract",
+                },
+                DiagnosticDetailExpectation {
+                    code: "cem.schema_package.example_check",
+                    severity: "error",
+                    behavior: "schema:resource-parse",
+                    check_kind: "example-source-validation",
+                    contract: "example-contract",
+                },
+                DiagnosticDetailExpectation {
+                    code: "cem.schema_package.example_check",
+                    severity: "error",
+                    behavior: "schema:reference-resolution",
+                    check_kind: "example-expected-diagnostics",
+                    contract: "example-contract",
+                },
+            ],
+        },
     ];
 
     for example in examples {

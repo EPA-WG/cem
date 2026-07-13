@@ -10696,7 +10696,60 @@ mod tests {
             .constraint("example-content-type-schema")
             .expect("example content type/schema constraint");
         assert_eq!(
+            example_content_type_schema.diagnostic.as_deref(),
+            Some("cem.schema_package.example_check")
+        );
+        assert_eq!(
+            example_content_type_schema.behavior.as_deref(),
+            Some("schema:reference-resolution")
+        );
+        assert_eq!(
             example_content_type_schema.engine_behavior,
+            Some(EngineDiagnosticBehavior::ReferenceResolution)
+        );
+        let example_source_readable = model
+            .constraint("example-source-readable")
+            .expect("example source readability constraint");
+        assert_eq!(
+            example_source_readable.diagnostic.as_deref(),
+            Some("cem.schema_package.example_check")
+        );
+        assert_eq!(
+            example_source_readable.behavior.as_deref(),
+            Some("schema:resource-readable")
+        );
+        assert_eq!(
+            example_source_readable.engine_behavior,
+            Some(EngineDiagnosticBehavior::ResourceReadable)
+        );
+        let example_source_validation = model
+            .constraint("example-source-validation")
+            .expect("example source validation constraint");
+        assert_eq!(
+            example_source_validation.diagnostic.as_deref(),
+            Some("cem.schema_package.example_check")
+        );
+        assert_eq!(
+            example_source_validation.behavior.as_deref(),
+            Some("schema:resource-parse")
+        );
+        assert_eq!(
+            example_source_validation.engine_behavior,
+            Some(EngineDiagnosticBehavior::ResourceParse)
+        );
+        let example_expected_diagnostics = model
+            .constraint("example-expected-diagnostics")
+            .expect("example expected diagnostics constraint");
+        assert_eq!(
+            example_expected_diagnostics.diagnostic.as_deref(),
+            Some("cem.schema_package.example_check")
+        );
+        assert_eq!(
+            example_expected_diagnostics.behavior.as_deref(),
+            Some("schema:reference-resolution")
+        );
+        assert_eq!(
+            example_expected_diagnostics.engine_behavior,
             Some(EngineDiagnosticBehavior::ReferenceResolution)
         );
     }

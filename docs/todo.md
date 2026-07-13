@@ -546,7 +546,7 @@ history belongs in git history and the feature-specific docs linked below.
         deferred to the low-priority vocabulary item below because they need
         generic CEMT body/output assertion syntax rather than package-specific
         schema-package rules.
-  - [ ] Model example cases in `schema-package.cem`: required example
+  - [x] Model example cases in `schema-package.cem`: required example
         metadata and failing-example `expected-diagnostics` now live in
         schema-owned `field-contract` declarations and emit
         `cem.schema_package.example_check`; content type/schema compatibility
@@ -554,7 +554,11 @@ history belongs in git history and the feature-specific docs linked below.
         in Rust, now emitting `example_check` with structured `checkKind`
         details; package example descriptor extraction no longer owns required
         metadata or `expected-result` value diagnostics, and the stale
-        `example_content_type_mismatch` diagnostic has been retired.
+        `example_content_type_mismatch` diagnostic has been retired. Example
+        source readability, source validation result, and expected diagnostic
+        matching constraints are schema-owned and now pinned in the compiled
+        schema model and CLI structured-detail examples while Rust remains the
+        execution placement for source I/O and validation.
   - [ ] Continue replacing one-code-per-field diagnostics with contract-family
         diagnostics declared in schema source. Artifact missing-metadata checks
         now emit `cem.schema_package.artifact_check`; converter and example
