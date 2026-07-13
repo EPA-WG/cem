@@ -63,7 +63,8 @@ history belongs in git history and the feature-specific docs linked below.
       `schema:child-occurrence`; accepted-child allow-lists also execute
       through `schema:accepted-children`. Presence-gated dependent-required
       field groups now execute when all declared `when-present-attributes` are
-      present. The `schema:path-layout` behavior contract now declares its
+      present and all declared `when-absent-attributes` are absent. The
+      `schema:path-layout` behavior contract now declares its
       `pathLayout` and `invalidValues` result details. Combined
       value-and-presence-gated dependent field groups now execute through
       `schema:field-dependency`, and dependency result contracts declare their
@@ -284,9 +285,10 @@ history belongs in git history and the feature-specific docs linked below.
   - [ ] Expand the initial `field-contracts` vocabulary in
         `packages/cem_ml/schema-packages/schema/v1/schema/cem-schema.cem`.
         The schema language now models element-bound required/optional/
-        forbidden fields, value, multi-attribute presence, and child
+        forbidden fields, value, multi-attribute presence/absence, and child
         presence/absence conditional selectors,
-        dependent-required groups with all-present and combined value/presence gates,
+        dependent-required groups with all-present/all-absent and combined
+        value/presence gates,
         value-specific forbidden fields, exact-one child occurrence contracts,
         required-one/max-one attribute choice cardinality, nested choice/case
         groups, package-relative path-layout contracts, diagnostic families,
@@ -318,7 +320,7 @@ history belongs in git history and the feature-specific docs linked below.
         sequences; it still needs RELAX NG-style datatype params beyond the
         initial scalar and datatype variations, default value materialization,
         richer dependent-required field groups
-        beyond combined value/presence gates, and additional child occurrence
+        beyond value/presence/absence gates, and additional child occurrence
         variants beyond exact/named/total/selected/distinct count bounds,
         child-set cardinality, relative ordering, boundary placement, and
         exact/required/forbidden child sequences.
@@ -340,8 +342,8 @@ history belongs in git history and the feature-specific docs linked below.
         accepted-child allow-list field contracts, forbidden-child
         occurrence contracts, child-set cardinality contracts, exact
         child-count contracts, total/selected/distinct child-count bound contracts,
-        child presence/absence conditional selectors, relative child ordering
-        contracts, boundary child placement contracts,
+        attribute and child presence/absence conditional selectors, relative
+        child ordering contracts, boundary child placement contracts,
         exact/required/forbidden child sequence contracts, and attribute
         default metadata and validation; it
         still needs reusable string constraints beyond length/prefix/suffix/pattern and path constraints beyond
@@ -351,7 +353,7 @@ history belongs in git history and the feature-specific docs linked below.
         RELAX NG-style datatype params beyond numeric bounds/digit counts,
         string length/prefix/suffix, list item counts, pattern, and allowed
         URI/media tokens, default value materialization, dependent field
-        groups beyond all-present presence-gated required fields, additional child
+        groups beyond all-present/all-absent gated required fields, additional child
         occurrence variants beyond exact/named/total/selected/distinct count
         bounds, child-set cardinality, relative ordering, boundary placement,
         and exact/required/forbidden child sequences, and richer case grouping

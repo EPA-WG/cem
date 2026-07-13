@@ -1798,6 +1798,7 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
         {element @name="div" @optional-attributes="class id title role" @children="*"}
         {element @name="section" @optional-attributes="class id title role" @children="*"}
         {element @name="span" @optional-attributes="class id title role" @children="*"}
+        {element @name="article" @optional-attributes="class id title role" @children="*"}
     }
     {attributes |
         {attribute @name="class" @type="schema:string"}
@@ -1845,6 +1846,16 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
             @behavior="schema:field-dependency"
             @check-kind="dependent-forbidden-values"
         }
+        {field-contract
+            @name="title-without-role-id"
+            @target="article"
+            @when-present-attributes="title"
+            @when-absent-attributes="role"
+            @required-attributes="id"
+            @diagnostic="example.asset.dependency"
+            @behavior="schema:field-dependency"
+            @check-kind="dependent-required-fields"
+        }
     }
     {diagnostics |
         {diagnostic
@@ -1866,6 +1877,8 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
 {section @class="remote" @title="card"}
 {section @class="remote" @title="card" @id="section-1" @role="region"}
 {span @class="remote" @role="open"}
+{article @title="card" @id="article-1"}
+{article @title="card" @role="note"}
 "#,
     );
     write_test_file(
@@ -1875,6 +1888,7 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
 {div @class="local" @title="needs-id"}
 {section @class="remote" @title="card" @id="section-1"}
 {span @class="remote" @title="debug" @role="blocked"}
+{article @title="card"}
 "#,
     );
 
@@ -1956,6 +1970,13 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
             check_kind: "dependent-forbidden-values",
             contract: "class-blocked-role",
         },
+        DiagnosticDetailExpectation {
+            code: CUSTOM_DIAGNOSTIC,
+            severity: "error",
+            behavior: "schema:field-dependency",
+            check_kind: "dependent-required-fields",
+            contract: "title-without-role-id",
+        },
     ] {
         assert!(
             has_diagnostic_detail(&report, &expected),
@@ -1981,6 +2002,7 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
             "attribute": null,
             "values": [],
             "presentAttributes": ["class", "title"],
+            "absentAttributes": [],
             "presentChildren": [],
             "absentChildren": [],
         })
@@ -2010,6 +2032,7 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
             "attribute": "class",
             "values": ["remote"],
             "presentAttributes": ["id", "title"],
+            "absentAttributes": [],
             "presentChildren": [],
             "absentChildren": [],
         })
@@ -2021,6 +2044,32 @@ fn schema_runtime_field_dependency_forbidden_variants_emit_structured_details() 
     assert_eq!(
         remote_source_token_details["missingFields"],
         serde_json::json!(["role"])
+    );
+
+    let absent_role_expected = DiagnosticDetailExpectation {
+        code: CUSTOM_DIAGNOSTIC,
+        severity: "error",
+        behavior: "schema:field-dependency",
+        check_kind: "dependent-required-fields",
+        contract: "title-without-role-id",
+    };
+    let absent_role = find_diagnostic_detail(&report, &absent_role_expected)
+        .expect("absent-role dependency diagnostic");
+    let absent_role_details = &absent_role["details"];
+    assert_eq!(
+        absent_role_details["condition"],
+        serde_json::json!({
+            "attribute": null,
+            "values": [],
+            "presentAttributes": ["title"],
+            "absentAttributes": ["role"],
+            "presentChildren": [],
+            "absentChildren": [],
+        })
+    );
+    assert_eq!(
+        absent_role_details["missingFields"],
+        serde_json::json!(["id"])
     );
 
     let _ = fs::remove_dir_all(root);
@@ -4144,6 +4193,7 @@ fn schema_runtime_child_occurrence_counts_emit_structured_details() {
             "attribute": null,
             "values": [],
             "presentAttributes": [],
+            "absentAttributes": [],
             "presentChildren": ["span"],
             "absentChildren": ["small"],
         })

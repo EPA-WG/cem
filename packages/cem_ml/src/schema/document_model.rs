@@ -410,6 +410,7 @@ pub struct FieldContract {
     pub when_attribute: Option<String>,
     pub when_values: BTreeSet<String>,
     pub when_present_attributes: BTreeSet<String>,
+    pub when_absent_attributes: BTreeSet<String>,
     pub when_present_children: BTreeSet<String>,
     pub when_absent_children: BTreeSet<String>,
     pub source_map: SourceMapStack,
@@ -507,6 +508,13 @@ impl FieldContract {
             .when_present_attributes
             .iter()
             .all(|name| attributes.contains_key(name))
+        {
+            return false;
+        }
+        if !self
+            .when_absent_attributes
+            .iter()
+            .all(|name| !attributes.contains_key(name))
         {
             return false;
         }
@@ -6493,6 +6501,7 @@ fn collect_field_contracts(
                     .map(str::to_owned),
                 when_values: parse_name_set(attrs.get("when-values")),
                 when_present_attributes: parse_name_set(attrs.get("when-present-attributes")),
+                when_absent_attributes: parse_name_set(attrs.get("when-absent-attributes")),
                 when_present_children: parse_name_set(attrs.get("when-present-children")),
                 when_absent_children: parse_name_set(attrs.get("when-absent-children")),
                 source_map: document
@@ -7758,6 +7767,7 @@ fn field_contract_details(
             "attribute": &contract.when_attribute,
             "values": &contract.when_values,
             "presentAttributes": &contract.when_present_attributes,
+            "absentAttributes": &contract.when_absent_attributes,
             "presentChildren": &contract.when_present_children,
             "absentChildren": &contract.when_absent_children,
         }),
@@ -9549,6 +9559,7 @@ mod tests {
         );
         for name in [
             "when-present-attributes",
+            "when-absent-attributes",
             "when-present-children",
             "when-absent-children",
         ] {
@@ -10716,6 +10727,7 @@ mod tests {
                 "attribute": null,
                 "values": [],
                 "presentAttributes": ["name"],
+                "absentAttributes": [],
                 "presentChildren": [],
                 "absentChildren": [],
             })
@@ -12192,11 +12204,104 @@ mod tests {
                 "attribute": null,
                 "values": [],
                 "presentAttributes": ["source", "token"],
+                "absentAttributes": [],
                 "presentChildren": [],
                 "absentChildren": [],
             })
         );
         assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
+    fn schema_field_dependency_supports_absent_attribute_gate() {
+        let model = compile_document_model(
+            "https://example.test/ns/absent-dependent-fields/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="absent-dependent-fields" @namespace="https://example.test/ns/absent-dependent-fields/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="asset" @optional-attributes="source inline format"}
+    }
+    {attributes |
+        {attribute @name="source" @type="schema:string"}
+        {attribute @name="inline" @type="schema:string"}
+        {attribute @name="format" @type="schema:string"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="source-without-inline-format"
+            @target="asset"
+            @when-present-attributes="source"
+            @when-absent-attributes="inline"
+            @required-attributes="format"
+            @diagnostic="example.asset_format_required"
+            @behavior="schema:field-dependency"
+            @check-kind="dependent-required-fields"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.asset_format_required"
+            @severity="error"
+            @behavior="schema:field-dependency"
+        }
+    }
+}"#,
+        );
+
+        for source in [
+            r#"{asset @source="cdn" @inline="literal"}"#,
+            r#"{asset @inline="literal"}"#,
+            r#"{asset @source="cdn" @format="json"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics.iter().all(|diagnostic| {
+                    diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) != Some("source-without-inline-format")
+                }),
+                "absent-attribute field dependency gate should not fire for {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{asset @source="cdn"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "example.asset_format_required")
+            .expect("absent-attribute field dependency diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("absent-attribute field dependency details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:field-dependency")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("dependent-required-fields")
+        );
+        assert_eq!(
+            details["condition"],
+            serde_json::json!({
+                "attribute": null,
+                "values": [],
+                "presentAttributes": ["source"],
+                "absentAttributes": ["inline"],
+                "presentChildren": [],
+                "absentChildren": [],
+            })
+        );
+        assert_eq!(details["requiredFields"], serde_json::json!(["format"]));
+        assert_eq!(details["missingFields"], serde_json::json!(["format"]));
     }
 
     #[test]
@@ -12281,6 +12386,7 @@ mod tests {
                 "attribute": "kind",
                 "values": ["remote"],
                 "presentAttributes": ["source", "token"],
+                "absentAttributes": [],
                 "presentChildren": [],
                 "absentChildren": [],
             })
@@ -12381,6 +12487,7 @@ mod tests {
                 "attribute": null,
                 "values": [],
                 "presentAttributes": [],
+                "absentAttributes": [],
                 "presentChildren": ["header"],
                 "absentChildren": ["footer"],
             })
@@ -12494,6 +12601,7 @@ mod tests {
                 "attribute": "kind",
                 "values": ["remote"],
                 "presentAttributes": [],
+                "absentAttributes": [],
                 "presentChildren": [],
                 "absentChildren": [],
             })
@@ -12541,6 +12649,7 @@ mod tests {
                 "attribute": null,
                 "values": [],
                 "presentAttributes": ["source"],
+                "absentAttributes": [],
                 "presentChildren": [],
                 "absentChildren": [],
             })
