@@ -496,6 +496,14 @@ fn schema_owned_examples_validate_through_cli() {
             expected_diagnostics: &["cem.schema_definition.invalid_datatype_param"],
         },
         ValidationExample {
+            name: "schema invalid field contract child sequence",
+            path: "packages/cem_ml/schema-packages/schema/v1/examples/invalid-field-contract-child-sequence.cem",
+            content_type: CEM_SCHEMA_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.schema_definition.invalid_field_contract"],
+        },
+        ValidationExample {
             name: "schema invalid attribute default",
             path: "packages/cem_ml/schema-packages/schema/v1/examples/invalid-attribute-default.cem",
             content_type: CEM_SCHEMA_CONTENT_TYPE,
@@ -5358,6 +5366,113 @@ fn schema_datatype_param_examples_emit_structured_definition_details() {
                 stdout(&output)
             );
         }
+    }
+}
+
+#[test]
+fn schema_field_contract_examples_emit_structured_definition_details() {
+    let path = workspace_path(
+        "packages/cem_ml/schema-packages/schema/v1/examples/invalid-field-contract-child-sequence.cem",
+    );
+    assert!(
+        path.exists(),
+        "schema field-contract validation example is missing at {}",
+        path.display()
+    );
+
+    let output = validate_example(
+        &ValidationExample {
+            name: "schema invalid field contract child sequence",
+            path: "packages/cem_ml/schema-packages/schema/v1/examples/invalid-field-contract-child-sequence.cem",
+            content_type: CEM_SCHEMA_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &[],
+        },
+        &path,
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(EXIT_HARD_FAILURE),
+        "schema invalid field contract child sequence stderr:\n{}",
+        stderr(&output)
+    );
+    assert!(
+        stderr(&output).trim().is_empty(),
+        "schema invalid field contract child sequence stderr must stay empty:\n{}",
+        stderr(&output)
+    );
+
+    let report: serde_json::Value = serde_json::from_str(stdout(&output).trim())
+        .expect("schema invalid field contract child sequence stdout is validation JSON");
+    let detail_for = |contract: &str, conflict: &str| {
+        diagnostics(&report)
+            .iter()
+            .find(|diagnostic| {
+                diagnostic["code"] == "cem.schema_definition.invalid_field_contract"
+                    && diagnostic["severity"] == "error"
+                    && diagnostic["details"]["checkKind"] == "field-contract-child-sequence"
+                    && diagnostic["details"]["contract"] == contract
+                    && diagnostic["details"]["conflict"] == conflict
+                    && diagnostic["sourceMap"]["frames"]
+                        .as_array()
+                        .is_some_and(|frames| !frames.is_empty())
+            })
+            .unwrap_or_else(|| {
+                panic!(
+                    "expected invalid field-contract child sequence detail for `{contract}` / `{conflict}` in {}",
+                    stdout(&output)
+                )
+            })
+    };
+
+    let diagnostic = detail_for(
+        "bad-required-forbidden-sequence",
+        "required-child-sequence/forbidden-child-sequence",
+    );
+    assert_eq!(
+        diagnostic["details"]["requiredChildSequence"],
+        serde_json::json!(["header", "main"])
+    );
+    assert_eq!(
+        diagnostic["details"]["forbiddenChildSequence"],
+        serde_json::json!(["header", "main"])
+    );
+
+    let diagnostic = detail_for(
+        "bad-exact-prefix",
+        "exact-child-sequence/prefix-child-sequence",
+    );
+    assert_eq!(
+        diagnostic["details"]["exactChildSequence"],
+        serde_json::json!(["header", "footer"])
+    );
+    assert_eq!(
+        diagnostic["details"]["prefixChildSequence"],
+        serde_json::json!(["header", "main"])
+    );
+
+    for (contract, conflict) in [
+        ("bad-first-boundary", "first-child/forbidden-first-child"),
+        ("bad-last-boundary", "last-child/forbidden-last-child"),
+        (
+            "bad-prefix-forbidden-prefix",
+            "prefix-child-sequence/forbidden-prefix-child-sequence",
+        ),
+        (
+            "bad-suffix-forbidden-suffix",
+            "suffix-child-sequence/forbidden-suffix-child-sequence",
+        ),
+        (
+            "bad-exact-required",
+            "exact-child-sequence/required-child-sequence",
+        ),
+        (
+            "bad-exact-forbidden",
+            "exact-child-sequence/forbidden-child-sequence",
+        ),
+    ] {
+        detail_for(contract, conflict);
     }
 }
 

@@ -91,7 +91,11 @@ the contract is over the number of different declared child names present,
 ignoring unselected child names.
 Schema-definition validation rejects selected child occurrence bounds that do
 not declare `selected-children`, and rejects exact child occurrence bounds
-outside their declared min/max envelope.
+outside their declared min/max envelope. It also rejects impossible direct
+child boundary/sequence contradictions, such as a required boundary or sequence
+matching its forbidden counterpart, or an `exact-child-sequence` that cannot
+satisfy the same contract's boundary, prefix, suffix, required-sequence, or
+forbidden-sequence declarations.
 Use `ordered-children` when the declared child-name set must appear in that
 relative order among direct element children. Unlisted children are ignored;
 requiredness and multiplicity remain separate child occurrence contracts.
@@ -350,6 +354,7 @@ CLI validation integration tests.
 | [`invalid-datatype-param-pattern.cem`](examples/invalid-datatype-param-pattern.cem) | String datatype parameter declaration uses an invalid regular expression. | Fail with `cem.schema_definition.invalid_datatype_param` |
 | [`invalid-datatype-param-digits.cem`](examples/invalid-datatype-param-digits.cem) | Numeric digit-count datatype parameter declarations use invalid limits or incompatible primitive types. | Fail with `cem.schema_definition.invalid_datatype_param` |
 | [`invalid-datatype-param-uri-media.cem`](examples/invalid-datatype-param-uri-media.cem) | Path prefix/extension, URI scheme/host/port/authority/path-prefix/path-extension/query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment, and media-type essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter datatype parameter declarations use invalid tokens, incompatible primitive types, or inconsistent required/forbidden parameter declarations. | Fail with `cem.schema_definition.invalid_datatype_param` |
+| [`invalid-field-contract-child-sequence.cem`](examples/invalid-field-contract-child-sequence.cem) | Child boundary and child-sequence field contracts declare impossible required/forbidden combinations or an exact sequence that conflicts with declared boundary, prefix, suffix, required-sequence, or forbidden-sequence constraints. | Fail with `cem.schema_definition.invalid_field_contract` |
 | [`invalid-attribute-default.cem`](examples/invalid-attribute-default.cem) | Attribute defaults violate declared scalar type, value vocabulary, and datatype parameter constraints. | Fail with `cem.schema_definition.invalid_default_value` |
 
 Validate an example explicitly against this schema:

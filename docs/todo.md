@@ -341,6 +341,9 @@ history belongs in git history and the feature-specific docs linked below.
         selected child occurrence bounds against their required
         `selected-children` selector, plus exact child occurrence bounds
         against their declared min/max envelopes,
+        plus child boundary/sequence contracts against direct forbidden
+        counterparts and exact child sequences against their own
+        boundary/prefix/suffix/required/forbidden sequence declarations,
         plus accepted-child allow-lists, forbidden-child occurrence,
         max-one child occurrence, exact child counts, child-set cardinality,
         total, selected, selected-distinct, and distinct child-count
@@ -374,7 +377,9 @@ history belongs in git history and the feature-specific docs linked below.
         attribute and child all/any presence/absence conditional selectors,
         required/forbidden relative child ordering contracts,
         required/forbidden boundary child placement contracts,
-        exact/required/forbidden/prefix/suffix/forbidden-prefix/forbidden-suffix child sequence contracts, and attribute
+        exact/required/forbidden/prefix/suffix/forbidden-prefix/
+        forbidden-suffix child sequence contracts, direct child sequence
+        consistency validation, and attribute
         default metadata, validation, validation-time materialization, and
         `whiteSpace` datatype-param normalization; it
         still needs reusable string constraints beyond length/prefix/suffix/pattern and path constraints beyond
@@ -446,7 +451,9 @@ history belongs in git history and the feature-specific docs linked below.
         schema-definition datatype-param checks now emit expected type and
         actual value type for incompatible numeric, string, list, path, URI,
         and media-type facets; datatype-param result contracts now declare the
-        emitted runtime family details;
+        emitted runtime family details; schema-definition child sequence
+        consistency checks emit contract, conflict, and exact/required/
+        forbidden/prefix/suffix/boundary sequence details;
         URI/media-type constraints, dependency, additional
         child occurrence variants beyond exact/named/total/selected/selected-distinct/distinct count bounds, child-set cardinality, required/forbidden relative ordering, required/forbidden boundary placement, and exact/required/forbidden/prefix/suffix/forbidden-prefix/forbidden-suffix child sequences, and cross-reference checks need the same
         schema-owned detail shape.

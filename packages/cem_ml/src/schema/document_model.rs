@@ -5421,6 +5421,7 @@ fn validate_field_contract_definition(
 
     validate_child_range_field_contract(schema_uri, contract, diagnostics);
     validate_choice_case_field_contract(schema_uri, contract, diagnostics);
+    validate_child_sequence_field_contract(schema_uri, contract, diagnostics);
 
     let Some(behavior) = contract.behavior.as_deref() else {
         return;
@@ -5530,6 +5531,350 @@ fn validate_choice_case_field_contract(
             }
         }
     }
+}
+
+fn validate_child_sequence_field_contract(
+    schema_uri: &str,
+    contract: &FieldContract,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if let (Some(first_child), Some(forbidden_first_child)) = (
+        contract.first_child.as_deref(),
+        contract.forbidden_first_child.as_deref(),
+    ) {
+        if first_child == forbidden_first_child {
+            push_child_sequence_conflict_diagnostic(
+                schema_uri,
+                contract,
+                "first-child/forbidden-first-child",
+                "first-child cannot match forbidden-first-child",
+                &[
+                    ("firstChild", serde_json::json!(first_child)),
+                    (
+                        "forbiddenFirstChild",
+                        serde_json::json!(forbidden_first_child),
+                    ),
+                ],
+                diagnostics,
+            );
+        }
+    }
+
+    if let (Some(last_child), Some(forbidden_last_child)) = (
+        contract.last_child.as_deref(),
+        contract.forbidden_last_child.as_deref(),
+    ) {
+        if last_child == forbidden_last_child {
+            push_child_sequence_conflict_diagnostic(
+                schema_uri,
+                contract,
+                "last-child/forbidden-last-child",
+                "last-child cannot match forbidden-last-child",
+                &[
+                    ("lastChild", serde_json::json!(last_child)),
+                    (
+                        "forbiddenLastChild",
+                        serde_json::json!(forbidden_last_child),
+                    ),
+                ],
+                diagnostics,
+            );
+        }
+    }
+
+    if !contract.required_child_sequence.is_empty()
+        && contract.required_child_sequence == contract.forbidden_child_sequence
+    {
+        push_child_sequence_conflict_diagnostic(
+            schema_uri,
+            contract,
+            "required-child-sequence/forbidden-child-sequence",
+            "required-child-sequence cannot match forbidden-child-sequence",
+            &[
+                (
+                    "requiredChildSequence",
+                    serde_json::json!(&contract.required_child_sequence),
+                ),
+                (
+                    "forbiddenChildSequence",
+                    serde_json::json!(&contract.forbidden_child_sequence),
+                ),
+            ],
+            diagnostics,
+        );
+    }
+
+    if !contract.prefix_child_sequence.is_empty()
+        && contract.prefix_child_sequence == contract.forbidden_prefix_child_sequence
+    {
+        push_child_sequence_conflict_diagnostic(
+            schema_uri,
+            contract,
+            "prefix-child-sequence/forbidden-prefix-child-sequence",
+            "prefix-child-sequence cannot match forbidden-prefix-child-sequence",
+            &[
+                (
+                    "prefixChildSequence",
+                    serde_json::json!(&contract.prefix_child_sequence),
+                ),
+                (
+                    "forbiddenPrefixChildSequence",
+                    serde_json::json!(&contract.forbidden_prefix_child_sequence),
+                ),
+            ],
+            diagnostics,
+        );
+    }
+
+    if !contract.suffix_child_sequence.is_empty()
+        && contract.suffix_child_sequence == contract.forbidden_suffix_child_sequence
+    {
+        push_child_sequence_conflict_diagnostic(
+            schema_uri,
+            contract,
+            "suffix-child-sequence/forbidden-suffix-child-sequence",
+            "suffix-child-sequence cannot match forbidden-suffix-child-sequence",
+            &[
+                (
+                    "suffixChildSequence",
+                    serde_json::json!(&contract.suffix_child_sequence),
+                ),
+                (
+                    "forbiddenSuffixChildSequence",
+                    serde_json::json!(&contract.forbidden_suffix_child_sequence),
+                ),
+            ],
+            diagnostics,
+        );
+    }
+
+    let exact = contract.exact_child_sequence.as_slice();
+    if exact.is_empty() {
+        return;
+    }
+
+    if let Some(first_child) = contract.first_child.as_deref() {
+        if exact.first().map(String::as_str) != Some(first_child) {
+            push_child_sequence_conflict_diagnostic(
+                schema_uri,
+                contract,
+                "exact-child-sequence/first-child",
+                "exact-child-sequence must start with first-child",
+                &[
+                    ("exactChildSequence", serde_json::json!(exact)),
+                    ("firstChild", serde_json::json!(first_child)),
+                ],
+                diagnostics,
+            );
+        }
+    }
+
+    if let Some(last_child) = contract.last_child.as_deref() {
+        if exact.last().map(String::as_str) != Some(last_child) {
+            push_child_sequence_conflict_diagnostic(
+                schema_uri,
+                contract,
+                "exact-child-sequence/last-child",
+                "exact-child-sequence must end with last-child",
+                &[
+                    ("exactChildSequence", serde_json::json!(exact)),
+                    ("lastChild", serde_json::json!(last_child)),
+                ],
+                diagnostics,
+            );
+        }
+    }
+
+    if let Some(forbidden_first_child) = contract.forbidden_first_child.as_deref() {
+        if exact.first().map(String::as_str) == Some(forbidden_first_child) {
+            push_child_sequence_conflict_diagnostic(
+                schema_uri,
+                contract,
+                "exact-child-sequence/forbidden-first-child",
+                "exact-child-sequence cannot start with forbidden-first-child",
+                &[
+                    ("exactChildSequence", serde_json::json!(exact)),
+                    (
+                        "forbiddenFirstChild",
+                        serde_json::json!(forbidden_first_child),
+                    ),
+                ],
+                diagnostics,
+            );
+        }
+    }
+
+    if let Some(forbidden_last_child) = contract.forbidden_last_child.as_deref() {
+        if exact.last().map(String::as_str) == Some(forbidden_last_child) {
+            push_child_sequence_conflict_diagnostic(
+                schema_uri,
+                contract,
+                "exact-child-sequence/forbidden-last-child",
+                "exact-child-sequence cannot end with forbidden-last-child",
+                &[
+                    ("exactChildSequence", serde_json::json!(exact)),
+                    (
+                        "forbiddenLastChild",
+                        serde_json::json!(forbidden_last_child),
+                    ),
+                ],
+                diagnostics,
+            );
+        }
+    }
+
+    if !contract.required_child_sequence.is_empty()
+        && !contains_child_sequence(exact, &contract.required_child_sequence)
+    {
+        push_child_sequence_conflict_diagnostic(
+            schema_uri,
+            contract,
+            "exact-child-sequence/required-child-sequence",
+            "exact-child-sequence must contain required-child-sequence",
+            &[
+                ("exactChildSequence", serde_json::json!(exact)),
+                (
+                    "requiredChildSequence",
+                    serde_json::json!(&contract.required_child_sequence),
+                ),
+            ],
+            diagnostics,
+        );
+    }
+
+    if !contract.forbidden_child_sequence.is_empty()
+        && contains_child_sequence(exact, &contract.forbidden_child_sequence)
+    {
+        push_child_sequence_conflict_diagnostic(
+            schema_uri,
+            contract,
+            "exact-child-sequence/forbidden-child-sequence",
+            "exact-child-sequence cannot contain forbidden-child-sequence",
+            &[
+                ("exactChildSequence", serde_json::json!(exact)),
+                (
+                    "forbiddenChildSequence",
+                    serde_json::json!(&contract.forbidden_child_sequence),
+                ),
+            ],
+            diagnostics,
+        );
+    }
+
+    if !contract.prefix_child_sequence.is_empty()
+        && !exact.starts_with(&contract.prefix_child_sequence)
+    {
+        push_child_sequence_conflict_diagnostic(
+            schema_uri,
+            contract,
+            "exact-child-sequence/prefix-child-sequence",
+            "exact-child-sequence must start with prefix-child-sequence",
+            &[
+                ("exactChildSequence", serde_json::json!(exact)),
+                (
+                    "prefixChildSequence",
+                    serde_json::json!(&contract.prefix_child_sequence),
+                ),
+            ],
+            diagnostics,
+        );
+    }
+
+    if !contract.suffix_child_sequence.is_empty()
+        && !exact.ends_with(&contract.suffix_child_sequence)
+    {
+        push_child_sequence_conflict_diagnostic(
+            schema_uri,
+            contract,
+            "exact-child-sequence/suffix-child-sequence",
+            "exact-child-sequence must end with suffix-child-sequence",
+            &[
+                ("exactChildSequence", serde_json::json!(exact)),
+                (
+                    "suffixChildSequence",
+                    serde_json::json!(&contract.suffix_child_sequence),
+                ),
+            ],
+            diagnostics,
+        );
+    }
+
+    if !contract.forbidden_prefix_child_sequence.is_empty()
+        && exact.starts_with(&contract.forbidden_prefix_child_sequence)
+    {
+        push_child_sequence_conflict_diagnostic(
+            schema_uri,
+            contract,
+            "exact-child-sequence/forbidden-prefix-child-sequence",
+            "exact-child-sequence cannot start with forbidden-prefix-child-sequence",
+            &[
+                ("exactChildSequence", serde_json::json!(exact)),
+                (
+                    "forbiddenPrefixChildSequence",
+                    serde_json::json!(&contract.forbidden_prefix_child_sequence),
+                ),
+            ],
+            diagnostics,
+        );
+    }
+
+    if !contract.forbidden_suffix_child_sequence.is_empty()
+        && exact.ends_with(&contract.forbidden_suffix_child_sequence)
+    {
+        push_child_sequence_conflict_diagnostic(
+            schema_uri,
+            contract,
+            "exact-child-sequence/forbidden-suffix-child-sequence",
+            "exact-child-sequence cannot end with forbidden-suffix-child-sequence",
+            &[
+                ("exactChildSequence", serde_json::json!(exact)),
+                (
+                    "forbiddenSuffixChildSequence",
+                    serde_json::json!(&contract.forbidden_suffix_child_sequence),
+                ),
+            ],
+            diagnostics,
+        );
+    }
+}
+
+fn contains_child_sequence(sequence: &[String], expected: &[String]) -> bool {
+    !expected.is_empty()
+        && sequence
+            .windows(expected.len())
+            .any(|window| window == expected)
+}
+
+fn push_child_sequence_conflict_diagnostic(
+    schema_uri: &str,
+    contract: &FieldContract,
+    conflict: &str,
+    error: &str,
+    extra_details: &[(&str, serde_json::Value)],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut details = serde_json::Map::new();
+    details.insert("schemaUri".to_owned(), serde_json::json!(schema_uri));
+    details.insert("contract".to_owned(), serde_json::json!(&contract.name));
+    details.insert(
+        "checkKind".to_owned(),
+        serde_json::json!("field-contract-child-sequence"),
+    );
+    details.insert("conflict".to_owned(), serde_json::json!(conflict));
+    details.insert("error".to_owned(), serde_json::json!(error));
+    for (name, value) in extra_details {
+        details.insert((*name).to_owned(), value.clone());
+    }
+
+    diagnostics.push(schema_compile_diagnostic(
+        INVALID_SCHEMA_FIELD_CONTRACT_CODE,
+        format!(
+            "field contract `{}` declares inconsistent child sequence constraints in schema `{schema_uri}`: {error}",
+            contract.name
+        ),
+        &contract.source_map,
+        serde_json::Value::Object(details),
+    ));
 }
 
 fn validate_child_range_field_contract(
@@ -15855,6 +16200,227 @@ mod tests {
         assert_eq!(
             details["minSelectedDistinctChildren"],
             serde_json::json!("2")
+        );
+    }
+
+    #[test]
+    fn schema_field_contract_child_sequence_rejects_inconsistent_constraints() {
+        let model = compile_document_model(
+            "https://example.test/ns/field-contract-child-sequence/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="field-contract-child-sequence" @namespace="https://example.test/ns/field-contract-child-sequence/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="group" @children="header main footer aside"}
+        {element @name="header"}
+        {element @name="main"}
+        {element @name="footer"}
+        {element @name="aside"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="bad-first-boundary"
+            @target="group"
+            @first-child="header"
+            @forbidden-first-child="header"
+            @diagnostic="example.group_child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="boundary-children"
+        }
+        {field-contract
+            @name="bad-last-boundary"
+            @target="group"
+            @last-child="footer"
+            @forbidden-last-child="footer"
+            @diagnostic="example.group_child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="boundary-children"
+        }
+        {field-contract
+            @name="bad-required-forbidden-sequence"
+            @target="group"
+            @required-child-sequence="header main"
+            @forbidden-child-sequence="header main"
+            @diagnostic="example.group_child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="required-child-sequence"
+        }
+        {field-contract
+            @name="bad-prefix-forbidden-prefix"
+            @target="group"
+            @prefix-child-sequence="header main"
+            @forbidden-prefix-child-sequence="header main"
+            @diagnostic="example.group_child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="prefix-child-sequence"
+        }
+        {field-contract
+            @name="bad-suffix-forbidden-suffix"
+            @target="group"
+            @suffix-child-sequence="main footer"
+            @forbidden-suffix-child-sequence="main footer"
+            @diagnostic="example.group_child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="suffix-child-sequence"
+        }
+        {field-contract
+            @name="bad-exact-prefix"
+            @target="group"
+            @exact-child-sequence="header footer"
+            @prefix-child-sequence="header main"
+            @diagnostic="example.group_child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="exact-child-sequence"
+        }
+        {field-contract
+            @name="bad-exact-required"
+            @target="group"
+            @exact-child-sequence="header footer"
+            @required-child-sequence="main footer"
+            @diagnostic="example.group_child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="exact-child-sequence"
+        }
+        {field-contract
+            @name="bad-exact-forbidden"
+            @target="group"
+            @exact-child-sequence="header main footer"
+            @forbidden-child-sequence="main footer"
+            @diagnostic="example.group_child_sequence"
+            @behavior="schema:child-occurrence"
+            @check-kind="exact-child-sequence"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.group_child_sequence"
+            @severity="error"
+            @behavior="schema:field-contract"
+        }
+    }
+}"#,
+        );
+
+        let detail_for = |contract: &str| {
+            model
+                .compile_diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.code == INVALID_SCHEMA_FIELD_CONTRACT_CODE
+                        && diagnostic.details.as_ref().and_then(|details| {
+                            details.get("contract").and_then(serde_json::Value::as_str)
+                        }) == Some(contract)
+                })
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing child sequence compile diagnostic for `{contract}`: {:#?}",
+                        model.compile_diagnostics
+                    )
+                })
+                .details
+                .as_ref()
+                .expect("child sequence compile details")
+        };
+
+        let details = detail_for("bad-first-boundary");
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("field-contract-child-sequence")
+        );
+        assert_eq!(
+            details["conflict"],
+            serde_json::json!("first-child/forbidden-first-child")
+        );
+        assert_eq!(details["firstChild"], serde_json::json!("header"));
+        assert_eq!(details["forbiddenFirstChild"], serde_json::json!("header"));
+
+        let details = detail_for("bad-last-boundary");
+        assert_eq!(
+            details["conflict"],
+            serde_json::json!("last-child/forbidden-last-child")
+        );
+        assert_eq!(details["lastChild"], serde_json::json!("footer"));
+        assert_eq!(details["forbiddenLastChild"], serde_json::json!("footer"));
+
+        let details = detail_for("bad-required-forbidden-sequence");
+        assert_eq!(
+            details["conflict"],
+            serde_json::json!("required-child-sequence/forbidden-child-sequence")
+        );
+        assert_eq!(
+            details["requiredChildSequence"],
+            serde_json::json!(["header", "main"])
+        );
+        assert_eq!(
+            details["forbiddenChildSequence"],
+            serde_json::json!(["header", "main"])
+        );
+
+        let details = detail_for("bad-prefix-forbidden-prefix");
+        assert_eq!(
+            details["conflict"],
+            serde_json::json!("prefix-child-sequence/forbidden-prefix-child-sequence")
+        );
+        assert_eq!(
+            details["prefixChildSequence"],
+            serde_json::json!(["header", "main"])
+        );
+        assert_eq!(
+            details["forbiddenPrefixChildSequence"],
+            serde_json::json!(["header", "main"])
+        );
+
+        let details = detail_for("bad-suffix-forbidden-suffix");
+        assert_eq!(
+            details["conflict"],
+            serde_json::json!("suffix-child-sequence/forbidden-suffix-child-sequence")
+        );
+        assert_eq!(
+            details["suffixChildSequence"],
+            serde_json::json!(["main", "footer"])
+        );
+        assert_eq!(
+            details["forbiddenSuffixChildSequence"],
+            serde_json::json!(["main", "footer"])
+        );
+
+        let details = detail_for("bad-exact-prefix");
+        assert_eq!(
+            details["conflict"],
+            serde_json::json!("exact-child-sequence/prefix-child-sequence")
+        );
+        assert_eq!(
+            details["exactChildSequence"],
+            serde_json::json!(["header", "footer"])
+        );
+        assert_eq!(
+            details["prefixChildSequence"],
+            serde_json::json!(["header", "main"])
+        );
+
+        let details = detail_for("bad-exact-required");
+        assert_eq!(
+            details["conflict"],
+            serde_json::json!("exact-child-sequence/required-child-sequence")
+        );
+        assert_eq!(
+            details["requiredChildSequence"],
+            serde_json::json!(["main", "footer"])
+        );
+
+        let details = detail_for("bad-exact-forbidden");
+        assert_eq!(
+            details["conflict"],
+            serde_json::json!("exact-child-sequence/forbidden-child-sequence")
+        );
+        assert_eq!(
+            details["forbiddenChildSequence"],
+            serde_json::json!(["main", "footer"])
         );
     }
 
