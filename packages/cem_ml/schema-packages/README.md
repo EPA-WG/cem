@@ -486,7 +486,9 @@ their own instances. Attribute datatype params such as `@stringPrefixes`,
 `@uriQueries`, `@uriForbiddenQueries`, `@uriQueryParameters`, `@uriQueryParameterValues`,
 `@uriQueryForbiddenParameters`, `@uriQueryRequiredParameters`,
 `@uriFragments`, `@uriForbiddenFragments`, `@mediaTypes`, and
-`@mediaTypeTypes`/`@mediaTypeSubtypes`/`@mediaTypeSuffixes`/`@mediaTypeParameters`/
+`@mediaTypeTypes`/`@mediaTypeSubtypes`/`@mediaTypeSuffixes`/
+`@mediaTypeForbiddenTypes`/`@mediaTypeForbiddenSubtypes`/
+`@mediaTypeForbiddenSuffixes`/`@mediaTypeParameters`/
 `@mediaTypeParameterValues`/`@mediaTypeForbiddenParameters`/
 `@mediaTypeRequiredParameters` then narrow those compatible primitives
 declaratively in the schema document.

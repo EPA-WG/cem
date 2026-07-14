@@ -345,14 +345,17 @@ history belongs in git history and the feature-specific docs linked below.
         `uriQueries`/`uriForbiddenQueries`/
         `uriQueryParameters`/`uriQueryParameterValues`/`uriQueryForbiddenParameters`/
         `uriQueryRequiredParameters`/`uriFragments`/`uriForbiddenFragments`, and media-type `mediaTypes`,
-        `mediaTypeTypes`, `mediaTypeSubtypes`, `mediaTypeSuffixes`, `mediaTypeParameters`, `mediaTypeParameterValues`,
+        `mediaTypeTypes`, `mediaTypeSubtypes`, `mediaTypeSuffixes`,
+        `mediaTypeForbiddenTypes`, `mediaTypeForbiddenSubtypes`,
+        `mediaTypeForbiddenSuffixes`, `mediaTypeParameters`, `mediaTypeParameterValues`,
         `mediaTypeForbiddenParameters`, and `mediaTypeRequiredParameters` datatype params,
         plus compatibility checks for numeric bounds/digit counts and string
         length/prefix/suffix/include/exclude/pattern params, plus list item-count, path, URI,
         and media-type params, against their target primitive families, plus
         numeric min/max bound envelope consistency, plus
         string/list min/max/exact count envelope consistency, plus
-        URI/media-type required/forbidden parameter consistency, plus
+        URI/media-type required/forbidden parameter consistency, media-type
+        allowed/forbidden type, subtype, and suffix consistency, plus
         required/forbidden field and child presence consistency and required
         child allow-list consistency, plus conditional selector consistency
         for `when-attribute`/`when-values` and all/any present/absent
@@ -407,7 +410,7 @@ history belongs in git history and the feature-specific docs linked below.
         prefix/forbidden-prefix/extension/forbidden-extension/basename/
         forbidden-basename and path-layout checks,
         URI/media-type constraints beyond scheme/host/port/authority/path-prefix/forbidden-path-prefix/path-extension/forbidden-path-extension/path-basename/forbidden-path-basename/query/forbidden-query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/forbidden-fragment
-        and media-type essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter lists,
+        and media-type essence/type/subtype/structured-suffix/forbidden-type/forbidden-subtype/forbidden-structured-suffix/parameter-name/value/forbidden-parameter/required-parameter lists,
         RELAX NG-style datatype params beyond numeric bounds/digit counts,
         string length/prefix/suffix/include/exclude, list item counts, pattern, and allowed
         URI/media tokens and whitespace normalization, dependent field

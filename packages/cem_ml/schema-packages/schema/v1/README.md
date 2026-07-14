@@ -213,7 +213,9 @@ constraints, and regex `@pattern`, path `@pathPrefixes`/`@pathForbiddenPrefixes`
 `@uriPathBasenames`/`@uriForbiddenPathBasenames`/`@uriQueries`/`@uriForbiddenQueries`/
 `@uriQueryParameters`/`@uriQueryParameterValues`/`@uriQueryForbiddenParameters`/
 `@uriQueryRequiredParameters`/`@uriFragments`/`@uriForbiddenFragments`, and media-type
-`@mediaTypes`/`@mediaTypeTypes`/`@mediaTypeSubtypes`/`@mediaTypeSuffixes`/`@mediaTypeParameters`/
+`@mediaTypes`/`@mediaTypeTypes`/`@mediaTypeSubtypes`/`@mediaTypeSuffixes`/
+`@mediaTypeForbiddenTypes`/`@mediaTypeForbiddenSubtypes`/
+`@mediaTypeForbiddenSuffixes`/`@mediaTypeParameters`/
 `@mediaTypeParameterValues`/`@mediaTypeForbiddenParameters`/
 `@mediaTypeRequiredParameters` constraints
 through `@datatype-param-diagnostic` to
@@ -309,8 +311,10 @@ prefix/forbidden-prefix/extension/forbidden-extension/basename/forbidden-basenam
 `uriPathBasenames`/`uriForbiddenPathBasenames`/`uriQueries`/`uriForbiddenQueries`/
 `uriQueryParameters`/`uriQueryParameterValues`/`uriQueryForbiddenParameters`/
 `uriQueryRequiredParameters`/`uriFragments`/`uriForbiddenFragments`, and media-type
-essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/
-required-parameter `mediaTypes`/`mediaTypeTypes`/`mediaTypeSubtypes`/`mediaTypeSuffixes`/`mediaTypeParameters`/
+essence/type/subtype/structured-suffix/forbidden-type/forbidden-subtype/
+forbidden-structured-suffix/parameter-name/value/forbidden-parameter/
+required-parameter `mediaTypes`/`mediaTypeTypes`/`mediaTypeSubtypes`/`mediaTypeSuffixes`/
+`mediaTypeForbiddenTypes`/`mediaTypeForbiddenSubtypes`/`mediaTypeForbiddenSuffixes`/`mediaTypeParameters`/
 `mediaTypeParameterValues`/`mediaTypeForbiddenParameters`/
 `mediaTypeRequiredParameters` datatype parameter variations now execute through
 `schema:datatype-param`, whose result contract declares the emitted

@@ -132,6 +132,8 @@
             @mediaTypes="application/json text/html"
             @mediaTypeTypes="application text"
             @mediaTypeSubtypes="json html"
+            @mediaTypeForbiddenTypes="image"
+            @mediaTypeForbiddenSubtypes="xml"
             @mediaTypeParameters="charset profile"
             @mediaTypeParameterValues="charset=utf-8 profile=default"
             @mediaTypeRequiredParameters="charset"
@@ -141,6 +143,7 @@
             @name="payload"
             @type="schema:media-type"
             @mediaTypeSuffixes="json xml"
+            @mediaTypeForbiddenSuffixes="zip"
             @datatype-param-diagnostic="example.resource.invalid_payload_suffix"
         }
         {attribute
