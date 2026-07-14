@@ -111,6 +111,7 @@
             @uriRequiresAuthority=true
             @uriPathPrefixes="/resources/ /assets/"
             @uriPathExtensions="cem json"
+            @uriPathBasenames="resource.cem asset.json"
             @uriQueries="view=resource view=asset"
             @uriQueryParameters="view"
             @uriQueryParameterValues="view=resource view=asset"

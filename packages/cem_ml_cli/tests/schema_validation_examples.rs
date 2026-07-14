@@ -5040,6 +5040,22 @@ fn schema_datatype_param_examples_emit_structured_definition_details() {
                 SchemaDefinitionDetailExpectation {
                     code: "cem.schema_definition.invalid_datatype_param",
                     severity: "error",
+                    check_kind: "datatype-param:uriPathBasenames",
+                    attribute: "uriFile",
+                    datatype_param: "uriPathBasenames",
+                    param_value: "bad/name",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
+                    check_kind: "datatype-param:uriPathBasenames",
+                    attribute: "uriFileLabel",
+                    datatype_param: "uriPathBasenames",
+                    param_value: "schema.cem",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
                     check_kind: "datatype-param:uriSchemes",
                     attribute: "href",
                     datatype_param: "uriSchemes",

@@ -211,6 +211,7 @@ pub struct AttributeModel {
     pub uri_requires_authority: Option<String>,
     pub uri_path_prefixes: BTreeSet<String>,
     pub uri_path_extensions: BTreeSet<String>,
+    pub uri_path_basenames: BTreeSet<String>,
     pub uri_queries: BTreeSet<String>,
     pub uri_query_parameters: BTreeSet<String>,
     pub uri_query_parameter_value_tokens: BTreeSet<String>,
@@ -1531,6 +1532,12 @@ fn uri_path_extension(value: &str) -> Option<String> {
     is_path_extension_token(extension).then(|| extension.to_owned())
 }
 
+fn uri_path_basename(value: &str) -> Option<String> {
+    let path = uri_path(value)?;
+    let segment = path.rsplit('/').next().unwrap_or(path);
+    is_path_basename_token(segment).then(|| segment.to_owned())
+}
+
 fn uri_query(value: &str) -> Option<&str> {
     let value = value.trim();
     if is_windows_drive_path(value) {
@@ -2329,6 +2336,30 @@ fn validate_attribute_datatype_params(
             value,
             attribute_model,
             "uriPathExtensions",
+            &param_value,
+            "outside allowed",
+            attribute_values,
+            node,
+            diagnostics,
+        );
+    }
+    if !attribute_model.uri_path_basenames.is_empty()
+        && attribute_model
+            .value_type
+            .as_deref()
+            .is_some_and(is_uri_type_reference)
+        && !uri_path_basename(value)
+            .is_some_and(|basename| attribute_model.uri_path_basenames.contains(&basename))
+    {
+        let param_value = format_value_set(&attribute_model.uri_path_basenames);
+        emit_attribute_datatype_param_diagnostic(
+            schema_uri,
+            diagnostic_behaviors,
+            element_name,
+            attribute_name,
+            value,
+            attribute_model,
+            "uriPathBasenames",
             &param_value,
             "outside allowed",
             attribute_values,
@@ -3511,6 +3542,7 @@ fn collect_attribute_models(
                     ),
                     uri_path_prefixes: parse_value_set(attrs.get("uriPathPrefixes")),
                     uri_path_extensions: parse_value_set(attrs.get("uriPathExtensions")),
+                    uri_path_basenames: parse_value_set(attrs.get("uriPathBasenames")),
                     uri_queries: parse_value_set(attrs.get("uriQueries")),
                     uri_query_parameters: parse_value_set(attrs.get("uriQueryParameters")),
                     uri_query_parameter_value_tokens: parse_value_set(
@@ -4399,6 +4431,56 @@ fn validate_attribute_datatype_param_definition(
                     "paramName": "uriPathExtensions",
                     "paramValue": extension,
                     "expectedPattern": "URI path extension token",
+                    "error": error,
+                }),
+            ));
+        }
+    }
+    if !attribute_model.uri_path_basenames.is_empty() {
+        let value_type = attribute_model.value_type.as_deref();
+        if !value_type.is_some_and(is_uri_type_reference) {
+            let param_value = format_value_set(&attribute_model.uri_path_basenames);
+            let error = "expected schema:uri or cemml:uri value type for uriPathBasenames";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriPathBasenames datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriPathBasenames",
+                    "datatypeParam": "uriPathBasenames",
+                    "paramName": "uriPathBasenames",
+                    "paramValue": param_value,
+                    "valueType": value_type.unwrap_or_default(),
+                    "expectedType": "schema:uri",
+                    "error": error,
+                }),
+            ));
+        }
+        for basename in &attribute_model.uri_path_basenames {
+            if is_path_basename_token(basename) {
+                continue;
+            }
+            let error = "expected URI path basename token without path separators";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriPathBasenames datatype parameter `{basename}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriPathBasenames",
+                    "datatypeParam": "uriPathBasenames",
+                    "paramName": "uriPathBasenames",
+                    "paramValue": basename,
+                    "expectedPattern": "URI path basename token",
                     "error": error,
                 }),
             ));
@@ -10026,6 +10108,7 @@ fn attribute_datatype_param_details(
         "uriRequiresAuthority" => "URI authority",
         "uriPathPrefixes" => "URI path prefix",
         "uriPathExtensions" => "URI path extension token",
+        "uriPathBasenames" => "URI path basename token",
         "uriQueries" => "URI query",
         "uriQueryParameters" => "URI query parameter name",
         "uriQueryParameterValues" => "URI query parameter value",
@@ -10296,6 +10379,25 @@ fn attribute_datatype_param_details(
                 object.insert(
                     "actualUriPathExtension".to_owned(),
                     serde_json::json!(actual_extension),
+                );
+            }
+        }
+        if param_name == "uriPathBasenames" {
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .uri_path_basenames
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            if let Some(actual_path) = uri_path(actual_value) {
+                object.insert("actualUriPath".to_owned(), serde_json::json!(actual_path));
+            }
+            if let Some(actual_basename) = uri_path_basename(actual_value) {
+                object.insert(
+                    "actualUriPathBasename".to_owned(),
+                    serde_json::json!(actual_basename),
                 );
             }
         }
@@ -11458,6 +11560,15 @@ mod tests {
         assert_eq!(
             model
                 .attributes
+                .get("uriPathBasenames")
+                .expect("uriPathBasenames attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:string")
+        );
+        assert_eq!(
+            model
+                .attributes
                 .get("uriQueries")
                 .expect("uriQueries attribute model")
                 .value_type
@@ -12302,6 +12413,7 @@ mod tests {
             ("actualUriAuthority", "schema:string"),
             ("actualUriPath", "schema:string"),
             ("actualUriPathExtension", "schema:string"),
+            ("actualUriPathBasename", "schema:string"),
             ("actualUriQuery", "schema:string"),
             ("actualUriQueryParameters", "schema:array"),
             ("invalidUriQueryParameters", "schema:array"),
@@ -20922,6 +21034,197 @@ mod tests {
         assert_eq!(
             details["expectedPattern"],
             serde_json::json!("URI path extension token")
+        );
+    }
+
+    #[test]
+    fn schema_uri_path_basename_datatype_param_drives_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/uri-path-basename-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="uri-path-basename-contracts" @namespace="https://example.test/ns/uri-path-basename-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="href"}
+    }
+    {attributes |
+        {attribute @name="href" @type="schema:uri" @uriPathBasenames="schema.cem data.json"}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "valid URI path basename schema must compile: {:#?}",
+            model.compile_diagnostics
+        );
+
+        for source in [
+            r#"{item @href="https://example.test/assets/schema.cem"}"#,
+            r#"{item @href="https://example.test/assets/data.json?cache=false"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "valid URI path basename source produced datatype-param diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        for source in [
+            r#"{item @href="https://example.test/assets/image.png"}"#,
+            r#"{item @href="urn:example:test"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "URI outside path basename allow-list did not produce datatype-param diagnostic: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document =
+            parse_cem_document(r#"{item @href="https://example.test/assets/image.png"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("URI path basename datatype-param diagnostic");
+        assert!(diagnostic.message.contains("href"));
+        assert!(diagnostic.message.contains("uriPathBasenames"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("URI path basename datatype-param details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/uri-path-basename-contracts/1")
+        );
+        assert_eq!(details["element"], serde_json::json!("item"));
+        assert_eq!(details["attribute"], serde_json::json!("href"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:href:uriPathBasenames")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriPathBasenames")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("uriPathBasenames")
+        );
+        assert_eq!(
+            details["uriPathBasenames"],
+            serde_json::json!("data.json schema.cem")
+        );
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("URI path basename token")
+        );
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["data.json", "schema.cem"])
+        );
+        assert_eq!(
+            details["actualUriPath"],
+            serde_json::json!("/assets/image.png")
+        );
+        assert_eq!(
+            details["actualUriPathBasename"],
+            serde_json::json!("image.png")
+        );
+        assert_eq!(
+            details["actualValue"],
+            serde_json::json!("https://example.test/assets/image.png")
+        );
+        assert_eq!(details["invalidFields"], serde_json::json!(["href"]));
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
+    fn schema_uri_path_basename_datatype_param_rejects_invalid_declarations() {
+        let model = compile_document_model(
+            "https://example.test/ns/invalid-uri-path-basename-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-uri-path-basename-contracts" @namespace="https://example.test/ns/invalid-uri-path-basename-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="href label"}
+    }
+    {attributes |
+        {attribute @name="href" @type="schema:uri" @uriPathBasenames="schema.cem bad/name"}
+        {attribute @name="label" @type="schema:string" @uriPathBasenames="schema.cem"}
+    }
+}"#,
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().is_some_and(|details| {
+                        details.get("attribute").and_then(serde_json::Value::as_str)
+                            == Some("label")
+                    })
+            })
+            .expect("invalid uriPathBasenames type compile diagnostic");
+        assert!(diagnostic.message.contains("uriPathBasenames"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid uriPathBasenames type compile details");
+        assert_eq!(details["attribute"], serde_json::json!("label"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriPathBasenames")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("uriPathBasenames")
+        );
+        assert_eq!(details["expectedType"], serde_json::json!("schema:uri"));
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().is_some_and(|details| {
+                        details.get("attribute").and_then(serde_json::Value::as_str) == Some("href")
+                            && details
+                                .get("paramValue")
+                                .and_then(serde_json::Value::as_str)
+                                == Some("bad/name")
+                    })
+            })
+            .expect("invalid uriPathBasenames token compile diagnostic");
+        assert!(diagnostic.message.contains("invalid uriPathBasenames"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid uriPathBasenames token compile details");
+        assert_eq!(details["attribute"], serde_json::json!("href"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriPathBasenames")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("uriPathBasenames")
+        );
+        assert_eq!(details["paramValue"], serde_json::json!("bad/name"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("URI path basename token")
         );
     }
 

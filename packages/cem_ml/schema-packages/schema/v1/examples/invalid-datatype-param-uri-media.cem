@@ -17,6 +17,7 @@
         {attribute @name="remote" @type="schema:uri" @uriRequiresAuthority=maybe}
         {attribute @name="asset" @type="schema:uri" @uriPathPrefixes="assets"}
         {attribute @name="download" @type="schema:uri" @uriPathExtensions="cem .json"}
+        {attribute @name="uriFile" @type="schema:uri" @uriPathBasenames="schema.cem bad/name"}
         {attribute @name="query" @type="schema:uri" @uriQueries="view=resource ?bad"}
         {attribute @name="queryParams" @type="schema:uri" @uriQueryParameters="view bad=name"}
         {attribute @name="queryValue" @type="schema:uri" @uriQueryParameterValues="view=resource bad bad&name=value"}
@@ -43,6 +44,7 @@
         {attribute @name="linkLabel" @type="schema:string" @uriHosts="api.example.test"}
         {attribute @name="portLabel" @type="schema:string" @uriPorts="443"}
         {attribute @name="downloadLabel" @type="schema:string" @uriPathExtensions="cem"}
+        {attribute @name="uriFileLabel" @type="schema:string" @uriPathBasenames="schema.cem"}
         {attribute @name="queryLabel" @type="schema:string" @uriQueries="view=resource"}
         {attribute @name="queryParamsLabel" @type="schema:string" @uriQueryParameters="view"}
         {attribute @name="queryValueLabel" @type="schema:string" @uriQueryParameterValues="view=resource"}
