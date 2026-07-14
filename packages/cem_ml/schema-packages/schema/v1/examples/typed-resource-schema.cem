@@ -149,6 +149,7 @@
             @type-diagnostic="example.resource.invalid_asset"
             @pathPrefixes="./assets/ @assets/"
             @pathExtensions="cem cemt"
+            @pathBasenames="resource.cem theme.cemt"
             @datatype-param-diagnostic="example.resource.invalid_asset_path"
         }
         {attribute

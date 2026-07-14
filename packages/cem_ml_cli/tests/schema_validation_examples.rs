@@ -5008,6 +5008,14 @@ fn schema_datatype_param_examples_emit_structured_definition_details() {
                 SchemaDefinitionDetailExpectation {
                     code: "cem.schema_definition.invalid_datatype_param",
                     severity: "error",
+                    check_kind: "datatype-param:pathBasenames",
+                    attribute: "image",
+                    datatype_param: "pathBasenames",
+                    param_value: "bad/name",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
                     check_kind: "datatype-param:pathPrefixes",
                     attribute: "caption",
                     datatype_param: "pathPrefixes",
@@ -5020,6 +5028,14 @@ fn schema_datatype_param_examples_emit_structured_definition_details() {
                     attribute: "summary",
                     datatype_param: "pathExtensions",
                     param_value: "cem",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
+                    check_kind: "datatype-param:pathBasenames",
+                    attribute: "basenameLabel",
+                    datatype_param: "pathBasenames",
+                    param_value: "card.cem",
                 },
                 SchemaDefinitionDetailExpectation {
                     code: "cem.schema_definition.invalid_datatype_param",

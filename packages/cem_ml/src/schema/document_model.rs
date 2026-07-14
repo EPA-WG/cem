@@ -17,7 +17,7 @@
 //!   `minExclusive`/`maxExclusive`, numeric `totalDigits`/`fractionDigits`,
 //!   string `minLength`/`maxLength`/`length`/prefix/suffix/include/exclude, list
 //!   `itemCount`/`minItems`/`maxItems`, regex `pattern`, `whiteSpace`
-//!   normalization, path prefix/extension, URI scheme/host/port/path/query/
+//!   normalization, path prefix/extension/basename, URI scheme/host/port/path/query/
 //!   query-parameter/fragment, and media-type essence/type/subtype/suffix/
 //!   parameter name/value datatype-param checks.
 //! - schema-owned exact, ranged, selected/selected-distinct count,
@@ -204,6 +204,7 @@ pub struct AttributeModel {
     pub white_space: Option<String>,
     pub path_prefixes: BTreeSet<String>,
     pub path_extensions: BTreeSet<String>,
+    pub path_basenames: BTreeSet<String>,
     pub uri_schemes: BTreeSet<String>,
     pub uri_hosts: BTreeSet<String>,
     pub uri_ports: BTreeSet<String>,
@@ -1758,11 +1759,31 @@ fn path_extension(value: &str) -> Option<String> {
     is_path_extension_token(extension).then(|| extension.to_owned())
 }
 
+fn path_basename(value: &str) -> Option<String> {
+    let value = value.trim();
+    if !is_scoped_path_specifier(value) {
+        return None;
+    }
+    let value = value.split(['?', '#']).next().unwrap_or(value);
+    let segment = value.rsplit('/').next().unwrap_or(value);
+    is_path_basename_token(segment).then(|| segment.to_owned())
+}
+
 fn is_path_extension_token(value: &str) -> bool {
     !value.is_empty()
         && value != "."
         && value != ".."
         && !value.contains(['.', '/', '\\', '?', '#', '*'])
+        && value
+            .bytes()
+            .all(|byte| !byte.is_ascii_control() && !byte.is_ascii_whitespace())
+}
+
+fn is_path_basename_token(value: &str) -> bool {
+    !value.is_empty()
+        && value != "."
+        && value != ".."
+        && !value.contains(['/', '\\', '?', '#', '*'])
         && value
             .bytes()
             .all(|byte| !byte.is_ascii_control() && !byte.is_ascii_whitespace())
@@ -2135,6 +2156,31 @@ fn validate_attribute_datatype_params(
             value,
             attribute_model,
             "pathExtensions",
+            &param_value,
+            "outside allowed",
+            attribute_values,
+            node,
+            diagnostics,
+        );
+    }
+    if !attribute_model.path_basenames.is_empty()
+        && attribute_model
+            .value_type
+            .as_deref()
+            .is_some_and(is_path_type_reference)
+        && is_scoped_path_specifier(value)
+        && !path_basename(value)
+            .is_some_and(|basename| attribute_model.path_basenames.contains(&basename))
+    {
+        let param_value = format_value_set(&attribute_model.path_basenames);
+        emit_attribute_datatype_param_diagnostic(
+            schema_uri,
+            diagnostic_behaviors,
+            element_name,
+            attribute_name,
+            value,
+            attribute_model,
+            "pathBasenames",
             &param_value,
             "outside allowed",
             attribute_values,
@@ -3455,6 +3501,7 @@ fn collect_attribute_models(
                     white_space: optional_non_empty_attr(&attrs, "whiteSpace").map(str::to_owned),
                     path_prefixes: parse_value_set(attrs.get("pathPrefixes")),
                     path_extensions: parse_value_set(attrs.get("pathExtensions")),
+                    path_basenames: parse_value_set(attrs.get("pathBasenames")),
                     uri_schemes: parse_ascii_lower_value_set(attrs.get("uriSchemes")),
                     uri_hosts: parse_ascii_lower_value_set(attrs.get("uriHosts")),
                     uri_ports: parse_value_set(attrs.get("uriPorts")),
@@ -4020,6 +4067,42 @@ fn validate_attribute_datatype_param_definition(
                     "paramName": "pathExtensions",
                     "paramValue": extension,
                     "expectedPattern": "path extension token",
+                    "error": error,
+                }),
+            ));
+        }
+    }
+    if !attribute_model.path_basenames.is_empty() {
+        let param_value = format_value_set(&attribute_model.path_basenames);
+        validate_datatype_param_value_type(
+            schema_uri,
+            attribute_model,
+            "pathBasenames",
+            &param_value,
+            "schema:path or cemml:path",
+            is_path_type_reference,
+            diagnostics,
+        );
+        for basename in &attribute_model.path_basenames {
+            if is_path_basename_token(basename) {
+                continue;
+            }
+            let error = "expected path basename token without path separators";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid pathBasenames datatype parameter `{basename}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:pathBasenames",
+                    "datatypeParam": "pathBasenames",
+                    "paramName": "pathBasenames",
+                    "paramValue": basename,
+                    "expectedPattern": "path basename token",
                     "error": error,
                 }),
             ));
@@ -9936,6 +10019,7 @@ fn attribute_datatype_param_details(
         "pattern" => param_value,
         "pathPrefixes" => "scope-context path prefix",
         "pathExtensions" => "path extension token",
+        "pathBasenames" => "path basename token",
         "uriSchemes" => "URI scheme",
         "uriHosts" => "URI host",
         "uriPorts" => "URI port",
@@ -10110,6 +10194,23 @@ fn attribute_datatype_param_details(
                 object.insert(
                     "actualPathExtension".to_owned(),
                     serde_json::json!(actual_extension),
+                );
+            }
+        }
+        if param_name == "pathBasenames" {
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .path_basenames
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            object.insert("actualPath".to_owned(), serde_json::json!(actual_value));
+            if let Some(actual_basename) = path_basename(actual_value) {
+                object.insert(
+                    "actualPathBasename".to_owned(),
+                    serde_json::json!(actual_basename),
                 );
             }
         }
@@ -11321,6 +11422,15 @@ mod tests {
         assert_eq!(
             model
                 .attributes
+                .get("pathBasenames")
+                .expect("pathBasenames attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:string")
+        );
+        assert_eq!(
+            model
+                .attributes
                 .get("uriRequiresAuthority")
                 .expect("uriRequiresAuthority attribute model")
                 .value_type
@@ -12185,6 +12295,7 @@ mod tests {
             ("actualFractionDigits", "schema:integer"),
             ("actualPath", "schema:path"),
             ("actualPathExtension", "schema:string"),
+            ("actualPathBasename", "schema:string"),
             ("actualScheme", "schema:string"),
             ("actualUriHost", "schema:string"),
             ("actualUriPort", "schema:string"),
@@ -23074,7 +23185,7 @@ mod tests {
         {element @name="item" @optional-attributes="src"}
     }
     {attributes |
-        {attribute @name="src" @type="schema:path" @pathPrefixes="./templates/ @shared/ https://example.test/assets/" @pathExtensions="cem cemt"}
+        {attribute @name="src" @type="schema:path" @pathPrefixes="./templates/ @shared/ https://example.test/assets/" @pathExtensions="cem cemt" @pathBasenames="card.cem card.cemt"}
     }
 }"#,
         );
@@ -23191,6 +23302,54 @@ mod tests {
         assert_eq!(details["actualPathExtension"], serde_json::json!("txt"));
         assert_eq!(details["invalidFields"], serde_json::json!(["src"]));
         assert!(details["sourceRange"]["span"]["start"].is_u64());
+
+        let document = parse_cem_document(r#"{item @src="./templates/other.cem"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().is_some_and(|details| {
+                        details.get("checkKind").and_then(serde_json::Value::as_str)
+                            == Some("datatype-param:pathBasenames")
+                    })
+            })
+            .expect("path basename datatype-param diagnostic");
+        assert!(diagnostic.message.contains("pathBasenames"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("path basename datatype-param details");
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:src:pathBasenames")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:pathBasenames")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("pathBasenames"));
+        assert_eq!(
+            details["pathBasenames"],
+            serde_json::json!("card.cem card.cemt")
+        );
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("path basename token")
+        );
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["card.cem", "card.cemt"])
+        );
+        assert_eq!(
+            details["actualPath"],
+            serde_json::json!("./templates/other.cem")
+        );
+        assert_eq!(
+            details["actualPathBasename"],
+            serde_json::json!("other.cem")
+        );
+        assert_eq!(details["invalidFields"], serde_json::json!(["src"]));
     }
 
     #[test]
@@ -23203,12 +23362,14 @@ mod tests {
 
 {schema @name="invalid-path-datatype-param-contracts" @namespace="https://example.test/ns/invalid-path-datatype-param-contracts/1" @version="1.0.0" |
     {elements |
-        {element @name="item" @optional-attributes="src label title"}
+        {element @name="item" @optional-attributes="src label title image caption"}
     }
     {attributes |
         {attribute @name="src" @type="schema:path" @pathPrefixes="/absolute ./../bad" @pathExtensions="cem .cem"}
         {attribute @name="label" @type="schema:string" @pathPrefixes="./templates/"}
         {attribute @name="title" @type="schema:string" @pathExtensions="cem"}
+        {attribute @name="image" @type="schema:path" @pathBasenames="card.cem bad/name"}
+        {attribute @name="caption" @type="schema:string" @pathBasenames="card.cem"}
     }
 }"#,
         );
@@ -23316,6 +23477,60 @@ mod tests {
         assert_eq!(
             details["checkKind"],
             serde_json::json!("datatype-param:pathExtensions")
+        );
+        assert_eq!(
+            details["expectedType"],
+            serde_json::json!("schema:path or cemml:path")
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().is_some_and(|details| {
+                        details.get("attribute").and_then(serde_json::Value::as_str)
+                            == Some("image")
+                            && details
+                                .get("paramValue")
+                                .and_then(serde_json::Value::as_str)
+                                == Some("bad/name")
+                    })
+            })
+            .expect("invalid pathBasenames token compile diagnostic");
+        assert!(diagnostic.message.contains("invalid pathBasenames"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid pathBasenames token compile details");
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:pathBasenames")
+        );
+        assert_eq!(details["datatypeParam"], serde_json::json!("pathBasenames"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("path basename token")
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("attribute").and_then(serde_json::Value::as_str)
+                    }) == Some("caption")
+            })
+            .expect("invalid pathBasenames type compile diagnostic");
+        assert!(diagnostic.message.contains("pathBasenames"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid pathBasenames type compile details");
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:pathBasenames")
         );
         assert_eq!(
             details["expectedType"],
