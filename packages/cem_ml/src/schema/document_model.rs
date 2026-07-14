@@ -5422,6 +5422,7 @@ fn validate_field_contract_definition(
     validate_child_range_field_contract(schema_uri, contract, diagnostics);
     validate_choice_case_field_contract(schema_uri, contract, diagnostics);
     validate_child_sequence_field_contract(schema_uri, contract, diagnostics);
+    validate_field_presence_field_contract(schema_uri, contract, diagnostics);
 
     let Some(behavior) = contract.behavior.as_deref() else {
         return;
@@ -5531,6 +5532,222 @@ fn validate_choice_case_field_contract(
             }
         }
     }
+}
+
+fn validate_field_presence_field_contract(
+    schema_uri: &str,
+    contract: &FieldContract,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let conflicting_required_attributes = set_intersection(
+        &contract.required_attributes,
+        &contract.forbidden_attributes,
+    );
+    if !conflicting_required_attributes.is_empty() {
+        push_field_presence_conflict_diagnostic(
+            schema_uri,
+            contract,
+            "required-attributes/forbidden-attributes",
+            "attributes cannot be both required and forbidden",
+            &[
+                (
+                    "requiredFields",
+                    serde_json::json!(&contract.required_attributes),
+                ),
+                (
+                    "forbiddenFields",
+                    serde_json::json!(&contract.forbidden_attributes),
+                ),
+                (
+                    "conflictingFields",
+                    serde_json::json!(&conflicting_required_attributes),
+                ),
+            ],
+            diagnostics,
+        );
+    }
+
+    if !contract.required_one_attributes.is_empty()
+        && contract
+            .required_one_attributes
+            .iter()
+            .all(|name| contract.forbidden_attributes.contains(name))
+    {
+        push_field_presence_conflict_diagnostic(
+            schema_uri,
+            contract,
+            "required-one-attributes/forbidden-attributes",
+            "required-one attribute choices cannot all be forbidden",
+            &[
+                (
+                    "requiredOneFields",
+                    serde_json::json!(&contract.required_one_attributes),
+                ),
+                (
+                    "forbiddenFields",
+                    serde_json::json!(&contract.forbidden_attributes),
+                ),
+                (
+                    "conflictingFields",
+                    serde_json::json!(&contract.required_one_attributes),
+                ),
+            ],
+            diagnostics,
+        );
+    }
+
+    let conflicting_required_children =
+        set_intersection(&contract.required_children, &contract.forbidden_children);
+    if !conflicting_required_children.is_empty() {
+        push_field_presence_conflict_diagnostic(
+            schema_uri,
+            contract,
+            "required-children/forbidden-children",
+            "children cannot be both required and forbidden",
+            &[
+                (
+                    "requiredChildren",
+                    serde_json::json!(&contract.required_children),
+                ),
+                (
+                    "forbiddenChildren",
+                    serde_json::json!(&contract.forbidden_children),
+                ),
+                (
+                    "conflictingChildren",
+                    serde_json::json!(&conflicting_required_children),
+                ),
+            ],
+            diagnostics,
+        );
+    }
+
+    if !contract.accepted_children.is_empty() {
+        let unaccepted_required_children = contract
+            .required_children
+            .iter()
+            .filter(|name| !contract.accepted_children.contains(*name))
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        if !unaccepted_required_children.is_empty() {
+            push_field_presence_conflict_diagnostic(
+                schema_uri,
+                contract,
+                "required-children/accepted-children",
+                "required children must be included in accepted-children",
+                &[
+                    (
+                        "requiredChildren",
+                        serde_json::json!(&contract.required_children),
+                    ),
+                    (
+                        "acceptedChildren",
+                        serde_json::json!(&contract.accepted_children),
+                    ),
+                    (
+                        "conflictingChildren",
+                        serde_json::json!(&unaccepted_required_children),
+                    ),
+                ],
+                diagnostics,
+            );
+        }
+    }
+
+    if !contract.required_one_child.is_empty()
+        && contract
+            .required_one_child
+            .iter()
+            .all(|name| contract.forbidden_children.contains(name))
+    {
+        push_field_presence_conflict_diagnostic(
+            schema_uri,
+            contract,
+            "required-one-child/forbidden-children",
+            "required-one child choices cannot all be forbidden",
+            &[
+                (
+                    "requiredOneChild",
+                    serde_json::json!(&contract.required_one_child),
+                ),
+                (
+                    "forbiddenChildren",
+                    serde_json::json!(&contract.forbidden_children),
+                ),
+                (
+                    "conflictingChildren",
+                    serde_json::json!(&contract.required_one_child),
+                ),
+            ],
+            diagnostics,
+        );
+    }
+
+    if !contract.accepted_children.is_empty()
+        && !contract.required_one_child.is_empty()
+        && contract
+            .required_one_child
+            .iter()
+            .all(|name| !contract.accepted_children.contains(name))
+    {
+        push_field_presence_conflict_diagnostic(
+            schema_uri,
+            contract,
+            "required-one-child/accepted-children",
+            "required-one child choices must include at least one accepted child",
+            &[
+                (
+                    "requiredOneChild",
+                    serde_json::json!(&contract.required_one_child),
+                ),
+                (
+                    "acceptedChildren",
+                    serde_json::json!(&contract.accepted_children),
+                ),
+                (
+                    "conflictingChildren",
+                    serde_json::json!(&contract.required_one_child),
+                ),
+            ],
+            diagnostics,
+        );
+    }
+}
+
+fn set_intersection(left: &BTreeSet<String>, right: &BTreeSet<String>) -> BTreeSet<String> {
+    left.intersection(right).cloned().collect()
+}
+
+fn push_field_presence_conflict_diagnostic(
+    schema_uri: &str,
+    contract: &FieldContract,
+    conflict: &str,
+    error: &str,
+    extra_details: &[(&str, serde_json::Value)],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut details = serde_json::Map::new();
+    details.insert("schemaUri".to_owned(), serde_json::json!(schema_uri));
+    details.insert("contract".to_owned(), serde_json::json!(&contract.name));
+    details.insert(
+        "checkKind".to_owned(),
+        serde_json::json!("field-contract-presence"),
+    );
+    details.insert("conflict".to_owned(), serde_json::json!(conflict));
+    details.insert("error".to_owned(), serde_json::json!(error));
+    for (name, value) in extra_details {
+        details.insert((*name).to_owned(), value.clone());
+    }
+
+    diagnostics.push(schema_compile_diagnostic(
+        INVALID_SCHEMA_FIELD_CONTRACT_CODE,
+        format!(
+            "field contract `{}` declares inconsistent field presence constraints in schema `{schema_uri}`: {error}",
+            contract.name
+        ),
+        &contract.source_map,
+        serde_json::Value::Object(details),
+    ));
 }
 
 fn validate_child_sequence_field_contract(
@@ -16200,6 +16417,172 @@ mod tests {
         assert_eq!(
             details["minSelectedDistinctChildren"],
             serde_json::json!("2")
+        );
+    }
+
+    #[test]
+    fn schema_field_contract_presence_rejects_inconsistent_constraints() {
+        let model = compile_document_model(
+            "https://example.test/ns/field-contract-presence/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="field-contract-presence" @namespace="https://example.test/ns/field-contract-presence/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="group" @optional-attributes="id title label" @children="header main footer aside"}
+        {element @name="header"}
+        {element @name="main"}
+        {element @name="footer"}
+        {element @name="aside"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="bad-required-forbidden-attribute"
+            @target="group"
+            @required-attributes="id"
+            @forbidden-attributes="id"
+            @diagnostic="example.group_presence"
+            @behavior="schema:field-contract"
+        }
+        {field-contract
+            @name="bad-required-one-forbidden-attributes"
+            @target="group"
+            @required-one-attributes="title label"
+            @forbidden-attributes="title label"
+            @diagnostic="example.group_presence"
+            @behavior="schema:choice-case"
+        }
+        {field-contract
+            @name="bad-required-forbidden-child"
+            @target="group"
+            @required-children="header"
+            @forbidden-children="header"
+            @diagnostic="example.group_presence"
+            @behavior="schema:child-occurrence"
+        }
+        {field-contract
+            @name="bad-required-unaccepted-child"
+            @target="group"
+            @accepted-children="header"
+            @required-children="main"
+            @diagnostic="example.group_presence"
+            @behavior="schema:accepted-children"
+        }
+        {field-contract
+            @name="bad-required-one-forbidden-child"
+            @target="group"
+            @required-one-child="header main"
+            @forbidden-children="header main"
+            @diagnostic="example.group_presence"
+            @behavior="schema:child-occurrence"
+        }
+        {field-contract
+            @name="bad-required-one-unaccepted-child"
+            @target="group"
+            @accepted-children="header"
+            @required-one-child="main footer"
+            @diagnostic="example.group_presence"
+            @behavior="schema:accepted-children"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.group_presence"
+            @severity="error"
+            @behavior="schema:field-contract"
+        }
+    }
+}"#,
+        );
+
+        let detail_for = |contract: &str, conflict: &str| {
+            model
+                .compile_diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.code == INVALID_SCHEMA_FIELD_CONTRACT_CODE
+                        && diagnostic.details.as_ref().is_some_and(|details| {
+                            details.get("contract").and_then(serde_json::Value::as_str)
+                                == Some(contract)
+                                && details.get("conflict").and_then(serde_json::Value::as_str)
+                                    == Some(conflict)
+                        })
+                })
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing presence compile diagnostic for `{contract}` / `{conflict}`: {:#?}",
+                        model.compile_diagnostics
+                    )
+                })
+                .details
+                .as_ref()
+                .expect("presence compile details")
+        };
+
+        let details = detail_for(
+            "bad-required-forbidden-attribute",
+            "required-attributes/forbidden-attributes",
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("field-contract-presence")
+        );
+        assert_eq!(details["conflictingFields"], serde_json::json!(["id"]));
+
+        let details = detail_for(
+            "bad-required-one-forbidden-attributes",
+            "required-one-attributes/forbidden-attributes",
+        );
+        assert_eq!(
+            details["requiredOneFields"],
+            serde_json::json!(["label", "title"])
+        );
+        assert_eq!(
+            details["conflictingFields"],
+            serde_json::json!(["label", "title"])
+        );
+
+        let details = detail_for(
+            "bad-required-forbidden-child",
+            "required-children/forbidden-children",
+        );
+        assert_eq!(
+            details["conflictingChildren"],
+            serde_json::json!(["header"])
+        );
+
+        let details = detail_for(
+            "bad-required-unaccepted-child",
+            "required-children/accepted-children",
+        );
+        assert_eq!(details["acceptedChildren"], serde_json::json!(["header"]));
+        assert_eq!(details["conflictingChildren"], serde_json::json!(["main"]));
+
+        let details = detail_for(
+            "bad-required-one-forbidden-child",
+            "required-one-child/forbidden-children",
+        );
+        assert_eq!(
+            details["requiredOneChild"],
+            serde_json::json!(["header", "main"])
+        );
+        assert_eq!(
+            details["conflictingChildren"],
+            serde_json::json!(["header", "main"])
+        );
+
+        let details = detail_for(
+            "bad-required-one-unaccepted-child",
+            "required-one-child/accepted-children",
+        );
+        assert_eq!(details["acceptedChildren"], serde_json::json!(["header"]));
+        assert_eq!(
+            details["conflictingChildren"],
+            serde_json::json!(["footer", "main"])
         );
     }
 

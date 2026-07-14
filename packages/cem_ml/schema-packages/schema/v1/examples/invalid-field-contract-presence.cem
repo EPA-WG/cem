@@ -1,0 +1,77 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-field-contract-presence" @namespace="https://example.test/ns/invalid-field-contract-presence/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+
+    {elements |
+        {element @name="group" @optional-attributes="id title label" @children="header main footer aside"}
+        {element @name="header"}
+        {element @name="main"}
+        {element @name="footer"}
+        {element @name="aside"}
+    }
+
+    {field-contracts |
+        {field-contract
+            @name="bad-required-forbidden-attribute"
+            @target="group"
+            @required-attributes="id"
+            @forbidden-attributes="id"
+            @diagnostic="example.group_presence"
+            @behavior="schema:field-contract"
+        }
+        {field-contract
+            @name="bad-required-one-forbidden-attributes"
+            @target="group"
+            @required-one-attributes="title label"
+            @forbidden-attributes="title label"
+            @diagnostic="example.group_presence"
+            @behavior="schema:choice-case"
+        }
+        {field-contract
+            @name="bad-required-forbidden-child"
+            @target="group"
+            @required-children="header"
+            @forbidden-children="header"
+            @diagnostic="example.group_presence"
+            @behavior="schema:child-occurrence"
+        }
+        {field-contract
+            @name="bad-required-unaccepted-child"
+            @target="group"
+            @accepted-children="header"
+            @required-children="main"
+            @diagnostic="example.group_presence"
+            @behavior="schema:accepted-children"
+        }
+        {field-contract
+            @name="bad-required-one-forbidden-child"
+            @target="group"
+            @required-one-child="header main"
+            @forbidden-children="header main"
+            @diagnostic="example.group_presence"
+            @behavior="schema:child-occurrence"
+        }
+        {field-contract
+            @name="bad-required-one-unaccepted-child"
+            @target="group"
+            @accepted-children="header"
+            @required-one-child="main footer"
+            @diagnostic="example.group_presence"
+            @behavior="schema:accepted-children"
+        }
+    }
+
+    {diagnostics |
+        {diagnostic
+            @code="example.group_presence"
+            @severity="error"
+            @behavior="schema:field-contract"
+            @message="Group fields and children must satisfy consistent presence contracts"
+        }
+    }
+}
