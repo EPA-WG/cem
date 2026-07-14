@@ -4800,6 +4800,22 @@ fn schema_datatype_param_examples_emit_structured_definition_details() {
                 SchemaDefinitionDetailExpectation {
                     code: "cem.schema_definition.invalid_datatype_param",
                     severity: "error",
+                    check_kind: "datatype-param:stringIncludes",
+                    attribute: "status",
+                    datatype_param: "stringIncludes",
+                    param_value: "open",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
+                    check_kind: "datatype-param:stringExcludes",
+                    attribute: "body",
+                    datatype_param: "stringExcludes",
+                    param_value: "TODO",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
                     check_kind: "datatype-param:minLength",
                     attribute: "titleRange",
                     datatype_param: "minLength",

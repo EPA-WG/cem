@@ -156,6 +156,8 @@
             @type="schema:string"
             @minLength=3
             @maxLength=80
+            @stringIncludes="ref: label:"
+            @stringExcludes="TODO FIXME"
             @datatype-param-diagnostic="example.resource.invalid_inline"
         }
         {attribute

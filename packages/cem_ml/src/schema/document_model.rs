@@ -15,7 +15,7 @@
 //!   boolean/integer/number/URI/media-type/path type checks, and integer/number
 //!   `minInclusive`/`maxInclusive`/
 //!   `minExclusive`/`maxExclusive`, numeric `totalDigits`/`fractionDigits`,
-//!   string `minLength`/`maxLength`/`length`/prefix/suffix, list
+//!   string `minLength`/`maxLength`/`length`/prefix/suffix/include/exclude, list
 //!   `itemCount`/`minItems`/`maxItems`, regex `pattern`, `whiteSpace`
 //!   normalization, path prefix/extension, URI scheme/host/port/path/query/
 //!   query-parameter/fragment, and media-type essence/type/subtype/suffix/
@@ -193,6 +193,8 @@ pub struct AttributeModel {
     pub length: Option<String>,
     pub string_prefixes: BTreeSet<String>,
     pub string_suffixes: BTreeSet<String>,
+    pub string_includes: BTreeSet<String>,
+    pub string_excludes: BTreeSet<String>,
     pub item_count: Option<String>,
     pub min_items: Option<String>,
     pub max_items: Option<String>,
@@ -2737,6 +2739,50 @@ fn validate_attribute_datatype_params(
                 diagnostics,
             );
         }
+        if !attribute_model.string_includes.is_empty()
+            && !attribute_model
+                .string_includes
+                .iter()
+                .any(|include| value.contains(include))
+        {
+            let param_value = format_value_set(&attribute_model.string_includes);
+            emit_attribute_datatype_param_diagnostic(
+                schema_uri,
+                diagnostic_behaviors,
+                element_name,
+                attribute_name,
+                value,
+                attribute_model,
+                "stringIncludes",
+                &param_value,
+                "without required substring",
+                attribute_values,
+                node,
+                diagnostics,
+            );
+        }
+        if !attribute_model.string_excludes.is_empty()
+            && attribute_model
+                .string_excludes
+                .iter()
+                .any(|exclude| value.contains(exclude))
+        {
+            let param_value = format_value_set(&attribute_model.string_excludes);
+            emit_attribute_datatype_param_diagnostic(
+                schema_uri,
+                diagnostic_behaviors,
+                element_name,
+                attribute_name,
+                value,
+                attribute_model,
+                "stringExcludes",
+                &param_value,
+                "with forbidden substring",
+                attribute_values,
+                node,
+                diagnostics,
+            );
+        }
         let value_length = value.chars().count();
         if let Some(length) = attribute_model.length.as_deref() {
             if parse_non_negative_integer_to_usize(length).is_some_and(|len| value_length != len) {
@@ -3397,6 +3443,8 @@ fn collect_attribute_models(
                     length: optional_non_empty_attr(&attrs, "length").map(str::to_owned),
                     string_prefixes: parse_value_set(attrs.get("stringPrefixes")),
                     string_suffixes: parse_value_set(attrs.get("stringSuffixes")),
+                    string_includes: parse_value_set(attrs.get("stringIncludes")),
+                    string_excludes: parse_value_set(attrs.get("stringExcludes")),
                     item_count: optional_non_empty_attr(&attrs, "itemCount").map(str::to_owned),
                     min_items: optional_non_empty_attr(&attrs, "minItems").map(str::to_owned),
                     max_items: optional_non_empty_attr(&attrs, "maxItems").map(str::to_owned),
@@ -3743,6 +3791,8 @@ fn validate_attribute_datatype_param_definition(
     for (param_name, values) in [
         ("stringPrefixes", &attribute_model.string_prefixes),
         ("stringSuffixes", &attribute_model.string_suffixes),
+        ("stringIncludes", &attribute_model.string_includes),
+        ("stringExcludes", &attribute_model.string_excludes),
     ] {
         if values.is_empty() {
             continue;
@@ -9908,6 +9958,8 @@ fn attribute_datatype_param_details(
         "mediaTypeRequiredParameters" => "media type parameter name",
         "stringPrefixes" => "string prefix",
         "stringSuffixes" => "string suffix",
+        "stringIncludes" => "string required substring",
+        "stringExcludes" => "string forbidden substring",
         "itemCount" | "minItems" | "maxItems" => "whitespace-separated list item count",
         "minLength" | "maxLength" | "length" => "Unicode scalar value length",
         "totalDigits" => "numeric total digit count",
@@ -10000,6 +10052,38 @@ fn attribute_datatype_param_details(
                     .collect::<Vec<_>>()),
             );
             object.insert("actualString".to_owned(), serde_json::json!(actual_value));
+        }
+        if param_name == "stringIncludes" {
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .string_includes
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            object.insert("actualString".to_owned(), serde_json::json!(actual_value));
+        }
+        if param_name == "stringExcludes" {
+            let forbidden_substrings = attribute_model
+                .string_excludes
+                .iter()
+                .filter(|substring| actual_value.contains(substring.as_str()))
+                .cloned()
+                .collect::<Vec<_>>();
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .string_excludes
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            object.insert("actualString".to_owned(), serde_json::json!(actual_value));
+            object.insert(
+                "forbiddenSubstrings".to_owned(),
+                serde_json::json!(forbidden_substrings),
+            );
         }
         if param_name == "pathPrefixes" {
             object.insert(
@@ -11142,6 +11226,24 @@ mod tests {
                 .as_deref(),
             Some("schema:string")
         );
+        assert_eq!(
+            model
+                .attributes
+                .get("stringIncludes")
+                .expect("stringIncludes attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:string")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("stringExcludes")
+                .expect("stringExcludes attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:string")
+        );
         for name in ["itemCount", "minItems", "maxItems"] {
             assert_eq!(
                 model
@@ -12076,6 +12178,7 @@ mod tests {
             ("invalidFields", "schema:array"),
             ("actualLength", "schema:integer"),
             ("actualString", "schema:string"),
+            ("forbiddenSubstrings", "schema:array"),
             ("actualItemCount", "schema:integer"),
             ("actualItems", "schema:array"),
             ("actualTotalDigits", "schema:integer"),
@@ -23942,7 +24045,7 @@ mod tests {
 
 {schema @name="incompatible-datatype-param-contracts" @namespace="https://example.test/ns/incompatible-datatype-param-contracts/1" @version="1.0.0" |
     {elements |
-        {element @name="item" @optional-attributes="title untyped count code ratio score rank names patterned homepage homepagePort download bookmarkQuery queryParams queryParamValue forbiddenQuery requiredQuery bookmark formatType format"}
+        {element @name="item" @optional-attributes="title untyped count code ratio score rank status body names patterned homepage homepagePort download bookmarkQuery queryParams queryParamValue forbiddenQuery requiredQuery bookmark formatType format"}
     }
     {attributes |
         {attribute @name="title" @type="schema:string" @minInclusive=1}
@@ -23952,6 +24055,8 @@ mod tests {
         {attribute @name="ratio" @type="schema:boolean" @fractionDigits=2}
         {attribute @name="score" @type="schema:number" @stringPrefixes="score-"}
         {attribute @name="rank" @type="schema:integer" @stringSuffixes="-rank"}
+        {attribute @name="status" @type="schema:integer" @stringIncludes="open"}
+        {attribute @name="body" @type="schema:boolean" @stringExcludes="TODO"}
         {attribute @name="names" @type="schema:string" @minItems=2}
         {attribute @name="patterned" @type="schema:integer" @pattern="[0-9]+"}
         {attribute @name="homepage" @type="schema:string" @uriHosts="api.example.test"}
@@ -24017,6 +24122,20 @@ mod tests {
                 "stringSuffixes",
                 "-rank",
                 "schema:integer",
+                "schema:string or cemml:string",
+            ),
+            (
+                "status",
+                "stringIncludes",
+                "open",
+                "schema:integer",
+                "schema:string or cemml:string",
+            ),
+            (
+                "body",
+                "stringExcludes",
+                "TODO",
+                "schema:boolean",
                 "schema:string or cemml:string",
             ),
             (
@@ -24523,6 +24642,151 @@ mod tests {
         );
         assert_eq!(details["actualString"], serde_json::json!("page-home-ref"));
         assert_eq!(details["actualValue"], serde_json::json!("page-home-ref"));
+    }
+
+    #[test]
+    fn schema_string_include_exclude_datatype_params_drive_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/string-include-exclude-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="string-include-exclude-contracts" @namespace="https://example.test/ns/string-include-exclude-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="summary"}
+    }
+    {attributes |
+        {attribute @name="summary" @type="schema:string" @stringIncludes="status: owner:" @stringExcludes="TODO FIXME"}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "valid string include/exclude schema must compile: {:#?}",
+            model.compile_diagnostics
+        );
+
+        for source in [
+            r#"{item @summary="status:published"}"#,
+            r#"{item @summary="owner:design"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "valid string include/exclude source produced diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{item @summary="published"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details
+                            .get("datatypeParam")
+                            .and_then(serde_json::Value::as_str)
+                    }) == Some("stringIncludes")
+            })
+            .expect("stringIncludes attribute datatype param diagnostic");
+        assert!(diagnostic.message.contains("summary"));
+        assert!(diagnostic.message.contains("stringIncludes"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("stringIncludes attribute datatype param details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/string-include-exclude-contracts/1")
+        );
+        assert_eq!(details["element"], serde_json::json!("item"));
+        assert_eq!(details["attribute"], serde_json::json!("summary"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:summary:stringIncludes")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:stringIncludes")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("stringIncludes")
+        );
+        assert_eq!(
+            details["stringIncludes"],
+            serde_json::json!("owner: status:")
+        );
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("string required substring")
+        );
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["owner:", "status:"])
+        );
+        assert_eq!(details["actualString"], serde_json::json!("published"));
+        assert_eq!(details["actualValue"], serde_json::json!("published"));
+        assert_eq!(details["invalidFields"], serde_json::json!(["summary"]));
+        assert_eq!(
+            details["actualValues"]["summary"],
+            serde_json::json!("published")
+        );
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+
+        let document = parse_cem_document(r#"{item @summary="status:published TODO"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details
+                            .get("datatypeParam")
+                            .and_then(serde_json::Value::as_str)
+                    }) == Some("stringExcludes")
+            })
+            .expect("stringExcludes attribute datatype param diagnostic");
+        assert!(diagnostic.message.contains("stringExcludes"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("stringExcludes attribute datatype param details");
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:summary:stringExcludes")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:stringExcludes")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("stringExcludes")
+        );
+        assert_eq!(details["stringExcludes"], serde_json::json!("FIXME TODO"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("string forbidden substring")
+        );
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["FIXME", "TODO"])
+        );
+        assert_eq!(details["forbiddenSubstrings"], serde_json::json!(["TODO"]));
+        assert_eq!(
+            details["actualString"],
+            serde_json::json!("status:published TODO")
+        );
+        assert_eq!(
+            details["actualValue"],
+            serde_json::json!("status:published TODO")
+        );
     }
 
     #[test]
