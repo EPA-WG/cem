@@ -339,7 +339,9 @@ history belongs in git history and the feature-specific docs linked below.
         string/list min/max/exact count envelope consistency, plus
         URI/media-type required/forbidden parameter consistency, plus
         required/forbidden field and child presence consistency and required
-        child allow-list consistency, plus
+        child allow-list consistency, plus conditional selector consistency
+        for `when-attribute`/`when-values` and all/any present/absent
+        attribute/child gates, plus
         selected child occurrence bounds against their required
         `selected-children` selector, plus exact child occurrence bounds
         against their declared min/max envelopes,
@@ -377,6 +379,7 @@ history belongs in git history and the feature-specific docs linked below.
         occurrence contracts, child-set cardinality contracts, exact
         child-count contracts, total/selected/selected-distinct/distinct child-count bound contracts,
         required/forbidden field and child presence consistency validation,
+        conditional selector consistency validation,
         attribute and child all/any presence/absence conditional selectors,
         required/forbidden relative child ordering contracts,
         required/forbidden boundary child placement contracts,
@@ -459,6 +462,9 @@ history belongs in git history and the feature-specific docs linked below.
         forbidden/prefix/suffix/boundary sequence details; schema-definition
         field presence consistency checks emit contract, conflict,
         conflicting field/child, accepted child, and required-one detail keys;
+        schema-definition condition selector consistency checks emit contract,
+        conflict, when-attribute/value, present/absent selector, and
+        conflicting field/child detail keys;
         URI/media-type constraints, dependency, additional
         child occurrence variants beyond exact/named/total/selected/selected-distinct/distinct count bounds, child-set cardinality, required/forbidden relative ordering, required/forbidden boundary placement, and exact/required/forbidden/prefix/suffix/forbidden-prefix/forbidden-suffix child sequences, and cross-reference checks need the same
         schema-owned detail shape.

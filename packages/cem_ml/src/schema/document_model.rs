@@ -5423,6 +5423,7 @@ fn validate_field_contract_definition(
     validate_choice_case_field_contract(schema_uri, contract, diagnostics);
     validate_child_sequence_field_contract(schema_uri, contract, diagnostics);
     validate_field_presence_field_contract(schema_uri, contract, diagnostics);
+    validate_condition_selector_field_contract(schema_uri, contract, diagnostics);
 
     let Some(behavior) = contract.behavior.as_deref() else {
         return;
@@ -5532,6 +5533,242 @@ fn validate_choice_case_field_contract(
             }
         }
     }
+}
+
+fn validate_condition_selector_field_contract(
+    schema_uri: &str,
+    contract: &FieldContract,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if contract.when_attribute.is_none() && !contract.when_values.is_empty() {
+        push_condition_selector_conflict_diagnostic(
+            schema_uri,
+            contract,
+            "when-values/when-attribute",
+            "when-values requires when-attribute",
+            &[
+                ("whenAttribute", serde_json::json!(&contract.when_attribute)),
+                ("whenValues", serde_json::json!(&contract.when_values)),
+            ],
+            diagnostics,
+        );
+    }
+
+    let implied_present_attributes = {
+        let mut attributes = contract.when_present_attributes.clone();
+        if let Some(attribute) = contract.when_attribute.as_ref() {
+            attributes.insert(attribute.clone());
+        }
+        attributes
+    };
+    let conflicting_attributes = set_intersection(
+        &implied_present_attributes,
+        &contract.when_absent_attributes,
+    );
+    if !conflicting_attributes.is_empty() {
+        push_condition_selector_conflict_diagnostic(
+            schema_uri,
+            contract,
+            "when-present-attributes/when-absent-attributes",
+            "condition attributes cannot be both required present and required absent",
+            &[
+                ("whenAttribute", serde_json::json!(&contract.when_attribute)),
+                (
+                    "whenPresentAttributes",
+                    serde_json::json!(&contract.when_present_attributes),
+                ),
+                (
+                    "whenAbsentAttributes",
+                    serde_json::json!(&contract.when_absent_attributes),
+                ),
+                (
+                    "conflictingFields",
+                    serde_json::json!(&conflicting_attributes),
+                ),
+            ],
+            diagnostics,
+        );
+    }
+
+    if !contract.when_any_present_attributes.is_empty()
+        && contract
+            .when_any_present_attributes
+            .iter()
+            .all(|name| contract.when_absent_attributes.contains(name))
+    {
+        push_condition_selector_conflict_diagnostic(
+            schema_uri,
+            contract,
+            "when-any-present-attributes/when-absent-attributes",
+            "when-any-present-attributes cannot be satisfied when every candidate is required absent",
+            &[
+                (
+                    "whenAnyPresentAttributes",
+                    serde_json::json!(&contract.when_any_present_attributes),
+                ),
+                (
+                    "whenAbsentAttributes",
+                    serde_json::json!(&contract.when_absent_attributes),
+                ),
+                (
+                    "conflictingFields",
+                    serde_json::json!(&contract.when_any_present_attributes),
+                ),
+            ],
+            diagnostics,
+        );
+    }
+
+    if !contract.when_any_absent_attributes.is_empty()
+        && contract
+            .when_any_absent_attributes
+            .iter()
+            .all(|name| implied_present_attributes.contains(name))
+    {
+        push_condition_selector_conflict_diagnostic(
+            schema_uri,
+            contract,
+            "when-any-absent-attributes/when-present-attributes",
+            "when-any-absent-attributes cannot be satisfied when every candidate is required present",
+            &[
+                (
+                    "whenAttribute",
+                    serde_json::json!(&contract.when_attribute),
+                ),
+                (
+                    "whenPresentAttributes",
+                    serde_json::json!(&contract.when_present_attributes),
+                ),
+                (
+                    "whenAnyAbsentAttributes",
+                    serde_json::json!(&contract.when_any_absent_attributes),
+                ),
+                (
+                    "conflictingFields",
+                    serde_json::json!(&contract.when_any_absent_attributes),
+                ),
+            ],
+            diagnostics,
+        );
+    }
+
+    let conflicting_children = set_intersection(
+        &contract.when_present_children,
+        &contract.when_absent_children,
+    );
+    if !conflicting_children.is_empty() {
+        push_condition_selector_conflict_diagnostic(
+            schema_uri,
+            contract,
+            "when-present-children/when-absent-children",
+            "condition children cannot be both required present and required absent",
+            &[
+                (
+                    "whenPresentChildren",
+                    serde_json::json!(&contract.when_present_children),
+                ),
+                (
+                    "whenAbsentChildren",
+                    serde_json::json!(&contract.when_absent_children),
+                ),
+                (
+                    "conflictingChildren",
+                    serde_json::json!(&conflicting_children),
+                ),
+            ],
+            diagnostics,
+        );
+    }
+
+    if !contract.when_any_present_children.is_empty()
+        && contract
+            .when_any_present_children
+            .iter()
+            .all(|name| contract.when_absent_children.contains(name))
+    {
+        push_condition_selector_conflict_diagnostic(
+            schema_uri,
+            contract,
+            "when-any-present-children/when-absent-children",
+            "when-any-present-children cannot be satisfied when every candidate is required absent",
+            &[
+                (
+                    "whenAnyPresentChildren",
+                    serde_json::json!(&contract.when_any_present_children),
+                ),
+                (
+                    "whenAbsentChildren",
+                    serde_json::json!(&contract.when_absent_children),
+                ),
+                (
+                    "conflictingChildren",
+                    serde_json::json!(&contract.when_any_present_children),
+                ),
+            ],
+            diagnostics,
+        );
+    }
+
+    if !contract.when_any_absent_children.is_empty()
+        && contract
+            .when_any_absent_children
+            .iter()
+            .all(|name| contract.when_present_children.contains(name))
+    {
+        push_condition_selector_conflict_diagnostic(
+            schema_uri,
+            contract,
+            "when-any-absent-children/when-present-children",
+            "when-any-absent-children cannot be satisfied when every candidate is required present",
+            &[
+                (
+                    "whenPresentChildren",
+                    serde_json::json!(&contract.when_present_children),
+                ),
+                (
+                    "whenAnyAbsentChildren",
+                    serde_json::json!(&contract.when_any_absent_children),
+                ),
+                (
+                    "conflictingChildren",
+                    serde_json::json!(&contract.when_any_absent_children),
+                ),
+            ],
+            diagnostics,
+        );
+    }
+}
+
+fn push_condition_selector_conflict_diagnostic(
+    schema_uri: &str,
+    contract: &FieldContract,
+    conflict: &str,
+    error: &str,
+    extra_details: &[(&str, serde_json::Value)],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut details = serde_json::Map::new();
+    details.insert("schemaUri".to_owned(), serde_json::json!(schema_uri));
+    details.insert("contract".to_owned(), serde_json::json!(&contract.name));
+    details.insert(
+        "checkKind".to_owned(),
+        serde_json::json!("field-contract-condition"),
+    );
+    details.insert("conflict".to_owned(), serde_json::json!(conflict));
+    details.insert("error".to_owned(), serde_json::json!(error));
+    for (name, value) in extra_details {
+        details.insert((*name).to_owned(), value.clone());
+    }
+
+    diagnostics.push(schema_compile_diagnostic(
+        INVALID_SCHEMA_FIELD_CONTRACT_CODE,
+        format!(
+            "field contract `{}` declares inconsistent condition selectors in schema `{schema_uri}`: {error}",
+            contract.name
+        ),
+        &contract.source_map,
+        serde_json::Value::Object(details),
+    ));
 }
 
 fn validate_field_presence_field_contract(
@@ -16583,6 +16820,206 @@ mod tests {
         assert_eq!(
             details["conflictingChildren"],
             serde_json::json!(["footer", "main"])
+        );
+    }
+
+    #[test]
+    fn schema_field_contract_conditions_reject_inconsistent_selectors() {
+        let model = compile_document_model(
+            "https://example.test/ns/field-contract-condition/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="field-contract-condition" @namespace="https://example.test/ns/field-contract-condition/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="asset" @optional-attributes="kind source token format" @children="reference fallback thumbnail"}
+        {element @name="reference"}
+        {element @name="fallback"}
+        {element @name="thumbnail"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="bad-values-without-attribute"
+            @target="asset"
+            @when-values="remote"
+            @required-attributes="format"
+            @diagnostic="example.asset_condition"
+            @behavior="schema:field-dependency"
+        }
+        {field-contract
+            @name="bad-attribute-present-absent"
+            @target="asset"
+            @when-attribute="kind"
+            @when-values="remote"
+            @when-absent-attributes="kind"
+            @required-attributes="format"
+            @diagnostic="example.asset_condition"
+            @behavior="schema:field-dependency"
+        }
+        {field-contract
+            @name="bad-all-present-absent-attributes"
+            @target="asset"
+            @when-present-attributes="source token"
+            @when-absent-attributes="token"
+            @required-attributes="format"
+            @diagnostic="example.asset_condition"
+            @behavior="schema:field-dependency"
+        }
+        {field-contract
+            @name="bad-any-present-all-absent-attributes"
+            @target="asset"
+            @when-any-present-attributes="source token"
+            @when-absent-attributes="source token"
+            @required-attributes="format"
+            @diagnostic="example.asset_condition"
+            @behavior="schema:field-dependency"
+        }
+        {field-contract
+            @name="bad-any-absent-all-present-attributes"
+            @target="asset"
+            @when-present-attributes="source token"
+            @when-any-absent-attributes="source token"
+            @required-attributes="format"
+            @diagnostic="example.asset_condition"
+            @behavior="schema:field-dependency"
+        }
+        {field-contract
+            @name="bad-all-present-absent-children"
+            @target="asset"
+            @when-present-children="reference fallback"
+            @when-absent-children="fallback"
+            @required-attributes="format"
+            @diagnostic="example.asset_condition"
+            @behavior="schema:field-dependency"
+        }
+        {field-contract
+            @name="bad-any-present-all-absent-children"
+            @target="asset"
+            @when-any-present-children="reference fallback"
+            @when-absent-children="reference fallback"
+            @required-attributes="format"
+            @diagnostic="example.asset_condition"
+            @behavior="schema:field-dependency"
+        }
+        {field-contract
+            @name="bad-any-absent-all-present-children"
+            @target="asset"
+            @when-present-children="reference fallback"
+            @when-any-absent-children="reference fallback"
+            @required-attributes="format"
+            @diagnostic="example.asset_condition"
+            @behavior="schema:field-dependency"
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.asset_condition"
+            @severity="error"
+            @behavior="schema:field-dependency"
+        }
+    }
+}"#,
+        );
+
+        let detail_for = |contract: &str, conflict: &str| {
+            model
+                .compile_diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.code == INVALID_SCHEMA_FIELD_CONTRACT_CODE
+                        && diagnostic.details.as_ref().is_some_and(|details| {
+                            details.get("contract").and_then(serde_json::Value::as_str)
+                                == Some(contract)
+                                && details.get("conflict").and_then(serde_json::Value::as_str)
+                                    == Some(conflict)
+                        })
+                })
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing condition compile diagnostic for `{contract}` / `{conflict}`: {:#?}",
+                        model.compile_diagnostics
+                    )
+                })
+                .details
+                .as_ref()
+                .expect("condition compile details")
+        };
+
+        let details = detail_for("bad-values-without-attribute", "when-values/when-attribute");
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("field-contract-condition")
+        );
+        assert_eq!(details["whenValues"], serde_json::json!(["remote"]));
+
+        let details = detail_for(
+            "bad-attribute-present-absent",
+            "when-present-attributes/when-absent-attributes",
+        );
+        assert_eq!(details["whenAttribute"], serde_json::json!("kind"));
+        assert_eq!(details["conflictingFields"], serde_json::json!(["kind"]));
+
+        let details = detail_for(
+            "bad-all-present-absent-attributes",
+            "when-present-attributes/when-absent-attributes",
+        );
+        assert_eq!(details["conflictingFields"], serde_json::json!(["token"]));
+
+        let details = detail_for(
+            "bad-any-present-all-absent-attributes",
+            "when-any-present-attributes/when-absent-attributes",
+        );
+        assert_eq!(
+            details["whenAnyPresentAttributes"],
+            serde_json::json!(["source", "token"])
+        );
+        assert_eq!(
+            details["conflictingFields"],
+            serde_json::json!(["source", "token"])
+        );
+
+        let details = detail_for(
+            "bad-any-absent-all-present-attributes",
+            "when-any-absent-attributes/when-present-attributes",
+        );
+        assert_eq!(
+            details["whenAnyAbsentAttributes"],
+            serde_json::json!(["source", "token"])
+        );
+        assert_eq!(
+            details["conflictingFields"],
+            serde_json::json!(["source", "token"])
+        );
+
+        let details = detail_for(
+            "bad-all-present-absent-children",
+            "when-present-children/when-absent-children",
+        );
+        assert_eq!(
+            details["conflictingChildren"],
+            serde_json::json!(["fallback"])
+        );
+
+        let details = detail_for(
+            "bad-any-present-all-absent-children",
+            "when-any-present-children/when-absent-children",
+        );
+        assert_eq!(
+            details["conflictingChildren"],
+            serde_json::json!(["fallback", "reference"])
+        );
+
+        let details = detail_for(
+            "bad-any-absent-all-present-children",
+            "when-any-absent-children/when-present-children",
+        );
+        assert_eq!(
+            details["conflictingChildren"],
+            serde_json::json!(["fallback", "reference"])
         );
     }
 

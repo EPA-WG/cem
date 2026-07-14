@@ -512,6 +512,14 @@ fn schema_owned_examples_validate_through_cli() {
             expected_diagnostics: &["cem.schema_definition.invalid_field_contract"],
         },
         ValidationExample {
+            name: "schema invalid field contract condition",
+            path: "packages/cem_ml/schema-packages/schema/v1/examples/invalid-field-contract-condition.cem",
+            content_type: CEM_SCHEMA_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.schema_definition.invalid_field_contract"],
+        },
+        ValidationExample {
             name: "schema invalid attribute default",
             path: "packages/cem_ml/schema-packages/schema/v1/examples/invalid-attribute-default.cem",
             content_type: CEM_SCHEMA_CONTENT_TYPE,
@@ -5586,6 +5594,115 @@ fn schema_field_contract_examples_emit_structured_definition_details() {
         ),
     ] {
         presence_detail_for(contract, conflict);
+    }
+
+    let path = workspace_path(
+        "packages/cem_ml/schema-packages/schema/v1/examples/invalid-field-contract-condition.cem",
+    );
+    assert!(
+        path.exists(),
+        "schema field-contract condition validation example is missing at {}",
+        path.display()
+    );
+    let output = validate_example(
+        &ValidationExample {
+            name: "schema invalid field contract condition",
+            path: "packages/cem_ml/schema-packages/schema/v1/examples/invalid-field-contract-condition.cem",
+            content_type: CEM_SCHEMA_CONTENT_TYPE,
+            schema_uri: CEM_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &[],
+        },
+        &path,
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(EXIT_HARD_FAILURE),
+        "schema invalid field contract condition stderr:\n{}",
+        stderr(&output)
+    );
+    assert!(
+        stderr(&output).trim().is_empty(),
+        "schema invalid field contract condition stderr must stay empty:\n{}",
+        stderr(&output)
+    );
+    let report: serde_json::Value = serde_json::from_str(stdout(&output).trim())
+        .expect("schema invalid field contract condition stdout is validation JSON");
+    let condition_detail_for = |contract: &str, conflict: &str| {
+        diagnostics(&report)
+            .iter()
+            .find(|diagnostic| {
+                diagnostic["code"] == "cem.schema_definition.invalid_field_contract"
+                    && diagnostic["severity"] == "error"
+                    && diagnostic["details"]["checkKind"] == "field-contract-condition"
+                    && diagnostic["details"]["contract"] == contract
+                    && diagnostic["details"]["conflict"] == conflict
+                    && diagnostic["sourceMap"]["frames"]
+                        .as_array()
+                        .is_some_and(|frames| !frames.is_empty())
+            })
+            .unwrap_or_else(|| {
+                panic!(
+                    "expected invalid field-contract condition detail for `{contract}` / `{conflict}` in {}",
+                    stdout(&output)
+                )
+            })
+    };
+
+    let diagnostic =
+        condition_detail_for("bad-values-without-attribute", "when-values/when-attribute");
+    assert_eq!(
+        diagnostic["details"]["whenValues"],
+        serde_json::json!(["remote"])
+    );
+
+    let diagnostic = condition_detail_for(
+        "bad-attribute-present-absent",
+        "when-present-attributes/when-absent-attributes",
+    );
+    assert_eq!(diagnostic["details"]["whenAttribute"], "kind");
+    assert_eq!(
+        diagnostic["details"]["conflictingFields"],
+        serde_json::json!(["kind"])
+    );
+
+    let diagnostic = condition_detail_for(
+        "bad-any-present-all-absent-attributes",
+        "when-any-present-attributes/when-absent-attributes",
+    );
+    assert_eq!(
+        diagnostic["details"]["conflictingFields"],
+        serde_json::json!(["source", "token"])
+    );
+
+    let diagnostic = condition_detail_for(
+        "bad-any-present-all-absent-children",
+        "when-any-present-children/when-absent-children",
+    );
+    assert_eq!(
+        diagnostic["details"]["conflictingChildren"],
+        serde_json::json!(["fallback", "reference"])
+    );
+
+    for (contract, conflict) in [
+        (
+            "bad-all-present-absent-attributes",
+            "when-present-attributes/when-absent-attributes",
+        ),
+        (
+            "bad-any-absent-all-present-attributes",
+            "when-any-absent-attributes/when-present-attributes",
+        ),
+        (
+            "bad-all-present-absent-children",
+            "when-present-children/when-absent-children",
+        ),
+        (
+            "bad-any-absent-all-present-children",
+            "when-any-absent-children/when-present-children",
+        ),
+    ] {
+        condition_detail_for(contract, conflict);
     }
 }
 

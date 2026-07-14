@@ -1,0 +1,100 @@
+@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-field-contract-condition" @namespace="https://example.test/ns/invalid-field-contract-condition/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+
+    {elements |
+        {element @name="asset" @optional-attributes="kind source token format" @children="reference fallback thumbnail"}
+        {element @name="reference"}
+        {element @name="fallback"}
+        {element @name="thumbnail"}
+    }
+
+    {field-contracts |
+        {field-contract
+            @name="bad-values-without-attribute"
+            @target="asset"
+            @when-values="remote"
+            @required-attributes="format"
+            @diagnostic="example.asset_condition"
+            @behavior="schema:field-dependency"
+        }
+        {field-contract
+            @name="bad-attribute-present-absent"
+            @target="asset"
+            @when-attribute="kind"
+            @when-values="remote"
+            @when-absent-attributes="kind"
+            @required-attributes="format"
+            @diagnostic="example.asset_condition"
+            @behavior="schema:field-dependency"
+        }
+        {field-contract
+            @name="bad-all-present-absent-attributes"
+            @target="asset"
+            @when-present-attributes="source token"
+            @when-absent-attributes="token"
+            @required-attributes="format"
+            @diagnostic="example.asset_condition"
+            @behavior="schema:field-dependency"
+        }
+        {field-contract
+            @name="bad-any-present-all-absent-attributes"
+            @target="asset"
+            @when-any-present-attributes="source token"
+            @when-absent-attributes="source token"
+            @required-attributes="format"
+            @diagnostic="example.asset_condition"
+            @behavior="schema:field-dependency"
+        }
+        {field-contract
+            @name="bad-any-absent-all-present-attributes"
+            @target="asset"
+            @when-present-attributes="source token"
+            @when-any-absent-attributes="source token"
+            @required-attributes="format"
+            @diagnostic="example.asset_condition"
+            @behavior="schema:field-dependency"
+        }
+        {field-contract
+            @name="bad-all-present-absent-children"
+            @target="asset"
+            @when-present-children="reference fallback"
+            @when-absent-children="fallback"
+            @required-attributes="format"
+            @diagnostic="example.asset_condition"
+            @behavior="schema:field-dependency"
+        }
+        {field-contract
+            @name="bad-any-present-all-absent-children"
+            @target="asset"
+            @when-any-present-children="reference fallback"
+            @when-absent-children="reference fallback"
+            @required-attributes="format"
+            @diagnostic="example.asset_condition"
+            @behavior="schema:field-dependency"
+        }
+        {field-contract
+            @name="bad-any-absent-all-present-children"
+            @target="asset"
+            @when-present-children="reference fallback"
+            @when-any-absent-children="reference fallback"
+            @required-attributes="format"
+            @diagnostic="example.asset_condition"
+            @behavior="schema:field-dependency"
+        }
+    }
+
+    {diagnostics |
+        {diagnostic
+            @code="example.asset_condition"
+            @severity="error"
+            @behavior="schema:field-dependency"
+            @message="Asset condition selectors must be satisfiable"
+        }
+    }
+}

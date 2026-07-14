@@ -97,7 +97,10 @@ matching its forbidden counterpart, or an `exact-child-sequence` that cannot
 satisfy the same contract's boundary, prefix, suffix, required-sequence, or
 forbidden-sequence declarations. Required fields or children cannot also be
 forbidden by the same field contract, and required-one choices must leave at
-least one non-forbidden, accepted alternative.
+least one non-forbidden, accepted alternative. Conditional selectors must be
+satisfiable: `when-values` requires `when-attribute`, all-present selectors
+cannot overlap all-absent selectors, and any-present/any-absent selectors must
+leave at least one possible candidate.
 Use `ordered-children` when the declared child-name set must appear in that
 relative order among direct element children. Unlisted children are ignored;
 requiredness and multiplicity remain separate child occurrence contracts.
@@ -357,6 +360,7 @@ CLI validation integration tests.
 | [`invalid-datatype-param-digits.cem`](examples/invalid-datatype-param-digits.cem) | Numeric digit-count datatype parameter declarations use invalid limits or incompatible primitive types. | Fail with `cem.schema_definition.invalid_datatype_param` |
 | [`invalid-datatype-param-uri-media.cem`](examples/invalid-datatype-param-uri-media.cem) | Path prefix/extension, URI scheme/host/port/authority/path-prefix/path-extension/query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment, and media-type essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter datatype parameter declarations use invalid tokens, incompatible primitive types, or inconsistent required/forbidden parameter declarations. | Fail with `cem.schema_definition.invalid_datatype_param` |
 | [`invalid-field-contract-presence.cem`](examples/invalid-field-contract-presence.cem) | Field contracts declare impossible required/forbidden attribute or child combinations, required children outside their accepted-child allow-list, or required-one choices with no non-forbidden accepted alternative. | Fail with `cem.schema_definition.invalid_field_contract` |
+| [`invalid-field-contract-condition.cem`](examples/invalid-field-contract-condition.cem) | Field contracts declare unsatisfiable conditional selectors, including `when-values` without `when-attribute`, overlapping all-present/all-absent gates, or any-present/any-absent gates whose candidate set is forced the opposite way. | Fail with `cem.schema_definition.invalid_field_contract` |
 | [`invalid-field-contract-child-sequence.cem`](examples/invalid-field-contract-child-sequence.cem) | Child boundary and child-sequence field contracts declare impossible required/forbidden combinations or an exact sequence that conflicts with declared boundary, prefix, suffix, required-sequence, or forbidden-sequence constraints. | Fail with `cem.schema_definition.invalid_field_contract` |
 | [`invalid-attribute-default.cem`](examples/invalid-attribute-default.cem) | Attribute defaults violate declared scalar type, value vocabulary, and datatype parameter constraints. | Fail with `cem.schema_definition.invalid_default_value` |
 
