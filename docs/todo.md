@@ -40,7 +40,8 @@ history belongs in git history and the feature-specific docs linked below.
       parameter checks now cover integer and number `minInclusive`/`maxInclusive`/
       `minExclusive`/`maxExclusive`, numeric `totalDigits`/`fractionDigits`,
       string `minLength`/`maxLength`/`length`, `stringPrefixes`/
-      `stringSuffixes`/`stringIncludes`/`stringExcludes`, list
+      `stringSuffixes`/`stringForbiddenPrefixes`/
+      `stringForbiddenSuffixes`/`stringIncludes`/`stringExcludes`, list
       `itemCount`/`minItems`/`maxItems`, regex `pattern`, path `pathPrefixes`/
       `pathForbiddenPrefixes`/`pathExtensions`/`pathForbiddenExtensions`/
       `pathBasenames`/`pathForbiddenBasenames`, URI
@@ -50,14 +51,18 @@ history belongs in git history and the feature-specific docs linked below.
       `uriForbiddenPathBasenames`/`uriQueries`/`uriForbiddenQueries`/
       `uriQueryParameters`/`uriQueryParameterValues`/`uriQueryForbiddenParameters`/
       `uriQueryRequiredParameters`/`uriFragments`/`uriForbiddenFragments`, and media-type
-      `mediaTypes`/`mediaTypeTypes`/`mediaTypeSubtypes`/`mediaTypeSuffixes`/`mediaTypeParameters`/
-      `mediaTypeParameterValues`/`mediaTypeForbiddenParameters`/
+      `mediaTypes`/`mediaTypeTypes`/`mediaTypeSubtypes`/
+      `mediaTypeSuffixes`/`mediaTypeForbiddenTypes`/
+      `mediaTypeForbiddenSubtypes`/`mediaTypeForbiddenSuffixes`/
+      `mediaTypeParameters`/`mediaTypeParameterValues`/`mediaTypeForbiddenParameters`/
       `mediaTypeRequiredParameters`.
       Schema-definition validation now rejects numeric bounds/digit-counts on
-      non-numeric attributes and string length/prefix/suffix/include/exclude/
+      non-numeric attributes and string length/prefix/suffix/forbidden-prefix/
+      forbidden-suffix/include/exclude/
       pattern params on non-string attributes, list item-count params on non-list attributes,
       inconsistent numeric min/max bound envelopes,
       inconsistent string/list min/max/exact count envelopes,
+      inconsistent string allowed/forbidden prefix/suffix declarations,
       inconsistent URI/media-type required/forbidden parameter declarations,
       path params on non-path attributes, URI params on non-URI attributes, and
       media-type params on non-media-type attributes.
@@ -197,10 +202,12 @@ history belongs in git history and the feature-specific docs linked below.
         syntax on attribute declarations, plus nested exact-one
         `schema:choice-case` cardinality and `schema:datatype-param` decimal
         number bounds, numeric digit-count constraints, and string
-        length/prefix/suffix/include/exclude constraints, list item-count
+        length/prefix/suffix/forbidden-prefix/forbidden-suffix/include/exclude constraints, list item-count
         constraints, plus path prefix/forbidden-prefix/extension/
         forbidden-extension/basename/forbidden-basename, URI scheme/host/port/authority/path-prefix/forbidden-path-prefix/path-extension/forbidden-path-extension/path-basename/forbidden-path-basename/query/forbidden-query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/forbidden-fragment, and media-type
-        essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter constraints, plus child-set exact-one and
+        essence/type/subtype/structured-suffix/forbidden-type/
+        forbidden-subtype/forbidden-structured-suffix/parameter-name/value/
+        forbidden-parameter/required-parameter constraints, plus child-set exact-one and
         selected-count/selected-distinct-count/distinct-count/ordered/forbidden-ordered/boundary/forbidden-boundary/
         exact-sequence/required-sequence/forbidden-sequence/prefix-sequence/suffix-sequence/forbidden-prefix-sequence/forbidden-suffix-sequence
         `schema:child-occurrence`;
@@ -254,14 +261,14 @@ history belongs in git history and the feature-specific docs linked below.
         examples;
         schema-package CLI examples now also cover schema-definition
         failures for invalid datatype parameter declarations on integer/number
-        bounds, numeric digit counts, string length/prefix/suffix/include/
-        exclude params, list
+        bounds, numeric digit counts, string length/prefix/suffix/
+        forbidden-prefix/forbidden-suffix/include/exclude params, list
         item-count params, regex patterns, path prefixes/forbidden-prefixes/extensions/
         forbidden-extensions/basenames/forbidden-basenames, URI
         tokens/parameters, and media-type tokens/parameters.
         They also cover incompatible primitive type declarations for numeric
-        bounds, numeric digit counts, string length/prefix/suffix/include/
-        exclude/pattern params, list item-count params, path params, URI params, and
+        bounds, numeric digit counts, string length/prefix/suffix/
+        forbidden-prefix/forbidden-suffix/include/exclude/pattern params, list item-count params, path params, URI params, and
         media-type params.
         CLI tests now assert structured schema-definition datatype-param
         details for those failing declarations, plus
@@ -334,6 +341,7 @@ history belongs in git history and the feature-specific docs linked below.
         `minExclusive`, and `maxExclusive` bounds, numeric `totalDigits` and
         `fractionDigits`, plus string `minLength`, `maxLength`, and `length`
         params, string `stringPrefixes`, `stringSuffixes`,
+        `stringForbiddenPrefixes`, `stringForbiddenSuffixes`,
         `stringIncludes`, and `stringExcludes`, list `itemCount`,
         `minItems`, and `maxItems`, regex `pattern`, `whiteSpace` normalization,
         path `pathPrefixes`/`pathForbiddenPrefixes`/`pathExtensions`/
@@ -350,10 +358,11 @@ history belongs in git history and the feature-specific docs linked below.
         `mediaTypeForbiddenSuffixes`, `mediaTypeParameters`, `mediaTypeParameterValues`,
         `mediaTypeForbiddenParameters`, and `mediaTypeRequiredParameters` datatype params,
         plus compatibility checks for numeric bounds/digit counts and string
-        length/prefix/suffix/include/exclude/pattern params, plus list item-count, path, URI,
+        length/prefix/suffix/forbidden-prefix/forbidden-suffix/include/exclude/pattern params, plus list item-count, path, URI,
         and media-type params, against their target primitive families, plus
         numeric min/max bound envelope consistency, plus
-        string/list min/max/exact count envelope consistency, plus
+        string/list min/max/exact count envelope consistency, string
+        allowed/forbidden prefix/suffix consistency, plus
         URI/media-type required/forbidden parameter consistency, media-type
         allowed/forbidden type, subtype, and suffix consistency, plus
         required/forbidden field and child presence consistency and required
@@ -406,13 +415,13 @@ history belongs in git history and the feature-specific docs linked below.
         consistency validation, and attribute
         default metadata, validation, validation-time materialization, and
         `whiteSpace` datatype-param normalization; it
-        still needs reusable string constraints beyond length/prefix/suffix/include/exclude/pattern and path constraints beyond
+        still needs reusable string constraints beyond length/prefix/suffix/forbidden-prefix/forbidden-suffix/include/exclude/pattern and path constraints beyond
         prefix/forbidden-prefix/extension/forbidden-extension/basename/
         forbidden-basename and path-layout checks,
         URI/media-type constraints beyond scheme/host/port/authority/path-prefix/forbidden-path-prefix/path-extension/forbidden-path-extension/path-basename/forbidden-path-basename/query/forbidden-query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/forbidden-fragment
         and media-type essence/type/subtype/structured-suffix/forbidden-type/forbidden-subtype/forbidden-structured-suffix/parameter-name/value/forbidden-parameter/required-parameter lists,
         RELAX NG-style datatype params beyond numeric bounds/digit counts,
-        string length/prefix/suffix/include/exclude, list item counts, pattern, and allowed
+        string length/prefix/suffix/forbidden-prefix/forbidden-suffix/include/exclude, list item counts, pattern, and allowed
         URI/media tokens and whitespace normalization, dependent field
         groups beyond all/any value/presence/child-structure-gated required/forbidden fields, additional child
         occurrence variants beyond exact/named/total/selected/selected-distinct/distinct count
@@ -433,7 +442,8 @@ history belongs in git history and the feature-specific docs linked below.
         `minInclusive`, `maxInclusive`,
         `minExclusive`, and `maxExclusive` checks, numeric `totalDigits` and
         `fractionDigits` checks, string `minLength`, `maxLength`, and `length`
-        checks, string `stringPrefixes`/`stringSuffixes` checks, list
+        checks, string `stringPrefixes`/`stringSuffixes`/
+        `stringForbiddenPrefixes`/`stringForbiddenSuffixes` checks, list
         `itemCount`/`minItems`/`maxItems` checks, plus regex `pattern` checks emit
         datatype-param details; value-specific forbidden checks emit
         forbiddenAttributeValues and invalidValues details; child occurrence
@@ -500,7 +510,8 @@ history belongs in git history and the feature-specific docs linked below.
         `minInclusive`/`maxInclusive`/`minExclusive`/`maxExclusive`,
         numeric `totalDigits`/`fractionDigits`, string
         `minLength`/`maxLength`/`length`, string `stringPrefixes`/
-        `stringSuffixes`/`stringIncludes`/`stringExcludes`,
+        `stringSuffixes`/`stringForbiddenPrefixes`/
+        `stringForbiddenSuffixes`/`stringIncludes`/`stringExcludes`,
         list `itemCount`/`minItems`/`maxItems`, and regex `pattern`
         datatype-param checks, exact-one, child-choice, exact-count, total-count, selected-count, selected-distinct-count, distinct-count, and
         min/max child occurrence range checks, required-one/max-one attribute choice checks,

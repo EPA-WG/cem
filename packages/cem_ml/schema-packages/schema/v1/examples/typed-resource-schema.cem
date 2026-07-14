@@ -73,6 +73,8 @@
             @type="schema:string"
             @stringPrefixes="page- component-"
             @stringSuffixes="-slug -id"
+            @stringForbiddenPrefixes="draft- private-"
+            @stringForbiddenSuffixes="-tmp -bak"
             @pattern="[a-z][a-z0-9-]*"
             @datatype-param-diagnostic="example.resource.invalid_slug"
         }

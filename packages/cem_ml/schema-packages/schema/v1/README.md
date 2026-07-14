@@ -202,6 +202,7 @@ attributes through `@type-diagnostic` to `schema:scalar-type`,
 and datatype parameter failures for integer and number
 `@minInclusive`/`@maxInclusive`/`@minExclusive`/`@maxExclusive` bounds, string
 `@minLength`/`@maxLength`/`@length`/`@stringPrefixes`/`@stringSuffixes`/
+`@stringForbiddenPrefixes`/`@stringForbiddenSuffixes`/
 `@stringIncludes`/`@stringExcludes`
 constraints, list `@itemCount`/`@minItems`/`@maxItems` item-count
 constraints, numeric `@totalDigits`/`@fractionDigits` digit-count
@@ -302,8 +303,8 @@ emitted path/error/source-diagnostic and reference expected/invalid value
 details. Integer and number `minInclusive`,
 `maxInclusive`, `minExclusive`, and `maxExclusive` bounds, numeric
 `totalDigits`/`fractionDigits` constraints, string `minLength`/`maxLength`/
-`length`/`stringPrefixes`/`stringSuffixes`/`stringIncludes`/
-`stringExcludes` constraints, list
+`length`/`stringPrefixes`/`stringSuffixes`/`stringForbiddenPrefixes`/
+`stringForbiddenSuffixes`/`stringIncludes`/`stringExcludes` constraints, list
 `itemCount`/`minItems`/`maxItems` constraints, regex `pattern`, path
 prefix/forbidden-prefix/extension/forbidden-extension/basename/forbidden-basename `pathPrefixes`/`pathForbiddenPrefixes`/`pathExtensions`/`pathForbiddenExtensions`/`pathBasenames`/`pathForbiddenBasenames`, URI scheme/host/port/authority/path-prefix/forbidden-path-prefix/path-extension/forbidden-path-extension/path-basename/forbidden-path-basename/query/forbidden-query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/forbidden-fragment
 `uriSchemes`/`uriHosts`/`uriPorts`/`uriRequiresAuthority`/`uriPathPrefixes`/
@@ -324,7 +325,7 @@ qualified-name, semantic version, basic absolute-URI, basic media-type, and
 scope-context path scalar syntax now execute through `schema:scalar-type`,
 whose result contract declares emitted scalar value/type details;
 schema-definition validation also rejects numeric bound/digit-count params on
-non-numeric attributes, string length/prefix/suffix/include/exclude params on non-string attributes,
+non-numeric attributes, string length/prefix/suffix/forbidden-prefix/forbidden-suffix/include/exclude params on non-string attributes,
 list item-count params on non-list attributes, inconsistent numeric min/max
 bound envelopes, inconsistent string/list min/max/exact count envelopes, and
 inconsistent URI/media-type required/forbidden parameter declarations;
@@ -351,7 +352,7 @@ CLI validation integration tests.
 | Example | Purpose | Expected result |
 | --- | --- | --- |
 | [`basic-schema.cem`](examples/basic-schema.cem) | Minimal schema definition with content type, element, and attribute declarations. | Pass |
-| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, conditional `schema:required-fields`, child-gated required/forbidden `schema:field-dependency`, nested exact-one `schema:choice-case`, child-set, selected/ranged/selected-distinct, child presence/absence-gated, ordered/forbidden-ordered, boundary/forbidden-boundary, and exact/required/forbidden/prefix/suffix/forbidden-prefix/forbidden-suffix sequence `schema:child-occurrence`, attribute default metadata, `schema:value-vocabulary`, `schema:scalar-type` number/qualified-name/semver/URI/media-type/path syntax, and `schema:datatype-param` integer-bound/number-bound/digit-count/string length/prefix/suffix/include/exclude/list item-count/pattern/path prefix/forbidden-prefix/extension/forbidden-extension/basename/forbidden-basename/URI scheme/host/port/authority/path-prefix/forbidden-path-prefix/path-extension/forbidden-path-extension/path-basename/forbidden-path-basename/query/forbidden-query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/forbidden-fragment/media-type essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter attribute diagnostics, and open-content policy. | Pass |
+| [`typed-resource-schema.cem`](examples/typed-resource-schema.cem) | Resource schema with imports, conditional `schema:required-fields`, child-gated required/forbidden `schema:field-dependency`, nested exact-one `schema:choice-case`, child-set, selected/ranged/selected-distinct, child presence/absence-gated, ordered/forbidden-ordered, boundary/forbidden-boundary, and exact/required/forbidden/prefix/suffix/forbidden-prefix/forbidden-suffix sequence `schema:child-occurrence`, attribute default metadata, `schema:value-vocabulary`, `schema:scalar-type` number/qualified-name/semver/URI/media-type/path syntax, and `schema:datatype-param` integer-bound/number-bound/digit-count/string length/prefix/suffix/forbidden-prefix/forbidden-suffix/include/exclude/list item-count/pattern/path prefix/forbidden-prefix/extension/forbidden-extension/basename/forbidden-basename/URI scheme/host/port/authority/path-prefix/forbidden-path-prefix/path-extension/forbidden-path-extension/path-basename/forbidden-path-basename/query/forbidden-query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/forbidden-fragment/media-type essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter attribute diagnostics, and open-content policy. | Pass |
 | [`custom-behavior-schema.cem`](examples/custom-behavior-schema.cem) | Custom schema that defines a diagnostic algorithm with CEM-QL candidate matching and a CEM-ML behavior function. | Pass |
 | [`custom-behavior-schema-strict.cem`](examples/custom-behavior-schema-strict.cem) | Variant custom schema that changes the match condition and function-produced result declaratively. | Pass |
 | [`invalid-unclosed-schema.cem`](examples/invalid-unclosed-schema.cem) | Missing closing schema scope syntax diagnostic. | Fail with `cem.ast.unclosed_scope` |
@@ -364,7 +365,7 @@ CLI validation integration tests.
 | [`invalid-custom-behavior-signature.cem`](examples/invalid-custom-behavior-signature.cem) | Custom behavior function requires a parameter with no input, argument, or default binding. | Fail with `cem.schema_definition.invalid_diagnostic_behavior_contract` |
 | [`invalid-custom-behavior-unsafe-call.cem`](examples/invalid-custom-behavior-unsafe-call.cem) | Custom behavior body attempts a CEMT-style self-call instead of pure declarative result construction. | Fail with `cem.schema_behavior.function_failed` |
 | [`invalid-custom-behavior-contracts.cem`](examples/invalid-custom-behavior-contracts.cem) | Custom behaviors declare unsupported implementations, placements, missing function/result pieces, and incompatible result contracts. | Fail with `cem.schema_definition.invalid_diagnostic_behavior_contract` |
-| [`invalid-datatype-param-length.cem`](examples/invalid-datatype-param-length.cem) | String length/prefix/suffix/include/exclude and list item-count datatype parameter declarations use invalid negative bounds, incompatible primitive types, or inconsistent min/max/exact count envelopes. | Fail with `cem.schema_definition.invalid_datatype_param` |
+| [`invalid-datatype-param-length.cem`](examples/invalid-datatype-param-length.cem) | String length/prefix/suffix/forbidden-prefix/forbidden-suffix/include/exclude and list item-count datatype parameter declarations use invalid negative bounds, incompatible primitive types, or inconsistent min/max/exact count envelopes. | Fail with `cem.schema_definition.invalid_datatype_param` |
 | [`invalid-datatype-param-bound.cem`](examples/invalid-datatype-param-bound.cem) | Numeric bound datatype parameter declarations use incompatible bound values, incompatible primitive types, or inconsistent min/max envelopes. | Fail with `cem.schema_definition.invalid_datatype_param` |
 | [`invalid-datatype-param-pattern.cem`](examples/invalid-datatype-param-pattern.cem) | String datatype parameter declaration uses an invalid regular expression. | Fail with `cem.schema_definition.invalid_datatype_param` |
 | [`invalid-datatype-param-digits.cem`](examples/invalid-datatype-param-digits.cem) | Numeric digit-count datatype parameter declarations use invalid limits or incompatible primitive types. | Fail with `cem.schema_definition.invalid_datatype_param` |

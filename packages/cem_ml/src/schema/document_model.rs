@@ -21,7 +21,8 @@
 //!   basename/forbidden-basename, URI scheme/host/port/path/forbidden-path/
 //!   query/query-parameter/fragment/forbidden-fragment, and media-type
 //!   essence/type/subtype/suffix/forbidden-type/forbidden-subtype/
-//!   forbidden-suffix/parameter name/value datatype-param checks.
+//!   forbidden-suffix/parameter name/value datatype-param checks, plus
+//!   reusable forbidden string prefix/suffix checks.
 //! - schema-owned exact, ranged, selected/selected-distinct count,
 //!   required/forbidden ordered, required/forbidden boundary,
 //!   required/forbidden/exact sequence, prefix/suffix and forbidden
@@ -195,6 +196,8 @@ pub struct AttributeModel {
     pub length: Option<String>,
     pub string_prefixes: BTreeSet<String>,
     pub string_suffixes: BTreeSet<String>,
+    pub string_forbidden_prefixes: BTreeSet<String>,
+    pub string_forbidden_suffixes: BTreeSet<String>,
     pub string_includes: BTreeSet<String>,
     pub string_excludes: BTreeSet<String>,
     pub item_count: Option<String>,
@@ -3117,6 +3120,50 @@ fn validate_attribute_datatype_params(
                 diagnostics,
             );
         }
+        if !attribute_model.string_forbidden_prefixes.is_empty()
+            && attribute_model
+                .string_forbidden_prefixes
+                .iter()
+                .any(|prefix| value.starts_with(prefix))
+        {
+            let param_value = format_value_set(&attribute_model.string_forbidden_prefixes);
+            emit_attribute_datatype_param_diagnostic(
+                schema_uri,
+                diagnostic_behaviors,
+                element_name,
+                attribute_name,
+                value,
+                attribute_model,
+                "stringForbiddenPrefixes",
+                &param_value,
+                "with forbidden prefix",
+                attribute_values,
+                node,
+                diagnostics,
+            );
+        }
+        if !attribute_model.string_forbidden_suffixes.is_empty()
+            && attribute_model
+                .string_forbidden_suffixes
+                .iter()
+                .any(|suffix| value.ends_with(suffix))
+        {
+            let param_value = format_value_set(&attribute_model.string_forbidden_suffixes);
+            emit_attribute_datatype_param_diagnostic(
+                schema_uri,
+                diagnostic_behaviors,
+                element_name,
+                attribute_name,
+                value,
+                attribute_model,
+                "stringForbiddenSuffixes",
+                &param_value,
+                "with forbidden suffix",
+                attribute_values,
+                node,
+                diagnostics,
+            );
+        }
         if !attribute_model.string_includes.is_empty()
             && !attribute_model
                 .string_includes
@@ -3821,6 +3868,12 @@ fn collect_attribute_models(
                     length: optional_non_empty_attr(&attrs, "length").map(str::to_owned),
                     string_prefixes: parse_value_set(attrs.get("stringPrefixes")),
                     string_suffixes: parse_value_set(attrs.get("stringSuffixes")),
+                    string_forbidden_prefixes: parse_value_set(
+                        attrs.get("stringForbiddenPrefixes"),
+                    ),
+                    string_forbidden_suffixes: parse_value_set(
+                        attrs.get("stringForbiddenSuffixes"),
+                    ),
                     string_includes: parse_value_set(attrs.get("stringIncludes")),
                     string_excludes: parse_value_set(attrs.get("stringExcludes")),
                     item_count: optional_non_empty_attr(&attrs, "itemCount").map(str::to_owned),
@@ -4196,6 +4249,14 @@ fn validate_attribute_datatype_param_definition(
     for (param_name, values) in [
         ("stringPrefixes", &attribute_model.string_prefixes),
         ("stringSuffixes", &attribute_model.string_suffixes),
+        (
+            "stringForbiddenPrefixes",
+            &attribute_model.string_forbidden_prefixes,
+        ),
+        (
+            "stringForbiddenSuffixes",
+            &attribute_model.string_forbidden_suffixes,
+        ),
         ("stringIncludes", &attribute_model.string_includes),
         ("stringExcludes", &attribute_model.string_excludes),
     ] {
@@ -4213,6 +4274,30 @@ fn validate_attribute_datatype_param_definition(
             diagnostics,
         );
     }
+    validate_datatype_value_allow_forbid_consistency(
+        schema_uri,
+        attribute_model,
+        "stringPrefixes",
+        &attribute_model.string_prefixes,
+        "stringForbiddenPrefixes",
+        &attribute_model.string_forbidden_prefixes,
+        "string prefix",
+        "string prefixes cannot be both allowed and forbidden",
+        is_non_empty_datatype_param_value,
+        diagnostics,
+    );
+    validate_datatype_value_allow_forbid_consistency(
+        schema_uri,
+        attribute_model,
+        "stringSuffixes",
+        &attribute_model.string_suffixes,
+        "stringForbiddenSuffixes",
+        &attribute_model.string_forbidden_suffixes,
+        "string suffix",
+        "string suffixes cannot be both allowed and forbidden",
+        is_non_empty_datatype_param_value,
+        diagnostics,
+    );
     for (param_name, param_value) in [
         ("itemCount", attribute_model.item_count.as_deref()),
         ("minItems", attribute_model.min_items.as_deref()),
@@ -6289,6 +6374,10 @@ fn validate_datatype_value_allow_forbid_consistency(
             "error": error,
         }),
     ));
+}
+
+fn is_non_empty_datatype_param_value(value: &str) -> bool {
+    !value.is_empty()
 }
 
 fn validate_datatype_parameter_presence_consistency(
@@ -11142,6 +11231,8 @@ fn attribute_datatype_param_details(
         "mediaTypeRequiredParameters" => "media type parameter name",
         "stringPrefixes" => "string prefix",
         "stringSuffixes" => "string suffix",
+        "stringForbiddenPrefixes" => "string forbidden prefix",
+        "stringForbiddenSuffixes" => "string forbidden suffix",
         "stringIncludes" => "string required substring",
         "stringExcludes" => "string forbidden substring",
         "itemCount" | "minItems" | "maxItems" => "whitespace-separated list item count",
@@ -11236,6 +11327,48 @@ fn attribute_datatype_param_details(
                     .collect::<Vec<_>>()),
             );
             object.insert("actualString".to_owned(), serde_json::json!(actual_value));
+        }
+        if param_name == "stringForbiddenPrefixes" {
+            let forbidden_prefixes = attribute_model
+                .string_forbidden_prefixes
+                .iter()
+                .filter(|prefix| actual_value.starts_with(prefix.as_str()))
+                .cloned()
+                .collect::<Vec<_>>();
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .string_forbidden_prefixes
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            object.insert("actualString".to_owned(), serde_json::json!(actual_value));
+            object.insert(
+                "forbiddenStringPrefixes".to_owned(),
+                serde_json::json!(forbidden_prefixes),
+            );
+        }
+        if param_name == "stringForbiddenSuffixes" {
+            let forbidden_suffixes = attribute_model
+                .string_forbidden_suffixes
+                .iter()
+                .filter(|suffix| actual_value.ends_with(suffix.as_str()))
+                .cloned()
+                .collect::<Vec<_>>();
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .string_forbidden_suffixes
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            object.insert("actualString".to_owned(), serde_json::json!(actual_value));
+            object.insert(
+                "forbiddenStringSuffixes".to_owned(),
+                serde_json::json!(forbidden_suffixes),
+            );
         }
         if param_name == "stringIncludes" {
             object.insert(
@@ -12738,6 +12871,17 @@ mod tests {
                 .as_deref(),
             Some("schema:string")
         );
+        for name in ["stringForbiddenPrefixes", "stringForbiddenSuffixes"] {
+            assert_eq!(
+                model
+                    .attributes
+                    .get(name)
+                    .unwrap_or_else(|| panic!("{name} attribute model"))
+                    .value_type
+                    .as_deref(),
+                Some("schema:string")
+            );
+        }
         assert_eq!(
             model
                 .attributes
@@ -13779,6 +13923,8 @@ mod tests {
             ("invalidFields", "schema:array"),
             ("actualLength", "schema:integer"),
             ("actualString", "schema:string"),
+            ("forbiddenStringPrefixes", "schema:array"),
+            ("forbiddenStringSuffixes", "schema:array"),
             ("forbiddenSubstrings", "schema:array"),
             ("actualItemCount", "schema:integer"),
             ("actualItems", "schema:array"),
@@ -27951,6 +28097,269 @@ mod tests {
         );
         assert_eq!(details["actualString"], serde_json::json!("page-home-ref"));
         assert_eq!(details["actualValue"], serde_json::json!("page-home-ref"));
+    }
+
+    #[test]
+    fn schema_string_forbidden_prefix_suffix_datatype_params_drive_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/string-forbidden-prefix-suffix-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="string-forbidden-prefix-suffix-contracts" @namespace="https://example.test/ns/string-forbidden-prefix-suffix-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="slug"}
+    }
+    {attributes |
+        {attribute @name="slug" @type="schema:string" @stringForbiddenPrefixes="draft- private-" @stringForbiddenSuffixes="-tmp -bak"}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "valid forbidden string prefix/suffix schema must compile: {:#?}",
+            model.compile_diagnostics
+        );
+
+        for source in [
+            r#"{item @slug="page-home"}"#,
+            r#"{item @slug="component-card"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "valid forbidden string prefix/suffix source produced diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        for (
+            source,
+            datatype_param,
+            param_value,
+            expected_values,
+            forbidden_field,
+            forbidden_values,
+            expected_pattern,
+        ) in [
+            (
+                r#"{item @slug="draft-page-home"}"#,
+                "stringForbiddenPrefixes",
+                "draft- private-",
+                serde_json::json!(["draft-", "private-"]),
+                "forbiddenStringPrefixes",
+                serde_json::json!(["draft-"]),
+                "string forbidden prefix",
+            ),
+            (
+                r#"{item @slug="page-home-tmp"}"#,
+                "stringForbiddenSuffixes",
+                "-bak -tmp",
+                serde_json::json!(["-bak", "-tmp"]),
+                "forbiddenStringSuffixes",
+                serde_json::json!(["-tmp"]),
+                "string forbidden suffix",
+            ),
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            let diagnostic = diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE
+                        && diagnostic.details.as_ref().and_then(|details| {
+                            details
+                                .get("datatypeParam")
+                                .and_then(serde_json::Value::as_str)
+                        }) == Some(datatype_param)
+                })
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing {datatype_param} attribute datatype-param diagnostic for {source}: {diagnostics:?}"
+                    )
+                });
+            assert!(diagnostic.message.contains("slug"));
+            assert!(diagnostic.message.contains(datatype_param));
+            let details = diagnostic
+                .details
+                .as_ref()
+                .expect("forbidden string prefix/suffix datatype-param details");
+            assert_eq!(
+                details["schemaUri"],
+                serde_json::json!(
+                    "https://example.test/ns/string-forbidden-prefix-suffix-contracts/1"
+                )
+            );
+            assert_eq!(details["element"], serde_json::json!("item"));
+            assert_eq!(details["attribute"], serde_json::json!("slug"));
+            assert_eq!(
+                details["contract"],
+                serde_json::json!(format!("attribute-datatype-param:slug:{datatype_param}"))
+            );
+            assert_eq!(
+                details["checkKind"],
+                serde_json::json!(format!("datatype-param:{datatype_param}"))
+            );
+            assert_eq!(details["datatypeParam"], serde_json::json!(datatype_param));
+            assert_eq!(details[datatype_param], serde_json::json!(param_value));
+            assert_eq!(
+                details["expectedPattern"],
+                serde_json::json!(expected_pattern)
+            );
+            assert_eq!(details["expectedValues"], expected_values);
+            assert_eq!(details[forbidden_field], forbidden_values);
+            assert!(details["actualString"].is_string());
+            assert_eq!(details["invalidFields"], serde_json::json!(["slug"]));
+            assert!(details["sourceRange"]["span"]["start"].is_u64());
+        }
+    }
+
+    #[test]
+    fn schema_string_forbidden_prefix_suffix_datatype_params_reject_invalid_declarations() {
+        let model = compile_document_model(
+            "https://example.test/ns/invalid-string-forbidden-prefix-suffix-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-string-forbidden-prefix-suffix-contracts" @namespace="https://example.test/ns/invalid-string-forbidden-prefix-suffix-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="score rank"}
+    }
+    {attributes |
+        {attribute @name="score" @type="schema:number" @stringForbiddenPrefixes="draft-"}
+        {attribute @name="rank" @type="schema:integer" @stringForbiddenSuffixes="-tmp"}
+    }
+}"#,
+        );
+
+        for (attribute, datatype_param, param_value) in [
+            ("score", "stringForbiddenPrefixes", "draft-"),
+            ("rank", "stringForbiddenSuffixes", "-tmp"),
+        ] {
+            let diagnostic = model
+                .compile_diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                        && diagnostic.details.as_ref().is_some_and(|details| {
+                            details.get("attribute").and_then(serde_json::Value::as_str)
+                                == Some(attribute)
+                                && details
+                                    .get("datatypeParam")
+                                    .and_then(serde_json::Value::as_str)
+                                    == Some(datatype_param)
+                        })
+                })
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing invalid {datatype_param} type compile diagnostic for {attribute}: {:#?}",
+                        model.compile_diagnostics
+                    )
+                });
+            assert!(diagnostic.message.contains(datatype_param));
+            let details = diagnostic
+                .details
+                .as_ref()
+                .expect("invalid forbidden string prefix/suffix type compile details");
+            assert_eq!(details["attribute"], serde_json::json!(attribute));
+            assert_eq!(
+                details["checkKind"],
+                serde_json::json!(format!("datatype-param:{datatype_param}"))
+            );
+            assert_eq!(details["datatypeParam"], serde_json::json!(datatype_param));
+            assert_eq!(details["paramValue"], serde_json::json!(param_value));
+            assert_eq!(
+                details["expectedType"],
+                serde_json::json!("schema:string or cemml:string")
+            );
+        }
+    }
+
+    #[test]
+    fn schema_string_forbidden_prefix_suffix_datatype_params_reject_inconsistent_declarations() {
+        let model = compile_document_model(
+            "https://example.test/ns/inconsistent-string-forbidden-prefix-suffix-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="inconsistent-string-forbidden-prefix-suffix-contracts" @namespace="https://example.test/ns/inconsistent-string-forbidden-prefix-suffix-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="prefix suffix"}
+    }
+    {attributes |
+        {attribute @name="prefix" @type="schema:string" @stringPrefixes="page- draft-" @stringForbiddenPrefixes="draft-"}
+        {attribute @name="suffix" @type="schema:string" @stringSuffixes="-id -tmp" @stringForbiddenSuffixes="-tmp"}
+    }
+}"#,
+        );
+
+        for (attribute, allowed_param, forbidden_param, param_value, expected_pattern) in [
+            (
+                "prefix",
+                "stringPrefixes",
+                "stringForbiddenPrefixes",
+                "draft-",
+                "string prefix",
+            ),
+            (
+                "suffix",
+                "stringSuffixes",
+                "stringForbiddenSuffixes",
+                "-tmp",
+                "string suffix",
+            ),
+        ] {
+            let diagnostic = model
+                .compile_diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                        && diagnostic.details.as_ref().is_some_and(|details| {
+                            details.get("attribute").and_then(serde_json::Value::as_str)
+                                == Some(attribute)
+                                && details
+                                    .get("datatypeParam")
+                                    .and_then(serde_json::Value::as_str)
+                                    == Some(forbidden_param)
+                        })
+                })
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing inconsistent {forbidden_param} compile diagnostic for {attribute}: {:#?}",
+                        model.compile_diagnostics
+                    )
+                });
+            assert!(diagnostic.message.contains("both allowed and forbidden"));
+            let details = diagnostic
+                .details
+                .as_ref()
+                .expect("inconsistent forbidden string prefix/suffix compile details");
+            assert_eq!(details["attribute"], serde_json::json!(attribute));
+            assert_eq!(
+                details["checkKind"],
+                serde_json::json!(format!("datatype-param:{forbidden_param}"))
+            );
+            assert_eq!(details["datatypeParam"], serde_json::json!(forbidden_param));
+            assert_eq!(details["paramValue"], serde_json::json!(param_value));
+            assert_eq!(details["allowedParam"], serde_json::json!(allowed_param));
+            assert_eq!(
+                details["forbiddenParam"],
+                serde_json::json!(forbidden_param)
+            );
+            assert_eq!(
+                details["conflictingParameters"],
+                serde_json::json!([param_value])
+            );
+            assert_eq!(
+                details["expectedPattern"],
+                serde_json::json!(expected_pattern)
+            );
+        }
     }
 
     #[test]

@@ -4800,6 +4800,22 @@ fn schema_datatype_param_examples_emit_structured_definition_details() {
                 SchemaDefinitionDetailExpectation {
                     code: "cem.schema_definition.invalid_datatype_param",
                     severity: "error",
+                    check_kind: "datatype-param:stringForbiddenPrefixes",
+                    attribute: "blockedScore",
+                    datatype_param: "stringForbiddenPrefixes",
+                    param_value: "draft-",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
+                    check_kind: "datatype-param:stringForbiddenSuffixes",
+                    attribute: "blockedRank",
+                    datatype_param: "stringForbiddenSuffixes",
+                    param_value: "-tmp",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
                     check_kind: "datatype-param:stringIncludes",
                     attribute: "status",
                     datatype_param: "stringIncludes",
