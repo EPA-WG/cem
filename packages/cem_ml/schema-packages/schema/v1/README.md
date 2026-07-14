@@ -125,7 +125,8 @@ other children outside that edge.
 Use `forbidden-prefix-child-sequence` and
 `forbidden-suffix-child-sequence` when the direct element-child stream may
 contain a run elsewhere, but must not start or end with that run.
-Use `path-layout-attributes` with `path-layout-prefix` and
+Use `path-layout-attributes` with `path-layout-prefix`,
+`path-layout-directory-names`, `path-layout-forbidden-directory-names`, and
 `path-layout-extension` for package-relative path layout contracts, such as
 formatter artifacts under `formatters/` and colorizer artifacts under
 `colorizers/`.

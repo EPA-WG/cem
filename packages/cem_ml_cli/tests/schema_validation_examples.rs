@@ -3265,6 +3265,8 @@ fn schema_runtime_path_layout_emits_structured_details() {
             @target="a"
             @path-layout-attributes="href"
             @path-layout-prefix="assets"
+            @path-layout-directory-names="assets public"
+            @path-layout-forbidden-directory-names="private"
             @path-layout-extension="cemt"
             @diagnostic="example.link.path_layout"
             @behavior="schema:path-layout"
@@ -3286,14 +3288,14 @@ fn schema_runtime_path_layout_emits_structured_details() {
         &valid_input_path,
         r#"@doc cem-ml 1
 
-{a @href="assets/demo.cemt" | Asset}
+{a @href="assets/public/demo.cemt" | Asset}
 "#,
     );
     write_test_file(
         &invalid_input_path,
         r#"@doc cem-ml 1
 
-{a @href="transforms/demo.cem" | Asset}
+{a @href="assets/private/demo.cemt" | Asset}
 "#,
     );
 
@@ -3364,7 +3366,7 @@ fn schema_runtime_path_layout_emits_structured_details() {
     assert_eq!(
         details["invalidValues"],
         serde_json::json!({
-            "href": "transforms/demo.cem",
+            "href": "assets/private/demo.cemt",
         })
     );
     assert_eq!(
@@ -3372,6 +3374,8 @@ fn schema_runtime_path_layout_emits_structured_details() {
         serde_json::json!({
             "attributes": ["href"],
             "prefix": "assets",
+            "directoryNames": ["assets", "public"],
+            "forbiddenDirectoryNames": ["private"],
             "extension": "cemt",
             "relative": true,
             "cleanSegments": true,
