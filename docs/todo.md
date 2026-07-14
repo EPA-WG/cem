@@ -326,7 +326,7 @@ history belongs in git history and the feature-specific docs linked below.
         CEM-ML schema source as the validation document model, and proves that
         changing the package schema field contract changes `validate` results
         without a Rust validation branch.
-  - [ ] Expand the initial `field-contracts` vocabulary in
+  - [x] Expand the initial `field-contracts` vocabulary in
         `packages/cem_ml/schema-packages/schema/v1/schema/cem-schema.cem`.
         The schema language now models element-bound required/optional/
         forbidden fields, value, multi-attribute presence/absence, and child
@@ -390,13 +390,11 @@ history belongs in git history and the feature-specific docs linked below.
         total, selected, selected-distinct, and distinct child-count
         bounds, min/max child occurrence ranges, required/forbidden relative child
         ordering, and required/forbidden boundary child placement, plus exact/required/forbidden/prefix/suffix
-        and forbidden-prefix/forbidden-suffix child sequences; it still needs RELAX NG-style datatype params beyond the
-        initial scalar/datatype variations and whitespace normalization, richer dependent-required field groups
-        beyond all/any value/presence/absence/child-structure gates, and additional child occurrence
-        variants beyond exact/named/total/selected/selected-distinct/distinct count bounds,
-        child-set cardinality, required/forbidden relative ordering,
-        required/forbidden boundary placement, and
-        exact/required/forbidden/prefix/suffix/forbidden-prefix/forbidden-suffix child sequences.
+        and forbidden-prefix/forbidden-suffix child sequences. Remaining
+        RELAX NG-style datatype params beyond the current scalar/datatype
+        family, richer dependent-required field groups, and additional child
+        occurrence variants are tracked by the compiled model, diagnostic
+        detail, and evaluator follow-up items below.
   - [ ] Extend the compiled Rust schema contract model. `SchemaDocumentModel`
         now compiles initial `field-contract` declarations and evaluates
         required/forbidden fields, attribute `@values` vocabularies, and
@@ -428,7 +426,9 @@ history belongs in git history and the feature-specific docs linked below.
         still needs reusable string constraints beyond length/prefix/suffix/forbidden-prefix/forbidden-suffix/include/exclude/pattern and path constraints beyond
         prefix/forbidden-prefix/directory-name/forbidden-directory-name/extension/forbidden-extension/basename/
         forbidden-basename and path-layout checks beyond prefix/directory-name/
-        forbidden-directory-name/extension/basename/forbidden-basename,
+        forbidden-directory-name/extension/basename/forbidden-basename
+        (deferred to low-priority vocabulary design until a concrete generic
+        facet is chosen),
         URI/media-type constraints beyond scheme/host/port/authority/path-prefix/forbidden-path-prefix/path-extension/forbidden-path-extension/path-basename/forbidden-path-basename/query/forbidden-query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/forbidden-fragment
         and media-type essence/type/subtype/structured-suffix/forbidden-type/forbidden-subtype/forbidden-structured-suffix/parameter-name/value/forbidden-parameter/required-parameter lists,
         RELAX NG-style datatype params beyond numeric bounds/digit counts,
@@ -980,6 +980,16 @@ Projection and debug/interchange formats:
       `schema:reference-resolution`, CEM-QL candidate selection, and
       schema-declared behavior functions where possible; avoid introducing
       package-specific syntax for converter endpoints.
+- [ ] Design any further generic path-layout vocabulary beyond the current
+      prefix, directory-name allow/forbid, extension, and basename allow/forbid
+      facets. Background: `path` is always resolved in scope context, not
+      document context. `./` is relative to the context root, protocol-prefixed
+      values are resolved by their protocol, and bare values are resolved
+      through context module maps or aliases. Future facets such as depth,
+      segment count, suffix, glob/segment classes, or alias/module-map matching
+      need an explicit generic CEM semantics decision before implementation so
+      path layout remains schema-owned and independent of package-specific Rust
+      validation branches.
 - [ ] Design declarative CEMT body/output assertion vocabulary for
       schema-owned artifact constraints currently centralized in Rust helper
       checks. Immediate background: schema-package artifact declarations now
