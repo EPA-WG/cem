@@ -160,6 +160,8 @@
             @type-diagnostic="example.resource.invalid_asset"
             @pathPrefixes="./assets/ @assets/"
             @pathForbiddenPrefixes="./assets/private/ @assets/private/"
+            @pathDirectoryNames="@assets assets"
+            @pathForbiddenDirectoryNames="private tmp"
             @pathExtensions="cem cemt"
             @pathForbiddenExtensions="bak tmp"
             @pathBasenames="resource.cem theme.cemt"

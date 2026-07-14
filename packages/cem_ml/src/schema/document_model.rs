@@ -17,8 +17,9 @@
 //!   `minExclusive`/`maxExclusive`, numeric `totalDigits`/`fractionDigits`,
 //!   string `minLength`/`maxLength`/`length`/prefix/suffix/include/exclude, list
 //!   `itemCount`/`minItems`/`maxItems`, regex `pattern`, `whiteSpace`
-//!   normalization, path prefix/forbidden-prefix/extension/forbidden-extension/
-//!   basename/forbidden-basename, URI scheme/host/port/path/forbidden-path/
+//!   normalization, path prefix/forbidden-prefix/directory-name/
+//!   forbidden-directory-name/extension/forbidden-extension/basename/
+//!   forbidden-basename, URI scheme/host/port/path/forbidden-path/
 //!   query/query-parameter/fragment/forbidden-fragment, and media-type
 //!   essence/type/subtype/suffix/forbidden-type/forbidden-subtype/
 //!   forbidden-suffix/parameter name/value datatype-param checks, plus
@@ -209,6 +210,8 @@ pub struct AttributeModel {
     pub white_space: Option<String>,
     pub path_prefixes: BTreeSet<String>,
     pub path_forbidden_prefixes: BTreeSet<String>,
+    pub path_directory_names: BTreeSet<String>,
+    pub path_forbidden_directory_names: BTreeSet<String>,
     pub path_extensions: BTreeSet<String>,
     pub path_forbidden_extensions: BTreeSet<String>,
     pub path_basenames: BTreeSet<String>,
@@ -1771,6 +1774,35 @@ fn path_has_allowed_prefix(value: &str, prefixes: &BTreeSet<String>) -> bool {
     is_scoped_path_specifier(value) && prefixes.iter().any(|prefix| value.starts_with(prefix))
 }
 
+fn path_directory_names(value: &str) -> Option<BTreeSet<String>> {
+    let value = value.trim();
+    if !is_scoped_path_specifier(value) {
+        return None;
+    }
+    let path = if has_uri_scheme(value) {
+        uri_path(value)?
+    } else {
+        value.split(['?', '#']).next().unwrap_or(value)
+    };
+    let mut segments = path
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>();
+    if segments.first() == Some(&".") {
+        segments.remove(0);
+    }
+    if !path.ends_with('/') {
+        segments.pop();
+    }
+    Some(
+        segments
+            .into_iter()
+            .filter(|segment| is_path_basename_token(segment))
+            .map(str::to_owned)
+            .collect(),
+    )
+}
+
 fn path_extension(value: &str) -> Option<String> {
     let value = value.trim();
     if !is_scoped_path_specifier(value) {
@@ -2178,6 +2210,64 @@ fn validate_attribute_datatype_params(
             value,
             attribute_model,
             "pathForbiddenPrefixes",
+            &param_value,
+            "with forbidden",
+            attribute_values,
+            node,
+            diagnostics,
+        );
+    }
+    if !attribute_model.path_directory_names.is_empty()
+        && attribute_model
+            .value_type
+            .as_deref()
+            .is_some_and(is_path_type_reference)
+        && is_scoped_path_specifier(value)
+        && path_directory_names(value).is_some_and(|directory_names| {
+            directory_names
+                .iter()
+                .any(|name| !attribute_model.path_directory_names.contains(name))
+        })
+    {
+        let param_value = format_value_set(&attribute_model.path_directory_names);
+        emit_attribute_datatype_param_diagnostic(
+            schema_uri,
+            diagnostic_behaviors,
+            element_name,
+            attribute_name,
+            value,
+            attribute_model,
+            "pathDirectoryNames",
+            &param_value,
+            "outside allowed",
+            attribute_values,
+            node,
+            diagnostics,
+        );
+    }
+    if !attribute_model.path_forbidden_directory_names.is_empty()
+        && attribute_model
+            .value_type
+            .as_deref()
+            .is_some_and(is_path_type_reference)
+        && is_scoped_path_specifier(value)
+        && path_directory_names(value).is_some_and(|directory_names| {
+            directory_names.iter().any(|name| {
+                attribute_model
+                    .path_forbidden_directory_names
+                    .contains(name)
+            })
+        })
+    {
+        let param_value = format_value_set(&attribute_model.path_forbidden_directory_names);
+        emit_attribute_datatype_param_diagnostic(
+            schema_uri,
+            diagnostic_behaviors,
+            element_name,
+            attribute_name,
+            value,
+            attribute_model,
+            "pathForbiddenDirectoryNames",
             &param_value,
             "with forbidden",
             attribute_values,
@@ -3886,6 +3976,10 @@ fn collect_attribute_models(
                     white_space: optional_non_empty_attr(&attrs, "whiteSpace").map(str::to_owned),
                     path_prefixes: parse_value_set(attrs.get("pathPrefixes")),
                     path_forbidden_prefixes: parse_value_set(attrs.get("pathForbiddenPrefixes")),
+                    path_directory_names: parse_value_set(attrs.get("pathDirectoryNames")),
+                    path_forbidden_directory_names: parse_value_set(
+                        attrs.get("pathForbiddenDirectoryNames"),
+                    ),
                     path_extensions: parse_value_set(attrs.get("pathExtensions")),
                     path_forbidden_extensions: parse_value_set(
                         attrs.get("pathForbiddenExtensions"),
@@ -4515,6 +4609,90 @@ fn validate_attribute_datatype_param_definition(
             ));
         }
     }
+    if !attribute_model.path_directory_names.is_empty() {
+        let param_value = format_value_set(&attribute_model.path_directory_names);
+        validate_datatype_param_value_type(
+            schema_uri,
+            attribute_model,
+            "pathDirectoryNames",
+            &param_value,
+            "schema:path or cemml:path",
+            is_path_type_reference,
+            diagnostics,
+        );
+        for directory_name in &attribute_model.path_directory_names {
+            if is_path_basename_token(directory_name) {
+                continue;
+            }
+            let error = "expected path directory name token without path separators";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid pathDirectoryNames datatype parameter `{directory_name}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:pathDirectoryNames",
+                    "datatypeParam": "pathDirectoryNames",
+                    "paramName": "pathDirectoryNames",
+                    "paramValue": directory_name,
+                    "expectedPattern": "path directory name token",
+                    "error": error,
+                }),
+            ));
+        }
+    }
+    if !attribute_model.path_forbidden_directory_names.is_empty() {
+        let param_value = format_value_set(&attribute_model.path_forbidden_directory_names);
+        validate_datatype_param_value_type(
+            schema_uri,
+            attribute_model,
+            "pathForbiddenDirectoryNames",
+            &param_value,
+            "schema:path or cemml:path",
+            is_path_type_reference,
+            diagnostics,
+        );
+        for directory_name in &attribute_model.path_forbidden_directory_names {
+            if is_path_basename_token(directory_name) {
+                continue;
+            }
+            let error = "expected path directory name token without path separators";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid pathForbiddenDirectoryNames datatype parameter `{directory_name}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:pathForbiddenDirectoryNames",
+                    "datatypeParam": "pathForbiddenDirectoryNames",
+                    "paramName": "pathForbiddenDirectoryNames",
+                    "paramValue": directory_name,
+                    "expectedPattern": "path directory name token",
+                    "error": error,
+                }),
+            ));
+        }
+    }
+    validate_datatype_value_allow_forbid_consistency(
+        schema_uri,
+        attribute_model,
+        "pathDirectoryNames",
+        &attribute_model.path_directory_names,
+        "pathForbiddenDirectoryNames",
+        &attribute_model.path_forbidden_directory_names,
+        "path directory name token",
+        "path directory names cannot be both allowed and forbidden",
+        is_path_basename_token,
+        diagnostics,
+    );
     if !attribute_model.path_extensions.is_empty() {
         let param_value = format_value_set(&attribute_model.path_extensions);
         validate_datatype_param_value_type(
@@ -11196,6 +11374,8 @@ fn attribute_datatype_param_details(
         "pattern" => param_value,
         "pathPrefixes" => "scope-context path prefix",
         "pathForbiddenPrefixes" => "scope-context path prefix",
+        "pathDirectoryNames" => "path directory name token",
+        "pathForbiddenDirectoryNames" => "path directory name token",
         "pathExtensions" => "path extension token",
         "pathForbiddenExtensions" => "path extension token",
         "pathBasenames" => "path basename token",
@@ -11433,6 +11613,64 @@ fn attribute_datatype_param_details(
                 "forbiddenPathPrefixes".to_owned(),
                 serde_json::json!(forbidden_path_prefixes),
             );
+        }
+        if param_name == "pathDirectoryNames" {
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .path_directory_names
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            object.insert("actualPath".to_owned(), serde_json::json!(actual_value));
+            if let Some(actual_directory_names) = path_directory_names(actual_value) {
+                let invalid_directory_names = actual_directory_names
+                    .iter()
+                    .filter(|name| !attribute_model.path_directory_names.contains(*name))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let actual_directory_names = actual_directory_names.into_iter().collect::<Vec<_>>();
+                object.insert(
+                    "actualPathDirectoryNames".to_owned(),
+                    serde_json::json!(actual_directory_names),
+                );
+                object.insert(
+                    "invalidPathDirectoryNames".to_owned(),
+                    serde_json::json!(invalid_directory_names),
+                );
+            }
+        }
+        if param_name == "pathForbiddenDirectoryNames" {
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .path_forbidden_directory_names
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            object.insert("actualPath".to_owned(), serde_json::json!(actual_value));
+            if let Some(actual_directory_names) = path_directory_names(actual_value) {
+                let forbidden_directory_names = actual_directory_names
+                    .iter()
+                    .filter(|name| {
+                        attribute_model
+                            .path_forbidden_directory_names
+                            .contains(*name)
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let actual_directory_names = actual_directory_names.into_iter().collect::<Vec<_>>();
+                object.insert(
+                    "actualPathDirectoryNames".to_owned(),
+                    serde_json::json!(actual_directory_names),
+                );
+                object.insert(
+                    "forbiddenPathDirectoryNames".to_owned(),
+                    serde_json::json!(forbidden_directory_names),
+                );
+            }
         }
         if param_name == "pathExtensions" {
             object.insert(
@@ -12974,6 +13212,17 @@ mod tests {
                 .as_deref(),
             Some("schema:string")
         );
+        for name in ["pathDirectoryNames", "pathForbiddenDirectoryNames"] {
+            assert_eq!(
+                model
+                    .attributes
+                    .get(name)
+                    .unwrap_or_else(|| panic!("{name} attribute model"))
+                    .value_type
+                    .as_deref(),
+                Some("schema:string")
+            );
+        }
         assert_eq!(
             model
                 .attributes
@@ -13932,6 +14181,9 @@ mod tests {
             ("actualFractionDigits", "schema:integer"),
             ("actualPath", "schema:path"),
             ("forbiddenPathPrefixes", "schema:array"),
+            ("actualPathDirectoryNames", "schema:array"),
+            ("invalidPathDirectoryNames", "schema:array"),
+            ("forbiddenPathDirectoryNames", "schema:array"),
             ("actualPathExtension", "schema:string"),
             ("forbiddenPathExtensions", "schema:array"),
             ("actualPathBasename", "schema:string"),
@@ -26408,6 +26660,316 @@ mod tests {
         assert_eq!(
             details["actualValue"],
             serde_json::json!("./templates/secret.cem")
+        );
+    }
+
+    #[test]
+    fn schema_path_directory_name_datatype_params_drive_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/path-directory-name-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="path-directory-name-contracts" @namespace="https://example.test/ns/path-directory-name-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="src"}
+    }
+    {attributes |
+        {attribute @name="src" @type="schema:path" @pathDirectoryNames="@shared assets components templates" @pathForbiddenDirectoryNames="private tmp"}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "valid path directory-name schema must compile: {:#?}",
+            model.compile_diagnostics
+        );
+
+        for source in [
+            r#"{item @src="./templates/card.cem"}"#,
+            r#"{item @src="@shared/components/card.cemt"}"#,
+            r#"{item @src="https://example.test/assets/card.cem?raw"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "allowed path directory-name source produced diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{item @src="./other/card.cem"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().is_some_and(|details| {
+                        details.get("checkKind").and_then(serde_json::Value::as_str)
+                            == Some("datatype-param:pathDirectoryNames")
+                    })
+            })
+            .expect("path directory-name datatype-param diagnostic");
+        assert!(diagnostic.message.contains("pathDirectoryNames"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("path directory-name datatype-param details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/path-directory-name-contracts/1")
+        );
+        assert_eq!(details["element"], serde_json::json!("item"));
+        assert_eq!(details["attribute"], serde_json::json!("src"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:src:pathDirectoryNames")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:pathDirectoryNames")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("pathDirectoryNames")
+        );
+        assert_eq!(
+            details["pathDirectoryNames"],
+            serde_json::json!("@shared assets components templates")
+        );
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("path directory name token")
+        );
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["@shared", "assets", "components", "templates"])
+        );
+        assert_eq!(details["actualPath"], serde_json::json!("./other/card.cem"));
+        assert_eq!(
+            details["actualPathDirectoryNames"],
+            serde_json::json!(["other"])
+        );
+        assert_eq!(
+            details["invalidPathDirectoryNames"],
+            serde_json::json!(["other"])
+        );
+        assert_eq!(details["invalidFields"], serde_json::json!(["src"]));
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+
+        let document = parse_cem_document(r#"{item @src="./templates/private/card.cem"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().is_some_and(|details| {
+                        details.get("checkKind").and_then(serde_json::Value::as_str)
+                            == Some("datatype-param:pathForbiddenDirectoryNames")
+                    })
+            })
+            .expect("path forbidden directory-name datatype-param diagnostic");
+        assert!(diagnostic.message.contains("pathForbiddenDirectoryNames"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("path forbidden directory-name datatype-param details");
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:src:pathForbiddenDirectoryNames")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:pathForbiddenDirectoryNames")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("pathForbiddenDirectoryNames")
+        );
+        assert_eq!(
+            details["pathForbiddenDirectoryNames"],
+            serde_json::json!("private tmp")
+        );
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["private", "tmp"])
+        );
+        assert_eq!(
+            details["actualPath"],
+            serde_json::json!("./templates/private/card.cem")
+        );
+        assert_eq!(
+            details["actualPathDirectoryNames"],
+            serde_json::json!(["private", "templates"])
+        );
+        assert_eq!(
+            details["forbiddenPathDirectoryNames"],
+            serde_json::json!(["private"])
+        );
+    }
+
+    #[test]
+    fn schema_path_directory_name_datatype_params_reject_invalid_declarations() {
+        let model = compile_document_model(
+            "https://example.test/ns/invalid-path-directory-name-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-path-directory-name-contracts" @namespace="https://example.test/ns/invalid-path-directory-name-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="src blocked label blockedLabel"}
+    }
+    {attributes |
+        {attribute @name="src" @type="schema:path" @pathDirectoryNames="templates bad/name"}
+        {attribute @name="blocked" @type="schema:path" @pathForbiddenDirectoryNames="private bad/name"}
+        {attribute @name="label" @type="schema:string" @pathDirectoryNames="templates"}
+        {attribute @name="blockedLabel" @type="schema:string" @pathForbiddenDirectoryNames="private"}
+    }
+}"#,
+        );
+
+        for (attribute, datatype_param, param_value) in [
+            ("src", "pathDirectoryNames", "bad/name"),
+            ("blocked", "pathForbiddenDirectoryNames", "bad/name"),
+        ] {
+            let diagnostic = model
+                .compile_diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                        && diagnostic.details.as_ref().is_some_and(|details| {
+                            details.get("attribute").and_then(serde_json::Value::as_str)
+                                == Some(attribute)
+                                && details
+                                    .get("paramValue")
+                                    .and_then(serde_json::Value::as_str)
+                                    == Some(param_value)
+                        })
+                })
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing invalid {datatype_param} token compile diagnostic for {attribute}: {:#?}",
+                        model.compile_diagnostics
+                    )
+                });
+            assert!(diagnostic.message.contains(datatype_param));
+            let details = diagnostic
+                .details
+                .as_ref()
+                .expect("invalid path directory-name token compile details");
+            assert_eq!(
+                details["checkKind"],
+                serde_json::json!(format!("datatype-param:{datatype_param}"))
+            );
+            assert_eq!(details["datatypeParam"], serde_json::json!(datatype_param));
+            assert_eq!(details["paramValue"], serde_json::json!(param_value));
+            assert_eq!(
+                details["expectedPattern"],
+                serde_json::json!("path directory name token")
+            );
+        }
+
+        for (attribute, datatype_param) in [
+            ("label", "pathDirectoryNames"),
+            ("blockedLabel", "pathForbiddenDirectoryNames"),
+        ] {
+            let diagnostic = model
+                .compile_diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                        && diagnostic.details.as_ref().is_some_and(|details| {
+                            details.get("attribute").and_then(serde_json::Value::as_str)
+                                == Some(attribute)
+                                && details
+                                    .get("datatypeParam")
+                                    .and_then(serde_json::Value::as_str)
+                                    == Some(datatype_param)
+                        })
+                })
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing invalid {datatype_param} type compile diagnostic for {attribute}: {:#?}",
+                        model.compile_diagnostics
+                    )
+                });
+            assert!(diagnostic.message.contains(datatype_param));
+            let details = diagnostic
+                .details
+                .as_ref()
+                .expect("invalid path directory-name type compile details");
+            assert_eq!(
+                details["expectedType"],
+                serde_json::json!("schema:path or cemml:path")
+            );
+        }
+    }
+
+    #[test]
+    fn schema_path_directory_name_datatype_params_reject_inconsistent_declarations() {
+        let model = compile_document_model(
+            "https://example.test/ns/inconsistent-path-directory-name-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="inconsistent-path-directory-name-contracts" @namespace="https://example.test/ns/inconsistent-path-directory-name-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="src"}
+    }
+    {attributes |
+        {attribute @name="src" @type="schema:path" @pathDirectoryNames="templates private" @pathForbiddenDirectoryNames="private"}
+    }
+}"#,
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().is_some_and(|details| {
+                        details
+                            .get("datatypeParam")
+                            .and_then(serde_json::Value::as_str)
+                            == Some("pathForbiddenDirectoryNames")
+                    })
+            })
+            .expect("inconsistent pathForbiddenDirectoryNames compile diagnostic");
+        assert!(diagnostic.message.contains("both allowed and forbidden"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("inconsistent path directory-name compile details");
+        assert_eq!(details["attribute"], serde_json::json!("src"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:pathForbiddenDirectoryNames")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("pathForbiddenDirectoryNames")
+        );
+        assert_eq!(details["paramValue"], serde_json::json!("private"));
+        assert_eq!(
+            details["allowedParam"],
+            serde_json::json!("pathDirectoryNames")
+        );
+        assert_eq!(
+            details["forbiddenParam"],
+            serde_json::json!("pathForbiddenDirectoryNames")
+        );
+        assert_eq!(
+            details["conflictingParameters"],
+            serde_json::json!(["private"])
+        );
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("path directory name token")
         );
     }
 

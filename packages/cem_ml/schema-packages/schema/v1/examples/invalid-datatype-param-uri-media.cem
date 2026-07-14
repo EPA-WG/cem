@@ -10,6 +10,8 @@
     {attributes |
         {attribute @name="template" @type="schema:path" @pathPrefixes="/absolute ./../bad"}
         {attribute @name="blockedTemplate" @type="schema:path" @pathForbiddenPrefixes="/private ./../secret"}
+        {attribute @name="directory" @type="schema:path" @pathDirectoryNames="templates bad/name"}
+        {attribute @name="blockedDirectory" @type="schema:path" @pathForbiddenDirectoryNames="private bad/name"}
         {attribute @name="script" @type="schema:path" @pathExtensions="cem .cem"}
         {attribute @name="blockedScript" @type="schema:path" @pathForbiddenExtensions="tmp .bak"}
         {attribute @name="image" @type="schema:path" @pathBasenames="card.cem bad/name"}
@@ -72,6 +74,8 @@
         {attribute @name="anchorBlockedLabel" @type="schema:string" @uriForbiddenFragments="debug"}
         {attribute @name="caption" @type="schema:string" @pathPrefixes="./templates/"}
         {attribute @name="blockedCaption" @type="schema:string" @pathForbiddenPrefixes="./private/"}
+        {attribute @name="directoryLabel" @type="schema:string" @pathDirectoryNames="templates"}
+        {attribute @name="directoryBlockedLabel" @type="schema:string" @pathForbiddenDirectoryNames="private"}
         {attribute @name="summary" @type="schema:string" @pathExtensions="cem"}
         {attribute @name="blockedSummary" @type="schema:string" @pathForbiddenExtensions="tmp"}
         {attribute @name="basenameLabel" @type="schema:string" @pathBasenames="card.cem"}

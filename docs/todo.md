@@ -43,7 +43,8 @@ history belongs in git history and the feature-specific docs linked below.
       `stringSuffixes`/`stringForbiddenPrefixes`/
       `stringForbiddenSuffixes`/`stringIncludes`/`stringExcludes`, list
       `itemCount`/`minItems`/`maxItems`, regex `pattern`, path `pathPrefixes`/
-      `pathForbiddenPrefixes`/`pathExtensions`/`pathForbiddenExtensions`/
+      `pathForbiddenPrefixes`/`pathDirectoryNames`/
+      `pathForbiddenDirectoryNames`/`pathExtensions`/`pathForbiddenExtensions`/
       `pathBasenames`/`pathForbiddenBasenames`, URI
       `uriSchemes`/`uriHosts`/`uriPorts`/`uriRequiresAuthority`/`uriPathPrefixes`/
       `uriForbiddenPathPrefixes`/`uriPathExtensions`/
@@ -63,6 +64,7 @@ history belongs in git history and the feature-specific docs linked below.
       inconsistent numeric min/max bound envelopes,
       inconsistent string/list min/max/exact count envelopes,
       inconsistent string allowed/forbidden prefix/suffix declarations,
+      inconsistent path allowed/forbidden directory-name declarations,
       inconsistent URI/media-type required/forbidden parameter declarations,
       path params on non-path attributes, URI params on non-URI attributes, and
       media-type params on non-media-type attributes.
@@ -140,7 +142,7 @@ history belongs in git history and the feature-specific docs linked below.
         `schema:datatype-param`; media-type structured suffix, parameter
         value, and forbidden parameter constraints now also execute through
         `schema:datatype-param`; scope-context path prefix,
-        forbidden-prefix, extension, forbidden-extension, basename, and
+        forbidden-prefix, directory-name, forbidden-directory-name, extension, forbidden-extension, basename, and
         forbidden-basename
         constraints now also execute through `schema:datatype-param`; string
         prefix and suffix constraints now also execute through
@@ -203,7 +205,7 @@ history belongs in git history and the feature-specific docs linked below.
         `schema:choice-case` cardinality and `schema:datatype-param` decimal
         number bounds, numeric digit-count constraints, and string
         length/prefix/suffix/forbidden-prefix/forbidden-suffix/include/exclude constraints, list item-count
-        constraints, plus path prefix/forbidden-prefix/extension/
+        constraints, plus path prefix/forbidden-prefix/directory-name/forbidden-directory-name/extension/
         forbidden-extension/basename/forbidden-basename, URI scheme/host/port/authority/path-prefix/forbidden-path-prefix/path-extension/forbidden-path-extension/path-basename/forbidden-path-basename/query/forbidden-query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/forbidden-fragment, and media-type
         essence/type/subtype/structured-suffix/forbidden-type/
         forbidden-subtype/forbidden-structured-suffix/parameter-name/value/
@@ -263,7 +265,8 @@ history belongs in git history and the feature-specific docs linked below.
         failures for invalid datatype parameter declarations on integer/number
         bounds, numeric digit counts, string length/prefix/suffix/
         forbidden-prefix/forbidden-suffix/include/exclude params, list
-        item-count params, regex patterns, path prefixes/forbidden-prefixes/extensions/
+        item-count params, regex patterns, path prefixes/forbidden-prefixes/directory-names/
+        forbidden-directory-names/extensions/
         forbidden-extensions/basenames/forbidden-basenames, URI
         tokens/parameters, and media-type tokens/parameters.
         They also cover incompatible primitive type declarations for numeric
@@ -344,7 +347,8 @@ history belongs in git history and the feature-specific docs linked below.
         `stringForbiddenPrefixes`, `stringForbiddenSuffixes`,
         `stringIncludes`, and `stringExcludes`, list `itemCount`,
         `minItems`, and `maxItems`, regex `pattern`, `whiteSpace` normalization,
-        path `pathPrefixes`/`pathForbiddenPrefixes`/`pathExtensions`/
+        path `pathPrefixes`/`pathForbiddenPrefixes`/`pathDirectoryNames`/
+        `pathForbiddenDirectoryNames`/`pathExtensions`/
         `pathForbiddenExtensions`/`pathBasenames`/`pathForbiddenBasenames`,
         URI `uriSchemes`,
         `uriHosts`, `uriPorts`, `uriRequiresAuthority`, `uriPathPrefixes`,
@@ -362,7 +366,8 @@ history belongs in git history and the feature-specific docs linked below.
         and media-type params, against their target primitive families, plus
         numeric min/max bound envelope consistency, plus
         string/list min/max/exact count envelope consistency, string
-        allowed/forbidden prefix/suffix consistency, plus
+        allowed/forbidden prefix/suffix consistency, path
+        allowed/forbidden directory-name consistency, plus
         URI/media-type required/forbidden parameter consistency, media-type
         allowed/forbidden type, subtype, and suffix consistency, plus
         required/forbidden field and child presence consistency and required
@@ -416,7 +421,7 @@ history belongs in git history and the feature-specific docs linked below.
         default metadata, validation, validation-time materialization, and
         `whiteSpace` datatype-param normalization; it
         still needs reusable string constraints beyond length/prefix/suffix/forbidden-prefix/forbidden-suffix/include/exclude/pattern and path constraints beyond
-        prefix/forbidden-prefix/extension/forbidden-extension/basename/
+        prefix/forbidden-prefix/directory-name/forbidden-directory-name/extension/forbidden-extension/basename/
         forbidden-basename and path-layout checks,
         URI/media-type constraints beyond scheme/host/port/authority/path-prefix/forbidden-path-prefix/path-extension/forbidden-path-extension/path-basename/forbidden-path-basename/query/forbidden-query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/forbidden-fragment
         and media-type essence/type/subtype/structured-suffix/forbidden-type/forbidden-subtype/forbidden-structured-suffix/parameter-name/value/forbidden-parameter/required-parameter lists,
@@ -477,8 +482,8 @@ history belongs in git history and the feature-specific docs linked below.
         path type checks emit expected/actual details; string prefix/suffix/
         include/exclude datatype-param checks emit expected values, actual
         string details, and forbidden substring details;
-        list item-count datatype-param checks emit actual item counts and item arrays; path prefix/forbidden-prefix/extension/forbidden-extension/basename/forbidden-basename
-        datatype-param checks emit expected values and actual path/forbidden-prefix/extension/forbidden-extension/basename/forbidden-basename
+        list item-count datatype-param checks emit actual item counts and item arrays; path prefix/forbidden-prefix/directory-name/forbidden-directory-name/extension/forbidden-extension/basename/forbidden-basename
+        datatype-param checks emit expected values and actual path/forbidden-prefix/directory-name/forbidden-directory-name/extension/forbidden-extension/basename/forbidden-basename
         details; nested choice/case
         checks emit declared cases, present cases, missing cases, and
         conflicting cases; accepted-child checks emit accepted/invalid
@@ -517,7 +522,7 @@ history belongs in git history and the feature-specific docs linked below.
         min/max child occurrence range checks, required-one/max-one attribute choice checks,
         and
         package-relative path-layout checks, scope-context path type checks,
-        string prefix/suffix/include/exclude constraints, list item-count constraints, path prefix/forbidden-prefix/extension/forbidden-extension/basename/forbidden-basename constraints,
+        string prefix/suffix/include/exclude constraints, list item-count constraints, path prefix/forbidden-prefix/directory-name/forbidden-directory-name/extension/forbidden-extension/basename/forbidden-basename constraints,
         nested choice/case checks, accepted-child allow-lists, forbidden-child
         occurrence checks, child-set cardinality, exact child-count and total/selected/selected-distinct/distinct child-count checks, URI scheme/host/port/authority/path-prefix/forbidden-path-prefix/path-extension/forbidden-path-extension/path-basename/forbidden-path-basename/query/forbidden-query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/forbidden-fragment
         constraints, and media-type essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter constraints; it still needs coverage for additional
