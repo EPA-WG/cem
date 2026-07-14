@@ -51,6 +51,7 @@ history belongs in git history and the feature-specific docs linked below.
       Schema-definition validation now rejects numeric bounds/digit-counts on
       non-numeric attributes and string length/prefix/suffix/pattern params on
       non-string attributes, list item-count params on non-list attributes,
+      inconsistent string/list min/max/exact count envelopes,
       path params on non-path attributes, URI params on non-URI attributes, and
       media-type params on non-media-type attributes.
       Required-one/max-one attribute choice cardinality now executes through
@@ -332,6 +333,7 @@ history belongs in git history and the feature-specific docs linked below.
         plus compatibility checks for numeric bounds/digit counts and string
         length/prefix/suffix/pattern params, plus list item-count, path, URI,
         and media-type params, against their target primitive families, plus
+        string/list min/max/exact count envelope consistency, plus
         selected child occurrence bounds against their required
         `selected-children` selector, plus exact child occurrence bounds
         against their declared min/max envelopes,

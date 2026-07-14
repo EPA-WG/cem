@@ -4,7 +4,7 @@
 
 {schema @name="invalid-datatype-param-length" @namespace="https://example.test/ns/invalid-datatype-param-length/1" @version="1.0.0" |
     {elements |
-        {element @name="resource" @optional-attributes="label code count score rank tags aliases title"}
+        {element @name="resource" @optional-attributes="label code count score rank tags aliases title titleRange shortCode longCode tagRange shortTags longAliases"}
     }
 
     {attributes |
@@ -16,5 +16,11 @@
         {attribute @name="tags" @type="schema:name-list" @minItems=-1}
         {attribute @name="aliases" @type="schema:wildcard-name-list" @itemCount=-1}
         {attribute @name="title" @type="schema:string" @maxItems=2}
+        {attribute @name="titleRange" @type="schema:string" @minLength=5 @maxLength=3}
+        {attribute @name="shortCode" @type="schema:string" @minLength=3 @length=2}
+        {attribute @name="longCode" @type="schema:string" @length=5 @maxLength=4}
+        {attribute @name="tagRange" @type="schema:name-list" @minItems=4 @maxItems=2}
+        {attribute @name="shortTags" @type="schema:name-list" @minItems=3 @itemCount=2}
+        {attribute @name="longAliases" @type="schema:wildcard-name-list" @itemCount=5 @maxItems=4}
     }
 }

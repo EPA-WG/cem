@@ -306,7 +306,8 @@ scope-context path scalar syntax now execute through `schema:scalar-type`,
 whose result contract declares emitted scalar value/type details;
 schema-definition validation also rejects numeric bound/digit-count params on
 non-numeric attributes, string length/prefix/suffix params on non-string attributes,
-and list item-count params on non-list attributes;
+list item-count params on non-list attributes, and inconsistent string/list
+min/max/exact count envelopes;
 required-one/max-one attribute choice cardinality and nested choice/case groups
 now execute through `schema:choice-case`, whose result contract declares the
 flat and grouped choice details emitted by the engine; child-set cardinality,
@@ -343,7 +344,7 @@ CLI validation integration tests.
 | [`invalid-custom-behavior-signature.cem`](examples/invalid-custom-behavior-signature.cem) | Custom behavior function requires a parameter with no input, argument, or default binding. | Fail with `cem.schema_definition.invalid_diagnostic_behavior_contract` |
 | [`invalid-custom-behavior-unsafe-call.cem`](examples/invalid-custom-behavior-unsafe-call.cem) | Custom behavior body attempts a CEMT-style self-call instead of pure declarative result construction. | Fail with `cem.schema_behavior.function_failed` |
 | [`invalid-custom-behavior-contracts.cem`](examples/invalid-custom-behavior-contracts.cem) | Custom behaviors declare unsupported implementations, placements, missing function/result pieces, and incompatible result contracts. | Fail with `cem.schema_definition.invalid_diagnostic_behavior_contract` |
-| [`invalid-datatype-param-length.cem`](examples/invalid-datatype-param-length.cem) | String length/prefix/suffix and list item-count datatype parameter declarations use invalid negative bounds or incompatible primitive types. | Fail with `cem.schema_definition.invalid_datatype_param` |
+| [`invalid-datatype-param-length.cem`](examples/invalid-datatype-param-length.cem) | String length/prefix/suffix and list item-count datatype parameter declarations use invalid negative bounds, incompatible primitive types, or inconsistent min/max/exact count envelopes. | Fail with `cem.schema_definition.invalid_datatype_param` |
 | [`invalid-datatype-param-bound.cem`](examples/invalid-datatype-param-bound.cem) | Numeric bound datatype parameter declarations use incompatible bound values or primitive types. | Fail with `cem.schema_definition.invalid_datatype_param` |
 | [`invalid-datatype-param-pattern.cem`](examples/invalid-datatype-param-pattern.cem) | String datatype parameter declaration uses an invalid regular expression. | Fail with `cem.schema_definition.invalid_datatype_param` |
 | [`invalid-datatype-param-digits.cem`](examples/invalid-datatype-param-digits.cem) | Numeric digit-count datatype parameter declarations use invalid limits or incompatible primitive types. | Fail with `cem.schema_definition.invalid_datatype_param` |

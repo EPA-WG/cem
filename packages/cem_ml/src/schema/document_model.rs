@@ -3880,6 +3880,28 @@ fn validate_attribute_datatype_param_definition(
             ));
         }
     }
+    validate_datatype_exact_count_envelope(
+        schema_uri,
+        attribute_model,
+        "length",
+        attribute_model.length.as_deref(),
+        "minLength",
+        attribute_model.min_length.as_deref(),
+        "maxLength",
+        attribute_model.max_length.as_deref(),
+        diagnostics,
+    );
+    validate_datatype_exact_count_envelope(
+        schema_uri,
+        attribute_model,
+        "itemCount",
+        attribute_model.item_count.as_deref(),
+        "minItems",
+        attribute_model.min_items.as_deref(),
+        "maxItems",
+        attribute_model.max_items.as_deref(),
+        diagnostics,
+    );
     if !attribute_model.path_prefixes.is_empty() {
         let param_value = format_value_set(&attribute_model.path_prefixes);
         validate_datatype_param_value_type(
@@ -5017,6 +5039,113 @@ fn validate_attribute_datatype_param_definition(
                     "error": error,
                 }),
             ));
+        }
+    }
+}
+
+fn validate_datatype_exact_count_envelope(
+    schema_uri: &str,
+    attribute_model: &AttributeModel,
+    exact_name: &str,
+    exact_value: Option<&str>,
+    min_name: &str,
+    min_value: Option<&str>,
+    max_name: &str,
+    max_value: Option<&str>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if let (Some(min_value), Some(max_value)) = (min_value, max_value) {
+        if let (Some(min), Some(max)) = (
+            parse_non_negative_integer_to_usize(min_value),
+            parse_non_negative_integer_to_usize(max_value),
+        ) {
+            if min > max {
+                let error = format!("{min_name} exceeds {max_name}");
+                diagnostics.push(schema_compile_diagnostic(
+                    INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                    format!(
+                        "attribute `{}` declares invalid datatype parameter range in schema `{schema_uri}`: {error}",
+                        attribute_model.name
+                    ),
+                    &attribute_model.source_map,
+                    serde_json::json!({
+                        "schemaUri": schema_uri,
+                        "attribute": &attribute_model.name,
+                        "checkKind": format!("datatype-param:{min_name}"),
+                        "datatypeParam": min_name,
+                        "paramName": min_name,
+                        "paramValue": min_value,
+                        "minParam": min_name,
+                        "minValue": min_value,
+                        "maxParam": max_name,
+                        "maxValue": max_value,
+                        "error": error,
+                    }),
+                ));
+            }
+        }
+    }
+
+    let Some(exact_value) = exact_value else {
+        return;
+    };
+    let Some(exact) = parse_non_negative_integer_to_usize(exact_value) else {
+        return;
+    };
+    if let Some(min_value) = min_value {
+        if let Some(min) = parse_non_negative_integer_to_usize(min_value) {
+            if exact < min {
+                let error = format!("{exact_name} is below {min_name}");
+                diagnostics.push(schema_compile_diagnostic(
+                    INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                    format!(
+                        "attribute `{}` declares invalid datatype parameter range in schema `{schema_uri}`: {error}",
+                        attribute_model.name
+                    ),
+                    &attribute_model.source_map,
+                    serde_json::json!({
+                        "schemaUri": schema_uri,
+                        "attribute": &attribute_model.name,
+                        "checkKind": format!("datatype-param:{exact_name}"),
+                        "datatypeParam": exact_name,
+                        "paramName": exact_name,
+                        "paramValue": exact_value,
+                        "exactParam": exact_name,
+                        "exactValue": exact_value,
+                        "minParam": min_name,
+                        "minValue": min_value,
+                        "error": error,
+                    }),
+                ));
+            }
+        }
+    }
+    if let Some(max_value) = max_value {
+        if let Some(max) = parse_non_negative_integer_to_usize(max_value) {
+            if exact > max {
+                let error = format!("{exact_name} exceeds {max_name}");
+                diagnostics.push(schema_compile_diagnostic(
+                    INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                    format!(
+                        "attribute `{}` declares invalid datatype parameter range in schema `{schema_uri}`: {error}",
+                        attribute_model.name
+                    ),
+                    &attribute_model.source_map,
+                    serde_json::json!({
+                        "schemaUri": schema_uri,
+                        "attribute": &attribute_model.name,
+                        "checkKind": format!("datatype-param:{exact_name}"),
+                        "datatypeParam": exact_name,
+                        "paramName": exact_name,
+                        "paramValue": exact_value,
+                        "exactParam": exact_name,
+                        "exactValue": exact_value,
+                        "maxParam": max_name,
+                        "maxValue": max_value,
+                        "error": error,
+                    }),
+                ));
+            }
         }
     }
 }
@@ -22785,6 +22914,142 @@ mod tests {
         );
         assert_eq!(details["datatypeParam"], serde_json::json!("length"));
         assert_eq!(details["paramValue"], serde_json::json!("-1"));
+    }
+
+    #[test]
+    fn schema_count_datatype_params_reject_invalid_envelopes() {
+        let model = compile_document_model(
+            "https://example.test/ns/invalid-count-envelope-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-count-envelope-contracts" @namespace="https://example.test/ns/invalid-count-envelope-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="label code title tags aliases names"}
+    }
+    {attributes |
+        {attribute @name="label" @type="schema:string" @minLength=5 @maxLength=3}
+        {attribute @name="code" @type="schema:string" @minLength=3 @length=2}
+        {attribute @name="title" @type="schema:string" @length=5 @maxLength=4}
+        {attribute @name="tags" @type="schema:name-list" @minItems=4 @maxItems=2}
+        {attribute @name="aliases" @type="schema:wildcard-name-list" @minItems=3 @itemCount=2}
+        {attribute @name="names" @type="schema:name-list" @itemCount=5 @maxItems=4}
+    }
+}"#,
+        );
+
+        for (
+            attribute,
+            param_name,
+            param_value,
+            message,
+            lower_key,
+            lower_value,
+            upper_key,
+            upper_value,
+        ) in [
+            (
+                "label",
+                "minLength",
+                "5",
+                "minLength exceeds maxLength",
+                "minValue",
+                "5",
+                "maxValue",
+                "3",
+            ),
+            (
+                "code",
+                "length",
+                "2",
+                "length is below minLength",
+                "exactValue",
+                "2",
+                "minValue",
+                "3",
+            ),
+            (
+                "title",
+                "length",
+                "5",
+                "length exceeds maxLength",
+                "exactValue",
+                "5",
+                "maxValue",
+                "4",
+            ),
+            (
+                "tags",
+                "minItems",
+                "4",
+                "minItems exceeds maxItems",
+                "minValue",
+                "4",
+                "maxValue",
+                "2",
+            ),
+            (
+                "aliases",
+                "itemCount",
+                "2",
+                "itemCount is below minItems",
+                "exactValue",
+                "2",
+                "minValue",
+                "3",
+            ),
+            (
+                "names",
+                "itemCount",
+                "5",
+                "itemCount exceeds maxItems",
+                "exactValue",
+                "5",
+                "maxValue",
+                "4",
+            ),
+        ] {
+            let diagnostic = model
+                .compile_diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                        && diagnostic.details.as_ref().is_some_and(|details| {
+                            details.get("attribute").and_then(serde_json::Value::as_str)
+                                == Some(attribute)
+                                && details
+                                    .get("datatypeParam")
+                                    .and_then(serde_json::Value::as_str)
+                                    == Some(param_name)
+                        })
+                })
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing invalid {param_name} envelope diagnostic for attribute {attribute}: {:#?}",
+                        model.compile_diagnostics
+                    )
+                });
+            assert!(diagnostic.message.contains(message));
+            let details = diagnostic
+                .details
+                .as_ref()
+                .expect("invalid count envelope compile details");
+            assert_eq!(
+                details["schemaUri"],
+                serde_json::json!("https://example.test/ns/invalid-count-envelope-contracts/1")
+            );
+            assert_eq!(details["attribute"], serde_json::json!(attribute));
+            assert_eq!(
+                details["checkKind"],
+                serde_json::json!(format!("datatype-param:{param_name}"))
+            );
+            assert_eq!(details["datatypeParam"], serde_json::json!(param_name));
+            assert_eq!(details["paramValue"], serde_json::json!(param_value));
+            assert_eq!(details[lower_key], serde_json::json!(lower_value));
+            assert_eq!(details[upper_key], serde_json::json!(upper_value));
+            assert_eq!(details["error"], serde_json::json!(message));
+        }
     }
 
     #[test]
