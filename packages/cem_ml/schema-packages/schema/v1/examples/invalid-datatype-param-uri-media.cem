@@ -26,6 +26,7 @@
         {attribute @name="queryPresenceConflict" @type="schema:uri" @uriQueryForbiddenParameters="debug" @uriQueryRequiredParameters="debug"}
         {attribute @name="queryValueConflict" @type="schema:uri" @uriQueryForbiddenParameters="debug" @uriQueryParameterValues="debug=true"}
         {attribute @name="anchor" @type="schema:uri" @uriFragments="overview #bad"}
+        {attribute @name="anchorBlocked" @type="schema:uri" @uriFragments="overview debug" @uriForbiddenFragments="debug #bad"}
         {attribute @name="format" @type="schema:media-type" @mediaTypes="text/html text"}
         {attribute @name="typed" @type="schema:media-type" @mediaTypeTypes="application bad/type"}
         {attribute @name="subtyped" @type="schema:media-type" @mediaTypeSubtypes="json bad/subtype"}
@@ -51,6 +52,7 @@
         {attribute @name="queryForbiddenLabel" @type="schema:string" @uriQueryForbiddenParameters="debug"}
         {attribute @name="queryRequiredLabel" @type="schema:string" @uriQueryRequiredParameters="view"}
         {attribute @name="anchorLabel" @type="schema:string" @uriFragments="overview"}
+        {attribute @name="anchorBlockedLabel" @type="schema:string" @uriForbiddenFragments="debug"}
         {attribute @name="caption" @type="schema:string" @pathPrefixes="./templates/"}
         {attribute @name="summary" @type="schema:string" @pathExtensions="cem"}
         {attribute @name="basenameLabel" @type="schema:string" @pathBasenames="card.cem"}

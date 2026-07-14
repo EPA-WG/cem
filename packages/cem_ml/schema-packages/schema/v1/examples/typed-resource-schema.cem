@@ -118,6 +118,7 @@
             @uriQueryForbiddenParameters="debug"
             @uriQueryRequiredParameters="view"
             @uriFragments="resource asset"
+            @uriForbiddenFragments="debug trace"
             @datatype-param-diagnostic="example.resource.invalid_href_scheme"
         }
         {attribute

@@ -18,7 +18,7 @@
 //!   string `minLength`/`maxLength`/`length`/prefix/suffix/include/exclude, list
 //!   `itemCount`/`minItems`/`maxItems`, regex `pattern`, `whiteSpace`
 //!   normalization, path prefix/extension/basename, URI scheme/host/port/path/query/
-//!   query-parameter/fragment, and media-type essence/type/subtype/suffix/
+//!   query-parameter/fragment/forbidden-fragment, and media-type essence/type/subtype/suffix/
 //!   parameter name/value datatype-param checks.
 //! - schema-owned exact, ranged, selected/selected-distinct count,
 //!   required/forbidden ordered, required/forbidden boundary,
@@ -219,6 +219,7 @@ pub struct AttributeModel {
     pub uri_query_forbidden_parameters: BTreeSet<String>,
     pub uri_query_required_parameters: BTreeSet<String>,
     pub uri_fragments: BTreeSet<String>,
+    pub uri_forbidden_fragments: BTreeSet<String>,
     pub media_types: BTreeSet<String>,
     pub media_type_types: BTreeSet<String>,
     pub media_type_subtypes: BTreeSet<String>,
@@ -2542,6 +2543,30 @@ fn validate_attribute_datatype_params(
             diagnostics,
         );
     }
+    if !attribute_model.uri_forbidden_fragments.is_empty()
+        && attribute_model
+            .value_type
+            .as_deref()
+            .is_some_and(is_uri_type_reference)
+        && uri_fragment(value)
+            .is_some_and(|fragment| attribute_model.uri_forbidden_fragments.contains(fragment))
+    {
+        let param_value = format_value_set(&attribute_model.uri_forbidden_fragments);
+        emit_attribute_datatype_param_diagnostic(
+            schema_uri,
+            diagnostic_behaviors,
+            element_name,
+            attribute_name,
+            value,
+            attribute_model,
+            "uriForbiddenFragments",
+            &param_value,
+            "with forbidden",
+            attribute_values,
+            node,
+            diagnostics,
+        );
+    }
     if !attribute_model.media_types.is_empty()
         && attribute_model
             .value_type
@@ -3558,6 +3583,7 @@ fn collect_attribute_models(
                         attrs.get("uriQueryRequiredParameters"),
                     ),
                     uri_fragments: parse_value_set(attrs.get("uriFragments")),
+                    uri_forbidden_fragments: parse_value_set(attrs.get("uriForbiddenFragments")),
                     media_types: parse_ascii_lower_value_set(attrs.get("mediaTypes")),
                     media_type_types: parse_ascii_lower_value_set(attrs.get("mediaTypeTypes")),
                     media_type_subtypes: parse_ascii_lower_value_set(
@@ -4811,6 +4837,56 @@ fn validate_attribute_datatype_param_definition(
             ));
         }
     }
+    if !attribute_model.uri_forbidden_fragments.is_empty() {
+        let value_type = attribute_model.value_type.as_deref();
+        if !value_type.is_some_and(is_uri_type_reference) {
+            let param_value = format_value_set(&attribute_model.uri_forbidden_fragments);
+            let error = "expected schema:uri or cemml:uri value type for uriForbiddenFragments";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriForbiddenFragments datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriForbiddenFragments",
+                    "datatypeParam": "uriForbiddenFragments",
+                    "paramName": "uriForbiddenFragments",
+                    "paramValue": param_value,
+                    "valueType": value_type.unwrap_or_default(),
+                    "expectedType": "schema:uri",
+                    "error": error,
+                }),
+            ));
+        }
+        for fragment in &attribute_model.uri_forbidden_fragments {
+            if is_uri_fragment_token(fragment) {
+                continue;
+            }
+            let error = "expected URI fragment token without leading `#`";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriForbiddenFragments datatype parameter `{fragment}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriForbiddenFragments",
+                    "datatypeParam": "uriForbiddenFragments",
+                    "paramName": "uriForbiddenFragments",
+                    "paramValue": fragment,
+                    "expectedPattern": "URI fragment",
+                    "error": error,
+                }),
+            ));
+        }
+    }
     if !attribute_model.media_types.is_empty() {
         let value_type = attribute_model.value_type.as_deref();
         if !value_type.is_some_and(is_media_type_reference) {
@@ -5283,6 +5359,51 @@ fn validate_attribute_datatype_param_definition(
         is_media_type_token,
         diagnostics,
     );
+    validate_uri_fragment_allow_forbid_consistency(schema_uri, attribute_model, diagnostics);
+}
+
+fn validate_uri_fragment_allow_forbid_consistency(
+    schema_uri: &str,
+    attribute_model: &AttributeModel,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let conflicting_fragments = attribute_model
+        .uri_forbidden_fragments
+        .iter()
+        .filter(|fragment| {
+            is_uri_fragment_token(fragment) && attribute_model.uri_fragments.contains(*fragment)
+        })
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    if conflicting_fragments.is_empty() {
+        return;
+    }
+    let param_value = format_value_set(&conflicting_fragments);
+    let error = "fragments cannot be both allowed and forbidden";
+    diagnostics.push(schema_compile_diagnostic(
+        INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+        format!(
+            "attribute `{}` declares invalid uriForbiddenFragments datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+            attribute_model.name
+        ),
+        &attribute_model.source_map,
+        serde_json::json!({
+            "schemaUri": schema_uri,
+            "attribute": &attribute_model.name,
+            "checkKind": "datatype-param:uriForbiddenFragments",
+            "datatypeParam": "uriForbiddenFragments",
+            "paramName": "uriForbiddenFragments",
+            "paramValue": param_value,
+            "allowedParam": "uriFragments",
+            "forbiddenParam": "uriForbiddenFragments",
+            "conflictingParameters": conflicting_fragments
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>(),
+            "expectedPattern": "URI fragment",
+            "error": error,
+        }),
+    ));
 }
 
 fn validate_datatype_parameter_presence_consistency(
@@ -10115,6 +10236,7 @@ fn attribute_datatype_param_details(
         "uriQueryForbiddenParameters" => "URI query parameter name",
         "uriQueryRequiredParameters" => "URI query parameter name",
         "uriFragments" => "URI fragment",
+        "uriForbiddenFragments" => "URI fragment",
         "mediaTypes" => "media type essence",
         "mediaTypeTypes" => "media type type",
         "mediaTypeSubtypes" => "media type subtype",
@@ -10568,6 +10690,31 @@ fn attribute_datatype_param_details(
                 object.insert(
                     "actualUriFragment".to_owned(),
                     serde_json::json!(actual_fragment),
+                );
+            }
+        }
+        if param_name == "uriForbiddenFragments" {
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .uri_forbidden_fragments
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            if let Some(actual_fragment) = uri_fragment(actual_value) {
+                object.insert(
+                    "actualUriFragment".to_owned(),
+                    serde_json::json!(actual_fragment),
+                );
+                let forbidden_fragments = attribute_model
+                    .uri_forbidden_fragments
+                    .contains(actual_fragment)
+                    .then(|| vec![actual_fragment.to_owned()])
+                    .unwrap_or_default();
+                object.insert(
+                    "forbiddenUriFragments".to_owned(),
+                    serde_json::json!(forbidden_fragments),
                 );
             }
         }
@@ -11580,6 +11727,7 @@ mod tests {
             "uriQueryParameterValues",
             "uriQueryForbiddenParameters",
             "uriQueryRequiredParameters",
+            "uriForbiddenFragments",
         ] {
             assert_eq!(
                 model
@@ -12422,6 +12570,7 @@ mod tests {
             ("forbiddenUriQueryParameters", "schema:array"),
             ("missingUriQueryParameters", "schema:array"),
             ("actualUriFragment", "schema:string"),
+            ("forbiddenUriFragments", "schema:array"),
             ("actualMediaTypeEssence", "schema:media-type"),
             ("actualMediaTypeType", "schema:string"),
             ("actualMediaTypeSubtype", "schema:string"),
@@ -21863,6 +22012,208 @@ mod tests {
         assert_eq!(
             details["expectedPattern"],
             serde_json::json!("URI fragment")
+        );
+    }
+
+    #[test]
+    fn schema_uri_forbidden_fragment_datatype_param_drives_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/uri-forbidden-fragment-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="uri-forbidden-fragment-contracts" @namespace="https://example.test/ns/uri-forbidden-fragment-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="href"}
+    }
+    {attributes |
+        {attribute @name="href" @type="schema:uri" @uriForbiddenFragments="debug trace"}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "valid URI forbidden fragment schema must compile: {:#?}",
+            model.compile_diagnostics
+        );
+
+        for source in [
+            r#"{item @href="https://example.test/docs#overview"}"#,
+            r#"{item @href="https://example.test/docs"}"#,
+            r#"{item @href="https://example.test/docs#"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "valid URI fragment source produced datatype-param diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{item @href="https://example.test/docs#debug"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("URI forbidden fragment datatype-param diagnostic");
+        assert!(diagnostic.message.contains("href"));
+        assert!(diagnostic.message.contains("uriForbiddenFragments"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("URI forbidden fragment datatype-param details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/uri-forbidden-fragment-contracts/1")
+        );
+        assert_eq!(details["element"], serde_json::json!("item"));
+        assert_eq!(details["attribute"], serde_json::json!("href"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:href:uriForbiddenFragments")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriForbiddenFragments")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("uriForbiddenFragments")
+        );
+        assert_eq!(
+            details["uriForbiddenFragments"],
+            serde_json::json!("debug trace")
+        );
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("URI fragment")
+        );
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["debug", "trace"])
+        );
+        assert_eq!(details["actualUriFragment"], serde_json::json!("debug"));
+        assert_eq!(
+            details["forbiddenUriFragments"],
+            serde_json::json!(["debug"])
+        );
+        assert_eq!(
+            details["actualValue"],
+            serde_json::json!("https://example.test/docs#debug")
+        );
+        assert_eq!(details["invalidFields"], serde_json::json!(["href"]));
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
+    fn schema_uri_forbidden_fragment_datatype_param_rejects_invalid_declarations() {
+        let model = compile_document_model(
+            "https://example.test/ns/invalid-uri-forbidden-fragment-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-uri-forbidden-fragment-contracts" @namespace="https://example.test/ns/invalid-uri-forbidden-fragment-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="href label"}
+    }
+    {attributes |
+        {attribute @name="href" @type="schema:uri" @uriFragments="overview debug" @uriForbiddenFragments="debug #bad"}
+        {attribute @name="label" @type="schema:string" @uriForbiddenFragments="debug"}
+    }
+}"#,
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().is_some_and(|details| {
+                        details.get("attribute").and_then(serde_json::Value::as_str)
+                            == Some("label")
+                    })
+            })
+            .expect("invalid uriForbiddenFragments type compile diagnostic");
+        assert!(diagnostic.message.contains("uriForbiddenFragments"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid uriForbiddenFragments type compile details");
+        assert_eq!(details["attribute"], serde_json::json!("label"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriForbiddenFragments")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("uriForbiddenFragments")
+        );
+        assert_eq!(details["expectedType"], serde_json::json!("schema:uri"));
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().is_some_and(|details| {
+                        details.get("attribute").and_then(serde_json::Value::as_str) == Some("href")
+                            && details
+                                .get("paramValue")
+                                .and_then(serde_json::Value::as_str)
+                                == Some("#bad")
+                    })
+            })
+            .expect("invalid uriForbiddenFragments token compile diagnostic");
+        assert!(diagnostic.message.contains("invalid uriForbiddenFragments"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid uriForbiddenFragments token compile details");
+        assert_eq!(details["attribute"], serde_json::json!("href"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriForbiddenFragments")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("uriForbiddenFragments")
+        );
+        assert_eq!(details["paramValue"], serde_json::json!("#bad"));
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("URI fragment")
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().is_some_and(|details| {
+                        details.get("attribute").and_then(serde_json::Value::as_str) == Some("href")
+                            && details
+                                .get("conflictingParameters")
+                                .is_some_and(|conflicts| conflicts == &serde_json::json!(["debug"]))
+                    })
+            })
+            .expect("conflicting uriForbiddenFragments compile diagnostic");
+        assert!(diagnostic.message.contains("uriForbiddenFragments"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("conflicting uriForbiddenFragments compile details");
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriForbiddenFragments")
+        );
+        assert_eq!(details["allowedParam"], serde_json::json!("uriFragments"));
+        assert_eq!(
+            details["forbiddenParam"],
+            serde_json::json!("uriForbiddenFragments")
         );
     }
 
