@@ -3268,6 +3268,8 @@ fn schema_runtime_path_layout_emits_structured_details() {
             @path-layout-directory-names="assets public"
             @path-layout-forbidden-directory-names="private"
             @path-layout-extension="cemt"
+            @path-layout-basenames="demo.cemt"
+            @path-layout-forbidden-basenames="secret.cemt"
             @diagnostic="example.link.path_layout"
             @behavior="schema:path-layout"
             @check-kind="path-layout"
@@ -3377,6 +3379,8 @@ fn schema_runtime_path_layout_emits_structured_details() {
             "directoryNames": ["assets", "public"],
             "forbiddenDirectoryNames": ["private"],
             "extension": "cemt",
+            "basenames": ["demo.cemt"],
+            "forbiddenBasenames": ["secret.cemt"],
             "relative": true,
             "cleanSegments": true,
         })

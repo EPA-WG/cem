@@ -65,7 +65,7 @@ history belongs in git history and the feature-specific docs linked below.
       inconsistent string/list min/max/exact count envelopes,
       inconsistent string allowed/forbidden prefix/suffix declarations,
       inconsistent path allowed/forbidden directory-name declarations,
-      invalid or inconsistent path-layout directory-name declarations,
+      invalid or inconsistent path-layout directory-name and basename declarations,
       inconsistent URI/media-type required/forbidden parameter declarations,
       path params on non-path attributes, URI params on non-URI attributes, and
       media-type params on non-media-type attributes.
@@ -84,7 +84,7 @@ history belongs in git history and the feature-specific docs linked below.
       present and all declared `when-absent-attributes` are absent. The
       `schema:path-layout` behavior contract now declares its
       `pathLayout` and `invalidValues` result details, and path-layout
-      contracts now support directory allow/forbid lists. Combined
+      contracts now support directory and basename allow/forbid lists. Combined
       value, presence, and child-structure-gated required/forbidden dependent
       field groups now execute through `schema:field-dependency`, and
       dependency result contracts declare their required/missing/forbidden/
@@ -161,7 +161,7 @@ history belongs in git history and the feature-specific docs linked below.
         forbidden-value dependencies now also execute through
         `schema:field-dependency`. The `schema:path-layout` result contract now
         exposes the emitted path layout and invalid-value details, including
-        directory allow/forbid layout constraints, and the
+        directory and basename allow/forbid layout constraints, and the
         `schema:choice-case` result contract now exposes emitted flat/grouped
         choice details. Required, forbidden, and mutual-exclusion field result
         contracts now expose their emitted field/value details, and the
@@ -338,7 +338,8 @@ history belongs in git history and the feature-specific docs linked below.
         value-specific forbidden fields, exact-one child occurrence contracts,
         required-one/max-one attribute choice cardinality, nested choice/case
         groups, package-relative path-layout contracts with prefix, directory
-        allow/forbid, and extension constraints, diagnostic families,
+        allow/forbid, extension, and basename allow/forbid constraints,
+        diagnostic families,
         attribute default metadata, validation, and validation-time
         materialization, and attribute `@values` vocabularies, plus
         boolean/integer/number/identifier/name-list/type-reference/
@@ -427,7 +428,7 @@ history belongs in git history and the feature-specific docs linked below.
         still needs reusable string constraints beyond length/prefix/suffix/forbidden-prefix/forbidden-suffix/include/exclude/pattern and path constraints beyond
         prefix/forbidden-prefix/directory-name/forbidden-directory-name/extension/forbidden-extension/basename/
         forbidden-basename and path-layout checks beyond prefix/directory-name/
-        forbidden-directory-name/extension,
+        forbidden-directory-name/extension/basename/forbidden-basename,
         URI/media-type constraints beyond scheme/host/port/authority/path-prefix/forbidden-path-prefix/path-extension/forbidden-path-extension/path-basename/forbidden-path-basename/query/forbidden-query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/forbidden-fragment
         and media-type essence/type/subtype/structured-suffix/forbidden-type/forbidden-subtype/forbidden-structured-suffix/parameter-name/value/forbidden-parameter/required-parameter lists,
         RELAX NG-style datatype params beyond numeric bounds/digit counts,
@@ -484,7 +485,7 @@ history belongs in git history and the feature-specific docs linked below.
         invalidSuffixChildSequence, and childCounts details;
         required-one/max-one attribute choice checks emit choice cardinality
         details; path-layout checks emit pathLayout and invalidValues details,
-        including directory allow/forbid layout constraints;
+        including directory and basename allow/forbid layout constraints;
         path type checks emit expected/actual details; string prefix/suffix/
         include/exclude datatype-param checks emit expected values, actual
         string details, and forbidden substring details;
@@ -527,7 +528,7 @@ history belongs in git history and the feature-specific docs linked below.
         datatype-param checks, exact-one, child-choice, exact-count, total-count, selected-count, selected-distinct-count, distinct-count, and
         min/max child occurrence range checks, required-one/max-one attribute choice checks,
         and
-        package-relative path-layout checks with directory allow/forbid
+        package-relative path-layout checks with directory and basename allow/forbid
         constraints, scope-context path type checks,
         string prefix/suffix/include/exclude constraints, list item-count constraints, path prefix/forbidden-prefix/directory-name/forbidden-directory-name/extension/forbidden-extension/basename/forbidden-basename constraints,
         nested choice/case checks, accepted-child allow-lists, forbidden-child

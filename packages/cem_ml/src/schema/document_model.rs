@@ -448,6 +448,8 @@ pub struct FieldContract {
     pub path_layout_directory_names: BTreeSet<String>,
     pub path_layout_forbidden_directory_names: BTreeSet<String>,
     pub path_layout_extension: Option<String>,
+    pub path_layout_basenames: BTreeSet<String>,
+    pub path_layout_forbidden_basenames: BTreeSet<String>,
     pub when_attribute: Option<String>,
     pub when_values: BTreeSet<String>,
     pub when_present_attributes: BTreeSet<String>,
@@ -7092,6 +7094,65 @@ fn validate_path_layout_field_contract(
             }),
         ));
     }
+
+    for (param_name, basenames) in [
+        ("path-layout-basenames", &contract.path_layout_basenames),
+        (
+            "path-layout-forbidden-basenames",
+            &contract.path_layout_forbidden_basenames,
+        ),
+    ] {
+        for basename in basenames {
+            if is_path_basename_token(basename) {
+                continue;
+            }
+            let error = "expected path basename token without path separators";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_FIELD_CONTRACT_CODE,
+                format!(
+                    "field contract `{}` declares invalid {param_name} `{basename}` in schema `{schema_uri}`: {error}",
+                    contract.name
+                ),
+                &contract.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "contract": &contract.name,
+                    "checkKind": "field-contract-path-layout",
+                    "layoutParam": param_name,
+                    "paramName": param_name,
+                    "paramValue": basename,
+                    "expectedPattern": "path basename token",
+                    "error": error,
+                }),
+            ));
+        }
+    }
+
+    let conflicting_basenames = set_intersection(
+        &contract.path_layout_basenames,
+        &contract.path_layout_forbidden_basenames,
+    );
+    if !conflicting_basenames.is_empty() {
+        let error = "path layout basenames cannot be both allowed and forbidden";
+        diagnostics.push(schema_compile_diagnostic(
+            INVALID_SCHEMA_FIELD_CONTRACT_CODE,
+            format!(
+                "field contract `{}` declares inconsistent path layout basenames in schema `{schema_uri}`: {error}",
+                contract.name
+            ),
+            &contract.source_map,
+            serde_json::json!({
+                "schemaUri": schema_uri,
+                "contract": &contract.name,
+                "checkKind": "field-contract-path-layout",
+                "conflict": "path-layout-basenames/path-layout-forbidden-basenames",
+                "allowedParam": "path-layout-basenames",
+                "forbiddenParam": "path-layout-forbidden-basenames",
+                "conflictingBasenames": conflicting_basenames,
+                "error": error,
+            }),
+        ));
+    }
 }
 
 fn validate_condition_selector_field_contract(
@@ -9797,6 +9858,10 @@ fn collect_field_contracts(
                 ),
                 path_layout_extension: optional_non_empty_attr(&attrs, "path-layout-extension")
                     .map(str::to_owned),
+                path_layout_basenames: parse_value_set(attrs.get("path-layout-basenames")),
+                path_layout_forbidden_basenames: parse_value_set(
+                    attrs.get("path-layout-forbidden-basenames"),
+                ),
                 when_attribute: optional_non_empty_attr(&attrs, "when-attribute")
                     .map(str::to_owned),
                 when_values: parse_name_set(attrs.get("when-values")),
@@ -11130,6 +11195,8 @@ fn field_contract_details(
             "directoryNames": &contract.path_layout_directory_names,
             "forbiddenDirectoryNames": &contract.path_layout_forbidden_directory_names,
             "extension": &contract.path_layout_extension,
+            "basenames": &contract.path_layout_basenames,
+            "forbiddenBasenames": &contract.path_layout_forbidden_basenames,
             "relative": true,
             "cleanSegments": true,
         }),
@@ -12874,6 +12941,18 @@ fn path_layout_is_valid(path: &str, contract: &FieldContract) -> bool {
         if parsed.extension().and_then(|ext| ext.to_str()) != Some(extension) {
             return false;
         }
+    }
+    if !contract.path_layout_basenames.is_empty()
+        && !path_basename(path)
+            .is_some_and(|basename| contract.path_layout_basenames.contains(&basename))
+    {
+        return false;
+    }
+    if !contract.path_layout_forbidden_basenames.is_empty()
+        && path_basename(path)
+            .is_some_and(|basename| contract.path_layout_forbidden_basenames.contains(&basename))
+    {
+        return false;
     }
 
     let mut components = parsed.components();
@@ -15295,6 +15374,8 @@ mod tests {
             @path-layout-directory-names="assets public"
             @path-layout-forbidden-directory-names="private"
             @path-layout-extension="cemt"
+            @path-layout-basenames="demo.cemt"
+            @path-layout-forbidden-basenames="secret.cemt"
             @diagnostic="example.item_check"
             @check-kind="path-layout"
         }
@@ -16925,6 +17006,8 @@ mod tests {
                 "directoryNames": ["assets", "public"],
                 "forbiddenDirectoryNames": ["private"],
                 "extension": "cemt",
+                "basenames": ["demo.cemt"],
+                "forbiddenBasenames": ["secret.cemt"],
                 "relative": true,
                 "cleanSegments": true,
             })
@@ -16952,10 +17035,33 @@ mod tests {
                 "path": "assets/private/demo.cemt",
             })
         );
+
+        let document = parse_cem_document(r#"{asset @path="assets/secret.cemt"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == "example.item_check"
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("contract").and_then(serde_json::Value::as_str)
+                    }) == Some("asset-path-layout")
+            })
+            .expect("path-layout forbidden basename diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("path-layout forbidden basename details");
+        assert_eq!(details["invalidFields"], serde_json::json!(["path"]));
+        assert_eq!(
+            details["invalidValues"],
+            serde_json::json!({
+                "path": "assets/secret.cemt",
+            })
+        );
     }
 
     #[test]
-    fn schema_path_layout_directory_names_reject_invalid_declarations() {
+    fn schema_path_layout_token_lists_reject_invalid_declarations() {
         let model = compile_document_model(
             "https://example.test/ns/invalid-path-layout-contracts/1",
             r#"@doc cem-ml 1
@@ -16989,18 +17095,49 @@ mod tests {
             @path-layout-directory-names="assets private"
             @path-layout-forbidden-directory-names="private"
         }
+        {field-contract
+            @name="bad-path-layout-basename-token"
+            @target="asset"
+            @path-layout-attributes="path"
+            @path-layout-basenames="demo.cemt bad/name"
+        }
+        {field-contract
+            @name="bad-path-layout-forbidden-basename-token"
+            @target="asset"
+            @path-layout-attributes="path"
+            @path-layout-forbidden-basenames="secret.cemt bad/name"
+        }
+        {field-contract
+            @name="conflicting-path-layout-basename"
+            @target="asset"
+            @path-layout-attributes="path"
+            @path-layout-basenames="demo.cemt secret.cemt"
+            @path-layout-forbidden-basenames="secret.cemt"
+        }
     }
 }"#,
         );
 
-        for (contract, layout_param) in [
+        for (contract, layout_param, expected_pattern) in [
             (
                 "bad-path-layout-directory-token",
                 "path-layout-directory-names",
+                "path directory name token",
             ),
             (
                 "bad-path-layout-forbidden-directory-token",
                 "path-layout-forbidden-directory-names",
+                "path directory name token",
+            ),
+            (
+                "bad-path-layout-basename-token",
+                "path-layout-basenames",
+                "path basename token",
+            ),
+            (
+                "bad-path-layout-forbidden-basename-token",
+                "path-layout-forbidden-basenames",
+                "path basename token",
             ),
         ] {
             let diagnostic = model
@@ -17036,38 +17173,58 @@ mod tests {
             assert_eq!(details["paramValue"], serde_json::json!("bad/name"));
             assert_eq!(
                 details["expectedPattern"],
-                serde_json::json!("path directory name token")
+                serde_json::json!(expected_pattern)
             );
         }
 
-        let diagnostic = model
-            .compile_diagnostics
-            .iter()
-            .find(|diagnostic| {
-                diagnostic.code == INVALID_SCHEMA_FIELD_CONTRACT_CODE
-                    && diagnostic.details.as_ref().is_some_and(|details| {
-                        details.get("contract").and_then(serde_json::Value::as_str)
-                            == Some("conflicting-path-layout-directory")
-                            && details.get("conflict").and_then(serde_json::Value::as_str)
-                                == Some(
-                                    "path-layout-directory-names/path-layout-forbidden-directory-names",
-                                )
-                    })
-            })
-            .expect("conflicting path-layout directory compile diagnostic");
-        assert!(diagnostic.message.contains("both allowed and forbidden"));
-        let details = diagnostic
-            .details
-            .as_ref()
-            .expect("conflicting path-layout directory compile details");
-        assert_eq!(
-            details["checkKind"],
-            serde_json::json!("field-contract-path-layout")
-        );
-        assert_eq!(
-            details["conflictingDirectoryNames"],
-            serde_json::json!(["private"])
-        );
+        for (contract, conflict, conflict_detail, conflict_values) in [
+            (
+                "conflicting-path-layout-directory",
+                "path-layout-directory-names/path-layout-forbidden-directory-names",
+                "conflictingDirectoryNames",
+                serde_json::json!(["private"]),
+            ),
+            (
+                "conflicting-path-layout-basename",
+                "path-layout-basenames/path-layout-forbidden-basenames",
+                "conflictingBasenames",
+                serde_json::json!(["secret.cemt"]),
+            ),
+        ] {
+            let diagnostic = model
+                .compile_diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.code == INVALID_SCHEMA_FIELD_CONTRACT_CODE
+                        && diagnostic.details.as_ref().is_some_and(|details| {
+                            details.get("contract").and_then(serde_json::Value::as_str)
+                                == Some(contract)
+                                && details.get("conflict").and_then(serde_json::Value::as_str)
+                                    == Some(conflict)
+                        })
+                })
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing conflicting path-layout diagnostic for {contract}: {:#?}",
+                        model.compile_diagnostics
+                    )
+                });
+            assert!(diagnostic.message.contains("both allowed and forbidden"));
+            let details = diagnostic
+                .details
+                .as_ref()
+                .expect("conflicting path-layout compile details");
+            assert_eq!(
+                details["checkKind"],
+                serde_json::json!("field-contract-path-layout")
+            );
+            assert_eq!(
+                details
+                    .get(conflict_detail)
+                    .unwrap_or_else(|| panic!("missing {conflict_detail} detail")),
+                &conflict_values
+            );
+        }
     }
 
     #[test]

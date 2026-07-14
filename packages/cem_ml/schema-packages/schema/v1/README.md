@@ -127,8 +127,9 @@ Use `forbidden-prefix-child-sequence` and
 contain a run elsewhere, but must not start or end with that run.
 Use `path-layout-attributes` with `path-layout-prefix`,
 `path-layout-directory-names`, `path-layout-forbidden-directory-names`, and
-`path-layout-extension` for package-relative path layout contracts, such as
-formatter artifacts under `formatters/` and colorizer artifacts under
+`path-layout-extension`, plus `path-layout-basenames` and
+`path-layout-forbidden-basenames`, for package-relative path layout contracts,
+such as formatter artifacts under `formatters/` and colorizer artifacts under
 `colorizers/`.
 
 ## Declarative Behavior Registry
