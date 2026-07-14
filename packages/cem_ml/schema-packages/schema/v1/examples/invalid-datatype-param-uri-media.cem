@@ -9,6 +9,7 @@
 
     {attributes |
         {attribute @name="template" @type="schema:path" @pathPrefixes="/absolute ./../bad"}
+        {attribute @name="blockedTemplate" @type="schema:path" @pathForbiddenPrefixes="/private ./../secret"}
         {attribute @name="script" @type="schema:path" @pathExtensions="cem .cem"}
         {attribute @name="image" @type="schema:path" @pathBasenames="card.cem bad/name"}
         {attribute @name="href" @type="schema:uri" @uriSchemes="https 1bad"}
@@ -56,6 +57,7 @@
         {attribute @name="anchorLabel" @type="schema:string" @uriFragments="overview"}
         {attribute @name="anchorBlockedLabel" @type="schema:string" @uriForbiddenFragments="debug"}
         {attribute @name="caption" @type="schema:string" @pathPrefixes="./templates/"}
+        {attribute @name="blockedCaption" @type="schema:string" @pathForbiddenPrefixes="./private/"}
         {attribute @name="summary" @type="schema:string" @pathExtensions="cem"}
         {attribute @name="basenameLabel" @type="schema:string" @pathBasenames="card.cem"}
     }

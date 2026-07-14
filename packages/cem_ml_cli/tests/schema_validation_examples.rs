@@ -5000,6 +5000,22 @@ fn schema_datatype_param_examples_emit_structured_definition_details() {
                 SchemaDefinitionDetailExpectation {
                     code: "cem.schema_definition.invalid_datatype_param",
                     severity: "error",
+                    check_kind: "datatype-param:pathForbiddenPrefixes",
+                    attribute: "blockedTemplate",
+                    datatype_param: "pathForbiddenPrefixes",
+                    param_value: "/private",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
+                    check_kind: "datatype-param:pathForbiddenPrefixes",
+                    attribute: "blockedTemplate",
+                    datatype_param: "pathForbiddenPrefixes",
+                    param_value: "./../secret",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
                     check_kind: "datatype-param:pathExtensions",
                     attribute: "script",
                     datatype_param: "pathExtensions",
@@ -5020,6 +5036,14 @@ fn schema_datatype_param_examples_emit_structured_definition_details() {
                     attribute: "caption",
                     datatype_param: "pathPrefixes",
                     param_value: "./templates/",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
+                    check_kind: "datatype-param:pathForbiddenPrefixes",
+                    attribute: "blockedCaption",
+                    datatype_param: "pathForbiddenPrefixes",
+                    param_value: "./private/",
                 },
                 SchemaDefinitionDetailExpectation {
                     code: "cem.schema_definition.invalid_datatype_param",

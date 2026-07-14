@@ -17,7 +17,7 @@
 //!   `minExclusive`/`maxExclusive`, numeric `totalDigits`/`fractionDigits`,
 //!   string `minLength`/`maxLength`/`length`/prefix/suffix/include/exclude, list
 //!   `itemCount`/`minItems`/`maxItems`, regex `pattern`, `whiteSpace`
-//!   normalization, path prefix/extension/basename, URI scheme/host/port/path/query/
+//!   normalization, path prefix/forbidden-prefix/extension/basename, URI scheme/host/port/path/query/
 //!   query-parameter/fragment/forbidden-fragment, and media-type essence/type/subtype/suffix/
 //!   parameter name/value datatype-param checks.
 //! - schema-owned exact, ranged, selected/selected-distinct count,
@@ -203,6 +203,7 @@ pub struct AttributeModel {
     pub pattern: Option<String>,
     pub white_space: Option<String>,
     pub path_prefixes: BTreeSet<String>,
+    pub path_forbidden_prefixes: BTreeSet<String>,
     pub path_extensions: BTreeSet<String>,
     pub path_basenames: BTreeSet<String>,
     pub uri_schemes: BTreeSet<String>,
@@ -2147,6 +2148,30 @@ fn validate_attribute_datatype_params(
             diagnostics,
         );
     }
+    if !attribute_model.path_forbidden_prefixes.is_empty()
+        && attribute_model
+            .value_type
+            .as_deref()
+            .is_some_and(is_path_type_reference)
+        && is_scoped_path_specifier(value)
+        && path_has_allowed_prefix(value, &attribute_model.path_forbidden_prefixes)
+    {
+        let param_value = format_value_set(&attribute_model.path_forbidden_prefixes);
+        emit_attribute_datatype_param_diagnostic(
+            schema_uri,
+            diagnostic_behaviors,
+            element_name,
+            attribute_name,
+            value,
+            attribute_model,
+            "pathForbiddenPrefixes",
+            &param_value,
+            "with forbidden",
+            attribute_values,
+            node,
+            diagnostics,
+        );
+    }
     if !attribute_model.path_extensions.is_empty()
         && attribute_model
             .value_type
@@ -3581,6 +3606,7 @@ fn collect_attribute_models(
                     pattern: optional_non_empty_attr(&attrs, "pattern").map(str::to_owned),
                     white_space: optional_non_empty_attr(&attrs, "whiteSpace").map(str::to_owned),
                     path_prefixes: parse_value_set(attrs.get("pathPrefixes")),
+                    path_forbidden_prefixes: parse_value_set(attrs.get("pathForbiddenPrefixes")),
                     path_extensions: parse_value_set(attrs.get("pathExtensions")),
                     path_basenames: parse_value_set(attrs.get("pathBasenames")),
                     uri_schemes: parse_ascii_lower_value_set(attrs.get("uriSchemes")),
@@ -4113,6 +4139,42 @@ fn validate_attribute_datatype_param_definition(
                     "checkKind": "datatype-param:pathPrefixes",
                     "datatypeParam": "pathPrefixes",
                     "paramName": "pathPrefixes",
+                    "paramValue": prefix,
+                    "expectedPattern": "scope-context path prefix",
+                    "error": error,
+                }),
+            ));
+        }
+    }
+    if !attribute_model.path_forbidden_prefixes.is_empty() {
+        let param_value = format_value_set(&attribute_model.path_forbidden_prefixes);
+        validate_datatype_param_value_type(
+            schema_uri,
+            attribute_model,
+            "pathForbiddenPrefixes",
+            &param_value,
+            "schema:path or cemml:path",
+            is_path_type_reference,
+            diagnostics,
+        );
+        for prefix in &attribute_model.path_forbidden_prefixes {
+            if is_scoped_path_prefix(prefix) {
+                continue;
+            }
+            let error = "expected scope-context path prefix";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid pathForbiddenPrefixes datatype parameter `{prefix}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:pathForbiddenPrefixes",
+                    "datatypeParam": "pathForbiddenPrefixes",
+                    "paramName": "pathForbiddenPrefixes",
                     "paramValue": prefix,
                     "expectedPattern": "scope-context path prefix",
                     "error": error,
@@ -10340,6 +10402,7 @@ fn attribute_datatype_param_details(
     let expected_pattern = match param_name {
         "pattern" => param_value,
         "pathPrefixes" => "scope-context path prefix",
+        "pathForbiddenPrefixes" => "scope-context path prefix",
         "pathExtensions" => "path extension token",
         "pathBasenames" => "path basename token",
         "uriSchemes" => "URI scheme",
@@ -10504,6 +10567,27 @@ fn attribute_datatype_param_details(
                     .collect::<Vec<_>>()),
             );
             object.insert("actualPath".to_owned(), serde_json::json!(actual_value));
+        }
+        if param_name == "pathForbiddenPrefixes" {
+            let forbidden_path_prefixes = attribute_model
+                .path_forbidden_prefixes
+                .iter()
+                .filter(|prefix| actual_value.starts_with(prefix.as_str()))
+                .cloned()
+                .collect::<Vec<_>>();
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .path_forbidden_prefixes
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            object.insert("actualPath".to_owned(), serde_json::json!(actual_value));
+            object.insert(
+                "forbiddenPathPrefixes".to_owned(),
+                serde_json::json!(forbidden_path_prefixes),
+            );
         }
         if param_name == "pathExtensions" {
             object.insert(
@@ -11804,6 +11888,15 @@ mod tests {
         assert_eq!(
             model
                 .attributes
+                .get("pathForbiddenPrefixes")
+                .expect("pathForbiddenPrefixes attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:string")
+        );
+        assert_eq!(
+            model
+                .attributes
                 .get("pathExtensions")
                 .expect("pathExtensions attribute model")
                 .value_type
@@ -12696,6 +12789,7 @@ mod tests {
             ("actualTotalDigits", "schema:integer"),
             ("actualFractionDigits", "schema:integer"),
             ("actualPath", "schema:path"),
+            ("forbiddenPathPrefixes", "schema:array"),
             ("actualPathExtension", "schema:string"),
             ("actualPathBasename", "schema:string"),
             ("actualScheme", "schema:string"),
@@ -24181,7 +24275,7 @@ mod tests {
         {element @name="item" @optional-attributes="src"}
     }
     {attributes |
-        {attribute @name="src" @type="schema:path" @pathPrefixes="./templates/ @shared/ https://example.test/assets/" @pathExtensions="cem cemt" @pathBasenames="card.cem card.cemt"}
+        {attribute @name="src" @type="schema:path" @pathPrefixes="./templates/ @shared/ https://example.test/assets/" @pathForbiddenPrefixes="./templates/private/ @shared/private/" @pathExtensions="cem cemt" @pathBasenames="card.cem card.cemt"}
     }
 }"#,
         );
@@ -24252,6 +24346,60 @@ mod tests {
         );
         assert_eq!(details["actualPath"], serde_json::json!("other/card.cem"));
         assert_eq!(details["actualValue"], serde_json::json!("other/card.cem"));
+
+        let document = parse_cem_document(r#"{item @src="./templates/private/card.cem"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().is_some_and(|details| {
+                        details.get("checkKind").and_then(serde_json::Value::as_str)
+                            == Some("datatype-param:pathForbiddenPrefixes")
+                    })
+            })
+            .expect("path forbidden prefix datatype-param diagnostic");
+        assert!(diagnostic.message.contains("pathForbiddenPrefixes"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("path forbidden prefix datatype-param details");
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:src:pathForbiddenPrefixes")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:pathForbiddenPrefixes")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("pathForbiddenPrefixes")
+        );
+        assert_eq!(
+            details["pathForbiddenPrefixes"],
+            serde_json::json!("./templates/private/ @shared/private/")
+        );
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("scope-context path prefix")
+        );
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["./templates/private/", "@shared/private/"])
+        );
+        assert_eq!(
+            details["actualPath"],
+            serde_json::json!("./templates/private/card.cem")
+        );
+        assert_eq!(
+            details["forbiddenPathPrefixes"],
+            serde_json::json!(["./templates/private/"])
+        );
+        assert_eq!(
+            details["actualValue"],
+            serde_json::json!("./templates/private/card.cem")
+        );
 
         let document = parse_cem_document(r#"{item @src="./templates/card.txt"}"#);
         let diagnostics = validate_document_model(&document, &model);
@@ -24358,14 +24506,16 @@ mod tests {
 
 {schema @name="invalid-path-datatype-param-contracts" @namespace="https://example.test/ns/invalid-path-datatype-param-contracts/1" @version="1.0.0" |
     {elements |
-        {element @name="item" @optional-attributes="src label title image caption"}
+        {element @name="item" @optional-attributes="src blocked label title image caption blockedCaption"}
     }
     {attributes |
         {attribute @name="src" @type="schema:path" @pathPrefixes="/absolute ./../bad" @pathExtensions="cem .cem"}
+        {attribute @name="blocked" @type="schema:path" @pathForbiddenPrefixes="/private ./../secret"}
         {attribute @name="label" @type="schema:string" @pathPrefixes="./templates/"}
         {attribute @name="title" @type="schema:string" @pathExtensions="cem"}
         {attribute @name="image" @type="schema:path" @pathBasenames="card.cem bad/name"}
         {attribute @name="caption" @type="schema:string" @pathBasenames="card.cem"}
+        {attribute @name="blockedCaption" @type="schema:string" @pathForbiddenPrefixes="./private/"}
     }
 }"#,
         );
@@ -24449,6 +24599,63 @@ mod tests {
         assert_eq!(
             details["checkKind"],
             serde_json::json!("datatype-param:pathPrefixes")
+        );
+        assert_eq!(
+            details["expectedType"],
+            serde_json::json!("schema:path or cemml:path")
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().is_some_and(|details| {
+                        details.get("attribute").and_then(serde_json::Value::as_str)
+                            == Some("blocked")
+                            && details
+                                .get("paramValue")
+                                .and_then(serde_json::Value::as_str)
+                                == Some("/private")
+                    })
+            })
+            .expect("invalid pathForbiddenPrefixes token compile diagnostic");
+        assert!(diagnostic.message.contains("invalid pathForbiddenPrefixes"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid pathForbiddenPrefixes token compile details");
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:pathForbiddenPrefixes")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("pathForbiddenPrefixes")
+        );
+        assert_eq!(
+            details["expectedPattern"],
+            serde_json::json!("scope-context path prefix")
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("attribute").and_then(serde_json::Value::as_str)
+                    }) == Some("blockedCaption")
+            })
+            .expect("invalid pathForbiddenPrefixes type compile diagnostic");
+        assert!(diagnostic.message.contains("pathForbiddenPrefixes"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid pathForbiddenPrefixes type compile details");
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:pathForbiddenPrefixes")
         );
         assert_eq!(
             details["expectedType"],
