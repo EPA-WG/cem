@@ -110,8 +110,11 @@
             @uriPorts="443 8443"
             @uriRequiresAuthority=true
             @uriPathPrefixes="/resources/ /assets/"
+            @uriForbiddenPathPrefixes="/assets/private/"
             @uriPathExtensions="cem json"
+            @uriForbiddenPathExtensions="bak tmp"
             @uriPathBasenames="resource.cem asset.json"
+            @uriForbiddenPathBasenames="private.json secret.cem"
             @uriQueries="view=resource view=asset"
             @uriForbiddenQueries="debug=true trace=true"
             @uriQueryParameters="view"
