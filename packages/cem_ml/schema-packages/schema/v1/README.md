@@ -307,7 +307,8 @@ whose result contract declares emitted scalar value/type details;
 schema-definition validation also rejects numeric bound/digit-count params on
 non-numeric attributes, string length/prefix/suffix params on non-string attributes,
 list item-count params on non-list attributes, inconsistent numeric min/max
-bound envelopes, and inconsistent string/list min/max/exact count envelopes;
+bound envelopes, inconsistent string/list min/max/exact count envelopes, and
+inconsistent URI/media-type required/forbidden parameter declarations;
 required-one/max-one attribute choice cardinality and nested choice/case groups
 now execute through `schema:choice-case`, whose result contract declares the
 flat and grouped choice details emitted by the engine; child-set cardinality,
@@ -348,7 +349,7 @@ CLI validation integration tests.
 | [`invalid-datatype-param-bound.cem`](examples/invalid-datatype-param-bound.cem) | Numeric bound datatype parameter declarations use incompatible bound values, incompatible primitive types, or inconsistent min/max envelopes. | Fail with `cem.schema_definition.invalid_datatype_param` |
 | [`invalid-datatype-param-pattern.cem`](examples/invalid-datatype-param-pattern.cem) | String datatype parameter declaration uses an invalid regular expression. | Fail with `cem.schema_definition.invalid_datatype_param` |
 | [`invalid-datatype-param-digits.cem`](examples/invalid-datatype-param-digits.cem) | Numeric digit-count datatype parameter declarations use invalid limits or incompatible primitive types. | Fail with `cem.schema_definition.invalid_datatype_param` |
-| [`invalid-datatype-param-uri-media.cem`](examples/invalid-datatype-param-uri-media.cem) | Path prefix/extension, URI scheme/host/port/authority/path-prefix/path-extension/query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment, and media-type essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter datatype parameter declarations use invalid tokens or incompatible primitive types. | Fail with `cem.schema_definition.invalid_datatype_param` |
+| [`invalid-datatype-param-uri-media.cem`](examples/invalid-datatype-param-uri-media.cem) | Path prefix/extension, URI scheme/host/port/authority/path-prefix/path-extension/query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment, and media-type essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter datatype parameter declarations use invalid tokens, incompatible primitive types, or inconsistent required/forbidden parameter declarations. | Fail with `cem.schema_definition.invalid_datatype_param` |
 | [`invalid-attribute-default.cem`](examples/invalid-attribute-default.cem) | Attribute defaults violate declared scalar type, value vocabulary, and datatype parameter constraints. | Fail with `cem.schema_definition.invalid_default_value` |
 
 Validate an example explicitly against this schema:

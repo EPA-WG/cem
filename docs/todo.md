@@ -53,6 +53,7 @@ history belongs in git history and the feature-specific docs linked below.
       non-string attributes, list item-count params on non-list attributes,
       inconsistent numeric min/max bound envelopes,
       inconsistent string/list min/max/exact count envelopes,
+      inconsistent URI/media-type required/forbidden parameter declarations,
       path params on non-path attributes, URI params on non-URI attributes, and
       media-type params on non-media-type attributes.
       Required-one/max-one attribute choice cardinality now executes through
@@ -336,6 +337,7 @@ history belongs in git history and the feature-specific docs linked below.
         and media-type params, against their target primitive families, plus
         numeric min/max bound envelope consistency, plus
         string/list min/max/exact count envelope consistency, plus
+        URI/media-type required/forbidden parameter consistency, plus
         selected child occurrence bounds against their required
         `selected-children` selector, plus exact child occurrence bounds
         against their declared min/max envelopes,

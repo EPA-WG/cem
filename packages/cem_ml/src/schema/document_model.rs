@@ -5042,6 +5042,119 @@ fn validate_attribute_datatype_param_definition(
             ));
         }
     }
+    validate_datatype_parameter_presence_consistency(
+        schema_uri,
+        attribute_model,
+        "uriQueryForbiddenParameters",
+        &attribute_model.uri_query_forbidden_parameters,
+        "uriQueryRequiredParameters",
+        &attribute_model.uri_query_required_parameters,
+        "uriQueryParameterValues",
+        &attribute_model.uri_query_parameter_values,
+        "URI query parameter name",
+        is_uri_query_parameter_name_token,
+        diagnostics,
+    );
+    validate_datatype_parameter_presence_consistency(
+        schema_uri,
+        attribute_model,
+        "mediaTypeForbiddenParameters",
+        &attribute_model.media_type_forbidden_parameters,
+        "mediaTypeRequiredParameters",
+        &attribute_model.media_type_required_parameters,
+        "mediaTypeParameterValues",
+        &attribute_model.media_type_parameter_values,
+        "media type parameter name",
+        is_media_type_token,
+        diagnostics,
+    );
+}
+
+fn validate_datatype_parameter_presence_consistency(
+    schema_uri: &str,
+    attribute_model: &AttributeModel,
+    forbidden_param_name: &str,
+    forbidden_parameters: &BTreeSet<String>,
+    required_param_name: &str,
+    required_parameters: &BTreeSet<String>,
+    value_param_name: &str,
+    parameter_values: &BTreeMap<String, BTreeSet<String>>,
+    expected_pattern: &str,
+    is_valid_parameter_name: fn(&str) -> bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let conflicting_required_parameters = required_parameters
+        .iter()
+        .filter(|parameter| {
+            is_valid_parameter_name(parameter) && forbidden_parameters.contains(parameter.as_str())
+        })
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    if !conflicting_required_parameters.is_empty() {
+        let param_value = format_value_set(&conflicting_required_parameters);
+        let error = "parameters cannot be both required and forbidden";
+        diagnostics.push(schema_compile_diagnostic(
+            INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+            format!(
+                "attribute `{}` declares invalid {required_param_name} datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+                attribute_model.name
+            ),
+            &attribute_model.source_map,
+            serde_json::json!({
+                "schemaUri": schema_uri,
+                "attribute": &attribute_model.name,
+                "checkKind": format!("datatype-param:{required_param_name}"),
+                "datatypeParam": required_param_name,
+                "paramName": required_param_name,
+                "paramValue": param_value,
+                "requiredParam": required_param_name,
+                "forbiddenParam": forbidden_param_name,
+                "conflictingParameters": conflicting_required_parameters
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>(),
+                "expectedPattern": expected_pattern,
+                "error": error,
+            }),
+        ));
+    }
+
+    let conflicting_value_parameters = parameter_values
+        .keys()
+        .filter(|parameter| {
+            is_valid_parameter_name(parameter) && forbidden_parameters.contains(parameter.as_str())
+        })
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    if conflicting_value_parameters.is_empty() {
+        return;
+    }
+    let param_value = format_value_set(&conflicting_value_parameters);
+    let error = "parameter value constraints cannot target forbidden parameters";
+    diagnostics.push(schema_compile_diagnostic(
+        INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+        format!(
+            "attribute `{}` declares invalid {value_param_name} datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+            attribute_model.name
+        ),
+        &attribute_model.source_map,
+        serde_json::json!({
+            "schemaUri": schema_uri,
+            "attribute": &attribute_model.name,
+            "checkKind": format!("datatype-param:{value_param_name}"),
+            "datatypeParam": value_param_name,
+            "paramName": value_param_name,
+            "paramValue": param_value,
+            "valueParam": value_param_name,
+            "forbiddenParam": forbidden_param_name,
+            "conflictingParameters": conflicting_value_parameters
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>(),
+            "expectedPattern": expected_pattern,
+            "error": error,
+        }),
+    ));
 }
 
 fn validate_datatype_numeric_bound_envelope(
@@ -21250,6 +21363,122 @@ mod tests {
             details["expectedType"],
             serde_json::json!("schema:media-type")
         );
+    }
+
+    #[test]
+    fn schema_uri_media_parameter_datatype_params_reject_inconsistent_declarations() {
+        let model = compile_document_model(
+            "https://example.test/ns/inconsistent-parameter-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="inconsistent-parameter-contracts" @namespace="https://example.test/ns/inconsistent-parameter-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="queryPresence queryValue mediaPresence mediaValue"}
+    }
+    {attributes |
+        {attribute @name="queryPresence" @type="schema:uri" @uriQueryForbiddenParameters="debug" @uriQueryRequiredParameters="debug"}
+        {attribute @name="queryValue" @type="schema:uri" @uriQueryForbiddenParameters="debug" @uriQueryParameterValues="debug=true"}
+        {attribute @name="mediaPresence" @type="schema:media-type" @mediaTypeForbiddenParameters="profile" @mediaTypeRequiredParameters="profile"}
+        {attribute @name="mediaValue" @type="schema:media-type" @mediaTypeForbiddenParameters="profile" @mediaTypeParameterValues="profile=default"}
+    }
+}"#,
+        );
+
+        for (attribute, datatype_param, param_value, message, companion_param, expected_pattern) in [
+            (
+                "queryPresence",
+                "uriQueryRequiredParameters",
+                "debug",
+                "parameters cannot be both required and forbidden",
+                "uriQueryForbiddenParameters",
+                "URI query parameter name",
+            ),
+            (
+                "queryValue",
+                "uriQueryParameterValues",
+                "debug",
+                "parameter value constraints cannot target forbidden parameters",
+                "uriQueryForbiddenParameters",
+                "URI query parameter name",
+            ),
+            (
+                "mediaPresence",
+                "mediaTypeRequiredParameters",
+                "profile",
+                "parameters cannot be both required and forbidden",
+                "mediaTypeForbiddenParameters",
+                "media type parameter name",
+            ),
+            (
+                "mediaValue",
+                "mediaTypeParameterValues",
+                "profile",
+                "parameter value constraints cannot target forbidden parameters",
+                "mediaTypeForbiddenParameters",
+                "media type parameter name",
+            ),
+        ] {
+            let diagnostic = model
+                .compile_diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                        && diagnostic.details.as_ref().is_some_and(|details| {
+                            details.get("attribute").and_then(serde_json::Value::as_str)
+                                == Some(attribute)
+                                && details
+                                    .get("datatypeParam")
+                                    .and_then(serde_json::Value::as_str)
+                                    == Some(datatype_param)
+                        })
+                })
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing inconsistent {datatype_param} diagnostic for {attribute}: {:#?}",
+                        model.compile_diagnostics
+                    )
+                });
+            assert!(diagnostic.message.contains(message));
+            let details = diagnostic
+                .details
+                .as_ref()
+                .expect("inconsistent parameter compile details");
+            assert_eq!(
+                details["schemaUri"],
+                serde_json::json!("https://example.test/ns/inconsistent-parameter-contracts/1")
+            );
+            assert_eq!(details["attribute"], serde_json::json!(attribute));
+            assert_eq!(
+                details["checkKind"],
+                serde_json::json!(format!("datatype-param:{datatype_param}"))
+            );
+            assert_eq!(details["datatypeParam"], serde_json::json!(datatype_param));
+            assert_eq!(details["paramValue"], serde_json::json!(param_value));
+            assert_eq!(
+                details["conflictingParameters"],
+                serde_json::json!([param_value])
+            );
+            assert_eq!(
+                details["expectedPattern"],
+                serde_json::json!(expected_pattern)
+            );
+            assert_eq!(details["error"], serde_json::json!(message));
+            if datatype_param.contains("Required") {
+                assert_eq!(details["requiredParam"], serde_json::json!(datatype_param));
+                assert_eq!(
+                    details["forbiddenParam"],
+                    serde_json::json!(companion_param)
+                );
+            } else {
+                assert_eq!(details["valueParam"], serde_json::json!(datatype_param));
+                assert_eq!(
+                    details["forbiddenParam"],
+                    serde_json::json!(companion_param)
+                );
+            }
+        }
     }
 
     #[test]
