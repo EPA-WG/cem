@@ -19,6 +19,7 @@
         {attribute @name="download" @type="schema:uri" @uriPathExtensions="cem .json"}
         {attribute @name="uriFile" @type="schema:uri" @uriPathBasenames="schema.cem bad/name"}
         {attribute @name="query" @type="schema:uri" @uriQueries="view=resource ?bad"}
+        {attribute @name="queryBlocked" @type="schema:uri" @uriQueries="view=resource debug=true" @uriForbiddenQueries="debug=true ?bad"}
         {attribute @name="queryParams" @type="schema:uri" @uriQueryParameters="view bad=name"}
         {attribute @name="queryValue" @type="schema:uri" @uriQueryParameterValues="view=resource bad bad&name=value"}
         {attribute @name="queryForbidden" @type="schema:uri" @uriQueryForbiddenParameters="debug bad=name"}
@@ -47,6 +48,7 @@
         {attribute @name="downloadLabel" @type="schema:string" @uriPathExtensions="cem"}
         {attribute @name="uriFileLabel" @type="schema:string" @uriPathBasenames="schema.cem"}
         {attribute @name="queryLabel" @type="schema:string" @uriQueries="view=resource"}
+        {attribute @name="queryBlockedLabel" @type="schema:string" @uriForbiddenQueries="debug=true"}
         {attribute @name="queryParamsLabel" @type="schema:string" @uriQueryParameters="view"}
         {attribute @name="queryValueLabel" @type="schema:string" @uriQueryParameterValues="view=resource"}
         {attribute @name="queryForbiddenLabel" @type="schema:string" @uriQueryForbiddenParameters="debug"}

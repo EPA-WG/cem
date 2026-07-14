@@ -213,6 +213,7 @@ pub struct AttributeModel {
     pub uri_path_extensions: BTreeSet<String>,
     pub uri_path_basenames: BTreeSet<String>,
     pub uri_queries: BTreeSet<String>,
+    pub uri_forbidden_queries: BTreeSet<String>,
     pub uri_query_parameters: BTreeSet<String>,
     pub uri_query_parameter_value_tokens: BTreeSet<String>,
     pub uri_query_parameter_values: BTreeMap<String, BTreeSet<String>>,
@@ -2392,6 +2393,30 @@ fn validate_attribute_datatype_params(
             diagnostics,
         );
     }
+    if !attribute_model.uri_forbidden_queries.is_empty()
+        && attribute_model
+            .value_type
+            .as_deref()
+            .is_some_and(is_uri_type_reference)
+        && uri_query(value)
+            .is_some_and(|query| attribute_model.uri_forbidden_queries.contains(query))
+    {
+        let param_value = format_value_set(&attribute_model.uri_forbidden_queries);
+        emit_attribute_datatype_param_diagnostic(
+            schema_uri,
+            diagnostic_behaviors,
+            element_name,
+            attribute_name,
+            value,
+            attribute_model,
+            "uriForbiddenQueries",
+            &param_value,
+            "with forbidden",
+            attribute_values,
+            node,
+            diagnostics,
+        );
+    }
     if !attribute_model.uri_query_parameters.is_empty()
         && attribute_model
             .value_type
@@ -3569,6 +3594,7 @@ fn collect_attribute_models(
                     uri_path_extensions: parse_value_set(attrs.get("uriPathExtensions")),
                     uri_path_basenames: parse_value_set(attrs.get("uriPathBasenames")),
                     uri_queries: parse_value_set(attrs.get("uriQueries")),
+                    uri_forbidden_queries: parse_value_set(attrs.get("uriForbiddenQueries")),
                     uri_query_parameters: parse_value_set(attrs.get("uriQueryParameters")),
                     uri_query_parameter_value_tokens: parse_value_set(
                         attrs.get("uriQueryParameterValues"),
@@ -4562,6 +4588,56 @@ fn validate_attribute_datatype_param_definition(
             ));
         }
     }
+    if !attribute_model.uri_forbidden_queries.is_empty() {
+        let value_type = attribute_model.value_type.as_deref();
+        if !value_type.is_some_and(is_uri_type_reference) {
+            let param_value = format_value_set(&attribute_model.uri_forbidden_queries);
+            let error = "expected schema:uri or cemml:uri value type for uriForbiddenQueries";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriForbiddenQueries datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriForbiddenQueries",
+                    "datatypeParam": "uriForbiddenQueries",
+                    "paramName": "uriForbiddenQueries",
+                    "paramValue": param_value,
+                    "valueType": value_type.unwrap_or_default(),
+                    "expectedType": "schema:uri",
+                    "error": error,
+                }),
+            ));
+        }
+        for query in &attribute_model.uri_forbidden_queries {
+            if is_uri_query_token(query) {
+                continue;
+            }
+            let error = "expected URI query token without leading `?`";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriForbiddenQueries datatype parameter `{query}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriForbiddenQueries",
+                    "datatypeParam": "uriForbiddenQueries",
+                    "paramName": "uriForbiddenQueries",
+                    "paramValue": query,
+                    "expectedPattern": "URI query",
+                    "error": error,
+                }),
+            ));
+        }
+    }
     if !attribute_model.uri_query_parameters.is_empty() {
         let value_type = attribute_model.value_type.as_deref();
         if !value_type.is_some_and(is_uri_type_reference) {
@@ -5359,7 +5435,50 @@ fn validate_attribute_datatype_param_definition(
         is_media_type_token,
         diagnostics,
     );
+    validate_uri_query_allow_forbid_consistency(schema_uri, attribute_model, diagnostics);
     validate_uri_fragment_allow_forbid_consistency(schema_uri, attribute_model, diagnostics);
+}
+
+fn validate_uri_query_allow_forbid_consistency(
+    schema_uri: &str,
+    attribute_model: &AttributeModel,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let conflicting_queries = attribute_model
+        .uri_forbidden_queries
+        .iter()
+        .filter(|query| is_uri_query_token(query) && attribute_model.uri_queries.contains(*query))
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    if conflicting_queries.is_empty() {
+        return;
+    }
+    let param_value = format_value_set(&conflicting_queries);
+    let error = "queries cannot be both allowed and forbidden";
+    diagnostics.push(schema_compile_diagnostic(
+        INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+        format!(
+            "attribute `{}` declares invalid uriForbiddenQueries datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+            attribute_model.name
+        ),
+        &attribute_model.source_map,
+        serde_json::json!({
+            "schemaUri": schema_uri,
+            "attribute": &attribute_model.name,
+            "checkKind": "datatype-param:uriForbiddenQueries",
+            "datatypeParam": "uriForbiddenQueries",
+            "paramName": "uriForbiddenQueries",
+            "paramValue": param_value,
+            "allowedParam": "uriQueries",
+            "forbiddenParam": "uriForbiddenQueries",
+            "conflictingParameters": conflicting_queries
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>(),
+            "expectedPattern": "URI query",
+            "error": error,
+        }),
+    ));
 }
 
 fn validate_uri_fragment_allow_forbid_consistency(
@@ -10231,6 +10350,7 @@ fn attribute_datatype_param_details(
         "uriPathExtensions" => "URI path extension token",
         "uriPathBasenames" => "URI path basename token",
         "uriQueries" => "URI query",
+        "uriForbiddenQueries" => "URI query",
         "uriQueryParameters" => "URI query parameter name",
         "uriQueryParameterValues" => "URI query parameter value",
         "uriQueryForbiddenParameters" => "URI query parameter name",
@@ -10534,6 +10654,28 @@ fn attribute_datatype_param_details(
             );
             if let Some(actual_query) = uri_query(actual_value) {
                 object.insert("actualUriQuery".to_owned(), serde_json::json!(actual_query));
+            }
+        }
+        if param_name == "uriForbiddenQueries" {
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .uri_forbidden_queries
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            if let Some(actual_query) = uri_query(actual_value) {
+                object.insert("actualUriQuery".to_owned(), serde_json::json!(actual_query));
+                let forbidden_queries = attribute_model
+                    .uri_forbidden_queries
+                    .contains(actual_query)
+                    .then(|| vec![actual_query.to_owned()])
+                    .unwrap_or_default();
+                object.insert(
+                    "forbiddenUriQueries".to_owned(),
+                    serde_json::json!(forbidden_queries),
+                );
             }
         }
         if param_name == "uriQueryParameters" {
@@ -11725,6 +11867,7 @@ mod tests {
         for name in [
             "uriQueryParameters",
             "uriQueryParameterValues",
+            "uriForbiddenQueries",
             "uriQueryForbiddenParameters",
             "uriQueryRequiredParameters",
             "uriForbiddenFragments",
@@ -12563,6 +12706,7 @@ mod tests {
             ("actualUriPathExtension", "schema:string"),
             ("actualUriPathBasename", "schema:string"),
             ("actualUriQuery", "schema:string"),
+            ("forbiddenUriQueries", "schema:array"),
             ("actualUriQueryParameters", "schema:array"),
             ("invalidUriQueryParameters", "schema:array"),
             ("actualUriQueryParameterValues", "schema:object"),
@@ -21545,6 +21689,204 @@ mod tests {
         assert_eq!(details["datatypeParam"], serde_json::json!("uriQueries"));
         assert_eq!(details["paramValue"], serde_json::json!("?bad"));
         assert_eq!(details["expectedPattern"], serde_json::json!("URI query"));
+    }
+
+    #[test]
+    fn schema_uri_forbidden_query_datatype_param_drives_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/uri-forbidden-query-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="uri-forbidden-query-contracts" @namespace="https://example.test/ns/uri-forbidden-query-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="href"}
+    }
+    {attributes |
+        {attribute @name="href" @type="schema:uri" @uriForbiddenQueries="debug=true trace=true"}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "valid URI forbidden query schema must compile: {:#?}",
+            model.compile_diagnostics
+        );
+
+        for source in [
+            r#"{item @href="https://example.test/docs?view=resource"}"#,
+            r#"{item @href="https://example.test/docs"}"#,
+            r#"{item @href="https://example.test/docs?"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "valid URI query source produced datatype-param diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        let document = parse_cem_document(r#"{item @href="https://example.test/docs?debug=true"}"#);
+        let diagnostics = validate_document_model(&document, &model);
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+            .expect("URI forbidden query datatype-param diagnostic");
+        assert!(diagnostic.message.contains("href"));
+        assert!(diagnostic.message.contains("uriForbiddenQueries"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("URI forbidden query datatype-param details");
+        assert_eq!(
+            details["schemaUri"],
+            serde_json::json!("https://example.test/ns/uri-forbidden-query-contracts/1")
+        );
+        assert_eq!(details["element"], serde_json::json!("item"));
+        assert_eq!(details["attribute"], serde_json::json!("href"));
+        assert_eq!(
+            details["contract"],
+            serde_json::json!("attribute-datatype-param:href:uriForbiddenQueries")
+        );
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriForbiddenQueries")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("uriForbiddenQueries")
+        );
+        assert_eq!(
+            details["uriForbiddenQueries"],
+            serde_json::json!("debug=true trace=true")
+        );
+        assert_eq!(details["expectedPattern"], serde_json::json!("URI query"));
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!(["debug=true", "trace=true"])
+        );
+        assert_eq!(details["actualUriQuery"], serde_json::json!("debug=true"));
+        assert_eq!(
+            details["forbiddenUriQueries"],
+            serde_json::json!(["debug=true"])
+        );
+        assert_eq!(
+            details["actualValue"],
+            serde_json::json!("https://example.test/docs?debug=true")
+        );
+        assert_eq!(details["invalidFields"], serde_json::json!(["href"]));
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
+    fn schema_uri_forbidden_query_datatype_param_rejects_invalid_declarations() {
+        let model = compile_document_model(
+            "https://example.test/ns/invalid-uri-forbidden-query-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-uri-forbidden-query-contracts" @namespace="https://example.test/ns/invalid-uri-forbidden-query-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="href label"}
+    }
+    {attributes |
+        {attribute @name="href" @type="schema:uri" @uriQueries="view=resource debug=true" @uriForbiddenQueries="debug=true ?bad"}
+        {attribute @name="label" @type="schema:string" @uriForbiddenQueries="debug=true"}
+    }
+}"#,
+        );
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().is_some_and(|details| {
+                        details.get("attribute").and_then(serde_json::Value::as_str)
+                            == Some("label")
+                    })
+            })
+            .expect("invalid uriForbiddenQueries type compile diagnostic");
+        assert!(diagnostic.message.contains("uriForbiddenQueries"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid uriForbiddenQueries type compile details");
+        assert_eq!(details["attribute"], serde_json::json!("label"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriForbiddenQueries")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("uriForbiddenQueries")
+        );
+        assert_eq!(details["expectedType"], serde_json::json!("schema:uri"));
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().is_some_and(|details| {
+                        details.get("attribute").and_then(serde_json::Value::as_str) == Some("href")
+                            && details
+                                .get("paramValue")
+                                .and_then(serde_json::Value::as_str)
+                                == Some("?bad")
+                    })
+            })
+            .expect("invalid uriForbiddenQueries token compile diagnostic");
+        assert!(diagnostic.message.contains("invalid uriForbiddenQueries"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("invalid uriForbiddenQueries token compile details");
+        assert_eq!(details["attribute"], serde_json::json!("href"));
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriForbiddenQueries")
+        );
+        assert_eq!(
+            details["datatypeParam"],
+            serde_json::json!("uriForbiddenQueries")
+        );
+        assert_eq!(details["paramValue"], serde_json::json!("?bad"));
+        assert_eq!(details["expectedPattern"], serde_json::json!("URI query"));
+
+        let diagnostic = model
+            .compile_diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                    && diagnostic.details.as_ref().is_some_and(|details| {
+                        details.get("attribute").and_then(serde_json::Value::as_str) == Some("href")
+                            && details
+                                .get("conflictingParameters")
+                                .is_some_and(|conflicts| {
+                                    conflicts == &serde_json::json!(["debug=true"])
+                                })
+                    })
+            })
+            .expect("conflicting uriForbiddenQueries compile diagnostic");
+        assert!(diagnostic.message.contains("uriForbiddenQueries"));
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("conflicting uriForbiddenQueries compile details");
+        assert_eq!(
+            details["checkKind"],
+            serde_json::json!("datatype-param:uriForbiddenQueries")
+        );
+        assert_eq!(details["allowedParam"], serde_json::json!("uriQueries"));
+        assert_eq!(
+            details["forbiddenParam"],
+            serde_json::json!("uriForbiddenQueries")
+        );
     }
 
     #[test]

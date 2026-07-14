@@ -113,6 +113,7 @@
             @uriPathExtensions="cem json"
             @uriPathBasenames="resource.cem asset.json"
             @uriQueries="view=resource view=asset"
+            @uriForbiddenQueries="debug=true trace=true"
             @uriQueryParameters="view"
             @uriQueryParameterValues="view=resource view=asset"
             @uriQueryForbiddenParameters="debug"

@@ -29,7 +29,7 @@
         {element @name="elements" @children="element"}
         {element @name="element" @required-attributes="name" @optional-attributes="base required-attributes optional-attributes children"}
         {element @name="attributes" @children="attribute"}
-        {element @name="attribute" @required-attributes="name" @optional-attributes="base type required default values minInclusive maxInclusive minExclusive maxExclusive minLength maxLength length stringPrefixes stringSuffixes stringIncludes stringExcludes itemCount minItems maxItems totalDigits fractionDigits pattern whiteSpace pathPrefixes pathExtensions pathBasenames uriSchemes uriHosts uriPorts uriRequiresAuthority uriPathPrefixes uriPathExtensions uriPathBasenames uriQueries uriQueryParameters uriQueryParameterValues uriQueryForbiddenParameters uriQueryRequiredParameters uriFragments uriForbiddenFragments mediaTypes mediaTypeTypes mediaTypeSubtypes mediaTypeSuffixes mediaTypeParameters mediaTypeParameterValues mediaTypeForbiddenParameters mediaTypeRequiredParameters values-diagnostic type-diagnostic datatype-param-diagnostic"}
+        {element @name="attribute" @required-attributes="name" @optional-attributes="base type required default values minInclusive maxInclusive minExclusive maxExclusive minLength maxLength length stringPrefixes stringSuffixes stringIncludes stringExcludes itemCount minItems maxItems totalDigits fractionDigits pattern whiteSpace pathPrefixes pathExtensions pathBasenames uriSchemes uriHosts uriPorts uriRequiresAuthority uriPathPrefixes uriPathExtensions uriPathBasenames uriQueries uriForbiddenQueries uriQueryParameters uriQueryParameterValues uriQueryForbiddenParameters uriQueryRequiredParameters uriFragments uriForbiddenFragments mediaTypes mediaTypeTypes mediaTypeSubtypes mediaTypeSuffixes mediaTypeParameters mediaTypeParameterValues mediaTypeForbiddenParameters mediaTypeRequiredParameters values-diagnostic type-diagnostic datatype-param-diagnostic"}
         {element @name="directives" @children="directive"}
         {element @name="directive" @required-attributes="name" @optional-attributes="required value"}
         {element @name="nodes" @children="node"}
@@ -204,6 +204,7 @@
         {attribute @name="uriPathExtensions" @type="schema:string"}
         {attribute @name="uriPathBasenames" @type="schema:string"}
         {attribute @name="uriQueries" @type="schema:string"}
+        {attribute @name="uriForbiddenQueries" @type="schema:string"}
         {attribute @name="uriQueryParameters" @type="schema:string"}
         {attribute @name="uriQueryParameterValues" @type="schema:string"}
         {attribute @name="uriQueryForbiddenParameters" @type="schema:string"}
@@ -781,6 +782,7 @@
                 {detail @name="actualUriPathExtension" @type="schema:string"}
                 {detail @name="actualUriPathBasename" @type="schema:string"}
                 {detail @name="actualUriQuery" @type="schema:string"}
+                {detail @name="forbiddenUriQueries" @type="schema:array"}
                 {detail @name="actualUriQueryParameters" @type="schema:array"}
                 {detail @name="invalidUriQueryParameters" @type="schema:array"}
                 {detail @name="actualUriQueryParameterValues" @type="schema:object"}
