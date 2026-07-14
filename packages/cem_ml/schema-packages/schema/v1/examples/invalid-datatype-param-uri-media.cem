@@ -11,7 +11,9 @@
         {attribute @name="template" @type="schema:path" @pathPrefixes="/absolute ./../bad"}
         {attribute @name="blockedTemplate" @type="schema:path" @pathForbiddenPrefixes="/private ./../secret"}
         {attribute @name="script" @type="schema:path" @pathExtensions="cem .cem"}
+        {attribute @name="blockedScript" @type="schema:path" @pathForbiddenExtensions="tmp .bak"}
         {attribute @name="image" @type="schema:path" @pathBasenames="card.cem bad/name"}
+        {attribute @name="blockedImage" @type="schema:path" @pathForbiddenBasenames="secret.cem bad/name"}
         {attribute @name="href" @type="schema:uri" @uriSchemes="https 1bad"}
         {attribute @name="cdn" @type="schema:uri" @uriHosts="api.example.test bad/host"}
         {attribute @name="portal" @type="schema:uri" @uriPorts="443 0443 65536"}
@@ -59,6 +61,8 @@
         {attribute @name="caption" @type="schema:string" @pathPrefixes="./templates/"}
         {attribute @name="blockedCaption" @type="schema:string" @pathForbiddenPrefixes="./private/"}
         {attribute @name="summary" @type="schema:string" @pathExtensions="cem"}
+        {attribute @name="blockedSummary" @type="schema:string" @pathForbiddenExtensions="tmp"}
         {attribute @name="basenameLabel" @type="schema:string" @pathBasenames="card.cem"}
+        {attribute @name="blockedBasenameLabel" @type="schema:string" @pathForbiddenBasenames="secret.cem"}
     }
 }

@@ -153,7 +153,9 @@
             @pathPrefixes="./assets/ @assets/"
             @pathForbiddenPrefixes="./assets/private/ @assets/private/"
             @pathExtensions="cem cemt"
+            @pathForbiddenExtensions="bak tmp"
             @pathBasenames="resource.cem theme.cemt"
+            @pathForbiddenBasenames="secret.cem private.cemt"
             @datatype-param-diagnostic="example.resource.invalid_asset_path"
         }
         {attribute

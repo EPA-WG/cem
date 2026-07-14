@@ -5024,9 +5024,25 @@ fn schema_datatype_param_examples_emit_structured_definition_details() {
                 SchemaDefinitionDetailExpectation {
                     code: "cem.schema_definition.invalid_datatype_param",
                     severity: "error",
+                    check_kind: "datatype-param:pathForbiddenExtensions",
+                    attribute: "blockedScript",
+                    datatype_param: "pathForbiddenExtensions",
+                    param_value: ".bak",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
                     check_kind: "datatype-param:pathBasenames",
                     attribute: "image",
                     datatype_param: "pathBasenames",
+                    param_value: "bad/name",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
+                    check_kind: "datatype-param:pathForbiddenBasenames",
+                    attribute: "blockedImage",
+                    datatype_param: "pathForbiddenBasenames",
                     param_value: "bad/name",
                 },
                 SchemaDefinitionDetailExpectation {
@@ -5056,10 +5072,26 @@ fn schema_datatype_param_examples_emit_structured_definition_details() {
                 SchemaDefinitionDetailExpectation {
                     code: "cem.schema_definition.invalid_datatype_param",
                     severity: "error",
+                    check_kind: "datatype-param:pathForbiddenExtensions",
+                    attribute: "blockedSummary",
+                    datatype_param: "pathForbiddenExtensions",
+                    param_value: "tmp",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
                     check_kind: "datatype-param:pathBasenames",
                     attribute: "basenameLabel",
                     datatype_param: "pathBasenames",
                     param_value: "card.cem",
+                },
+                SchemaDefinitionDetailExpectation {
+                    code: "cem.schema_definition.invalid_datatype_param",
+                    severity: "error",
+                    check_kind: "datatype-param:pathForbiddenBasenames",
+                    attribute: "blockedBasenameLabel",
+                    datatype_param: "pathForbiddenBasenames",
+                    param_value: "secret.cem",
                 },
                 SchemaDefinitionDetailExpectation {
                     code: "cem.schema_definition.invalid_datatype_param",
