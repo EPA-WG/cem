@@ -3880,6 +3880,7 @@ fn validate_attribute_datatype_param_definition(
             ));
         }
     }
+    validate_datatype_numeric_bound_envelope(schema_uri, attribute_model, diagnostics);
     validate_datatype_exact_count_envelope(
         schema_uri,
         attribute_model,
@@ -5036,6 +5037,91 @@ fn validate_attribute_datatype_param_definition(
                     "paramName": "mediaTypeRequiredParameters",
                     "paramValue": parameter,
                     "expectedPattern": "media type parameter name",
+                    "error": error,
+                }),
+            ));
+        }
+    }
+}
+
+fn validate_datatype_numeric_bound_envelope(
+    schema_uri: &str,
+    attribute_model: &AttributeModel,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(value_type) = attribute_model.value_type.as_deref() else {
+        return;
+    };
+    let range_cmp: fn(&str, &str) -> Option<std::cmp::Ordering> =
+        if is_integer_type_reference(value_type) {
+            decimal_integer_cmp
+        } else if is_number_type_reference(value_type) {
+            decimal_number_cmp
+        } else {
+            return;
+        };
+    for (lower_name, lower_value, lower_exclusive) in [
+        (
+            "minInclusive",
+            attribute_model.min_inclusive.as_deref(),
+            false,
+        ),
+        (
+            "minExclusive",
+            attribute_model.min_exclusive.as_deref(),
+            true,
+        ),
+    ] {
+        let Some(lower_value) = lower_value else {
+            continue;
+        };
+        for (upper_name, upper_value, upper_exclusive) in [
+            (
+                "maxInclusive",
+                attribute_model.max_inclusive.as_deref(),
+                false,
+            ),
+            (
+                "maxExclusive",
+                attribute_model.max_exclusive.as_deref(),
+                true,
+            ),
+        ] {
+            let Some(upper_value) = upper_value else {
+                continue;
+            };
+            let Some(ordering) = range_cmp(lower_value, upper_value) else {
+                continue;
+            };
+            let invalid = ordering == std::cmp::Ordering::Greater
+                || (ordering == std::cmp::Ordering::Equal && (lower_exclusive || upper_exclusive));
+            if !invalid {
+                continue;
+            }
+            let error = if ordering == std::cmp::Ordering::Greater {
+                format!("{lower_name} exceeds {upper_name}")
+            } else {
+                format!("{lower_name} must be below {upper_name}")
+            };
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid numeric datatype parameter range in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": format!("datatype-param:{lower_name}"),
+                    "datatypeParam": lower_name,
+                    "paramName": lower_name,
+                    "paramValue": lower_value,
+                    "lowerParam": lower_name,
+                    "lowerValue": lower_value,
+                    "upperParam": upper_name,
+                    "upperValue": upper_value,
+                    "valueType": value_type,
                     "error": error,
                 }),
             ));
@@ -21845,6 +21931,132 @@ mod tests {
         assert_eq!(details["datatypeParam"], serde_json::json!("maxInclusive"));
         assert_eq!(details["maxInclusive"], serde_json::json!("1.0"));
         assert_eq!(details["actualValue"], serde_json::json!("1.01"));
+    }
+
+    #[test]
+    fn schema_numeric_bound_datatype_params_reject_invalid_envelopes() {
+        let valid = compile_document_model(
+            "https://example.test/ns/valid-bound-envelope-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="valid-bound-envelope-contracts" @namespace="https://example.test/ns/valid-bound-envelope-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="singleton openLower openUpper"}
+    }
+    {attributes |
+        {attribute @name="singleton" @type="schema:integer" @minInclusive=5 @maxInclusive=5}
+        {attribute @name="openLower" @type="schema:number" @minExclusive=4.0 @maxInclusive=5.0}
+        {attribute @name="openUpper" @type="schema:number" @minInclusive=4.0 @maxExclusive=5.0}
+    }
+}"#,
+        );
+        assert!(
+            valid.compile_diagnostics.is_empty(),
+            "valid numeric bound envelope schema must compile: {:#?}",
+            valid.compile_diagnostics
+        );
+
+        let model = compile_document_model(
+            "https://example.test/ns/invalid-bound-envelope-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-bound-envelope-contracts" @namespace="https://example.test/ns/invalid-bound-envelope-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="closed openUpper openLower openBoth"}
+    }
+    {attributes |
+        {attribute @name="closed" @type="schema:integer" @minInclusive=5 @maxInclusive=4}
+        {attribute @name="openUpper" @type="schema:integer" @minInclusive=5 @maxExclusive=5}
+        {attribute @name="openLower" @type="schema:number" @minExclusive=3.5 @maxInclusive=3.5}
+        {attribute @name="openBoth" @type="schema:number" @minExclusive=1.0 @maxExclusive=1.0}
+    }
+}"#,
+        );
+
+        for (attribute, param_name, param_value, message, lower_value, upper_param, upper_value) in [
+            (
+                "closed",
+                "minInclusive",
+                "5",
+                "minInclusive exceeds maxInclusive",
+                "5",
+                "maxInclusive",
+                "4",
+            ),
+            (
+                "openUpper",
+                "minInclusive",
+                "5",
+                "minInclusive must be below maxExclusive",
+                "5",
+                "maxExclusive",
+                "5",
+            ),
+            (
+                "openLower",
+                "minExclusive",
+                "3.5",
+                "minExclusive must be below maxInclusive",
+                "3.5",
+                "maxInclusive",
+                "3.5",
+            ),
+            (
+                "openBoth",
+                "minExclusive",
+                "1.0",
+                "minExclusive must be below maxExclusive",
+                "1.0",
+                "maxExclusive",
+                "1.0",
+            ),
+        ] {
+            let diagnostic = model
+                .compile_diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                        && diagnostic.details.as_ref().is_some_and(|details| {
+                            details.get("attribute").and_then(serde_json::Value::as_str)
+                                == Some(attribute)
+                                && details
+                                    .get("datatypeParam")
+                                    .and_then(serde_json::Value::as_str)
+                                    == Some(param_name)
+                        })
+                })
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing invalid {param_name} envelope diagnostic for attribute {attribute}: {:#?}",
+                        model.compile_diagnostics
+                    )
+                });
+            assert!(diagnostic.message.contains(message));
+            let details = diagnostic
+                .details
+                .as_ref()
+                .expect("invalid numeric bound envelope compile details");
+            assert_eq!(
+                details["schemaUri"],
+                serde_json::json!("https://example.test/ns/invalid-bound-envelope-contracts/1")
+            );
+            assert_eq!(details["attribute"], serde_json::json!(attribute));
+            assert_eq!(
+                details["checkKind"],
+                serde_json::json!(format!("datatype-param:{param_name}"))
+            );
+            assert_eq!(details["datatypeParam"], serde_json::json!(param_name));
+            assert_eq!(details["paramValue"], serde_json::json!(param_value));
+            assert_eq!(details["lowerParam"], serde_json::json!(param_name));
+            assert_eq!(details["lowerValue"], serde_json::json!(lower_value));
+            assert_eq!(details["upperParam"], serde_json::json!(upper_param));
+            assert_eq!(details["upperValue"], serde_json::json!(upper_value));
+            assert_eq!(details["error"], serde_json::json!(message));
+        }
     }
 
     #[test]

@@ -4,12 +4,16 @@
 
 {schema @name="invalid-datatype-param-bound" @namespace="https://example.test/ns/invalid-datatype-param-bound/1" @version="1.0.0" |
     {elements |
-        {element @name="resource" @optional-attributes="priority title untyped"}
+        {element @name="resource" @optional-attributes="priority title untyped closed openUpper openLower openBoth"}
     }
 
     {attributes |
         {attribute @name="priority" @type="schema:integer" @minInclusive=0.5}
         {attribute @name="title" @type="schema:string" @minInclusive=1}
         {attribute @name="untyped" @maxInclusive=10}
+        {attribute @name="closed" @type="schema:integer" @minInclusive=5 @maxInclusive=4}
+        {attribute @name="openUpper" @type="schema:integer" @minInclusive=5 @maxExclusive=5}
+        {attribute @name="openLower" @type="schema:number" @minExclusive=3.5 @maxInclusive=3.5}
+        {attribute @name="openBoth" @type="schema:number" @minExclusive=1.0 @maxExclusive=1.0}
     }
 }
