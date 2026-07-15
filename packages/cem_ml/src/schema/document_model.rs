@@ -13685,6 +13685,30 @@ mod tests {
         CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, HTML_CONTENT_TYPE,
     };
 
+    fn assert_behavior_result_declares_details(
+        model: &SchemaDocumentModel,
+        behavior_name: &str,
+        details: &[(&str, &str)],
+    ) {
+        let result = model
+            .behaviors
+            .get(behavior_name)
+            .and_then(|behavior| behavior.result.as_ref())
+            .unwrap_or_else(|| panic!("{behavior_name} result declaration"));
+        let declared = result
+            .details
+            .iter()
+            .map(|detail| (detail.name.as_str(), detail.value_type.as_str()))
+            .collect::<BTreeMap<_, _>>();
+        for (detail_name, value_type) in details {
+            assert_eq!(
+                declared.get(detail_name).copied(),
+                Some(*value_type),
+                "{behavior_name} result must declare {detail_name} as {value_type}"
+            );
+        }
+    }
+
     #[test]
     fn loads_schema_definition_document_model() {
         let model = load_builtin_document_model_for_identity(Some(CEM_SCHEMA_URI), None).unwrap();
@@ -14975,6 +14999,181 @@ mod tests {
                 "reference-resolution result must declare {detail_name} as {value_type}"
             );
         }
+    }
+
+    #[test]
+    fn schema_behavior_result_contracts_declare_current_engine_detail_surface() {
+        let model = load_builtin_document_model_for_identity(Some(CEM_SCHEMA_URI), None).unwrap();
+
+        assert_behavior_result_declares_details(
+            &model,
+            "field-contract",
+            &[
+                ("schemaUri", "schema:uri"),
+                ("element", "schema:identifier"),
+                ("contract", "schema:identifier"),
+                ("target", "schema:identifier"),
+                ("diagnostic", "schema:diagnostic-code"),
+                ("behavior", "schema:behavior-reference"),
+                ("checkKind", "schema:identifier"),
+                ("requiredFields", "schema:array"),
+                ("optionalFields", "schema:array"),
+                ("forbiddenFields", "schema:array"),
+                ("forbiddenAttributeValues", "schema:object"),
+                ("requiredOneFields", "schema:array"),
+                ("maxOneFields", "schema:array"),
+                ("presentRequiredOneFields", "schema:array"),
+                ("presentMaxOneFields", "schema:array"),
+                ("missingChoiceFields", "schema:array"),
+                ("conflictingChoiceFields", "schema:array"),
+                ("choiceCases", "schema:array"),
+                ("presentChoiceCases", "schema:object"),
+                ("missingChoiceCases", "schema:array"),
+                ("conflictingChoiceCases", "schema:object"),
+                ("acceptedChildren", "schema:array"),
+                ("forbiddenChildren", "schema:array"),
+                ("requiredChildren", "schema:array"),
+                ("maxOneChildren", "schema:array"),
+                ("requiredOneChild", "schema:array"),
+                ("maxOneChild", "schema:array"),
+                ("selectedChildren", "schema:array"),
+                ("orderedChildren", "schema:array"),
+                ("forbiddenOrderedChildren", "schema:array"),
+                ("firstChild", "schema:identifier"),
+                ("lastChild", "schema:identifier"),
+                ("forbiddenFirstChild", "schema:identifier"),
+                ("forbiddenLastChild", "schema:identifier"),
+                ("requiredChildSequence", "schema:array"),
+                ("forbiddenChildSequence", "schema:array"),
+                ("exactChildSequence", "schema:array"),
+                ("prefixChildSequence", "schema:array"),
+                ("suffixChildSequence", "schema:array"),
+                ("forbiddenPrefixChildSequence", "schema:array"),
+                ("forbiddenSuffixChildSequence", "schema:array"),
+                ("presentRequiredOneChild", "schema:array"),
+                ("presentMaxOneChild", "schema:array"),
+                ("missingChoiceChildren", "schema:array"),
+                ("conflictingChoiceChildren", "schema:array"),
+                ("exactChildren", "schema:object"),
+                ("minChildren", "schema:object"),
+                ("maxChildren", "schema:object"),
+                ("exactTotalChildren", "schema:integer"),
+                ("minTotalChildren", "schema:integer"),
+                ("maxTotalChildren", "schema:integer"),
+                ("exactDistinctChildren", "schema:integer"),
+                ("minDistinctChildren", "schema:integer"),
+                ("maxDistinctChildren", "schema:integer"),
+                ("exactSelectedChildren", "schema:integer"),
+                ("minSelectedChildren", "schema:integer"),
+                ("maxSelectedChildren", "schema:integer"),
+                ("exactSelectedDistinctChildren", "schema:integer"),
+                ("minSelectedDistinctChildren", "schema:integer"),
+                ("maxSelectedDistinctChildren", "schema:integer"),
+                ("pathLayout", "schema:object"),
+                ("missingFields", "schema:array"),
+                ("invalidFields", "schema:array"),
+                ("invalidValues", "schema:object"),
+                ("invalidChildren", "schema:array"),
+                ("missingChildren", "schema:array"),
+                ("duplicateChildren", "schema:array"),
+                ("invalidExactChildren", "schema:array"),
+                ("underMinChildren", "schema:array"),
+                ("overMaxChildren", "schema:array"),
+                ("invalidExactTotalChildren", "schema:boolean"),
+                ("underMinTotalChildren", "schema:boolean"),
+                ("overMaxTotalChildren", "schema:boolean"),
+                ("totalChildCount", "schema:integer"),
+                ("invalidExactDistinctChildren", "schema:boolean"),
+                ("underMinDistinctChildren", "schema:boolean"),
+                ("overMaxDistinctChildren", "schema:boolean"),
+                ("distinctChildCount", "schema:integer"),
+                ("invalidExactSelectedChildren", "schema:boolean"),
+                ("underMinSelectedChildren", "schema:boolean"),
+                ("overMaxSelectedChildren", "schema:boolean"),
+                ("selectedChildCount", "schema:integer"),
+                ("invalidExactSelectedDistinctChildren", "schema:boolean"),
+                ("underMinSelectedDistinctChildren", "schema:boolean"),
+                ("overMaxSelectedDistinctChildren", "schema:boolean"),
+                ("selectedDistinctChildCount", "schema:integer"),
+                ("orderedChildSequence", "schema:array"),
+                ("unorderedChildren", "schema:array"),
+                ("invalidChildOrder", "schema:boolean"),
+                ("matchedForbiddenOrderedChildren", "schema:array"),
+                ("invalidForbiddenChildOrder", "schema:boolean"),
+                ("actualFirstChild", "schema:identifier"),
+                ("actualLastChild", "schema:identifier"),
+                ("invalidFirstChild", "schema:boolean"),
+                ("invalidLastChild", "schema:boolean"),
+                ("invalidForbiddenFirstChild", "schema:boolean"),
+                ("invalidForbiddenLastChild", "schema:boolean"),
+                ("actualChildSequence", "schema:array"),
+                ("matchedChildSequence", "schema:array"),
+                ("invalidChildSequence", "schema:boolean"),
+                ("matchedForbiddenChildSequence", "schema:array"),
+                ("invalidForbiddenChildSequence", "schema:boolean"),
+                ("invalidExactChildSequence", "schema:boolean"),
+                ("invalidPrefixChildSequence", "schema:boolean"),
+                ("invalidSuffixChildSequence", "schema:boolean"),
+                ("invalidForbiddenPrefixChildSequence", "schema:boolean"),
+                ("invalidForbiddenSuffixChildSequence", "schema:boolean"),
+                ("childCounts", "schema:object"),
+                ("actualValues", "schema:object"),
+                ("condition", "schema:object"),
+                ("sourceRange", "schema:object"),
+            ],
+        );
+        assert_behavior_result_declares_details(
+            &model,
+            "datatype-param",
+            &[
+                ("whiteSpace", "schema:white-space"),
+                ("normalizedValue", "schema:string"),
+                ("forbiddenUriSchemes", "schema:array"),
+                ("forbiddenUriHosts", "schema:array"),
+                ("forbiddenUriPorts", "schema:array"),
+                ("forbiddenMediaTypeEssences", "schema:array"),
+            ],
+        );
+        for behavior in [
+            "resource-readable",
+            "resource-parse",
+            "reference-resolution",
+        ] {
+            assert_behavior_result_declares_details(
+                &model,
+                behavior,
+                &[
+                    ("schemaUri", "schema:uri"),
+                    ("element", "schema:identifier"),
+                    ("constraint", "schema:identifier"),
+                    ("diagnostic", "schema:diagnostic-code"),
+                    ("behavior", "schema:behavior-reference"),
+                    ("checkKind", "schema:identifier"),
+                    ("sourceRange", "schema:object"),
+                ],
+            );
+        }
+        assert_behavior_result_declares_details(
+            &model,
+            "resource-readable",
+            &[("path", "schema:path"), ("error", "schema:string")],
+        );
+        assert_behavior_result_declares_details(
+            &model,
+            "resource-parse",
+            &[
+                ("path", "schema:path"),
+                ("sourceDiagnostic", "schema:object"),
+            ],
+        );
+        assert_behavior_result_declares_details(
+            &model,
+            "reference-resolution",
+            &[
+                ("expectedValues", "schema:object"),
+                ("invalidValues", "schema:object"),
+            ],
+        );
     }
 
     #[test]

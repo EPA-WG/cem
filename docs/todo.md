@@ -436,7 +436,7 @@ history belongs in git history and the feature-specific docs linked below.
         current declared set, richer dependency groups, additional child
         occurrence variants, and richer case grouping now require a separate
         vocabulary/design decision before becoming execution tasks.
-  - [ ] Extend structured diagnostic details beyond initial required/forbidden
+  - [x] Extend structured diagnostic details beyond initial required/forbidden
         field checks. The first generic field-contract evaluator now emits
         schema URI, element, contract name, check kind, required/optional/
         forbidden fields, missing/invalid fields, actual values, condition, and
@@ -504,9 +504,13 @@ history belongs in git history and the feature-specific docs linked below.
         schema-definition condition selector consistency checks emit contract,
         conflict, when-attribute/value, present/absent selector, and
         conflicting field/child detail keys;
-        URI/media-type constraints, dependency, additional
-        child occurrence variants beyond exact/named/total/selected/selected-distinct/distinct count bounds, child-set cardinality, required/forbidden relative ordering, required/forbidden boundary placement, and exact/required/forbidden/prefix/suffix/forbidden-prefix/forbidden-suffix child sequences, and cross-reference checks need the same
-        schema-owned detail shape.
+        URI/media-type constraints, dependency, additional current child
+        occurrence variants, and cross-reference checks now use the same
+        schema-owned detail shape. The generic `schema:field-contract` result
+        contract declares the current emitted field-contract detail union, and
+        Rust coverage now checks the compiled behavior result declarations for
+        generic field-contract, datatype-param, resource-readable,
+        resource-parse, and reference-resolution detail keys.
   - [ ] Extend the generic field-contract evaluator. The first evaluator runs
         from schema URI plus content type, consumes the compiled contract
         model, preserves source-map ranges, and emits contract-declared
