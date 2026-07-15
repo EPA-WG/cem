@@ -396,12 +396,11 @@ history belongs in git history and the feature-specific docs linked below.
         total, selected, selected-distinct, and distinct child-count
         bounds, min/max child occurrence ranges, required/forbidden relative child
         ordering, and required/forbidden boundary child placement, plus exact/required/forbidden/prefix/suffix
-        and forbidden-prefix/forbidden-suffix child sequences. Remaining
-        RELAX NG-style datatype params beyond the current scalar/datatype
-        family, richer dependent-required field groups, and additional child
-        occurrence variants are tracked by the compiled model, diagnostic
-        detail, and evaluator follow-up items below.
-  - [ ] Extend the compiled Rust schema contract model. `SchemaDocumentModel`
+        and forbidden-prefix/forbidden-suffix child sequences. Additional
+        datatype, dependency, child occurrence, and case-grouping vocabulary
+        beyond the current declared surface needs a separate vocabulary/design
+        decision before becoming execution work.
+  - [x] Extend the compiled Rust schema contract model. `SchemaDocumentModel`
         now compiles initial `field-contract` declarations and evaluates
         required/forbidden fields, attribute `@values` vocabularies, and
         `schema:boolean`/`cemml:boolean`, `schema:integer`/`cemml:integer`,
@@ -426,26 +425,17 @@ history belongs in git history and the feature-specific docs linked below.
         required/forbidden boundary child placement contracts,
         exact/required/forbidden/prefix/suffix/forbidden-prefix/
         forbidden-suffix child sequence contracts, direct child sequence
-        consistency validation, and attribute
-        default metadata, validation, validation-time materialization, and
-        `whiteSpace` datatype-param normalization; it
-        still needs reusable string constraints beyond length/prefix/suffix/forbidden-prefix/forbidden-suffix/include/exclude/pattern and path constraints beyond
-        prefix/forbidden-prefix/directory-name/forbidden-directory-name/extension/forbidden-extension/basename/
-        forbidden-basename and path-layout checks beyond prefix/directory-name/
-        forbidden-directory-name/extension/basename/forbidden-basename
-        (deferred to low-priority vocabulary design until a concrete generic
-        facet is chosen),
-        any explicitly chosen URI/media-type facets beyond scheme/forbidden-scheme/host/forbidden-host/port/forbidden-port/authority/path-prefix/forbidden-path-prefix/path-extension/forbidden-path-extension/path-basename/forbidden-path-basename/query/forbidden-query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/forbidden-fragment
-        and media-type essence/forbidden-essence/type/subtype/structured-suffix/forbidden-type/forbidden-subtype/forbidden-structured-suffix/parameter-name/value/forbidden-parameter/required-parameter lists,
-        RELAX NG-style datatype params beyond numeric bounds/digit counts,
-        string length/prefix/suffix/forbidden-prefix/forbidden-suffix/include/exclude, list item counts, pattern, and allowed
-        URI/media tokens and whitespace normalization, dependent field
-        groups beyond all/any value/presence/child-structure-gated required/forbidden fields, additional child
-        occurrence variants beyond exact/named/total/selected/selected-distinct/distinct count
-        bounds, child-set cardinality, required/forbidden relative ordering,
-        required/forbidden boundary placement,
-        and exact/required/forbidden/prefix/suffix/forbidden-prefix/forbidden-suffix child sequences, and richer case grouping
-        for all schema elements.
+        consistency validation, and attribute default metadata, validation,
+        validation-time materialization, and `whiteSpace` datatype-param
+        normalization; it
+        now covers the current declared schema-owned behavior vocabulary. A
+        regression guard compiles one CEM-ML schema contract that uses every
+        declared `field-contract` attribute and nested `choice`/`case` shape
+        into the Rust model. Reusable string/path facets, additional
+        URI/media-type facets, RELAX NG-style datatype params beyond the
+        current declared set, richer dependency groups, additional child
+        occurrence variants, and richer case grouping now require a separate
+        vocabulary/design decision before becoming execution tasks.
   - [ ] Extend structured diagnostic details beyond initial required/forbidden
         field checks. The first generic field-contract evaluator now emits
         schema URI, element, contract name, check kind, required/optional/

@@ -14978,6 +14978,279 @@ mod tests {
     }
 
     #[test]
+    fn schema_field_contract_declared_attribute_surface_compiles_from_cem_source() {
+        fn set(values: &[&str]) -> BTreeSet<String> {
+            values.iter().map(|value| (*value).to_owned()).collect()
+        }
+
+        fn map(values: &[(&str, &str)]) -> BTreeMap<String, String> {
+            values
+                .iter()
+                .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
+                .collect()
+        }
+
+        fn value_map(values: &[(&str, &[&str])]) -> BTreeMap<String, BTreeSet<String>> {
+            values
+                .iter()
+                .map(|(name, values)| ((*name).to_owned(), set(values)))
+                .collect()
+        }
+
+        let model = compile_document_model(
+            "https://example.test/ns/field-contract-surface/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="field-contract-surface" @namespace="https://example.test/ns/field-contract-surface/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="item" @optional-attributes="kind title legacy href inline path mirror backup" @children="header item-child footer primary secondary note aside promo ad"}
+        {element @name="header"}
+        {element @name="item-child"}
+        {element @name="footer"}
+        {element @name="primary"}
+        {element @name="secondary"}
+        {element @name="note"}
+        {element @name="aside"}
+        {element @name="promo"}
+        {element @name="ad"}
+    }
+    {field-contracts |
+        {field-contract
+            @name="current-field-contract-surface"
+            @target="item"
+            @diagnostic="example.contract"
+            @behavior="schema:field-contract"
+            @check-kind="full-vocabulary"
+            @required-attributes="title"
+            @optional-attributes="href inline"
+            @forbidden-attributes="legacy"
+            @forbidden-attribute-values="kind=deprecated kind=blocked"
+            @required-one-attributes="href inline"
+            @max-one-attributes="href inline"
+            @accepted-children="header item-child footer primary secondary note"
+            @forbidden-children="ad"
+            @required-children="header"
+            @max-one-children="footer"
+            @required-one-child="primary secondary"
+            @max-one-child="primary secondary"
+            @selected-children="item-child note"
+            @ordered-children="header item-child footer"
+            @forbidden-ordered-children="footer header"
+            @first-child="header"
+            @last-child="footer"
+            @forbidden-first-child="ad"
+            @forbidden-last-child="ad"
+            @required-child-sequence="header item-child"
+            @forbidden-child-sequence="ad footer"
+            @exact-child-sequence="header item-child primary footer"
+            @prefix-child-sequence="header item-child"
+            @suffix-child-sequence="primary footer"
+            @forbidden-prefix-child-sequence="ad item-child"
+            @forbidden-suffix-child-sequence="ad footer"
+            @exact-children="header=1"
+            @min-children="item-child=1"
+            @max-children="item-child=3"
+            @exact-total-children=4
+            @min-total-children=1
+            @max-total-children=5
+            @exact-distinct-children=4
+            @min-distinct-children=1
+            @max-distinct-children=5
+            @exact-selected-children=2
+            @min-selected-children=1
+            @max-selected-children=3
+            @exact-selected-distinct-children=2
+            @min-selected-distinct-children=1
+            @max-selected-distinct-children=3
+            @path-layout-attributes="path"
+            @path-layout-prefix="assets"
+            @path-layout-directory-names="assets public"
+            @path-layout-forbidden-directory-names="private tmp"
+            @path-layout-extension="cemt"
+            @path-layout-basenames="demo.cemt"
+            @path-layout-forbidden-basenames="private.cemt"
+            @when-attribute="kind"
+            @when-values="remote"
+            @when-present-attributes="title"
+            @when-absent-attributes="legacy"
+            @when-any-present-attributes="href inline"
+            @when-any-absent-attributes="mirror backup"
+            @when-present-children="header"
+            @when-absent-children="ad"
+            @when-any-present-children="item-child note"
+            @when-any-absent-children="aside promo" |
+            {choice @name="source" @mode="exactly-one" |
+                {case @name="href-case" @attributes="href"}
+                {case @name="inline-case" @attributes="inline"}
+                {case @name="primary-case" @children="primary"}
+            }
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.contract"
+            @severity="error"
+            @behavior="schema:field-contract"
+        }
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "current field-contract vocabulary must compile from CEM-ML source: {:#?}",
+            model.compile_diagnostics
+        );
+        let contract = model
+            .element("item")
+            .expect("item element model")
+            .field_contracts
+            .iter()
+            .find(|contract| contract.name == "current-field-contract-surface")
+            .expect("compiled field-contract surface");
+
+        assert_eq!(contract.target, "item");
+        assert_eq!(contract.diagnostic.as_deref(), Some("example.contract"));
+        assert_eq!(contract.behavior.as_deref(), Some("schema:field-contract"));
+        assert_eq!(contract.check_kind.as_deref(), Some("full-vocabulary"));
+        assert_eq!(
+            contract.engine_behavior,
+            Some(EngineDiagnosticBehavior::FieldContract)
+        );
+        assert_eq!(contract.required_attributes, set(&["title"]));
+        assert_eq!(contract.optional_attributes, set(&["href", "inline"]));
+        assert_eq!(contract.forbidden_attributes, set(&["legacy"]));
+        assert_eq!(
+            contract.forbidden_attribute_values,
+            value_map(&[("kind", &["blocked", "deprecated"])])
+        );
+        assert_eq!(contract.required_one_attributes, set(&["href", "inline"]));
+        assert_eq!(contract.max_one_attributes, set(&["href", "inline"]));
+        assert_eq!(
+            contract.accepted_children,
+            set(&[
+                "header",
+                "item-child",
+                "footer",
+                "primary",
+                "secondary",
+                "note"
+            ])
+        );
+        assert_eq!(contract.forbidden_children, set(&["ad"]));
+        assert_eq!(contract.required_children, set(&["header"]));
+        assert_eq!(contract.max_one_children, set(&["footer"]));
+        assert_eq!(contract.required_one_child, set(&["primary", "secondary"]));
+        assert_eq!(contract.max_one_child, set(&["primary", "secondary"]));
+        assert_eq!(contract.selected_children, set(&["item-child", "note"]));
+        assert_eq!(
+            contract.ordered_children,
+            vec!["header", "item-child", "footer"]
+        );
+        assert_eq!(
+            contract.forbidden_ordered_children,
+            vec!["footer", "header"]
+        );
+        assert_eq!(contract.first_child.as_deref(), Some("header"));
+        assert_eq!(contract.last_child.as_deref(), Some("footer"));
+        assert_eq!(contract.forbidden_first_child.as_deref(), Some("ad"));
+        assert_eq!(contract.forbidden_last_child.as_deref(), Some("ad"));
+        assert_eq!(
+            contract.required_child_sequence,
+            vec!["header", "item-child"]
+        );
+        assert_eq!(contract.forbidden_child_sequence, vec!["ad", "footer"]);
+        assert_eq!(
+            contract.exact_child_sequence,
+            vec!["header", "item-child", "primary", "footer"]
+        );
+        assert_eq!(contract.prefix_child_sequence, vec!["header", "item-child"]);
+        assert_eq!(contract.suffix_child_sequence, vec!["primary", "footer"]);
+        assert_eq!(
+            contract.forbidden_prefix_child_sequence,
+            vec!["ad", "item-child"]
+        );
+        assert_eq!(
+            contract.forbidden_suffix_child_sequence,
+            vec!["ad", "footer"]
+        );
+        assert_eq!(contract.exact_children, map(&[("header", "1")]));
+        assert_eq!(contract.min_children, map(&[("item-child", "1")]));
+        assert_eq!(contract.max_children, map(&[("item-child", "3")]));
+        assert_eq!(contract.exact_total_children.as_deref(), Some("4"));
+        assert_eq!(contract.min_total_children.as_deref(), Some("1"));
+        assert_eq!(contract.max_total_children.as_deref(), Some("5"));
+        assert_eq!(contract.exact_distinct_children.as_deref(), Some("4"));
+        assert_eq!(contract.min_distinct_children.as_deref(), Some("1"));
+        assert_eq!(contract.max_distinct_children.as_deref(), Some("5"));
+        assert_eq!(contract.exact_selected_children.as_deref(), Some("2"));
+        assert_eq!(contract.min_selected_children.as_deref(), Some("1"));
+        assert_eq!(contract.max_selected_children.as_deref(), Some("3"));
+        assert_eq!(
+            contract.exact_selected_distinct_children.as_deref(),
+            Some("2")
+        );
+        assert_eq!(
+            contract.min_selected_distinct_children.as_deref(),
+            Some("1")
+        );
+        assert_eq!(
+            contract.max_selected_distinct_children.as_deref(),
+            Some("3")
+        );
+        assert_eq!(contract.path_layout_attributes, set(&["path"]));
+        assert_eq!(contract.path_layout_prefix.as_deref(), Some("assets"));
+        assert_eq!(
+            contract.path_layout_directory_names,
+            set(&["assets", "public"])
+        );
+        assert_eq!(
+            contract.path_layout_forbidden_directory_names,
+            set(&["private", "tmp"])
+        );
+        assert_eq!(contract.path_layout_extension.as_deref(), Some("cemt"));
+        assert_eq!(contract.path_layout_basenames, set(&["demo.cemt"]));
+        assert_eq!(
+            contract.path_layout_forbidden_basenames,
+            set(&["private.cemt"])
+        );
+        assert_eq!(contract.when_attribute.as_deref(), Some("kind"));
+        assert_eq!(contract.when_values, set(&["remote"]));
+        assert_eq!(contract.when_present_attributes, set(&["title"]));
+        assert_eq!(contract.when_absent_attributes, set(&["legacy"]));
+        assert_eq!(
+            contract.when_any_present_attributes,
+            set(&["href", "inline"])
+        );
+        assert_eq!(
+            contract.when_any_absent_attributes,
+            set(&["mirror", "backup"])
+        );
+        assert_eq!(contract.when_present_children, set(&["header"]));
+        assert_eq!(contract.when_absent_children, set(&["ad"]));
+        assert_eq!(
+            contract.when_any_present_children,
+            set(&["item-child", "note"])
+        );
+        assert_eq!(contract.when_any_absent_children, set(&["aside", "promo"]));
+        assert_eq!(contract.choice_groups.len(), 1);
+        let choice = &contract.choice_groups[0];
+        assert_eq!(choice.name, "source");
+        assert_eq!(choice.mode, "exactly-one");
+        assert_eq!(choice.cases.len(), 3);
+        assert_eq!(choice.cases[0].name.as_deref(), Some("href-case"));
+        assert_eq!(choice.cases[0].attributes, set(&["href"]));
+        assert_eq!(choice.cases[1].name.as_deref(), Some("inline-case"));
+        assert_eq!(choice.cases[1].attributes, set(&["inline"]));
+        assert_eq!(choice.cases[2].name.as_deref(), Some("primary-case"));
+        assert_eq!(choice.cases[2].children, set(&["primary"]));
+    }
+
+    #[test]
     fn loads_schema_package_document_model_from_content_type() {
         let model = load_builtin_document_model_for_identity(
             None,
