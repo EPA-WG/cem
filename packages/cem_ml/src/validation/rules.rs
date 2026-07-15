@@ -4679,7 +4679,11 @@ mod tests {
             serde_json::json!({
                 "attributes": ["path"],
                 "prefix": "formatters",
+                "directoryNames": [],
+                "forbiddenDirectoryNames": ["private", "tmp"],
                 "extension": "cemt",
+                "basenames": [],
+                "forbiddenBasenames": ["private.cemt", "tmp.cemt"],
                 "relative": true,
                 "cleanSegments": true,
             })

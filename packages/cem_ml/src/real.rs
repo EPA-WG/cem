@@ -40,11 +40,11 @@ use crate::schema::machine::CemSchemaMachine;
 use crate::schema::package_consistency::validate_schema_package_source_consistency;
 use crate::schema::registry::{
     content_type_essence, schema_descriptor_from_manifest_and_schema_sources,
-    schema_source_path_from_manifest_source, CEM_DOM_JSON_PROJECTION_CONTENT_TYPE,
-    CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
-    CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI,
-    HTML_CONTENT_TYPE, HTML_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
-    XML_SCHEMA_URI,
+    schema_source_path_from_manifest_source, SchemaDescriptor,
+    CEM_DOM_JSON_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_CONTENT_TYPE,
+    CEM_DOM_PROJECTION_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+    CEM_SCHEMA_PACKAGE_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
+    XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
 };
 use crate::schema::vocab::CompiledSchema;
 use crate::source::{ByteRange, BytesSource, SourceId};
@@ -986,6 +986,15 @@ fn register_schema_document_model_from_validated_schema_package_manifest(
         }));
         return;
     }
+    if context
+        .schema_registry
+        .schema(&descriptor.schema_uri)
+        .is_some_and(|existing| {
+            schema_descriptor_matches_registered_identity(existing, &descriptor)
+        })
+    {
+        return;
+    }
     if let Err(error) = context.schema_registry.register(descriptor) {
         diagnostics.push(schema_package_load_diagnostic(
             Some(manifest_uri),
@@ -997,6 +1006,18 @@ fn register_schema_document_model_from_validated_schema_package_manifest(
     if !model.is_empty() {
         context.schema_document_models.register(model);
     }
+}
+
+fn schema_descriptor_matches_registered_identity(
+    existing: &SchemaDescriptor,
+    candidate: &SchemaDescriptor,
+) -> bool {
+    existing.package_id == candidate.package_id
+        && existing.schema_uri == candidate.schema_uri
+        && existing.version == candidate.version
+        && existing.content_types == candidate.content_types
+        && existing.namespaces == candidate.namespaces
+        && existing.uses == candidate.uses
 }
 
 fn read_schema_package_schema_source(
@@ -6376,7 +6397,9 @@ mod tests {
         ConversionRustFallbackDescriptor, ConversionTemplateDescriptor,
     };
     use crate::resolver::{ResolverRegistry, ResourceResolver};
-    use crate::schema::registry::{CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI};
+    use crate::schema::registry::{
+        CEM_SCHEMA_CONTENT_TYPE, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI,
+    };
     use crate::transform_template::{
         TransformTemplateAdapterCapability, TransformTemplateAdapterError,
         TransformTemplateAdapterExecutionPhase, TransformTemplateAdapterRegistry,
@@ -11415,6 +11438,7 @@ mod tests {
     #[test]
     fn convert_loads_context_schema_package_manifest_artifacts_before_output_pipeline() {
         const PACKAGE_URI: &str = "cem+test://packages/cem-ml/v1/package.cem";
+        const SCHEMA_URI: &str = "cem+test://packages/cem-ml/v1/schema/cem-ml-generic.cem";
         const FORMATTER_URI: &str = "cem+test://packages/cem-ml/v1/formatters/cem-format-tree.cemt";
         const FORMATTER_HELPER_URI: &str =
             "cem+test://packages/cem-ml/v1/formatters/cem-format-tree-helpers.cemt";
@@ -11426,8 +11450,13 @@ mod tests {
 @default pkg
 
 {package @id="cem-ml" @version="1.0.0" |
-    {schema @uri="https://cem.dev/ns/cem-ml/1" @source="schema/cem-ml.cem"}
+    {schema @uri="https://cem.dev/ns/cem-ml/1" @source="schema/cem-ml-generic.cem"}
     {content-type @value="application/cem" @primary=true}
+    {content-type @value="text/cem-ml" @alias=true}
+    {content-type @value="text/cem" @alias=true}
+    {content-type @value="application/cem+xml" @alias=true}
+    {namespace @prefix="cemml" @uri="https://cem.dev/ns/cem-ml/1"}
+    {namespace @prefix="schema" @uri="https://cem.dev/ns/schema/1"}
     {artifact
         @kind="formatter"
         @path="formatters/cem-format-tree.cemt"
@@ -11476,6 +11505,8 @@ mod tests {
     }
 }
 "#;
+        let schema_source = crate::schema::package_sources::builtin_schema_package_source("cem-ml")
+            .expect("embedded schema source");
         let formatter_source =
             crate::schema::package_sources::builtin_schema_package_artifact_source(
                 "cem-ml",
@@ -11507,6 +11538,11 @@ mod tests {
             ResolveDirection::Read,
             MapReadResolver {
                 entries: vec![
+                    (
+                        SCHEMA_URI,
+                        schema_source.schema_source.as_bytes(),
+                        Some(CEM_SCHEMA_CONTENT_TYPE),
+                    ),
                     (
                         FORMATTER_URI,
                         formatter_source.source.as_bytes(),
@@ -11569,6 +11605,7 @@ mod tests {
     #[test]
     fn convert_prefers_context_schema_package_output_artifacts_over_builtins() {
         const PACKAGE_URI: &str = "cem+test://packages/cem-ml/v1/package.cem";
+        const SCHEMA_URI: &str = "cem+test://packages/cem-ml/v1/schema/cem-ml-generic.cem";
         const FORMATTER_URI: &str = "cem+test://packages/cem-ml/v1/formatters/cem-format-tree.cemt";
         const COLORIZER_URI: &str = "cem+test://packages/cem-ml/v1/colorizers/cem-color-tree.cemt";
         const PACKAGE_MANIFEST: &[u8] = br#"@doc cem-ml 1
@@ -11576,8 +11613,13 @@ mod tests {
 @default pkg
 
 {package @id="cem-ml" @version="1.0.0" |
-    {schema @uri="https://cem.dev/ns/cem-ml/1" @source="schema/cem-ml.cem"}
+    {schema @uri="https://cem.dev/ns/cem-ml/1" @source="schema/cem-ml-generic.cem"}
     {content-type @value="application/cem" @primary=true}
+    {content-type @value="text/cem-ml" @alias=true}
+    {content-type @value="text/cem" @alias=true}
+    {content-type @value="application/cem+xml" @alias=true}
+    {namespace @prefix="cemml" @uri="https://cem.dev/ns/cem-ml/1"}
+    {namespace @prefix="schema" @uri="https://cem.dev/ns/schema/1"}
     {artifact
         @kind="formatter"
         @path="formatters/cem-format-tree.cemt"
@@ -11603,6 +11645,8 @@ mod tests {
     }
 }
 "#;
+        let schema_source = crate::schema::package_sources::builtin_schema_package_source("cem-ml")
+            .expect("embedded schema source");
         const FORMATTER_SOURCE: &[u8] = br#"@doc cem-ml 1
 @ns transform = "https://cem.dev/ns/transform/cem/1"
 @default transform
@@ -11733,6 +11777,11 @@ mod tests {
             ResolveDirection::Read,
             MapReadResolver {
                 entries: vec![
+                    (
+                        SCHEMA_URI,
+                        schema_source.schema_source.as_bytes(),
+                        Some(CEM_SCHEMA_CONTENT_TYPE),
+                    ),
                     (
                         FORMATTER_URI,
                         FORMATTER_SOURCE,

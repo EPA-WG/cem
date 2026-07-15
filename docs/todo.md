@@ -6,7 +6,7 @@ history belongs in git history and the feature-specific docs linked below.
 
 ## Immediate Tasks
 
-- [ ] Enable schema behavior, including `{diagnostic}` behavior, to be defined
+- [x] Enable schema behavior, including `{diagnostic}` behavior, to be defined
       entirely through declarative CEM-ML syntax. A diagnostic `@code` must
       resolve to a schema-visible algorithm contract instead of acting only as
       an inert output label: the contract selects either a minimal
@@ -100,8 +100,8 @@ history belongs in git history and the feature-specific docs linked below.
       media-type detail keys. Constraint-owned resource-read, resource-parse,
       and reference-resolution behavior contracts now declare their emitted
       path, error, source diagnostic, expected-value, and invalid-value
-      details. The minimal engine-provided behavior library is now published;
-      the complete schema-package and CLI example matrix remains.
+      details. The minimal engine-provided behavior library is now published,
+      and schema-package plus CLI example matrix coverage is complete.
   - [x] Allow declarative behavior to select candidate nodes and match failure
         conditions with CEM-QL, then invoke a schema-declared CEM-ML behavior
         function to calculate the result and structured diagnostic details.
@@ -750,10 +750,11 @@ history belongs in git history and the feature-specific docs linked below.
         expanding that audit for narrow operational `matches!` lists as new
         declarative contracts move into schema.
 
-- [ ] Complete the schema-package folder frame for
+- [x] Complete the schema-package folder frame for
       `packages/cem_ml/schema-packages`: every `{package-id}/vN/` folder must be
       discoverable from `package.cem` with a `.cem` schema source, example
-      references, CEMT formatter artifacts, and CEMT colorizer artifacts.
+      references, and package-owned CEMT formatter/colorizer artifacts where
+      the package owns output behavior.
   - [x] Extend the schema-package manifest and validators so package examples
         and formatter/colorizer artifacts are declared from `package.cem`.
         Examples must include source path, content type, schema URL, expected
@@ -803,7 +804,7 @@ history belongs in git history and the feature-specific docs linked below.
           from colored CEM-tree ranges.
     - [x] Add Markdown-safe rendered color output forms for `md` without
           losing source-map ranges.
-  - [ ] Roll the frame through the supported package scope below in order,
+  - [x] Roll the frame through the supported package scope below in order,
         keeping every content type covered before moving to lower-priority
         package families.
 
