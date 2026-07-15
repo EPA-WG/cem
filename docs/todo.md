@@ -511,7 +511,7 @@ history belongs in git history and the feature-specific docs linked below.
         Rust coverage now checks the compiled behavior result declarations for
         generic field-contract, datatype-param, resource-readable,
         resource-parse, and reference-resolution detail keys.
-  - [ ] Extend the generic field-contract evaluator. The first evaluator runs
+  - [x] Extend the generic field-contract evaluator. The first evaluator runs
         from schema URI plus content type, consumes the compiled contract
         model, preserves source-map ranges, and emits contract-declared
         diagnostic families such as `cem.schema_package.artifact_check`; it
@@ -534,9 +534,12 @@ history belongs in git history and the feature-specific docs linked below.
         string prefix/suffix/include/exclude constraints, list item-count constraints, path prefix/forbidden-prefix/directory-name/forbidden-directory-name/extension/forbidden-extension/basename/forbidden-basename constraints,
         nested choice/case checks, accepted-child allow-lists, forbidden-child
         occurrence checks, child-set cardinality, exact child-count and total/selected/selected-distinct/distinct child-count checks, URI scheme/forbidden-scheme/host/forbidden-host/port/forbidden-port/authority/path-prefix/forbidden-path-prefix/path-extension/forbidden-path-extension/path-basename/forbidden-path-basename/query/forbidden-query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/forbidden-fragment
-        constraints, and media-type essence/forbidden-essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter constraints; it still needs coverage for additional
-        datatype params, dependency variants, and
-        additional child occurrence variants beyond exact/named/total/selected/selected-distinct/distinct count bounds, child-set cardinality, required/forbidden relative ordering, required/forbidden boundary placement, and exact/required/forbidden/prefix/suffix/forbidden-prefix/forbidden-suffix child sequences.
+        constraints, and media-type essence/forbidden-essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter constraints. The current evaluator surface is now covered by runtime tests for
+        datatype params, dependency variants, and child occurrence variants,
+        plus schema-source surface guards that compile every currently declared
+        field-contract and attribute datatype-param knob into the Rust contract
+        model. Additional evaluator work now requires adding new schema
+        vocabulary first.
   - [ ] Move schema-package manifest field rules from Rust conditionals into
         `packages/cem_ml/schema-packages/schema-package/v1/schema/schema-package.cem`.
         Cover `package`, `schema`, `content-type`, `namespace`, `converter`,

@@ -15450,6 +15450,254 @@ mod tests {
     }
 
     #[test]
+    fn schema_datatype_param_declared_attribute_surface_compiles_from_cem_source() {
+        fn set(values: &[&str]) -> BTreeSet<String> {
+            values.iter().map(|value| (*value).to_owned()).collect()
+        }
+
+        fn value_map(values: &[(&str, &[&str])]) -> BTreeMap<String, BTreeSet<String>> {
+            values
+                .iter()
+                .map(|(name, values)| ((*name).to_owned(), set(values)))
+                .collect()
+        }
+
+        let model = compile_document_model(
+            "https://example.test/ns/datatype-param-surface/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="datatype-param-surface" @namespace="https://example.test/ns/datatype-param-surface/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="decimal text names src href content-type"}
+    }
+    {attributes |
+        {attribute
+            @name="decimal"
+            @type="schema:number"
+            @minInclusive=0
+            @maxInclusive=100
+            @minExclusive=-1
+            @maxExclusive=101
+            @totalDigits=5
+            @fractionDigits=2}
+        {attribute
+            @name="text"
+            @type="schema:string"
+            @minLength=2
+            @maxLength=8
+            @length=4
+            @stringPrefixes="ab cd"
+            @stringSuffixes="yz wx"
+            @stringForbiddenPrefixes="tmp dev"
+            @stringForbiddenSuffixes="bak old"
+            @stringIncludes="core"
+            @stringExcludes="legacy"
+            @pattern="[a-z][a-z0-9-]*"
+            @whiteSpace="collapse"}
+        {attribute
+            @name="names"
+            @type="schema:name-list"
+            @itemCount=2
+            @minItems=1
+            @maxItems=3}
+        {attribute
+            @name="src"
+            @type="schema:path"
+            @pathPrefixes="./templates/ @shared/ https://example.test/assets/"
+            @pathForbiddenPrefixes="./templates/private/ @shared/private/"
+            @pathDirectoryNames="templates assets public"
+            @pathForbiddenDirectoryNames="private tmp"
+            @pathExtensions="cem cemt"
+            @pathForbiddenExtensions="bak tmp"
+            @pathBasenames="card.cem index.cemt"
+            @pathForbiddenBasenames="secret.cem debug.cemt"}
+        {attribute
+            @name="href"
+            @type="schema:uri"
+            @uriSchemes="HTTPS urn"
+            @uriForbiddenSchemes="ftp"
+            @uriHosts="Example.test API.example.test"
+            @uriForbiddenHosts="blocked.example.test"
+            @uriPorts="443 8443"
+            @uriForbiddenPorts="8080"
+            @uriRequiresAuthority=true
+            @uriPathPrefixes="/docs /api"
+            @uriForbiddenPathPrefixes="/private"
+            @uriPathExtensions="cem json"
+            @uriForbiddenPathExtensions="tmp"
+            @uriPathBasenames="index.cem schema.json"
+            @uriForbiddenPathBasenames="secret.cem"
+            @uriQueries="mode=full lang=en"
+            @uriForbiddenQueries="debug=true"
+            @uriQueryParameters="mode lang"
+            @uriQueryParameterValues="mode=full lang=en"
+            @uriQueryForbiddenParameters="debug trace"
+            @uriQueryRequiredParameters="mode"
+            @uriFragments="overview install"
+            @uriForbiddenFragments="internal"}
+        {attribute
+            @name="content-type"
+            @type="schema:media-type"
+            @mediaTypes="text/html application/json"
+            @mediaTypeForbiddenEssences="image/png"
+            @mediaTypeTypes="text application"
+            @mediaTypeSubtypes="html json"
+            @mediaTypeSuffixes="json"
+            @mediaTypeForbiddenTypes="image"
+            @mediaTypeForbiddenSubtypes="xml"
+            @mediaTypeForbiddenSuffixes="zip"
+            @mediaTypeParameters="charset profile"
+            @mediaTypeParameterValues="charset=utf-8 profile=default"
+            @mediaTypeForbiddenParameters="debug"
+            @mediaTypeRequiredParameters="charset"}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "current datatype-param vocabulary must compile from CEM-ML source: {:#?}",
+            model.compile_diagnostics
+        );
+
+        let decimal = model
+            .attributes
+            .get("decimal")
+            .expect("decimal attribute model");
+        assert_eq!(decimal.value_type.as_deref(), Some("schema:number"));
+        assert_eq!(decimal.min_inclusive.as_deref(), Some("0"));
+        assert_eq!(decimal.max_inclusive.as_deref(), Some("100"));
+        assert_eq!(decimal.min_exclusive.as_deref(), Some("-1"));
+        assert_eq!(decimal.max_exclusive.as_deref(), Some("101"));
+        assert_eq!(decimal.total_digits.as_deref(), Some("5"));
+        assert_eq!(decimal.fraction_digits.as_deref(), Some("2"));
+
+        let text = model.attributes.get("text").expect("text attribute model");
+        assert_eq!(text.value_type.as_deref(), Some("schema:string"));
+        assert_eq!(text.min_length.as_deref(), Some("2"));
+        assert_eq!(text.max_length.as_deref(), Some("8"));
+        assert_eq!(text.length.as_deref(), Some("4"));
+        assert_eq!(text.string_prefixes, set(&["ab", "cd"]));
+        assert_eq!(text.string_suffixes, set(&["wx", "yz"]));
+        assert_eq!(text.string_forbidden_prefixes, set(&["dev", "tmp"]));
+        assert_eq!(text.string_forbidden_suffixes, set(&["bak", "old"]));
+        assert_eq!(text.string_includes, set(&["core"]));
+        assert_eq!(text.string_excludes, set(&["legacy"]));
+        assert_eq!(text.pattern.as_deref(), Some("[a-z][a-z0-9-]*"));
+        assert_eq!(text.white_space.as_deref(), Some("collapse"));
+
+        let names = model
+            .attributes
+            .get("names")
+            .expect("names attribute model");
+        assert_eq!(names.value_type.as_deref(), Some("schema:name-list"));
+        assert_eq!(names.item_count.as_deref(), Some("2"));
+        assert_eq!(names.min_items.as_deref(), Some("1"));
+        assert_eq!(names.max_items.as_deref(), Some("3"));
+
+        let src = model.attributes.get("src").expect("src attribute model");
+        assert_eq!(src.value_type.as_deref(), Some("schema:path"));
+        assert_eq!(
+            src.path_prefixes,
+            set(&["./templates/", "@shared/", "https://example.test/assets/"])
+        );
+        assert_eq!(
+            src.path_forbidden_prefixes,
+            set(&["./templates/private/", "@shared/private/"])
+        );
+        assert_eq!(
+            src.path_directory_names,
+            set(&["assets", "public", "templates"])
+        );
+        assert_eq!(src.path_forbidden_directory_names, set(&["private", "tmp"]));
+        assert_eq!(src.path_extensions, set(&["cem", "cemt"]));
+        assert_eq!(src.path_forbidden_extensions, set(&["bak", "tmp"]));
+        assert_eq!(src.path_basenames, set(&["card.cem", "index.cemt"]));
+        assert_eq!(
+            src.path_forbidden_basenames,
+            set(&["debug.cemt", "secret.cem"])
+        );
+
+        let href = model.attributes.get("href").expect("href attribute model");
+        assert_eq!(href.value_type.as_deref(), Some("schema:uri"));
+        assert_eq!(href.uri_schemes, set(&["https", "urn"]));
+        assert_eq!(href.uri_forbidden_schemes, set(&["ftp"]));
+        assert_eq!(href.uri_hosts, set(&["api.example.test", "example.test"]));
+        assert_eq!(href.uri_forbidden_hosts, set(&["blocked.example.test"]));
+        assert_eq!(href.uri_ports, set(&["443", "8443"]));
+        assert_eq!(href.uri_forbidden_ports, set(&["8080"]));
+        assert_eq!(href.uri_requires_authority.as_deref(), Some("true"));
+        assert_eq!(href.uri_path_prefixes, set(&["/api", "/docs"]));
+        assert_eq!(href.uri_path_forbidden_prefixes, set(&["/private"]));
+        assert_eq!(href.uri_path_extensions, set(&["cem", "json"]));
+        assert_eq!(href.uri_path_forbidden_extensions, set(&["tmp"]));
+        assert_eq!(href.uri_path_basenames, set(&["index.cem", "schema.json"]));
+        assert_eq!(href.uri_path_forbidden_basenames, set(&["secret.cem"]));
+        assert_eq!(href.uri_queries, set(&["lang=en", "mode=full"]));
+        assert_eq!(href.uri_forbidden_queries, set(&["debug=true"]));
+        assert_eq!(href.uri_query_parameters, set(&["lang", "mode"]));
+        assert_eq!(
+            href.uri_query_parameter_value_tokens,
+            set(&["lang=en", "mode=full"])
+        );
+        assert_eq!(
+            href.uri_query_parameter_values,
+            value_map(&[("lang", &["en"]), ("mode", &["full"])])
+        );
+        assert_eq!(
+            href.uri_query_forbidden_parameters,
+            set(&["debug", "trace"])
+        );
+        assert_eq!(href.uri_query_required_parameters, set(&["mode"]));
+        assert_eq!(href.uri_fragments, set(&["install", "overview"]));
+        assert_eq!(href.uri_forbidden_fragments, set(&["internal"]));
+
+        let content_type = model
+            .attributes
+            .get("content-type")
+            .expect("content-type attribute model");
+        assert_eq!(
+            content_type.value_type.as_deref(),
+            Some("schema:media-type")
+        );
+        assert_eq!(
+            content_type.media_types,
+            set(&["application/json", "text/html"])
+        );
+        assert_eq!(
+            content_type.media_type_forbidden_essences,
+            set(&["image/png"])
+        );
+        assert_eq!(content_type.media_type_types, set(&["application", "text"]));
+        assert_eq!(content_type.media_type_subtypes, set(&["html", "json"]));
+        assert_eq!(content_type.media_type_suffixes, set(&["json"]));
+        assert_eq!(content_type.media_type_forbidden_types, set(&["image"]));
+        assert_eq!(content_type.media_type_forbidden_subtypes, set(&["xml"]));
+        assert_eq!(content_type.media_type_forbidden_suffixes, set(&["zip"]));
+        assert_eq!(
+            content_type.media_type_parameters,
+            set(&["charset", "profile"])
+        );
+        assert_eq!(
+            content_type.media_type_parameter_value_tokens,
+            set(&["charset=utf-8", "profile=default"])
+        );
+        assert_eq!(
+            content_type.media_type_parameter_values,
+            value_map(&[("charset", &["utf-8"]), ("profile", &["default"])])
+        );
+        assert_eq!(
+            content_type.media_type_forbidden_parameters,
+            set(&["debug"])
+        );
+        assert_eq!(
+            content_type.media_type_required_parameters,
+            set(&["charset"])
+        );
+    }
+
+    #[test]
     fn loads_schema_package_document_model_from_content_type() {
         let model = load_builtin_document_model_for_identity(
             None,
