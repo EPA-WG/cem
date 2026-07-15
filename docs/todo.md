@@ -306,16 +306,19 @@ history belongs in git history and the feature-specific docs linked below.
         expressions, invalid diagnostic argument types, unbound function
         parameters, and a rejected CEMT-style self-call body.
 
-- [ ] Implement schema-owned field contracts for every schema-declared field
+- [x] Implement schema-owned field contracts for every schema-declared field
       before adding more package-specific Rust validation branches. The current
-      implementation compiles `required-attributes`, `optional-attributes`,
-      child allow-lists, initial field contracts, and exact/ranged child
-      occurrence from `.cem` in `packages/cem_ml/src/schema/document_model.rs`;
-      remaining schema-package converter/artifact operational rules and
-      example schema/content-type cross-reference execution still live in
-      `packages/cem_ml/src/validation/rules.rs`; manifest descriptor loading
-      now skips incomplete rows instead of owning field diagnostics, with an
-      audit guard in `packages/cem_ml/src/schema/registry.rs`.
+      implementation compiles schema-declared required/optional/forbidden
+      attributes, child allow-lists, field contracts, dependency gates,
+      datatype/value contracts, and child occurrence contracts from `.cem` in
+      `packages/cem_ml/src/schema/document_model.rs`. Schema-package manifest
+      field validation now lives in `schema-package.cem`, descriptor loading
+      skips incomplete rows instead of owning field diagnostics, and the
+      production-source audit in `packages/cem_ml/src/schema/registry.rs`
+      blocks retired package-specific field-rule branches and diagnostics.
+      Remaining converter/artifact resource work, CEMT checks, and cross-node
+      lookups stay in Rust only as schema-declared operational execution
+      placements until the deferred generic vocabularies below exist.
   - [x] Add failing tests first for the principle in `document_model.rs`,
         `rules.rs`, and the CLI schema examples: changing a field contract in a
         `.cem` schema must change validation behavior without adding or editing
@@ -540,7 +543,7 @@ history belongs in git history and the feature-specific docs linked below.
         field-contract and attribute datatype-param knob into the Rust contract
         model. Additional evaluator work now requires adding new schema
         vocabulary first.
-  - [ ] Move schema-package manifest field rules from Rust conditionals into
+  - [x] Move schema-package manifest field rules from Rust conditionals into
         `packages/cem_ml/schema-packages/schema-package/v1/schema/schema-package.cem`.
         Cover `package`, `schema`, `content-type`, `namespace`, `converter`,
         `from`, `to`, `parity-fixture`, `artifact`, and `example`.
