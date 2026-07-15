@@ -46,13 +46,14 @@ history belongs in git history and the feature-specific docs linked below.
       `pathForbiddenPrefixes`/`pathDirectoryNames`/
       `pathForbiddenDirectoryNames`/`pathExtensions`/`pathForbiddenExtensions`/
       `pathBasenames`/`pathForbiddenBasenames`, URI
-      `uriSchemes`/`uriHosts`/`uriPorts`/`uriRequiresAuthority`/`uriPathPrefixes`/
+      `uriSchemes`/`uriForbiddenSchemes`/`uriHosts`/`uriForbiddenHosts`/
+      `uriPorts`/`uriForbiddenPorts`/`uriRequiresAuthority`/`uriPathPrefixes`/
       `uriForbiddenPathPrefixes`/`uriPathExtensions`/
       `uriForbiddenPathExtensions`/`uriPathBasenames`/
       `uriForbiddenPathBasenames`/`uriQueries`/`uriForbiddenQueries`/
       `uriQueryParameters`/`uriQueryParameterValues`/`uriQueryForbiddenParameters`/
       `uriQueryRequiredParameters`/`uriFragments`/`uriForbiddenFragments`, and media-type
-      `mediaTypes`/`mediaTypeTypes`/`mediaTypeSubtypes`/
+      `mediaTypes`/`mediaTypeForbiddenEssences`/`mediaTypeTypes`/`mediaTypeSubtypes`/
       `mediaTypeSuffixes`/`mediaTypeForbiddenTypes`/
       `mediaTypeForbiddenSubtypes`/`mediaTypeForbiddenSuffixes`/
       `mediaTypeParameters`/`mediaTypeParameterValues`/`mediaTypeForbiddenParameters`/
@@ -67,6 +68,8 @@ history belongs in git history and the feature-specific docs linked below.
       inconsistent path allowed/forbidden directory-name declarations,
       invalid or inconsistent path-layout directory-name and basename declarations,
       inconsistent URI/media-type required/forbidden parameter declarations,
+      inconsistent URI scheme/host/port allow/forbid declarations, inconsistent
+      media-type essence allow/forbid declarations,
       path params on non-path attributes, URI params on non-URI attributes, and
       media-type params on non-media-type attributes.
       Required-one/max-one attribute choice cardinality now executes through
@@ -209,8 +212,8 @@ history belongs in git history and the feature-specific docs linked below.
         number bounds, numeric digit-count constraints, and string
         length/prefix/suffix/forbidden-prefix/forbidden-suffix/include/exclude constraints, list item-count
         constraints, plus path prefix/forbidden-prefix/directory-name/forbidden-directory-name/extension/
-        forbidden-extension/basename/forbidden-basename, URI scheme/host/port/authority/path-prefix/forbidden-path-prefix/path-extension/forbidden-path-extension/path-basename/forbidden-path-basename/query/forbidden-query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/forbidden-fragment, and media-type
-        essence/type/subtype/structured-suffix/forbidden-type/
+        forbidden-extension/basename/forbidden-basename, URI scheme/forbidden-scheme/host/forbidden-host/port/forbidden-port/authority/path-prefix/forbidden-path-prefix/path-extension/forbidden-path-extension/path-basename/forbidden-path-basename/query/forbidden-query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/forbidden-fragment, and media-type
+        essence/forbidden-essence/type/subtype/structured-suffix/forbidden-type/
         forbidden-subtype/forbidden-structured-suffix/parameter-name/value/
         forbidden-parameter/required-parameter constraints, plus child-set exact-one and
         selected-count/selected-distinct-count/distinct-count/ordered/forbidden-ordered/boundary/forbidden-boundary/
@@ -355,14 +358,15 @@ history belongs in git history and the feature-specific docs linked below.
         path `pathPrefixes`/`pathForbiddenPrefixes`/`pathDirectoryNames`/
         `pathForbiddenDirectoryNames`/`pathExtensions`/
         `pathForbiddenExtensions`/`pathBasenames`/`pathForbiddenBasenames`,
-        URI `uriSchemes`,
-        `uriHosts`, `uriPorts`, `uriRequiresAuthority`, `uriPathPrefixes`,
+        URI `uriSchemes`/`uriForbiddenSchemes`,
+        `uriHosts`/`uriForbiddenHosts`, `uriPorts`/`uriForbiddenPorts`,
+        `uriRequiresAuthority`, `uriPathPrefixes`,
         `uriForbiddenPathPrefixes`, `uriPathExtensions`, `uriForbiddenPathExtensions`,
         `uriPathBasenames`, `uriForbiddenPathBasenames`, and
         `uriQueries`/`uriForbiddenQueries`/
         `uriQueryParameters`/`uriQueryParameterValues`/`uriQueryForbiddenParameters`/
         `uriQueryRequiredParameters`/`uriFragments`/`uriForbiddenFragments`, and media-type `mediaTypes`,
-        `mediaTypeTypes`, `mediaTypeSubtypes`, `mediaTypeSuffixes`,
+        `mediaTypeForbiddenEssences`, `mediaTypeTypes`, `mediaTypeSubtypes`, `mediaTypeSuffixes`,
         `mediaTypeForbiddenTypes`, `mediaTypeForbiddenSubtypes`,
         `mediaTypeForbiddenSuffixes`, `mediaTypeParameters`, `mediaTypeParameterValues`,
         `mediaTypeForbiddenParameters`, and `mediaTypeRequiredParameters` datatype params,
@@ -373,8 +377,10 @@ history belongs in git history and the feature-specific docs linked below.
         string/list min/max/exact count envelope consistency, string
         allowed/forbidden prefix/suffix consistency, path
         allowed/forbidden directory-name consistency, plus
-        URI/media-type required/forbidden parameter consistency, media-type
-        allowed/forbidden type, subtype, and suffix consistency, plus
+        URI/media-type required/forbidden parameter consistency,
+        URI scheme/host/port allow/forbid consistency, media-type
+        essence allow/forbid consistency, media-type allowed/forbidden type,
+        subtype, and suffix consistency, plus
         required/forbidden field and child presence consistency and required
         child allow-list consistency, plus conditional selector consistency
         for `when-attribute`/`when-values` and all/any present/absent
@@ -429,8 +435,8 @@ history belongs in git history and the feature-specific docs linked below.
         forbidden-directory-name/extension/basename/forbidden-basename
         (deferred to low-priority vocabulary design until a concrete generic
         facet is chosen),
-        URI/media-type constraints beyond scheme/host/port/authority/path-prefix/forbidden-path-prefix/path-extension/forbidden-path-extension/path-basename/forbidden-path-basename/query/forbidden-query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/forbidden-fragment
-        and media-type essence/type/subtype/structured-suffix/forbidden-type/forbidden-subtype/forbidden-structured-suffix/parameter-name/value/forbidden-parameter/required-parameter lists,
+        any explicitly chosen URI/media-type facets beyond scheme/forbidden-scheme/host/forbidden-host/port/forbidden-port/authority/path-prefix/forbidden-path-prefix/path-extension/forbidden-path-extension/path-basename/forbidden-path-basename/query/forbidden-query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/forbidden-fragment
+        and media-type essence/forbidden-essence/type/subtype/structured-suffix/forbidden-type/forbidden-subtype/forbidden-structured-suffix/parameter-name/value/forbidden-parameter/required-parameter lists,
         RELAX NG-style datatype params beyond numeric bounds/digit counts,
         string length/prefix/suffix/forbidden-prefix/forbidden-suffix/include/exclude, list item counts, pattern, and allowed
         URI/media tokens and whitespace normalization, dependent field
@@ -494,8 +500,9 @@ history belongs in git history and the feature-specific docs linked below.
         details; nested choice/case
         checks emit declared cases, present cases, missing cases, and
         conflicting cases; accepted-child checks emit accepted/invalid
-        children and childCounts details; URI scheme, URI host, URI port, URI authority,
-        URI path-prefix/forbidden-path-prefix/path-extension/forbidden-path-extension/path-basename/forbidden-path-basename/query/forbidden-query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/forbidden-fragment, and media-type essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter datatype-param checks emit expected values, normalized actual tokens, and invalid/missing parameter arrays;
+        children and childCounts details; URI scheme, forbidden scheme, URI host,
+        forbidden host, URI port, forbidden port, URI authority,
+        URI path-prefix/forbidden-path-prefix/path-extension/forbidden-path-extension/path-basename/forbidden-path-basename/query/forbidden-query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/forbidden-fragment, and media-type essence/forbidden-essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter datatype-param checks emit expected values, normalized actual tokens, and invalid/missing parameter arrays;
         schema-definition datatype-param checks now emit expected type and
         actual value type for incompatible numeric, string, list, path, URI,
         and media-type facets; datatype-param result contracts now declare the
@@ -532,9 +539,9 @@ history belongs in git history and the feature-specific docs linked below.
         constraints, scope-context path type checks,
         string prefix/suffix/include/exclude constraints, list item-count constraints, path prefix/forbidden-prefix/directory-name/forbidden-directory-name/extension/forbidden-extension/basename/forbidden-basename constraints,
         nested choice/case checks, accepted-child allow-lists, forbidden-child
-        occurrence checks, child-set cardinality, exact child-count and total/selected/selected-distinct/distinct child-count checks, URI scheme/host/port/authority/path-prefix/forbidden-path-prefix/path-extension/forbidden-path-extension/path-basename/forbidden-path-basename/query/forbidden-query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/forbidden-fragment
-        constraints, and media-type essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter constraints; it still needs coverage for additional
-        URI/media-type constraints, additional datatype params, dependency variants, and
+        occurrence checks, child-set cardinality, exact child-count and total/selected/selected-distinct/distinct child-count checks, URI scheme/forbidden-scheme/host/forbidden-host/port/forbidden-port/authority/path-prefix/forbidden-path-prefix/path-extension/forbidden-path-extension/path-basename/forbidden-path-basename/query/forbidden-query/query-parameter-name/value/forbidden-parameter/required-parameter/fragment/forbidden-fragment
+        constraints, and media-type essence/forbidden-essence/type/subtype/structured-suffix/parameter-name/value/forbidden-parameter/required-parameter constraints; it still needs coverage for additional
+        datatype params, dependency variants, and
         additional child occurrence variants beyond exact/named/total/selected/selected-distinct/distinct count bounds, child-set cardinality, required/forbidden relative ordering, required/forbidden boundary placement, and exact/required/forbidden/prefix/suffix/forbidden-prefix/forbidden-suffix child sequences.
   - [ ] Move schema-package manifest field rules from Rust conditionals into
         `packages/cem_ml/schema-packages/schema-package/v1/schema/schema-package.cem`.

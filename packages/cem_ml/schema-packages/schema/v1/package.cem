@@ -171,6 +171,42 @@
     }
 
     {example
+        @id="invalid-field-contract-presence"
+        @path="examples/invalid-field-contract-presence.cem"
+        @content-type="application/vnd.cem.schema+cem"
+        @schema="https://cem.dev/ns/schema/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_definition.invalid_field_contract"
+    }
+
+    {example
+        @id="invalid-field-contract-condition"
+        @path="examples/invalid-field-contract-condition.cem"
+        @content-type="application/vnd.cem.schema+cem"
+        @schema="https://cem.dev/ns/schema/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_definition.invalid_field_contract"
+    }
+
+    {example
+        @id="invalid-field-contract-child-sequence"
+        @path="examples/invalid-field-contract-child-sequence.cem"
+        @content-type="application/vnd.cem.schema+cem"
+        @schema="https://cem.dev/ns/schema/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_definition.invalid_field_contract"
+    }
+
+    {example
+        @id="invalid-attribute-default"
+        @path="examples/invalid-attribute-default.cem"
+        @content-type="application/vnd.cem.schema+cem"
+        @schema="https://cem.dev/ns/schema/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.schema_definition.invalid_default_value"
+    }
+
+    {example
         @id="invalid-unclosed-schema"
         @path="examples/invalid-unclosed-schema.cem"
         @content-type="application/vnd.cem.schema+cem"

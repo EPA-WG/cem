@@ -217,8 +217,11 @@ pub struct AttributeModel {
     pub path_basenames: BTreeSet<String>,
     pub path_forbidden_basenames: BTreeSet<String>,
     pub uri_schemes: BTreeSet<String>,
+    pub uri_forbidden_schemes: BTreeSet<String>,
     pub uri_hosts: BTreeSet<String>,
+    pub uri_forbidden_hosts: BTreeSet<String>,
     pub uri_ports: BTreeSet<String>,
+    pub uri_forbidden_ports: BTreeSet<String>,
     pub uri_requires_authority: Option<String>,
     pub uri_path_prefixes: BTreeSet<String>,
     pub uri_path_forbidden_prefixes: BTreeSet<String>,
@@ -236,6 +239,7 @@ pub struct AttributeModel {
     pub uri_fragments: BTreeSet<String>,
     pub uri_forbidden_fragments: BTreeSet<String>,
     pub media_types: BTreeSet<String>,
+    pub media_type_forbidden_essences: BTreeSet<String>,
     pub media_type_types: BTreeSet<String>,
     pub media_type_subtypes: BTreeSet<String>,
     pub media_type_suffixes: BTreeSet<String>,
@@ -1944,6 +1948,10 @@ fn is_media_type_essence(value: &str) -> bool {
     is_media_type_token(type_name) && is_media_type_token(subtype)
 }
 
+fn is_media_type_essence_or_legacy_alias(value: &str) -> bool {
+    is_media_type_essence(value) || is_legacy_content_type_alias(value)
+}
+
 fn is_legacy_content_type_alias(value: &str) -> bool {
     value.eq_ignore_ascii_case("custom-element-xslt")
 }
@@ -2408,6 +2416,30 @@ fn validate_attribute_datatype_params(
             );
         }
     }
+    if !attribute_model.uri_forbidden_schemes.is_empty()
+        && attribute_model
+            .value_type
+            .as_deref()
+            .is_some_and(is_uri_type_reference)
+        && normalized_uri_scheme(value)
+            .is_some_and(|scheme| attribute_model.uri_forbidden_schemes.contains(&scheme))
+    {
+        let param_value = format_value_set(&attribute_model.uri_forbidden_schemes);
+        emit_attribute_datatype_param_diagnostic(
+            schema_uri,
+            diagnostic_behaviors,
+            element_name,
+            attribute_name,
+            value,
+            attribute_model,
+            "uriForbiddenSchemes",
+            &param_value,
+            "with forbidden",
+            attribute_values,
+            node,
+            diagnostics,
+        );
+    }
     if !attribute_model.uri_hosts.is_empty()
         && attribute_model
             .value_type
@@ -2434,6 +2466,30 @@ fn validate_attribute_datatype_params(
             );
         }
     }
+    if !attribute_model.uri_forbidden_hosts.is_empty()
+        && attribute_model
+            .value_type
+            .as_deref()
+            .is_some_and(is_uri_type_reference)
+        && normalized_uri_host(value)
+            .is_some_and(|host| attribute_model.uri_forbidden_hosts.contains(&host))
+    {
+        let param_value = format_value_set(&attribute_model.uri_forbidden_hosts);
+        emit_attribute_datatype_param_diagnostic(
+            schema_uri,
+            diagnostic_behaviors,
+            element_name,
+            attribute_name,
+            value,
+            attribute_model,
+            "uriForbiddenHosts",
+            &param_value,
+            "with forbidden",
+            attribute_values,
+            node,
+            diagnostics,
+        );
+    }
     if !attribute_model.uri_ports.is_empty()
         && attribute_model
             .value_type
@@ -2452,6 +2508,30 @@ fn validate_attribute_datatype_params(
             "uriPorts",
             &param_value,
             "outside allowed",
+            attribute_values,
+            node,
+            diagnostics,
+        );
+    }
+    if !attribute_model.uri_forbidden_ports.is_empty()
+        && attribute_model
+            .value_type
+            .as_deref()
+            .is_some_and(is_uri_type_reference)
+        && normalized_uri_port(value)
+            .is_some_and(|port| attribute_model.uri_forbidden_ports.contains(&port))
+    {
+        let param_value = format_value_set(&attribute_model.uri_forbidden_ports);
+        emit_attribute_datatype_param_diagnostic(
+            schema_uri,
+            diagnostic_behaviors,
+            element_name,
+            attribute_name,
+            value,
+            attribute_model,
+            "uriForbiddenPorts",
+            &param_value,
+            "with forbidden",
             attribute_values,
             node,
             diagnostics,
@@ -2884,6 +2964,33 @@ fn validate_attribute_datatype_params(
                 diagnostics,
             );
         }
+    }
+    if !attribute_model.media_type_forbidden_essences.is_empty()
+        && attribute_model
+            .value_type
+            .as_deref()
+            .is_some_and(is_media_type_reference)
+        && normalized_media_type_essence(value).is_some_and(|essence| {
+            attribute_model
+                .media_type_forbidden_essences
+                .contains(&essence)
+        })
+    {
+        let param_value = format_value_set(&attribute_model.media_type_forbidden_essences);
+        emit_attribute_datatype_param_diagnostic(
+            schema_uri,
+            diagnostic_behaviors,
+            element_name,
+            attribute_name,
+            value,
+            attribute_model,
+            "mediaTypeForbiddenEssences",
+            &param_value,
+            "with forbidden",
+            attribute_values,
+            node,
+            diagnostics,
+        );
     }
     if !attribute_model.media_type_types.is_empty()
         && attribute_model
@@ -3991,8 +4098,15 @@ fn collect_attribute_models(
                     path_basenames: parse_value_set(attrs.get("pathBasenames")),
                     path_forbidden_basenames: parse_value_set(attrs.get("pathForbiddenBasenames")),
                     uri_schemes: parse_ascii_lower_value_set(attrs.get("uriSchemes")),
+                    uri_forbidden_schemes: parse_ascii_lower_value_set(
+                        attrs.get("uriForbiddenSchemes"),
+                    ),
                     uri_hosts: parse_ascii_lower_value_set(attrs.get("uriHosts")),
+                    uri_forbidden_hosts: parse_ascii_lower_value_set(
+                        attrs.get("uriForbiddenHosts"),
+                    ),
                     uri_ports: parse_value_set(attrs.get("uriPorts")),
+                    uri_forbidden_ports: parse_value_set(attrs.get("uriForbiddenPorts")),
                     uri_requires_authority: optional_boolean_datatype_param(
                         &attrs,
                         "uriRequiresAuthority",
@@ -4027,6 +4141,9 @@ fn collect_attribute_models(
                     uri_fragments: parse_value_set(attrs.get("uriFragments")),
                     uri_forbidden_fragments: parse_value_set(attrs.get("uriForbiddenFragments")),
                     media_types: parse_ascii_lower_value_set(attrs.get("mediaTypes")),
+                    media_type_forbidden_essences: parse_ascii_lower_value_set(
+                        attrs.get("mediaTypeForbiddenEssences"),
+                    ),
                     media_type_types: parse_ascii_lower_value_set(attrs.get("mediaTypeTypes")),
                     media_type_subtypes: parse_ascii_lower_value_set(
                         attrs.get("mediaTypeSubtypes"),
@@ -4891,6 +5008,56 @@ fn validate_attribute_datatype_param_definition(
             ));
         }
     }
+    if !attribute_model.uri_forbidden_schemes.is_empty() {
+        let value_type = attribute_model.value_type.as_deref();
+        if !value_type.is_some_and(is_uri_type_reference) {
+            let param_value = format_value_set(&attribute_model.uri_forbidden_schemes);
+            let error = "expected schema:uri or cemml:uri value type for uriForbiddenSchemes";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriForbiddenSchemes datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriForbiddenSchemes",
+                    "datatypeParam": "uriForbiddenSchemes",
+                    "paramName": "uriForbiddenSchemes",
+                    "paramValue": param_value,
+                    "valueType": value_type.unwrap_or_default(),
+                    "expectedType": "schema:uri",
+                    "error": error,
+                }),
+            ));
+        }
+        for scheme in &attribute_model.uri_forbidden_schemes {
+            if is_uri_scheme_name(scheme) {
+                continue;
+            }
+            let error = "expected URI scheme name";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriForbiddenSchemes datatype parameter `{scheme}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriForbiddenSchemes",
+                    "datatypeParam": "uriForbiddenSchemes",
+                    "paramName": "uriForbiddenSchemes",
+                    "paramValue": scheme,
+                    "expectedPattern": "URI scheme",
+                    "error": error,
+                }),
+            ));
+        }
+    }
     if !attribute_model.uri_hosts.is_empty() {
         let value_type = attribute_model.value_type.as_deref();
         if !value_type.is_some_and(is_uri_type_reference) {
@@ -4941,6 +5108,56 @@ fn validate_attribute_datatype_param_definition(
             ));
         }
     }
+    if !attribute_model.uri_forbidden_hosts.is_empty() {
+        let value_type = attribute_model.value_type.as_deref();
+        if !value_type.is_some_and(is_uri_type_reference) {
+            let param_value = format_value_set(&attribute_model.uri_forbidden_hosts);
+            let error = "expected schema:uri or cemml:uri value type for uriForbiddenHosts";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriForbiddenHosts datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriForbiddenHosts",
+                    "datatypeParam": "uriForbiddenHosts",
+                    "paramName": "uriForbiddenHosts",
+                    "paramValue": param_value,
+                    "valueType": value_type.unwrap_or_default(),
+                    "expectedType": "schema:uri",
+                    "error": error,
+                }),
+            ));
+        }
+        for host in &attribute_model.uri_forbidden_hosts {
+            if is_uri_host_token(host) {
+                continue;
+            }
+            let error = "expected URI host literal";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriForbiddenHosts datatype parameter `{host}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriForbiddenHosts",
+                    "datatypeParam": "uriForbiddenHosts",
+                    "paramName": "uriForbiddenHosts",
+                    "paramValue": host,
+                    "expectedPattern": "URI host",
+                    "error": error,
+                }),
+            ));
+        }
+    }
     if !attribute_model.uri_ports.is_empty() {
         let value_type = attribute_model.value_type.as_deref();
         if !value_type.is_some_and(is_uri_type_reference) {
@@ -4984,6 +5201,56 @@ fn validate_attribute_datatype_param_definition(
                     "checkKind": "datatype-param:uriPorts",
                     "datatypeParam": "uriPorts",
                     "paramName": "uriPorts",
+                    "paramValue": port,
+                    "expectedPattern": "URI port",
+                    "error": error,
+                }),
+            ));
+        }
+    }
+    if !attribute_model.uri_forbidden_ports.is_empty() {
+        let value_type = attribute_model.value_type.as_deref();
+        if !value_type.is_some_and(is_uri_type_reference) {
+            let param_value = format_value_set(&attribute_model.uri_forbidden_ports);
+            let error = "expected schema:uri or cemml:uri value type for uriForbiddenPorts";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriForbiddenPorts datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriForbiddenPorts",
+                    "datatypeParam": "uriForbiddenPorts",
+                    "paramName": "uriForbiddenPorts",
+                    "paramValue": param_value,
+                    "valueType": value_type.unwrap_or_default(),
+                    "expectedType": "schema:uri",
+                    "error": error,
+                }),
+            ));
+        }
+        for port in &attribute_model.uri_forbidden_ports {
+            if is_uri_port_token(port) {
+                continue;
+            }
+            let error = "expected canonical URI port number between 0 and 65535";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid uriForbiddenPorts datatype parameter `{port}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:uriForbiddenPorts",
+                    "datatypeParam": "uriForbiddenPorts",
+                    "paramName": "uriForbiddenPorts",
                     "paramValue": port,
                     "expectedPattern": "URI port",
                     "error": error,
@@ -5813,6 +6080,56 @@ fn validate_attribute_datatype_param_definition(
             ));
         }
     }
+    if !attribute_model.media_type_forbidden_essences.is_empty() {
+        let value_type = attribute_model.value_type.as_deref();
+        if !value_type.is_some_and(is_media_type_reference) {
+            let param_value = format_value_set(&attribute_model.media_type_forbidden_essences);
+            let error = "expected schema:media-type or cemml:media-type value type for mediaTypeForbiddenEssences";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid mediaTypeForbiddenEssences datatype parameter `{param_value}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:mediaTypeForbiddenEssences",
+                    "datatypeParam": "mediaTypeForbiddenEssences",
+                    "paramName": "mediaTypeForbiddenEssences",
+                    "paramValue": param_value,
+                    "valueType": value_type.unwrap_or_default(),
+                    "expectedType": "schema:media-type",
+                    "error": error,
+                }),
+            ));
+        }
+        for media_type in &attribute_model.media_type_forbidden_essences {
+            if is_media_type_essence(media_type) || is_legacy_content_type_alias(media_type) {
+                continue;
+            }
+            let error = "expected media type essence";
+            diagnostics.push(schema_compile_diagnostic(
+                INVALID_SCHEMA_DATATYPE_PARAM_CODE,
+                format!(
+                    "attribute `{}` declares invalid mediaTypeForbiddenEssences datatype parameter `{media_type}` in schema `{schema_uri}`: {error}",
+                    attribute_model.name
+                ),
+                &attribute_model.source_map,
+                serde_json::json!({
+                    "schemaUri": schema_uri,
+                    "attribute": &attribute_model.name,
+                    "checkKind": "datatype-param:mediaTypeForbiddenEssences",
+                    "datatypeParam": "mediaTypeForbiddenEssences",
+                    "paramName": "mediaTypeForbiddenEssences",
+                    "paramValue": media_type,
+                    "expectedPattern": "media type essence",
+                    "error": error,
+                }),
+            ));
+        }
+    }
     if !attribute_model.media_type_types.is_empty() {
         let value_type = attribute_model.value_type.as_deref();
         if !value_type.is_some_and(is_media_type_reference) {
@@ -6385,8 +6702,56 @@ fn validate_attribute_datatype_param_definition(
         is_media_type_token,
         diagnostics,
     );
+    validate_datatype_value_allow_forbid_consistency(
+        schema_uri,
+        attribute_model,
+        "uriSchemes",
+        &attribute_model.uri_schemes,
+        "uriForbiddenSchemes",
+        &attribute_model.uri_forbidden_schemes,
+        "URI scheme",
+        "URI schemes cannot be both allowed and forbidden",
+        is_uri_scheme_name,
+        diagnostics,
+    );
+    validate_datatype_value_allow_forbid_consistency(
+        schema_uri,
+        attribute_model,
+        "uriHosts",
+        &attribute_model.uri_hosts,
+        "uriForbiddenHosts",
+        &attribute_model.uri_forbidden_hosts,
+        "URI host",
+        "URI hosts cannot be both allowed and forbidden",
+        is_uri_host_token,
+        diagnostics,
+    );
+    validate_datatype_value_allow_forbid_consistency(
+        schema_uri,
+        attribute_model,
+        "uriPorts",
+        &attribute_model.uri_ports,
+        "uriForbiddenPorts",
+        &attribute_model.uri_forbidden_ports,
+        "URI port",
+        "URI ports cannot be both allowed and forbidden",
+        is_uri_port_token,
+        diagnostics,
+    );
     validate_uri_query_allow_forbid_consistency(schema_uri, attribute_model, diagnostics);
     validate_uri_fragment_allow_forbid_consistency(schema_uri, attribute_model, diagnostics);
+    validate_datatype_value_allow_forbid_consistency(
+        schema_uri,
+        attribute_model,
+        "mediaTypes",
+        &attribute_model.media_types,
+        "mediaTypeForbiddenEssences",
+        &attribute_model.media_type_forbidden_essences,
+        "media type essence",
+        "media type essences cannot be both allowed and forbidden",
+        is_media_type_essence_or_legacy_alias,
+        diagnostics,
+    );
     validate_datatype_value_allow_forbid_consistency(
         schema_uri,
         attribute_model,
@@ -11527,8 +11892,11 @@ fn attribute_datatype_param_details(
         "pathBasenames" => "path basename token",
         "pathForbiddenBasenames" => "path basename token",
         "uriSchemes" => "URI scheme",
+        "uriForbiddenSchemes" => "URI scheme",
         "uriHosts" => "URI host",
+        "uriForbiddenHosts" => "URI host",
         "uriPorts" => "URI port",
+        "uriForbiddenPorts" => "URI port",
         "uriRequiresAuthority" => "URI authority",
         "uriPathPrefixes" => "URI path prefix",
         "uriForbiddenPathPrefixes" => "URI path prefix",
@@ -11545,6 +11913,7 @@ fn attribute_datatype_param_details(
         "uriFragments" => "URI fragment",
         "uriForbiddenFragments" => "URI fragment",
         "mediaTypes" => "media type essence",
+        "mediaTypeForbiddenEssences" => "media type essence",
         "mediaTypeTypes" => "media type type",
         "mediaTypeSubtypes" => "media type subtype",
         "mediaTypeSuffixes" => "media type structured suffix",
@@ -11917,6 +12286,28 @@ fn attribute_datatype_param_details(
                 object.insert("actualScheme".to_owned(), serde_json::json!(actual_scheme));
             }
         }
+        if param_name == "uriForbiddenSchemes" {
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .uri_forbidden_schemes
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            if let Some(actual_scheme) = normalized_uri_scheme(actual_value) {
+                let forbidden_schemes = attribute_model
+                    .uri_forbidden_schemes
+                    .contains(&actual_scheme)
+                    .then(|| vec![actual_scheme.clone()])
+                    .unwrap_or_default();
+                object.insert("actualScheme".to_owned(), serde_json::json!(actual_scheme));
+                object.insert(
+                    "forbiddenUriSchemes".to_owned(),
+                    serde_json::json!(forbidden_schemes),
+                );
+            }
+        }
         if param_name == "uriHosts" {
             object.insert(
                 "expectedValues".to_owned(),
@@ -11930,6 +12321,28 @@ fn attribute_datatype_param_details(
                 object.insert("actualUriHost".to_owned(), serde_json::json!(actual_host));
             }
         }
+        if param_name == "uriForbiddenHosts" {
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .uri_forbidden_hosts
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            if let Some(actual_host) = normalized_uri_host(actual_value) {
+                let forbidden_hosts = attribute_model
+                    .uri_forbidden_hosts
+                    .contains(&actual_host)
+                    .then(|| vec![actual_host.clone()])
+                    .unwrap_or_default();
+                object.insert("actualUriHost".to_owned(), serde_json::json!(actual_host));
+                object.insert(
+                    "forbiddenUriHosts".to_owned(),
+                    serde_json::json!(forbidden_hosts),
+                );
+            }
+        }
         if param_name == "uriPorts" {
             object.insert(
                 "expectedValues".to_owned(),
@@ -11941,6 +12354,34 @@ fn attribute_datatype_param_details(
             );
             if let Some(actual_port) = normalized_uri_port(actual_value) {
                 object.insert("actualUriPort".to_owned(), serde_json::json!(actual_port));
+            }
+            if let Some(actual_authority) = uri_authority(actual_value) {
+                object.insert(
+                    "actualUriAuthority".to_owned(),
+                    serde_json::json!(actual_authority),
+                );
+            }
+        }
+        if param_name == "uriForbiddenPorts" {
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .uri_forbidden_ports
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            if let Some(actual_port) = normalized_uri_port(actual_value) {
+                let forbidden_ports = attribute_model
+                    .uri_forbidden_ports
+                    .contains(&actual_port)
+                    .then(|| vec![actual_port.clone()])
+                    .unwrap_or_default();
+                object.insert("actualUriPort".to_owned(), serde_json::json!(actual_port));
+                object.insert(
+                    "forbiddenUriPorts".to_owned(),
+                    serde_json::json!(forbidden_ports),
+                );
             }
             if let Some(actual_authority) = uri_authority(actual_value) {
                 object.insert(
@@ -12317,6 +12758,31 @@ fn attribute_datatype_param_details(
                 object.insert(
                     "actualMediaTypeEssence".to_owned(),
                     serde_json::json!(actual_essence),
+                );
+            }
+        }
+        if param_name == "mediaTypeForbiddenEssences" {
+            object.insert(
+                "expectedValues".to_owned(),
+                serde_json::json!(attribute_model
+                    .media_type_forbidden_essences
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()),
+            );
+            if let Some(actual_essence) = normalized_media_type_essence(actual_value) {
+                let forbidden_essences = attribute_model
+                    .media_type_forbidden_essences
+                    .contains(&actual_essence)
+                    .then(|| vec![actual_essence.clone()])
+                    .unwrap_or_default();
+                object.insert(
+                    "actualMediaTypeEssence".to_owned(),
+                    serde_json::json!(actual_essence),
+                );
+                object.insert(
+                    "forbiddenMediaTypeEssences".to_owned(),
+                    serde_json::json!(forbidden_essences),
                 );
             }
         }
@@ -13365,6 +13831,15 @@ mod tests {
         assert_eq!(
             model
                 .attributes
+                .get("uriForbiddenSchemes")
+                .expect("uriForbiddenSchemes attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:string")
+        );
+        assert_eq!(
+            model
+                .attributes
                 .get("uriHosts")
                 .expect("uriHosts attribute model")
                 .value_type
@@ -13374,8 +13849,26 @@ mod tests {
         assert_eq!(
             model
                 .attributes
+                .get("uriForbiddenHosts")
+                .expect("uriForbiddenHosts attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:string")
+        );
+        assert_eq!(
+            model
+                .attributes
                 .get("uriPorts")
                 .expect("uriPorts attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:string")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("uriForbiddenPorts")
+                .expect("uriForbiddenPorts attribute model")
                 .value_type
                 .as_deref(),
             Some("schema:string")
@@ -13549,6 +14042,15 @@ mod tests {
                 .attributes
                 .get("mediaTypes")
                 .expect("mediaTypes attribute model")
+                .value_type
+                .as_deref(),
+            Some("schema:string")
+        );
+        assert_eq!(
+            model
+                .attributes
+                .get("mediaTypeForbiddenEssences")
+                .expect("mediaTypeForbiddenEssences attribute model")
                 .value_type
                 .as_deref(),
             Some("schema:string")
@@ -22818,6 +23320,298 @@ mod tests {
     }
 
     #[test]
+    fn schema_uri_forbidden_authority_datatype_params_drive_validation_from_cem_source() {
+        let model = compile_document_model(
+            "https://example.test/ns/uri-forbidden-authority-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="uri-forbidden-authority-contracts" @namespace="https://example.test/ns/uri-forbidden-authority-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="link cdn service"}
+    }
+    {attributes |
+        {attribute @name="link" @type="schema:uri" @uriForbiddenSchemes="ftp file"}
+        {attribute @name="cdn" @type="schema:uri" @uriForbiddenHosts="private.example.test [2001:db8::2]"}
+        {attribute @name="service" @type="schema:uri" @uriForbiddenPorts="80 8080"}
+    }
+}"#,
+        );
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "valid URI forbidden authority schema must compile: {:#?}",
+            model.compile_diagnostics
+        );
+
+        for source in [
+            r#"{item @link="https://example.test/a"}"#,
+            r#"{item @cdn="https://assets.example.test/a"}"#,
+            r#"{item @service="https://api.example.test:443/a"}"#,
+            r#"{item @service="https://api.example.test/a"}"#,
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            assert!(
+                !diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE),
+                "allowed URI authority source produced datatype-param diagnostics: {source}: {diagnostics:?}"
+            );
+        }
+
+        for (
+            source,
+            attribute,
+            datatype_param,
+            param_value,
+            expected_values,
+            actual_field,
+            actual_value,
+            forbidden_field,
+            forbidden_values,
+        ) in [
+            (
+                r#"{item @link="FTP://example.test/a"}"#,
+                "link",
+                "uriForbiddenSchemes",
+                "file ftp",
+                serde_json::json!(["file", "ftp"]),
+                "actualScheme",
+                "ftp",
+                "forbiddenUriSchemes",
+                serde_json::json!(["ftp"]),
+            ),
+            (
+                r#"{item @cdn="https://PRIVATE.EXAMPLE.TEST/a"}"#,
+                "cdn",
+                "uriForbiddenHosts",
+                "[2001:db8::2] private.example.test",
+                serde_json::json!(["[2001:db8::2]", "private.example.test"]),
+                "actualUriHost",
+                "private.example.test",
+                "forbiddenUriHosts",
+                serde_json::json!(["private.example.test"]),
+            ),
+            (
+                r#"{item @service="https://api.example.test:08080/a"}"#,
+                "service",
+                "uriForbiddenPorts",
+                "80 8080",
+                serde_json::json!(["80", "8080"]),
+                "actualUriPort",
+                "8080",
+                "forbiddenUriPorts",
+                serde_json::json!(["8080"]),
+            ),
+        ] {
+            let document = parse_cem_document(source);
+            let diagnostics = validate_document_model(&document, &model);
+            let diagnostic = diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.code == INVALID_ATTRIBUTE_DATATYPE_PARAM_CODE)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing {datatype_param} datatype-param diagnostic for {source}: {diagnostics:?}"
+                    )
+                });
+            assert!(diagnostic.message.contains(attribute));
+            assert!(diagnostic.message.contains(datatype_param));
+            let details = diagnostic
+                .details
+                .as_ref()
+                .expect("URI forbidden authority datatype-param details");
+            assert_eq!(
+                details["schemaUri"],
+                serde_json::json!("https://example.test/ns/uri-forbidden-authority-contracts/1")
+            );
+            assert_eq!(details["attribute"], serde_json::json!(attribute));
+            assert_eq!(
+                details["contract"],
+                serde_json::json!(format!(
+                    "attribute-datatype-param:{attribute}:{datatype_param}"
+                ))
+            );
+            assert_eq!(
+                details["checkKind"],
+                serde_json::json!(format!("datatype-param:{datatype_param}"))
+            );
+            assert_eq!(details["datatypeParam"], serde_json::json!(datatype_param));
+            assert_eq!(details[datatype_param], serde_json::json!(param_value));
+            assert_eq!(details["expectedValues"], expected_values);
+            assert_eq!(details[actual_field], serde_json::json!(actual_value));
+            assert_eq!(details[forbidden_field], forbidden_values);
+            assert_eq!(
+                details["expectedPattern"],
+                serde_json::json!(match datatype_param {
+                    "uriForbiddenSchemes" => "URI scheme",
+                    "uriForbiddenHosts" => "URI host",
+                    _ => "URI port",
+                })
+            );
+        }
+    }
+
+    #[test]
+    fn schema_uri_forbidden_authority_datatype_params_reject_invalid_declarations() {
+        let model = compile_document_model(
+            "https://example.test/ns/invalid-uri-forbidden-authority-contracts/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="invalid-uri-forbidden-authority-contracts" @namespace="https://example.test/ns/invalid-uri-forbidden-authority-contracts/1" @version="1.0.0" |
+    {elements |
+        {element @name="item" @optional-attributes="scheme schemeLabel host hostLabel port portLabel"}
+    }
+    {attributes |
+        {attribute @name="scheme" @type="schema:uri" @uriSchemes="https ftp" @uriForbiddenSchemes="ftp 1bad"}
+        {attribute @name="schemeLabel" @type="schema:string" @uriForbiddenSchemes="https"}
+        {attribute @name="host" @type="schema:uri" @uriHosts="api.example.test blocked.example.test" @uriForbiddenHosts="blocked.example.test bad/host"}
+        {attribute @name="hostLabel" @type="schema:string" @uriForbiddenHosts="api.example.test"}
+        {attribute @name="port" @type="schema:uri" @uriPorts="443 8080" @uriForbiddenPorts="8080 0443 65536"}
+        {attribute @name="portLabel" @type="schema:string" @uriForbiddenPorts="443"}
+    }
+}"#,
+        );
+
+        for (attribute, datatype_param, param_value, expected_pattern) in [
+            ("scheme", "uriForbiddenSchemes", "1bad", "URI scheme"),
+            ("host", "uriForbiddenHosts", "bad/host", "URI host"),
+            ("port", "uriForbiddenPorts", "0443", "URI port"),
+            ("port", "uriForbiddenPorts", "65536", "URI port"),
+        ] {
+            let diagnostic = model
+                .compile_diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                        && diagnostic.details.as_ref().is_some_and(|details| {
+                            details.get("attribute").and_then(serde_json::Value::as_str)
+                                == Some(attribute)
+                                && details
+                                    .get("paramValue")
+                                    .and_then(serde_json::Value::as_str)
+                                    == Some(param_value)
+                        })
+                })
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing invalid {datatype_param} token compile diagnostic for {attribute}: {:#?}",
+                        model.compile_diagnostics
+                    )
+                });
+            assert!(diagnostic.message.contains(datatype_param));
+            let details = diagnostic
+                .details
+                .as_ref()
+                .expect("invalid forbidden URI authority token compile details");
+            assert_eq!(details["attribute"], serde_json::json!(attribute));
+            assert_eq!(
+                details["checkKind"],
+                serde_json::json!(format!("datatype-param:{datatype_param}"))
+            );
+            assert_eq!(details["datatypeParam"], serde_json::json!(datatype_param));
+            assert_eq!(details["paramValue"], serde_json::json!(param_value));
+            assert_eq!(
+                details["expectedPattern"],
+                serde_json::json!(expected_pattern)
+            );
+        }
+
+        for (attribute, datatype_param) in [
+            ("schemeLabel", "uriForbiddenSchemes"),
+            ("hostLabel", "uriForbiddenHosts"),
+            ("portLabel", "uriForbiddenPorts"),
+        ] {
+            let diagnostic = model
+                .compile_diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                        && diagnostic.details.as_ref().is_some_and(|details| {
+                            details.get("attribute").and_then(serde_json::Value::as_str)
+                                == Some(attribute)
+                                && details
+                                    .get("datatypeParam")
+                                    .and_then(serde_json::Value::as_str)
+                                    == Some(datatype_param)
+                        })
+                })
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing invalid {datatype_param} type compile diagnostic for {attribute}: {:#?}",
+                        model.compile_diagnostics
+                    )
+                });
+            assert!(diagnostic.message.contains(datatype_param));
+            let details = diagnostic
+                .details
+                .as_ref()
+                .expect("invalid forbidden URI authority type compile details");
+            assert_eq!(details["expectedType"], serde_json::json!("schema:uri"));
+        }
+
+        for (attribute, allowed_param, forbidden_param, param_value, expected_pattern) in [
+            (
+                "scheme",
+                "uriSchemes",
+                "uriForbiddenSchemes",
+                "ftp",
+                "URI scheme",
+            ),
+            (
+                "host",
+                "uriHosts",
+                "uriForbiddenHosts",
+                "blocked.example.test",
+                "URI host",
+            ),
+            ("port", "uriPorts", "uriForbiddenPorts", "8080", "URI port"),
+        ] {
+            let diagnostic = model
+                .compile_diagnostics
+                .iter()
+                .find(|diagnostic| {
+                    diagnostic.code == INVALID_SCHEMA_DATATYPE_PARAM_CODE
+                        && diagnostic.details.as_ref().is_some_and(|details| {
+                            details.get("attribute").and_then(serde_json::Value::as_str)
+                                == Some(attribute)
+                                && details
+                                    .get("datatypeParam")
+                                    .and_then(serde_json::Value::as_str)
+                                    == Some(forbidden_param)
+                                && details
+                                    .get("conflictingParameters")
+                                    .is_some_and(|conflicts| {
+                                        conflicts == &serde_json::json!([param_value])
+                                    })
+                        })
+                })
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing inconsistent {forbidden_param} compile diagnostic for {attribute}: {:#?}",
+                        model.compile_diagnostics
+                    )
+                });
+            assert!(diagnostic.message.contains("both allowed and forbidden"));
+            let details = diagnostic
+                .details
+                .as_ref()
+                .expect("inconsistent forbidden URI authority compile details");
+            assert_eq!(details["allowedParam"], serde_json::json!(allowed_param));
+            assert_eq!(
+                details["forbiddenParam"],
+                serde_json::json!(forbidden_param)
+            );
+            assert_eq!(
+                details["expectedPattern"],
+                serde_json::json!(expected_pattern)
+            );
+        }
+    }
+
+    #[test]
     fn schema_uri_authority_datatype_param_rejects_invalid_declarations() {
         let model = compile_document_model(
             "https://example.test/ns/invalid-uri-authority-contracts/1",
@@ -25459,9 +26253,10 @@ mod tests {
 
 {schema @name="media-type-forbidden-family-contracts" @namespace="https://example.test/ns/media-type-forbidden-family-contracts/1" @version="1.0.0" |
     {elements |
-        {element @name="item" @optional-attributes="content-type markup artifact"}
+        {element @name="item" @optional-attributes="format content-type markup artifact"}
     }
     {attributes |
+        {attribute @name="format" @type="schema:media-type" @mediaTypeForbiddenEssences="application/json text/html"}
         {attribute @name="content-type" @type="schema:media-type" @mediaTypeForbiddenTypes="font image"}
         {attribute @name="markup" @type="schema:media-type" @mediaTypeForbiddenSubtypes="html xhtml+xml"}
         {attribute @name="artifact" @type="schema:media-type" @mediaTypeForbiddenSuffixes="json xml"}
@@ -25475,6 +26270,7 @@ mod tests {
         );
 
         for source in [
+            r#"{item @format="text/plain"}"#,
             r#"{item @content-type="application/json"}"#,
             r#"{item @markup="text/plain"}"#,
             r#"{item @artifact="application/cbor"}"#,
@@ -25500,6 +26296,17 @@ mod tests {
             forbidden_field,
             forbidden_values,
         ) in [
+            (
+                r#"{item @format="APPLICATION/JSON; charset=utf-8"}"#,
+                "format",
+                "mediaTypeForbiddenEssences",
+                "application/json text/html",
+                serde_json::json!(["application/json", "text/html"]),
+                "actualMediaTypeEssence",
+                "application/json",
+                "forbiddenMediaTypeEssences",
+                serde_json::json!(["application/json"]),
+            ),
             (
                 r#"{item @content-type="image/png"}"#,
                 "content-type",
@@ -25575,6 +26382,7 @@ mod tests {
             assert_eq!(
                 details["expectedPattern"],
                 serde_json::json!(match datatype_param {
+                    "mediaTypeForbiddenEssences" => "media type essence",
                     "mediaTypeForbiddenSuffixes" => "media type structured suffix",
                     "mediaTypeForbiddenTypes" => "media type type",
                     _ => "media type subtype",
@@ -25593,9 +26401,11 @@ mod tests {
 
 {schema @name="invalid-media-type-forbidden-family-contracts" @namespace="https://example.test/ns/invalid-media-type-forbidden-family-contracts/1" @version="1.0.0" |
     {elements |
-        {element @name="item" @optional-attributes="blockedType typeLabel blockedSubtype subtypeLabel blockedSuffix suffixLabel"}
+        {element @name="item" @optional-attributes="blockedEssence essenceLabel blockedType typeLabel blockedSubtype subtypeLabel blockedSuffix suffixLabel"}
     }
     {attributes |
+        {attribute @name="blockedEssence" @type="schema:media-type" @mediaTypeForbiddenEssences="text/html text"}
+        {attribute @name="essenceLabel" @type="schema:string" @mediaTypeForbiddenEssences="text/html"}
         {attribute @name="blockedType" @type="schema:media-type" @mediaTypeForbiddenTypes="image bad/type"}
         {attribute @name="typeLabel" @type="schema:string" @mediaTypeForbiddenTypes="image"}
         {attribute @name="blockedSubtype" @type="schema:media-type" @mediaTypeForbiddenSubtypes="html bad/subtype"}
@@ -25607,6 +26417,12 @@ mod tests {
         );
 
         for (attribute, datatype_param, param_value, expected_pattern) in [
+            (
+                "blockedEssence",
+                "mediaTypeForbiddenEssences",
+                "text",
+                "media type essence",
+            ),
             (
                 "blockedType",
                 "mediaTypeForbiddenTypes",
@@ -25665,6 +26481,7 @@ mod tests {
         }
 
         for (attribute, datatype_param) in [
+            ("essenceLabel", "mediaTypeForbiddenEssences"),
             ("typeLabel", "mediaTypeForbiddenTypes"),
             ("subtypeLabel", "mediaTypeForbiddenSubtypes"),
             ("suffixLabel", "mediaTypeForbiddenSuffixes"),
@@ -25711,9 +26528,10 @@ mod tests {
 
 {schema @name="inconsistent-media-type-forbidden-family-contracts" @namespace="https://example.test/ns/inconsistent-media-type-forbidden-family-contracts/1" @version="1.0.0" |
     {elements |
-        {element @name="item" @optional-attributes="type subtype suffix"}
+        {element @name="item" @optional-attributes="essence type subtype suffix"}
     }
     {attributes |
+        {attribute @name="essence" @type="schema:media-type" @mediaTypes="application/json text/html" @mediaTypeForbiddenEssences="text/html"}
         {attribute @name="type" @type="schema:media-type" @mediaTypeTypes="application image" @mediaTypeForbiddenTypes="image"}
         {attribute @name="subtype" @type="schema:media-type" @mediaTypeSubtypes="html json" @mediaTypeForbiddenSubtypes="html"}
         {attribute @name="suffix" @type="schema:media-type" @mediaTypeSuffixes="json xml" @mediaTypeForbiddenSuffixes="json"}
@@ -25722,6 +26540,13 @@ mod tests {
         );
 
         for (attribute, allowed_param, forbidden_param, param_value, expected_pattern) in [
+            (
+                "essence",
+                "mediaTypes",
+                "mediaTypeForbiddenEssences",
+                "text/html",
+                "media type essence",
+            ),
             (
                 "type",
                 "mediaTypeTypes",

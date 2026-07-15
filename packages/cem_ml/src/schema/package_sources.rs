@@ -745,7 +745,7 @@ mod tests {
             "schema",
             CEM_SCHEMA_CONTENT_TYPE,
             CEM_SCHEMA_URI,
-            19,
+            23,
         );
         for id in ["custom-behavior-schema", "custom-behavior-schema-strict"] {
             let example = examples
