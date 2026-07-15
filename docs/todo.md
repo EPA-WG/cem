@@ -7,22 +7,35 @@ history.
 
 ## Low Priority Deferred Design
 
-- [ ] Design richer declarative cross-node/reference vocabulary for
-      schema-owned constraints currently declared in CEM-ML but executed by
-      Rust. Immediate background: `schema-package.cem` declares converter
-      endpoint compatibility as
-      `{constraint @kind="endpoint-content-type-schema" @target="from to"
-      @diagnostic="cem.schema_package.converter_check"
-      @behavior="schema:reference-resolution" ...}`, and
-      `SchemaPackageConverterContractRule` executes it by reading each
-      endpoint's `@schema`, resolving that URI through `SchemaRegistry`, then
-      checking whether `content_type_essence(@content-type)` is included in
-      the referenced schema's registered content-type essences. Similar
-      Rust-executed reference-resolution shapes exist for example
-      content-type/schema compatibility and artifact CEMT function lookup/
-      metadata matching. The future vocabulary should let a schema declare:
-      candidate selection, reference attributes, registry/document lookup
-      target, normalized comparison such as media-type essence or URI equality,
+Current cross-node/reference background: schema-owned constraints are declared
+in CEM-ML but some are still executed by Rust. For example,
+`schema-package.cem` declares converter endpoint compatibility as
+`{constraint @kind="endpoint-content-type-schema" @target="from to"
+@diagnostic="cem.schema_package.converter_check"
+@behavior="schema:reference-resolution" ...}`, while
+`SchemaPackageConverterContractRule` still reads each endpoint's `@schema`,
+resolves that URI through `SchemaRegistry`, and checks whether
+`content_type_essence(@content-type)` is included in the referenced schema's
+registered content-type essences. Similar Rust-executed reference-resolution
+shapes exist for example content-type/schema compatibility and artifact CEMT
+function lookup/metadata matching.
+
+- [x] Design normalized value vocabulary for schema-owned reference
+      constraints. The decision is recorded in
+      [`cem-ml-reference-normalization-design.md`](cem-ml-reference-normalization-design.md):
+      normalizers now have named vocabulary terms, stable output/state shape,
+      pure versus engine-assisted placement, and coverage for media-type
+      essence, schema/document URI, namespace URI, content category, profile
+      name, artifact/function name, and exact scalar values.
+- [ ] Design comparison vocabulary for normalized reference values. Cover exact
+      equality, membership in a referenced registry set, required/forbidden set
+      overlap, optional profile/category matching, and missing/unresolved
+      reference behavior. Specify expected/invalid value detail projection and
+      source-range ownership for each comparison form.
+- [ ] Design the remaining richer declarative cross-node/reference vocabulary
+      for schema-owned constraints currently declared in CEM-ML but executed by
+      Rust. The future vocabulary should let a schema declare candidate
+      selection, reference attributes, registry/document lookup target,
       expected/invalid value detail projection, source-range propagation, and
       whether execution is pure CEM-ML/CEM-QL or engine-assisted. Reuse
       `schema:reference-resolution`, CEM-QL candidate selection, and
