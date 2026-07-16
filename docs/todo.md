@@ -13,12 +13,12 @@ normalization and comparison semantics are now designed. It should not attempt
 the full declarative selector/lookup CEM surface yet; that remains a deferred
 design item below.
 
-- [ ] Add failing tests for the normalized reference value model covering
+- [x] Add failing tests for the normalized reference value model covering
       scalar exact values, identifier tokens, media-type records and essences,
       media-type essence sets, schema URI, document URI, namespace URI,
       artifact/function names, content categories, profile names, and exact
       invalid/missing/unresolved/unsupported states.
-- [ ] Add Rust model types for normalized reference values, normalizer support
+- [x] Add Rust model types for normalized reference values, normalizer support
       level, operand roles, operand cardinality, state policies, comparison
       operators, comparison inputs, and comparison results. Sets must be sorted
       and duplicate-free for deterministic diagnostics.
@@ -26,7 +26,7 @@ design item below.
       URI, registry, resolver, namespace, and CEMT function metadata helpers
       into `schema:reference-resolution` primitives. Keep pure normalizers and
       engine-assisted normalizers visibly separate.
-- [ ] Implement reusable comparison evaluators for equality, membership,
+- [x] Implement reusable comparison evaluators for equality, membership,
       all-in, contains-all, intersects, disjoint, existence, record-field
       equality, and record-field membership. Apply state policies before value
       comparison and keep missing/invalid/unresolved outcomes explicit.
