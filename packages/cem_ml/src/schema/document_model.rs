@@ -14989,6 +14989,12 @@ mod tests {
             ("constraint", "schema:identifier"),
             ("expectedValues", "schema:object"),
             ("invalidValues", "schema:object"),
+            ("missingValues", "schema:object"),
+            ("unresolvedValues", "schema:object"),
+            ("invalidFields", "schema:array"),
+            ("actualValues", "schema:object"),
+            ("comparison", "schema:object"),
+            ("sourceRanges", "schema:object"),
             ("sourceRange", "schema:object"),
         ] {
             assert!(
@@ -15172,6 +15178,12 @@ mod tests {
             &[
                 ("expectedValues", "schema:object"),
                 ("invalidValues", "schema:object"),
+                ("missingValues", "schema:object"),
+                ("unresolvedValues", "schema:object"),
+                ("invalidFields", "schema:array"),
+                ("actualValues", "schema:object"),
+                ("comparison", "schema:object"),
+                ("sourceRanges", "schema:object"),
             ],
         );
     }

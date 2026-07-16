@@ -39,7 +39,7 @@ design item below.
       surface yet: schema URI/content-type/namespace consistency, converter and
       example content-type/schema compatibility, artifact function declared,
       artifact function contract, and expected diagnostics checks.
-- [ ] Update bootstrap schema behavior result declarations and tests so
+- [x] Update bootstrap schema behavior result declarations and tests so
       `schema:reference-resolution` declares any new structured detail keys
       emitted by the primitive evaluator.
 - [ ] Add CLI and schema-package regression coverage for normalized comparison

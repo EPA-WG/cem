@@ -1027,6 +1027,12 @@
                 {detail @name="checkKind" @type="schema:identifier" @required=true}
                 {detail @name="expectedValues" @type="schema:object"}
                 {detail @name="invalidValues" @type="schema:object"}
+                {detail @name="missingValues" @type="schema:object"}
+                {detail @name="unresolvedValues" @type="schema:object"}
+                {detail @name="invalidFields" @type="schema:array"}
+                {detail @name="actualValues" @type="schema:object"}
+                {detail @name="comparison" @type="schema:object"}
+                {detail @name="sourceRanges" @type="schema:object"}
                 {detail @name="sourceRange" @type="schema:object" @source="candidate"}
             }
         }
