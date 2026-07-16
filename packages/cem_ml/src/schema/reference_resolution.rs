@@ -1,6 +1,12 @@
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::schema::registry::{SchemaDescriptor, SchemaRegistry};
+use crate::transform_template::{
+    TransformTemplateArtifactFunctionContract, TransformTemplateOutputFunctionDescriptor,
+    TransformTemplateOutputFunctionKind, TransformTemplateOutputFunctionRegistry,
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ReferenceNormalizer {
     ScalarExact,
@@ -87,6 +93,7 @@ pub enum ReferenceValueReason {
     InvalidMediaType,
     UnresolvedSchema,
     UnresolvedDocument,
+    UnresolvedNamespace,
     UnresolvedFunction,
     UnsupportedNormalizer,
 }
@@ -99,6 +106,7 @@ impl ReferenceValueReason {
             Self::InvalidMediaType => "invalid-media-type",
             Self::UnresolvedSchema => "unresolved-schema",
             Self::UnresolvedDocument => "unresolved-document",
+            Self::UnresolvedNamespace => "unresolved-namespace",
             Self::UnresolvedFunction => "unresolved-function",
             Self::UnsupportedNormalizer => "unsupported-normalizer",
         }
@@ -329,6 +337,24 @@ pub fn normalize_namespace_uri(
     )
 }
 
+pub fn normalize_namespace_uri_set<I, S>(name: impl Into<String>, values: I) -> ReferenceValue
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    let values = values
+        .into_iter()
+        .map(|value| value.as_ref().to_owned())
+        .collect::<BTreeSet<_>>();
+    ReferenceValue::valid(
+        name,
+        ReferenceNormalizer::NamespaceUri,
+        ReferenceValueCardinality::Set,
+        Some(values.iter().cloned().collect::<Vec<_>>().join(" ")),
+        NormalizedReferenceValue::StringSet(values),
+    )
+}
+
 pub fn normalize_artifact_name(
     name: impl Into<String>,
     value: impl Into<String>,
@@ -475,6 +501,359 @@ pub fn normalize_document_uri(
     }
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PureReferenceNormalizerEvaluator;
+
+impl PureReferenceNormalizerEvaluator {
+    pub fn normalize(
+        self,
+        normalizer: ReferenceNormalizer,
+        name: impl Into<String>,
+        value: impl Into<String>,
+    ) -> ReferenceValue {
+        let name = name.into();
+        let value = value.into();
+        match normalizer {
+            ReferenceNormalizer::ScalarExact => normalize_scalar_exact(name, value),
+            ReferenceNormalizer::IdentifierToken => normalize_identifier_token(name, value),
+            ReferenceNormalizer::NamespaceUri => normalize_namespace_uri(name, value),
+            ReferenceNormalizer::ArtifactName => normalize_artifact_name(name, value),
+            ReferenceNormalizer::FunctionName => normalize_function_name(name, value),
+            ReferenceNormalizer::ContentCategory => normalize_content_category(name, value),
+            ReferenceNormalizer::ProfileName => normalize_profile_name(name, value),
+            ReferenceNormalizer::MediaType
+            | ReferenceNormalizer::MediaTypeEssence
+            | ReferenceNormalizer::MediaTypeEssenceSet
+            | ReferenceNormalizer::SchemaUri
+            | ReferenceNormalizer::DocumentUri => ReferenceValue::unsupported(name, normalizer),
+        }
+    }
+
+    pub fn scalar_exact(self, name: impl Into<String>, value: impl Into<String>) -> ReferenceValue {
+        normalize_scalar_exact(name, value)
+    }
+
+    pub fn identifier_token(
+        self,
+        name: impl Into<String>,
+        value: impl Into<String>,
+    ) -> ReferenceValue {
+        normalize_identifier_token(name, value)
+    }
+
+    pub fn namespace_uri(
+        self,
+        name: impl Into<String>,
+        value: impl Into<String>,
+    ) -> ReferenceValue {
+        normalize_namespace_uri(name, value)
+    }
+
+    pub fn artifact_name(
+        self,
+        name: impl Into<String>,
+        value: impl Into<String>,
+    ) -> ReferenceValue {
+        normalize_artifact_name(name, value)
+    }
+
+    pub fn function_name(
+        self,
+        name: impl Into<String>,
+        value: impl Into<String>,
+    ) -> ReferenceValue {
+        normalize_function_name(name, value)
+    }
+
+    pub fn content_category(
+        self,
+        name: impl Into<String>,
+        value: impl Into<String>,
+    ) -> ReferenceValue {
+        normalize_content_category(name, value)
+    }
+
+    pub fn profile_name(self, name: impl Into<String>, value: impl Into<String>) -> ReferenceValue {
+        normalize_profile_name(name, value)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct EngineAssistedReferenceNormalizerEvaluator;
+
+impl EngineAssistedReferenceNormalizerEvaluator {
+    pub fn media_type(self, name: impl Into<String>, value: impl Into<String>) -> ReferenceValue {
+        normalize_media_type(name, value)
+    }
+
+    pub fn media_type_essence(
+        self,
+        name: impl Into<String>,
+        value: impl Into<String>,
+    ) -> ReferenceValue {
+        normalize_media_type_essence(name, value)
+    }
+
+    pub fn media_type_essence_set<I, S>(self, name: impl Into<String>, values: I) -> ReferenceValue
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        normalize_media_type_essence_set(name, values)
+    }
+
+    pub fn schema_uri_from_registry(
+        self,
+        name: impl Into<String>,
+        declared_uri: impl Into<String>,
+        registry: &SchemaRegistry,
+    ) -> ReferenceValue {
+        let declared_uri = declared_uri.into();
+        let resolved_schema_uri = registry
+            .schema(&declared_uri)
+            .map(|descriptor| descriptor.schema_uri.as_str());
+        normalize_schema_uri(name, declared_uri, resolved_schema_uri)
+    }
+
+    pub fn schema_descriptor_uri(
+        self,
+        name: impl Into<String>,
+        descriptor: &SchemaDescriptor,
+    ) -> ReferenceValue {
+        normalize_schema_uri(
+            name,
+            descriptor.schema_uri.clone(),
+            Some(descriptor.schema_uri.as_str()),
+        )
+    }
+
+    pub fn schema_descriptor_content_type_essences(
+        self,
+        name: impl Into<String>,
+        descriptor: &SchemaDescriptor,
+    ) -> ReferenceValue {
+        normalize_media_type_essence_set(name, descriptor.content_type_essences())
+    }
+
+    pub fn registry_content_type_essences(
+        self,
+        name: impl Into<String>,
+        registry: &SchemaRegistry,
+    ) -> ReferenceValue {
+        normalize_media_type_essence_set(name, registry.content_type_essences())
+    }
+
+    pub fn schema_descriptor_namespace_uris(
+        self,
+        name: impl Into<String>,
+        descriptor: &SchemaDescriptor,
+    ) -> ReferenceValue {
+        normalize_namespace_uri_set(name, descriptor.namespace_uris())
+    }
+
+    pub fn namespace_claiming_schema_uris(
+        self,
+        name: impl Into<String>,
+        namespace_uri: impl Into<String>,
+        registry: &SchemaRegistry,
+    ) -> ReferenceValue {
+        let name = name.into();
+        let namespace_uri = namespace_uri.into();
+        let schema_uris = registry
+            .lookup_namespace(&namespace_uri)
+            .into_iter()
+            .map(|descriptor| descriptor.schema_uri.clone())
+            .collect::<BTreeSet<_>>();
+        if schema_uris.is_empty() {
+            return ReferenceValue::unresolved(
+                name,
+                ReferenceNormalizer::SchemaUri,
+                namespace_uri,
+                ReferenceValueReason::UnresolvedNamespace,
+            );
+        }
+        ReferenceValue::valid(
+            name,
+            ReferenceNormalizer::SchemaUri,
+            ReferenceValueCardinality::Set,
+            Some(namespace_uri),
+            NormalizedReferenceValue::StringSet(schema_uris),
+        )
+    }
+
+    pub fn document_uri(
+        self,
+        name: impl Into<String>,
+        declared_uri: impl Into<String>,
+        resolved_uri: Option<&str>,
+    ) -> ReferenceValue {
+        normalize_document_uri(name, declared_uri, resolved_uri)
+    }
+
+    pub fn cemt_declared_function_name(
+        self,
+        name: impl Into<String>,
+        declared_name: impl Into<String>,
+        registry: &TransformTemplateOutputFunctionRegistry,
+    ) -> ReferenceValue {
+        let declared_name = declared_name.into();
+        if registry
+            .functions()
+            .iter()
+            .any(|function| function.name == declared_name)
+        {
+            normalize_function_name(name, declared_name)
+        } else {
+            ReferenceValue::unresolved(
+                name,
+                ReferenceNormalizer::FunctionName,
+                declared_name,
+                ReferenceValueReason::UnresolvedFunction,
+            )
+        }
+    }
+
+    pub fn cemt_output_function_record(
+        self,
+        name: impl Into<String>,
+        function: &TransformTemplateOutputFunctionDescriptor,
+    ) -> ReferenceValue {
+        let name = name.into();
+        let Some(content_type) = parse_media_type(&function.content_type) else {
+            return ReferenceValue::invalid(
+                name,
+                ReferenceNormalizer::FunctionName,
+                function.content_type.clone(),
+                ReferenceValueReason::InvalidMediaType,
+            );
+        };
+        if !is_identifier_token(&function.category) {
+            return ReferenceValue::invalid(
+                name,
+                ReferenceNormalizer::FunctionName,
+                function.category.clone(),
+                ReferenceValueReason::InvalidScalar,
+            );
+        }
+        if let Some(profile) = function.profile.as_deref() {
+            if !is_identifier_token(profile) {
+                return ReferenceValue::invalid(
+                    name,
+                    ReferenceNormalizer::FunctionName,
+                    profile,
+                    ReferenceValueReason::InvalidScalar,
+                );
+            }
+        }
+
+        let mut fields = BTreeMap::from([
+            (
+                "kind".to_owned(),
+                NormalizedReferenceValue::Scalar(output_function_kind_value(function.kind)),
+            ),
+            (
+                "function-name".to_owned(),
+                NormalizedReferenceValue::Scalar(function.name.clone()),
+            ),
+            (
+                "target-content-type".to_owned(),
+                NormalizedReferenceValue::Scalar(content_type.essence),
+            ),
+            (
+                "target-schema".to_owned(),
+                NormalizedReferenceValue::Scalar(function.schema.clone()),
+            ),
+            (
+                "target-category".to_owned(),
+                NormalizedReferenceValue::Scalar(function.category.clone()),
+            ),
+        ]);
+        if let Some(profile) = function.profile.as_ref() {
+            fields.insert(
+                "function-profile".to_owned(),
+                NormalizedReferenceValue::Scalar(profile.clone()),
+            );
+        }
+        ReferenceValue::valid(
+            name,
+            ReferenceNormalizer::FunctionName,
+            ReferenceValueCardinality::One,
+            Some(function.name.clone()),
+            NormalizedReferenceValue::Record(fields),
+        )
+    }
+
+    pub fn cemt_artifact_function_contract_record(
+        self,
+        name: impl Into<String>,
+        contract: TransformTemplateArtifactFunctionContract<'_>,
+    ) -> ReferenceValue {
+        let name = name.into();
+        let mut fields = BTreeMap::new();
+        if let Some(kind) = contract
+            .artifact_kind
+            .and_then(artifact_output_function_kind_value)
+        {
+            fields.insert("kind".to_owned(), NormalizedReferenceValue::Scalar(kind));
+        }
+        if let Some(target_content_type) = trimmed_non_empty(contract.target_content_type) {
+            let Some(media_type) = parse_media_type(target_content_type) else {
+                return ReferenceValue::invalid(
+                    name,
+                    ReferenceNormalizer::FunctionName,
+                    target_content_type,
+                    ReferenceValueReason::InvalidMediaType,
+                );
+            };
+            fields.insert(
+                "target-content-type".to_owned(),
+                NormalizedReferenceValue::Scalar(media_type.essence),
+            );
+        }
+        if let Some(target_schema) = trimmed_non_empty(contract.target_schema) {
+            fields.insert(
+                "target-schema".to_owned(),
+                NormalizedReferenceValue::Scalar(target_schema.to_owned()),
+            );
+        }
+        if let Some(target_category) = trimmed_non_empty(contract.target_category) {
+            if !is_identifier_token(target_category) {
+                return ReferenceValue::invalid(
+                    name,
+                    ReferenceNormalizer::FunctionName,
+                    target_category,
+                    ReferenceValueReason::InvalidScalar,
+                );
+            }
+            fields.insert(
+                "target-category".to_owned(),
+                NormalizedReferenceValue::Scalar(target_category.to_owned()),
+            );
+        }
+        if let Some(function_profile) = trimmed_non_empty(contract.function_profile) {
+            if !is_identifier_token(function_profile) {
+                return ReferenceValue::invalid(
+                    name,
+                    ReferenceNormalizer::FunctionName,
+                    function_profile,
+                    ReferenceValueReason::InvalidScalar,
+                );
+            }
+            fields.insert(
+                "function-profile".to_owned(),
+                NormalizedReferenceValue::Scalar(function_profile.to_owned()),
+            );
+        }
+        ReferenceValue::valid(
+            name,
+            ReferenceNormalizer::FunctionName,
+            ReferenceValueCardinality::One,
+            None,
+            NormalizedReferenceValue::Record(fields),
+        )
+    }
+}
+
 fn normalize_identifier_like(
     name: impl Into<String>,
     value: impl Into<String>,
@@ -600,6 +979,28 @@ fn is_identifier_token(value: &str) -> bool {
     let mut chars = value.chars();
     chars.next().is_some_and(|ch| ch.is_ascii_alphabetic())
         && chars.all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+}
+
+fn output_function_kind_value(kind: TransformTemplateOutputFunctionKind) -> String {
+    match kind {
+        TransformTemplateOutputFunctionKind::Encoding => "encoding",
+        TransformTemplateOutputFunctionKind::Format => "format",
+        TransformTemplateOutputFunctionKind::Color => "color",
+    }
+    .to_owned()
+}
+
+fn artifact_output_function_kind_value(artifact_kind: &str) -> Option<String> {
+    match artifact_kind.trim() {
+        "formatter" | "formatter-helper" => Some("format".to_owned()),
+        "colorizer" | "colorizer-helper" => Some("color".to_owned()),
+        "encoder" => Some("encoding".to_owned()),
+        _ => None,
+    }
+}
+
+fn trimmed_non_empty(value: Option<&str>) -> Option<&str> {
+    value.map(str::trim).filter(|value| !value.is_empty())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1087,6 +1488,13 @@ fn comparison_metadata(input: &ReferenceComparisonInput) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::schema::registry::{
+        HTML_CONTENT_TYPE, HTML_NAMESPACE_URI, HTML_SCHEMA_URI, XHTML_SCHEMA_URI,
+    };
+    use crate::transform_template::{
+        TransformTemplateModuleVisibility, TransformTemplateOutputFunctionImplementation,
+        TransformTemplateOutputProducedKind,
+    };
 
     fn set(values: &[&str]) -> BTreeSet<String> {
         values.iter().map(|value| (*value).to_owned()).collect()
@@ -1098,6 +1506,33 @@ mod tests {
 
     fn expected(value: ReferenceValue) -> ReferenceOperand {
         ReferenceOperand::new(ReferenceOperandRole::Expected, value.name.clone(), value)
+    }
+
+    fn output_function_descriptor() -> TransformTemplateOutputFunctionDescriptor {
+        TransformTemplateOutputFunctionDescriptor {
+            kind: TransformTemplateOutputFunctionKind::Format,
+            owner: None,
+            name: "demo.format".to_owned(),
+            category: "html-document".to_owned(),
+            subject: "cem-tree".to_owned(),
+            produces: TransformTemplateOutputProducedKind::Text,
+            content_type: "Text/HTML; Charset=UTF-8".to_owned(),
+            schema: HTML_SCHEMA_URI.to_owned(),
+            canonical: true,
+            streamable: true,
+            visibility: TransformTemplateModuleVisibility::Public,
+            implementation: TransformTemplateOutputFunctionImplementation::Cemt,
+            profile: Some("compact".to_owned()),
+            extends: None,
+            capability: None,
+            deterministic: true,
+            trusted: false,
+            lossy: false,
+            fallback: None,
+            params: Vec::new(),
+            body_declared: false,
+            body_expression: None,
+        }
     }
 
     #[test]
@@ -1113,6 +1548,31 @@ mod tests {
         assert_eq!(
             ReferenceNormalizer::IdentifierToken.placement(),
             NormalizerPlacement::Pure
+        );
+    }
+
+    #[test]
+    fn normalizer_evaluators_keep_pure_and_engine_assisted_paths_separate() {
+        let pure = PureReferenceNormalizerEvaluator;
+        let identifier = pure.normalize(ReferenceNormalizer::IdentifierToken, "profile", "compact");
+        assert_eq!(identifier.state, ReferenceValueState::Valid);
+
+        let unsupported = pure.normalize(
+            ReferenceNormalizer::MediaTypeEssence,
+            "content-type",
+            "text/html",
+        );
+        assert_eq!(unsupported.state, ReferenceValueState::Invalid);
+        assert_eq!(
+            unsupported.reason,
+            Some(ReferenceValueReason::UnsupportedNormalizer)
+        );
+
+        let engine = EngineAssistedReferenceNormalizerEvaluator;
+        let media_type = engine.media_type_essence("content-type", "Text/HTML; charset=utf-8");
+        assert_eq!(
+            media_type.normalized_value,
+            Some(NormalizedReferenceValue::Scalar("text/html".to_owned()))
         );
     }
 
@@ -1221,6 +1681,12 @@ mod tests {
             NormalizedReferenceValue::Scalar("https://example.test/ns".to_owned())
         );
         assert_eq!(
+            normalize_namespace_uri_set("namespaces", ["urn:z", "urn:a", "urn:a"])
+                .normalized_value
+                .unwrap(),
+            NormalizedReferenceValue::StringSet(set(&["urn:a", "urn:z"]))
+        );
+        assert_eq!(
             normalize_artifact_name("artifact", "formatters/cem-format-tree.cemt").state,
             ReferenceValueState::Valid
         );
@@ -1235,6 +1701,145 @@ mod tests {
         assert_eq!(
             normalize_profile_name("profile", "compact").state,
             ReferenceValueState::Valid
+        );
+    }
+
+    #[test]
+    fn engine_assisted_registry_evaluator_lifts_schema_content_type_and_namespace_metadata() {
+        let registry = SchemaRegistry::with_builtin_schemas();
+        let engine = EngineAssistedReferenceNormalizerEvaluator;
+
+        let schema = engine.schema_uri_from_registry("schema", HTML_SCHEMA_URI, &registry);
+        assert_eq!(
+            schema.normalized_value,
+            Some(NormalizedReferenceValue::Scalar(HTML_SCHEMA_URI.to_owned()))
+        );
+
+        let unresolved = engine.schema_uri_from_registry(
+            "schema",
+            "https://example.test/ns/missing/1",
+            &registry,
+        );
+        assert_eq!(unresolved.state, ReferenceValueState::Unresolved);
+        assert_eq!(
+            unresolved.reason,
+            Some(ReferenceValueReason::UnresolvedSchema)
+        );
+
+        let html = registry.schema(HTML_SCHEMA_URI).expect("HTML descriptor");
+        let content_types = engine.schema_descriptor_content_type_essences("contentTypes", html);
+        assert_eq!(
+            content_types.normalized_value,
+            Some(NormalizedReferenceValue::StringSet(set(&[
+                HTML_CONTENT_TYPE
+            ])))
+        );
+
+        let namespaces = engine.schema_descriptor_namespace_uris("namespaces", html);
+        let Some(NormalizedReferenceValue::StringSet(namespaces)) = namespaces.normalized_value
+        else {
+            panic!("namespace set");
+        };
+        assert!(namespaces.contains(HTML_SCHEMA_URI));
+        assert!(namespaces.contains(HTML_NAMESPACE_URI));
+
+        let claiming_schemas =
+            engine.namespace_claiming_schema_uris("namespace", HTML_NAMESPACE_URI, &registry);
+        let Some(NormalizedReferenceValue::StringSet(claiming_schema_uris)) =
+            claiming_schemas.normalized_value
+        else {
+            panic!("claiming schema set");
+        };
+        assert!(claiming_schema_uris.contains(HTML_SCHEMA_URI));
+        assert!(claiming_schema_uris.contains(XHTML_SCHEMA_URI));
+
+        let missing_namespace =
+            engine.namespace_claiming_schema_uris("namespace", "urn:missing", &registry);
+        assert_eq!(missing_namespace.state, ReferenceValueState::Unresolved);
+        assert_eq!(
+            missing_namespace.reason,
+            Some(ReferenceValueReason::UnresolvedNamespace)
+        );
+    }
+
+    #[test]
+    fn engine_assisted_resolver_evaluator_preserves_document_uri_projection() {
+        let document = EngineAssistedReferenceNormalizerEvaluator.document_uri(
+            "source",
+            "schema/source.cem",
+            Some("file:///workspace/schema/source.cem"),
+        );
+        assert_eq!(
+            document.normalized_value,
+            Some(NormalizedReferenceValue::UriRecord {
+                declared_uri: "schema/source.cem".to_owned(),
+                resolved_uri: "file:///workspace/schema/source.cem".to_owned(),
+            })
+        );
+
+        let unresolved =
+            EngineAssistedReferenceNormalizerEvaluator.document_uri("source", "missing.cem", None);
+        assert_eq!(unresolved.state, ReferenceValueState::Unresolved);
+        assert_eq!(
+            unresolved.reason,
+            Some(ReferenceValueReason::UnresolvedDocument)
+        );
+    }
+
+    #[test]
+    fn engine_assisted_cemt_evaluator_lifts_function_lookup_and_contract_metadata() {
+        let engine = EngineAssistedReferenceNormalizerEvaluator;
+        let descriptor = output_function_descriptor();
+        let mut registry = TransformTemplateOutputFunctionRegistry::new();
+        registry.register(descriptor.clone());
+
+        let declared =
+            engine.cemt_declared_function_name("function-name", "demo.format", &registry);
+        assert_eq!(declared.state, ReferenceValueState::Valid);
+        assert_eq!(
+            declared.normalized_value,
+            Some(NormalizedReferenceValue::Scalar("demo.format".to_owned()))
+        );
+
+        let missing =
+            engine.cemt_declared_function_name("function-name", "demo.missing", &registry);
+        assert_eq!(missing.state, ReferenceValueState::Unresolved);
+        assert_eq!(
+            missing.reason,
+            Some(ReferenceValueReason::UnresolvedFunction)
+        );
+
+        let actual_record = engine.cemt_output_function_record("actualFunction", &descriptor);
+        let expected_record = engine.cemt_artifact_function_contract_record(
+            "expectedFunction",
+            TransformTemplateArtifactFunctionContract {
+                artifact_kind: Some("formatter"),
+                target_content_type: Some("text/html"),
+                target_schema: Some(HTML_SCHEMA_URI),
+                target_category: Some("html-document"),
+                function_profile: Some("compact"),
+            },
+        );
+        let result = compare_references(ReferenceComparisonInput {
+            operator: ReferenceComparisonOperator::RecordFieldsEqual,
+            actual: actual(actual_record),
+            expected: Some(expected(expected_record)),
+            forbidden: None,
+            state_policy: ReferenceStatePolicy::RequiredValid,
+        });
+        assert!(result.passed);
+
+        let invalid_contract = engine.cemt_artifact_function_contract_record(
+            "expectedFunction",
+            TransformTemplateArtifactFunctionContract {
+                target_content_type: Some("text html"),
+                ..TransformTemplateArtifactFunctionContract::default()
+            },
+        );
+        assert_eq!(invalid_contract.state, ReferenceValueState::Invalid);
+        assert_eq!(
+            invalid_contract.reason,
+            Some(ReferenceValueReason::InvalidMediaType)
         );
     }
 

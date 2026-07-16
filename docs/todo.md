@@ -22,7 +22,7 @@ design item below.
       level, operand roles, operand cardinality, state policies, comparison
       operators, comparison inputs, and comparison results. Sets must be sorted
       and duplicate-free for deterministic diagnostics.
-- [ ] Implement reusable normalizer evaluators by lifting existing media-type,
+- [x] Implement reusable normalizer evaluators by lifting existing media-type,
       URI, registry, resolver, namespace, and CEMT function metadata helpers
       into `schema:reference-resolution` primitives. Keep pure normalizers and
       engine-assisted normalizers visibly separate.
