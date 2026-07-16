@@ -34,7 +34,7 @@ design item below.
       comparison projection: `expectedValues`, `invalidValues`,
       `missingValues`, `unresolvedValues`, `invalidFields`, and optional
       `comparison` metadata with source-range ownership.
-- [ ] Route existing schema-package Rust-backed reference checks through the
+- [x] Route existing schema-package Rust-backed reference checks through the
       reusable normalizer/comparison primitives without changing the public CEM
       surface yet: schema URI/content-type/namespace consistency, converter and
       example content-type/schema compatibility, artifact function declared,

@@ -32,8 +32,13 @@ use crate::schema::document_model::{
     validate_document_model_with_behavior_evaluator, SchemaDocumentModel,
 };
 use crate::schema::package_consistency::validate_schema_package_source_consistency;
+use crate::schema::reference_resolution::{
+    compare_references, EngineAssistedReferenceNormalizerEvaluator, NormalizedReferenceValue,
+    ReferenceComparisonInput, ReferenceComparisonOperator, ReferenceNormalizer, ReferenceOperand,
+    ReferenceOperandRole, ReferenceStatePolicy, ReferenceValue, ReferenceValueCardinality,
+};
 use crate::schema::registry::{
-    content_type_essence, SchemaRegistry, CEM_AST_JSON_PROJECTION_CONTENT_TYPE,
+    content_type_essence, SchemaDescriptor, SchemaRegistry, CEM_AST_JSON_PROJECTION_CONTENT_TYPE,
     CEM_AST_PROJECTION_CONTENT_TYPE, CEM_AST_PROJECTION_SCHEMA_URI,
     CEM_DOM_JSON_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_CONTENT_TYPE,
     CEM_DOM_PROJECTION_SCHEMA_URI, CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE,
@@ -55,6 +60,7 @@ use crate::transform_template::{
     TransformTemplateArtifactFunctionContract, TransformTemplateArtifactFunctionContractMismatch,
     TransformTemplateCompileRequest, TransformTemplateModuleOptions,
     TransformTemplateModuleParseRequest, TransformTemplateModulePreflight,
+    TransformTemplateOutputFunctionDescriptor, TransformTemplateOutputFunctionRegistry,
 };
 use crate::validation::{
     cem_ast_projection::{
@@ -76,7 +82,7 @@ use crate::validation::{
     RuleContext, RuleDescriptor, RuleId, RuleInput, RuleRegistry, RuleResourceRead, SemanticRule,
     TriggerLayer,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
@@ -1734,15 +1740,12 @@ fn validate_endpoint_schema_content_type(
     let Some(schema) = registry.schema(schema_uri) else {
         return;
     };
-    let essence = content_type_essence(content_type);
+    let comparison = compare_content_type_schema_membership(content_type, schema);
     let allowed_content_types = schema
         .content_type_essences()
         .map(str::to_owned)
         .collect::<Vec<_>>();
-    if !allowed_content_types
-        .iter()
-        .any(|allowed| allowed == &essence)
-    {
+    if !comparison.passed {
         out.push(
             schema_package_converter_endpoint_content_type_mismatch_diag(
                 doc,
@@ -1755,6 +1758,28 @@ fn validate_endpoint_schema_content_type(
             ),
         );
     }
+}
+
+fn compare_content_type_schema_membership(
+    content_type: &str,
+    schema: &SchemaDescriptor,
+) -> crate::schema::reference_resolution::ReferenceComparisonResult {
+    let normalizer = EngineAssistedReferenceNormalizerEvaluator;
+    compare_references(ReferenceComparisonInput {
+        operator: ReferenceComparisonOperator::MemberOf,
+        actual: ReferenceOperand::new(
+            ReferenceOperandRole::Actual,
+            "content-type",
+            normalizer.media_type_essence("content-type", content_type),
+        ),
+        expected: Some(ReferenceOperand::new(
+            ReferenceOperandRole::Expected,
+            "content-type",
+            normalizer.schema_descriptor_content_type_essences("content-type", schema),
+        )),
+        forbidden: None,
+        state_policy: ReferenceStatePolicy::RequiredValid,
+    })
 }
 
 fn schema_package_converter_endpoint_content_type_mismatch_diag(
@@ -1851,12 +1876,11 @@ fn validate_schema_package_artifact(
         return;
     }
 
-    let Some(function) = parse_response
-        .module_options
-        .output_functions
-        .iter()
-        .find(|function| function.name == function_name)
-    else {
+    let function_registry = TransformTemplateOutputFunctionRegistry::from_module_options(
+        &parse_response.module_options,
+    );
+    let function_lookup = compare_artifact_function_declared(function_name, &function_registry);
+    if !function_lookup.passed {
         let declared_functions = parse_response
             .module_options
             .output_functions
@@ -1873,22 +1897,76 @@ fn validate_schema_package_artifact(
         return;
     };
 
-    out.extend(
-        validate_transform_template_artifact_function_contract(
-            function,
-            TransformTemplateArtifactFunctionContract {
-                artifact_kind: attr_value(ctx.document, node, "kind"),
-                target_content_type: attr_value(ctx.document, node, "target-content-type"),
-                target_schema: attr_value(ctx.document, node, "target-schema"),
-                target_category: attr_value(ctx.document, node, "target-category"),
-                function_profile: attr_value(ctx.document, node, "function-profile"),
-            },
-        )
-        .into_iter()
-        .map(|mismatch| {
-            schema_package_artifact_contract_mismatch_diag(ctx.document, node, path, mismatch)
-        }),
-    );
+    let Some(function) = function_registry
+        .functions()
+        .iter()
+        .find(|function| function.name == function_name)
+    else {
+        return;
+    };
+
+    let contract = TransformTemplateArtifactFunctionContract {
+        artifact_kind: attr_value(ctx.document, node, "kind"),
+        target_content_type: attr_value(ctx.document, node, "target-content-type"),
+        target_schema: attr_value(ctx.document, node, "target-schema"),
+        target_category: attr_value(ctx.document, node, "target-category"),
+        function_profile: attr_value(ctx.document, node, "function-profile"),
+    };
+    let contract_comparison = compare_artifact_function_contract(function, contract);
+    if !contract_comparison.passed {
+        out.extend(
+            validate_transform_template_artifact_function_contract(function, contract)
+                .into_iter()
+                .map(|mismatch| {
+                    schema_package_artifact_contract_mismatch_diag(
+                        ctx.document,
+                        node,
+                        path,
+                        mismatch,
+                    )
+                }),
+        );
+    }
+}
+
+fn compare_artifact_function_declared(
+    function_name: &str,
+    registry: &TransformTemplateOutputFunctionRegistry,
+) -> crate::schema::reference_resolution::ReferenceComparisonResult {
+    let normalizer = EngineAssistedReferenceNormalizerEvaluator;
+    compare_references(ReferenceComparisonInput {
+        operator: ReferenceComparisonOperator::Exists,
+        actual: ReferenceOperand::new(
+            ReferenceOperandRole::Actual,
+            "function-name",
+            normalizer.cemt_declared_function_name("function-name", function_name, registry),
+        ),
+        expected: None,
+        forbidden: None,
+        state_policy: ReferenceStatePolicy::RequiredValid,
+    })
+}
+
+fn compare_artifact_function_contract(
+    function: &TransformTemplateOutputFunctionDescriptor,
+    contract: TransformTemplateArtifactFunctionContract<'_>,
+) -> crate::schema::reference_resolution::ReferenceComparisonResult {
+    let normalizer = EngineAssistedReferenceNormalizerEvaluator;
+    compare_references(ReferenceComparisonInput {
+        operator: ReferenceComparisonOperator::RecordFieldsEqual,
+        actual: ReferenceOperand::new(
+            ReferenceOperandRole::Actual,
+            "actualFunction",
+            normalizer.cemt_output_function_record("actualFunction", function),
+        ),
+        expected: Some(ReferenceOperand::new(
+            ReferenceOperandRole::Expected,
+            "expectedFunction",
+            normalizer.cemt_artifact_function_contract_record("expectedFunction", contract),
+        )),
+        forbidden: None,
+        state_policy: ReferenceStatePolicy::RequiredValid,
+    })
 }
 
 fn read_schema_package_artifact_source(
@@ -2171,15 +2249,12 @@ fn validate_schema_package_example(
     let Some(schema) = registry.schema(schema_uri) else {
         return;
     };
-    let essence = content_type_essence(content_type);
+    let comparison = compare_content_type_schema_membership(content_type, schema);
     let allowed_content_types = schema
         .content_type_essences()
         .map(str::to_owned)
         .collect::<Vec<_>>();
-    if !allowed_content_types
-        .iter()
-        .any(|allowed| allowed == &essence)
-    {
+    if !comparison.passed {
         out.push(schema_package_example_schema_content_type_failed_diag(
             doc,
             node,
@@ -2274,12 +2349,14 @@ fn validate_schema_package_example_source_contract(
             &hard_diagnostics,
         )),
         (true, false) => {
-            let missing = expected_diagnostics
-                .iter()
-                .filter(|expected| !hard_diagnostics.iter().any(|actual| actual == *expected))
-                .cloned()
-                .collect::<Vec<_>>();
-            if !missing.is_empty() {
+            let diagnostics_comparison =
+                compare_expected_diagnostics(&hard_diagnostics, &expected_diagnostics);
+            if !diagnostics_comparison.passed {
+                let missing = expected_diagnostics
+                    .iter()
+                    .filter(|expected| !hard_diagnostics.iter().any(|actual| actual == *expected))
+                    .cloned()
+                    .collect::<Vec<_>>();
                 out.push(schema_package_example_expected_diagnostics_diag(
                     ctx.document,
                     node,
@@ -2295,6 +2372,37 @@ fn validate_schema_package_example_source_contract(
         }
         (false, true) => {}
     }
+}
+
+fn compare_expected_diagnostics(
+    actual_diagnostics: &[String],
+    expected_diagnostics: &[String],
+) -> crate::schema::reference_resolution::ReferenceComparisonResult {
+    compare_references(ReferenceComparisonInput {
+        operator: ReferenceComparisonOperator::ContainsAll,
+        actual: ReferenceOperand::new(
+            ReferenceOperandRole::Actual,
+            "actualDiagnostics",
+            normalized_reference_string_set("actualDiagnostics", actual_diagnostics),
+        ),
+        expected: Some(ReferenceOperand::new(
+            ReferenceOperandRole::Expected,
+            "expectedDiagnostics",
+            normalized_reference_string_set("expectedDiagnostics", expected_diagnostics),
+        )),
+        forbidden: None,
+        state_policy: ReferenceStatePolicy::RequiredValid,
+    })
+}
+
+fn normalized_reference_string_set(name: &str, values: &[String]) -> ReferenceValue {
+    ReferenceValue::valid(
+        name,
+        ReferenceNormalizer::ScalarExact,
+        ReferenceValueCardinality::Set,
+        None,
+        NormalizedReferenceValue::StringSet(values.iter().cloned().collect::<BTreeSet<_>>()),
+    )
 }
 
 fn read_schema_package_example_source(

@@ -4,6 +4,12 @@ use crate::parser::builder::CemAstBuilder;
 use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
 use crate::resolver::{has_uri_scheme, is_windows_drive_path, parse_local_file_uri};
+use crate::schema::reference_resolution::{
+    compare_references, normalize_namespace_uri, normalize_namespace_uri_set, normalize_schema_uri,
+    NormalizedReferenceValue, ReferenceComparisonInput, ReferenceComparisonOperator,
+    ReferenceNormalizer, ReferenceOperand, ReferenceOperandRole, ReferenceStatePolicy,
+    ReferenceValue, ReferenceValueCardinality,
+};
 use crate::schema::registry::{content_type_essence, CEM_SCHEMA_PACKAGE_URI};
 use crate::source::{BytesSource, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack};
@@ -121,7 +127,9 @@ pub fn validate_schema_package_source_consistency(
     };
     let schema_attrs = cem_collect_attrs(&schema_document, schema_id);
     if let Some(schema_namespace) = cem_optional_attr(&schema_attrs, "namespace") {
-        if schema_namespace != manifest_schema_uri {
+        let comparison =
+            compare_schema_uri_consistency(manifest_schema_uri.as_str(), schema_namespace);
+        if !comparison.passed {
             diagnostics.push(schema_package_consistency_diagnostic_at(
                 manifest,
                 schema_manifest_id,
@@ -146,7 +154,9 @@ pub fn validate_schema_package_source_consistency(
 
     let package_content_types = package_content_type_claims(manifest, package_id);
     let schema_content_types = schema_content_type_claims(&schema_document, schema_id);
-    if !schema_content_types.is_empty() && package_content_types != schema_content_types {
+    let content_type_comparison =
+        compare_schema_content_type_consistency(&package_content_types, &schema_content_types);
+    if !schema_content_types.is_empty() && !content_type_comparison.passed {
         let content_type_node_id =
             cem_child_element_ids_by_local_name(manifest, package_id, "content-type")
                 .first()
@@ -181,7 +191,9 @@ pub fn validate_schema_package_source_consistency(
             let Some(namespace_uri) = cem_optional_attr(&namespace_attrs, "uri") else {
                 continue;
             };
-            if !schema_namespace_uris.contains(namespace_uri) {
+            let namespace_comparison =
+                compare_schema_namespace_consistency(namespace_uri, &schema_namespace_uris);
+            if !namespace_comparison.passed {
                 diagnostics.push(schema_package_consistency_diagnostic_at(
                     manifest,
                     namespace_id,
@@ -206,6 +218,79 @@ pub fn validate_schema_package_source_consistency(
     }
 
     diagnostics
+}
+
+fn compare_schema_uri_consistency(
+    manifest_schema_uri: &str,
+    schema_namespace: &str,
+) -> crate::schema::reference_resolution::ReferenceComparisonResult {
+    compare_references(ReferenceComparisonInput {
+        operator: ReferenceComparisonOperator::Equals,
+        actual: ReferenceOperand::new(
+            ReferenceOperandRole::Actual,
+            "uri",
+            normalize_schema_uri("uri", manifest_schema_uri, Some(manifest_schema_uri)),
+        ),
+        expected: Some(ReferenceOperand::new(
+            ReferenceOperandRole::Expected,
+            "uri",
+            normalize_schema_uri("uri", schema_namespace, Some(schema_namespace)),
+        )),
+        forbidden: None,
+        state_policy: ReferenceStatePolicy::RequiredValid,
+    })
+}
+
+fn compare_schema_content_type_consistency(
+    package_content_types: &BTreeSet<String>,
+    schema_content_types: &BTreeSet<String>,
+) -> crate::schema::reference_resolution::ReferenceComparisonResult {
+    compare_references(ReferenceComparisonInput {
+        operator: ReferenceComparisonOperator::Equals,
+        actual: ReferenceOperand::new(
+            ReferenceOperandRole::Actual,
+            "content-type",
+            normalized_scalar_set("content-type", package_content_types),
+        ),
+        expected: Some(ReferenceOperand::new(
+            ReferenceOperandRole::Expected,
+            "content-type",
+            normalized_scalar_set("content-type", schema_content_types),
+        )),
+        forbidden: None,
+        state_policy: ReferenceStatePolicy::RequiredValid,
+    })
+}
+
+fn compare_schema_namespace_consistency(
+    namespace_uri: &str,
+    schema_namespace_uris: &BTreeSet<String>,
+) -> crate::schema::reference_resolution::ReferenceComparisonResult {
+    compare_references(ReferenceComparisonInput {
+        operator: ReferenceComparisonOperator::MemberOf,
+        actual: ReferenceOperand::new(
+            ReferenceOperandRole::Actual,
+            "uri",
+            normalize_namespace_uri("uri", namespace_uri),
+        ),
+        expected: Some(ReferenceOperand::new(
+            ReferenceOperandRole::Expected,
+            "uri",
+            normalize_namespace_uri_set("uri", schema_namespace_uris),
+        )),
+        forbidden: None,
+        state_policy: ReferenceStatePolicy::RequiredValid,
+    })
+}
+
+fn normalized_scalar_set(name: &str, values: &BTreeSet<String>) -> ReferenceValue {
+    ReferenceValue::valid(
+        name,
+        ReferenceNormalizer::ScalarExact,
+        ReferenceValueCardinality::Set,
+        None,
+        NormalizedReferenceValue::StringSet(values.clone()),
+    )
 }
 
 fn schema_source_path(
