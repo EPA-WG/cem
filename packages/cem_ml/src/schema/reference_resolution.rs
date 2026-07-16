@@ -1010,6 +1010,16 @@ pub enum ReferenceOperandRole {
     Forbidden,
 }
 
+impl ReferenceOperandRole {
+    pub fn reference(self) -> &'static str {
+        match self {
+            Self::Actual => "actual",
+            Self::Expected => "expected",
+            Self::Forbidden => "forbidden",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReferenceStatePolicy {
     RequiredValid,
@@ -1054,6 +1064,8 @@ pub struct ReferenceOperand {
     pub binding: String,
     pub value: ReferenceValue,
     pub projection: Option<String>,
+    pub source_range: Option<Value>,
+    pub field_source_ranges: BTreeMap<String, Value>,
 }
 
 impl ReferenceOperand {
@@ -1067,12 +1079,44 @@ impl ReferenceOperand {
             binding: binding.into(),
             value,
             projection: None,
+            source_range: None,
+            field_source_ranges: BTreeMap::new(),
         }
     }
 
     pub fn with_projection(mut self, projection: impl Into<String>) -> Self {
         self.projection = Some(projection.into());
         self
+    }
+
+    pub fn with_source_range(mut self, source_range: impl Into<Value>) -> Self {
+        self.source_range = Some(source_range.into());
+        self
+    }
+
+    pub fn with_field_source_range(
+        mut self,
+        field: impl Into<String>,
+        source_range: impl Into<Value>,
+    ) -> Self {
+        self.field_source_ranges
+            .insert(field.into(), source_range.into());
+        self
+    }
+
+    fn projected_source_range(&self) -> Option<Value> {
+        self.projection
+            .as_deref()
+            .and_then(|field| self.field_source_ranges.get(field))
+            .or(self.source_range.as_ref())
+            .cloned()
+    }
+
+    fn field_source_range(&self, field: &str) -> Option<Value> {
+        self.field_source_ranges
+            .get(field)
+            .or(self.source_range.as_ref())
+            .cloned()
     }
 }
 
@@ -1095,6 +1139,131 @@ pub struct ReferenceComparisonResult {
     pub unresolved_values: BTreeMap<String, Value>,
     pub invalid_fields: BTreeSet<String>,
     pub comparison: Value,
+    pub expected_value_sources: BTreeMap<String, ReferenceDiagnosticSource>,
+    pub invalid_value_sources: BTreeMap<String, ReferenceDiagnosticSource>,
+    pub missing_value_sources: BTreeMap<String, ReferenceDiagnosticSource>,
+    pub unresolved_value_sources: BTreeMap<String, ReferenceDiagnosticSource>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceDiagnosticSource {
+    pub role: ReferenceOperandRole,
+    pub binding: String,
+    pub field: Option<String>,
+    pub source_range: Option<Value>,
+}
+
+impl ReferenceDiagnosticSource {
+    fn from_operand(operand: &ReferenceOperand) -> Self {
+        Self {
+            role: operand.role,
+            binding: operand.binding.clone(),
+            field: operand.projection.clone(),
+            source_range: operand.projected_source_range(),
+        }
+    }
+
+    fn from_operand_field(operand: &ReferenceOperand, field: &str) -> Self {
+        Self {
+            role: operand.role,
+            binding: operand.binding.clone(),
+            field: Some(field.to_owned()),
+            source_range: operand.field_source_range(field),
+        }
+    }
+
+    fn to_json(&self) -> Value {
+        let mut object = serde_json::Map::new();
+        object.insert(
+            "role".to_owned(),
+            Value::String(self.role.reference().to_owned()),
+        );
+        object.insert("binding".to_owned(), Value::String(self.binding.clone()));
+        if let Some(field) = &self.field {
+            object.insert("field".to_owned(), Value::String(field.clone()));
+        }
+        if let Some(source_range) = &self.source_range {
+            object.insert("sourceRange".to_owned(), source_range.clone());
+        }
+        Value::Object(object)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceDiagnosticProjectionOptions {
+    pub include_comparison: bool,
+    pub include_source_ranges: bool,
+    pub include_empty_buckets: bool,
+    pub source_range: Option<Value>,
+    pub actual_values: BTreeMap<String, Value>,
+}
+
+impl ReferenceDiagnosticProjectionOptions {
+    pub fn compatibility() -> Self {
+        Self::default()
+    }
+
+    pub fn structured() -> Self {
+        Self {
+            include_comparison: true,
+            include_source_ranges: true,
+            ..Self::default()
+        }
+    }
+
+    pub fn with_comparison(mut self) -> Self {
+        self.include_comparison = true;
+        self
+    }
+
+    pub fn with_source_ranges(mut self) -> Self {
+        self.include_source_ranges = true;
+        self
+    }
+
+    pub fn with_empty_buckets(mut self) -> Self {
+        self.include_empty_buckets = true;
+        self
+    }
+
+    pub fn with_source_range(mut self, source_range: impl Into<Value>) -> Self {
+        self.source_range = Some(source_range.into());
+        self
+    }
+
+    pub fn with_actual_value(
+        mut self,
+        binding: impl Into<String>,
+        value: impl Into<Value>,
+    ) -> Self {
+        self.actual_values.insert(binding.into(), value.into());
+        self
+    }
+
+    pub fn with_actual_values<I, K>(mut self, actual_values: I) -> Self
+    where
+        I: IntoIterator<Item = (K, Value)>,
+        K: Into<String>,
+    {
+        self.actual_values.extend(
+            actual_values
+                .into_iter()
+                .map(|(binding, value)| (binding.into(), value)),
+        );
+        self
+    }
+}
+
+impl Default for ReferenceDiagnosticProjectionOptions {
+    fn default() -> Self {
+        Self {
+            include_comparison: false,
+            include_source_ranges: false,
+            include_empty_buckets: false,
+            source_range: None,
+            actual_values: BTreeMap::new(),
+        }
+    }
 }
 
 impl ReferenceComparisonResult {
@@ -1108,6 +1277,10 @@ impl ReferenceComparisonResult {
             unresolved_values: BTreeMap::new(),
             invalid_fields: BTreeSet::new(),
             comparison,
+            expected_value_sources: BTreeMap::new(),
+            invalid_value_sources: BTreeMap::new(),
+            missing_value_sources: BTreeMap::new(),
+            unresolved_value_sources: BTreeMap::new(),
         }
     }
 
@@ -1121,7 +1294,137 @@ impl ReferenceComparisonResult {
             unresolved_values: BTreeMap::new(),
             invalid_fields: BTreeSet::new(),
             comparison,
+            expected_value_sources: BTreeMap::new(),
+            invalid_value_sources: BTreeMap::new(),
+            missing_value_sources: BTreeMap::new(),
+            unresolved_value_sources: BTreeMap::new(),
         }
+    }
+
+    pub fn diagnostic_details(&self, options: ReferenceDiagnosticProjectionOptions) -> Value {
+        let mut object = serde_json::Map::new();
+
+        insert_detail_map(
+            &mut object,
+            "expectedValues",
+            &self.expected_values,
+            options.include_empty_buckets,
+        );
+        insert_detail_map(
+            &mut object,
+            "invalidValues",
+            &self.invalid_values,
+            options.include_empty_buckets,
+        );
+        insert_detail_map(
+            &mut object,
+            "missingValues",
+            &self.missing_values,
+            options.include_empty_buckets,
+        );
+        insert_detail_map(
+            &mut object,
+            "unresolvedValues",
+            &self.unresolved_values,
+            options.include_empty_buckets,
+        );
+        if options.include_empty_buckets || !self.invalid_fields.is_empty() {
+            object.insert(
+                "invalidFields".to_owned(),
+                self.invalid_fields
+                    .iter()
+                    .cloned()
+                    .map(Value::String)
+                    .collect(),
+            );
+        }
+        insert_detail_map(
+            &mut object,
+            "actualValues",
+            &options.actual_values,
+            options.include_empty_buckets,
+        );
+
+        if let Some(source_range) = options
+            .source_range
+            .clone()
+            .or_else(|| self.primary_source_range())
+        {
+            object.insert("sourceRange".to_owned(), source_range);
+        }
+        if options.include_comparison {
+            object.insert("comparison".to_owned(), self.comparison_metadata());
+        }
+        if options.include_source_ranges {
+            if let Some(source_ranges) = self.source_range_ownership() {
+                object.insert("sourceRanges".to_owned(), source_ranges);
+            }
+        }
+
+        Value::Object(object)
+    }
+
+    fn comparison_metadata(&self) -> Value {
+        let mut comparison = self.comparison.clone();
+        if let Value::Object(object) = &mut comparison {
+            object.insert("passed".to_owned(), Value::Bool(self.passed));
+        }
+        comparison
+    }
+
+    fn primary_source_range(&self) -> Option<Value> {
+        self.invalid_value_sources
+            .values()
+            .chain(self.missing_value_sources.values())
+            .chain(self.unresolved_value_sources.values())
+            .chain(self.expected_value_sources.values())
+            .find_map(|source| source.source_range.clone())
+    }
+
+    fn source_range_ownership(&self) -> Option<Value> {
+        let mut object = serde_json::Map::new();
+        insert_source_map(&mut object, "expectedValues", &self.expected_value_sources);
+        insert_source_map(&mut object, "invalidValues", &self.invalid_value_sources);
+        insert_source_map(&mut object, "missingValues", &self.missing_value_sources);
+        insert_source_map(
+            &mut object,
+            "unresolvedValues",
+            &self.unresolved_value_sources,
+        );
+        (!object.is_empty()).then_some(Value::Object(object))
+    }
+}
+
+fn insert_detail_map(
+    object: &mut serde_json::Map<String, Value>,
+    key: &str,
+    values: &BTreeMap<String, Value>,
+    include_empty: bool,
+) {
+    if include_empty || !values.is_empty() {
+        object.insert(
+            key.to_owned(),
+            values
+                .iter()
+                .map(|(name, value)| (name.clone(), value.clone()))
+                .collect(),
+        );
+    }
+}
+
+fn insert_source_map(
+    object: &mut serde_json::Map<String, Value>,
+    key: &str,
+    values: &BTreeMap<String, ReferenceDiagnosticSource>,
+) {
+    if !values.is_empty() {
+        object.insert(
+            key.to_owned(),
+            values
+                .iter()
+                .map(|(name, source)| (name.clone(), source.to_json()))
+                .collect(),
+        );
     }
 }
 
@@ -1300,16 +1603,28 @@ fn add_state_failure(result: &mut ReferenceComparisonResult, operand: &Reference
             result
                 .missing_values
                 .insert(operand.binding.clone(), Value::String(reason.to_owned()));
+            result.missing_value_sources.insert(
+                operand.binding.clone(),
+                ReferenceDiagnosticSource::from_operand(operand),
+            );
         }
         ReferenceValueState::Unresolved => {
             result
                 .unresolved_values
                 .insert(operand.binding.clone(), Value::String(reason.to_owned()));
+            result.unresolved_value_sources.insert(
+                operand.binding.clone(),
+                ReferenceDiagnosticSource::from_operand(operand),
+            );
         }
         ReferenceValueState::Invalid => {
             result
                 .invalid_values
                 .insert(operand.binding.clone(), Value::String(reason.to_owned()));
+            result.invalid_value_sources.insert(
+                operand.binding.clone(),
+                ReferenceDiagnosticSource::from_operand(operand),
+            );
         }
         ReferenceValueState::Valid => {}
     }
@@ -1398,11 +1713,19 @@ fn compare_record_fields(
             result
                 .expected_values
                 .insert(field.clone(), expected_field_value.to_json());
+            result.expected_value_sources.insert(
+                field.clone(),
+                ReferenceDiagnosticSource::from_operand_field(expected, field),
+            );
             result.invalid_values.insert(
                 field.clone(),
                 actual_field_value
                     .map(NormalizedReferenceValue::to_json)
                     .unwrap_or(Value::Null),
+            );
+            result.invalid_value_sources.insert(
+                field.clone(),
+                ReferenceDiagnosticSource::from_operand_field(actual, field),
             );
             result.invalid_fields.insert(field.clone());
         }
@@ -1418,6 +1741,10 @@ fn add_expected_value(
         result
             .expected_values
             .insert(operand.binding.clone(), value.to_json());
+        result.expected_value_sources.insert(
+            operand.binding.clone(),
+            ReferenceDiagnosticSource::from_operand(operand),
+        );
     }
 }
 
@@ -1431,6 +1758,10 @@ fn add_invalid_value(
         value
             .map(|value| value.to_json())
             .unwrap_or_else(|| Value::String("<not comparable>".to_owned())),
+    );
+    result.invalid_value_sources.insert(
+        operand.binding.clone(),
+        ReferenceDiagnosticSource::from_operand(operand),
     );
     result.invalid_fields.insert(operand.binding.clone());
 }
@@ -1498,6 +1829,15 @@ mod tests {
 
     fn set(values: &[&str]) -> BTreeSet<String> {
         values.iter().map(|value| (*value).to_owned()).collect()
+    }
+
+    fn range(start: u64) -> Value {
+        serde_json::json!({
+            "span": {
+                "start": start,
+                "end": start + 1,
+            }
+        })
     }
 
     fn actual(value: ReferenceValue) -> ReferenceOperand {
@@ -2100,6 +2440,187 @@ mod tests {
         assert_eq!(
             unresolved.unresolved_values["schema"],
             serde_json::json!("unresolved-schema")
+        );
+    }
+
+    #[test]
+    fn diagnostic_projection_preserves_current_broad_detail_keys_by_default() {
+        let result = compare_references(ReferenceComparisonInput {
+            operator: ReferenceComparisonOperator::MemberOf,
+            actual: ReferenceOperand::new(
+                ReferenceOperandRole::Actual,
+                "content-type",
+                normalize_media_type_essence("content-type", "text/html"),
+            )
+            .with_source_range(range(10)),
+            expected: Some(
+                ReferenceOperand::new(
+                    ReferenceOperandRole::Expected,
+                    "content-type",
+                    normalize_media_type_essence_set("contentTypes", ["application/xml"]),
+                )
+                .with_source_range(range(20)),
+            ),
+            forbidden: None,
+            state_policy: ReferenceStatePolicy::RequiredValid,
+        });
+
+        let details = result.diagnostic_details(
+            ReferenceDiagnosticProjectionOptions::compatibility()
+                .with_source_range(range(1))
+                .with_actual_value("content-type", serde_json::json!("text/html")),
+        );
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!({"content-type": ["application/xml"]})
+        );
+        assert_eq!(
+            details["invalidValues"],
+            serde_json::json!({"content-type": "text/html"})
+        );
+        assert_eq!(
+            details["invalidFields"],
+            serde_json::json!(["content-type"])
+        );
+        assert_eq!(
+            details["actualValues"],
+            serde_json::json!({"content-type": "text/html"})
+        );
+        assert_eq!(details["sourceRange"], range(1));
+        assert!(!details.as_object().unwrap().contains_key("comparison"));
+        assert!(!details.as_object().unwrap().contains_key("sourceRanges"));
+        assert!(!details.as_object().unwrap().contains_key("missingValues"));
+        assert!(!details
+            .as_object()
+            .unwrap()
+            .contains_key("unresolvedValues"));
+    }
+
+    #[test]
+    fn diagnostic_projection_can_include_comparison_and_source_range_ownership() {
+        let result = compare_references(ReferenceComparisonInput {
+            operator: ReferenceComparisonOperator::MemberOf,
+            actual: ReferenceOperand::new(
+                ReferenceOperandRole::Actual,
+                "content-type",
+                normalize_media_type_essence("content-type", "text/html"),
+            )
+            .with_source_range(range(10)),
+            expected: Some(
+                ReferenceOperand::new(
+                    ReferenceOperandRole::Expected,
+                    "content-type",
+                    normalize_media_type_essence_set("contentTypes", ["application/xml"]),
+                )
+                .with_source_range(range(20)),
+            ),
+            forbidden: None,
+            state_policy: ReferenceStatePolicy::RequiredValid,
+        });
+
+        let details = result.diagnostic_details(ReferenceDiagnosticProjectionOptions::structured());
+        assert_eq!(details["sourceRange"], range(10));
+        assert_eq!(details["comparison"]["operator"], "schema:member-of");
+        assert_eq!(details["comparison"]["passed"], serde_json::json!(false));
+        assert_eq!(
+            details["sourceRanges"]["invalidValues"]["content-type"]["role"],
+            "actual"
+        );
+        assert_eq!(
+            details["sourceRanges"]["invalidValues"]["content-type"]["sourceRange"],
+            range(10)
+        );
+        assert_eq!(
+            details["sourceRanges"]["expectedValues"]["content-type"]["role"],
+            "expected"
+        );
+        assert_eq!(
+            details["sourceRanges"]["expectedValues"]["content-type"]["sourceRange"],
+            range(20)
+        );
+    }
+
+    #[test]
+    fn diagnostic_projection_owns_state_and_record_field_ranges() {
+        let unresolved = compare_references(ReferenceComparisonInput {
+            operator: ReferenceComparisonOperator::Equals,
+            actual: ReferenceOperand::new(
+                ReferenceOperandRole::Actual,
+                "schema",
+                normalize_schema_uri("schema", "missing:", None),
+            )
+            .with_source_range(range(30)),
+            expected: Some(expected(normalize_schema_uri(
+                "expectedSchema",
+                "declared",
+                Some("schema:a"),
+            ))),
+            forbidden: None,
+            state_policy: ReferenceStatePolicy::UnresolvedFails,
+        });
+        let details =
+            unresolved.diagnostic_details(ReferenceDiagnosticProjectionOptions::structured());
+        assert_eq!(
+            details["unresolvedValues"],
+            serde_json::json!({"schema": "unresolved-schema"})
+        );
+        assert_eq!(
+            details["sourceRanges"]["unresolvedValues"]["schema"]["sourceRange"],
+            range(30)
+        );
+
+        let actual_record = ReferenceValue::valid(
+            "actualFunction",
+            ReferenceNormalizer::FunctionName,
+            ReferenceValueCardinality::One,
+            None,
+            NormalizedReferenceValue::Record(BTreeMap::from([(
+                "target-content-type".to_owned(),
+                NormalizedReferenceValue::Scalar("text/html".to_owned()),
+            )])),
+        );
+        let expected_record = ReferenceValue::valid(
+            "expectedFunction",
+            ReferenceNormalizer::FunctionName,
+            ReferenceValueCardinality::One,
+            None,
+            NormalizedReferenceValue::Record(BTreeMap::from([(
+                "target-content-type".to_owned(),
+                NormalizedReferenceValue::Scalar("application/xml".to_owned()),
+            )])),
+        );
+        let record_result = compare_references(ReferenceComparisonInput {
+            operator: ReferenceComparisonOperator::RecordFieldsEqual,
+            actual: ReferenceOperand::new(
+                ReferenceOperandRole::Actual,
+                "actualFunction",
+                actual_record,
+            )
+            .with_field_source_range("target-content-type", range(40)),
+            expected: Some(
+                ReferenceOperand::new(
+                    ReferenceOperandRole::Expected,
+                    "expectedFunction",
+                    expected_record,
+                )
+                .with_field_source_range("target-content-type", range(50)),
+            ),
+            forbidden: None,
+            state_policy: ReferenceStatePolicy::RequiredValid,
+        });
+        let record_details =
+            record_result.diagnostic_details(ReferenceDiagnosticProjectionOptions::structured());
+        assert_eq!(
+            record_details["sourceRanges"]["invalidValues"]["target-content-type"]["field"],
+            "target-content-type"
+        );
+        assert_eq!(
+            record_details["sourceRanges"]["invalidValues"]["target-content-type"]["sourceRange"],
+            range(40)
+        );
+        assert_eq!(
+            record_details["sourceRanges"]["expectedValues"]["target-content-type"]["sourceRange"],
+            range(50)
         );
     }
 

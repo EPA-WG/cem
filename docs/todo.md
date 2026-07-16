@@ -30,7 +30,7 @@ design item below.
       all-in, contains-all, intersects, disjoint, existence, record-field
       equality, and record-field membership. Apply state policies before value
       comparison and keep missing/invalid/unresolved outcomes explicit.
-- [ ] Preserve current diagnostic compatibility while adding structured
+- [x] Preserve current diagnostic compatibility while adding structured
       comparison projection: `expectedValues`, `invalidValues`,
       `missingValues`, `unresolvedValues`, `invalidFields`, and optional
       `comparison` metadata with source-range ownership.
