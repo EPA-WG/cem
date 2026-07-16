@@ -5,6 +5,50 @@ This file tracks remaining execution tasks only. Product/module sequencing lives
 [`wishlist.md`](wishlist.md). Completed implementation history belongs in git
 history.
 
+## Immediate Goal
+
+Implement the reference normalization and comparison primitives behind
+`schema:reference-resolution`. This implementation slice is ready because
+normalization and comparison semantics are now designed. It should not attempt
+the full declarative selector/lookup CEM surface yet; that remains a deferred
+design item below.
+
+- [ ] Add failing tests for the normalized reference value model covering
+      scalar exact values, identifier tokens, media-type records and essences,
+      media-type essence sets, schema URI, document URI, namespace URI,
+      artifact/function names, content categories, profile names, and exact
+      invalid/missing/unresolved/unsupported states.
+- [ ] Add Rust model types for normalized reference values, normalizer support
+      level, operand roles, operand cardinality, state policies, comparison
+      operators, comparison inputs, and comparison results. Sets must be sorted
+      and duplicate-free for deterministic diagnostics.
+- [ ] Implement reusable normalizer evaluators by lifting existing media-type,
+      URI, registry, resolver, namespace, and CEMT function metadata helpers
+      into `schema:reference-resolution` primitives. Keep pure normalizers and
+      engine-assisted normalizers visibly separate.
+- [ ] Implement reusable comparison evaluators for equality, membership,
+      all-in, contains-all, intersects, disjoint, existence, record-field
+      equality, and record-field membership. Apply state policies before value
+      comparison and keep missing/invalid/unresolved outcomes explicit.
+- [ ] Preserve current diagnostic compatibility while adding structured
+      comparison projection: `expectedValues`, `invalidValues`,
+      `missingValues`, `unresolvedValues`, `invalidFields`, and optional
+      `comparison` metadata with source-range ownership.
+- [ ] Route existing schema-package Rust-backed reference checks through the
+      reusable normalizer/comparison primitives without changing the public CEM
+      surface yet: schema URI/content-type/namespace consistency, converter and
+      example content-type/schema compatibility, artifact function declared,
+      artifact function contract, and expected diagnostics checks.
+- [ ] Update bootstrap schema behavior result declarations and tests so
+      `schema:reference-resolution` declares any new structured detail keys
+      emitted by the primitive evaluator.
+- [ ] Add CLI and schema-package regression coverage for normalized comparison
+      diagnostics, including at least one passing normalized media-type alias
+      case and one failing unresolved schema/function case.
+- [ ] Verify with the narrowest relevant Nx targets first, then run
+      `NX_DAEMON=false yarn nx run cem_ml:test` before marking this immediate
+      goal complete.
+
 ## Low Priority Deferred Design
 
 Current cross-node/reference background: schema-owned constraints are declared
@@ -24,14 +68,17 @@ function lookup/metadata matching.
       constraints. The decision is recorded in
       [`cem-ml-reference-normalization-design.md`](cem-ml-reference-normalization-design.md):
       normalizers now have named vocabulary terms, stable output/state shape,
-      pure versus engine-assisted placement, and coverage for media-type
-      essence, schema/document URI, namespace URI, content category, profile
+      pure versus engine-assisted placement, prior-art comparison, symmetric
+      scalar/set normalization rules, and coverage for media-type records and
+      essences, schema/document URI, namespace URI, content category, profile
       name, artifact/function name, and exact scalar values.
-- [ ] Design comparison vocabulary for normalized reference values. Cover exact
-      equality, membership in a referenced registry set, required/forbidden set
-      overlap, optional profile/category matching, and missing/unresolved
-      reference behavior. Specify expected/invalid value detail projection and
-      source-range ownership for each comparison form.
+- [x] Design comparison vocabulary for normalized reference values. The
+      decision is recorded in
+      [`cem-ml-reference-comparison-design.md`](cem-ml-reference-comparison-design.md):
+      comparison now has operand roles, state policies, explicit operators for
+      equality, membership, set coverage/overlap/disjointness, existence, and
+      record-field matching, plus diagnostic projection and source-range
+      ownership for expected, invalid, missing, and unresolved values.
 - [ ] Design the remaining richer declarative cross-node/reference vocabulary
       for schema-owned constraints currently declared in CEM-ML but executed by
       Rust. The future vocabulary should let a schema declare candidate
