@@ -45,7 +45,7 @@ design item below.
 - [x] Add CLI and schema-package regression coverage for normalized comparison
       diagnostics, including at least one passing normalized media-type alias
       case and one failing unresolved schema/function case.
-- [ ] Verify with the narrowest relevant Nx targets first, then run
+- [x] Verify with the narrowest relevant Nx targets first, then run
       `NX_DAEMON=false yarn nx run cem_ml:test` before marking this immediate
       goal complete.
 
