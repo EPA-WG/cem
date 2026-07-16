@@ -1687,6 +1687,196 @@ fn schema_package_schema_source_changes_cli_validation_model() {
 }
 
 #[test]
+fn schema_package_reference_resolution_cli_details_cover_normalized_comparisons() {
+    const MISSING_SCHEMA_URI: &str = "https://example.test/ns/missing-cli/1";
+
+    let root = test_temp_dir("cem-ml-cli-reference-resolution-details");
+    let manifest_path = root.join("package.cem");
+    let schema_path = root.join("schema/normalized-cli.cem");
+    let formatter_path = root.join("formatters/demo.cemt");
+
+    write_test_file(
+        &manifest_path,
+        r#"@doc cem-ml 1
+@ns pkg = "https://cem.dev/ns/schema-package/1"
+@default pkg
+
+{package @id="normalized-cli" @version="1.0.0" |
+    {schema
+        @uri="https://example.test/ns/normalized-cli/1"
+        @source="schema/normalized-cli.cem"
+    }
+    {content-type @value="application/vnd.example.normalized-cli+cem" @primary=true}
+    {namespace @prefix="demo" @uri="https://example.test/ns/normalized-cli/1"}
+
+    {converter
+        @id="alias-pass"
+        @implementation="rust"
+        @rust-symbol="convert_alias_pass" |
+        {from @content-type="text/x-yaml; charset=utf-8" @schema="https://cem.dev/ns/data/yaml/1"}
+        {to @content-type="text/html; charset=utf-8" @schema="https://cem.dev/ns/data/html/1"}
+    }
+
+    {converter
+        @id="missing-schema"
+        @implementation="rust"
+        @rust-symbol="convert_missing_schema" |
+        {from @content-type="text/html" @schema="https://example.test/ns/missing-cli/1"}
+        {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+    }
+
+    {artifact
+        @kind="formatter"
+        @path="formatters/demo.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/cem"
+        @target-schema="https://cem.dev/ns/cem-ml/1"
+        @target-category="cem-tree"
+        @function-name="cli.missing"
+        @formatter-profile="compact"
+    }
+}
+"#,
+    );
+    write_test_file(
+        &schema_path,
+        r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
+@default schema
+
+{schema @name="normalized-cli" @namespace="https://example.test/ns/normalized-cli/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {content-types |
+        {content-type @value="application/vnd.example.normalized-cli+cem" @primary=true}
+    }
+    {namespaces |
+        {namespace @prefix="demo" @uri="https://example.test/ns/normalized-cli/1" @role="schema"}
+    }
+    {elements |
+        {element @name="item"}
+    }
+}
+"#,
+    );
+    write_test_file(
+        &formatter_path,
+        r#"@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {format-function
+        @name="cli.format"
+        @category="cem-tree"
+        @subject="cem-ast-node"
+        @produces="cem-tree"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @canonical=true
+        @deterministic=true
+        @streamable=true
+    }
+}
+"#,
+    );
+
+    let output = cem_ml_owned(&[
+        "validate".to_owned(),
+        "--format".to_owned(),
+        "json".to_owned(),
+        "--content-type".to_owned(),
+        CEM_SCHEMA_PACKAGE_CONTENT_TYPE.to_owned(),
+        "--schema".to_owned(),
+        CEM_SCHEMA_PACKAGE_URI.to_owned(),
+        manifest_path.to_string_lossy().into_owned(),
+    ]);
+    assert_eq!(
+        output.status.code(),
+        Some(EXIT_HARD_FAILURE),
+        "reference-resolution CLI stderr:\n{}",
+        stderr(&output)
+    );
+    assert!(
+        stderr(&output).trim().is_empty(),
+        "reference-resolution CLI stderr must stay empty:\n{}",
+        stderr(&output)
+    );
+    let report: serde_json::Value =
+        serde_json::from_str(stdout(&output).trim()).expect("reference-resolution report is JSON");
+
+    assert!(
+        diagnostics(&report).iter().all(|diagnostic| {
+            diagnostic["details"]["converterId"] != "alias-pass"
+                || diagnostic["details"]["checkKind"] != "endpoint-content-type-schema"
+        }),
+        "normalized alias converter endpoint should not emit a content-type/schema diagnostic:\n{}",
+        stdout(&output)
+    );
+
+    let unresolved_schema = diagnostics(&report)
+        .iter()
+        .find(|diagnostic| {
+            diagnostic["code"] == "cem.schema_package.converter_check"
+                && diagnostic["details"]["checkKind"] == "endpoint-content-type-schema"
+                && diagnostic["details"]["converterId"] == "missing-schema"
+        })
+        .expect("unresolved schema converter diagnostic");
+    assert_eq!(
+        unresolved_schema["details"]["behavior"],
+        "schema:reference-resolution"
+    );
+    assert_eq!(
+        unresolved_schema["details"]["schema"],
+        serde_json::json!(MISSING_SCHEMA_URI)
+    );
+    assert_eq!(
+        unresolved_schema["details"]["invalidFields"],
+        serde_json::json!(["schema"])
+    );
+    assert_eq!(
+        unresolved_schema["details"]["unresolvedValues"],
+        serde_json::json!({"schema": "unresolved-schema"})
+    );
+    assert_eq!(
+        unresolved_schema["details"]["comparison"]["expectedNormalizer"],
+        "schema:schema-uri"
+    );
+
+    let unresolved_function = diagnostics(&report)
+        .iter()
+        .find(|diagnostic| {
+            diagnostic["code"] == "cem.schema_package.artifact_check"
+                && diagnostic["details"]["checkKind"] == "artifact-function-declared"
+                && diagnostic["details"]["functionName"] == "cli.missing"
+        })
+        .expect("unresolved function artifact diagnostic");
+    assert_eq!(
+        unresolved_function["details"]["behavior"],
+        "schema:reference-resolution"
+    );
+    assert_eq!(
+        unresolved_function["details"]["unresolvedValues"],
+        serde_json::json!({"function-name": "unresolved-function"})
+    );
+    assert_eq!(
+        unresolved_function["details"]["comparison"]["actualNormalizer"],
+        "schema:function-name"
+    );
+    assert!(
+        unresolved_function["details"]["sourceRanges"]["unresolvedValues"]["function-name"]
+            ["sourceRange"]["span"]["start"]
+            .is_u64()
+    );
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn schema_runtime_pattern_datatype_param_emits_structured_details() {
     const CUSTOM_SCHEMA_URI: &str = "https://example.test/ns/pattern-runtime/1";
     const CUSTOM_CONTENT_TYPE: &str = "application/vnd.example.pattern-runtime+cem";
@@ -5184,9 +5374,9 @@ fn schema_datatype_param_examples_emit_structured_definition_details() {
                 SchemaDefinitionDetailExpectation {
                     code: "cem.schema_definition.invalid_datatype_param",
                     severity: "error",
-                    check_kind: "datatype-param:uriSchemes",
+                    check_kind: "datatype-param:uriForbiddenSchemes",
                     attribute: "href",
-                    datatype_param: "uriSchemes",
+                    datatype_param: "uriForbiddenSchemes",
                     param_value: "1bad",
                 },
                 SchemaDefinitionDetailExpectation {

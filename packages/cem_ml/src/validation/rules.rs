@@ -34,8 +34,9 @@ use crate::schema::document_model::{
 use crate::schema::package_consistency::validate_schema_package_source_consistency;
 use crate::schema::reference_resolution::{
     compare_references, EngineAssistedReferenceNormalizerEvaluator, NormalizedReferenceValue,
-    ReferenceComparisonInput, ReferenceComparisonOperator, ReferenceNormalizer, ReferenceOperand,
-    ReferenceOperandRole, ReferenceStatePolicy, ReferenceValue, ReferenceValueCardinality,
+    ReferenceComparisonInput, ReferenceComparisonOperator, ReferenceDiagnosticProjectionOptions,
+    ReferenceNormalizer, ReferenceOperand, ReferenceOperandRole, ReferenceStatePolicy,
+    ReferenceValue, ReferenceValueCardinality,
 };
 use crate::schema::registry::{
     content_type_essence, SchemaDescriptor, SchemaRegistry, CEM_AST_JSON_PROJECTION_CONTENT_TYPE,
@@ -324,6 +325,38 @@ fn element_attribute_values(
             Some((local.to_owned(), value.unwrap_or_default().to_owned()))
         })
         .collect()
+}
+
+fn merge_reference_comparison_details(
+    mut details: serde_json::Value,
+    comparison: &crate::schema::reference_resolution::ReferenceComparisonResult,
+    source_range: Option<serde_json::Value>,
+) -> serde_json::Value {
+    let mut options = ReferenceDiagnosticProjectionOptions::structured();
+    if let Some(source_range) = source_range {
+        options = options.with_source_range(source_range);
+    }
+    let comparison_details = comparison.diagnostic_details(options);
+    let (serde_json::Value::Object(details), serde_json::Value::Object(comparison_details)) =
+        (&mut details, comparison_details)
+    else {
+        return details;
+    };
+    for (key, value) in comparison_details {
+        details.insert(key, value);
+    }
+    serde_json::Value::Object(details.clone())
+}
+
+fn with_optional_source_range(
+    operand: ReferenceOperand,
+    source_range: Option<serde_json::Value>,
+) -> ReferenceOperand {
+    if let Some(source_range) = source_range {
+        operand.with_source_range(source_range)
+    } else {
+        operand
+    }
 }
 
 fn element_child_ids_by_local_name(
@@ -1737,14 +1770,32 @@ fn validate_endpoint_schema_content_type(
     else {
         return;
     };
-    let Some(schema) = registry.schema(schema_uri) else {
-        return;
+    let schema = registry.schema(schema_uri);
+    let comparison = if let Some(schema) = schema {
+        compare_content_type_schema_membership(
+            content_type,
+            schema,
+            node_source_range_details(endpoint),
+        )
+    } else {
+        if package_declares_schema_uri(doc, schema_uri) {
+            return;
+        }
+        compare_content_type_unresolved_schema(
+            content_type,
+            schema_uri,
+            registry,
+            node_source_range_details(endpoint),
+        )
     };
-    let comparison = compare_content_type_schema_membership(content_type, schema);
     let allowed_content_types = schema
-        .content_type_essences()
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
+        .map(|schema| {
+            schema
+                .content_type_essences()
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
     if !comparison.passed {
         out.push(
             schema_package_converter_endpoint_content_type_mismatch_diag(
@@ -1755,6 +1806,7 @@ fn validate_endpoint_schema_content_type(
                 content_type,
                 schema_uri,
                 &allowed_content_types,
+                &comparison,
             ),
         );
     }
@@ -1763,14 +1815,18 @@ fn validate_endpoint_schema_content_type(
 fn compare_content_type_schema_membership(
     content_type: &str,
     schema: &SchemaDescriptor,
+    source_range: Option<serde_json::Value>,
 ) -> crate::schema::reference_resolution::ReferenceComparisonResult {
     let normalizer = EngineAssistedReferenceNormalizerEvaluator;
     compare_references(ReferenceComparisonInput {
         operator: ReferenceComparisonOperator::MemberOf,
-        actual: ReferenceOperand::new(
-            ReferenceOperandRole::Actual,
-            "content-type",
-            normalizer.media_type_essence("content-type", content_type),
+        actual: with_optional_source_range(
+            ReferenceOperand::new(
+                ReferenceOperandRole::Actual,
+                "content-type",
+                normalizer.media_type_essence("content-type", content_type),
+            ),
+            source_range,
         ),
         expected: Some(ReferenceOperand::new(
             ReferenceOperandRole::Expected,
@@ -1782,6 +1838,46 @@ fn compare_content_type_schema_membership(
     })
 }
 
+fn compare_content_type_unresolved_schema(
+    content_type: &str,
+    schema_uri: &str,
+    registry: &SchemaRegistry,
+    source_range: Option<serde_json::Value>,
+) -> crate::schema::reference_resolution::ReferenceComparisonResult {
+    let normalizer = EngineAssistedReferenceNormalizerEvaluator;
+    compare_references(ReferenceComparisonInput {
+        operator: ReferenceComparisonOperator::MemberOf,
+        actual: with_optional_source_range(
+            ReferenceOperand::new(
+                ReferenceOperandRole::Actual,
+                "content-type",
+                normalizer.media_type_essence("content-type", content_type),
+            ),
+            source_range.clone(),
+        ),
+        expected: Some(with_optional_source_range(
+            ReferenceOperand::new(
+                ReferenceOperandRole::Expected,
+                "schema",
+                normalizer.schema_uri_from_registry("schema", schema_uri, registry),
+            ),
+            source_range,
+        )),
+        forbidden: None,
+        state_policy: ReferenceStatePolicy::RequiredValid,
+    })
+}
+
+fn package_declares_schema_uri(
+    doc: &crate::parser::document::CemDocument,
+    schema_uri: &str,
+) -> bool {
+    doc.iter().any(|node| {
+        element_local_name(node) == Some("schema")
+            && attr_value(doc, node, "uri").map(str::trim) == Some(schema_uri)
+    })
+}
+
 fn schema_package_converter_endpoint_content_type_mismatch_diag(
     doc: &crate::parser::document::CemDocument,
     endpoint: &CemAstNode,
@@ -1790,6 +1886,7 @@ fn schema_package_converter_endpoint_content_type_mismatch_diag(
     content_type: &str,
     schema_uri: &str,
     allowed_content_types: &[String],
+    comparison: &crate::schema::reference_resolution::ReferenceComparisonResult,
 ) -> Diagnostic {
     diag_at_with_details(
         "cem.schema_package.converter_check",
@@ -1798,7 +1895,7 @@ fn schema_package_converter_endpoint_content_type_mismatch_diag(
             "converter `{converter_id}` `{endpoint_name}` endpoint content type `{content_type}` is not declared by schema `{schema_uri}`"
         ),
         endpoint,
-        serde_json::json!({
+        merge_reference_comparison_details(serde_json::json!({
             "schemaUri": CEM_SCHEMA_PACKAGE_URI,
             "element": endpoint_name,
             "contract": "converter-endpoint-schema-content-type-match",
@@ -1809,16 +1906,10 @@ fn schema_package_converter_endpoint_content_type_mismatch_diag(
             "converterId": converter_id,
             "endpoint": endpoint_name,
             "schema": schema_uri,
-            "invalidFields": ["content-type"],
-            "expectedValues": {
-                "content-type": allowed_content_types,
-            },
-            "invalidValues": {
-                "content-type": content_type,
-            },
+            "registeredContentTypes": allowed_content_types,
             "actualValues": element_attribute_values(doc, endpoint),
             "sourceRange": node_source_range_details(endpoint),
-        }),
+        }), comparison, node_source_range_details(endpoint)),
     )
 }
 
@@ -1879,7 +1970,11 @@ fn validate_schema_package_artifact(
     let function_registry = TransformTemplateOutputFunctionRegistry::from_module_options(
         &parse_response.module_options,
     );
-    let function_lookup = compare_artifact_function_declared(function_name, &function_registry);
+    let function_lookup = compare_artifact_function_declared(
+        function_name,
+        &function_registry,
+        node_source_range_details(node),
+    );
     if !function_lookup.passed {
         let declared_functions = parse_response
             .module_options
@@ -1893,6 +1988,7 @@ fn validate_schema_package_artifact(
             path,
             function_name,
             declared_functions,
+            &function_lookup,
         ));
         return;
     };
@@ -1932,14 +2028,18 @@ fn validate_schema_package_artifact(
 fn compare_artifact_function_declared(
     function_name: &str,
     registry: &TransformTemplateOutputFunctionRegistry,
+    source_range: Option<serde_json::Value>,
 ) -> crate::schema::reference_resolution::ReferenceComparisonResult {
     let normalizer = EngineAssistedReferenceNormalizerEvaluator;
     compare_references(ReferenceComparisonInput {
         operator: ReferenceComparisonOperator::Exists,
-        actual: ReferenceOperand::new(
-            ReferenceOperandRole::Actual,
-            "function-name",
-            normalizer.cemt_declared_function_name("function-name", function_name, registry),
+        actual: with_optional_source_range(
+            ReferenceOperand::new(
+                ReferenceOperandRole::Actual,
+                "function-name",
+                normalizer.cemt_declared_function_name("function-name", function_name, registry),
+            ),
+            source_range,
         ),
         expected: None,
         forbidden: None,
@@ -2100,33 +2200,38 @@ fn schema_package_artifact_function_lookup_failed_diag(
     path: &str,
     function_name: &str,
     declared_functions: Vec<String>,
+    comparison: &crate::schema::reference_resolution::ReferenceComparisonResult,
 ) -> Diagnostic {
     diag_at_with_details(
         "cem.schema_package.artifact_check",
         Severity::Error,
         format!("artifact `{path}` does not declare CEMT output function `{function_name}`"),
         node,
-        serde_json::json!({
-            "schemaUri": CEM_SCHEMA_PACKAGE_URI,
-            "element": "artifact",
-            "contract": "artifact-output-stage-contract",
-            "target": "artifact",
-            "diagnostic": "cem.schema_package.artifact_check",
-            "behavior": schema_package_constraint_behavior_value("artifact-function-declared"),
-            "checkKind": "artifact-function-declared",
-            "path": path,
-            "functionName": function_name,
-            "invalidFields": ["function-name"],
-            "expectedValues": {
-                "function-name": function_name,
-            },
-            "invalidValues": {
-                "function-name": "<not declared>",
-            },
-            "declaredFunctions": declared_functions,
-            "actualValues": element_attribute_values(doc, node),
-            "sourceRange": node_source_range_details(node),
-        }),
+        merge_reference_comparison_details(
+            serde_json::json!({
+                "schemaUri": CEM_SCHEMA_PACKAGE_URI,
+                "element": "artifact",
+                "contract": "artifact-output-stage-contract",
+                "target": "artifact",
+                "diagnostic": "cem.schema_package.artifact_check",
+                "behavior": schema_package_constraint_behavior_value("artifact-function-declared"),
+                "checkKind": "artifact-function-declared",
+                "path": path,
+                "functionName": function_name,
+                "invalidFields": ["function-name"],
+                "expectedValues": {
+                    "function-name": function_name,
+                },
+                "invalidValues": {
+                    "function-name": "<not declared>",
+                },
+                "declaredFunctions": declared_functions,
+                "actualValues": element_attribute_values(doc, node),
+                "sourceRange": node_source_range_details(node),
+            }),
+            comparison,
+            node_source_range_details(node),
+        ),
     )
 }
 
@@ -2246,14 +2351,32 @@ fn validate_schema_package_example(
     else {
         return;
     };
-    let Some(schema) = registry.schema(schema_uri) else {
-        return;
+    let schema = registry.schema(schema_uri);
+    let comparison = if let Some(schema) = schema {
+        compare_content_type_schema_membership(
+            content_type,
+            schema,
+            node_source_range_details(node),
+        )
+    } else {
+        if package_declares_schema_uri(doc, schema_uri) {
+            return;
+        }
+        compare_content_type_unresolved_schema(
+            content_type,
+            schema_uri,
+            registry,
+            node_source_range_details(node),
+        )
     };
-    let comparison = compare_content_type_schema_membership(content_type, schema);
     let allowed_content_types = schema
-        .content_type_essences()
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
+        .map(|schema| {
+            schema
+                .content_type_essences()
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
     if !comparison.passed {
         out.push(schema_package_example_schema_content_type_failed_diag(
             doc,
@@ -2262,6 +2385,7 @@ fn validate_schema_package_example(
             content_type,
             schema_uri,
             &allowed_content_types,
+            &comparison,
         ));
         return;
     }
@@ -2689,6 +2813,7 @@ fn schema_package_example_schema_content_type_failed_diag(
     content_type: &str,
     schema_uri: &str,
     allowed_content_types: &[String],
+    comparison: &crate::schema::reference_resolution::ReferenceComparisonResult,
 ) -> Diagnostic {
     diag_at_with_details(
         "cem.schema_package.example_check",
@@ -2697,7 +2822,7 @@ fn schema_package_example_schema_content_type_failed_diag(
             "schema-package example `{example_id}` content type `{content_type}` is not declared by schema `{schema_uri}`"
         ),
         node,
-        serde_json::json!({
+        merge_reference_comparison_details(serde_json::json!({
             "schemaUri": CEM_SCHEMA_PACKAGE_URI,
             "element": "example",
             "contract": "example-contract",
@@ -2707,16 +2832,10 @@ fn schema_package_example_schema_content_type_failed_diag(
             "checkKind": "example-content-type-schema",
             "exampleId": example_id,
             "schema": schema_uri,
-            "invalidFields": ["content-type"],
-            "expectedValues": {
-                "content-type": allowed_content_types,
-            },
-            "invalidValues": {
-                "content-type": content_type,
-            },
+            "registeredContentTypes": allowed_content_types,
             "actualValues": element_attribute_values(doc, node),
             "sourceRange": node_source_range_details(node),
-        }),
+        }), comparison, node_source_range_details(node)),
     )
 }
 
@@ -3644,6 +3763,89 @@ mod tests {
                 .iter()
                 .all(|d| !d.code.starts_with("cem.schema_package.converter_")),
             "unexpected converter diagnostics: {diags:?}"
+        );
+    }
+
+    #[test]
+    fn schema_package_converter_contract_accepts_normalized_media_type_alias_endpoint() {
+        let diags = run_rules_with_identity(
+            r#"{package @id=demo @version="1.0.0" |
+                {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+                {content-type @value="application/vnd.example.demo+cem" @primary=true}
+                {converter
+                    @id="yaml-to-html"
+                    @implementation="rust"
+                    @rust-symbol="convert_yaml_to_html" |
+                    {from @content-type="text/x-yaml; charset=utf-8" @schema="https://cem.dev/ns/data/yaml/1"}
+                    {to @content-type="text/html; charset=utf-8" @schema="https://cem.dev/ns/data/html/1"}
+                }
+            }"#,
+            Some(CEM_SCHEMA_PACKAGE_URI),
+            Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
+        );
+
+        assert!(
+            diags.iter().all(|d| {
+                d.details.as_ref().and_then(|details| {
+                    details.get("checkKind").and_then(serde_json::Value::as_str)
+                }) != Some("endpoint-content-type-schema")
+            }),
+            "normalized media-type aliases should satisfy endpoint schema comparisons: {diags:?}"
+        );
+    }
+
+    #[test]
+    fn schema_package_converter_contract_flags_undeclared_endpoint_schema_as_unresolved_reference()
+    {
+        let diags = run_rules_with_identity(
+            r#"{package @id=demo @version="1.0.0" |
+                {schema @uri="https://example.test/ns/demo/1" @source="schema/demo.cem"}
+                {content-type @value="application/vnd.example.demo+cem" @primary=true}
+                {converter
+                    @id="missing-schema"
+                    @implementation="rust"
+                    @rust-symbol="convert_missing_schema" |
+                    {from @content-type="text/html" @schema="https://example.test/ns/missing/1"}
+                    {to @content-type="text/html" @schema="https://cem.dev/ns/data/html/1"}
+                }
+            }"#,
+            Some(CEM_SCHEMA_PACKAGE_URI),
+            Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
+        );
+
+        let diagnostic = diags
+            .iter()
+            .find(|d| {
+                d.code == "cem.schema_package.converter_check"
+                    && d.details.as_ref().and_then(|details| {
+                        details.get("checkKind").and_then(serde_json::Value::as_str)
+                    }) == Some("endpoint-content-type-schema")
+            })
+            .expect("schema-owned endpoint unresolved schema diagnostic");
+        let details = diagnostic
+            .details
+            .as_ref()
+            .expect("endpoint unresolved schema details");
+        assert_eq!(
+            details["behavior"],
+            serde_json::json!("schema:reference-resolution")
+        );
+        assert_eq!(details["invalidFields"], serde_json::json!(["schema"]));
+        assert_eq!(
+            details["unresolvedValues"],
+            serde_json::json!({
+                "schema": "unresolved-schema",
+            })
+        );
+        assert_eq!(details["comparison"]["operator"], "schema:member-of");
+        assert_eq!(details["comparison"]["expectedBinding"], "schema");
+        assert_eq!(
+            details["comparison"]["expectedNormalizer"],
+            "schema:schema-uri"
+        );
+        assert!(
+            details["sourceRanges"]["unresolvedValues"]["schema"]["sourceRange"]["span"]["start"]
+                .is_u64()
         );
     }
 
@@ -5094,6 +5296,23 @@ mod tests {
         assert_eq!(
             details["invalidFields"],
             serde_json::json!(["function-name"])
+        );
+        assert_eq!(
+            details["unresolvedValues"],
+            serde_json::json!({
+                "function-name": "unresolved-function",
+            })
+        );
+        assert_eq!(details["comparison"]["operator"], "schema:exists");
+        assert_eq!(details["comparison"]["actualBinding"], "function-name");
+        assert_eq!(
+            details["comparison"]["actualNormalizer"],
+            "schema:function-name"
+        );
+        assert!(
+            details["sourceRanges"]["unresolvedValues"]["function-name"]["sourceRange"]["span"]
+                ["start"]
+                .is_u64()
         );
         assert_eq!(
             details["expectedValues"],

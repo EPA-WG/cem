@@ -42,7 +42,7 @@ design item below.
 - [x] Update bootstrap schema behavior result declarations and tests so
       `schema:reference-resolution` declares any new structured detail keys
       emitted by the primitive evaluator.
-- [ ] Add CLI and schema-package regression coverage for normalized comparison
+- [x] Add CLI and schema-package regression coverage for normalized comparison
       diagnostics, including at least one passing normalized media-type alias
       case and one failing unresolved schema/function case.
 - [ ] Verify with the narrowest relevant Nx targets first, then run
