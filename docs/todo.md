@@ -52,32 +52,6 @@ registered content-type essences. Similar Rust-executed reference-resolution
 shapes exist for example content-type/schema compatibility and artifact CEMT
 function lookup/metadata matching.
 
-- [x] Design normalized value vocabulary for schema-owned reference
-      constraints. The decision is recorded in
-      [`cem-ml-reference-normalization-design.md`](cem-ml-reference-normalization-design.md):
-      normalizers now have named vocabulary terms, stable output/state shape,
-      pure versus engine-assisted placement, prior-art comparison, symmetric
-      scalar/set normalization rules, and coverage for media-type records and
-      essences, schema/document URI, namespace URI, content category, profile
-      name, artifact/function name, and exact scalar values.
-- [x] Design comparison vocabulary for normalized reference values. The
-      decision is recorded in
-      [`cem-ml-reference-comparison-design.md`](cem-ml-reference-comparison-design.md):
-      comparison now has operand roles, state policies, explicit operators for
-      equality, membership, set coverage/overlap/disjointness, existence, and
-      record-field matching, plus diagnostic projection and source-range
-      ownership for expected, invalid, missing, and unresolved values.
-- [x] Design the remaining richer declarative cross-node/reference vocabulary
-      for schema-owned constraints currently declared in CEM-ML but executed by
-      Rust. The decision is recorded in
-      [`cem-ml-reference-vocabulary-design.md`](cem-ml-reference-vocabulary-design.md).
-      The vocabulary lets a schema declare candidate
-      selection, reference attributes, registry/document lookup target,
-      expected/invalid value detail projection, source-range propagation, and
-      whether execution is pure CEM-ML/CEM-QL or engine-assisted. Reuse
-      `schema:reference-resolution`, CEM-QL candidate selection, and
-      schema-declared behavior functions where possible; avoid introducing
-      package-specific syntax for converter endpoints.
 - [ ] Design any further generic path-layout vocabulary beyond the current
       prefix, directory-name allow/forbid, extension, and basename allow/forbid
       facets. Background: `path` is always resolved in scope context, not
