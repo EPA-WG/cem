@@ -5,8 +5,9 @@ Status: design decision for schema-owned reference constraints.
 This note defines the normalized value vocabulary used by
 `schema:reference-resolution`. Comparison operators are defined separately in
 [`cem-ml-reference-comparison-design.md`](cem-ml-reference-comparison-design.md).
-This note intentionally stops before selector syntax, lookup syntax, and
-diagnostic projection syntax; those are separate todo items.
+Selector syntax, lookup syntax, execution boundaries, and diagnostic projection
+are defined in
+[`cem-ml-reference-vocabulary-design.md`](cem-ml-reference-vocabulary-design.md).
 
 ## Goals
 

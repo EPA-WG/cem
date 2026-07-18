@@ -4,9 +4,9 @@ Status: design decision for schema-owned reference constraints.
 
 This note defines comparison vocabulary for normalized reference values produced
 by [`cem-ml-reference-normalization-design.md`](cem-ml-reference-normalization-design.md).
-It intentionally stops before selector syntax, lookup syntax, and concrete CEM
-surface syntax; those belong to the remaining cross-node/reference vocabulary
-todo.
+Candidate selection, lookup syntax, execution boundaries, concrete CEM surface
+shape, and diagnostic projection are defined in
+[`cem-ml-reference-vocabulary-design.md`](cem-ml-reference-vocabulary-design.md).
 
 ## Goals
 
@@ -72,39 +72,22 @@ resources; lookup and normalization happen before comparison.
 
 ## Projection And Detail Ownership
 
-Comparison failures project details by operand role:
+Comparison failures project details through the canonical projection vocabulary
+defined in
+[`cem-ml-reference-vocabulary-design.md`](cem-ml-reference-vocabulary-design.md).
+This comparison note owns only the comparison-side semantics:
 
-- `expectedValues`: normalized expected values, grouped by binding or projected
-  field name. For `schema:member-of`, this is the expected set. For
-  `schema:equals`, this is the expected scalar. For record comparisons, this is
-  a field-to-expected-value object.
-- `invalidValues`: actual values that caused the comparison to fail, grouped by
-  binding or projected field name. For `schema:disjoint`, this is the forbidden
-  overlap observed on the actual side.
-- `missingValues`: bindings or projected fields that failed state policy with
-  `missing-value`.
-- `unresolvedValues`: bindings or projected fields that failed state policy
-  with `unresolved-*` reasons.
-- `invalidFields`: field names whose actual values failed comparison or state
-  policy.
-- `comparison`: optional structured metadata with `operator`, `normalizer`,
-  `actualBinding`, `expectedBinding`, and `projection`.
+- Expected operands provide reference values for `expectedValues`.
+- Actual operands provide failing observed values for `invalidValues`.
+- Missing, invalid, unresolved, and unsupported operand states are decided
+  before comparison runs.
+- `comparison` metadata describes operator, pass/fail result, primary binding,
+  stable reason code, and role-keyed operand summaries.
 
-Source ranges attach to the operand that caused the violation:
-
-- Failed actual values use the actual operand's source range.
-- Missing actual values use the containing candidate or declared target range.
-- Unresolved references use the source range of the reference field that failed
-  lookup.
-- Invalid expected/forbidden values use the descriptor or schema declaration
-  range when available; otherwise they carry descriptor identity only.
-- Record comparisons report the narrow field source range when available and
-  fall back to the containing record range.
-
-The existing `sourceRange` detail remains the top-level diagnostic anchor. More
-specific ranges may be included under `actualValues`, `expectedValues`,
-`invalidValues`, `missingValues`, or `unresolvedValues` once the diagnostic
-payload supports per-value ranges.
+The compatibility projection profile may continue exposing older broad keys and
+camelCase comparison fields where current CLI/report consumers expect them.
+Structured projection uses the role-keyed `comparison.operands` shape and
+ordered value arrays.
 
 ## Application To Current Rust-Backed Checks
 
@@ -119,10 +102,10 @@ payload supports per-value ranges.
 | `artifact-function-contract` | manifest artifact target metadata and compiled CEMT output function metadata | `schema:record-fields-equal`; use `schema:both-or-none` for optional profile fields and `schema:required-valid` for kind/content-type/schema/category fields. |
 | `example-expected-diagnostics` | declared expected diagnostic codes and observed validation report diagnostic codes | `schema:contains-all` for expected diagnostics, with future room for `schema:disjoint` on explicitly forbidden diagnostics. |
 
-## Syntax Shape For Future Rules
+## Syntax Shape
 
-The eventual CEM surface should keep the pieces separate. A future rule should
-be able to say, conceptually:
+The concrete CEM surface now keeps selector, operand, lookup, comparison, and
+projection pieces separate. Conceptually, a rule says:
 
 ```cem
 {reference-check
@@ -134,9 +117,10 @@ be able to say, conceptually:
     @state-policy="schema:required-valid schema:unresolved-fails"}
 ```
 
-The exact element/attribute names are deferred. The important design decision is
-that comparison declarations name bindings, normalizers, operators, and state
-policies explicitly.
+The normative element/attribute vocabulary is defined in
+[`cem-ml-reference-vocabulary-design.md`](cem-ml-reference-vocabulary-design.md).
+The comparison design decision is that comparison declarations name bindings,
+normalizers, operators, and state policies explicitly.
 
 ## Implementation Notes
 
