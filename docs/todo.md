@@ -7,18 +7,163 @@ history.
 
 ## Immediate Goal
 
-Implement the declarative CEM-ML reference vocabulary described in
-[`cem-ml-reference-vocabulary-design.md`](cem-ml-reference-vocabulary-design.md)
-behind `schema:reference-resolution` without changing existing public
-diagnostic compatibility.
+Freeze one implementable schema-owned reference-normalization contract across
+[`cem-ml-reference-normalization-design.md`](cem-ml-reference-normalization-design.md),
+[`cem-ml-reference-vocabulary-design.md`](cem-ml-reference-vocabulary-design.md),
+and
+[`cem-ml-reference-comparison-design.md`](cem-ml-reference-comparison-design.md)
+before resuming implementation. High-level goals and design concepts take
+priority over older concrete fields and examples: preserve declared values and
+source provenance, keep normalization annotative and symmetric, make execution
+placement explicit, avoid implicit canonicalization, and retain complete schema
+identity.
+
+### Contract And Documentation
+
+- [ ] **[C1] Define staged lookup normalization.** Specify source extraction,
+      source cardinality guard, lookup-key normalization, lookup, raw-result
+      cardinality guard, comparable-result normalization, normalized-result
+      cardinality guard, state policy, comparison, and diagnostic projection.
+      Give lookup keys and results separate envelopes, normalizers, bindings,
+      and provenance. Assign operand `@binding` to the final comparable result,
+      retain lookup-key bindings as provenance only, and repair the endpoint
+      example accordingly.
+- [ ] **[C2] Restore complete schema identity.** Define pure
+      `schema:schema-uri-declaration`, engine-assisted
+      `schema:schema-identity`, and an explicit URI-only compatibility
+      projection. Preserve declared URI, canonical descriptor identity,
+      embedded full SemVer, version constraint, and match rule; never use URI
+      equality as complete schema identity.
+- [ ] **[C3] Remove the package-validation bootstrap cycle.** Document pure
+      manifest/source declaration checks, isolated provisional descriptor
+      construction, validation against built-ins plus the provisional overlay,
+      and catalog admission only after every required check passes.
+- [ ] **[C4] Unify outcome, support, and lifecycle taxonomies.** Freeze terminal
+      states as `valid|missing|invalid|unresolved|unsupported`, require a reason
+      for every non-valid outcome, keep availability support as
+      `required|optional`, and lower any `soft` shorthand to optional support
+      plus reporting policy. Define pending/deferred lookup behavior so an
+      incomplete lookup is not prematurely final `unresolved`. Keep support and
+      reporting policy independent from assertion success, and reject statically
+      known unsupported required operations as schema/compiler errors. Keep
+      `unsupported-normalizer`, `unsupported-capability`, and `policy-denied` as
+      reasons rather than states.
+- [ ] **[C5] Separate cardinality, shape, and collection provenance.** Define
+      cardinality as `one|optional|set|sequence` independently from
+      `scalar|record` shape, keep candidate cardinality separate, and do not
+      treat `record-set` as a fundamental shape. Either define `sequence`
+      semantics or explicitly defer them from the first release. Require named
+      set normalizers that declare an `itemNormalizer`, add
+      `schema:namespace-uri-set`, and preserve a sorted,
+      deduplicated comparison set alongside source-ordered item outcomes,
+      duplicates, declared/normalized values, reasons, and source ranges.
+- [ ] **[C6] Define scalar/set normalization symmetry.** Require the same item
+      normalization and equivalence semantics rather than identical collection
+      normalizer names. Permit scalar `N` against `set-of(N)` only for an
+      operator-declared compatible item type, expose collection and item
+      normalizers in metadata, and reject incompatible mixed normalizers.
+- [ ] **[C7] Unify state-policy ownership.** Keep per-operand state policy as
+      `required-valid|optional-valid|allow-unresolved|allow-unsupported`, put
+      relational presence rules such as `when-present|both-or-none` on the
+      comparison, remove redundant `unresolved-fails`, lower shorthands into
+      explicit IR, and replace or clearly label non-parseable pseudocode.
+- [ ] **[C8] Separate MIME syntax from registered content identity.** Keep RFC
+      media-type normalizers strict and move registered RFC and legacy aliases
+      to engine-assisted content-identity normalizers. Preserve alias owner,
+      routing profile, canonical identity, and declared spelling; define stable
+      unknown/ambiguous reasons and required schema context. Resolve the
+      `schema:media-type` datatype/normalizer symbol collision through kinded
+      registries with one grammar primitive or by renaming the normalizer. Keep
+      the CEM-QL `accepts` alias table scoped to CEM-QL rather than treating it
+      as a global content alias registry.
+- [ ] **[C9] Make exact scalar normalization typed.** Define
+      `schema:scalar-exact` as exact `(type, value)` comparison without
+      coercion, add `schema:string-exact` for text-only contracts, and add a
+      distinct lexical normalizer where spelling matters. Keep
+      `declaredValue`, `sourceLexeme`, and `sourceRange` separate.
+- [ ] **[C10] Separate schema and namespace identity domains.** Compare manifest
+      schema references with canonical schema identity or explicit URI
+      declarations, and compare namespace claims only with namespace values.
+      Treat schema v1's namespace-as-identity behavior as a versioned
+      compatibility adapter and plan an explicit schema-identity field.
+- [ ] **[C11] Define identifier, profile, function, and artifact domains.** Link
+      identifier tokens to an authoritative datatype grammar; define dotted,
+      case-sensitive profile symbols; distinguish lexical function names from
+      function identities containing module/artifact identity plus canonical
+      exported name. Reserve artifact names for authored IDs and create a
+      separate path-derived artifact-identity normalizer after document-URI
+      resolution. Normalize every component of composite lookup keys while
+      preserving authored spellings and source ranges.
+- [ ] **[C12] Correct target/current status and diagnostic projection.** Mark
+      the three reference documents as accepted target design with
+      implementation pending and schema-package READMEs as the current shipped
+      surface. Freeze only shipped diagnostic keys, treat `unsupportedValues`
+      as additive until implemented, add operand and per-item reasons, reserve
+      `projection` for diagnostics, rename record extraction to `value-path` or
+      `normalized-field`, and define record field-pair/state-policy syntax.
+      Keep `schema:reference-resolution` as orchestration and compatibility
+      behavior; it must not directly convert normalization outcomes into
+      violations.
+- [ ] **[C13] Bound document URI normalization and lookup lifecycle.** Define
+      document identity against effective base URI, resolver purpose,
+      package/module-map context, and policy without fetching or asserting
+      existence. Preserve declared/resolved URIs and resolver provenance, keep
+      exact namespace equality separate, and leave language-specific behavior
+      such as JSON Schema dynamic references in explicit capabilities.
+- [ ] **[C14] Decide the first-release boundary for ordered and mutable
+      references.** Either scope the first vocabulary release to
+      schema-package registry/artifact checks or define sequence cardinality,
+      host-language ID normalizers that preserve case and punctuation,
+      snapshot/revision identity, pending dependencies, and recomputation. Do
+      not reuse identifier-token or set semantics for ordered ARIA IDREFs.
+- [ ] **Align the dependent documentation in dependency order.** Update the
+      normalization, vocabulary, comparison, and registry designs first; then
+      update `schema/v1`, `schema-package/v1`, the schema-package overview, and
+      relevant package READMEs. Distinguish the shipped surface from the target,
+      document descriptor provenance and provisional overlays, and preserve
+      compatibility projection throughout the migration.
+- [ ] **Standardize reference terminology after the model freezes.** Use schema
+      URI versus fetchable URL, canonical registry identity, `binding` versus
+      domain `name`, `declaredValue`, `sourceLexeme`, `normalizedValue`, and
+      `resolvedUri` consistently across the affected Markdown corpus. Define
+      descriptor provenance fields for complete schema identity, raw and
+      normalized content claims, namespaces, descriptor origin/source ranges,
+      and CEMT output metadata.
+- [ ] **Run a final documentation consistency gate.** Confirm the design trio,
+      registry design, resolver contracts, schema-package documentation, and
+      package examples express one contract before changing `.cem` sources,
+      Rust IR/evaluators, fixtures, or diagnostics.
+
+### Acceptance Cases
+
+- [ ] Document an example of different schema URI version-tail constraints
+      resolving to the same descriptor and embedded version.
+- [ ] Document an example of local custom package validation before registry
+      admission.
+- [ ] Document examples of RFC media types, registered RFC aliases, bare legacy
+      aliases, ambiguous aliases, and invalid media syntax.
+- [ ] Document scalar-to-set membership with duplicates, invalid members,
+      source-ordered provenance, and deterministic comparison values.
+- [ ] Document `missing`, `invalid`, `unresolved`, `unsupported`, and
+      pending/deferred lifecycle outcomes.
+- [ ] Document dotted profile symbols and composite function identities.
+- [ ] Document whether ordered ARIA IDREF sequences and dynamic JSON Schema
+      references are supported or deferred.
+
+## Follow-on Implementation
+
+Blocked until the immediate documentation contract and acceptance cases are
+complete. Then implement the declarative CEM-ML reference vocabulary behind
+`schema:reference-resolution` without changing existing public diagnostic
+compatibility, reconciling field names and IR shapes with the accepted design.
 
 - [ ] Add parser/schema IR coverage for `candidates`, operand role elements,
       canonical `lookup` children, `compare`, `projection`, and constraint
       execution fields.
 - [ ] Validate declaration errors for candidate cardinality, operand
-      `@binding`, `@from` grammar, lookup/result cardinality, `record-set`
-      result keys, capability names/version constraints, projection tokens, and
-      alias collisions.
+      `@binding`, `@from` grammar, lookup-key/result cardinality and shape,
+      capability names/version constraints, projection tokens, and alias
+      collisions.
 - [ ] Implement pure candidate selection and operand source extraction using the
       constrained CEM-QL/CEM source-path profiles from the design.
 - [ ] Implement lookup declaration expansion: operand `@lookup` shorthand,
