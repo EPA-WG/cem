@@ -28,7 +28,7 @@ identity.
       and provenance. Assign operand `@binding` to the final comparable result,
       retain lookup-key bindings as provenance only, and repair the endpoint
       example accordingly.
-- [ ] **[C2] Restore complete schema identity.** Define pure
+- [x] **[C2] Restore complete schema identity.** Define pure
       `schema:schema-uri-declaration`, engine-assisted
       `schema:schema-identity`, and an explicit URI-only compatibility
       projection. Preserve declared URI, canonical descriptor identity,
