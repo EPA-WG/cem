@@ -20,7 +20,7 @@ identity.
 
 ### Contract And Documentation
 
-- [ ] **[C1] Define staged lookup normalization.** Specify source extraction,
+- [x] **[C1] Define staged lookup normalization.** Specify source extraction,
       source cardinality guard, lookup-key normalization, lookup, raw-result
       cardinality guard, comparable-result normalization, normalized-result
       cardinality guard, state policy, comparison, and diagnostic projection.
@@ -34,7 +34,7 @@ identity.
       projection. Preserve declared URI, canonical descriptor identity,
       embedded full SemVer, version constraint, and match rule; never use URI
       equality as complete schema identity.
-- [ ] **[C3] Remove the package-validation bootstrap cycle.** Document pure
+- [x] **[C3] Remove the package-validation bootstrap cycle.** Document pure
       manifest/source declaration checks, isolated provisional descriptor
       construction, validation against built-ins plus the provisional overlay,
       and catalog admission only after every required check passes.

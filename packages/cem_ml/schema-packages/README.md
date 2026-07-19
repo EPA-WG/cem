@@ -375,13 +375,21 @@ cargo run -p cem-ml-cli -- validate \
   schema-packages/{package-id}/v1/package.cem
 ```
 
-9. Validate the package folder against source consistency rules. Built-in
+9. Validate the package folder against the package bootstrap rules. The
+   validator first compares manifest/schema-source declarations without adding
+   the package to a registry: schema URI declaration, content-type claims, and
+   namespace claims must match the referenced `schema/*.cem` source. Only after
+   those pure checks pass may the validator construct an isolated provisional
+   descriptor and run registry-backed endpoint, example, artifact, and
+   namespace checks against built-ins plus that provisional overlay. Built-in
    packages are covered by the CLI integration test; local packages should run
    the same validator before they are added to a runtime catalog.
 
 Custom packages are not automatically trusted by the built-in runtime. A host
-must explicitly load or embed the package descriptor before its content types,
-namespaces, converters, or schema rules participate in registry resolution.
+must explicitly load or embed the validated package descriptor before its
+content types, namespaces, converters, or schema rules participate in global
+registry resolution. A provisional validation overlay is local to the validator
+run and is discarded unless required checks pass.
 
 ## Schema-Owned CEMT Output Pipeline
 

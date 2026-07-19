@@ -64,14 +64,25 @@ Example:
         @state="required-valid"}
 
     {expected
-        @binding="schema"
-        @result-binding="content-type"
+        @binding="content-type"
         @from="endpoint.@schema"
-        @normalizer="schema:schema-uri"
-        @lookup="schema:registry.content-type-essences"
+        @normalizer="schema:media-type-essence-set"
         @cardinality="scalar"
         @result-cardinality="set"
-        @state="required-valid"}
+        @state="required-valid" |
+
+        {lookup
+            @name="schema:registry.descriptor"
+            @execution="engine-assisted"
+            @requires="schema:engine.registry"
+            @result="contentTypes"
+            @result-cardinality="record"
+            @source-range="key" |
+
+            {key
+                @binding="schema"
+                @normalizer="schema:schema-identity"}
+        }}
 
     {compare @operator="schema:member-of"}
 
@@ -161,9 +172,11 @@ Operand fields:
 
 - `@binding`: required canonical diagnostic/value identity.
 - `@from`: constrained source path relative to a candidate or lookup binding.
-- `@normalizer`: named normalizer.
+- `@normalizer`: named normalizer for the final comparable value. When the
+  operand declares a lookup, lookup keys use their own key normalizers.
 - `@cardinality`: `scalar`, `set`, or `record`.
-- `@result-cardinality`: lookup/result shape when it differs from source shape.
+- `@result-cardinality`: final comparable result shape when it differs from
+  source shape.
 - `@state`: state policy.
 - `@lookup`: simple inline lookup shorthand.
 - `@diagnostic-field`: optional display/report alias. Canonical diagnostics
@@ -172,6 +185,8 @@ Operand fields:
 `@binding` is required on every operand role element and is the stable public
 identity of the operand. It must be unique among operands of the same role
 unless a future grouped operand design explicitly allows repeated bindings.
+For lookup-based operands, `@binding` names the comparable result, not the
+lookup key. Lookup key bindings are provenance identities only.
 
 Attribute/child parity applies to `from`, `normalizer`, `cardinality`, `state`,
 `lookup`, `projection`, and potentially `compare`. It does not apply to operand
@@ -238,21 +253,29 @@ Operand evaluation order:
 ```text
 @from extraction
 -> source cardinality guard
--> normalization
--> lookup, if any
--> result cardinality guard
+-> lookup-key normalization, if lookup is present
+-> lookup, if present
+-> raw-result cardinality guard, if lookup is present
+-> comparable-result extraction
+-> comparable-result normalization
+-> normalized-result cardinality guard
 -> state policy
 -> comparison
 ```
 
-`@normalizer` attaches to the operand that declares it. It runs after source
-extraction and before comparison, or before a lookup that explicitly accepts
-normalized input.
+`@normalizer` attaches to the operand that declares it and produces the final
+comparison value. It does not normalize lookup keys. Key normalization is
+declared on `lookup/key` children.
 
-Cardinality is checked in two phases:
+For operands without lookup, comparable-result extraction is the source value
+itself. For operands with lookup, comparable-result extraction selects the
+declared lookup result projection before operand normalization.
+
+Cardinality is checked in three phases:
 
 - `@cardinality`: source values extracted by `@from`.
-- `@result-cardinality`: comparable lookup result shape.
+- lookup `@result-cardinality`: raw result returned by the lookup operation.
+- `@result-cardinality`: normalized comparable result shape.
 
 Multiple extracted source values for `@cardinality="scalar"` are `invalid`.
 Validators must not normalize or dedupe multiple source values into an
@@ -282,12 +305,17 @@ invalid, unresolved, and unsupported operands all produce diagnostics.
 ## Lookup
 
 A lookup is declared by a canonical `lookup` child element. Operand `@lookup` is
-shorthand for the simplest inline lookup case: one named lookup using the
-operand value as its key with default result binding, default capability
-requirement, default package context, default support policy, and default
-provenance.
+compatibility shorthand for the simplest case where the operand source is
+already the lookup key and the lookup result itself is the comparable value.
+Any lookup that needs separate key normalization, result projection, result
+normalization, capability requirements, package context, or source-range policy
+must use child form.
 
-Use child form when lookup needs `@as`, `@key`, `@result-binding`,
+Lookup produces a raw result envelope. The parent operand then extracts the
+declared comparable result from that raw result and applies the parent
+operand's `@normalizer`. Lookup key envelopes remain provenance.
+
+Use child form when lookup needs `@as`, `@key`, `key` children, `@result`,
 `@requires`, `@package`, `@support`, source-range options, explicit state
 policy, or multiple outputs.
 
@@ -300,14 +328,30 @@ Lookup fields:
 - `@key`: simple one-key lookup reference.
 - `key` children: canonical multi-key lookup form.
 - `@as`: optional lookup result binding for later references/projection.
-- `@result-binding`: comparable result identity.
-- `@result-cardinality`: result shape.
+- `@result`: field or constrained source path selected from the raw lookup
+  result before operand normalization. Omitted means the raw lookup result
+  itself is the comparable result.
+- `@result-cardinality`: raw lookup result shape.
 - `@result-key`: simple `record-set` identity field.
 - `result-key` children: composite `record-set` identity.
 - `@provenance`: lookup provenance kind.
 - `@source-range`: lookup key/result source-range policy.
 - `@requires`: engine capability identifier.
 - `@support`: capability support policy.
+
+Lookup key child fields:
+
+- `@binding`: required provenance identity for diagnostics and lookup traces.
+- `@from`: optional constrained source path. Omitted means the parent operand
+  source value.
+- `@normalizer`: normalizer for this key envelope.
+- `@cardinality`: key source cardinality; omitted inherits the parent
+  operand's source cardinality.
+
+Key bindings are not comparison operand bindings. They may appear under
+structured provenance when projected, but they must not populate
+`comparison.operands.<role>.binding`, `actualValues`, `expectedValues`, or
+`invalidValues` as standalone operands.
 
 Lookup execution:
 
@@ -323,12 +367,12 @@ Lookup execution:
 
 Lookup result shapes:
 
-- `scalar`: exactly one result value. Zero results become `missing` or
+- `scalar`: exactly one raw result value. Zero results become `missing` or
   `unresolved` depending on lookup kind; multiple results are `invalid`.
-- `optional`: zero or one result value. Multiple results are `invalid`.
-- `set`: zero or more normalized values, sorted and deduped.
-- `record`: exactly one structured result with named fields.
-- `record-set`: zero or more structured records, sorted/deduped by key.
+- `optional`: zero or one raw result value. Multiple results are `invalid`.
+- `set`: zero or more raw result values.
+- `record`: exactly one structured raw result with named fields.
+- `record-set`: zero or more structured raw records, sorted/deduped by key.
 
 `stream` is not a schema-declared lookup result shape.
 
@@ -350,7 +394,7 @@ lookup execution denied by policy  -> unsupported(reason=policy-denied)
 lookup runs, target absent         -> unresolved
 lookup result wrong shape          -> invalid
 required result field absent       -> missing
-result value malformed             -> invalid
+comparable result malformed        -> invalid
 ```
 
 Do not use a generic lookup `@on-missing` policy in the initial vocabulary.
@@ -479,6 +523,16 @@ change validation behavior based on cache hits/misses.
 - `none`: document-only; no package-relative resolution.
 - `current`: use the current package context.
 - `declared`: package context comes from an explicit operand or lookup key.
+
+During local schema-package validation, `@package="current"` is evaluated in
+two phases. Pure manifest/source consistency constraints run before registry
+admission and must use declaration normalizers rather than registry identity
+lookup. After those checks pass, the validator may build an isolated
+provisional descriptor and expose it only through the current validation
+overlay. Engine-assisted lookups for endpoint, example, artifact, namespace, or
+registry-identity checks then query trusted registries plus that overlay. The
+overlay is discarded unless every required check succeeds and the host admits
+the descriptor to its catalog.
 
 The initial vocabulary does not include generic `@fallback`. Fallback-like
 behavior is expressed through explicit `@support` and operand `@state` policies.
@@ -616,12 +670,20 @@ operand binding and, when needed, value/index. Validators must not point at the
 candidate or constraint declaration merely to manufacture a range for an
 external expected value.
 
+Lookup key provenance is keyed by the parent operand binding and records the
+key binding, declared key value, key normalizer, normalized key value when
+valid, key state/reason, lookup operation, capability, and source range. The
+key binding does not become a comparison operand binding.
+
 ## Comparison Metadata
 
 `comparison` is a stable vocabulary-owned summary of the declared comparison
 and its result. It exposes declaration/result facts only; it must not expose
 evaluator internals, implementation traces, parser AST details, lookup cache
 keys, resolver retry details, or engine-private error objects.
+For lookup-based operands, comparison metadata describes the final comparable
+result after lookup and result normalization. Lookup keys are provenance and
+are not listed as role operands.
 
 Structured `comparison` fields:
 
@@ -658,26 +720,26 @@ Example:
 
 ```json
 {
-  "comparison": {
-    "operator": "schema:member-of",
-    "passed": false,
-    "primary": "content-type",
-    "reason": "not-member",
-    "operands": {
-      "actual": {
-        "binding": "content-type",
-        "state": "valid",
-        "normalizer": "schema:media-type-essence",
-        "values": ["text/html"]
-      },
-      "expected": {
-        "binding": "schema",
-        "state": "valid",
-        "normalizer": "schema:media-type-essence",
-        "values": ["application/json"]
-      }
+    "comparison": {
+        "operator": "schema:member-of",
+        "passed": false,
+        "primary": "content-type",
+        "reason": "not-member",
+        "operands": {
+            "actual": {
+                "binding": "content-type",
+                "state": "valid",
+                "normalizer": "schema:media-type-essence",
+                "values": ["text/html"]
+            },
+            "expected": {
+                "binding": "content-type",
+                "state": "valid",
+                "normalizer": "schema:media-type-essence-set",
+                "values": ["application/json"]
+            }
+        }
     }
-  }
 }
 ```
 

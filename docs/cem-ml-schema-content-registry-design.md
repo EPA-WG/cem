@@ -217,6 +217,21 @@ content type -> schema descriptor candidates
 namespace -> schema descriptor candidates
 ```
 
+During schema-package validation, the registry also supports a validation-only
+provisional overlay. The overlay contains descriptors constructed from package
+sources that have passed pure manifest/source declaration checks, but it is not
+the host catalog and does not grant trust to the package. Lookup order for a
+package validation run is:
+
+```text
+trusted built-ins -> explicit trusted dependencies -> current provisional overlay
+```
+
+The validator discards the overlay unless every required package check passes.
+If a provisional descriptor has the same complete schema identity as an already
+trusted descriptor or another provisional descriptor, validation fails instead
+of shadowing the existing entry.
+
 `ConversionRegistry` answers:
 
 ```text
