@@ -18,3 +18,5 @@ in [`todo.md`](todo.md).
       Implement and cross-browser validate the hidden child-node merge model plus explicit `.value` projection, including
       SSR loader conversion from a loader-friendly `<xsl:element name="textarea">`-style or equivalent CEM-ML placeholder
       form.
+- [ ] assure `$document` in scope
+- [ ] named scope
