@@ -82,6 +82,7 @@
                        description="should render two smiley images and links should open matching page">
         <template>
             <cem-element tag="cem-module-link">
+                <template type="text/cem-ml">
                     {module-url @slice=packageUrl @src="@epa-wg/material"}
                     {module-url @slice=logoUrl @src="@epa-wg/custom-element/demo/wc-square.svg"}
                     {article @class=demo-card |
@@ -90,6 +91,7 @@
                         {img @class=resolved-logo @src="{$datadom.slices.logoUrl}" @alt=""}
                         {p | {$datadom.slices.logoUrl}}
                     }
+                </template>
             </cem-element>
 
             <cem-module-link></cem-module-link>

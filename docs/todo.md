@@ -13,16 +13,15 @@ binary handoff, embedded-payload handoff coverage, and web-host coordinate
 projection have all passed their focused and gate verification. Continue with
 Phase 3 substrate expansion.
 
-Current active slice: tighten the first executable browser substrate contract
-for inline `<cem-element>` declarations so it matches the Phase 3.1 WHATWG
-template/data-island contract.
+Current active slice: promote the first executable browser substrate contract
+for inline `<cem-element>` declarations into one focused runtime story/fixture.
 
 ### Phase 3 Custom-Element Runtime
 
 - [x] Audit the existing `@epa-wg/cem-elements` substrate implementation,
       parity inventories, Storybook fixtures, and Nx verification targets
       against the Phase 3.1 exit criteria from `roadmap.md`.
-- [ ] Tighten inline declaration shape validation to match
+- [x] Tighten inline declaration shape validation to match
       `docs/cem-element-design.md`: inline declarations require exactly one
       direct-child WHATWG `<template>`, `src` declarations must not include an
       inline template, live declaration content is rejected, and the current
@@ -43,22 +42,27 @@ template/data-island contract.
 
 ### Next Work Item
 
-Tighten the inline declaration shape contract found during the Phase 3.1 audit:
+Promote the first executable browser substrate contract into one focused
+runtime story/fixture:
 
-- update `analyzeDeclarationShape` so inline declarations require exactly one
-  direct-child `<template>` and emit a missing-template diagnostic instead of
-  accepting implicit CEM-ML live content;
-- remove or quarantine `implicitCemMlTemplate()` from the registration path so
-  raw declaration text cannot become live authoring syntax by accident;
-- update `InlineDeclarationShape`, `ImplicitCemMlTemplateShape`, and
-  `DeclarationShapeGuardrailsPreventLiveData` to prove the strict contract in
-  the browser harness;
-- keep existing `src` support, legacy `lang="custom-element-v0"` bridge
-  fixtures, and material parity fixture inventories separate from this
-  contract-tightening slice;
-- verify first with `yarn nx run cem-elements:test:unit`, then
-  `yarn nx run cem-elements:test`, and broaden to `cem-elements:verify` after
-  the focused browser contract is green.
+- consolidate the currently separate assertions from `InlineDeclarationShape`,
+  `DataIslandCaptureAndRender`, `CemQlWasmRenderLoopUpgrade`, and the
+  data-island isolation stories into one story that starts from an inline
+  `<cem-element>` declaration with exactly one direct-child `<template>`;
+- assert in that one story that the declaration template remains inert, the
+  produced tag is registered, fallback payload is captured into
+  `<template data-cem-island="instance">`, visible output is owned by light DOM,
+  and rendered nodes carry template artifact, render-node, data revision, and
+  source-map fidelity labels;
+- add negative checks for missing inline templates, duplicate templates, and
+  live declaration content near the same contract story so shape regressions are
+  visible in the browser harness;
+- keep `src` declarations, legacy `lang="custom-element-v0"` bridge fixtures,
+  material parity, and Edge/SSR follow-up stories outside this focused contract;
+- verify with `yarn nx run cem-elements:test:unit`,
+  `yarn nx run cem-elements:test`, `yarn nx run cem-elements:verify-substrate`,
+  `yarn nx run cem-elements:verify-demo-fixtures`, and then the full
+  `yarn nx run cem-elements:verify` gate.
 
 ## Current Verification Commands
 

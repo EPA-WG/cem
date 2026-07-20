@@ -23,6 +23,7 @@
                        description="initial value should be 0; + and - should change the number in input field">
         <template>
             <cem-element tag="cem-slice-field">
+                <template type="text/cem-ml">
                     {attribute @name=label | Query}
                     {slice @name=query}
                     {slice @name=checked | false}
@@ -44,6 +45,7 @@
                         {p | s1: {output @data-role=s1 | {$datadom.slices.s1}}}
                         {p | s2: {output @data-role=s2 | {$datadom.slices.s2}}}
                     }
+                </template>
             </cem-element>
 
             <cem-slice-field label="Type and toggle"></cem-slice-field>

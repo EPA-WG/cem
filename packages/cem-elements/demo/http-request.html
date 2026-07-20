@@ -18,6 +18,7 @@
                        description="read data from arbitrary URL">
         <template>
             <cem-element tag="cem-resource-panel">
+                <template type="text/cem-ml">
                     {http-request @slice=page @url="{$datadom.attributes.url}" @header-accept="application/json" @content-type="application/json"}
                     {http-request @slice=xml @url="{$datadom.attributes.xml-url}" @header-accept="application/xml" @content-type="application/xml"}
                     {article @class=demo-card |
@@ -41,6 +42,7 @@
                             }
                         }
                     }
+                </template>
             </cem-element>
 
             <cem-resource-panel title="HTTP request parity target" url="./http-data.json" xml-url="./http-data.xml"></cem-resource-panel>

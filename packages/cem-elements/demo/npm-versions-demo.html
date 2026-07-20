@@ -18,11 +18,13 @@
                        description="defaults, last version should be preselected">
         <template>
             <cem-element tag="cem-version-row">
+                <template type="text/cem-ml">
                     {article @class=demo-card |
                         {h2 | {$datadom.attributes.package}}
                         {p | selected version: {$datadom.attributes.version ?? "local"}}
                         {p @class=status-note | Live registry lookup through http-request is queued for parity.}
                     }
+                </template>
             </cem-element>
 
             <cem-version-row package="@epa-wg/cem-elements" version="workspace"></cem-version-row>

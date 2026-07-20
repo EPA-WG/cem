@@ -180,7 +180,16 @@ export const DeclarationShapeGuardrailsPreventLiveData: Story = {
     },
     play: () => {
         assertShape(buildShapeDeclaration('valid', '<template><button>Valid</button></template>'), true, []);
-        assertShape(buildShapeDeclaration('implicit-cem-ml', '{button | Valid}'), true, []);
+        assertShape(
+            buildShapeDeclaration('implicit-cem-ml', '{button | Valid}'),
+            false,
+            ['cem-element.inline_template_missing', 'cem-element.declaration_live_content']
+        );
+        assertShape(
+            buildShapeDeclaration('missing-template', ''),
+            false,
+            ['cem-element.inline_template_missing']
+        );
         assertShape(
             buildShapeDeclaration('two-templates', '<template></template><template></template>'),
             false,

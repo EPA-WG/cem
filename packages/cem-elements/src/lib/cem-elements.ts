@@ -628,17 +628,25 @@ export function analyzeDeclarationShape(input: DeclarationShapeInput): Declarati
         );
     }
 
-    if (!src && input.directTemplateCount > 1) {
+    if (!src && input.directTemplateCount === 0) {
+        diagnostics.push(
+            declarationDiagnostic(
+                'cem-element.inline_template_missing',
+                'inline declarations must contain exactly one direct-child `<template>`',
+                tag ?? undefined
+            )
+        );
+    } else if (!src && input.directTemplateCount > 1) {
         diagnostics.push(
             declarationDiagnostic(
                 'cem-element.inline_template_count',
-                'inline declarations must contain at most one direct-child `<template>`',
+                'inline declarations must contain exactly one direct-child `<template>`',
                 tag ?? undefined
             )
         );
     }
 
-    if (input.directLiveNodeCount > 0 && (src || input.directTemplateCount > 0)) {
+    if (input.directLiveNodeCount > 0) {
         diagnostics.push(
             declarationDiagnostic(
                 'cem-element.declaration_live_content',
@@ -812,7 +820,17 @@ export class CemElementRuntime {
             return true;
         }
 
-        const template = directTemplateChildren(declarationElement)[0] ?? implicitCemMlTemplate(declarationElement);
+        const template = directTemplateChildren(declarationElement)[0];
+        if (!template) {
+            this.recordDiagnostics(declarationElement, [
+                declarationDiagnostic(
+                    'cem-element.inline_template_missing',
+                    'inline declarations must contain exactly one direct-child `<template>`',
+                    shape.tag
+                ),
+            ]);
+            return false;
+        }
         this.registeredDeclarationElements.add(declarationElement);
         this.declarationSettled.set(
             declarationElement,
@@ -2915,16 +2933,6 @@ function declarationOccurrencePath(element: Element): string {
         current = parent;
     }
     return indexes.join('.');
-}
-
-function implicitCemMlTemplate(element: HTMLElement): HTMLTemplateElement {
-    const template = element.ownerDocument.createElement('template');
-    template.setAttribute('type', 'text/cem-ml');
-    while (element.firstChild) {
-        template.content.appendChild(element.firstChild);
-    }
-    element.appendChild(template);
-    return template;
 }
 
 interface SrcReference {

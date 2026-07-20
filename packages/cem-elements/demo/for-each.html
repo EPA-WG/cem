@@ -18,6 +18,7 @@
                        description="Loop over inline XML data and render each item">
         <template>
             <cem-element tag="cem-loop-list">
+                <template type="text/cem-ml">
         {location-element @slice=loop-location @href="https://example.test/loop?topic=feeds&item=payload&item=resource#for-each"}
         {http-request @slice=loop-json @url="{$datadom.attributes.json-url}" @header-accept="application/json" @content-type="application/json"}
         {http-request @slice=loop-xml @url="{$datadom.attributes.xml-url}" @header-accept="application/xml" @content-type="application/xml"}
@@ -151,6 +152,7 @@
                 }
             }
         }
+                </template>
             </cem-element>
 
             <cem-loop-list json-url="./http-data.json" xml-url="./http-data.xml">

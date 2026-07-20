@@ -167,8 +167,8 @@ export const DeclarationLiveContentRejected: Story = {
     },
 };
 
-export const ImplicitCemMlTemplateShape: Story = {
-    render: () => storyPanel('Implicit CEM-ML template', 'inline declarations may use direct CEM-ML content'),
+export const MissingInlineTemplateShape: Story = {
+    render: () => storyPanel('Missing inline template', 'inline declarations require one direct-child template'),
     play: () => {
         const result = analyzeDeclarationShape({
             tag: 'cem-button',
@@ -176,8 +176,9 @@ export const ImplicitCemMlTemplateShape: Story = {
             directTemplateCount: 0,
             directLiveNodeCount: 1,
         });
-        assert(result.ok, 'inline declarations without a template should be accepted as implicit CEM-ML');
-        assertEqual(result.diagnostics.length, 0, 'implicit CEM-ML declarations should not emit shape diagnostics');
+        assert(!result.ok, 'inline declarations without a template must be rejected');
+        assertDiagnostic(result.diagnostics, 'cem-element.inline_template_missing');
+        assertDiagnostic(result.diagnostics, 'cem-element.declaration_live_content');
     },
 };
 
@@ -4326,15 +4327,12 @@ export const DeclarationDiagnosticsAreExposed: Story = {
         const noTemplate = buildDeclaration({ tag: 'story-decl-empty', liveContent: true });
         noTemplate.textContent = '{button | implicit}';
         runtime.registerDeclaration(noTemplate);
+        assertDiagnostic(runtime.diagnosticsFor(noTemplate), 'cem-element.inline_template_missing');
+        assertDiagnostic(runtime.diagnosticsFor(noTemplate), 'cem-element.declaration_live_content');
         assertEqual(
-            runtime.diagnosticsFor(noTemplate).length,
-            0,
-            'inline declaration content is accepted as an implicit CEM-ML template'
-        );
-        assertEqual(
-            (noTemplate.querySelector('template[type="text/cem-ml"]') as HTMLTemplateElement | null)?.content.textContent?.trim(),
-            '{button | implicit}',
-            'implicit declaration content is moved into an inert CEM-ML template'
+            noTemplate.querySelector('template[type="text/cem-ml"]'),
+            null,
+            'raw declaration content is not converted into an implicit CEM-ML template'
         );
 
         const liveContent = buildDeclaration({

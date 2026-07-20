@@ -48,7 +48,9 @@
                    description="payload is ignored as in DCE definition there is no default slot">
     <template>
         <cem-element tag="dce-link" hidden>
+            <template type="text/cem-ml">
                 {a @href="#" | link 😃}
+            </template>
         </cem-element>
         <dce-link><i>🍋</i></dce-link>
     </template>
@@ -58,7 +60,9 @@
                    description="slots are filled as in template+shadow root">
     <template>
         <cem-element tag="dce-1-slot" hidden>
+            <template type="text/cem-ml">
                 🐇❤️{slot @name=slot1 | 🥦}
+            </template>
         </cem-element>
         <dce-1-slot><i slot="slot1">🥕</i></dce-1-slot>
     </template>
@@ -68,9 +72,11 @@
                    description="unlike in TEMPLATE, same slot can be used multiple times and within attribute ">
     <template>
         <cem-element tag="dce-2-slots" hidden>
+            <template type="text/cem-ml">
             {slot @name=slot2 | 😃} and again:
             {slot @name=slot2 | 😃}
             {input @placeholder="🐇❤️{$datadom.slots.slot2.children.text}"}
+            </template>
         </cem-element>
         <dce-2-slots><i slot="slot2">🥕</i></dce-2-slots>
         <dce-2-slots></dce-2-slots>
@@ -81,10 +87,12 @@
                    description="slot without `name` attribute or with blank value `name=''` use whole payload">
     <template>
         <cem-element tag="dce-3-slot" hidden>
+            <template type="text/cem-ml">
             #1
             {slot @name="" | 😃}
             and
             {slot | 😃}
+            </template>
         </cem-element>
         <dce-3-slot><i slot="">🥕</i></dce-3-slot>
     </template>
@@ -94,10 +102,12 @@
                    description="slot without `name` attribute or with blank value `name=''` use whole payload">
     <template>
         <cem-element tag="dce-4-slot" hidden>
+            <template type="text/cem-ml">
                 #2
                 {slot @name="" | 😃}
                 and
                 {slot | 😃}
+            </template>
         </cem-element>
         <dce-4-slot>🥕</dce-4-slot>
     </template>
@@ -107,7 +117,9 @@
                    description="slot without `name` attribute use whole payload">
     <template>
         <cem-element tag="greet-element" hidden>
+            <template type="text/cem-ml">
                 {slot | Hello} World!
+            </template>
         </cem-element>
         <greet-element></greet-element>
         <greet-element>👋</greet-element>
@@ -118,6 +130,7 @@
                    description="Complex case with slots, attributes, dataset, conditional render">
     <template>
         <cem-element tag="pokemon-tile" hidden id="shared-template">
+            <template type="text/cem-ml">
                 /* title is an attribute in instance, mapped into datadom.attributes.title */
                 {h3 | {$datadom.attributes.title}}
 
@@ -146,6 +159,7 @@
                         {$item.text}
                     }
                 }
+            </template>
         </cem-element>
 
         <pokemon-tile title="bulbasaur" data-smile="👼" pokemon-id="1">

@@ -18,6 +18,7 @@
                        description="Counter update happens on change event(focus change).">
         <template>
             <cem-element tag="cem-dom-merge-field">
+                <template type="text/cem-ml">
                     {slice @name=text-container | Hello world!}
                     {slice @name=txt | Type time update}
                     {article @class=demo-card |
@@ -45,6 +46,7 @@
                             {blockquote | {$datadom.slices.txt}}
                         }
                     }
+                </template>
             </cem-element>
 
             <cem-dom-merge-field></cem-dom-merge-field>

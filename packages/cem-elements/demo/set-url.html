@@ -28,6 +28,7 @@
                        description="To define the URL, fill input field or click the radio button, then 'set' button.">
         <template>
             <cem-element tag="cem-set-url-panel">
+                <template type="text/cem-ml">
                     {slice @name=method | history.pushState}
                     {slice @name=url | #cem-demo}
                     {location-element @slice=current @live=true}
@@ -41,6 +42,7 @@
                         {p | pending set: {output | {$method}} = {output | {$url}}}
                         {p | current hash: {output @data-role=current-hash | {$datadom.slices.current.hash}}}
                     }
+                </template>
             </cem-element>
 
             <cem-set-url-panel></cem-set-url-panel>

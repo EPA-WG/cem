@@ -18,7 +18,9 @@
                        description="Should render hex shaped buttons with text and icon">
         <template>
             <cem-element tag="cem-grid-tile">
+                <template type="text/cem-ml">
                     {div @class=swatch @style="background: {$datadom.attributes.color}" | {$datadom.attributes.label}}
+                </template>
             </cem-element>
 
             <section class="hex-grid">

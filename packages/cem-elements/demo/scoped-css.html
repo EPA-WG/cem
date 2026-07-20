@@ -18,10 +18,12 @@
                        description="Green button borders should not be applied to external button ">
         <template>
             <cem-element tag="cem-style-green" uid-seed="demo/scoped-css/green">
+                <template type="text/cem-ml">
                     {style |```
                         button { border: 0.2rem dashed green; }
                     ```}
                     {button @type=button @data-case=case-1-green | Green dashed border}
+                </template>
             </cem-element>
             <cem-style-green></cem-style-green>
             <button type="button" data-case="case-1-default">Default border</button>
@@ -32,10 +34,12 @@
                        description="Blue borders only within 2 DCE instances">
         <template>
             <cem-element tag="cem-style-blue" uid-seed="demo/scoped-css/blue">
+                <template type="text/cem-ml">
                     {style |```
                         button { border: 0.2rem dotted blue; }
                     ```}
                     {button @type=button @data-case=case-2-blue | {slot | Blue borders}}
+                </template>
             </cem-element>
             <button type="button" data-case="case-2-default">Default border</button>
             <cem-style-blue>1st</cem-style-blue>
@@ -47,10 +51,12 @@
                        description="Red borders only for last DCE instance">
         <template>
             <cem-element tag="cem-style-override" uid-seed="demo/scoped-css/override">
+                <template type="text/cem-ml">
                     {style |```
                         button { border: 0.2rem dashed blue; }
                     ```}
                     {button @type=button @data-case=case-3-button | {slot | Blue borders}}
+                </template>
             </cem-element>
             <button type="button" data-case="case-3-default">Default border</button>
             <cem-style-override data-case="case-3-blue">1st</cem-style-override>
@@ -68,6 +74,7 @@
                        description="green label with blue text button ">
         <template>
             <cem-element tag="cem-style-internal" uid-seed="demo/scoped-css/internal">
+                <template type="text/cem-ml">
                     {style |```
                         color: green;
                         b { color: blue; }
@@ -78,6 +85,7 @@
                         {input @type=checkbox @value="Glowing Blue" @checked=""}
                         {b @data-case=case-4-blue | blue}
                     }
+                </template>
             </cem-element>
             <cem-style-internal></cem-style-internal>
         </template>

@@ -28,6 +28,7 @@
                        description="Change the window URL via link or history change by controls in #1.">
         <template>
             <cem-element tag="cem-location-panel">
+                <template type="text/cem-ml">
                     {location-element @slice=current @live=true}
                     {location-element @slice=sample @href="https://example.test/demo/path?mode=demo&tag=one&tag=two#fixture"}
                     {article @class=demo-card |
@@ -42,6 +43,7 @@
                             }
                         }
                     }
+                </template>
             </cem-element>
 
             <cem-location-panel></cem-location-panel>

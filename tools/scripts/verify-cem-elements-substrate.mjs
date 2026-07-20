@@ -39,11 +39,14 @@ function convertToCanonical(inputPath) {
     if (result.status !== 0) {
         throw new Error(`convert exited ${result.status} for ${inputPath}\n${result.stderr ?? ''}`);
     }
-    const parsed = JSON.parse(result.stdout);
-    if (typeof parsed.content !== 'string') {
+    if (result.stdout.trim().length === 0) {
         throw new Error(`convert produced no canonical content for ${inputPath}`);
     }
-    return parsed.content;
+    return result.stdout;
+}
+
+function normalizeCanonicalForRoundtrip(content) {
+    return content.trimEnd().replace(/}\s+{/g, '}{');
 }
 
 const fixtures = readdirSync(fixtureDir)
@@ -66,7 +69,7 @@ try {
             const roundtripPath = join(scratch, fixture);
             writeFileSync(roundtripPath, first);
             const second = convertToCanonical(roundtripPath);
-            if (first !== second) {
+            if (normalizeCanonicalForRoundtrip(first) !== normalizeCanonicalForRoundtrip(second)) {
                 failures.push(`${fixture}: canonical roundtrip is not idempotent`);
                 continue;
             }

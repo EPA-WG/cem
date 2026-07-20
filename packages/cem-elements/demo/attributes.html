@@ -39,6 +39,7 @@
     <html-demo-element legend="attributes definition">
         <template>
             <cem-element tag="cem-attr-defaults">
+                <template type="text/cem-ml">
                     {attribute @name=p1 | default_P1}
                     {attribute @name=p2 | always_p2}
                     {attribute @name=p3 | def_P3}
@@ -48,6 +49,7 @@
                         {p | p2: always_p2}
                         {p | p3: {$datadom.attributes.p3 ?? "def_P3"}}
                     }
+                </template>
             </cem-element>
 
             <cem-attr-defaults id="defaults-1"></cem-attr-defaults>
@@ -59,6 +61,7 @@
                        description="value attribute changes on the host are reflected in the rendered CEM element">
         <template>
             <cem-element tag="cem-attr-card">
+                <template type="text/cem-ml">
                     {attribute @name=label | Default label}
                     {attribute @name=tone | neutral}
                     {article @class="demo-card {$tone}" @data-tone="{$datadom.attributes.tone}" |
@@ -66,6 +69,7 @@
                         {p | host label: {$datadom.attributes.label ?? "unset"}}
                         {p | tone: {$tone}}
                     }
+                </template>
             </cem-element>
 
             <section class="demo-card">
@@ -87,6 +91,7 @@
                        description="attribute defaults can combine with container attributes and slice updates">
         <template>
             <cem-element tag="cem-attr-slice">
+                <template type="text/cem-ml">
                     {attribute @name=v | def}
                     {slice @name=s}
                     {article @class=demo-card |
@@ -95,6 +100,7 @@
                         {p | effective value: {$(datadom.slices.s ?? datadom.attributes.v ?? "def")}}
                         {label | Type to update the slice {input @slice=s @slice-event=input @slice-value="$target.value"}}
                     }
+                </template>
             </cem-element>
 
             <cem-attr-slice></cem-attr-slice>

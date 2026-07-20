@@ -18,6 +18,7 @@
                        description="custom-validity boolean value prevents submission, username length switches Next to 'Sign In' button">
         <template>
             <cem-element tag="cem-form-preview">
+                <template type="text/cem-ml">
                     {slice @name=username}
                     {slice @name=password}
                     {article @class=demo-card |
@@ -38,6 +39,7 @@
                             {cem:otherwise | no}
                         }}
                     }
+                </template>
             </cem-element>
 
             <cem-form-preview></cem-form-preview>

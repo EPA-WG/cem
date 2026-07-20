@@ -28,6 +28,7 @@
                        description="type validation happy path. Invalid for type value in storage would be treated as null">
         <template>
             <cem-element tag="cem-local-storage-panel">
+                <template type="text/cem-ml">
                     {local-storage @key=cemDemoDraft @slice=draft @type=text @live=true}
                     {local-storage @key=cemDemoCount @slice=count @type=number @live=true}
                     {local-storage @key=cemDemoBasket @slice=basket @type=json @live=true}
@@ -38,6 +39,7 @@
                         {p | number: {output @data-role=count | {$datadom.slices.count}}}
                         {p | basket fruit: {output @data-role=basket | {$datadom.slices.basket.fruit}}}
                     }
+                </template>
             </cem-element>
 
             <cem-local-storage-panel></cem-local-storage-panel>
