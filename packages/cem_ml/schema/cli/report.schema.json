@@ -152,6 +152,9 @@
         "schedulerTrace": {
           "$ref": "#/$defs/schedulerTrace"
         },
+        "parserStages": {
+          "$ref": "#/$defs/parserStageReport"
+        },
         "convert": {
           "$ref": "#/$defs/convertReport"
         },
@@ -195,6 +198,95 @@
           "enum": ["enqueue", "dispatch", "finish", "abort", "overflow", "io-acquire", "io-release"]
         },
         "task": {
+          "type": "string"
+        }
+      }
+    },
+    "parserStageReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stageCount", "stages"],
+      "properties": {
+        "stageCount": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "stages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/parserStageReportEntry"
+          }
+        }
+      }
+    },
+    "parserStageReportEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["input", "scopeId", "stage", "identity", "sourceMapBoundary", "diagnostics"],
+      "properties": {
+        "input": {
+          "type": "string"
+        },
+        "scopeId": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "stage": {
+          "type": "string",
+          "enum": ["tokenize", "normalize", "schema", "ast", "validate"]
+        },
+        "identity": {
+          "$ref": "#/$defs/formatIdentity"
+        },
+        "sourceMapBoundary": {
+          "$ref": "#/$defs/parserStageSourceMapBoundary"
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/diagnostic"
+          }
+        }
+      }
+    },
+    "formatIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contentType", "schema", "defaultNamespace", "namespaces", "baseUri"],
+      "properties": {
+        "contentType": {
+          "type": ["string", "null"]
+        },
+        "schema": {
+          "type": ["string", "null"]
+        },
+        "defaultNamespace": {
+          "type": ["string", "null"]
+        },
+        "namespaces": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "baseUri": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "parserStageSourceMapBoundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceId", "byteStart", "byteLen", "transform"],
+      "properties": {
+        "sourceId": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "byteStart": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "byteLen": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "transform": {
           "type": "string"
         }
       }

@@ -198,6 +198,12 @@ mod tests {
         );
         assert_eq!(
             schema
+                .pointer("/$defs/reportAst/properties/parserStages/$ref")
+                .and_then(serde_json::Value::as_str),
+            Some("#/$defs/parserStageReport")
+        );
+        assert_eq!(
+            schema
                 .pointer("/$defs/reportAst/properties/convert/$ref")
                 .and_then(serde_json::Value::as_str),
             Some("#/$defs/convertReport")

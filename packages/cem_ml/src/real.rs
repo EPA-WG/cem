@@ -4636,6 +4636,85 @@ fn effective_input_identity(input: &EngineInput, context: &EngineContext) -> For
         .unwrap_or_else(|| FormatIdentity::from(context))
 }
 
+fn parser_stage_report_for_input(
+    input: &EngineInput,
+    context: &EngineContext,
+    from_format: InputFormat,
+    source_len: usize,
+    diagnostics: &[Diagnostic],
+) -> crate::report::ParserStageReport {
+    let display_uri = input_uri(input, context);
+    let identity = effective_input_identity(input, context);
+    let stages = ["tokenize", "normalize", "schema", "ast", "validate"]
+        .into_iter()
+        .map(|stage| crate::report::ParserStageReportEntry {
+            input: display_uri.clone(),
+            scope_id: 0,
+            stage: stage.to_owned(),
+            identity: identity.clone(),
+            source_map_boundary: crate::report::ParserStageSourceMapBoundary {
+                source_id: 1,
+                byte_start: 0,
+                byte_len: source_len as u64,
+                transform: parser_stage_boundary_transform(stage, from_format).to_owned(),
+            },
+            diagnostics: parser_stage_diagnostics(stage, diagnostics),
+        })
+        .collect::<Vec<_>>();
+    crate::report::ParserStageReport {
+        stage_count: stages.len() as u64,
+        stages,
+    }
+}
+
+fn parser_stage_boundary_transform(stage: &str, from_format: InputFormat) -> &'static str {
+    match stage {
+        "tokenize" => match from_format {
+            InputFormat::Cem => "cem-tokenizer",
+            InputFormat::Html => "html-tokenizer",
+            InputFormat::Xml => "xml-tokenizer",
+        },
+        "normalize" => "event-normalizer",
+        "schema" => "schema-validation",
+        "ast" => "cem-ast-builder",
+        "validate" => "validation-rules",
+        _ => "unknown",
+    }
+}
+
+fn parser_stage_diagnostics(stage: &str, diagnostics: &[Diagnostic]) -> Vec<Diagnostic> {
+    diagnostics
+        .iter()
+        .filter(|diagnostic| parser_stage_owns_diagnostic(stage, &diagnostic.code))
+        .cloned()
+        .collect()
+}
+
+fn parser_stage_owns_diagnostic(stage: &str, code: &str) -> bool {
+    match stage {
+        "tokenize" => {
+            code.starts_with("cem.token")
+                || code.starts_with("cem.source")
+                || code.contains(".encoding")
+        }
+        "normalize" => code.starts_with("cem.event") || code.starts_with("cem.projection.events"),
+        "schema" => code.starts_with("cem.schema") || code.starts_with("cem.doc."),
+        "ast" => {
+            code.starts_with("cem.parser")
+                || code.starts_with("cem.ast")
+                || code.starts_with("cem.projection.ast")
+                || code.starts_with("cem.projection.dom")
+        }
+        "validate" => {
+            !parser_stage_owns_diagnostic("tokenize", code)
+                && !parser_stage_owns_diagnostic("normalize", code)
+                && !parser_stage_owns_diagnostic("schema", code)
+                && !parser_stage_owns_diagnostic("ast", code)
+        }
+        _ => false,
+    }
+}
+
 fn is_transform_config_schema(input: &EngineInput, context: &EngineContext) -> bool {
     let identity = effective_input_identity(input, context);
     identity.schema.as_deref() == Some(TRANSFORM_CONFIG_SCHEMA_URI)
@@ -6225,12 +6304,20 @@ impl CemMlEngine for RealCemMlEngine {
             started_at.elapsed().as_nanos(),
         ));
         project_diagnostic_uris(&mut diagnostics, &request.input, &request.context);
-        let report = Report::deterministic(
+        let parser_stages = parser_stage_report_for_input(
+            &request.input,
+            &request.context,
+            from_format,
+            loaded.bytes.len(),
+            &diagnostics,
+        );
+        let mut report = Report::deterministic(
             vec![input_uri(&request.input, &request.context)],
             diagnostics,
             snapshot(FailLevel::Validate, &request.context),
         )
         .with_scheduler_trace(&scheduler_trace);
+        report.report_ast.parser_stages = Some(parser_stages);
         let body = json!({
             "kind": "trace",
             "input": input_uri(&request.input, &request.context),
@@ -11873,6 +11960,20 @@ mod tests {
         );
         assert_eq!(scheduler_trace["events"][0]["scopeId"], 0);
         assert_eq!(scheduler_trace["events"][0]["task"], "tokenize");
+        let parser_stages = &resp.body["report"]["reportAst"]["parserStages"];
+        assert_eq!(parser_stages["stageCount"], 5);
+        assert_eq!(parser_stages["stages"][0]["input"], "in.cem");
+        assert_eq!(parser_stages["stages"][0]["scopeId"], 0);
+        assert_eq!(parser_stages["stages"][0]["stage"], "tokenize");
+        assert_eq!(
+            parser_stages["stages"][0]["sourceMapBoundary"]["transform"],
+            "cem-tokenizer"
+        );
+        assert_eq!(
+            parser_stages["stages"][4]["sourceMapBoundary"]["transform"],
+            "validation-rules"
+        );
+        assert!(parser_stages["stages"][0]["diagnostics"].is_array());
     }
 
     #[test]

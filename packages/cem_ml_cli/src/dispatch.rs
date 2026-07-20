@@ -10401,6 +10401,9 @@ fn render_report_cem(report: &cem_ml::report::Report) -> String {
     cem_element_start(&mut out, 1, "report-ast");
     out.push_str(" |\n");
     render_scheduler_trace_cem(&mut out, 2, &report.report_ast.scheduler_trace);
+    if let Some(parser_stages) = &report.report_ast.parser_stages {
+        render_parser_stage_report_cem(&mut out, 2, parser_stages);
+    }
     if let Some(convert) = &report.report_ast.convert {
         render_convert_report_cem(&mut out, 2, convert);
     }
@@ -10431,6 +10434,51 @@ fn render_scheduler_trace_cem(
         cem_attr_u64(out, "scope-id", event.scope_id as u64);
         cem_attr(out, "kind", scheduler_event_kind_label(event.kind));
         cem_attr(out, "task", &event.task);
+        out.push_str("}\n");
+    }
+    cem_indent(out, indent);
+    out.push_str("}\n");
+}
+
+fn render_parser_stage_report_cem(
+    out: &mut String,
+    indent: usize,
+    parser_stages: &cem_ml::report::ParserStageReport,
+) {
+    cem_element_start(out, indent, "parser-stages");
+    cem_attr_u64(out, "stage-count", parser_stages.stage_count);
+    out.push_str(" |\n");
+    for stage in &parser_stages.stages {
+        cem_element_start(out, indent + 1, "stage");
+        cem_attr(out, "input", &stage.input);
+        cem_attr_u64(out, "scope-id", stage.scope_id as u64);
+        cem_attr(out, "stage", &stage.stage);
+        cem_attr_opt(out, "content-type", stage.identity.content_type.as_deref());
+        cem_attr_opt(out, "schema", stage.identity.schema.as_deref());
+        cem_attr_opt(
+            out,
+            "default-namespace",
+            stage.identity.default_namespace.as_deref(),
+        );
+        cem_attr_opt(out, "base-uri", stage.identity.base_uri.as_deref());
+        cem_attr_u64(out, "source-id", stage.source_map_boundary.source_id as u64);
+        cem_attr_u64(out, "byte-start", stage.source_map_boundary.byte_start);
+        cem_attr_u64(out, "byte-len", stage.source_map_boundary.byte_len);
+        cem_attr(out, "transform", &stage.source_map_boundary.transform);
+        cem_attr_u64(out, "diagnostic-count", stage.diagnostics.len() as u64);
+        if stage.diagnostics.is_empty() {
+            out.push_str("}\n");
+            continue;
+        }
+        out.push_str(" |\n");
+        for diagnostic in &stage.diagnostics {
+            cem_element_start(out, indent + 2, "diagnostic");
+            cem_attr(&mut *out, "code", &diagnostic.code);
+            cem_attr(&mut *out, "severity", severity_label(diagnostic.severity));
+            cem_attr_opt(&mut *out, "uri", diagnostic.uri.as_deref());
+            out.push_str("}\n");
+        }
+        cem_indent(out, indent + 1);
         out.push_str("}\n");
     }
     cem_indent(out, indent);
@@ -12452,6 +12500,12 @@ mod tests {
                 "missing scheduler task `{expected}` in {tasks:?}"
             );
         }
+    }
+
+    fn report_parser_stage_entries(report: &serde_json::Value) -> &Vec<serde_json::Value> {
+        report["reportAst"]["parserStages"]["stages"]
+            .as_array()
+            .expect("parser stage report entries")
     }
 
     fn assert_report_has_no_lifecycle_adapter_unsupported(report: &serde_json::Value) {
@@ -23352,14 +23406,12 @@ start =
 
     #[test]
     fn layered_runtime_fixture_connects_parser_stage_contract_through_reports() {
-        let input = write_fixture(
-            "runtime-layered-contract.cem",
-            r#"@doc cem-ml 1
+        let source = r#"@doc cem-ml 1
 {main @id="checkout" |
   {h1 | Checkout}
   {button @type="button" | Continue}
-}"#,
-        );
+}"#;
+        let input = write_fixture("runtime-layered-contract.cem", source);
         let input_spec = format!(
             "uri={},contentType={},schema={}",
             input.display(),
@@ -23383,6 +23435,40 @@ start =
         assert!(report_scheduler_events(trace_report)
             .iter()
             .all(|event| event["scopeId"] == 0));
+        assert_eq!(trace_report["reportAst"]["parserStages"]["stageCount"], 5);
+        let parser_stages = report_parser_stage_entries(trace_report);
+        let expected_parser_stages = [
+            ("tokenize", "cem-tokenizer"),
+            ("normalize", "event-normalizer"),
+            ("schema", "schema-validation"),
+            ("ast", "cem-ast-builder"),
+            ("validate", "validation-rules"),
+        ];
+        assert_eq!(parser_stages.len(), expected_parser_stages.len());
+        for (entry, (stage, transform)) in parser_stages.iter().zip(expected_parser_stages) {
+            assert_eq!(entry["input"], input.display().to_string());
+            assert_eq!(entry["scopeId"], 0);
+            assert_eq!(entry["stage"], stage);
+            assert_eq!(
+                entry["identity"]["contentType"],
+                cem_ml::schema::registry::CEM_ML_CONTENT_TYPE
+            );
+            assert_eq!(
+                entry["identity"]["schema"],
+                cem_ml::schema::registry::CEM_ML_SCHEMA_URI
+            );
+            assert_eq!(entry["sourceMapBoundary"]["sourceId"], 1);
+            assert_eq!(entry["sourceMapBoundary"]["byteStart"], 0);
+            assert_eq!(
+                entry["sourceMapBoundary"]["byteLen"],
+                source.as_bytes().len() as u64
+            );
+            assert_eq!(entry["sourceMapBoundary"]["transform"], transform);
+            assert!(
+                entry["diagnostics"].as_array().is_some(),
+                "parser stage diagnostics must be explicit: {entry:#}"
+            );
+        }
 
         let trace_events = trace["events"].as_array().unwrap();
         assert!(trace_events.iter().any(|event| {

@@ -13,9 +13,9 @@ multi-document lifecycle layer that lets `cem_ml`, `cem_ml_cli`, WASM, and
 future hosts validate, load, and export documents through the same root-scope
 context.
 
-Current active slice: enrich the executable Phase 2 layered runtime fixture so
-parser-stage report entries carry root-scope input identity, source-map
-boundary, and diagnostics through the scheduler-visible report path.
+Current active slice: verify the executable Phase 2 layered runtime fixture
+through the focused Rust tests and the CLI/Nx targets that consume
+validate/load/export reports.
 
 ### Phase 2 Parser And Runtime
 
@@ -37,7 +37,7 @@ boundary, and diagnostics through the scheduler-visible report path.
       document fixture, covering byte source, tokenizer, normalized event
       stream, schema validation, AST/source-map construction, and export
       reporting through the same scheduler trace.
-- [ ] Add fixture assertions that every parser-stage report entry carries the
+- [x] Add fixture assertions that every parser-stage report entry carries the
       root-scope input identity, stage name, source-map boundary, and
       diagnostics needed by CLI, WASM, and future host runtimes.
 - [ ] Verify the layered runtime fixture with focused Rust tests and the Phase
@@ -45,21 +45,17 @@ boundary, and diagnostics through the scheduler-visible report path.
 
 ### Next Work Item
 
-Add parser-stage report-entry assertions for the layered runtime fixture:
+Verify the layered runtime fixture across the Phase 2 report consumers:
 
-- inventory the current gap exposed by
-  `layered_runtime_fixture_connects_parser_stage_contract_through_reports`:
-  trace entries have ordered parser stage names and scope IDs, validate/convert
-  reports have input-prefixed load/export tasks and output identity, but no
-  parser-stage report entry yet carries root-scope content identity,
-  source-map boundary, and per-stage diagnostic codes together;
-- extend the smallest existing report surface, preferably
-  `reportAst.schedulerTrace.events` or an adjacent `reportAst` parser-stage
-  detail, instead of adding a parallel trace path;
-- update the fixture assertions so tokenize, normalize, schema, AST, and
-  validate entries all expose the same root-scope input identity, a non-empty
-  source-map boundary, and the diagnostics array needed by CLI, WASM, and
-  future host runtimes.
+- keep the focused Rust gates green:
+  `cargo test -p cem-ml trace_response_embeds_scheduler_projection_in_report_ast`,
+  `cargo test -p cem-ml cli_report_json_schema_artifact_matches_contract`, and
+  `cargo test -p cem-ml-cli layered_runtime_fixture_connects_parser_stage_contract_through_reports`;
+- run the Phase 2 Nx consumers for the report path, starting with
+  `NX_DAEMON=false yarn nx run cem_ml:test` and then the relevant
+  `cem_ml_cli` test/e2e targets that consume validate/load/export reports;
+- triage or fix the currently unrelated `cem_ml_cli:test` failures in legacy
+  convert/transform helper cases before marking the verification item closed.
 
 ## Current Verification Commands
 

@@ -1,5 +1,5 @@
 use crate::diagnostics::Diagnostic;
-use crate::engine::FailLevel;
+use crate::engine::{FailLevel, FormatIdentity};
 use crate::scheduler::trace::{SchedulerEvent, SchedulerEventKind, SchedulerTrace};
 use serde::{Deserialize, Serialize};
 
@@ -37,6 +37,8 @@ pub struct ReportOptionsSnapshot {
 pub struct ReportAst {
     #[serde(rename = "schedulerTrace", default)]
     pub scheduler_trace: SchedulerTraceReport,
+    #[serde(rename = "parserStages", skip_serializing_if = "Option::is_none")]
+    pub parser_stages: Option<ParserStageReport>,
     #[serde(rename = "convert", skip_serializing_if = "Option::is_none")]
     pub convert: Option<ConvertReport>,
     #[serde(rename = "transform", skip_serializing_if = "Option::is_none")]
@@ -71,6 +73,35 @@ impl SchedulerTraceReport {
     pub fn is_empty(&self) -> bool {
         self.events.is_empty()
     }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserStageReport {
+    pub stage_count: u64,
+    pub stages: Vec<ParserStageReportEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserStageReportEntry {
+    pub input: String,
+    #[serde(rename = "scopeId")]
+    pub scope_id: u32,
+    pub stage: String,
+    pub identity: FormatIdentity,
+    pub source_map_boundary: ParserStageSourceMapBoundary,
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserStageSourceMapBoundary {
+    #[serde(rename = "sourceId")]
+    pub source_id: u32,
+    pub byte_start: u64,
+    pub byte_len: u64,
+    pub transform: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
