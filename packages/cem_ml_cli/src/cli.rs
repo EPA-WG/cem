@@ -187,14 +187,14 @@ pub struct ContextOptions {
     #[arg(
         long,
         value_name = "URI-OR-FILE",
-        help = "Schema URI or file to record on diagnostics/reports"
+        help = "Input schema identity for lifecycle selection, validation, diagnostics, and reports"
     )]
     pub schema: Option<String>,
 
     #[arg(
         long,
         value_name = "TYPE",
-        help = "Content type to record on diagnostics/reports"
+        help = "Input content type for lifecycle adapter selection, validation, diagnostics, and reports"
     )]
     pub content_type: Option<String>,
 
@@ -448,7 +448,7 @@ pub struct ParseArgs {
     #[arg(
         long = "from-format",
         value_enum,
-        help = "Override input format detection"
+        help = "Compatibility input syntax hint; content type, schema, and namespace identity take precedence"
     )]
     pub from_format: Option<InputFormat>,
 
@@ -482,7 +482,11 @@ pub struct ValidateArgs {
           help = "Report projection (json|xml|cem|text|html|markdown)")]
     pub format: ValidateFormat,
 
-    #[arg(long = "from-format", value_enum)]
+    #[arg(
+        long = "from-format",
+        value_enum,
+        help = "Compatibility input syntax hint; content type, schema, and namespace identity take precedence"
+    )]
     pub from_format: Option<InputFormat>,
 
     #[arg(long, value_enum, default_value_t = FailLevel::Validate)]
@@ -504,7 +508,11 @@ pub struct CheckArgs {
     #[arg(long, value_enum, default_value_t = ValidateFormat::Text)]
     pub format: ValidateFormat,
 
-    #[arg(long = "from-format", value_enum)]
+    #[arg(
+        long = "from-format",
+        value_enum,
+        help = "Compatibility input syntax hint; content type, schema, and namespace identity take precedence"
+    )]
     pub from_format: Option<InputFormat>,
 
     #[arg(long, value_enum, default_value_t = FailLevel::Validate)]
@@ -530,7 +538,11 @@ pub struct InspectArgs {
           help = "Which inspector view to render")]
     pub show: InspectView,
 
-    #[arg(long = "from-format", value_enum)]
+    #[arg(
+        long = "from-format",
+        value_enum,
+        help = "Compatibility input syntax hint; content type, schema, and namespace identity take precedence"
+    )]
     pub from_format: Option<InputFormat>,
 
     #[arg(long, value_name = "FILE")]
@@ -547,24 +559,28 @@ pub struct ConvertArgs {
     #[arg(value_name = "INPUT")]
     pub input: Option<PathBuf>,
 
-    #[arg(long = "from-format", value_enum, help = "Input syntax (cem|html|xml)")]
+    #[arg(
+        long = "from-format",
+        value_enum,
+        help = "Compatibility input syntax hint; content type, schema, and namespace identity take precedence"
+    )]
     pub from_format: Option<InputFormat>,
 
     #[arg(long = "to-format", value_enum, default_value_t = LayerFormat::DomJson,
-          help = "Output layer (cem|html|xml|dom-json|ast|events|dom-bin|ast-bin|events-bin)")]
+          help = "Compatibility output fallback used when target content identity is absent")]
     pub to_format: LayerFormat,
 
     #[arg(
         long = "to-content-type",
         value_name = "TYPE",
-        help = "Target content type for conversion/export"
+        help = "Primary target content type for lifecycle export selection"
     )]
     pub to_content_type: Option<String>,
 
     #[arg(
         long = "to-schema",
         value_name = "URI-OR-FILE",
-        help = "Target schema URI or file for conversion/export"
+        help = "Primary target schema identity for lifecycle export selection"
     )]
     pub to_schema: Option<String>,
 
@@ -753,7 +769,11 @@ pub struct TraceArgs {
           help = "Trace projection (json|xml|cem|text|html)")]
     pub format: TraceFormat,
 
-    #[arg(long = "from-format", value_enum)]
+    #[arg(
+        long = "from-format",
+        value_enum,
+        help = "Compatibility input syntax hint; content type, schema, and namespace identity take precedence"
+    )]
     pub from_format: Option<InputFormat>,
 
     #[arg(long, value_name = "FILE")]
@@ -1050,6 +1070,52 @@ mod tests {
             "in.html",
         ])
         .unwrap();
+    }
+
+    #[test]
+    fn validate_and_convert_help_promote_lifecycle_identity() {
+        let mut command = Cli::command();
+        let validate = command
+            .find_subcommand_mut("validate")
+            .expect("validate subcommand exists");
+        let mut validate_help = Vec::new();
+        validate.write_long_help(&mut validate_help).unwrap();
+        let validate_help = String::from_utf8(validate_help).unwrap();
+
+        assert!(
+            validate_help.contains("Input content type for lifecycle adapter selection"),
+            "{validate_help}"
+        );
+        assert!(
+            validate_help.contains("Input schema identity for lifecycle selection"),
+            "{validate_help}"
+        );
+        assert!(
+            validate_help.contains("Compatibility input syntax hint"),
+            "{validate_help}"
+        );
+
+        let convert = command
+            .find_subcommand_mut("convert")
+            .expect("convert subcommand exists");
+        let mut convert_help = Vec::new();
+        convert.write_long_help(&mut convert_help).unwrap();
+        let convert_help = String::from_utf8(convert_help).unwrap();
+
+        assert!(
+            convert_help.contains(
+                "Compatibility output fallback used when target content identity is absent"
+            ),
+            "{convert_help}"
+        );
+        assert!(
+            convert_help.contains("Primary target content type for lifecycle export selection"),
+            "{convert_help}"
+        );
+        assert!(
+            convert_help.contains("Primary target schema identity for lifecycle export selection"),
+            "{convert_help}"
+        );
     }
 
     #[test]

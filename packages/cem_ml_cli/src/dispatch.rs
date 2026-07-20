@@ -806,6 +806,20 @@ fn to_engine_layer_format(f: cli::LayerFormat) -> eng::LayerFormat {
     }
 }
 
+fn layer_format_alias_id(f: cli::LayerFormat) -> &'static str {
+    match f {
+        cli::LayerFormat::Cem => "cem",
+        cli::LayerFormat::Html => "html",
+        cli::LayerFormat::Xml => "xml",
+        cli::LayerFormat::DomJson => "dom-json",
+        cli::LayerFormat::Ast => "ast",
+        cli::LayerFormat::Events => "events",
+        cli::LayerFormat::DomBin => "dom-bin",
+        cli::LayerFormat::AstBin => "ast-bin",
+        cli::LayerFormat::EventsBin => "events-bin",
+    }
+}
+
 fn to_engine_parse_projection(f: cli::ParseFormat) -> eng::ParseProjection {
     match f {
         cli::ParseFormat::DomJson => eng::ParseProjection::DomJson,
@@ -1074,7 +1088,29 @@ fn run_defaults(input_scope: ScopeConfig, output_scope: ScopeConfig) -> RunConfi
     RunConfigDefaults {
         input_scope,
         output_scope,
+        ..RunConfigDefaults::default()
     }
+}
+
+fn run_defaults_with_input_alias(
+    input_scope: ScopeConfig,
+    output_scope: ScopeConfig,
+    from_format: Option<cli::InputFormat>,
+) -> RunConfigDefaults {
+    let mut defaults = run_defaults(input_scope, output_scope);
+    defaults.from_format_hint = from_format.map(to_engine_input_format);
+    defaults
+}
+
+fn run_defaults_with_aliases(
+    input_scope: ScopeConfig,
+    output_scope: ScopeConfig,
+    from_format: Option<cli::InputFormat>,
+    to_format: cli::LayerFormat,
+) -> RunConfigDefaults {
+    let mut defaults = run_defaults_with_input_alias(input_scope, output_scope, from_format);
+    defaults.to_format_fallback = Some(layer_format_alias_id(to_format).to_owned());
+    defaults
 }
 
 fn convert_target_identity(args: &cli::ConvertArgs) -> Option<eng::FormatIdentity> {
@@ -11387,7 +11423,11 @@ pub fn run_parse<E: CemMlEngine + ?Sized>(
     let config = match run_config_for_context(
         &args.context,
         &args.run,
-        run_defaults(input_defaults.clone(), ScopeConfig::default()),
+        run_defaults_with_input_alias(
+            input_defaults.clone(),
+            ScopeConfig::default(),
+            args.from_format,
+        ),
     ) {
         Ok(config) => config,
         Err(CliRequestError::RunConfigDiagnostics {
@@ -11470,7 +11510,11 @@ pub fn run_validate<E: CemMlEngine + ?Sized>(
     let config = match run_config_for_context(
         &args.context,
         &args.run,
-        run_defaults(input_defaults.clone(), ScopeConfig::default()),
+        run_defaults_with_input_alias(
+            input_defaults.clone(),
+            ScopeConfig::default(),
+            args.from_format,
+        ),
     ) {
         Ok(config) => config,
         Err(CliRequestError::RunConfigDiagnostics {
@@ -11567,7 +11611,11 @@ pub fn run_check<E: CemMlEngine + ?Sized>(
     let config = match run_config_for_context(
         &args.context,
         &args.run,
-        run_defaults(input_defaults.clone(), ScopeConfig::default()),
+        run_defaults_with_input_alias(
+            input_defaults.clone(),
+            ScopeConfig::default(),
+            args.from_format,
+        ),
     ) {
         Ok(config) => config,
         Err(CliRequestError::RunConfigDiagnostics {
@@ -11672,7 +11720,11 @@ pub fn run_inspect<E: CemMlEngine + ?Sized>(
     let config = match run_config_for_context(
         &args.context,
         &args.run,
-        run_defaults(input_defaults.clone(), ScopeConfig::default()),
+        run_defaults_with_input_alias(
+            input_defaults.clone(),
+            ScopeConfig::default(),
+            args.from_format,
+        ),
     ) {
         Ok(config) => config,
         Err(err) => return handle_cli_request_error(err, s),
@@ -11718,7 +11770,12 @@ pub fn run_convert<E: CemMlEngine + ?Sized>(
     let config = match run_config_for_context(
         &args.context,
         &args.run,
-        run_defaults(input_defaults.clone(), output_defaults),
+        run_defaults_with_aliases(
+            input_defaults.clone(),
+            output_defaults,
+            args.from_format,
+            args.to_format,
+        ),
     ) {
         Ok(config) => config,
         Err(CliRequestError::RunConfigDiagnostics {
@@ -12254,7 +12311,11 @@ pub fn run_trace<E: CemMlEngine + ?Sized>(
     let config = match run_config_for_context(
         &args.context,
         &args.run,
-        run_defaults(input_defaults.clone(), ScopeConfig::default()),
+        run_defaults_with_input_alias(
+            input_defaults.clone(),
+            ScopeConfig::default(),
+            args.from_format,
+        ),
     ) {
         Ok(config) => config,
         Err(err) => return handle_cli_request_error(err, s),
@@ -25997,7 +26058,11 @@ fn observable_inputs(
             let config = run_config_for_context(
                 &a.context,
                 &a.run,
-                run_defaults(input_defaults.clone(), ScopeConfig::default()),
+                run_defaults_with_input_alias(
+                    input_defaults.clone(),
+                    ScopeConfig::default(),
+                    a.from_format,
+                ),
             )?;
             let context = context_with_config(&a.context, &config);
             let input = single_configured_input(
@@ -26014,7 +26079,11 @@ fn observable_inputs(
             let config = run_config_for_context(
                 &a.context,
                 &a.run,
-                run_defaults(input_defaults.clone(), ScopeConfig::default()),
+                run_defaults_with_input_alias(
+                    input_defaults.clone(),
+                    ScopeConfig::default(),
+                    a.from_format,
+                ),
             )?;
             let context = context_with_config(&a.context, &config);
             let inputs = collect_configured_inputs(
@@ -26031,7 +26100,11 @@ fn observable_inputs(
             let config = run_config_for_context(
                 &a.context,
                 &a.run,
-                run_defaults(input_defaults.clone(), ScopeConfig::default()),
+                run_defaults_with_input_alias(
+                    input_defaults.clone(),
+                    ScopeConfig::default(),
+                    a.from_format,
+                ),
             )?;
             let context = context_with_config(&a.context, &config);
             let inputs = collect_configured_inputs(
@@ -26048,7 +26121,11 @@ fn observable_inputs(
             let config = run_config_for_context(
                 &a.context,
                 &a.run,
-                run_defaults(input_defaults.clone(), ScopeConfig::default()),
+                run_defaults_with_input_alias(
+                    input_defaults.clone(),
+                    ScopeConfig::default(),
+                    a.from_format,
+                ),
             )?;
             let context = context_with_config(&a.context, &config);
             let input = single_configured_input(
@@ -26066,7 +26143,12 @@ fn observable_inputs(
             let config = run_config_for_context(
                 &a.context,
                 &a.run,
-                run_defaults(input_defaults.clone(), output_defaults),
+                run_defaults_with_aliases(
+                    input_defaults.clone(),
+                    output_defaults,
+                    a.from_format,
+                    a.to_format,
+                ),
             )?;
             let context = context_with_config(&a.context, &config);
             let input = single_configured_input(
@@ -26083,7 +26165,11 @@ fn observable_inputs(
             let config = run_config_for_context(
                 &a.context,
                 &a.run,
-                run_defaults(input_defaults.clone(), ScopeConfig::default()),
+                run_defaults_with_input_alias(
+                    input_defaults.clone(),
+                    ScopeConfig::default(),
+                    a.from_format,
+                ),
             )?;
             let context = context_with_config(&a.context, &config);
             let input = single_configured_input(

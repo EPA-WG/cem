@@ -133,6 +133,10 @@ pub struct RunConfigDefaults {
     pub input_scope: ScopeConfig,
     #[serde(default)]
     pub output_scope: ScopeConfig,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from_format_hint: Option<InputFormat>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub to_format_fallback: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -744,6 +748,7 @@ pub fn parse_normalized_run_plan(
     }
 
     let authored_config = config.clone();
+    let defaults = request.defaults.clone();
     let response =
         normalize_run_config(config, request.defaults, request.config_base_uri.as_deref());
     diagnostics.extend(response.diagnostics);
@@ -756,6 +761,8 @@ pub fn parse_normalized_run_plan(
         request.command_profile,
         request.diagnostics_mode,
         request.config_base_uri.as_deref(),
+        defaults.from_format_hint,
+        defaults.to_format_fallback,
         diagnostics,
     ))
 }
@@ -838,6 +845,8 @@ fn build_normalized_run_plan(
     command_profile: Option<String>,
     diagnostics_mode: NormalizedDiagnosticsMode,
     base_uri: Option<&str>,
+    from_format_hint: Option<InputFormat>,
+    to_format_fallback: Option<String>,
     mut diagnostics: Vec<Diagnostic>,
 ) -> NormalizedRunPlan {
     validate_resolver_specs_with_paths(&normalized.resolvers, base_uri, &mut diagnostics);
@@ -864,7 +873,7 @@ fn build_normalized_run_plan(
                 declared_uri: authored_input.uri.clone(),
                 resolved_uri: changed_value(&authored_input.uri, &input.uri),
                 byte_source_kind: NormalizedByteSourceKind::Uri,
-                from_format_hint: None,
+                from_format_hint,
                 identity: input.root_scope.format_identity(),
                 root_scope: normalized_root_scope(
                     &authored_input.root_scope,
@@ -876,7 +885,10 @@ fn build_normalized_run_plan(
                     &resolver_ids,
                     &mut diagnostics,
                 ),
-                provenance: Vec::new(),
+                provenance: from_format_hint
+                    .map(input_format_hint_provenance)
+                    .into_iter()
+                    .collect(),
                 source_range: None,
             }
         })
@@ -927,7 +939,7 @@ fn build_normalized_run_plan(
                 input_id,
                 declared_destination: authored_output.destination.clone(),
                 resolved_destination: output.destination.clone(),
-                to_format_fallback: None,
+                to_format_fallback: to_format_fallback.clone(),
                 identity: output.root_scope.format_identity(),
                 root_scope: normalized_root_scope(
                     &authored_output.root_scope,
@@ -945,7 +957,11 @@ fn build_normalized_run_plan(
                     NormalizedPrimaryOutputPolicy::InMemory
                 },
                 sidecars: Vec::new(),
-                provenance: Vec::new(),
+                provenance: to_format_fallback
+                    .as_deref()
+                    .map(to_format_fallback_provenance)
+                    .into_iter()
+                    .collect(),
                 source_range: None,
             }
         })
@@ -966,6 +982,35 @@ fn build_normalized_run_plan(
         diagnostics_mode,
         provenance: Vec::new(),
         diagnostics,
+    }
+}
+
+fn input_format_hint_provenance(format: InputFormat) -> NormalizedProvenance {
+    let value = input_format_id(format).to_owned();
+    NormalizedProvenance {
+        field_path: "defaults.fromFormatHint".to_owned(),
+        source: "command-defaults".to_owned(),
+        declared_value: Some(value.clone()),
+        normalized_value: Some(value),
+        source_range: None,
+    }
+}
+
+fn to_format_fallback_provenance(format: &str) -> NormalizedProvenance {
+    NormalizedProvenance {
+        field_path: "defaults.toFormatFallback".to_owned(),
+        source: "command-defaults".to_owned(),
+        declared_value: Some(format.to_owned()),
+        normalized_value: Some(format.to_owned()),
+        source_range: None,
+    }
+}
+
+fn input_format_id(format: InputFormat) -> &'static str {
+    match format {
+        InputFormat::Cem => "cem",
+        InputFormat::Html => "html",
+        InputFormat::Xml => "xml",
     }
 }
 
@@ -2800,6 +2845,7 @@ mod tests {
                     schema: Some("target-schema".to_owned()),
                     ..ScopeConfig::default()
                 },
+                ..RunConfigDefaults::default()
             },
             None,
         );
@@ -3202,6 +3248,7 @@ mod tests {
                     default_namespace: Some(String::new()),
                     ..ScopeConfig::default()
                 },
+                ..RunConfigDefaults::default()
             },
             Some("file:///run-config.json"),
         );
@@ -3258,6 +3305,7 @@ mod tests {
                     default_content_type: Some("text/html".to_owned()),
                     ..ScopeConfig::default()
                 },
+                ..RunConfigDefaults::default()
             },
             ..NormalizedRunPlanRequest::default()
         })
@@ -3344,6 +3392,67 @@ mod tests {
         assert_eq!(
             plan.outputs[0].resolved_destination.as_deref(),
             Some("/workspace/configs/dist/b.json")
+        );
+    }
+
+    #[test]
+    fn normalized_run_plan_projects_format_alias_defaults_as_hints() {
+        let plan = parse_normalized_run_plan(NormalizedRunPlanRequest {
+            input_records: vec![
+                "uri=src/page.html,contentType=text/html,schema=http://www.w3.org/1999/xhtml"
+                    .to_owned(),
+            ],
+            output_records: vec![
+                "input=src/page.html,dest=dist/page.cem,contentType=application/cem+xml,schema=https://cem.dev/ns/core/1"
+                    .to_owned(),
+            ],
+            defaults: RunConfigDefaults {
+                from_format_hint: Some(InputFormat::Xml),
+                to_format_fallback: Some("dom-json".to_owned()),
+                ..RunConfigDefaults::default()
+            },
+            ..NormalizedRunPlanRequest::default()
+        })
+        .unwrap();
+
+        assert!(plan.diagnostics.is_empty());
+        assert_eq!(plan.inputs[0].from_format_hint, Some(InputFormat::Xml));
+        assert_eq!(
+            plan.inputs[0].identity.content_type.as_deref(),
+            Some("text/html")
+        );
+        assert_eq!(
+            plan.inputs[0].identity.schema.as_deref(),
+            Some("http://www.w3.org/1999/xhtml")
+        );
+        assert_eq!(
+            plan.inputs[0].provenance[0].field_path,
+            "defaults.fromFormatHint"
+        );
+        assert_eq!(
+            plan.inputs[0].provenance[0].declared_value.as_deref(),
+            Some("xml")
+        );
+
+        assert_eq!(
+            plan.outputs[0].to_format_fallback.as_deref(),
+            Some("dom-json")
+        );
+        assert_eq!(
+            plan.outputs[0].identity.content_type.as_deref(),
+            Some("application/cem+xml")
+        );
+        assert_eq!(
+            plan.outputs[0].identity.schema.as_deref(),
+            Some("https://cem.dev/ns/core/1")
+        );
+        assert_eq!(
+            plan.outputs[0].provenance[0].field_path,
+            "defaults.toFormatFallback"
+        );
+        assert_eq!(
+            plan.outputs[0].provenance[0].declared_value.as_deref(),
+            Some("dom-json")
         );
     }
 
