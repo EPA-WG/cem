@@ -62,7 +62,7 @@ identity.
       normalizer names. Permit scalar `N` against `set-of(N)` only for an
       operator-declared compatible item type, expose collection and item
       normalizers in metadata, and reject incompatible mixed normalizers.
-- [ ] **[C7] Unify state-policy ownership.** Keep per-operand state policy as
+- [x] **[C7] Unify state-policy ownership.** Keep per-operand state policy as
       `required-valid|optional-valid|allow-unresolved|allow-unsupported`, put
       relational presence rules such as `when-present|both-or-none` on the
       comparison, remove redundant `unresolved-fails`, lower shorthands into

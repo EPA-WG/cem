@@ -40,8 +40,13 @@ provenance, not comparison operands. Each operand has:
 - `shape`: `scalar` or `record`.
 - `statePolicy`: how `missing`, `invalid`, `unresolved`, and `unsupported`
   operand states are interpreted before value comparison.
+
+The comparison declaration has:
+
+- `operator`: the comparison operator.
 - `presencePolicy`: optional relational rule for comparing missing or present
-  operands together, such as optional profile metadata.
+  operands together, such as optional profile metadata. Presence policy is
+  owned by the comparison, not by individual operands.
 
 Comparisons require compatible item-normalization and equivalence semantics,
 not necessarily identical operand normalizer names. Mixed normalizers are
@@ -64,6 +69,8 @@ Operand state policy runs before value comparison and is evaluated per operand:
 Default state policy is `schema:required-valid`. Engine-assisted lookup
 operands also default to `schema:required-valid`; an unresolved lookup fails
 because `unresolved` is not accepted by that state policy.
+There is no separate `schema:unresolved-fails` policy; that is already the
+default consequence of `schema:required-valid`.
 
 `pending` is not a comparison-visible operand state. Deferred lookups must
 finalize before comparison or the comparison must be deferred.
@@ -71,12 +78,21 @@ finalize before comparison or the comparison must be deferred.
 ## Comparison Presence Policies
 
 Presence policies are relational rules. They are not operand states and do not
-change normalization outcomes:
+change normalization outcomes. They run after each operand has satisfied its
+own state policy; a presence policy cannot make an operand state accepted when
+its operand `statePolicy` rejects that state.
 
 | Policy                        | Semantics                                                                                                                                      |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | `schema:compare-when-present` | Missing on either side passes; when both sides are present they must satisfy the comparison. Use for advisory optional metadata.               |
 | `schema:both-or-none`         | Missing on both sides passes; exactly one missing side fails; when both are present they must satisfy the comparison. Use for paired metadata. |
+
+The public CEM surface uses unqualified presence values on `compare`, such as
+`@presence="when-present"` and `@presence="both-or-none"`. Those lower to the
+qualified IR policies above before evaluation. Missing operands that
+participate in these policies normally use `@state="optional-valid"`; otherwise
+the default `schema:required-valid` state policy fails before presence policy
+runs.
 
 ## Normalizer Compatibility By Operator
 
@@ -135,22 +151,22 @@ ordered value arrays.
 
 ## Application To Current Rust-Backed Checks
 
-| Current Check                     | Normalized Operands                                                                                                                                                                                                                                                             | Operator                                                                                                                                                      |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `endpoint-content-type-schema`    | endpoint `@content-type` as `actual` `content-type` using `schema:media-type-essence`; endpoint `@schema` as lookup key `schema` using `schema:schema-identity`; referenced schema descriptor `contentTypes` as `expected` `content-type` using `schema:media-type-essence-set` | `schema:member-of` with `schema:required-valid`.                                                                                                              |
-| `example-content-type-schema`     | example `@content-type` as `actual` `content-type`; example `@schema` as lookup key `schema`; referenced schema descriptor `contentTypes` as `expected` `content-type`                                                                                                          | `schema:member-of` with the same policies as endpoint compatibility.                                                                                          |
-| `schema-uri-consistency`          | package manifest schema URI declaration as `actual`; loaded schema source URI declaration as `expected`; both use `schema:schema-uri-declaration` before registry admission                                                                                                     | `schema:equals`.                                                                                                                                              |
-| `schema-content-type-consistency` | package manifest content-type claims as `actual` set; loaded schema source content types as `expected` set                                                                                                                                                                      | `schema:all-in`.                                                                                                                                              |
-| `schema-namespace-consistency`    | package manifest namespace claims as `actual` set; loaded schema source namespaces as `expected` set                                                                                                                                                                            | `schema:all-in`, or `schema:equals` when the schema source exposes one canonical namespace.                                                                   |
-| `artifact-function-declared`      | manifest `@function-name` and compiled CEMT declarations                                                                                                                                                                                                                        | `schema:exists` after engine-assisted `schema:function-name` lookup.                                                                                          |
-| `artifact-function-contract`      | manifest artifact target metadata and compiled CEMT output function metadata                                                                                                                                                                                                    | `schema:record-fields-equal`; use `schema:both-or-none` for optional profile fields and `schema:required-valid` for kind/content-type/schema/category fields. |
-| `example-expected-diagnostics`    | declared expected diagnostic codes and observed validation report diagnostic codes                                                                                                                                                                                              | `schema:contains-all` for expected diagnostics, with future room for `schema:disjoint` on explicitly forbidden diagnostics.                                   |
+| Current Check                     | Normalized Operands                                                                                                                                                                                                                                                             | Operator                                                                                                                                                                                  |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `endpoint-content-type-schema`    | endpoint `@content-type` as `actual` `content-type` using `schema:media-type-essence`; endpoint `@schema` as lookup key `schema` using `schema:schema-identity`; referenced schema descriptor `contentTypes` as `expected` `content-type` using `schema:media-type-essence-set` | `schema:member-of` with `schema:required-valid`.                                                                                                                                          |
+| `example-content-type-schema`     | example `@content-type` as `actual` `content-type`; example `@schema` as lookup key `schema`; referenced schema descriptor `contentTypes` as `expected` `content-type`                                                                                                          | `schema:member-of` with the same policies as endpoint compatibility.                                                                                                                      |
+| `schema-uri-consistency`          | package manifest schema URI declaration as `actual`; loaded schema source URI declaration as `expected`; both use `schema:schema-uri-declaration` before registry admission                                                                                                     | `schema:equals`.                                                                                                                                                                          |
+| `schema-content-type-consistency` | package manifest content-type claims as `actual` set; loaded schema source content types as `expected` set                                                                                                                                                                      | `schema:all-in`.                                                                                                                                                                          |
+| `schema-namespace-consistency`    | package manifest namespace claims as `actual` set; loaded schema source namespaces as `expected` set                                                                                                                                                                            | `schema:all-in`, or `schema:equals` when the schema source exposes one canonical namespace.                                                                                               |
+| `artifact-function-declared`      | manifest `@function-name` and compiled CEMT declarations                                                                                                                                                                                                                        | `schema:exists` after engine-assisted `schema:function-name` lookup.                                                                                                                      |
+| `artifact-function-contract`      | manifest artifact target metadata and compiled CEMT output function metadata                                                                                                                                                                                                    | `schema:record-fields-equal`; use compare presence `both-or-none` for optional profile field pairs and `schema:required-valid` state policy for kind/content-type/schema/category fields. |
+| `example-expected-diagnostics`    | declared expected diagnostic codes and observed validation report diagnostic codes                                                                                                                                                                                              | `schema:contains-all` for expected diagnostics, with future room for `schema:disjoint` on explicitly forbidden diagnostics.                                                               |
 
 ## Syntax Shape
 
 The concrete CEM surface keeps selector, operand, lookup, comparison, and
 projection pieces separate. The endpoint content-type/schema check lowers to
-this conceptual comparison input:
+this non-parseable conceptual IR summary:
 
 ```text
 actual operand:
@@ -172,6 +188,7 @@ expected operand:
 
 comparison:
   operator: schema:member-of
+  presencePolicy: none
 ```
 
 The normative element/attribute vocabulary is defined in

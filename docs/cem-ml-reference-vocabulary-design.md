@@ -349,6 +349,9 @@ State policies:
 
 Default reference-resolution checks use `@state="required-valid"` so missing,
 invalid, unresolved, and unsupported operands all produce diagnostics.
+`unresolved-fails` is not an operand state policy. Use `required-valid` when
+unresolved references should fail, or `allow-unresolved` when unresolved
+references are acceptable for a specific operand.
 
 `pending` is not a final operand state. A deferred lookup may be pending while
 the validator waits for an allowed resource or capability, but comparison is
@@ -461,6 +464,71 @@ comparable result malformed        -> invalid
 Do not use a generic lookup `@on-missing` policy in the initial vocabulary.
 Candidate absence belongs to `@on-empty`; operand/lookup state acceptability
 belongs to operand `@state`.
+
+## Comparison Declaration
+
+`compare` declares the value relationship after operands and lookups have
+produced normalized comparable values and every operand has satisfied its
+`@state` policy.
+
+Compare fields:
+
+- `@operator`: required comparison operator from
+  [`cem-ml-reference-comparison-design.md`](cem-ml-reference-comparison-design.md).
+- `@presence`: optional relational presence policy for missing operands.
+
+`@presence` values:
+
+- `when-present`: missing on either side passes; when both sides are present
+  they must satisfy `@operator`. Use for advisory optional metadata.
+- `both-or-none`: missing on both sides passes; exactly one missing side fails;
+  when both are present they must satisfy `@operator`. Use for paired optional
+  metadata.
+
+Presence policy is comparison-owned. Do not put relational presence rules on
+`actual`, `expected`, or `forbidden` operands. Presence policy only handles
+`missing`; `invalid`, `unresolved`, and `unsupported` remain operand-state
+policy decisions.
+
+Surface shorthands lower to qualified IR before evaluation:
+
+```text
+operand @state="required-valid"      -> statePolicy=schema:required-valid
+operand @state="optional-valid"      -> statePolicy=schema:optional-valid
+operand @state="allow-unresolved"    -> statePolicy=schema:allow-unresolved
+operand @state="allow-unsupported"   -> statePolicy=schema:allow-unsupported
+compare @presence="when-present"     -> presencePolicy=schema:compare-when-present
+compare @presence="both-or-none"     -> presencePolicy=schema:both-or-none
+omitted compare @presence            -> no comparison presence policy
+```
+
+Each state or presence field accepts one value. Validators must not interpret
+whitespace-separated policy lists, token order, or redundant policies such as
+`unresolved-fails`.
+
+Because operand state policy runs before comparison presence policy, optional
+presence checks normally declare participating operands with
+`@state="optional-valid"`:
+
+```cem
+{actual
+    @binding="profile"
+    @from="artifact.@profile"
+    @normalizer="schema:profile-name"
+    @cardinality="optional"
+    @shape="scalar"
+    @state="optional-valid"}
+
+{expected
+    @binding="profile"
+    @from="function.profile"
+    @normalizer="schema:profile-name"
+    @cardinality="optional"
+    @shape="scalar"
+    @state="optional-valid"}
+
+{compare @operator="schema:equals" @presence="both-or-none"}
+```
 
 ## Capability Negotiation
 
