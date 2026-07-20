@@ -12419,6 +12419,41 @@ mod tests {
             .expect("report diagnostics array")
     }
 
+    fn report_scheduler_events(report: &serde_json::Value) -> &Vec<serde_json::Value> {
+        report["reportAst"]["schedulerTrace"]["events"]
+            .as_array()
+            .expect("scheduler trace events array")
+    }
+
+    fn unique_scheduler_tasks(report: &serde_json::Value) -> Vec<String> {
+        let mut tasks = Vec::new();
+        for event in report_scheduler_events(report) {
+            let task = event["task"]
+                .as_str()
+                .expect("scheduler trace event task")
+                .to_owned();
+            if !tasks.contains(&task) {
+                tasks.push(task);
+            }
+        }
+        tasks
+    }
+
+    fn assert_scheduler_tasks_for_input(
+        report: &serde_json::Value,
+        input: &Path,
+        suffixes: &[&str],
+    ) {
+        let tasks = unique_scheduler_tasks(report);
+        for suffix in suffixes {
+            let expected = format!("{}:{suffix}", input.display());
+            assert!(
+                tasks.iter().any(|task| task == &expected),
+                "missing scheduler task `{expected}` in {tasks:?}"
+            );
+        }
+    }
+
     fn assert_report_has_no_lifecycle_adapter_unsupported(report: &serde_json::Value) {
         assert!(
             !report_diagnostics(report)
@@ -23313,6 +23348,168 @@ start =
         assert!(!diagnostics
             .iter()
             .any(|diag| diag["code"] == "cem.scope.budget_unenforced"));
+    }
+
+    #[test]
+    fn layered_runtime_fixture_connects_parser_stage_contract_through_reports() {
+        let input = write_fixture(
+            "runtime-layered-contract.cem",
+            r#"@doc cem-ml 1
+{main @id="checkout" |
+  {h1 | Checkout}
+  {button @type="button" | Continue}
+}"#,
+        );
+        let input_spec = format!(
+            "uri={},contentType={},schema={}",
+            input.display(),
+            cem_ml::schema::registry::CEM_ML_CONTENT_TYPE,
+            cem_ml::schema::registry::CEM_ML_SCHEMA_URI
+        );
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["trace", "--format", "json", "--input-spec", &input_spec],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let trace: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(trace["input"], input.display().to_string());
+        let trace_report = &trace["report"];
+        assert_eq!(trace_report["inputs"][0], input.display().to_string());
+        assert_eq!(
+            unique_scheduler_tasks(trace_report),
+            vec!["tokenize", "normalize", "schema", "ast", "validate"]
+        );
+        assert!(report_scheduler_events(trace_report)
+            .iter()
+            .all(|event| event["scopeId"] == 0));
+
+        let trace_events = trace["events"].as_array().unwrap();
+        assert!(trace_events.iter().any(|event| {
+            event["kind"] == "open"
+                && event["name"] == "main"
+                && event["byteRange"]["start"].as_u64().is_some()
+        }));
+        assert!(trace_events
+            .iter()
+            .any(|event| event["kind"] == "value" && event["value"] == "Checkout"));
+        assert!(trace_events
+            .iter()
+            .any(|event| event["kind"] == "value" && event["value"] == "Continue"));
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["parse", "--format", "events", "--input-spec", &input_spec],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let parse_events: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(parse_events, trace["events"]);
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["parse", "--format", "ast", "--input-spec", &input_spec],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let ast: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let main = ast["children"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|child| child["kind"] == "element" && child["name"] == "main")
+            .unwrap_or_else(|| panic!("missing main element in {ast:#}"));
+        assert_eq!(main["kind"], "element");
+        assert_eq!(main["name"], "main");
+        assert!(
+            main["byteRange"]["len"].as_u64().is_some_and(|len| len > 0),
+            "{ast:#}"
+        );
+        let main_children = main["children"].as_array().unwrap();
+        assert!(main_children
+            .iter()
+            .any(|child| child["kind"] == "element" && child["name"] == "h1"));
+        assert!(main_children
+            .iter()
+            .any(|child| child["kind"] == "element" && child["name"] == "button"));
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["validate", "--format", "json", "--input-spec", &input_spec],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let validate_report: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(validate_report["inputs"][0], input.display().to_string());
+        assert_eq!(validate_report["summary"]["hardViolationCount"], 0);
+        assert_scheduler_tasks_for_input(
+            &validate_report,
+            &input,
+            &["lifecycle-load", "parse-validate"],
+        );
+        assert!(!report_diagnostics(&validate_report).iter().any(|diag| {
+            diag["code"]
+                .as_str()
+                .is_some_and(|code| code.starts_with("cem.schema."))
+        }));
+
+        let out_path = std::env::temp_dir().join("cem-ml-cli-tests/runtime-layered-contract.html");
+        let report_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/runtime-layered-contract.convert.json");
+        let _ = std::fs::remove_file(&out_path);
+        let _ = std::fs::remove_file(&report_path);
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "--no-color",
+                "convert",
+                "--to-format",
+                "html",
+                "--to-content-type",
+                cem_ml::schema::registry::HTML_CONTENT_TYPE,
+                "--to-schema",
+                cem_ml::schema::registry::HTML_SCHEMA_URI,
+                "--out",
+                out_path.to_str().unwrap(),
+                "--report-json",
+                report_path.to_str().unwrap(),
+                "--input-spec",
+                &input_spec,
+            ],
+        );
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stdout.trim().is_empty(), "{stdout}");
+        let html = std::fs::read_to_string(&out_path).unwrap();
+        assert!(html.contains("<main"), "{html}");
+        assert!(html.contains("<h1"), "{html}");
+        assert!(html.contains("Checkout"), "{html}");
+        assert!(html.contains("<button"), "{html}");
+        assert!(html.contains("Continue"), "{html}");
+
+        let convert_report: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&report_path).unwrap()).unwrap();
+        assert_eq!(convert_report["inputs"][0], input.display().to_string());
+        assert_scheduler_tasks_for_input(
+            &convert_report,
+            &input,
+            &["lifecycle-load", "select-export", "convert"],
+        );
+        let output = &convert_report["reportAst"]["convert"]["outputs"][0];
+        assert_eq!(output["input"], input.display().to_string());
+        assert_eq!(output["destination"], out_path.display().to_string());
+        assert_eq!(
+            output["contentType"],
+            cem_ml::schema::registry::HTML_CONTENT_TYPE
+        );
+        assert_eq!(output["schema"], cem_ml::schema::registry::HTML_SCHEMA_URI);
+        assert_eq!(output["outputKind"], "html");
+        assert_eq!(output["conversion"]["implementation"], "cemt");
+        let stages = output["conversion"]["outputPipeline"]["stages"]
+            .as_array()
+            .expect("conversion output pipeline stages");
+        assert!(stages.iter().any(|stage| stage["stage"] == "formatter"));
+        assert!(stages.iter().any(|stage| stage["stage"] == "colorizer"));
+        assert!(stages.iter().any(|stage| {
+            stage["stage"] == "writer"
+                && stage["contentType"] == cem_ml::schema::registry::HTML_CONTENT_TYPE
+        }));
     }
 
     #[test]

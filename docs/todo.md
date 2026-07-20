@@ -13,9 +13,9 @@ multi-document lifecycle layer that lets `cem_ml`, `cem_ml_cli`, WASM, and
 future hosts validate, load, and export documents through the same root-scope
 context.
 
-Current active slice: promote the Phase 2 layered runtime contract into an
-executable parser-stage fixture path with source-map and scheduler-report
-assertions.
+Current active slice: enrich the executable Phase 2 layered runtime fixture so
+parser-stage report entries carry root-scope input identity, source-map
+boundary, and diagnostics through the scheduler-visible report path.
 
 ### Phase 2 Parser And Runtime
 
@@ -33,7 +33,7 @@ assertions.
       `NX_DAEMON=false yarn nx run cem_ml:test`,
       `NX_DAEMON=false yarn nx run cem_ml_cli:e2e`, and the relevant adapter
       parity target.
-- [ ] Define the executable layered parser/runtime contract for one semantic
+- [x] Define the executable layered parser/runtime contract for one semantic
       document fixture, covering byte source, tokenizer, normalized event
       stream, schema validation, AST/source-map construction, and export
       reporting through the same scheduler trace.
@@ -45,17 +45,21 @@ assertions.
 
 ### Next Work Item
 
-Define the first executable layered runtime fixture from the Phase 2 roadmap:
+Add parser-stage report-entry assertions for the layered runtime fixture:
 
-- inventory the current `cem_ml` parse/validate/convert stage boundaries and
-  identify the smallest existing report or trace structure that can carry
-  stage names without inventing a parallel reporting path;
-- use one semantic CEM document fixture as the contract case and assert byte
-  source identity, tokenizer output, normalized events, schema diagnostics,
-  AST/source-map construction, and export metadata stay connected;
-- keep the first slice CLI-visible through validate/load/export reports so
-  later WASM and host-runtime work can consume the same contract instead of
-  rebuilding parser-stage state.
+- inventory the current gap exposed by
+  `layered_runtime_fixture_connects_parser_stage_contract_through_reports`:
+  trace entries have ordered parser stage names and scope IDs, validate/convert
+  reports have input-prefixed load/export tasks and output identity, but no
+  parser-stage report entry yet carries root-scope content identity,
+  source-map boundary, and per-stage diagnostic codes together;
+- extend the smallest existing report surface, preferably
+  `reportAst.schedulerTrace.events` or an adjacent `reportAst` parser-stage
+  detail, instead of adding a parallel trace path;
+- update the fixture assertions so tokenize, normalize, schema, AST, and
+  validate entries all expose the same root-scope input identity, a non-empty
+  source-map boundary, and the diagnostics array needed by CLI, WASM, and
+  future host runtimes.
 
 ## Current Verification Commands
 
