@@ -9,9 +9,11 @@ import {
     assertAccessibleName,
     assertAriaReferenceIntegrity,
     assertLightDomRendered,
+    captureVisualSnapshot,
     createComponentHarness,
     nextRenderFrame,
     type ComponentHarness,
+    type VisualSnapshot,
 } from './testing/component-harness.js';
 
 describe('CEM component primitives', () => {
@@ -391,6 +393,65 @@ describe('CEM component primitives', () => {
         expect(assertAccessibleName(dialog, 'Confirm')).toBe('Confirm');
         expect(() => assertAriaReferenceIntegrity(harness.root)).not.toThrow();
     });
+
+    it('captures primitive-family visual snapshots from rendered light DOM', async () => {
+        harness = createComponentHarness();
+        const root = await harness.render(`
+            <cem-stack gap="sm">
+                <cem-action variant="primary">Save</cem-action>
+                <cem-text-field name="email" value="a@b.test">
+                    <span slot="label">Email</span>
+                </cem-text-field>
+                <cem-surface label="Dashboard">
+                    <cem-card label="Summary">
+                        <span slot="title">Summary</span>
+                        <cem-badge tone="success">Ready</cem-badge>
+                    </cem-card>
+                </cem-surface>
+                <cem-nav label="Primary">
+                    <a href="#home">Home</a>
+                    <a href="#settings">Settings</a>
+                </cem-nav>
+                <cem-alert tone="warning" role="alert">Check required fields.</cem-alert>
+            </cem-stack>
+        `);
+        await waitForPrimitive(root, 'cem-alert [role="alert"]');
+        await waitForPrimitive(root, 'cem-card section');
+
+        assertPrimitiveVisualSnapshot(captureVisualSnapshot(harness.query<HTMLElement>('cem-action button')), {
+            family: 'action controls',
+            htmlIncludes: ['class="cem-action cem-action--primary"', 'type="button"'],
+            tagName: 'button',
+            text: 'Save',
+        });
+        assertPrimitiveVisualSnapshot(captureVisualSnapshot(harness.query<HTMLElement>('cem-text-field input')), {
+            family: 'input controls',
+            htmlIncludes: ['class="cem-text-field__control"', 'name="email"', 'value="a@b.test"'],
+            tagName: 'input',
+            text: '',
+        });
+        assertPrimitiveVisualSnapshot(captureVisualSnapshot(harness.query<HTMLElement>('cem-surface section')), {
+            display: 'block',
+            family: 'layout/content containers',
+            htmlIncludes: ['class="cem-surface cem-surface--default"', 'aria-label="Dashboard"', 'cem-card'],
+            tagName: 'section',
+            text: 'Summary Ready',
+        });
+        assertPrimitiveVisualSnapshot(captureVisualSnapshot(harness.query<HTMLElement>('cem-nav nav')), {
+            display: 'block',
+            family: 'navigation landmarks',
+            htmlIncludes: ['class="cem-nav"', 'aria-label="Primary"', 'href="#home"'],
+            tagName: 'nav',
+            text: 'HomeSettings',
+        });
+        assertPrimitiveVisualSnapshot(captureVisualSnapshot(harness.query<HTMLElement>('cem-alert [role="alert"]')), {
+            display: 'block',
+            family: 'feedback/status surfaces',
+            htmlIncludes: ['class="cem-alert cem-alert--warning"', 'data-tone="warning"', 'role="alert"'],
+            tagName: 'div',
+            text: 'Check required fields.',
+        });
+    });
 });
 
 async function waitForPrimitive(root: ParentNode, selector: string): Promise<Element> {
@@ -407,4 +468,35 @@ async function waitForPrimitive(root: ParentNode, selector: string): Promise<Ele
     }
 
     throw new Error(`Expected primitive render output matching ${selector}`);
+}
+
+interface PrimitiveVisualSnapshotExpectation {
+    display?: string;
+    family: string;
+    htmlIncludes: string[];
+    tagName: string;
+    text: string;
+}
+
+function assertPrimitiveVisualSnapshot(
+    snapshot: VisualSnapshot,
+    expectation: PrimitiveVisualSnapshotExpectation,
+): void {
+    expect(snapshot.tagName).toBe(expectation.tagName);
+    expect(snapshot.text).toBe(expectation.text);
+    expect(snapshot.rect.width).toBeGreaterThan(0);
+    expect(snapshot.rect.height).toBeGreaterThan(0);
+    expect(snapshot.styles.visibility).toBe('visible');
+    expect(snapshot.styles.display).not.toBe('none');
+    expect(snapshot.styles.display).not.toBe('contents');
+    expect(snapshot.styles.color).not.toBe('');
+    expect(snapshot.styles['font-size']).not.toBe('');
+
+    if (expectation.display) {
+        expect(snapshot.styles.display).toBe(expectation.display);
+    }
+
+    for (const html of expectation.htmlIncludes) {
+        expect(snapshot.html).toContain(html);
+    }
 }

@@ -13,10 +13,9 @@ binary handoff, embedded-payload handoff coverage, and web-host coordinate
 projection have all passed their focused and gate verification. Continue with
 Phase 3 substrate expansion.
 
-Current active slice: add primitive-family visual snapshot coverage for
-`@epa-wg/cem-components` using the existing browser harness, starting with the
-action, input, layout/content, navigation, and feedback families already covered
-by DOM/ARIA tests.
+Current active slice: audit Phase 3.5 Edge/SSR processing follow-up readiness
+against `roadmap.md`, then populate the next focused implementation slice from
+the first uncovered server/edge processing boundary gap.
 
 ### Phase 3 Custom-Element Runtime
 
@@ -55,33 +54,47 @@ by DOM/ARIA tests.
       assertions, workflow fixtures, manifest verification, and token-only style
       verification, while visual snapshots are currently exercised only by the
       harness smoke test.
-- [ ] Add primitive-family visual snapshot coverage around the selected
+- [x] Add primitive-family visual snapshot coverage around the selected
       representative primitives: action controls, input controls, layout/content
       containers, navigation landmarks, and feedback/status surfaces.
-- [ ] Verify the selected primitive slice with focused
+- [x] Verify the selected primitive slice with focused
       `@epa-wg/cem-components` target(s), then
       `yarn nx run @epa-wg/cem-components:verify`, and the relevant
       `cem-elements` gate if substrate behavior is touched.
 
+### Phase 3.5 Edge/SSR Processing Follow-Up
+
+- [ ] Audit the existing `@epa-wg/cem-elements` Edge/SSR processing APIs, unit
+      fixtures, Storybook stories, privacy/export policy coverage, render-state
+      storage helpers, and Nx verification gates against the Phase 3.5
+      deliverables and exit criteria from `roadmap.md`.
+- [ ] Populate a focused implementation slice from the audit, prioritizing the
+      first missing proof around SSR hydration metadata, edge patch-frame
+      streaming without live DOM access, privacy/export policy enforcement, or
+      render-state storage identity.
+- [ ] Add or repair the focused `cem-elements` fixture(s) for the selected gap
+      while keeping browser worker and main-thread fallback semantics unchanged.
+- [ ] Verify the selected Phase 3.5 slice with focused unit/browser target(s),
+      `yarn nx run cem-elements:verify-edge-ssr`, and
+      `yarn nx run cem-elements:verify`.
+
 ### Next Work Item
 
-Add primitive-family visual snapshot coverage in `@epa-wg/cem-components`:
+Audit Phase 3.5 Edge/SSR processing readiness:
 
-- reuse `captureVisualSnapshot()` from
-  `packages/cem-components/src/lib/testing/component-harness.ts` rather than
-  adding a new screenshot system;
-- add a focused browser spec, or extend `primitives.browser.spec.ts`, with one
-  deterministic fixture per family: action controls, input controls,
-  layout/content containers, navigation landmarks, and feedback/status surfaces;
-- assert stable rendered HTML/text, non-zero dimensions, expected display/style
-  properties, and token-resolved computed styles where the current theme CSS is
-  available;
-- keep behavior assertions in the existing DOM/ARIA/state/workflow specs and use
-  this slice only for visual regression shape;
-- verify with `yarn nx run @epa-wg/cem-components:test-ci--src/lib/primitives.browser.spec.ts`
-  if the coverage lands there, then
-  `yarn nx run @epa-wg/cem-components:test`, and finally
-  `yarn nx run @epa-wg/cem-components:verify`.
+- compare `roadmap.md` Phase 3.5 and `docs/cem-element-design.md` sections 4.1
+  and 4.2 against the current `packages/cem-elements` implementation;
+- inspect `packages/cem-elements/src/lib/processing-boundary.spec.ts`,
+  `packages/cem-elements/src/lib/projection.disposition.spec.ts`,
+  `packages/cem-elements/src/lib/cem-elements.stories.ts`, and the
+  `verify-edge-ssr` target to map which SSR hydration, edge patch-frame,
+  privacy/export policy, and render-state storage proofs already exist;
+- identify the first narrow missing or weak proof and add it to this checklist
+  before implementing;
+- verify with the focused touched target first, then
+  `yarn nx run cem-elements:test:unit`,
+  `yarn nx run cem-elements:verify-edge-ssr`, and
+  `yarn nx run cem-elements:verify`.
 
 ## Current Verification Commands
 
