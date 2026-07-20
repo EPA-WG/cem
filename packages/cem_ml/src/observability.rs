@@ -25,8 +25,10 @@
 //! report projection.
 
 use crate::diagnostics::Diagnostic;
+use crate::source::line_index::HostCoordinate;
 use crate::source_map::{SourceMapStack, TransformKind};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::sync::{Arc, Mutex};
 
 /// Public name of the three observable channels exposed by the engine.
@@ -127,8 +129,21 @@ pub struct ReportEvent {
     pub channel: EventChannel,
     #[serde(rename = "byteOffset", skip_serializing_if = "Option::is_none")]
     pub byte_offset: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub column: Option<u32>,
+    #[serde(rename = "utf16Offset", skip_serializing_if = "Option::is_none")]
+    pub utf16_offset: Option<u64>,
+    #[serde(rename = "utf16Column", skip_serializing_if = "Option::is_none")]
+    pub utf16_column: Option<u32>,
     #[serde(rename = "sourceMap", skip_serializing_if = "Option::is_none")]
     pub source_map: Option<SourceMapStack>,
+    #[serde(
+        rename = "sourceMapCoordinates",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub source_map_coordinates: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parse: Option<ParseReportEvent>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -270,11 +285,29 @@ impl<'a> EventEmitter<'a> {
         byte_offset: Option<u64>,
         source_map: Option<SourceMapStack>,
     ) {
+        self.parse_with_coordinates(kind, name, value, byte_offset, source_map, None, None);
+    }
+
+    pub fn parse_with_coordinates(
+        &mut self,
+        kind: ParseEventKind,
+        name: Option<String>,
+        value: Option<String>,
+        byte_offset: Option<u64>,
+        source_map: Option<SourceMapStack>,
+        coordinate: Option<HostCoordinate>,
+        source_map_coordinates: Option<Value>,
+    ) {
         let event = ReportEvent {
             sequence: self.sequencer.next_sequence(),
             channel: EventChannel::Parse,
             byte_offset,
+            line: coordinate.map(|coordinate| coordinate.line),
+            column: coordinate.map(|coordinate| coordinate.column),
+            utf16_offset: coordinate.map(|coordinate| coordinate.utf16_offset),
+            utf16_column: coordinate.map(|coordinate| coordinate.utf16_column),
             source_map,
+            source_map_coordinates,
             parse: Some(ParseReportEvent { kind, name, value }),
             validate: None,
             transform: None,
@@ -283,11 +316,27 @@ impl<'a> EventEmitter<'a> {
     }
 
     pub fn validate(&mut self, diag: &Diagnostic) {
+        self.validate_with_coordinates(diag, diagnostic_coordinate(diag), None);
+    }
+
+    pub fn validate_with_coordinates(
+        &mut self,
+        diag: &Diagnostic,
+        coordinate: Option<HostCoordinate>,
+        source_map_coordinates: Option<Value>,
+    ) {
         let event = ReportEvent {
             sequence: self.sequencer.next_sequence(),
             channel: EventChannel::Validate,
             byte_offset: diag.byte_offset,
+            line: coordinate.map(|coordinate| coordinate.line).or(diag.line),
+            column: coordinate
+                .map(|coordinate| coordinate.column)
+                .or(diag.column),
+            utf16_offset: coordinate.map(|coordinate| coordinate.utf16_offset),
+            utf16_column: coordinate.map(|coordinate| coordinate.utf16_column),
             source_map: diag.source_map.clone(),
+            source_map_coordinates,
             parse: None,
             validate: Some(ValidateReportEvent {
                 code: diag.code.clone(),
@@ -310,7 +359,12 @@ impl<'a> EventEmitter<'a> {
             sequence: self.sequencer.next_sequence(),
             channel: EventChannel::Transform,
             byte_offset,
+            line: None,
+            column: None,
+            utf16_offset: None,
+            utf16_column: None,
             source_map,
+            source_map_coordinates: None,
             parse: None,
             validate: None,
             transform: Some(TransformReportEvent {
@@ -320,6 +374,24 @@ impl<'a> EventEmitter<'a> {
         };
         self.observer.on_transform(&event);
     }
+}
+
+fn diagnostic_coordinate(diag: &Diagnostic) -> Option<HostCoordinate> {
+    let details = diag.details.as_ref()?;
+    let byte_offset = details.pointer("/coordinates/byteOffset")?.as_u64()?;
+    let line = details.pointer("/coordinates/line")?.as_u64()? as u32;
+    let column = details.pointer("/coordinates/column")?.as_u64()? as u32;
+    let utf16_offset = details.pointer("/coordinates/utf16Offset")?.as_u64()?;
+    let utf16_column = details.pointer("/coordinates/utf16Column")?.as_u64()? as u32;
+    if diag.byte_offset.is_some_and(|offset| offset != byte_offset) {
+        return None;
+    }
+    Some(HostCoordinate {
+        line,
+        column,
+        utf16_offset,
+        utf16_column,
+    })
 }
 
 fn severity_label(severity: crate::diagnostics::Severity) -> &'static str {
@@ -355,7 +427,12 @@ mod tests {
             sequence: seq,
             channel: EventChannel::Parse,
             byte_offset: Some(7),
+            line: None,
+            column: None,
+            utf16_offset: None,
+            utf16_column: None,
             source_map: None,
+            source_map_coordinates: None,
             parse: Some(ParseReportEvent {
                 kind: ParseEventKind::OpenScope,
                 name: Some("button".to_owned()),
@@ -371,7 +448,12 @@ mod tests {
             sequence: seq,
             channel: EventChannel::Validate,
             byte_offset: Some(13),
+            line: None,
+            column: None,
+            utf16_offset: None,
+            utf16_column: None,
             source_map: None,
+            source_map_coordinates: None,
             parse: None,
             validate: Some(ValidateReportEvent {
                 code: "cem.ref.unresolved_reference".to_owned(),
@@ -387,7 +469,12 @@ mod tests {
             sequence: seq,
             channel: EventChannel::Transform,
             byte_offset: None,
+            line: None,
+            column: None,
+            utf16_offset: None,
+            utf16_column: None,
             source_map: None,
+            source_map_coordinates: None,
             parse: None,
             validate: None,
             transform: Some(TransformReportEvent {
@@ -550,7 +637,12 @@ mod tests {
             sequence: 0,
             channel: EventChannel::Parse,
             byte_offset: Some(1),
+            line: None,
+            column: None,
+            utf16_offset: None,
+            utf16_column: None,
             source_map: None,
+            source_map_coordinates: None,
             parse: Some(ParseReportEvent {
                 kind: ParseEventKind::Trivia,
                 name: None,
@@ -571,7 +663,12 @@ mod tests {
             sequence: 1,
             channel: EventChannel::Transform,
             byte_offset: None,
+            line: None,
+            column: None,
+            utf16_offset: None,
+            utf16_column: None,
             source_map: None,
+            source_map_coordinates: None,
             parse: None,
             validate: None,
             transform: Some(TransformReportEvent {

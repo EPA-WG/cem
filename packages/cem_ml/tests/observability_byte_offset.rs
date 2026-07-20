@@ -70,6 +70,10 @@ fn byte_offset_inside_any_frame_treats_range_end_as_exclusive() {
         sequence: 0,
         channel: EventChannel::Transform,
         byte_offset: Some(10),
+        line: None,
+        column: None,
+        utf16_offset: None,
+        utf16_column: None,
         source_map: Some(SourceMapStack {
             frames: vec![SourceMapFrame {
                 source_id: SourceId(0),
@@ -77,6 +81,7 @@ fn byte_offset_inside_any_frame_treats_range_end_as_exclusive() {
                 transform: TransformKind::CemTokenizer,
             }],
         }),
+        source_map_coordinates: None,
         parse: None,
         validate: None,
         transform: Some(cem_ml::observability::TransformReportEvent {
@@ -121,6 +126,16 @@ fn every_parse_event_carries_a_byte_offset_on_every_canonical_fixture() {
                 event.sequence,
                 event.parse.as_ref().map(|p| p.kind)
             );
+            assert!(
+                event.line.is_some()
+                    && event.column.is_some()
+                    && event.utf16_offset.is_some()
+                    && event.utf16_column.is_some(),
+                "parse event missing host coordinates in fixture {} (sequence={}, kind={:?})",
+                path.display(),
+                event.sequence,
+                event.parse.as_ref().map(|p| p.kind)
+            );
         }
     }
 }
@@ -156,6 +171,52 @@ fn validate_events_carry_byte_offset_when_their_diagnostic_does() {
     }
 }
 
+#[test]
+fn parse_and_validate_events_project_web_host_coordinates() {
+    let source = "{section |\r\né😀 {p Hello}}\n";
+    let expected_offset = source.find("{p Hello").expect("fixture contains p node") as u64;
+    let events = drive(source);
+
+    let validate_event = events
+        .iter()
+        .find(|event| {
+            event
+                .validate
+                .as_ref()
+                .is_some_and(|validate| validate.code == "cem.lint.relaxed_content_boundary")
+        })
+        .unwrap_or_else(|| {
+            panic!("expected relaxed-boundary validate event at byte offset {expected_offset}")
+        });
+    assert_eq!(validate_event.byte_offset, Some(0));
+    assert_eq!(validate_event.line, Some(1));
+    assert_eq!(validate_event.column, Some(1));
+    assert_eq!(validate_event.utf16_offset, Some(0));
+    assert_eq!(validate_event.utf16_column, Some(1));
+    let mapped_start = validate_event
+        .source_map_coordinates
+        .as_ref()
+        .and_then(|details| {
+            details["frames"]
+                .as_array()?
+                .iter()
+                .flat_map(|frame| frame["ranges"].as_array().into_iter().flatten())
+                .find(|range| range["byteStart"] == serde_json::json!(expected_offset))
+                .and_then(|range| range.get("start"))
+        })
+        .expect("validate event source-map coordinates include nested frame");
+    assert_eq!(mapped_start["line"], serde_json::json!(2));
+    assert_eq!(mapped_start["column"], serde_json::json!(5));
+    assert_eq!(mapped_start["utf16Offset"], serde_json::json!(16));
+    assert_eq!(mapped_start["utf16Column"], serde_json::json!(5));
+
+    let json = serde_json::to_value(validate_event).expect("validate event serializes");
+    assert_eq!(json["line"], serde_json::json!(1));
+    assert_eq!(json["column"], serde_json::json!(1));
+    assert_eq!(json["utf16Offset"], serde_json::json!(0));
+    assert_eq!(json["utf16Column"], serde_json::json!(1));
+}
+
 // ---------------------------------------------------------------------------
 // 3. Origin-first invariant: byte_offset == first frame's start
 // ---------------------------------------------------------------------------
@@ -179,6 +240,18 @@ fn byte_offset_and_source_map_are_co_present_and_consistent() {
             assert!(
                 byte_offset_inside_any_frame(event, byte),
                 "byte_offset {byte} is outside every frame on the stack \
+                 (channel={:?}, sequence={})",
+                event.channel,
+                event.sequence,
+            );
+            assert!(
+                event
+                    .source_map_coordinates
+                    .as_ref()
+                    .and_then(|details| details.pointer("/frames/0/ranges/0/start/utf16Column"))
+                    .and_then(|value| value.as_u64())
+                    .is_some(),
+                "events with a source_map must carry sourceMapCoordinates \
                  (channel={:?}, sequence={})",
                 event.channel,
                 event.sequence,

@@ -7,14 +7,15 @@ history.
 
 ## Immediate Goal
 
-Close the remaining Phase 2 gaps from [`../roadmap.md`](../roadmap.md) before
-continuing Phase 3 substrate expansion. The parser/runtime report-consumer
-slice, browser runtime proof, and stable chunked binary handoff are verified,
-and embedded-payload handoff coverage is verified. The full Phase 2 exit
-criteria still need web-host coordinate projection.
+Phase 2 exit criteria from [`../roadmap.md`](../roadmap.md) are closed: the
+parser/runtime report-consumer slice, browser runtime proof, stable chunked
+binary handoff, embedded-payload handoff coverage, and web-host coordinate
+projection have all passed their focused and gate verification. Continue with
+Phase 3 substrate expansion.
 
-Current active slice: add web-host reporting coordinate projection on top of
-byte offsets for CLI, WASM, and browser/devtools consumers.
+Current active slice: audit the existing `@epa-wg/cem-elements` substrate
+implementation, parity inventories, Storybook fixtures, and Nx verification
+targets against the Phase 3.1 exit criteria.
 
 ### Phase 2 Completion Gaps
 
@@ -34,11 +35,11 @@ byte offsets for CLI, WASM, and browser/devtools consumers.
       JSON string subdocuments, CSF-like fields, and unsupported/future
       content types must either validate through explicit scoped handoff
       fixtures or emit actionable diagnostics with source-map bounds.
-- [ ] Add web-host reporting coordinate projection on top of byte offsets:
+- [x] Add web-host reporting coordinate projection on top of byte offsets:
       line/column and UTF-16 position derivation should be available to CLI,
       WASM, and browser/devtools consumers without storing non-byte
       coordinates as parser truth.
-- [ ] Re-run the Phase 2 completion gate after those gaps close:
+- [x] Re-run the Phase 2 completion gate after those gaps close:
       focused Rust tests for the touched layer, the `cem_ml:test`,
       `cem_ml_cli:test`, and `cem_ml_cli:e2e` Nx targets with
       `NX_DAEMON=false NX_ISOLATE_PLUGINS=false`, and the focused
@@ -63,24 +64,21 @@ byte offsets for CLI, WASM, and browser/devtools consumers.
 
 ### Next Work Item
 
-Add web-host reporting coordinate projection on top of byte offsets:
+Audit the existing `@epa-wg/cem-elements` substrate implementation against the
+Phase 3.1 exit criteria:
 
-- audit `packages/cem_ml/src/source`, diagnostic/report serialization, CLI JSON
-  report projection, WASM/browser/devtools report consumers, and source-map
-  frame projection to find every place that currently exposes only raw byte
-  offsets to host tooling;
-- implement `LineIndex`-based projection from parser byte offsets and
-  source-map ranges into one-based line/column plus UTF-16 offsets, keeping
-  byte offsets as the durable parser truth and treating host coordinates as a
-  derived reporting view;
-- cover UTF-8 multibyte characters, UTF-16 surrogate pairs, CRLF/LF boundaries,
-  and mapped source-map frames with focused Rust tests plus CLI JSON assertions
-  that prove diagnostics and handoff/source-map ranges expose stable web-host
-  coordinates;
-- verify first with focused source/diagnostic projection tests, then run
-  `NX_DAEMON=false NX_ISOLATE_PLUGINS=false yarn nx run cem_ml:test`,
-  `NX_DAEMON=false NX_ISOLATE_PLUGINS=false yarn nx run cem_ml_cli:test`, and
-  the relevant WASM/browser/devtools target if exported report shapes change.
+- inventory the current `cem-elements` runtime source, Storybook stories,
+  parity fixtures, and Nx targets that already exercise inline declaration,
+  data-island, light-DOM render, and source-map behavior;
+- compare the existing coverage with `roadmap.md` Phase 3.1 and identify the
+  smallest missing executable browser contract for inline `<cem-element>`
+  declarations;
+- populate any concrete gaps in this file as checked, executable tasks before
+  implementation, keeping Phase 3 substrate work separated from legacy/material
+  parity cleanup;
+- start verification with the focused `cem-elements` unit or story target that
+  owns the audited path, then broaden to the relevant substrate and full
+  `cem-elements:verify` targets once implementation begins.
 
 ## Current Verification Commands
 

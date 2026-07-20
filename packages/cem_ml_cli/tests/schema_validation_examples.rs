@@ -1582,6 +1582,10 @@ fn cem_ml_embedded_handoff_diagnostics_carry_source_map_bounds_through_cli() {
                 && diagnostic["details"]["contentType"] == "text/css; charset=utf-8"
                 && diagnostic["details"]["sourceRange"]["span"]["start"].is_u64()
                 && diagnostic["details"]["sourceRange"]["span"]["len"].is_u64()
+                && diagnostic["details"]["coordinates"]["utf16Offset"].is_u64()
+                && diagnostic["details"]["sourceMapCoordinates"]["frames"]
+                    .as_array()
+                    .is_some_and(|frames| !frames.is_empty())
                 && diagnostic["sourceMap"]["frames"]
                     .as_array()
                     .is_some_and(|frames| !frames.is_empty())
@@ -1626,6 +1630,10 @@ fn cem_ml_unsupported_handoff_diagnostics_carry_source_map_bounds_through_cli() 
                 && diagnostic["details"]["contentType"] == "application/vnd.storybook.csf+json"
                 && diagnostic["details"]["sourceRange"]["span"]["start"].is_u64()
                 && diagnostic["details"]["sourceRange"]["span"]["len"].is_u64()
+                && diagnostic["details"]["coordinates"]["utf16Offset"].is_u64()
+                && diagnostic["details"]["sourceMapCoordinates"]["frames"]
+                    .as_array()
+                    .is_some_and(|frames| !frames.is_empty())
                 && diagnostic["sourceMap"]["frames"]
                     .as_array()
                     .is_some_and(|frames| !frames.is_empty())
@@ -1637,6 +1645,91 @@ fn cem_ml_unsupported_handoff_diagnostics_carry_source_map_bounds_through_cli() 
             )
         });
     assert_eq!(diagnostic["severity"], "error");
+}
+
+#[test]
+fn cem_ml_diagnostics_project_web_host_coordinates_through_cli_json() {
+    let root = test_temp_dir("cem-ml-cli-web-host-coordinates");
+    let path = root.join("web-host-coordinates.cem");
+    let source = "{section |\r\né😀 {p Hello}}\n";
+    write_test_file(&path, source);
+
+    let output = validate_example(
+        &ValidationExample {
+            name: "cem-ml web host coordinates",
+            path: "web-host-coordinates.cem",
+            content_type: CEM_ML_CONTENT_TYPE,
+            schema_uri: CEM_ML_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &["cem.lint.relaxed_content_boundary"],
+        },
+        &path,
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(EXIT_OK),
+        "web host coordinates stderr:\n{}",
+        stderr(&output)
+    );
+    let report: serde_json::Value = serde_json::from_str(stdout(&output).trim())
+        .expect("web host coordinate stdout is validation JSON");
+    let expected_offset = source.find("{p Hello").expect("fixture contains p node") as u64;
+    let diagnostic = diagnostics(&report)
+        .iter()
+        .find(|diagnostic| diagnostic["code"] == "cem.lint.relaxed_content_boundary")
+        .unwrap_or_else(|| {
+            panic!(
+                "expected relaxed-boundary diagnostic in web host coordinate report:\n{}",
+                stdout(&output)
+            )
+        });
+
+    assert_eq!(expected_offset, 19);
+    assert_eq!(diagnostic["byteOffset"], serde_json::json!(0));
+    assert_eq!(diagnostic["line"], serde_json::json!(1));
+    assert_eq!(diagnostic["column"], serde_json::json!(1));
+    assert_eq!(
+        diagnostic["details"]["coordinates"]["byteOffset"],
+        serde_json::json!(0)
+    );
+    assert_eq!(
+        diagnostic["details"]["coordinates"]["line"],
+        serde_json::json!(1)
+    );
+    assert_eq!(
+        diagnostic["details"]["coordinates"]["column"],
+        serde_json::json!(1)
+    );
+    assert_eq!(
+        diagnostic["details"]["coordinates"]["utf16Offset"],
+        serde_json::json!(0)
+    );
+    assert_eq!(
+        diagnostic["details"]["coordinates"]["utf16Column"],
+        serde_json::json!(1)
+    );
+    assert_eq!(
+        diagnostic["details"]["coordinates"]["columnEncoding"],
+        serde_json::json!("utf-16")
+    );
+    let mapped_start = diagnostic["details"]["sourceMapCoordinates"]["frames"]
+        .as_array()
+        .expect("sourceMapCoordinates frames array")
+        .iter()
+        .flat_map(|frame| {
+            frame["ranges"]
+                .as_array()
+                .expect("sourceMapCoordinates frame ranges")
+        })
+        .find(|range| range["byteStart"] == serde_json::json!(expected_offset))
+        .and_then(|range| range.get("start"))
+        .expect("source-map coordinates include nested p frame");
+    assert_eq!(mapped_start["line"], serde_json::json!(2));
+    assert_eq!(mapped_start["column"], serde_json::json!(5));
+    assert_eq!(mapped_start["utf16Offset"], serde_json::json!(16));
+    assert_eq!(mapped_start["utf16Column"], serde_json::json!(5));
+
+    let _ = fs::remove_dir_all(root);
 }
 
 #[test]

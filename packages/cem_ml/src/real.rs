@@ -18,7 +18,9 @@ use crate::conversion::{
     ConversionRustFallbackDescriptor, GenericDataTextConversionOutcome, GenericDataTextDocument,
     CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE,
 };
-use crate::diagnostics::{Diagnostic, Severity};
+use crate::diagnostics::{
+    project_diagnostics_for_source, source_map_coordinate_details, Diagnostic, Severity,
+};
 use crate::engine::*;
 use crate::events::cem::CemEventNormalizer;
 use crate::interpreter::light_dom::LightDomInterpreter;
@@ -47,6 +49,7 @@ use crate::schema::registry::{
     XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
 };
 use crate::schema::vocab::CompiledSchema;
+use crate::source::line_index::LineIndex;
 use crate::source::{ByteRange, BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
 use crate::tokenizer::cem::CemTokenizer;
@@ -831,6 +834,7 @@ fn load_schema_package_manifest_into_context(
         .iter()
         .any(|diagnostic| diagnostic.severity.is_hard_violation())
     {
+        project_diagnostics_for_source(&mut diagnostics, &loaded.bytes);
         project_diagnostic_uris(&mut diagnostics, &package_input, context);
         return Ok(diagnostics);
     }
@@ -848,6 +852,7 @@ fn load_schema_package_manifest_into_context(
         )),
     }
 
+    project_diagnostics_for_source(&mut diagnostics, &loaded.bytes);
     project_diagnostic_uris(&mut diagnostics, &package_input, context);
     Ok(diagnostics)
 }
@@ -1596,6 +1601,7 @@ where
             started_at.elapsed().as_nanos(),
         ));
     }
+    project_diagnostics_for_source(&mut diagnostics, bytes);
     PipelineRun {
         document,
         diagnostics,
@@ -2324,6 +2330,7 @@ fn load_transform_data_artifact(
     );
     let value = projection::dom_json(&run.document);
     diagnostics.extend(run.diagnostics);
+    project_diagnostics_for_source(&mut diagnostics, &loaded.bytes);
     project_diagnostic_uris(&mut diagnostics, input, context);
 
     (
@@ -4577,6 +4584,7 @@ fn run_scheduled_validation_documents(
                 })?;
         }
         let mut loaded_input: Option<LoadedInput> = None;
+        let mut source_bytes_for_projection: Option<Vec<u8>> = None;
         pool.run_to_completion(&abort, |task| {
             if task.ends_with(":lifecycle-load") {
                 let mut scope_diagnostics =
@@ -4584,6 +4592,7 @@ fn run_scheduled_validation_documents(
                 input_diags.append(&mut scope_diagnostics);
                 let mut loaded = load_input_through_lifecycle(input, context);
                 input_diags.append(&mut loaded.diagnostics);
+                source_bytes_for_projection = Some(loaded.bytes.clone());
                 loaded_input = Some(loaded);
                 return;
             }
@@ -4592,6 +4601,7 @@ fn run_scheduled_validation_documents(
                 .take()
                 .unwrap_or_else(|| load_input_through_lifecycle(input, context));
             input_diags.append(&mut loaded.diagnostics);
+            source_bytes_for_projection = Some(loaded.bytes.clone());
             if is_transform_config_schema(input, context) {
                 input_diags.extend(validate_transform_config_document(
                     input,
@@ -4622,6 +4632,9 @@ fn run_scheduled_validation_documents(
             budget_aliases,
             started_at.elapsed().as_nanos(),
         ));
+        if let Some(source_bytes) = source_bytes_for_projection.as_ref() {
+            project_diagnostics_for_source(&mut input_diags, source_bytes);
+        }
         project_diagnostic_uris(&mut input_diags, input, context);
         all_diags.extend(input_diags);
     }
@@ -4915,6 +4928,7 @@ fn observe_pipeline_with_scope(
     use crate::source_map::TransformKind;
 
     let started_at = Instant::now();
+    let line_index = LineIndex::from_bytes_lossy(bytes);
     let mut sequencer = EventSequencer::new();
     let mut emit = EventEmitter::new(observer, &mut sequencer);
 
@@ -4933,7 +4947,7 @@ fn observe_pipeline_with_scope(
     );
 
     // Event-normalizer pass — produces the `parse` channel feed.
-    let normalizer_diags: Vec<Diagnostic>;
+    let mut normalizer_diags: Vec<Diagnostic>;
     {
         match from_format {
             InputFormat::Cem => {
@@ -4942,7 +4956,7 @@ fn observe_pipeline_with_scope(
                 let tok_diags = tok.take_diagnostics();
                 let mut normalizer = CemEventNormalizer::new(tok);
                 while let Some(event) = normalizer.next_event() {
-                    emit_parse_event(&mut emit, &event);
+                    emit_parse_event(&mut emit, &event, &line_index);
                 }
                 normalizer_diags = tok_diags;
             }
@@ -4952,7 +4966,7 @@ fn observe_pipeline_with_scope(
                 let tok_diags = tok.take_diagnostics();
                 let mut normalizer = CemEventNormalizer::new(tok);
                 while let Some(event) = normalizer.next_event() {
-                    emit_parse_event(&mut emit, &event);
+                    emit_parse_event(&mut emit, &event, &line_index);
                 }
                 normalizer_diags = tok_diags;
             }
@@ -4962,7 +4976,7 @@ fn observe_pipeline_with_scope(
                 let tok_diags = tok.take_diagnostics();
                 let mut normalizer = CemEventNormalizer::new(tok);
                 while let Some(event) = normalizer.next_event() {
-                    emit_parse_event(&mut emit, &event);
+                    emit_parse_event(&mut emit, &event, &line_index);
                 }
                 normalizer_diags = tok_diags;
             }
@@ -4993,6 +5007,8 @@ fn observe_pipeline_with_scope(
         })
         .unwrap_or_default();
     run.diagnostics.append(&mut budget_diags);
+    project_diagnostics_for_source(&mut run.diagnostics, bytes);
+    project_diagnostics_for_source(&mut normalizer_diags, bytes);
 
     // Validate channel — every accumulated diagnostic, plus the
     // normalizer's own diagnostics we collected above (they are also
@@ -5001,41 +5017,57 @@ fn observe_pipeline_with_scope(
     for diag in run.diagnostics.iter().chain(normalizer_diags.iter()) {
         let key = (diag.code.clone(), diag.byte_offset);
         if emitted_codes_offsets.insert(key) {
-            emit.validate(diag);
+            let coordinate = diag
+                .byte_offset
+                .map(|byte_offset| line_index.project_host(byte_offset));
+            let source_map_coordinates = diag.source_map.as_ref().and_then(|source_map| {
+                source_map_coordinate_details(source_map, &line_index, SourceId(1))
+            });
+            emit.validate_with_coordinates(diag, coordinate, source_map_coordinates);
         }
     }
 
-    fn emit_parse_event(emit: &mut EventEmitter<'_>, event: &NormalizedEvent) {
+    fn emit_parse_event(
+        emit: &mut EventEmitter<'_>,
+        event: &NormalizedEvent,
+        line_index: &LineIndex,
+    ) {
         match event {
             NormalizedEvent::OpenScope {
                 name,
                 byte_range,
                 source_map,
-            } => emit.parse(
+            } => emit_parse_projected(
+                emit,
                 ParseEventKind::OpenScope,
                 Some(name.lexical_name.clone()),
                 None,
                 Some(byte_range.start),
                 Some(source_map.clone()),
+                line_index,
             ),
             NormalizedEvent::CloseScope {
                 name,
                 byte_range,
                 source_map,
                 ..
-            } => emit.parse(
+            } => emit_parse_projected(
+                emit,
                 ParseEventKind::CloseScope,
                 Some(name.lexical_name.clone()),
                 None,
                 Some(byte_range.start),
                 Some(source_map.clone()),
+                line_index,
             ),
-            NormalizedEvent::Name { name, byte_range } => emit.parse(
+            NormalizedEvent::Name { name, byte_range } => emit_parse_projected(
+                emit,
                 ParseEventKind::Name,
                 Some(name.lexical_name.clone()),
                 None,
                 Some(byte_range.start),
                 None,
+                line_index,
             ),
             NormalizedEvent::Value { value, byte_range } => {
                 let v = match value {
@@ -5045,64 +5077,100 @@ fn observe_pipeline_with_scope(
                     ScalarValue::Bool(b) => b.to_string(),
                     ScalarValue::Null => String::new(),
                 };
-                emit.parse(
+                emit_parse_projected(
+                    emit,
                     ParseEventKind::Value,
                     None,
                     Some(v),
                     Some(byte_range.start),
                     None,
+                    line_index,
                 );
             }
             NormalizedEvent::Trivia {
                 kind,
                 data,
                 byte_range,
-            } => emit.parse(
+            } => emit_parse_projected(
+                emit,
                 ParseEventKind::Trivia,
                 Some(format!("{kind:?}")),
                 Some(data.clone()),
                 Some(byte_range.start),
                 None,
+                line_index,
             ),
-            NormalizedEvent::Separator { kind, byte_range } => emit.parse(
+            NormalizedEvent::Separator { kind, byte_range } => emit_parse_projected(
+                emit,
                 ParseEventKind::Separator,
                 Some(format!("{kind:?}")),
                 None,
                 Some(byte_range.start),
                 None,
+                line_index,
             ),
             NormalizedEvent::ModeSwitch {
                 content_type,
                 handoff,
                 ..
-            } => emit.parse(
+            } => emit_parse_projected(
+                emit,
                 ParseEventKind::ModeSwitch,
                 Some(content_type.clone()),
                 None,
                 Some(handoff.source_span.start),
                 None,
+                line_index,
             ),
             NormalizedEvent::ProcessingInstruction {
                 target,
                 data,
                 byte_range,
-            } => emit.parse(
+            } => emit_parse_projected(
+                emit,
                 ParseEventKind::ProcessingInstruction,
                 Some(target.clone()),
                 Some(data.clone()),
                 Some(byte_range.start),
                 None,
+                line_index,
             ),
             NormalizedEvent::Error {
                 code, byte_range, ..
-            } => emit.parse(
+            } => emit_parse_projected(
+                emit,
                 ParseEventKind::Error,
                 Some(code.clone()),
                 None,
                 Some(byte_range.start),
                 None,
+                line_index,
             ),
         }
+    }
+
+    fn emit_parse_projected(
+        emit: &mut EventEmitter<'_>,
+        kind: ParseEventKind,
+        name: Option<String>,
+        value: Option<String>,
+        byte_offset: Option<u64>,
+        source_map: Option<SourceMapStack>,
+        line_index: &LineIndex,
+    ) {
+        let coordinate = byte_offset.map(|byte_offset| line_index.project_host(byte_offset));
+        let source_map_coordinates = source_map.as_ref().and_then(|source_map| {
+            source_map_coordinate_details(source_map, line_index, SourceId(1))
+        });
+        emit.parse_with_coordinates(
+            kind,
+            name,
+            value,
+            byte_offset,
+            source_map,
+            coordinate,
+            source_map_coordinates,
+        );
     }
 
     run
@@ -5131,6 +5199,7 @@ impl CemMlEngine for RealCemMlEngine {
         );
         diagnostics.extend(loaded.diagnostics);
         diagnostics.extend(run.diagnostics);
+        project_diagnostics_for_source(&mut diagnostics, &loaded.bytes);
         project_diagnostic_uris(&mut diagnostics, &request.input, &request.context);
         Ok(ParseResponse {
             primary,
@@ -5197,6 +5266,7 @@ impl CemMlEngine for RealCemMlEngine {
             &["inspectms", "inspecttimebudgetms"],
             started_at.elapsed().as_nanos(),
         ));
+        project_diagnostics_for_source(&mut diagnostics, &loaded.bytes);
         project_diagnostic_uris(&mut diagnostics, &request.input, &request.context);
         let display_uri = input_uri(&request.input, &request.context);
         let body = match request.show {
@@ -5276,6 +5346,7 @@ impl CemMlEngine for RealCemMlEngine {
         let mut primary: Option<Value> = None;
         let mut primary_bytes: Option<PrimaryBytes> = None;
         let mut conversion: Option<ConvertExecutionMetadata> = None;
+        let mut source_bytes_for_projection: Option<Vec<u8>> = None;
         pool.run_to_completion(&abort, |task| {
             if task.ends_with(":lifecycle-load") {
                 let mut scope_diagnostics = root_scope_metadata_diagnostics(
@@ -5286,6 +5357,7 @@ impl CemMlEngine for RealCemMlEngine {
                 diagnostics.append(&mut scope_diagnostics);
                 let mut loaded = registry.load(&request.input, &context);
                 diagnostics.append(&mut loaded.diagnostics);
+                source_bytes_for_projection = Some(loaded.bytes.clone());
                 loaded_input = Some(loaded);
                 return;
             }
@@ -5307,6 +5379,7 @@ impl CemMlEngine for RealCemMlEngine {
                 .take()
                 .unwrap_or_else(|| registry.load(&request.input, &context));
             diagnostics.append(&mut loaded.diagnostics);
+            source_bytes_for_projection = Some(loaded.bytes.clone());
             let mut export = export_selection.take().unwrap_or_else(|| {
                 registry.select_export(request.target.as_ref(), request.to_format)
             });
@@ -5611,6 +5684,9 @@ impl CemMlEngine for RealCemMlEngine {
             &["convertms", "converttimebudgetms"],
             elapsed_ns,
         ));
+        if let Some(source_bytes) = source_bytes_for_projection.as_ref() {
+            project_diagnostics_for_source(&mut diagnostics, source_bytes);
+        }
         project_diagnostic_uris(&mut diagnostics, &request.input, &context);
         Ok(ConvertResponse {
             primary,
@@ -6304,6 +6380,7 @@ impl CemMlEngine for RealCemMlEngine {
             &["tracems", "tracetimebudgetms"],
             started_at.elapsed().as_nanos(),
         ));
+        project_diagnostics_for_source(&mut diagnostics, &loaded.bytes);
         project_diagnostic_uris(&mut diagnostics, &request.input, &request.context);
         let parser_stages = parser_stage_report_for_input(
             &request.input,
@@ -6420,6 +6497,7 @@ impl CemMlEngine for RealCemMlEngine {
                 &["fixturevalidatems", "fixturevalidatetimebudgetms"],
                 started_at.elapsed().as_nanos(),
             ));
+            project_diagnostics_for_source(&mut input_diags, &loaded.bytes);
             project_diagnostic_uris(&mut input_diags, &input, &request.context);
             all_diags.extend(input_diags);
         }
@@ -6464,6 +6542,7 @@ impl CemMlEngine for RealCemMlEngine {
                 &["fixtureroundtripms", "fixtureroundtriptimebudgetms"],
                 started_at.elapsed().as_nanos(),
             ));
+            project_diagnostics_for_source(&mut input_diags, &loaded.bytes);
             project_diagnostic_uris(&mut input_diags, &input, &request.context);
             all_diags.extend(input_diags);
         }

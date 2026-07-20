@@ -101,15 +101,18 @@
         },
         "line": {
           "type": ["integer", "null"],
-          "minimum": 0
+          "minimum": 0,
+          "description": "One-based derived source line for host/report consumers. Null when the diagnostic has no source location."
         },
         "column": {
           "type": ["integer", "null"],
-          "minimum": 0
+          "minimum": 0,
+          "description": "One-based derived UTF-16 column for host/report consumers. Byte offsets remain the canonical parser coordinate."
         },
         "byteOffset": {
           "type": ["integer", "null"],
-          "minimum": 0
+          "minimum": 0,
+          "description": "Canonical byte offset from the source stream. Null when the diagnostic has no source location."
         },
         "code": {
           "type": "string",
@@ -124,6 +127,18 @@
         },
         "node": {
           "type": "string"
+        },
+        "details": {
+          "type": ["object", "null"],
+          "additionalProperties": true,
+          "properties": {
+            "coordinates": {
+              "$ref": "#/$defs/hostCoordinate"
+            },
+            "sourceMapCoordinates": {
+              "$ref": "#/$defs/sourceMapCoordinates"
+            }
+          }
         },
         "sourceMap": {
           "$ref": "#/$defs/sourceMapStack"
@@ -141,6 +156,84 @@
             "type": "object",
             "additionalProperties": true
           }
+        }
+      }
+    },
+    "hostCoordinate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["byteOffset", "line", "column", "utf16Offset", "utf16Column", "columnEncoding"],
+      "properties": {
+        "byteOffset": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "line": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "column": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "utf16Offset": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "utf16Column": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "columnEncoding": {
+          "type": "string",
+          "const": "utf-16"
+        }
+      }
+    },
+    "sourceMapCoordinates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["columnEncoding", "frames"],
+      "properties": {
+        "columnEncoding": {
+          "type": "string",
+          "const": "utf-16"
+        },
+        "frames": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sourceMapCoordinateFrame"
+          }
+        }
+      }
+    },
+    "sourceMapCoordinateFrame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceId", "ranges"],
+      "properties": {
+        "sourceId": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "ranges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sourceMapCoordinateRange"
+          }
+        }
+      }
+    },
+    "sourceMapCoordinateRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["byteStart", "byteLen", "start", "end"],
+      "properties": {
+        "byteStart": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "byteLen": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "start": {
+          "$ref": "#/$defs/hostCoordinate"
+        },
+        "end": {
+          "$ref": "#/$defs/hostCoordinate"
         }
       }
     },

@@ -47,7 +47,9 @@ search over the accumulated checkpoints for the selected frame's `SourceId`. A r
 renderer chooses the frame to project: origin/input for author-facing diagnostics,
 current/generated for transform debugging, or an intermediate frame for pipeline traces.
 Different frames can legitimately produce different line/column values for the same
-diagnostic.
+diagnostic. Browser, devtools, and WASM report surfaces derive `column`, `utf16Offset`,
+and `utf16Column` from the same index using UTF-16 code units so host APIs can consume
+the coordinates directly; parser and source-map storage remains byte-only.
 
 For Tier B+ compressed binary content, the research specifies bit-level ranges
 (`bit_start: u64, bit_len: u32`). Bit fields are reserved in the source-map schema but
@@ -149,7 +151,7 @@ Diagnostic:
   uri: String                       document URI or file path
   byte_offset: u64                  projection from the selected report frame
   line: u32                         1-based projection for the selected report frame
-  column: u32                       1-based projection for the selected report frame
+  column: u32                       1-based UTF-16 projection for host/report consumers
   source_map: SourceMapStack        required for pre-AST and AST-time diagnostics
   code: DiagCode                    stable enumerated code
   severity: Severity { Fatal | Error | Warning | Info }
@@ -1724,15 +1726,20 @@ The Rust counterpart of the `ReportEvent` above lives in `cem_ml::observability`
 callback receives a `&ReportEvent`; the canonical wire form is its `serde` JSON
 projection, normative for both Rust and WASM consumers per AC-O-1 and AC-C-1.
 
-| Field         | JSON key       | Type                              | Required | Notes                                                                                           |
-|---------------|----------------|-----------------------------------|----------|-------------------------------------------------------------------------------------------------|
-| `sequence`    | `sequence`     | `u64`                             | yes      | Dense monotonic id across all channels (AC-O-3); duplicates indicate observer-replay misuse.    |
-| `channel`     | `channel`      | `"parse" \| "validate" \| "transform"` | yes  | Discriminator. Exactly one of `parse` / `validate` / `transform` payloads is present.            |
-| `byte_offset` | `byteOffset`   | `u64`                             | no       | AC-P-3 canonical coordinate. Omitted from the wire when `None`. Always set on parse-channel events and on validate-channel events whose underlying `Diagnostic` carries a location. |
-| `source_map`  | `sourceMap`    | `SourceMapStack` object           | no       | Origin-first stack (AC-P-7). Co-present with `byte_offset` whenever both are known.             |
-| `parse`       | `parse`        | `ParseReportEvent`                | when channel == parse | `{ kind, name?, value? }`. `kind` is the stable string token (`open_scope`, `close_scope`, …).   |
-| `validate`    | `validate`     | `ValidateReportEvent`             | when channel == validate | `{ code, severity, message }`. `severity` is `"info" / "warning" / "error" / "fatal"`.            |
-| `transform`   | `transform`    | `TransformReportEvent`            | when channel == transform | `{ transform, summary }`. `transform` is the `TransformKind` discriminator from the source-map model. |
+| Field                    | JSON key               | Type                              | Required | Notes                                                                                           |
+|--------------------------|------------------------|-----------------------------------|----------|-------------------------------------------------------------------------------------------------|
+| `sequence`               | `sequence`             | `u64`                             | yes      | Dense monotonic id across all channels (AC-O-3); duplicates indicate observer-replay misuse.    |
+| `channel`                | `channel`              | `"parse" \| "validate" \| "transform"` | yes  | Discriminator. Exactly one of `parse` / `validate` / `transform` payloads is present.            |
+| `byte_offset`            | `byteOffset`           | `u64`                             | no       | AC-P-3 canonical coordinate. Omitted from the wire when `None`. Always set on parse-channel events and on validate-channel events whose underlying `Diagnostic` carries a location. |
+| `line`                   | `line`                 | `u32`                             | no       | Derived one-based source line for host/report consumers.                                        |
+| `column`                 | `column`               | `u32`                             | no       | Derived one-based UTF-16 column for host/report consumers.                                      |
+| `utf16_offset`           | `utf16Offset`          | `u64`                             | no       | Derived zero-based UTF-16 source offset.                                                        |
+| `utf16_column`           | `utf16Column`          | `u32`                             | no       | Derived one-based UTF-16 source column.                                                         |
+| `source_map`             | `sourceMap`            | `SourceMapStack` object           | no       | Origin-first stack (AC-P-7). Co-present with `byte_offset` whenever both are known.             |
+| `source_map_coordinates` | `sourceMapCoordinates` | object                            | no       | Derived UTF-16 range coordinates for known source-map frames; byte ranges remain canonical.      |
+| `parse`                  | `parse`                | `ParseReportEvent`                | when channel == parse | `{ kind, name?, value? }`. `kind` is the stable string token (`open_scope`, `close_scope`, …).   |
+| `validate`               | `validate`             | `ValidateReportEvent`             | when channel == validate | `{ code, severity, message }`. `severity` is `"info" / "warning" / "error" / "fatal"`.            |
+| `transform`              | `transform`            | `TransformReportEvent`            | when channel == transform | `{ transform, summary }`. `transform` is the `TransformKind` discriminator from the source-map model. |
 
 The canonical JSON Schema (Draft 2020-12) lives at
 `packages/cem_ml/schema/observability/report-event.schema.json` and is the

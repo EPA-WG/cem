@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cem.dev/schema/observability/report-event.schema.json",
   "title": "ReportEvent",
-  "description": "Canonical wire form of the engine observability event surface (AC-O-1 / AC-O-3). One ReportEvent flows through each `onParseEvent`, `onValidate`, or `onTransform` callback. The `channel` discriminator picks exactly one of the `parse`, `validate`, or `transform` payloads. `byteOffset` is the AC-P-3 canonical source coordinate, omitted from the wire when the emitting layer has no source location for the event.",
+  "description": "Canonical wire form of the engine observability event surface (AC-O-1 / AC-O-3). One ReportEvent flows through each `onParseEvent`, `onValidate`, or `onTransform` callback. The `channel` discriminator picks exactly one of the `parse`, `validate`, or `transform` payloads. `byteOffset` is the AC-P-3 canonical source coordinate, omitted from the wire when the emitting layer has no source location for the event. `line`, `column`, `utf16Offset`, `utf16Column`, and `sourceMapCoordinates` are derived host-reporting coordinates for browser, devtools, and WASM consumers.",
   "type": "object",
   "additionalProperties": false,
   "required": ["sequence", "channel"],
@@ -22,8 +22,31 @@
       "minimum": 0,
       "description": "AC-P-3 canonical source coordinate. Omitted when the emitting layer has no source location. Always present on parse-channel events; present on validate-channel events whose underlying Diagnostic carries a location."
     },
+    "line": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "One-based derived line for host/report consumers. Omitted when no source byte offset is available."
+    },
+    "column": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "One-based derived UTF-16 column for host/report consumers. Byte offsets remain canonical."
+    },
+    "utf16Offset": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Zero-based derived UTF-16 code-unit offset from the beginning of the source."
+    },
+    "utf16Column": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "One-based derived UTF-16 code-unit column within the current line."
+    },
     "sourceMap": {
       "$ref": "#/$defs/SourceMapStack"
+    },
+    "sourceMapCoordinates": {
+      "$ref": "#/$defs/SourceMapCoordinates"
     },
     "parse": {
       "$ref": "#/$defs/ParseReportEvent"
@@ -238,6 +261,92 @@
         "frames": {
           "type": "array",
           "items": { "type": "object" }
+        }
+      }
+    },
+    "HostCoordinate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["byteOffset", "line", "column", "utf16Offset", "utf16Column", "columnEncoding"],
+      "properties": {
+        "byteOffset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "utf16Offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "utf16Column": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "columnEncoding": {
+          "type": "string",
+          "const": "utf-16"
+        }
+      }
+    },
+    "SourceMapCoordinates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["columnEncoding", "frames"],
+      "properties": {
+        "columnEncoding": {
+          "type": "string",
+          "const": "utf-16"
+        },
+        "frames": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceMapCoordinateFrame"
+          }
+        }
+      }
+    },
+    "SourceMapCoordinateFrame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceId", "ranges"],
+      "properties": {
+        "sourceId": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ranges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceMapCoordinateRange"
+          }
+        }
+      }
+    },
+    "SourceMapCoordinateRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["byteStart", "byteLen", "start", "end"],
+      "properties": {
+        "byteStart": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "byteLen": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "start": {
+          "$ref": "#/$defs/HostCoordinate"
+        },
+        "end": {
+          "$ref": "#/$defs/HostCoordinate"
         }
       }
     }
