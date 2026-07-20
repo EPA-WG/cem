@@ -311,6 +311,7 @@ comparisonSet:
 items:
   source-ordered item outcomes:
     declaredValue
+    sourceLexeme, when captured
     normalizedValue, when valid
     state
     reason, when non-valid
@@ -321,6 +322,11 @@ items:
 Comparison operators consume `comparisonSet`. Diagnostic projection and
 structured provenance consume `items`, so invalid entries and duplicate origins
 remain addressable even when comparison values dedupe.
+
+`declaredValue` is the parsed semantic value. `sourceLexeme` is the exact
+authored token spelling when the parser captured one, and `sourceRange` is
+location metadata. Validators must not use `sourceRange` as part of value
+equality or reconstruct `sourceLexeme` from `declaredValue`.
 
 The operand's `@normalizer` remains the collection normalizer for set results.
 Structured comparison metadata also exposes the effective `itemNormalizer`: for

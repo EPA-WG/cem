@@ -77,11 +77,15 @@ A normalized reference value has these conceptual fields:
   normalizers it is declared by the collection normalizer.
 - `cardinality`: `one`, `optional`, `set`, or conceptual `sequence`.
 - `shape`: `scalar` or `record`.
-- `declaredValue`: the source scalar or list item as written by the schema
-  author.
+- `declaredValue`: the parsed semantic scalar, record, or list item selected
+  from source, with scalar type preserved.
+- `sourceLexeme`: the exact authored token spelling when the value came from a
+  source token and lexical spelling was captured. Registry-derived or
+  synthesized values may omit it.
 - `normalizedValue`: the normalized scalar, record, or set used by later
   comparison.
-- `sourceRange`: range of the declared field that produced the value.
+- `sourceRange`: range of the declared field that produced the value. This is
+  location metadata and never participates in equality.
 - `provenance`: optional normalizer-supplied metadata that explains how the
   normalized value was derived without becoming part of normal equality. For
   schema identity this includes the declared URI, parsed version constraint,
@@ -142,6 +146,7 @@ comparisonSet:
 items:
   source-ordered item outcomes:
     declaredValue
+    sourceLexeme, when captured
     normalizedValue, when valid
     state
     reason, when non-valid
@@ -177,6 +182,23 @@ projection rule explicitly says so.
 Mixed normalizer names without operator-declared compatible item outputs are
 malformed comparison declarations. They must be rejected before value
 comparison rather than silently coerced.
+
+## Exact Scalar Semantics
+
+Exact scalar normalization is typed. `schema:scalar-exact` compares the parsed
+semantic scalar as `(type, value)` and performs no implicit coercion. A string
+`"1"`, integer `1`, decimal `1.0`, boolean `true`, and null are distinct even
+when their source lexemes look similar or a host language would coerce them.
+
+`schema:string-exact` is the text-only exact normalizer. It accepts only parsed
+string/text values and compares codepoints exactly. It does not stringify
+numbers, booleans, null, records, or lists.
+
+Lexical spelling is a separate concern. `schema:source-lexeme-exact` compares
+`sourceLexeme`, not `declaredValue`; use it only for contracts where authored
+spelling, quote style, numeric spelling, escape spelling, or other token text is
+the semantic value. Validators must not reconstruct `sourceLexeme` from
+`declaredValue`.
 
 ## Placement
 
@@ -436,7 +458,9 @@ alias table. Reference normalization uses schema/content registries through
 
 | Normalizer                         | Output                | Placement                                                                       | Semantics                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | ---------------------------------- | --------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `schema:scalar-exact`              | string                | pure                                                                            | Preserve the parsed scalar exactly. No case folding, Unicode normalization, URI normalization, or whitespace trimming beyond CEM-ML attribute parsing.                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `schema:scalar-exact`              | typed scalar          | pure                                                                            | Preserve the parsed scalar type and semantic value exactly. Equality is `(type, value)` with no coercion: strings, integers, decimals, booleans, and null do not compare across types. Source spelling is not part of equality; use `schema:source-lexeme-exact` when spelling matters.                                                                                                                                                                                                                                                                                 |
+| `schema:string-exact`              | string                | pure                                                                            | Accept only parsed string/text values and compare codepoints exactly. No Unicode normalization, case folding, URI normalization, whitespace trimming, or conversion from numeric, boolean, null, record, or list values is applied.                                                                                                                                                                                                                                                                                                                                     |
+| `schema:source-lexeme-exact`       | string                | pure                                                                            | Compare the captured `sourceLexeme` exactly as authored for the selected scalar or list item. This normalizer is for spelling-sensitive contracts and must not reconstruct a lexeme from `declaredValue`; values without captured source lexemes cannot satisfy it.                                                                                                                                                                                                                                                                                                     |
 | `schema:identifier-token`          | string                | pure                                                                            | Validate an identifier-like token and preserve it exactly. Use for content category and profile values whose vocabulary is schema-owned.                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `schema:media-type`                | record                | engine-assisted initially; pure when content-type parsing is exposed            | Parse strict RFC media-type syntax into `essence`, `type`, `subtype`, optional `suffix`, and `parameters`. Type, subtype, suffix, and parameter names normalize to lowercase. Parameter values are unquoted and otherwise preserved unless a registered parameter-specific rule declares case-insensitive comparison. Legacy aliases and bare content identifiers are not accepted by this normalizer. Invalid media syntax produces `state=invalid`.                                                                                                                   |
 | `schema:media-type-essence`        | string                | engine-assisted initially; pure when content-type parsing is exposed            | Apply `schema:media-type` and project its lowercase essence. `Text/HTML; Charset=UTF-8` normalizes to `text/html`. Parameter information remains available through `schema:media-type` when needed.                                                                                                                                                                                                                                                                                                                                                                     |
@@ -553,6 +577,9 @@ projection is not part of this normalization vocabulary.
 - Scalar normalizers must return exactly one normalized value when valid. Any
   normalizer that can return multiple values must be named as a set normalizer
   and produce deterministic ordering.
+- `schema:scalar-exact` preserves parsed scalar type. Use
+  `schema:string-exact` for text-only exact contracts and
+  `schema:source-lexeme-exact` for spelling-sensitive contracts.
 - A comparison must identify the collection/scalar `normalizer` and effective
   `itemNormalizer` for each side. Operators compare item-normalized values
   with compatible equivalence semantics; identical normalizer names are not

@@ -76,7 +76,7 @@ identity.
       registries with one grammar primitive or by renaming the normalizer. Keep
       the CEM-QL `accepts` alias table scoped to CEM-QL rather than treating it
       as a global content alias registry.
-- [ ] **[C9] Make exact scalar normalization typed.** Define
+- [x] **[C9] Make exact scalar normalization typed.** Define
       `schema:scalar-exact` as exact `(type, value)` comparison without
       coercion, add `schema:string-exact` for text-only contracts, and add a
       distinct lexical normalizer where spelling matters. Keep
