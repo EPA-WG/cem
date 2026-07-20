@@ -7,8 +7,9 @@
 //! selection, and resource policy accounting.
 
 use crate::diagnostics::{Diagnostic, Severity};
-use crate::engine::{EngineInput, FormatIdentity, InputFormat};
+use crate::engine::{EngineInput, FailLevel, FormatIdentity, InputFormat};
 use crate::resolver::{has_uri_scheme, local_file_uri_to_path};
+use crate::scheduler::{OverflowPolicy, ScopePolicy};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -147,6 +148,473 @@ pub struct RunConfigParseResponse {
     pub diagnostics: Vec<Diagnostic>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NormalizedRunPlanRequest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config_bytes: Option<Vec<u8>>,
+    #[serde(default)]
+    pub config_identity: FormatIdentity,
+    #[serde(default)]
+    pub config_base_uri: Option<String>,
+    #[serde(default)]
+    pub defaults: RunConfigDefaults,
+    #[serde(default)]
+    pub input_records: Vec<String>,
+    #[serde(default)]
+    pub output_records: Vec<String>,
+    #[serde(default)]
+    pub diagnostics_mode: NormalizedDiagnosticsMode,
+    #[serde(default)]
+    pub command_profile: Option<String>,
+}
+
+impl Default for NormalizedRunPlanRequest {
+    fn default() -> Self {
+        Self {
+            config_bytes: None,
+            config_identity: FormatIdentity {
+                content_type: Some("application/json".to_owned()),
+                schema: Some(RUN_CONFIG_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            },
+            config_base_uri: None,
+            defaults: RunConfigDefaults::default(),
+            input_records: Vec::new(),
+            output_records: Vec::new(),
+            diagnostics_mode: NormalizedDiagnosticsMode::default(),
+            command_profile: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NormalizedRunPlan {
+    pub run_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub command_profile: Option<String>,
+    pub config_identity: NormalizedConfigIdentity,
+    #[serde(default)]
+    pub authored_sources: Vec<NormalizedAuthoredSource>,
+    #[serde(default)]
+    pub inputs: Vec<NormalizedInput>,
+    #[serde(default)]
+    pub outputs: Vec<NormalizedOutput>,
+    #[serde(default)]
+    pub schema_packages: Vec<NormalizedSchemaPackage>,
+    #[serde(default)]
+    pub resolvers: Vec<NormalizedResolverBinding>,
+    #[serde(default)]
+    pub scheduler: SchedulerConfig,
+    #[serde(default)]
+    pub diagnostics_mode: NormalizedDiagnosticsMode,
+    #[serde(default)]
+    pub provenance: Vec<NormalizedProvenance>,
+    #[serde(default)]
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NormalizedConfigIdentity {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub declared_uri: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolved_uri: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub schema_identity: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub namespace_identity: Option<String>,
+    pub source_kind: NormalizedConfigSourceKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_range: Option<NormalizedSourceRange>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum NormalizedConfigSourceKind {
+    File,
+    FileUri,
+    CustomUri,
+    Bytes,
+    CliRecords,
+    #[default]
+    HostObject,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NormalizedAuthoredSource {
+    pub source_id: String,
+    pub source_kind: NormalizedConfigSourceKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub declared_uri: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolved_uri: Option<String>,
+    #[serde(default)]
+    pub identity: FormatIdentity,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_range: Option<NormalizedSourceRange>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NormalizedSourceRange {
+    pub start_byte: u64,
+    pub end_byte: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NormalizedInput {
+    pub input_id: String,
+    pub declared_uri: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolved_uri: Option<String>,
+    pub byte_source_kind: NormalizedByteSourceKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from_format_hint: Option<InputFormat>,
+    pub identity: FormatIdentity,
+    pub root_scope: NormalizedRootScope,
+    #[serde(default)]
+    pub provenance: Vec<NormalizedProvenance>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_range: Option<NormalizedSourceRange>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum NormalizedByteSourceKind {
+    #[default]
+    Uri,
+    Bytes,
+    Stream,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NormalizedOutput {
+    pub output_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub declared_destination: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolved_destination: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub to_format_fallback: Option<String>,
+    pub identity: FormatIdentity,
+    pub root_scope: NormalizedRootScope,
+    pub primary_output_policy: NormalizedPrimaryOutputPolicy,
+    #[serde(default)]
+    pub sidecars: Vec<String>,
+    #[serde(default)]
+    pub provenance: Vec<NormalizedProvenance>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_range: Option<NormalizedSourceRange>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum NormalizedPrimaryOutputPolicy {
+    #[default]
+    InMemory,
+    WriteDestination,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NormalizedSchemaPackage {
+    pub schema_package_id: String,
+    pub declared_uri: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolved_uri: Option<String>,
+    pub identity: FormatIdentity,
+    pub root_scope: NormalizedRootScope,
+    #[serde(default)]
+    pub provenance: Vec<NormalizedProvenance>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_range: Option<NormalizedSourceRange>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NormalizedRootScope {
+    pub scope_id: String,
+    pub direction: NormalizedScopeDirection,
+    pub identity: FormatIdentity,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_namespace: Option<String>,
+    #[serde(default)]
+    pub namespaces: BTreeMap<String, String>,
+    #[serde(default)]
+    pub version_pins: BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_uri: Option<String>,
+    pub resolver_context: NormalizedResolverContext,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub module_map: Option<NormalizedModuleMapIdentity>,
+    pub policy: NormalizedScopePolicy,
+    pub budgets: NormalizedBudgets,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_pipeline: Option<NormalizedOutputPipeline>,
+    #[serde(default)]
+    pub provenance: Vec<NormalizedProvenance>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum NormalizedScopeDirection {
+    #[default]
+    Input,
+    Output,
+    SchemaPackage,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NormalizedResolverContext {
+    #[serde(default)]
+    pub resolver_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NormalizedModuleMapIdentity {
+    pub declared_uri: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolved_uri: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entries_hash: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolver_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_uri: Option<String>,
+    pub state: NormalizedModuleMapState,
+    #[serde(default)]
+    pub diagnostics: Vec<Diagnostic>,
+    #[serde(default)]
+    pub provenance: Vec<NormalizedProvenance>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NormalizedModuleMapState {
+    Valid,
+    #[default]
+    Missing,
+    Invalid,
+    Unreadable,
+    Unsupported,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NormalizedScopePolicy {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub policy_name: Option<String>,
+    pub cpu_workers: u32,
+    pub queue_size: u32,
+    pub io_streams: u32,
+    pub memory_bytes: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin_time_budget_ms: Option<u64>,
+    pub overflow: OverflowPolicy,
+    #[serde(default)]
+    pub provenance: Vec<NormalizedProvenance>,
+}
+
+impl NormalizedScopePolicy {
+    fn from_scope_policy(policy_name: Option<String>, policy: ScopePolicy) -> Self {
+        Self {
+            policy_name,
+            cpu_workers: policy.cpu_workers,
+            queue_size: policy.queue_size,
+            io_streams: policy.io_streams,
+            memory_bytes: policy.memory_bytes,
+            plugin_time_budget_ms: policy.plugin_time_budget_ms,
+            overflow: policy.overflow,
+            provenance: Vec::new(),
+        }
+    }
+}
+
+impl Default for NormalizedScopePolicy {
+    fn default() -> Self {
+        Self::from_scope_policy(None, deterministic_scope_policy())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NormalizedBudgets {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parse_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub validate_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub check_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub convert_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trace_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inspect_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bench_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fixture_validate_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fixture_roundtrip_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observe_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub memory_bytes: Option<u64>,
+    #[serde(default)]
+    pub unknown: Vec<NormalizedBudgetEntry>,
+    #[serde(default)]
+    pub provenance: Vec<NormalizedProvenance>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NormalizedBudgetEntry {
+    pub name: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NormalizedOutputPipeline {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_color_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cemt_formatter: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cemt_formatter_profile: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cemt_colorizer: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cemt_color_profile: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NormalizedResolverBinding {
+    pub resolver_id: String,
+    pub scheme: String,
+    #[serde(default)]
+    pub purposes: Vec<NormalizedResolverPurpose>,
+    #[serde(default)]
+    pub directions: Vec<NormalizedResolverDirection>,
+    pub declared_uri_prefix: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolved_local_root: Option<String>,
+    pub support: NormalizedResolverSupport,
+    #[serde(default)]
+    pub provenance: Vec<NormalizedProvenance>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum NormalizedResolverPurpose {
+    Config,
+    Input,
+    Template,
+    ModuleMap,
+    Output,
+    Report,
+    ObserveEvents,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NormalizedResolverDirection {
+    Read,
+    Write,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NormalizedResolverSupport {
+    #[default]
+    Required,
+    Optional,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NormalizedDiagnosticsMode {
+    pub fail_level: FailLevel,
+    pub primary_kind: NormalizedPrimaryKind,
+    pub report_projection: NormalizedReportProjection,
+    #[serde(default)]
+    pub report_destinations: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observe_events_destination: Option<String>,
+    #[serde(default)]
+    pub quiet: bool,
+    #[serde(default)]
+    pub verbose: bool,
+    #[serde(default)]
+    pub no_color: bool,
+}
+
+impl Default for NormalizedDiagnosticsMode {
+    fn default() -> Self {
+        Self {
+            fail_level: FailLevel::Validate,
+            primary_kind: NormalizedPrimaryKind::Report,
+            report_projection: NormalizedReportProjection::Json,
+            report_destinations: Vec::new(),
+            observe_events_destination: None,
+            quiet: false,
+            verbose: false,
+            no_color: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NormalizedPrimaryKind {
+    #[default]
+    Report,
+    Content,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NormalizedReportProjection {
+    Text,
+    #[default]
+    Json,
+    Xml,
+    Cem,
+    Html,
+    Markdown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NormalizedProvenance {
+    pub field_path: String,
+    pub source: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub declared_value: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub normalized_value: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_range: Option<NormalizedSourceRange>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RunConfigError {
     pub code: &'static str,
@@ -204,6 +672,84 @@ pub fn parse_run_config(
             format!("run config content type `{other}` is not supported yet; use application/json"),
         )),
     }
+}
+
+pub fn parse_normalized_run_plan(
+    request: NormalizedRunPlanRequest,
+) -> Result<NormalizedRunPlan, RunConfigError> {
+    validate_run_config_identity(&request.config_identity)?;
+
+    let has_config_bytes = request.config_bytes.is_some();
+    let has_records = !request.input_records.is_empty() || !request.output_records.is_empty();
+    let source_kind = normalized_config_source_kind(
+        has_config_bytes,
+        has_records,
+        request.config_base_uri.as_deref(),
+    );
+    let config_identity = normalized_config_identity(&request, source_kind, has_config_bytes);
+    let authored_sources = vec![NormalizedAuthoredSource {
+        source_id: "config:0".to_owned(),
+        source_kind,
+        declared_uri: request.config_base_uri.clone(),
+        resolved_uri: resolved_config_uri(request.config_base_uri.as_deref()),
+        identity: request.config_identity.clone(),
+        source_range: None,
+    }];
+
+    let mut diagnostics = Vec::new();
+    let mut config = if let Some(bytes) = request.config_bytes.clone() {
+        let parsed = parse_run_config(RunConfigParseRequest {
+            bytes,
+            identity: request.config_identity.clone(),
+            base_uri: request.config_base_uri.clone(),
+        })?;
+        diagnostics.extend(parsed.diagnostics);
+        parsed.config
+    } else {
+        RunConfig::default()
+    };
+
+    for (index, record) in request.input_records.iter().enumerate() {
+        match parse_input_spec_record(record) {
+            Ok(spec) => config.inputs.push(spec),
+            Err(error) => diagnostics.push(record_parse_diagnostic(
+                "cem.run_config.input_spec_invalid",
+                "inputSpecRecords",
+                index,
+                error,
+                request.config_base_uri.as_deref(),
+            )),
+        }
+    }
+
+    for (index, record) in request.output_records.iter().enumerate() {
+        match parse_output_spec_record(record) {
+            Ok(spec) => config.outputs.push(spec),
+            Err(error) => diagnostics.push(record_parse_diagnostic(
+                "cem.run_config.output_spec_invalid",
+                "outputSpecRecords",
+                index,
+                error,
+                request.config_base_uri.as_deref(),
+            )),
+        }
+    }
+
+    let authored_config = config.clone();
+    let response =
+        normalize_run_config(config, request.defaults, request.config_base_uri.as_deref());
+    diagnostics.extend(response.diagnostics);
+
+    Ok(build_normalized_run_plan(
+        &authored_config,
+        &response.config,
+        config_identity,
+        authored_sources,
+        request.command_profile,
+        request.diagnostics_mode,
+        request.config_base_uri.as_deref(),
+        diagnostics,
+    ))
 }
 
 fn validate_run_config_identity(identity: &FormatIdentity) -> Result<(), RunConfigError> {
@@ -273,6 +819,659 @@ pub fn normalize_run_config(
     RunConfigParseResponse {
         config,
         diagnostics,
+    }
+}
+
+fn build_normalized_run_plan(
+    authored: &RunConfig,
+    normalized: &RunConfig,
+    config_identity: NormalizedConfigIdentity,
+    authored_sources: Vec<NormalizedAuthoredSource>,
+    command_profile: Option<String>,
+    diagnostics_mode: NormalizedDiagnosticsMode,
+    base_uri: Option<&str>,
+    mut diagnostics: Vec<Diagnostic>,
+) -> NormalizedRunPlan {
+    validate_resolver_specs_with_paths(&normalized.resolvers, base_uri, &mut diagnostics);
+
+    let resolvers: Vec<_> = normalized
+        .resolvers
+        .iter()
+        .enumerate()
+        .map(|(index, resolver)| normalized_resolver_binding(resolver, index))
+        .collect();
+    let resolver_ids: Vec<_> = resolvers
+        .iter()
+        .map(|resolver| resolver.resolver_id.clone())
+        .collect();
+
+    let inputs: Vec<_> = normalized
+        .inputs
+        .iter()
+        .enumerate()
+        .map(|(index, input)| {
+            let authored_input = authored.inputs.get(index).unwrap_or(input);
+            NormalizedInput {
+                input_id: format!("input:{index}"),
+                declared_uri: authored_input.uri.clone(),
+                resolved_uri: changed_value(&authored_input.uri, &input.uri),
+                byte_source_kind: NormalizedByteSourceKind::Uri,
+                from_format_hint: None,
+                identity: input.root_scope.format_identity(),
+                root_scope: normalized_root_scope(
+                    &authored_input.root_scope,
+                    &input.root_scope,
+                    NormalizedScopeDirection::Input,
+                    index,
+                    "inputs",
+                    base_uri,
+                    &resolver_ids,
+                    &mut diagnostics,
+                ),
+                provenance: Vec::new(),
+                source_range: None,
+            }
+        })
+        .collect();
+
+    let schema_packages: Vec<_> = normalized
+        .schema_packages
+        .iter()
+        .enumerate()
+        .map(|(index, package)| {
+            let authored_package = authored.schema_packages.get(index).unwrap_or(package);
+            NormalizedSchemaPackage {
+                schema_package_id: format!("schemaPackage:{index}"),
+                declared_uri: authored_package.uri.clone(),
+                resolved_uri: changed_value(&authored_package.uri, &package.uri),
+                identity: package.root_scope.format_identity(),
+                root_scope: normalized_root_scope(
+                    &authored_package.root_scope,
+                    &package.root_scope,
+                    NormalizedScopeDirection::SchemaPackage,
+                    index,
+                    "schemaPackages",
+                    base_uri,
+                    &resolver_ids,
+                    &mut diagnostics,
+                ),
+                provenance: Vec::new(),
+                source_range: None,
+            }
+        })
+        .collect();
+
+    let outputs: Vec<_> = normalized
+        .outputs
+        .iter()
+        .enumerate()
+        .map(|(index, output)| {
+            let authored_output = authored.outputs.get(index).unwrap_or(output);
+            let input_id = normalized_output_input_id(
+                output,
+                &normalized.inputs,
+                index,
+                base_uri,
+                &mut diagnostics,
+            );
+            NormalizedOutput {
+                output_id: format!("output:{index}"),
+                input_id,
+                declared_destination: authored_output.destination.clone(),
+                resolved_destination: output.destination.clone(),
+                to_format_fallback: None,
+                identity: output.root_scope.format_identity(),
+                root_scope: normalized_root_scope(
+                    &authored_output.root_scope,
+                    &output.root_scope,
+                    NormalizedScopeDirection::Output,
+                    index,
+                    "outputs",
+                    base_uri,
+                    &resolver_ids,
+                    &mut diagnostics,
+                ),
+                primary_output_policy: if output.destination.is_some() {
+                    NormalizedPrimaryOutputPolicy::WriteDestination
+                } else {
+                    NormalizedPrimaryOutputPolicy::InMemory
+                },
+                sidecars: Vec::new(),
+                provenance: Vec::new(),
+                source_range: None,
+            }
+        })
+        .collect();
+
+    let run_id = stable_run_id(normalized, &diagnostics_mode, command_profile.as_deref());
+    NormalizedRunPlan {
+        run_id,
+        command_profile,
+        config_identity,
+        authored_sources,
+        inputs,
+        outputs,
+        schema_packages,
+        resolvers,
+        scheduler: normalized.scheduler.clone(),
+        diagnostics_mode,
+        provenance: Vec::new(),
+        diagnostics,
+    }
+}
+
+fn normalized_root_scope(
+    authored: &ScopeConfig,
+    effective: &ScopeConfig,
+    direction: NormalizedScopeDirection,
+    index: usize,
+    collection: &str,
+    base_uri: Option<&str>,
+    resolver_ids: &[String],
+    diagnostics: &mut Vec<Diagnostic>,
+) -> NormalizedRootScope {
+    let field_prefix = format!("{collection}[{index}].rootScope");
+    validate_scope_config_with_paths(effective, &field_prefix, base_uri, diagnostics);
+    let (policy, budgets) =
+        normalized_policy_and_budgets(effective, &field_prefix, base_uri, diagnostics);
+
+    NormalizedRootScope {
+        scope_id: format!("scope:{}:{index}", direction_id(direction)),
+        direction,
+        identity: effective.format_identity(),
+        default_namespace: effective.default_namespace.clone(),
+        namespaces: effective.namespaces.clone(),
+        version_pins: effective.version_pins.clone(),
+        base_uri: effective.base_uri.clone(),
+        resolver_context: NormalizedResolverContext {
+            resolver_ids: resolver_ids.to_vec(),
+        },
+        module_map: normalized_module_map_identity(authored, effective, base_uri),
+        policy,
+        budgets,
+        output_pipeline: normalized_output_pipeline(effective),
+        provenance: Vec::new(),
+    }
+}
+
+fn normalized_policy_and_budgets(
+    scope: &ScopeConfig,
+    field_prefix: &str,
+    base_uri: Option<&str>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> (NormalizedScopePolicy, NormalizedBudgets) {
+    let policy_name = scope.policy.clone();
+    let mut policy = match scope.policy.as_deref().map(normalize_key) {
+        Some(name) if name == "host" => ScopePolicy::host_root(),
+        Some(name) if name == "deterministic" || name == "default" => deterministic_scope_policy(),
+        Some(_) => {
+            diagnostics.push(config_field_diagnostic(
+                "cem.run_config.scope_policy_unenforced",
+                Severity::Warning,
+                "scope policy is parsed and preserved, but runtime enforcement is not implemented yet"
+                    .to_owned(),
+                base_uri,
+                &format!("{field_prefix}.policy"),
+                None,
+            ));
+            deterministic_scope_policy()
+        }
+        None => deterministic_scope_policy(),
+    };
+    let mut budgets = NormalizedBudgets::default();
+
+    for (field, value) in &scope.budgets {
+        let field_path = format!("{field_prefix}.budgets.{field}");
+        match normalize_key(field).as_str() {
+            "cpu" | "cpuworkers" => match parse_u32_budget_value(field, value) {
+                Ok(value) => policy.cpu_workers = value,
+                Err(message) => diagnostics.push(budget_invalid_diagnostic(
+                    message, base_uri, &field_path,
+                )),
+            },
+            "queue" | "queuesize" => match parse_u32_budget_value(field, value) {
+                Ok(value) => policy.queue_size = value,
+                Err(message) => diagnostics.push(budget_invalid_diagnostic(
+                    message, base_uri, &field_path,
+                )),
+            },
+            "io" | "iostreams" => match parse_u32_budget_value(field, value) {
+                Ok(value) => policy.io_streams = value,
+                Err(message) => diagnostics.push(budget_invalid_diagnostic(
+                    message, base_uri, &field_path,
+                )),
+            },
+            "memory" | "memorybytes" => match parse_u64_budget_value(field, value) {
+                Ok(value) => {
+                    policy.memory_bytes = value;
+                    budgets.memory_bytes = Some(value);
+                }
+                Err(message) => diagnostics.push(budget_invalid_diagnostic(
+                    message, base_uri, &field_path,
+                )),
+            },
+            "pluginms" | "plugintimebudgetms" => match parse_u64_budget_value(field, value) {
+                Ok(value) => {
+                    policy.plugin_time_budget_ms = Some(value);
+                    budgets.plugin_ms = Some(value);
+                }
+                Err(message) => diagnostics.push(budget_invalid_diagnostic(
+                    message, base_uri, &field_path,
+                )),
+            },
+            "parsems" | "parsetimebudgetms" => {
+                set_time_budget(&mut budgets.parse_ms, field, value, base_uri, &field_path, diagnostics)
+            }
+            "validatems" | "validatetimebudgetms" => set_time_budget(
+                &mut budgets.validate_ms,
+                field,
+                value,
+                base_uri,
+                &field_path,
+                diagnostics,
+            ),
+            "checkms" | "checktimebudgetms" => {
+                set_time_budget(&mut budgets.check_ms, field, value, base_uri, &field_path, diagnostics)
+            }
+            "convertms" | "converttimebudgetms" => set_time_budget(
+                &mut budgets.convert_ms,
+                field,
+                value,
+                base_uri,
+                &field_path,
+                diagnostics,
+            ),
+            "tracems" | "tracetimebudgetms" => {
+                set_time_budget(&mut budgets.trace_ms, field, value, base_uri, &field_path, diagnostics)
+            }
+            "inspectms" | "inspecttimebudgetms" => set_time_budget(
+                &mut budgets.inspect_ms,
+                field,
+                value,
+                base_uri,
+                &field_path,
+                diagnostics,
+            ),
+            "benchms" | "benchtimebudgetms" => {
+                set_time_budget(&mut budgets.bench_ms, field, value, base_uri, &field_path, diagnostics)
+            }
+            "fixturevalidatems" | "fixturevalidatetimebudgetms" => set_time_budget(
+                &mut budgets.fixture_validate_ms,
+                field,
+                value,
+                base_uri,
+                &field_path,
+                diagnostics,
+            ),
+            "fixtureroundtripms" | "fixtureroundtriptimebudgetms" => set_time_budget(
+                &mut budgets.fixture_roundtrip_ms,
+                field,
+                value,
+                base_uri,
+                &field_path,
+                diagnostics,
+            ),
+            "observems" | "observetimebudgetms" => set_time_budget(
+                &mut budgets.observe_ms,
+                field,
+                value,
+                base_uri,
+                &field_path,
+                diagnostics,
+            ),
+            "overflow" => match normalize_key(value).as_str() {
+                "block" => policy.overflow = OverflowPolicy::Block,
+                "reject" => policy.overflow = OverflowPolicy::Reject,
+                "spilltoparent" => policy.overflow = OverflowPolicy::SpillToParent,
+                _ => diagnostics.push(budget_invalid_diagnostic(
+                    format!("budget `overflow` expects block, reject, or spill-to-parent, got `{value}`"),
+                    base_uri,
+                    &field_path,
+                )),
+            },
+            _ => {
+                budgets.unknown.push(NormalizedBudgetEntry {
+                    name: field.clone(),
+                    value: value.clone(),
+                });
+                diagnostics.push(config_field_diagnostic(
+                    "cem.run_config.scope_budget_unknown",
+                    Severity::Warning,
+                    format!("budget `{field}` is parsed and preserved, but runtime enforcement is not implemented yet"),
+                    base_uri,
+                    &field_path,
+                    None,
+                ));
+            }
+        }
+    }
+
+    (
+        NormalizedScopePolicy::from_scope_policy(policy_name, policy),
+        budgets,
+    )
+}
+
+fn set_time_budget(
+    target: &mut Option<u64>,
+    field: &str,
+    value: &str,
+    base_uri: Option<&str>,
+    field_path: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    match parse_u64_budget_value(field, value) {
+        Ok(value) => *target = Some(value),
+        Err(message) => diagnostics.push(budget_invalid_diagnostic(message, base_uri, field_path)),
+    }
+}
+
+fn budget_invalid_diagnostic(
+    message: String,
+    base_uri: Option<&str>,
+    field_path: &str,
+) -> Diagnostic {
+    config_field_diagnostic(
+        "cem.run_config.scope_budget_invalid",
+        Severity::Fatal,
+        message,
+        base_uri,
+        field_path,
+        None,
+    )
+}
+
+fn deterministic_scope_policy() -> ScopePolicy {
+    ScopePolicy {
+        cpu_workers: 1,
+        queue_size: 8,
+        io_streams: 4,
+        memory_bytes: 8 * 1024 * 1024,
+        plugin_time_budget_ms: None,
+        overflow: OverflowPolicy::Reject,
+    }
+}
+
+fn normalized_module_map_identity(
+    authored: &ScopeConfig,
+    effective: &ScopeConfig,
+    base_uri: Option<&str>,
+) -> Option<NormalizedModuleMapIdentity> {
+    let resolved = effective.module_map.as_deref()?;
+    let declared = authored
+        .module_map
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or(resolved);
+    let resolved_uri = changed_value(declared, resolved);
+    let content_type = infer_content_type_from_path(resolved)
+        .or_else(|| Some(crate::schema::registry::JSON_CONTENT_TYPE.to_owned()));
+    Some(NormalizedModuleMapIdentity {
+        declared_uri: declared.to_owned(),
+        resolved_uri,
+        content_type,
+        entries_hash: None,
+        resolver_id: None,
+        base_uri: base_uri.map(str::to_owned),
+        state: if resolved.trim().is_empty() {
+            NormalizedModuleMapState::Invalid
+        } else {
+            NormalizedModuleMapState::Valid
+        },
+        diagnostics: Vec::new(),
+        provenance: Vec::new(),
+    })
+}
+
+fn normalized_output_pipeline(scope: &ScopeConfig) -> Option<NormalizedOutputPipeline> {
+    let pipeline = NormalizedOutputPipeline {
+        output_color_type: scope.output_color_type.clone(),
+        cemt_formatter: scope.cemt_formatter.clone(),
+        cemt_formatter_profile: scope.cemt_formatter_profile.clone(),
+        cemt_colorizer: scope.cemt_colorizer.clone(),
+        cemt_color_profile: scope.cemt_color_profile.clone(),
+    };
+    (pipeline.output_color_type.is_some()
+        || pipeline.cemt_formatter.is_some()
+        || pipeline.cemt_formatter_profile.is_some()
+        || pipeline.cemt_colorizer.is_some()
+        || pipeline.cemt_color_profile.is_some())
+    .then_some(pipeline)
+}
+
+fn normalized_resolver_binding(resolver: &ResolverSpec, index: usize) -> NormalizedResolverBinding {
+    let scheme = resolver
+        .uri_prefix
+        .split_once(':')
+        .map(|(scheme, _)| scheme)
+        .filter(|scheme| !scheme.is_empty())
+        .unwrap_or("file")
+        .to_owned();
+    let mut directions = Vec::new();
+    let mut purposes = Vec::new();
+    if resolver.read {
+        directions.push(NormalizedResolverDirection::Read);
+        purposes.extend([
+            NormalizedResolverPurpose::Config,
+            NormalizedResolverPurpose::Input,
+            NormalizedResolverPurpose::Template,
+            NormalizedResolverPurpose::ModuleMap,
+        ]);
+    }
+    if resolver.write {
+        directions.push(NormalizedResolverDirection::Write);
+        purposes.extend([
+            NormalizedResolverPurpose::Output,
+            NormalizedResolverPurpose::Report,
+            NormalizedResolverPurpose::ObserveEvents,
+        ]);
+    }
+
+    NormalizedResolverBinding {
+        resolver_id: format!(
+            "resolver:{}:{scheme}:{index}",
+            resolver_purpose_id(&purposes)
+        ),
+        scheme,
+        purposes,
+        directions,
+        declared_uri_prefix: resolver.uri_prefix.clone(),
+        resolved_local_root: Some(resolver.local_root.clone()),
+        support: NormalizedResolverSupport::Required,
+        provenance: Vec::new(),
+    }
+}
+
+fn validate_resolver_specs_with_paths(
+    resolvers: &[ResolverSpec],
+    base_uri: Option<&str>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for (index, resolver) in resolvers.iter().enumerate() {
+        let prefix = format!("resolvers[{index}]");
+        if resolver.uri_prefix.trim().is_empty() {
+            diagnostics.push(config_field_diagnostic(
+                "cem.run_config.resolver_uri_prefix_invalid",
+                Severity::Fatal,
+                format!("resolver spec at index {index} requires `uriPrefix`"),
+                base_uri,
+                &format!("{prefix}.uriPrefix"),
+                None,
+            ));
+        }
+        if resolver.local_root.trim().is_empty() {
+            diagnostics.push(config_field_diagnostic(
+                "cem.run_config.resolver_local_root_invalid",
+                Severity::Fatal,
+                format!("resolver spec at index {index} requires `localRoot`"),
+                base_uri,
+                &format!("{prefix}.localRoot"),
+                None,
+            ));
+        }
+        if !resolver.read && !resolver.write {
+            diagnostics.push(config_field_diagnostic(
+                "cem.run_config.resolver_direction_invalid",
+                Severity::Fatal,
+                format!("resolver spec at index {index} must enable read or write"),
+                base_uri,
+                &prefix,
+                None,
+            ));
+        }
+    }
+}
+
+fn validate_scope_config_with_paths(
+    scope: &ScopeConfig,
+    field_prefix: &str,
+    base_uri: Option<&str>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if let Some(module_map) = scope.module_map.as_deref() {
+        if module_map.trim().is_empty() {
+            diagnostics.push(config_field_diagnostic(
+                "cem.run_config.scope_module_map_invalid",
+                Severity::Fatal,
+                "root scope has an empty moduleMap".to_owned(),
+                base_uri,
+                &format!("{field_prefix}.moduleMap"),
+                None,
+            ));
+        }
+    }
+
+    if let Some(default_namespace) = scope.default_namespace.as_deref() {
+        if default_namespace.trim().is_empty() {
+            diagnostics.push(config_field_diagnostic(
+                "cem.run_config.scope_namespace_invalid",
+                Severity::Fatal,
+                "root scope has an empty defaultNamespace URI".to_owned(),
+                base_uri,
+                &format!("{field_prefix}.defaultNamespace"),
+                None,
+            ));
+        }
+    }
+
+    for (prefix, uri) in &scope.namespaces {
+        if !valid_namespace_prefix(prefix) {
+            diagnostics.push(config_field_diagnostic(
+                "cem.run_config.scope_namespace_invalid",
+                Severity::Fatal,
+                format!("root scope has invalid namespace prefix `{prefix}`"),
+                base_uri,
+                &format!("{field_prefix}.namespaces.{prefix}"),
+                None,
+            ));
+        }
+        if uri.trim().is_empty() {
+            diagnostics.push(config_field_diagnostic(
+                "cem.run_config.scope_namespace_invalid",
+                Severity::Fatal,
+                format!("root scope has an empty namespace URI for `{prefix}`"),
+                base_uri,
+                &format!("{field_prefix}.namespaces.{prefix}"),
+                None,
+            ));
+        }
+        if prefix == "xml" && uri != "http://www.w3.org/XML/1998/namespace" {
+            diagnostics.push(config_field_diagnostic(
+                "cem.run_config.scope_namespace_invalid",
+                Severity::Fatal,
+                format!("root scope binds reserved prefix `xml` to `{uri}`"),
+                base_uri,
+                &format!("{field_prefix}.namespaces.xml"),
+                None,
+            ));
+        }
+        if prefix == "xmlns" {
+            diagnostics.push(config_field_diagnostic(
+                "cem.run_config.scope_namespace_invalid",
+                Severity::Fatal,
+                "root scope uses reserved prefix `xmlns`".to_owned(),
+                base_uri,
+                &format!("{field_prefix}.namespaces.xmlns"),
+                None,
+            ));
+        }
+    }
+
+    for (name, constraint) in &scope.version_pins {
+        if name.trim().is_empty() {
+            diagnostics.push(config_field_diagnostic(
+                "cem.run_config.scope_version_pin_invalid",
+                Severity::Fatal,
+                "root scope has an empty versionPins key".to_owned(),
+                base_uri,
+                &format!("{field_prefix}.versionPins"),
+                None,
+            ));
+        }
+        if constraint.trim().is_empty() {
+            diagnostics.push(config_field_diagnostic(
+                "cem.run_config.scope_version_pin_invalid",
+                Severity::Fatal,
+                format!("root scope has an empty versionPins value for `{name}`"),
+                base_uri,
+                &format!("{field_prefix}.versionPins.{name}"),
+                None,
+            ));
+        }
+    }
+}
+
+fn valid_namespace_prefix(prefix: &str) -> bool {
+    !prefix.trim().is_empty()
+        && !prefix.contains(':')
+        && !prefix.chars().any(char::is_whitespace)
+        && prefix
+            .chars()
+            .next()
+            .is_some_and(|ch| ch == '_' || ch.is_ascii_alphabetic())
+        && prefix
+            .chars()
+            .all(|ch| ch == '_' || ch == '-' || ch == '.' || ch.is_ascii_alphanumeric())
+}
+
+fn normalized_output_input_id(
+    output: &OutputSpec,
+    inputs: &[InputSpec],
+    output_index: usize,
+    base_uri: Option<&str>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<String> {
+    if let Some(input_ref) = output.input_ref.as_deref() {
+        if let Some(index) = inputs.iter().position(|input| input.uri == input_ref) {
+            return Some(format!("input:{index}"));
+        }
+        diagnostics.push(config_field_diagnostic(
+            "cem.run_config.output_input_ref_unknown",
+            Severity::Fatal,
+            format!("output spec at index {output_index} references unknown input `{input_ref}`"),
+            base_uri,
+            &format!("outputs[{output_index}].inputRef"),
+            Some(format!("output:{output_index}")),
+        ));
+        return None;
+    }
+
+    if inputs.len() == 1 {
+        Some("input:0".to_owned())
+    } else if inputs.len() > 1 {
+        diagnostics.push(config_field_diagnostic(
+            "cem.run_config.output_input_ref_ambiguous",
+            Severity::Fatal,
+            format!(
+                "output spec at index {output_index} must declare `inputRef` when multiple inputs are configured"
+            ),
+            base_uri,
+            &format!("outputs[{output_index}].inputRef"),
+            Some(format!("output:{output_index}")),
+        ));
+        None
+    } else {
+        None
     }
 }
 
@@ -617,6 +1816,168 @@ fn config_diagnostic(code: &str, message: String, base_uri: Option<&str>) -> Dia
     }
 }
 
+fn config_field_diagnostic(
+    code: &str,
+    severity: Severity,
+    message: String,
+    base_uri: Option<&str>,
+    field_path: &str,
+    normalized_id: Option<String>,
+) -> Diagnostic {
+    let mut details = serde_json::Map::new();
+    details.insert(
+        "fieldPath".to_owned(),
+        serde_json::Value::String(field_path.to_owned()),
+    );
+    if let Some(normalized_id) = normalized_id {
+        details.insert(
+            "normalizedId".to_owned(),
+            serde_json::Value::String(normalized_id),
+        );
+    }
+    Diagnostic {
+        uri: base_uri.map(str::to_owned),
+        code: code.to_owned(),
+        severity,
+        message,
+        details: Some(serde_json::Value::Object(details)),
+        ..Diagnostic::default()
+    }
+}
+
+fn record_parse_diagnostic(
+    code: &str,
+    collection: &str,
+    index: usize,
+    error: SpecParseError,
+    base_uri: Option<&str>,
+) -> Diagnostic {
+    config_field_diagnostic(
+        code,
+        Severity::Fatal,
+        error.message,
+        base_uri,
+        &format!("{collection}[{index}]"),
+        None,
+    )
+}
+
+fn normalized_config_source_kind(
+    has_config_bytes: bool,
+    has_records: bool,
+    base_uri: Option<&str>,
+) -> NormalizedConfigSourceKind {
+    if !has_config_bytes && has_records {
+        return NormalizedConfigSourceKind::CliRecords;
+    }
+    if !has_config_bytes {
+        return NormalizedConfigSourceKind::HostObject;
+    }
+
+    let Some(base_uri) = base_uri.map(str::trim).filter(|base| !base.is_empty()) else {
+        return NormalizedConfigSourceKind::Bytes;
+    };
+    if !has_uri_scheme(base_uri) {
+        return NormalizedConfigSourceKind::File;
+    }
+    if base_uri.starts_with("file:") {
+        NormalizedConfigSourceKind::FileUri
+    } else {
+        NormalizedConfigSourceKind::CustomUri
+    }
+}
+
+fn normalized_config_identity(
+    request: &NormalizedRunPlanRequest,
+    source_kind: NormalizedConfigSourceKind,
+    has_config_bytes: bool,
+) -> NormalizedConfigIdentity {
+    NormalizedConfigIdentity {
+        declared_uri: request.config_base_uri.clone(),
+        resolved_uri: resolved_config_uri(request.config_base_uri.as_deref()),
+        content_type: request
+            .config_identity
+            .content_type
+            .clone()
+            .or_else(|| has_config_bytes.then(|| "application/json".to_owned())),
+        schema_identity: request
+            .config_identity
+            .schema
+            .clone()
+            .or_else(|| Some(RUN_CONFIG_SCHEMA_URI.to_owned())),
+        namespace_identity: request.config_identity.default_namespace.clone(),
+        source_kind,
+        source_range: None,
+    }
+}
+
+fn resolved_config_uri(base_uri: Option<&str>) -> Option<String> {
+    let base_uri = base_uri?.trim();
+    if base_uri.is_empty() {
+        return None;
+    }
+    if base_uri.starts_with("file:") {
+        return local_file_uri_to_path(base_uri).map(|path| path.to_string_lossy().into_owned());
+    }
+    Some(base_uri.to_owned())
+}
+
+fn changed_value(authored: &str, normalized: &str) -> Option<String> {
+    (authored != normalized).then(|| normalized.to_owned())
+}
+
+fn parse_u32_budget_value(field: &str, value: &str) -> Result<u32, String> {
+    value
+        .trim()
+        .parse::<u32>()
+        .map(|value| value.max(1))
+        .map_err(|_| format!("budget `{field}` expects an unsigned integer, got `{value}`"))
+}
+
+fn parse_u64_budget_value(field: &str, value: &str) -> Result<u64, String> {
+    value
+        .trim()
+        .parse::<u64>()
+        .map_err(|_| format!("budget `{field}` expects an unsigned integer, got `{value}`"))
+}
+
+fn stable_run_id(
+    config: &RunConfig,
+    diagnostics_mode: &NormalizedDiagnosticsMode,
+    command_profile: Option<&str>,
+) -> String {
+    let payload = serde_json::to_string(&(config, diagnostics_mode, command_profile))
+        .unwrap_or_else(|_| String::new());
+    format!("run:{:016x}", stable_hash(payload.as_bytes()))
+}
+
+fn stable_hash(bytes: &[u8]) -> u64 {
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    hash
+}
+
+fn direction_id(direction: NormalizedScopeDirection) -> &'static str {
+    match direction {
+        NormalizedScopeDirection::Input => "input",
+        NormalizedScopeDirection::Output => "output",
+        NormalizedScopeDirection::SchemaPackage => "schemaPackage",
+    }
+}
+
+fn resolver_purpose_id(purposes: &[NormalizedResolverPurpose]) -> &'static str {
+    if purposes.contains(&NormalizedResolverPurpose::Input) {
+        "read"
+    } else if purposes.contains(&NormalizedResolverPurpose::Output) {
+        "write"
+    } else {
+        "none"
+    }
+}
+
 fn validate_scope_config(
     scope: &ScopeConfig,
     direction: &str,
@@ -850,6 +2211,32 @@ pub fn infer_content_type_from_path(path: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn diagnostic_field_paths(diagnostics: &[Diagnostic]) -> Vec<String> {
+        diagnostics
+            .iter()
+            .filter_map(|diagnostic| {
+                diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("fieldPath"))
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_owned)
+            })
+            .collect()
+    }
+
+    fn has_field_path(diagnostics: &[Diagnostic], code: &str, field_path: &str) -> bool {
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == code
+                && diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("fieldPath"))
+                    .and_then(serde_json::Value::as_str)
+                    == Some(field_path)
+        })
+    }
 
     #[test]
     fn input_spec_record_maps_identity_and_scope_fields() {
@@ -1827,6 +3214,236 @@ mod tests {
             .diagnostics
             .iter()
             .all(|diag| diag.uri.as_deref() == Some("file:///run-config.json")));
+    }
+
+    #[test]
+    fn normalized_run_plan_builds_effective_scopes_from_config_bytes() {
+        let plan = parse_normalized_run_plan(NormalizedRunPlanRequest {
+            config_bytes: Some(
+                br#"{
+                    "inputs": [{
+                        "uri": "src/a.cem",
+                        "rootScope": {
+                            "defaultContentType": "text/html",
+                            "moduleMap": "input.modules.json"
+                        }
+                    }],
+                    "outputs": [{
+                        "inputRef": "src/a.cem",
+                        "destination": "dist/a.html",
+                        "rootScope": {
+                            "schema": "https://example.test/schema/html"
+                        }
+                    }]
+                }"#
+                .to_vec(),
+            ),
+            config_base_uri: Some("/workspace/configs/run.json".to_owned()),
+            defaults: RunConfigDefaults {
+                input_scope: ScopeConfig {
+                    default_content_type: Some("application/cem+xml".to_owned()),
+                    schema: Some("https://example.test/schema/default-input".to_owned()),
+                    ..ScopeConfig::default()
+                },
+                output_scope: ScopeConfig {
+                    default_content_type: Some("text/html".to_owned()),
+                    ..ScopeConfig::default()
+                },
+            },
+            ..NormalizedRunPlanRequest::default()
+        })
+        .unwrap();
+
+        assert!(plan.run_id.starts_with("run:"));
+        assert!(plan.diagnostics.is_empty());
+        assert_eq!(
+            plan.config_identity.schema_identity.as_deref(),
+            Some(RUN_CONFIG_SCHEMA_URI)
+        );
+        assert_eq!(plan.inputs[0].input_id, "input:0");
+        assert_eq!(plan.inputs[0].declared_uri, "src/a.cem");
+        assert_eq!(
+            plan.inputs[0].identity.content_type.as_deref(),
+            Some("text/html")
+        );
+        assert_eq!(
+            plan.inputs[0].identity.schema.as_deref(),
+            Some("https://example.test/schema/default-input")
+        );
+        let module_map = plan.inputs[0].root_scope.module_map.as_ref().unwrap();
+        assert_eq!(module_map.declared_uri, "input.modules.json");
+        assert_eq!(
+            module_map.resolved_uri.as_deref(),
+            Some("/workspace/configs/input.modules.json")
+        );
+        assert_eq!(plan.outputs[0].input_id.as_deref(), Some("input:0"));
+        assert_eq!(
+            plan.outputs[0].declared_destination.as_deref(),
+            Some("dist/a.html")
+        );
+        assert_eq!(
+            plan.outputs[0].resolved_destination.as_deref(),
+            Some("/workspace/configs/dist/a.html")
+        );
+        assert_eq!(
+            plan.outputs[0].identity.content_type.as_deref(),
+            Some("text/html")
+        );
+        assert_eq!(
+            plan.outputs[0].identity.schema.as_deref(),
+            Some("https://example.test/schema/html")
+        );
+    }
+
+    #[test]
+    fn normalized_run_plan_lowers_cli_records_and_resolves_paths() {
+        let plan = parse_normalized_run_plan(NormalizedRunPlanRequest {
+            config_bytes: None,
+            config_base_uri: Some("/workspace/configs/run.json".to_owned()),
+            input_records: vec![
+                "uri=src/b.cem,moduleMap=mods.json,budgets=parseMs:12|cpuWorkers:2".to_owned(),
+            ],
+            output_records: vec![
+                "input=src/b.cem,dest=dist/b.json,contentType=application/json".to_owned(),
+            ],
+            ..NormalizedRunPlanRequest::default()
+        })
+        .unwrap();
+
+        assert!(plan.diagnostics.is_empty());
+        assert_eq!(
+            plan.config_identity.source_kind,
+            NormalizedConfigSourceKind::CliRecords
+        );
+        assert_eq!(plan.inputs[0].input_id, "input:0");
+        assert_eq!(
+            plan.inputs[0]
+                .root_scope
+                .module_map
+                .as_ref()
+                .and_then(|module_map| module_map.resolved_uri.as_deref()),
+            Some("/workspace/configs/mods.json")
+        );
+        assert_eq!(plan.inputs[0].root_scope.budgets.parse_ms, Some(12));
+        assert_eq!(plan.inputs[0].root_scope.policy.cpu_workers, 2);
+        assert_eq!(
+            plan.outputs[0].resolved_destination.as_deref(),
+            Some("/workspace/configs/dist/b.json")
+        );
+    }
+
+    #[test]
+    fn normalized_run_plan_exposes_typed_policy_and_budget_aliases() {
+        let plan = parse_normalized_run_plan(NormalizedRunPlanRequest {
+            config_bytes: Some(
+                br#"{
+                    "inputs": [{
+                        "uri": "src/b.cem",
+                        "rootScope": {
+                            "policy": "deterministic",
+                            "budgets": {
+                                "cpuWorkers": "0",
+                                "queueSize": "16",
+                                "ioStreams": "4",
+                                "memoryBytes": "1024",
+                                "pluginMs": "20",
+                                "overflow": "spill-to-parent",
+                                "parseMs": "5",
+                                "validateTimeBudgetMs": "7",
+                                "futureBudget": "kept"
+                            }
+                        }
+                    }]
+                }"#
+                .to_vec(),
+            ),
+            config_base_uri: Some("file:///workspace/run.json".to_owned()),
+            ..NormalizedRunPlanRequest::default()
+        })
+        .unwrap();
+
+        let scope = &plan.inputs[0].root_scope;
+        assert_eq!(scope.policy.cpu_workers, 1);
+        assert_eq!(scope.policy.queue_size, 16);
+        assert_eq!(scope.policy.io_streams, 4);
+        assert_eq!(scope.policy.memory_bytes, 1024);
+        assert_eq!(scope.policy.plugin_time_budget_ms, Some(20));
+        assert_eq!(scope.policy.overflow, OverflowPolicy::SpillToParent);
+        assert_eq!(scope.budgets.parse_ms, Some(5));
+        assert_eq!(scope.budgets.validate_ms, Some(7));
+        assert_eq!(scope.budgets.memory_bytes, Some(1024));
+        assert_eq!(scope.budgets.plugin_ms, Some(20));
+        assert_eq!(scope.budgets.unknown.len(), 1);
+        assert!(has_field_path(
+            &plan.diagnostics,
+            "cem.run_config.scope_budget_unknown",
+            "inputs[0].rootScope.budgets.futureBudget"
+        ));
+    }
+
+    #[test]
+    fn normalized_run_plan_reports_field_path_diagnostics() {
+        let plan = parse_normalized_run_plan(NormalizedRunPlanRequest {
+            config_bytes: Some(
+                br#"{
+                    "inputs": [{
+                        "uri": "src/a.cem",
+                        "rootScope": {
+                            "defaultNamespace": "",
+                            "namespaces": {
+                                "1bad": "urn:widgets",
+                                "xml": "urn:not-xml"
+                            },
+                            "versionPins": {
+                                "core": ""
+                            },
+                            "moduleMap": "",
+                            "budgets": {
+                                "parseMs": "not-a-number",
+                                "overflow": "explode"
+                            }
+                        }
+                    }],
+                    "resolvers": [{
+                        "uriPrefix": "",
+                        "localRoot": "",
+                        "read": false,
+                        "write": false
+                    }]
+                }"#
+                .to_vec(),
+            ),
+            config_base_uri: Some("file:///run-config.json".to_owned()),
+            ..NormalizedRunPlanRequest::default()
+        })
+        .unwrap();
+
+        let paths = diagnostic_field_paths(&plan.diagnostics);
+        assert!(paths.contains(&"inputs[0].rootScope.moduleMap".to_owned()));
+        assert!(paths.contains(&"inputs[0].rootScope.defaultNamespace".to_owned()));
+        assert!(paths.contains(&"inputs[0].rootScope.namespaces.1bad".to_owned()));
+        assert!(paths.contains(&"inputs[0].rootScope.versionPins.core".to_owned()));
+        assert!(paths.contains(&"inputs[0].rootScope.budgets.parseMs".to_owned()));
+        assert!(paths.contains(&"inputs[0].rootScope.budgets.overflow".to_owned()));
+        assert!(paths.contains(&"resolvers[0].uriPrefix".to_owned()));
+        assert!(paths.contains(&"resolvers[0].localRoot".to_owned()));
+        assert!(paths.contains(&"resolvers[0]".to_owned()));
+    }
+
+    #[test]
+    fn normalized_run_plan_reports_invalid_cli_record_with_field_path() {
+        let plan = parse_normalized_run_plan(NormalizedRunPlanRequest {
+            config_bytes: None,
+            input_records: vec!["uri".to_owned()],
+            ..NormalizedRunPlanRequest::default()
+        })
+        .unwrap();
+
+        assert!(has_field_path(
+            &plan.diagnostics,
+            "cem.run_config.input_spec_invalid",
+            "inputSpecRecords[0]"
+        ));
     }
 
     #[test]

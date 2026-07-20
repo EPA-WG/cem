@@ -28,7 +28,7 @@ CLI-specific parsing details.
       module-map/resolver identity, base URI, resolver purpose, scope policy,
       budgets, diagnostics mode, and compatibility aliases. Result:
       [`cem-ml-phase2-run-config-contract.md`](cem-ml-phase2-run-config-contract.md).
-- [ ] Implement or align `cem_ml` config normalization before CLI-specific
+- [x] Implement or align `cem_ml` config normalization before CLI-specific
       parsing details: accept raw config bytes or raw record strings with config
       format identity, validate module-map/namespace/version-pin shape, resolve
       config-relative paths, and preserve source ranges.
