@@ -442,6 +442,101 @@ pub struct ReferenceProjectionBucketDeclaration {
     pub source_map: SourceMapStack,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReferenceResolutionState {
+    Valid,
+    Missing,
+    Invalid,
+    Unresolved,
+    Unsupported,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReferenceSourceValueKind {
+    Node,
+    Attribute,
+    Name,
+    Text,
+    Field,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceCandidateBinding {
+    pub binding: String,
+    pub node_id: AstNodeId,
+    pub ordinal: usize,
+    pub source_map: SourceMapStack,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceCandidateSelection {
+    pub binding: String,
+    pub state: ReferenceResolutionState,
+    pub reason: Option<String>,
+    pub candidates: Vec<ReferenceCandidateBinding>,
+    pub source_map: SourceMapStack,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceSourceValue {
+    pub kind: ReferenceSourceValueKind,
+    pub binding: String,
+    pub name: Option<String>,
+    pub value: Option<String>,
+    pub node_id: Option<AstNodeId>,
+    pub source_map: SourceMapStack,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ReferenceSourceBindings {
+    pub node_bindings: BTreeMap<String, Vec<AstNodeId>>,
+    pub field_bindings: BTreeMap<String, BTreeMap<String, Vec<ReferenceSourceValue>>>,
+}
+
+impl ReferenceSourceBindings {
+    pub fn bind_nodes(&mut self, binding: impl Into<String>, node_ids: Vec<AstNodeId>) {
+        self.node_bindings.insert(binding.into(), node_ids);
+    }
+
+    pub fn bind_candidate(&mut self, candidate: &ReferenceCandidateBinding) {
+        self.bind_nodes(candidate.binding.clone(), vec![candidate.node_id]);
+    }
+
+    pub fn bind_candidate_selection(&mut self, selection: &ReferenceCandidateSelection) {
+        self.bind_nodes(
+            selection.binding.clone(),
+            selection
+                .candidates
+                .iter()
+                .map(|candidate| candidate.node_id)
+                .collect(),
+        );
+    }
+
+    pub fn bind_field_values(
+        &mut self,
+        binding: impl Into<String>,
+        field: impl Into<String>,
+        values: Vec<ReferenceSourceValue>,
+    ) {
+        self.field_bindings
+            .entry(binding.into())
+            .or_default()
+            .insert(field.into(), values);
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceOperandSourceEnvelope {
+    pub binding: String,
+    pub from: Option<String>,
+    pub cardinality: String,
+    pub state: ReferenceResolutionState,
+    pub reason: Option<String>,
+    pub values: Vec<ReferenceSourceValue>,
+    pub source_map: SourceMapStack,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BehaviorDefinition {
     pub schema_uri: String,
@@ -10430,6 +10525,891 @@ fn source_map_details(source_map: &SourceMapStack) -> Option<serde_json::Value> 
     source_map.current().map(source_frame_range_details)
 }
 
+pub fn select_reference_candidates(
+    document: &CemDocument,
+    target_nodes: &[AstNodeId],
+    declaration: &ReferenceCandidatesDeclaration,
+) -> ReferenceCandidateSelection {
+    let binding = declaration.as_binding.clone().unwrap_or_default();
+    let Some(select) = declaration
+        .select
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return ReferenceCandidateSelection {
+            binding,
+            state: ReferenceResolutionState::Invalid,
+            reason: Some("missing-candidate-selector".to_owned()),
+            candidates: Vec::new(),
+            source_map: declaration.source_map.clone(),
+        };
+    };
+
+    let node_ids = match parse_reference_candidate_selector(select).and_then(|selector| {
+        evaluate_reference_candidate_selector(document, target_nodes, &selector)
+    }) {
+        Ok(node_ids) => node_ids,
+        Err(failure) => {
+            return ReferenceCandidateSelection {
+                binding,
+                state: failure.state(),
+                reason: Some(failure.reason.to_owned()),
+                candidates: Vec::new(),
+                source_map: declaration.source_map.clone(),
+            };
+        }
+    };
+
+    let candidates = node_ids
+        .into_iter()
+        .enumerate()
+        .map(|(ordinal, node_id)| ReferenceCandidateBinding {
+            binding: binding.clone(),
+            node_id,
+            ordinal,
+            source_map: source_stack_for_node_id(document, node_id),
+        })
+        .collect::<Vec<_>>();
+    let (state, reason) = reference_candidate_selection_state(
+        candidates.len(),
+        declaration.cardinality.as_deref(),
+        declaration.on_empty.as_deref(),
+    );
+
+    ReferenceCandidateSelection {
+        binding,
+        state,
+        reason: reason.map(str::to_owned),
+        candidates,
+        source_map: declaration.source_map.clone(),
+    }
+}
+
+pub fn extract_reference_operand_sources(
+    document: &CemDocument,
+    bindings: &ReferenceSourceBindings,
+    operand: &ReferenceOperandDeclaration,
+) -> ReferenceOperandSourceEnvelope {
+    let binding = operand.binding.clone().unwrap_or_default();
+    let cardinality = operand
+        .cardinality
+        .clone()
+        .unwrap_or_else(|| "one".to_owned());
+    let Some(from) = operand
+        .from
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return ReferenceOperandSourceEnvelope {
+            binding,
+            from: operand.from.clone(),
+            cardinality,
+            state: ReferenceResolutionState::Invalid,
+            reason: Some("missing-source-path".to_owned()),
+            values: Vec::new(),
+            source_map: operand.source_map.clone(),
+        };
+    };
+
+    let extracted = match parse_reference_source_path(from)
+        .and_then(|source_path| evaluate_reference_source_path(document, bindings, &source_path))
+    {
+        Ok(extracted) => extracted,
+        Err(failure) => {
+            return ReferenceOperandSourceEnvelope {
+                binding,
+                from: operand.from.clone(),
+                cardinality,
+                state: failure.state(),
+                reason: Some(failure.reason.to_owned()),
+                values: Vec::new(),
+                source_map: operand.source_map.clone(),
+            };
+        }
+    };
+    let (state, reason) = reference_operand_source_state(
+        extracted.values.len(),
+        cardinality.as_str(),
+        extracted.empty_reason,
+    );
+
+    ReferenceOperandSourceEnvelope {
+        binding,
+        from: operand.from.clone(),
+        cardinality,
+        state,
+        reason: reason.map(str::to_owned),
+        values: extracted.values,
+        source_map: operand.source_map.clone(),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReferenceExtractionFailureKind {
+    Invalid,
+    Unsupported,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ReferenceExtractionFailure {
+    kind: ReferenceExtractionFailureKind,
+    reason: &'static str,
+}
+
+impl ReferenceExtractionFailure {
+    fn invalid(reason: &'static str) -> Self {
+        Self {
+            kind: ReferenceExtractionFailureKind::Invalid,
+            reason,
+        }
+    }
+
+    fn unsupported(reason: &'static str) -> Self {
+        Self {
+            kind: ReferenceExtractionFailureKind::Unsupported,
+            reason,
+        }
+    }
+
+    fn state(self) -> ReferenceResolutionState {
+        match self.kind {
+            ReferenceExtractionFailureKind::Invalid => ReferenceResolutionState::Invalid,
+            ReferenceExtractionFailureKind::Unsupported => ReferenceResolutionState::Unsupported,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReferenceSelectorRoot {
+    Target,
+    Document,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReferenceCandidateAxis {
+    Child,
+    Descendant,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ReferenceCandidateSelector {
+    Root(ReferenceSelectorRoot),
+    Traverse {
+        root: ReferenceSelectorRoot,
+        axis: ReferenceCandidateAxis,
+        names: Vec<ReferenceNameMatcher>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ReferenceSourcePath {
+    Binding {
+        binding: String,
+    },
+    Attribute {
+        binding: String,
+        attribute: ReferenceNameMatcher,
+    },
+    Name {
+        binding: String,
+    },
+    Text {
+        binding: String,
+    },
+    Child {
+        binding: String,
+        element: ReferenceNameMatcher,
+    },
+    ChildAttribute {
+        binding: String,
+        element: ReferenceNameMatcher,
+        attribute: ReferenceNameMatcher,
+    },
+    Field {
+        binding: String,
+        field: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ReferenceNameMatcher {
+    Local(String),
+    Expanded {
+        namespace_uri: String,
+        local_name: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ReferenceExtractedValues {
+    values: Vec<ReferenceSourceValue>,
+    empty_reason: &'static str,
+}
+
+fn parse_reference_candidate_selector(
+    value: &str,
+) -> Result<ReferenceCandidateSelector, ReferenceExtractionFailure> {
+    let value = value.trim();
+    if value.is_empty() {
+        return Err(ReferenceExtractionFailure::invalid(
+            "missing-candidate-selector",
+        ));
+    }
+    if let Some(root) = parse_reference_selector_root(value) {
+        return Ok(ReferenceCandidateSelector::Root(root));
+    }
+
+    let Some((root, traversal)) = value.split_once('.') else {
+        return Err(ReferenceExtractionFailure::unsupported(
+            "unsupported-candidate-selector",
+        ));
+    };
+    let Some(root) = parse_reference_selector_root(root.trim()) else {
+        return Err(ReferenceExtractionFailure::unsupported(
+            "unsupported-candidate-root",
+        ));
+    };
+    let traversal = traversal.trim();
+    let (axis, args) = if let Some(args) = traversal
+        .strip_prefix("child(")
+        .and_then(|tail| tail.strip_suffix(')'))
+    {
+        (ReferenceCandidateAxis::Child, args)
+    } else if let Some(args) = traversal
+        .strip_prefix("descendant(")
+        .and_then(|tail| tail.strip_suffix(')'))
+    {
+        (ReferenceCandidateAxis::Descendant, args)
+    } else {
+        return Err(ReferenceExtractionFailure::unsupported(
+            "unsupported-candidate-selector",
+        ));
+    };
+    let names = parse_reference_name_matcher_list(args)?;
+    if names.is_empty() {
+        return Err(ReferenceExtractionFailure::invalid(
+            "invalid-candidate-selector",
+        ));
+    }
+
+    Ok(ReferenceCandidateSelector::Traverse { root, axis, names })
+}
+
+fn parse_reference_selector_root(value: &str) -> Option<ReferenceSelectorRoot> {
+    match value {
+        "$target" => Some(ReferenceSelectorRoot::Target),
+        "$document" => Some(ReferenceSelectorRoot::Document),
+        _ => None,
+    }
+}
+
+fn evaluate_reference_candidate_selector(
+    document: &CemDocument,
+    target_nodes: &[AstNodeId],
+    selector: &ReferenceCandidateSelector,
+) -> Result<Vec<AstNodeId>, ReferenceExtractionFailure> {
+    match selector {
+        ReferenceCandidateSelector::Root(root) => {
+            Ok(reference_selector_root_nodes(document, target_nodes, *root))
+        }
+        ReferenceCandidateSelector::Traverse { root, axis, names } => {
+            let roots = reference_selector_root_nodes(document, target_nodes, *root);
+            let mut selected = Vec::new();
+            for root_id in roots {
+                match axis {
+                    ReferenceCandidateAxis::Child => {
+                        for child_id in reference_child_element_ids(document, root_id) {
+                            if reference_element_matches_any(document, child_id, names) {
+                                selected.push(child_id);
+                            }
+                        }
+                    }
+                    ReferenceCandidateAxis::Descendant => {
+                        collect_reference_descendant_elements(
+                            document,
+                            root_id,
+                            names,
+                            &mut selected,
+                        );
+                    }
+                }
+            }
+            Ok(selected)
+        }
+    }
+}
+
+fn reference_selector_root_nodes(
+    document: &CemDocument,
+    target_nodes: &[AstNodeId],
+    root: ReferenceSelectorRoot,
+) -> Vec<AstNodeId> {
+    match root {
+        ReferenceSelectorRoot::Target => target_nodes.to_vec(),
+        ReferenceSelectorRoot::Document => document.root().map_or_else(Vec::new, |_| vec![0]),
+    }
+}
+
+fn reference_candidate_selection_state(
+    count: usize,
+    cardinality: Option<&str>,
+    on_empty: Option<&str>,
+) -> (ReferenceResolutionState, Option<&'static str>) {
+    let cardinality = cardinality.unwrap_or("zero-or-more");
+    let Some((minimum, maximum)) = reference_candidate_cardinality_bounds(cardinality) else {
+        return (
+            ReferenceResolutionState::Invalid,
+            Some("invalid-candidate-cardinality"),
+        );
+    };
+    if count == 0 {
+        let on_empty = on_empty.unwrap_or_else(|| match cardinality {
+            "zero-or-more" | "optional" => "pass",
+            "one-or-more" | "exactly-one" => "missing",
+            _ => "missing",
+        });
+        return match on_empty {
+            "pass" => (ReferenceResolutionState::Valid, None),
+            "missing" => (ReferenceResolutionState::Missing, Some("candidate-empty")),
+            "unmatched" => (
+                ReferenceResolutionState::Invalid,
+                Some("candidate-unmatched"),
+            ),
+            _ => (
+                ReferenceResolutionState::Invalid,
+                Some("invalid-candidate-on-empty"),
+            ),
+        };
+    }
+    if count < minimum || maximum.is_some_and(|maximum| count > maximum) {
+        return (
+            ReferenceResolutionState::Invalid,
+            Some("candidate-cardinality"),
+        );
+    }
+    (ReferenceResolutionState::Valid, None)
+}
+
+fn reference_candidate_cardinality_bounds(cardinality: &str) -> Option<(usize, Option<usize>)> {
+    match cardinality {
+        "zero-or-more" => Some((0, None)),
+        "optional" => Some((0, Some(1))),
+        "one-or-more" => Some((1, None)),
+        "exactly-one" => Some((1, Some(1))),
+        _ => None,
+    }
+}
+
+fn parse_reference_source_path(
+    value: &str,
+) -> Result<ReferenceSourcePath, ReferenceExtractionFailure> {
+    let value = value.trim();
+    if !reference_source_path_is_valid(value) {
+        return Err(ReferenceExtractionFailure::invalid("invalid-source-path"));
+    }
+    let Some((binding, rest)) = value.split_once('.') else {
+        return Ok(ReferenceSourcePath::Binding {
+            binding: value.to_owned(),
+        });
+    };
+    let binding = binding.trim().to_owned();
+    let rest = rest.trim();
+    if rest == "name" {
+        return Ok(ReferenceSourcePath::Name { binding });
+    }
+    if rest == "text" {
+        return Ok(ReferenceSourcePath::Text { binding });
+    }
+    if let Some(attribute) = rest.strip_prefix('@') {
+        return Ok(ReferenceSourcePath::Attribute {
+            binding,
+            attribute: parse_reference_name_matcher(attribute)?,
+        });
+    }
+    if let Some((element, attribute)) = rest
+        .strip_prefix("child(")
+        .and_then(|tail| tail.split_once(").@"))
+    {
+        return Ok(ReferenceSourcePath::ChildAttribute {
+            binding,
+            element: parse_reference_name_matcher(element)?,
+            attribute: parse_reference_name_matcher(attribute)?,
+        });
+    }
+    if let Some(element) = rest
+        .strip_prefix("child(")
+        .and_then(|tail| tail.strip_suffix(')'))
+    {
+        return Ok(ReferenceSourcePath::Child {
+            binding,
+            element: parse_reference_name_matcher(element)?,
+        });
+    }
+    if let Some(field) = rest
+        .strip_prefix("field(")
+        .and_then(|tail| tail.strip_suffix(')'))
+    {
+        return Ok(ReferenceSourcePath::Field {
+            binding,
+            field: field.trim().to_owned(),
+        });
+    }
+
+    Err(ReferenceExtractionFailure::invalid("invalid-source-path"))
+}
+
+fn evaluate_reference_source_path(
+    document: &CemDocument,
+    bindings: &ReferenceSourceBindings,
+    source_path: &ReferenceSourcePath,
+) -> Result<ReferenceExtractedValues, ReferenceExtractionFailure> {
+    match source_path {
+        ReferenceSourcePath::Binding { binding } => {
+            let Some(node_ids) = bindings.node_bindings.get(binding) else {
+                return Ok(reference_empty_values("missing-binding"));
+            };
+            Ok(ReferenceExtractedValues {
+                values: node_ids
+                    .iter()
+                    .filter_map(|node_id| reference_node_source_value(document, binding, *node_id))
+                    .collect(),
+                empty_reason: "missing-source",
+            })
+        }
+        ReferenceSourcePath::Attribute { binding, attribute } => {
+            let Some(node_ids) = bindings.node_bindings.get(binding) else {
+                return Ok(reference_empty_values("missing-binding"));
+            };
+            Ok(ReferenceExtractedValues {
+                values: node_ids
+                    .iter()
+                    .flat_map(|node_id| {
+                        reference_attribute_source_values(document, binding, *node_id, attribute)
+                    })
+                    .collect(),
+                empty_reason: "missing-source",
+            })
+        }
+        ReferenceSourcePath::Name { binding } => {
+            let Some(node_ids) = bindings.node_bindings.get(binding) else {
+                return Ok(reference_empty_values("missing-binding"));
+            };
+            Ok(ReferenceExtractedValues {
+                values: node_ids
+                    .iter()
+                    .filter_map(|node_id| reference_name_source_value(document, binding, *node_id))
+                    .collect(),
+                empty_reason: "missing-source",
+            })
+        }
+        ReferenceSourcePath::Text { binding } => {
+            let Some(node_ids) = bindings.node_bindings.get(binding) else {
+                return Ok(reference_empty_values("missing-binding"));
+            };
+            Ok(ReferenceExtractedValues {
+                values: node_ids
+                    .iter()
+                    .filter_map(|node_id| reference_text_source_value(document, binding, *node_id))
+                    .collect(),
+                empty_reason: "missing-source",
+            })
+        }
+        ReferenceSourcePath::Child { binding, element } => {
+            let Some(node_ids) = bindings.node_bindings.get(binding) else {
+                return Ok(reference_empty_values("missing-binding"));
+            };
+            Ok(ReferenceExtractedValues {
+                values: node_ids
+                    .iter()
+                    .flat_map(|node_id| {
+                        reference_child_source_values(document, binding, *node_id, element)
+                    })
+                    .collect(),
+                empty_reason: "missing-source",
+            })
+        }
+        ReferenceSourcePath::ChildAttribute {
+            binding,
+            element,
+            attribute,
+        } => {
+            let Some(node_ids) = bindings.node_bindings.get(binding) else {
+                return Ok(reference_empty_values("missing-binding"));
+            };
+            Ok(ReferenceExtractedValues {
+                values: node_ids
+                    .iter()
+                    .flat_map(|node_id| {
+                        reference_matching_child_elements(document, *node_id, element)
+                            .into_iter()
+                            .flat_map(|child_id| {
+                                reference_attribute_source_values(
+                                    document, binding, child_id, attribute,
+                                )
+                            })
+                    })
+                    .collect(),
+                empty_reason: "missing-source",
+            })
+        }
+        ReferenceSourcePath::Field { binding, field } => {
+            let Some(fields) = bindings.field_bindings.get(binding) else {
+                return Ok(reference_empty_values("missing-binding"));
+            };
+            let Some(values) = fields.get(field) else {
+                return Ok(reference_empty_values("missing-field"));
+            };
+            Ok(ReferenceExtractedValues {
+                values: values.clone(),
+                empty_reason: "missing-source",
+            })
+        }
+    }
+}
+
+fn reference_empty_values(reason: &'static str) -> ReferenceExtractedValues {
+    ReferenceExtractedValues {
+        values: Vec::new(),
+        empty_reason: reason,
+    }
+}
+
+fn reference_operand_source_state(
+    count: usize,
+    cardinality: &str,
+    empty_reason: &'static str,
+) -> (ReferenceResolutionState, Option<&'static str>) {
+    match cardinality {
+        "one" => match count {
+            0 => (ReferenceResolutionState::Missing, Some(empty_reason)),
+            1 => (ReferenceResolutionState::Valid, None),
+            _ => (
+                ReferenceResolutionState::Invalid,
+                Some("source-cardinality"),
+            ),
+        },
+        "optional" => match count {
+            0 => (ReferenceResolutionState::Missing, Some(empty_reason)),
+            1 => (ReferenceResolutionState::Valid, None),
+            _ => (
+                ReferenceResolutionState::Invalid,
+                Some("source-cardinality"),
+            ),
+        },
+        "set" => {
+            if count == 0 {
+                (ReferenceResolutionState::Missing, Some(empty_reason))
+            } else {
+                (ReferenceResolutionState::Valid, None)
+            }
+        }
+        _ => (
+            ReferenceResolutionState::Invalid,
+            Some("invalid-source-cardinality"),
+        ),
+    }
+}
+
+fn parse_reference_name_matcher_list(
+    value: &str,
+) -> Result<Vec<ReferenceNameMatcher>, ReferenceExtractionFailure> {
+    split_reference_argument_list(value)
+        .into_iter()
+        .map(|arg| parse_reference_name_matcher(arg))
+        .collect()
+}
+
+fn split_reference_argument_list(value: &str) -> Vec<&str> {
+    let mut args = Vec::new();
+    let mut start = 0;
+    let mut bracket_depth = 0usize;
+    for (index, ch) in value.char_indices() {
+        match ch {
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.saturating_sub(1),
+            ',' if bracket_depth == 0 => {
+                let arg = value[start..index].trim();
+                if !arg.is_empty() {
+                    args.push(arg);
+                }
+                start = index + ch.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    let arg = value[start..].trim();
+    if !arg.is_empty() {
+        args.push(arg);
+    }
+    args
+}
+
+fn parse_reference_name_matcher(
+    value: &str,
+) -> Result<ReferenceNameMatcher, ReferenceExtractionFailure> {
+    let value = value.trim();
+    if let Some((namespace_uri, local_name)) = reference_bracketed_pair_parts(value) {
+        return Ok(ReferenceNameMatcher::Expanded {
+            namespace_uri: namespace_uri.to_owned(),
+            local_name: local_name.to_owned(),
+        });
+    }
+    if let Some(local_name) = reference_bracketed_string_inner(value) {
+        return Ok(ReferenceNameMatcher::Local(local_name.to_owned()));
+    }
+    if !is_reference_qname(value) {
+        return Err(ReferenceExtractionFailure::invalid("invalid-name"));
+    }
+    if value.contains(':') {
+        return Err(ReferenceExtractionFailure::unsupported(
+            "unsupported-qualified-name",
+        ));
+    }
+    Ok(ReferenceNameMatcher::Local(value.to_owned()))
+}
+
+fn reference_bracketed_string_inner(value: &str) -> Option<&str> {
+    value
+        .strip_prefix("[\"")
+        .and_then(|tail| tail.strip_suffix("\"]"))
+        .filter(|inner| !inner.is_empty() && !inner.contains('"') && !inner.contains('\n'))
+}
+
+fn reference_bracketed_pair_parts(value: &str) -> Option<(&str, &str)> {
+    let inner = value
+        .strip_prefix("[\"")
+        .and_then(|tail| tail.strip_suffix("\"]"))?;
+    let (namespace, local) = inner.split_once("\", \"")?;
+    (!namespace.is_empty()
+        && !local.is_empty()
+        && !namespace.contains('"')
+        && !local.contains('"')
+        && !namespace.contains('\n')
+        && !local.contains('\n'))
+    .then_some((namespace, local))
+}
+
+fn reference_child_element_ids(document: &CemDocument, node_id: AstNodeId) -> Vec<AstNodeId> {
+    match document.get(node_id) {
+        Some(CemAstNode::Document { root_children, .. }) => root_children
+            .iter()
+            .copied()
+            .filter(|child_id| matches!(document.get(*child_id), Some(CemAstNode::Element { .. })))
+            .collect(),
+        Some(CemAstNode::Element { children, .. }) => children
+            .iter()
+            .copied()
+            .filter(|child_id| matches!(document.get(*child_id), Some(CemAstNode::Element { .. })))
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn collect_reference_descendant_elements(
+    document: &CemDocument,
+    node_id: AstNodeId,
+    names: &[ReferenceNameMatcher],
+    selected: &mut Vec<AstNodeId>,
+) {
+    for child_id in reference_child_element_ids(document, node_id) {
+        if reference_element_matches_any(document, child_id, names) {
+            selected.push(child_id);
+        }
+        collect_reference_descendant_elements(document, child_id, names, selected);
+    }
+}
+
+fn reference_matching_child_elements(
+    document: &CemDocument,
+    node_id: AstNodeId,
+    matcher: &ReferenceNameMatcher,
+) -> Vec<AstNodeId> {
+    reference_child_element_ids(document, node_id)
+        .into_iter()
+        .filter(|child_id| reference_element_matches(document, *child_id, matcher))
+        .collect()
+}
+
+fn reference_element_matches_any(
+    document: &CemDocument,
+    node_id: AstNodeId,
+    names: &[ReferenceNameMatcher],
+) -> bool {
+    names
+        .iter()
+        .any(|matcher| reference_element_matches(document, node_id, matcher))
+}
+
+fn reference_element_matches(
+    document: &CemDocument,
+    node_id: AstNodeId,
+    matcher: &ReferenceNameMatcher,
+) -> bool {
+    matches!(
+        document.get(node_id),
+        Some(CemAstNode::Element { expanded_name, .. })
+            if reference_expanded_name_matches(expanded_name, matcher)
+    )
+}
+
+fn reference_expanded_name_matches(
+    expanded_name: &ExpandedName,
+    matcher: &ReferenceNameMatcher,
+) -> bool {
+    match matcher {
+        ReferenceNameMatcher::Local(local_name) => expanded_name.local_name == *local_name,
+        ReferenceNameMatcher::Expanded {
+            namespace_uri,
+            local_name,
+        } => {
+            expanded_name.namespace_uri == *namespace_uri && expanded_name.local_name == *local_name
+        }
+    }
+}
+
+fn reference_node_source_value(
+    document: &CemDocument,
+    binding: &str,
+    node_id: AstNodeId,
+) -> Option<ReferenceSourceValue> {
+    let node = document.get(node_id)?;
+    let name = element_local_name(node).map(str::to_owned);
+    Some(ReferenceSourceValue {
+        kind: ReferenceSourceValueKind::Node,
+        binding: binding.to_owned(),
+        name,
+        value: None,
+        node_id: Some(node_id),
+        source_map: source_stack_for_node(node).clone(),
+    })
+}
+
+fn reference_name_source_value(
+    document: &CemDocument,
+    binding: &str,
+    node_id: AstNodeId,
+) -> Option<ReferenceSourceValue> {
+    let node = document.get(node_id)?;
+    let local_name = element_local_name(node)?;
+    Some(ReferenceSourceValue {
+        kind: ReferenceSourceValueKind::Name,
+        binding: binding.to_owned(),
+        name: Some("name".to_owned()),
+        value: Some(local_name.to_owned()),
+        node_id: Some(node_id),
+        source_map: source_stack_for_node(node).clone(),
+    })
+}
+
+fn reference_text_source_value(
+    document: &CemDocument,
+    binding: &str,
+    node_id: AstNodeId,
+) -> Option<ReferenceSourceValue> {
+    let node = document.get(node_id)?;
+    match node {
+        CemAstNode::Element { children, .. } => {
+            let mut data = String::new();
+            let mut source_map = None;
+            for child_id in children {
+                let Some(child) = document.get(*child_id) else {
+                    continue;
+                };
+                match child {
+                    CemAstNode::Text {
+                        data: child_data, ..
+                    }
+                    | CemAstNode::Whitespace {
+                        data: child_data, ..
+                    }
+                    | CemAstNode::Cdata {
+                        data: child_data, ..
+                    }
+                    | CemAstNode::RawText {
+                        data: child_data, ..
+                    } => {
+                        if source_map.is_none() {
+                            source_map = Some(source_stack_for_node(child).clone());
+                        }
+                        data.push_str(child_data);
+                    }
+                    _ => {}
+                }
+            }
+            if data.is_empty() {
+                return None;
+            }
+            Some(ReferenceSourceValue {
+                kind: ReferenceSourceValueKind::Text,
+                binding: binding.to_owned(),
+                name: Some("text".to_owned()),
+                value: Some(data),
+                node_id: Some(node_id),
+                source_map: source_map.unwrap_or_else(|| source_stack_for_node(node).clone()),
+            })
+        }
+        CemAstNode::Text { data, .. }
+        | CemAstNode::Whitespace { data, .. }
+        | CemAstNode::Cdata { data, .. }
+        | CemAstNode::RawText { data, .. } => Some(ReferenceSourceValue {
+            kind: ReferenceSourceValueKind::Text,
+            binding: binding.to_owned(),
+            name: Some("text".to_owned()),
+            value: Some(data.clone()),
+            node_id: Some(node_id),
+            source_map: source_stack_for_node(node).clone(),
+        }),
+        _ => None,
+    }
+}
+
+fn reference_child_source_values(
+    document: &CemDocument,
+    binding: &str,
+    node_id: AstNodeId,
+    matcher: &ReferenceNameMatcher,
+) -> Vec<ReferenceSourceValue> {
+    reference_matching_child_elements(document, node_id, matcher)
+        .into_iter()
+        .filter_map(|child_id| reference_node_source_value(document, binding, child_id))
+        .collect()
+}
+
+fn reference_attribute_source_values(
+    document: &CemDocument,
+    binding: &str,
+    node_id: AstNodeId,
+    matcher: &ReferenceNameMatcher,
+) -> Vec<ReferenceSourceValue> {
+    let Some(CemAstNode::Element { attributes, .. }) = document.get(node_id) else {
+        return Vec::new();
+    };
+    attributes
+        .iter()
+        .filter_map(|attribute_id| {
+            let attribute = document.get(*attribute_id)?;
+            let CemAstNode::Attribute {
+                expanded_name,
+                value,
+                ..
+            } = attribute
+            else {
+                return None;
+            };
+            reference_expanded_name_matches(expanded_name, matcher).then(|| ReferenceSourceValue {
+                kind: ReferenceSourceValueKind::Attribute,
+                binding: binding.to_owned(),
+                name: Some(expanded_name.local_name.clone()),
+                value: value.clone(),
+                node_id: Some(*attribute_id),
+                source_map: source_stack_for_node(attribute).clone(),
+            })
+        })
+        .collect()
+}
+
 fn collect_diagnostic_behaviors(
     document: &CemDocument,
     schema_id: AstNodeId,
@@ -17962,6 +18942,189 @@ mod tests {
             projection.buckets[0].value_view.as_deref(),
             Some("normalized")
         );
+    }
+
+    #[test]
+    fn schema_reference_candidate_selection_preserves_document_order() {
+        let document = parse_cem_document(
+            r#"@doc cem-ml 1
+{route |
+    {from @content-type="text/html" | Alpha}
+    {note | ignored}
+    {to @content-type="application/json" | Beta}
+}"#,
+        );
+        let route_id = first_element_id_by_local_name(&document, "route").expect("route element");
+        let declaration =
+            reference_test_candidates("$target.child(from, to)", Some("one-or-more"), None);
+
+        let selection = select_reference_candidates(&document, &[route_id], &declaration);
+
+        assert_eq!(selection.binding, "endpoint");
+        assert_eq!(selection.state, ReferenceResolutionState::Valid);
+        assert_eq!(selection.reason, None);
+        assert_eq!(selection.candidates.len(), 2);
+        assert_eq!(selection.candidates[0].ordinal, 0);
+        assert_eq!(selection.candidates[1].ordinal, 1);
+        assert!(!selection.candidates[0].source_map.frames.is_empty());
+        assert_eq!(
+            selection
+                .candidates
+                .iter()
+                .filter_map(|candidate| document.get(candidate.node_id))
+                .filter_map(element_local_name)
+                .collect::<Vec<_>>(),
+            vec!["from", "to"]
+        );
+    }
+
+    #[test]
+    fn schema_reference_operand_source_extraction_runs_per_candidate() {
+        let document = parse_cem_document(
+            r#"@doc cem-ml 1
+{route |
+    {from @content-type="text/html" | Alpha}
+    {to @content-type="application/json" | Beta}
+}"#,
+        );
+        let route_id = first_element_id_by_local_name(&document, "route").expect("route element");
+        let selection = select_reference_candidates(
+            &document,
+            &[route_id],
+            &reference_test_candidates("$target.child(from, to)", Some("one-or-more"), None),
+        );
+        let operand = reference_test_operand("content-type", "endpoint.@content-type", "one");
+
+        let mut first_bindings = ReferenceSourceBindings::default();
+        first_bindings.bind_candidate(&selection.candidates[0]);
+        let first = extract_reference_operand_sources(&document, &first_bindings, &operand);
+
+        let mut second_bindings = ReferenceSourceBindings::default();
+        second_bindings.bind_candidate(&selection.candidates[1]);
+        let second = extract_reference_operand_sources(&document, &second_bindings, &operand);
+
+        assert_eq!(first.state, ReferenceResolutionState::Valid);
+        assert_eq!(first.reason, None);
+        assert_eq!(first.values.len(), 1);
+        assert_eq!(first.values[0].kind, ReferenceSourceValueKind::Attribute);
+        assert_eq!(first.values[0].name.as_deref(), Some("content-type"));
+        assert_eq!(first.values[0].value.as_deref(), Some("text/html"));
+        assert!(!first.values[0].source_map.frames.is_empty());
+
+        assert_eq!(second.state, ReferenceResolutionState::Valid);
+        assert_eq!(second.reason, None);
+        assert_eq!(second.values.len(), 1);
+        assert_eq!(second.values[0].value.as_deref(), Some("application/json"));
+    }
+
+    #[test]
+    fn schema_reference_operand_source_extraction_reports_missing_and_cardinality() {
+        let document = parse_cem_document(
+            r#"@doc cem-ml 1
+{route |
+    {from | Alpha}
+    {alias @name="alpha"}
+    {alias @name="beta"}
+}"#,
+        );
+        let route_id = first_element_id_by_local_name(&document, "route").expect("route element");
+        let mut route_bindings = ReferenceSourceBindings::default();
+        route_bindings.bind_nodes("route", vec![route_id]);
+
+        let missing = extract_reference_operand_sources(
+            &document,
+            &route_bindings,
+            &reference_test_operand("content-type", "route.@content-type", "one"),
+        );
+        assert_eq!(missing.state, ReferenceResolutionState::Missing);
+        assert_eq!(missing.reason.as_deref(), Some("missing-source"));
+        assert!(missing.values.is_empty());
+
+        let invalid = extract_reference_operand_sources(
+            &document,
+            &route_bindings,
+            &reference_test_operand("alias", "route.child(alias).@name", "one"),
+        );
+        assert_eq!(invalid.state, ReferenceResolutionState::Invalid);
+        assert_eq!(invalid.reason.as_deref(), Some("source-cardinality"));
+        assert_eq!(
+            invalid
+                .values
+                .iter()
+                .filter_map(|value| value.value.as_deref())
+                .collect::<Vec<_>>(),
+            vec!["alpha", "beta"]
+        );
+    }
+
+    #[test]
+    fn schema_reference_candidate_selection_classifies_cardinality_and_unsupported_selectors() {
+        let document = parse_cem_document(
+            r#"@doc cem-ml 1
+{route |
+    {alias @name="alpha"}
+    {alias @name="beta"}
+}"#,
+        );
+        let route_id = first_element_id_by_local_name(&document, "route").expect("route element");
+
+        let invalid = select_reference_candidates(
+            &document,
+            &[route_id],
+            &reference_test_candidates("$target.child(alias)", Some("exactly-one"), None),
+        );
+        assert_eq!(invalid.state, ReferenceResolutionState::Invalid);
+        assert_eq!(invalid.reason.as_deref(), Some("candidate-cardinality"));
+        assert_eq!(invalid.candidates.len(), 2);
+
+        let unsupported = select_reference_candidates(
+            &document,
+            &[route_id],
+            &reference_test_candidates("$target.ancestor(route)", Some("zero-or-more"), None),
+        );
+        assert_eq!(unsupported.state, ReferenceResolutionState::Unsupported);
+        assert_eq!(
+            unsupported.reason.as_deref(),
+            Some("unsupported-candidate-selector")
+        );
+        assert!(unsupported.candidates.is_empty());
+    }
+
+    fn reference_test_candidates(
+        select: &str,
+        cardinality: Option<&str>,
+        on_empty: Option<&str>,
+    ) -> ReferenceCandidatesDeclaration {
+        ReferenceCandidatesDeclaration {
+            select: Some(select.to_owned()),
+            as_binding: Some("endpoint".to_owned()),
+            cardinality: cardinality.map(str::to_owned),
+            on_empty: on_empty.map(str::to_owned),
+            source_map: SourceMapStack::default(),
+        }
+    }
+
+    fn reference_test_operand(
+        binding: &str,
+        from: &str,
+        cardinality: &str,
+    ) -> ReferenceOperandDeclaration {
+        ReferenceOperandDeclaration {
+            role: ReferenceOperandDeclarationRole::Actual,
+            binding: Some(binding.to_owned()),
+            from: Some(from.to_owned()),
+            normalizer: None,
+            cardinality: Some(cardinality.to_owned()),
+            shape: Some("scalar".to_owned()),
+            result_cardinality: None,
+            result_shape: None,
+            state: Some("required-valid".to_owned()),
+            lookup: None,
+            diagnostic_field: None,
+            lookups: Vec::new(),
+            projection: None,
+            source_map: SourceMapStack::default(),
+        }
     }
 
     #[test]
