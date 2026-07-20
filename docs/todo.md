@@ -42,11 +42,12 @@ aliases.
       thread-pool or WASM hosts.
 - [x] Verify with focused Rust tests first, then run
       `NX_DAEMON=false yarn nx run cem_ml:test` and the relevant CLI e2e target.
-- [ ] Audit current `cem_ml` lifecycle adapter registry and `cem_ml_cli`
+- [x] Audit current `cem_ml` lifecycle adapter registry and `cem_ml_cli`
       validate/convert selection paths against the Phase 2 adapter and
       content-identity deliverables: validate/load/export spine, CEM-ML,
       HTML/XML parity, XSLT/custom-element compatibility, source maps,
-      diagnostics, and enum alias behavior.
+      diagnostics, and enum alias behavior. Result:
+      [`cem-ml-phase2-lifecycle-adapter-audit.md`](cem-ml-phase2-lifecycle-adapter-audit.md).
 - [ ] Define the shared lifecycle adapter selection contract: primary selection
       by input/output content type plus schema or namespace identity, explicit
       adapter capabilities, unsupported/ambiguous diagnostics, and stable
