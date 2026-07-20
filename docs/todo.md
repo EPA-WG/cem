@@ -48,10 +48,11 @@ aliases.
       HTML/XML parity, XSLT/custom-element compatibility, source maps,
       diagnostics, and enum alias behavior. Result:
       [`cem-ml-phase2-lifecycle-adapter-audit.md`](cem-ml-phase2-lifecycle-adapter-audit.md).
-- [ ] Define the shared lifecycle adapter selection contract: primary selection
+- [x] Define the shared lifecycle adapter selection contract: primary selection
       by input/output content type plus schema or namespace identity, explicit
       adapter capabilities, unsupported/ambiguous diagnostics, and stable
-      fallback rules for legacy enum aliases.
+      fallback rules for legacy enum aliases. Result:
+      [`cem-ml-phase2-lifecycle-adapter-contract.md`](cem-ml-phase2-lifecycle-adapter-contract.md).
 - [ ] Promote CLI validate/convert options and run config defaults so
       `--content-type` / `--schema` and target content identity are primary,
       while `--from-format` / `--to-format` remain deterministic aliases.
