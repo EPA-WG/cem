@@ -13,9 +13,10 @@ binary handoff, embedded-payload handoff coverage, and web-host coordinate
 projection have all passed their focused and gate verification. Continue with
 Phase 3 substrate expansion.
 
-Current active slice: add focused unit/browser fixtures for declaration
-registration, payload capture, attribute invalidation, and data-island
-isolation using the existing `cem-elements` test harness.
+Current active slice: audit the existing `@epa-wg/cem-components` package
+against Phase 3.2 primitives deliverables, exit criteria, docs, component
+inventory, and verification targets before selecting the first implementation
+slice.
 
 ### Phase 3 Custom-Element Runtime
 
@@ -33,33 +34,45 @@ isolation using the existing `cem-elements` test harness.
       one inert declaration template, produced custom-element registration,
       captured instance data-island payload, visible light-DOM render
       ownership, and source-map fidelity labels on rendered nodes.
-- [ ] Add focused unit/browser fixtures for declaration registration, payload
+- [x] Add focused unit/browser fixtures for declaration registration, payload
       capture, attribute invalidation, and data-island isolation using the
       existing `cem-elements` test harness.
-- [ ] Verify with the focused `cem-elements` unit target first, then the
+- [x] Verify with the focused `cem-elements` unit target first, then the
       Storybook browser target, substrate, legacy/material parity, demo
       fixture, and full `cem-elements:verify` gates that cover the touched
       runtime path.
 
+### Phase 3.2 CEM Primitives
+
+- [ ] Audit the existing `@epa-wg/cem-components` package structure, docs,
+      component inventory, Storybook/test harness, and dependency path on
+      `@epa-wg/cem-elements` against the Phase 3.2 deliverables and exit
+      criteria from `roadmap.md`.
+- [ ] Populate a focused implementation slice from the audit: the minimal
+      primitive or harness gap that blocks declarative no-JS component usage
+      before expanding the catalog.
+- [ ] Add or repair focused tests for DOM rendering, events, accessibility
+      assertions, and visual snapshots around the selected primitive slice.
+- [ ] Verify the selected primitive slice with focused
+      `@epa-wg/cem-components` target(s), then
+      `yarn nx run @epa-wg/cem-components:verify`, and the relevant
+      `cem-elements` gate if substrate behavior is touched.
+
 ### Next Work Item
 
-Add focused unit/browser fixtures for the runtime behaviors that sit behind the
-new inline substrate contract:
+Audit Phase 3.2 primitives readiness in `@epa-wg/cem-components` before
+starting component implementation:
 
-- keep the new `InlineBrowserSubstrateContract` story as the smoke fixture for
-  strict inline declarations, registration, payload capture, light-DOM render
-  ownership, and source-map/render metadata;
-- add or tighten focused coverage for attribute invalidation so host attribute
-  mutations after first render are proven against the same inline declaration
-  contract, not only the broader render-loop story;
-- add a small unit-level shape/registration fixture if useful so missing,
-  duplicate, and live-content declaration errors are covered outside Storybook
-  as well as in the browser harness;
-- avoid broad legacy/material parity changes unless a focused fixture exposes a
-  runtime regression;
-- verify with `yarn nx run cem-elements:test:unit`,
-  `yarn nx run cem-elements:test`, and then the full
-  `yarn nx run cem-elements:verify` gate.
+- inspect `packages/cem-components/project.json`, source files, stories/tests,
+  docs, and package dependencies to identify what already exists;
+- map the current component inventory against the roadmap's minimal primitives:
+  action, field, surface, text, icon, stack, grid, list, nav, and dialog shell;
+- check whether existing primitives are authored exclusively with
+  `<cem-element>` and keep the no-shadow-DOM/light-DOM rendering contract;
+- identify the first narrow primitive or harness gap that should be implemented
+  next, avoiding broad catalog work until the audit proves the target;
+- update `docs/todo.md` with the resulting focused slice and recommended Nx
+  verification commands.
 
 ## Current Verification Commands
 

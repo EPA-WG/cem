@@ -289,6 +289,120 @@ export const InlineBrowserSubstrateContract: Story = {
     },
 };
 
+export const InlineAttributeInvalidationContract: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'inline attribute invalidation contract');
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-inline-invalidation' });
+        runtime.install(window);
+
+        const declaration = document.createElement('cem-element-story-inline-invalidation');
+        declaration.setAttribute('tag', 'story-inline-invalidation');
+        const template = document.createElement('template');
+        template.setAttribute('type', 'text/cem-ml');
+        template.textContent = [
+            '{attribute @name="label" | Initial}',
+            '{button',
+            ' @type=button',
+            ' @data-role=summary',
+            ' @data-tone="{$datadom.attributes.tone}"',
+            ' @aria-label="{$label}"',
+            ' | {$label}: {$datadom.payload.text}',
+            '}',
+        ].join('');
+        declaration.appendChild(template);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const instance = document.createElement('story-inline-invalidation');
+        instance.setAttribute('label', 'Before');
+        instance.setAttribute('tone', 'quiet');
+        instance.innerHTML = '<span data-inline-invalidation-payload>Payload A</span>';
+        root.appendChild(instance);
+
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const declaration = requiredElement(canvasElement, 'cem-element-story-inline-invalidation');
+        assertEqual(
+            Array.from(declaration.children).filter((child) => child.localName === 'template').length,
+            1,
+            'inline invalidation declaration owns exactly one inert template'
+        );
+        assertEqual(
+            declaration.querySelector('button[data-role="summary"]'),
+            null,
+            'inline invalidation declaration does not render live content'
+        );
+        assert(window.customElements.get('story-inline-invalidation'), 'inline invalidation tag is registered');
+
+        const instance = requiredElement(canvasElement, 'story-inline-invalidation') as HTMLElement;
+        const button = await waitForElement(instance, 'button[data-role="summary"]') as HTMLButtonElement;
+        const island = requiredElement(instance, 'template[data-cem-island="instance"]') as HTMLTemplateElement;
+        const payload = island.content.querySelector('[data-inline-invalidation-payload]') as HTMLElement | null;
+
+        assert(payload, 'instance payload is captured into the data island');
+        assert(!payload.isConnected, 'captured payload remains disconnected inside template.content');
+        assertEqual(
+            instance.querySelector('[data-inline-invalidation-payload]'),
+            null,
+            'captured payload is not leaked into the live instance DOM'
+        );
+        assertEqual(button.textContent?.trim(), 'Before: Payload A', 'initial render reads host and payload snapshot data');
+        assertEqual(button.getAttribute('aria-label'), 'Before', 'declared host attribute renders before invalidation');
+        assertEqual(button.getAttribute('data-tone'), 'quiet', 'undeclared host attribute renders before invalidation');
+        assertEqual(button.getAttribute('data-cem-data-revision'), '1', 'initial render records the first data revision');
+        const artifactId = button.getAttribute('data-cem-template-artifact-id');
+        assert(artifactId, 'initial render records template artifact identity');
+
+        instance.setAttribute('label', 'After');
+        instance.setAttribute('tone', 'warm');
+        await waitForCondition(() => {
+            const current = instance.querySelector('button[data-role="summary"]');
+            return current?.textContent?.trim() === 'After: Payload A' && current.getAttribute('data-tone') === 'warm';
+        }, 'host attribute mutation re-renders against the latest attribute snapshot');
+
+        const hostMutationButton = requiredElement(instance, 'button[data-role="summary"]') as HTMLButtonElement;
+        const hostMutationRevision = Number.parseInt(hostMutationButton.getAttribute('data-cem-data-revision') ?? '0', 10);
+        assert(hostMutationRevision > 1, 'host attribute invalidation advances the data revision');
+        assertEqual(
+            hostMutationButton.getAttribute('data-cem-template-artifact-id'),
+            artifactId,
+            'host attribute invalidation keeps the same template artifact identity'
+        );
+        assertEqual(hostMutationButton.getAttribute('aria-label'), 'After', 'declared host attribute rerenders');
+        assertEqual(hostMutationButton.getAttribute('data-tone'), 'warm', 'undeclared host attribute rerenders');
+
+        payload.textContent = 'Payload B';
+        await waitForCondition(
+            () => requiredElement(instance, 'button[data-role="summary"]').textContent?.trim() === 'After: Payload B',
+            'data-island payload mutation re-renders from inert template.content'
+        );
+
+        const payloadMutationButton = requiredElement(instance, 'button[data-role="summary"]') as HTMLButtonElement;
+        const payloadMutationRevision = Number.parseInt(
+            payloadMutationButton.getAttribute('data-cem-data-revision') ?? '0',
+            10
+        );
+        assert(
+            payloadMutationRevision > hostMutationRevision,
+            'data-island invalidation advances the data revision after host invalidation'
+        );
+        assertEqual(
+            payloadMutationButton.getAttribute('data-cem-template-artifact-id'),
+            artifactId,
+            'data-island invalidation keeps the same template artifact identity'
+        );
+        assert(!payload.isConnected, 'mutated payload remains inert after data-island rerender');
+        assertEqual(
+            instance.querySelector('[data-inline-invalidation-payload]'),
+            null,
+            'mutated payload still does not leak into live output'
+        );
+    },
+};
+
 export const DataIslandCaptureAndRender: Story = {
     render: () => {
         const root = document.createElement('section');
