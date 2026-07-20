@@ -13,15 +13,16 @@ multi-document lifecycle layer that lets `cem_ml`, `cem_ml_cli`, WASM, and
 future hosts validate, load, and export documents through the same root-scope
 context.
 
-Current active slice: audit the current `cem_ml` and `cem_ml_cli` run-config
-and lifecycle surfaces against the Phase 2 roadmap contract.
+Current active slice: define the normalized `RunConfig` contract shared by lib,
+CLI, and WASM.
 
 ### Phase 2 Parser And Runtime
 
-- [ ] Audit current `cem_ml` and `cem_ml_cli` run-config and lifecycle surfaces
+- [x] Audit current `cem_ml` and `cem_ml_cli` run-config and lifecycle surfaces
       against Phase 2 roadmap deliverables, including input/output spec arrays,
       content-type/schema identities, module-map/resolver/base URI/scope-policy
-      fields, budgets, source maps, and existing CLI aliases.
+      fields, budgets, source maps, and existing CLI aliases. Result:
+      [`cem-ml-phase2-run-config-audit.md`](cem-ml-phase2-run-config-audit.md).
 - [ ] Define the normalized `RunConfig` contract shared by lib, CLI, and WASM:
       root-scope context, default and named namespaces, version pins,
       module-map/resolver identity, base URI, resolver purpose, scope policy,
