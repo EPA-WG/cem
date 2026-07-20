@@ -1,6 +1,8 @@
 # CEM Schema Definition Language Package
 
-Status: initial source package
+Status: current implemented surface for the schema definition language package.
+Reference-normalization target design lives in
+[`../../../../../docs/cem-ml-reference-normalization-design.md`](../../../../../docs/cem-ml-reference-normalization-design.md).
 
 This package defines the CEM-ML schema declaration language used to describe
 validation schemas for input content.

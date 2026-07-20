@@ -1,5 +1,9 @@
 # CEM-ML Schema Packages
 
+Status: current implemented schema-package overview. Reference-normalization
+target design lives in
+[`../../../docs/cem-ml-reference-normalization-design.md`](../../../docs/cem-ml-reference-normalization-design.md).
+
 [cem-ml-schema-content-registry-design.md](../../../docs/cem-ml-schema-content-registry-design.md)
 
 Schema packages are versioned schema modules registered by schema URL and

@@ -1,6 +1,8 @@
 # CEM Schema Package Metadata Package
 
-Status: initial source package
+Status: current implemented surface for the schema-package manifest package.
+Reference-normalization target design lives in
+[`../../../../../docs/cem-ml-reference-normalization-design.md`](../../../../../docs/cem-ml-reference-normalization-design.md).
 
 This package defines `package.cem`, the metadata manifest found at:
 

@@ -18,9 +18,9 @@ source provenance, keep normalization annotative and symmetric, make execution
 placement explicit, avoid implicit canonicalization, and retain complete schema
 identity.
 
-Current active slice: complete C12 by correcting target/current status and
-diagnostic projection ownership before moving to URI lookup lifecycle and
-ordered-reference scope decisions.
+Current active slice: complete C13 by bounding document URI normalization,
+resolver context, and lookup lifecycle before moving to ordered-reference scope
+decisions.
 
 ### Contract And Documentation
 
@@ -134,7 +134,7 @@ ordered-reference scope decisions.
       identities, lexical function names versus compiled function identities,
       and at least one composite lookup key with all component spellings and
       source ranges preserved.
-- [ ] **[C12] Correct target/current status and diagnostic projection.** Mark
+- [x] **[C12] Correct target/current status and diagnostic projection.** Mark
       the three reference documents as accepted target design with
       implementation pending and schema-package READMEs as the current shipped
       surface. Freeze only shipped diagnostic keys, treat `unsupportedValues`

@@ -1,12 +1,15 @@
 # CEM-ML Reference Comparison Vocabulary
 
-Status: design decision for schema-owned reference constraints.
+Status: accepted target design for schema-owned reference constraints;
+implementation pending.
 
 This note defines comparison vocabulary for normalized reference values produced
 by [`cem-ml-reference-normalization-design.md`](cem-ml-reference-normalization-design.md).
-Candidate selection, lookup syntax, execution boundaries, concrete CEM surface
+Candidate selection, lookup syntax, execution boundaries, target CEM surface
 shape, and diagnostic projection are defined in
 [`cem-ml-reference-vocabulary-design.md`](cem-ml-reference-vocabulary-design.md).
+The current implemented schema-package surface remains documented in
+[`../packages/cem_ml/schema-packages/schema-package/v1/README.md`](../packages/cem_ml/schema-packages/schema-package/v1/README.md).
 
 ## Goals
 
@@ -34,7 +37,7 @@ provenance, not comparison operands. Each operand has:
 - `itemNormalizer`: the scalar/item normalizer that defines value equivalence.
   For scalar operands this usually equals `normalizer`; for set operands it is
   declared by the collection normalizer.
-- `projection`: optional field path for record normalizers, such as
+- `valuePath`: optional normalized field path for record operands, such as
   `essence`, `schemaUri`, `category`, or `profile`.
 - `cardinality`: `one`, `optional`, `set`, or conceptual `sequence`.
 - `shape`: `scalar` or `record`.
@@ -51,7 +54,7 @@ The comparison declaration has:
 Comparisons require compatible item-normalization and equivalence semantics,
 not necessarily identical operand normalizer names. Mixed normalizers are
 malformed unless the operator explicitly declares comparable item outputs or a
-projection that produces comparable values.
+value path that produces comparable values.
 `sequence` is reserved for future ordered duplicate-preserving comparisons and
 is not active in the initial package-check operator surface.
 
@@ -96,13 +99,13 @@ runs.
 
 ## Normalizer Compatibility By Operator
 
-| Operator Family        | Compatibility Rule                                                                                                                                                                                 |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `schema:equals`        | Operands must have the same cardinality and shape, and the same or explicitly compatible normalizer/item-normalizer semantics after projection. Scalar `N` is not equal to `set-of(N)` by default. |
-| `schema:member-of`     | Actual `cardinality=one` may compare with expected `cardinality=set` only when actual `itemNormalizer` matches, or is declared compatible with, the expected set's `itemNormalizer`.               |
-| Set operators          | `schema:all-in`, `schema:contains-all`, `schema:intersects`, and `schema:disjoint` require set operands whose `itemNormalizer` values or declared item equivalence semantics are compatible.       |
-| Record field operators | Field-pair projections apply the selected scalar/set operator compatibility rule per declared field.                                                                                               |
-| `schema:exists`        | Ignores value equivalence; it only consumes operand state after state policy.                                                                                                                      |
+| Operator Family        | Compatibility Rule                                                                                                                                                                                           |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `schema:equals`        | Operands must have the same cardinality and shape, and the same or explicitly compatible normalizer/item-normalizer semantics after value-path selection. Scalar `N` is not equal to `set-of(N)` by default. |
+| `schema:member-of`     | Actual `cardinality=one` may compare with expected `cardinality=set` only when actual `itemNormalizer` matches, or is declared compatible with, the expected set's `itemNormalizer`.                         |
+| Set operators          | `schema:all-in`, `schema:contains-all`, `schema:intersects`, and `schema:disjoint` require set operands whose `itemNormalizer` values or declared item equivalence semantics are compatible.                 |
+| Record field operators | Field-pair value paths apply the selected scalar/set operator compatibility rule per declared field.                                                                                                         |
+| `schema:exists`        | Ignores value equivalence; it only consumes operand state after state policy.                                                                                                                                |
 
 Schema and namespace identity domains are intentionally incompatible. Operators
 must reject a comparison that pairs `schema:schema-uri-declaration`,
@@ -116,15 +119,15 @@ not replace the role operands consumed by the comparison.
 
 | Operator                         | Operand Shape                             | Pass Condition                                                                                             | Primary Use                                                               |
 | -------------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `schema:equals`                  | one actual, one expected                  | Normalized projected values are equal under compatible item semantics.                                     | Schema URI consistency, namespace URI consistency, exact scalar metadata. |
+| `schema:equals`                  | one actual, one expected                  | Normalized values selected by the declared value path are equal under compatible item semantics.           | Schema URI consistency, namespace URI consistency, exact scalar metadata. |
 | `schema:member-of`               | one actual, expected set                  | Actual item-normalized value is a member of the expected set's compatible `comparisonSet`.                 | Endpoint/example content type is registered by the referenced schema.     |
 | `schema:all-in`                  | actual set, expected set                  | Every actual item is a member of the compatible expected set. Empty actual set is handled by state policy. | Package content-type claims must all be declared by the schema source.    |
 | `schema:contains-all`            | actual set, expected set                  | Every expected item is present in the compatible actual set.                                               | Required diagnostic/code/profile sets once expressed declaratively.       |
 | `schema:intersects`              | actual set, expected set                  | Compatible actual and expected sets share at least one value.                                              | Compatibility checks where any shared capability is enough.               |
 | `schema:disjoint`                | actual set, forbidden set                 | Compatible actual and forbidden sets have no shared values.                                                | Forbidden content types, categories, profiles, or capabilities.           |
 | `schema:exists`                  | one actual                                | Operand exists and is valid after state policy.                                                            | Artifact CEMT function is declared.                                       |
-| `schema:record-fields-equal`     | actual record, expected record            | Each declared field pair is equal after projection and per-field state policy.                             | CEMT output function metadata contract matching.                          |
-| `schema:record-fields-member-of` | actual record, expected record/set record | Each declared field pair satisfies `schema:member-of` after projection.                                    | Descriptor records whose fields expose allowed sets.                      |
+| `schema:record-fields-equal`     | actual record, expected record            | Each declared field pair is equal after value-path selection and per-field state policy.                   | CEMT output function metadata contract matching.                          |
+| `schema:record-fields-member-of` | actual record, expected record/set record | Each declared field pair satisfies `schema:member-of` after value-path selection.                          | Descriptor records whose fields expose allowed sets.                      |
 
 Operators are deterministic and side-effect-free. They do not read registries or
 resources; lookup-key normalization, lookup, comparable-result normalization,
@@ -134,6 +137,44 @@ Duplicate origins, invalid items, and source-ordered item outcomes remain
 diagnostic/provenance data rather than operator inputs.
 Operators reject operands with incompatible `itemNormalizer` semantics before
 attempting value comparison.
+
+## Record Field-Pair Syntax
+
+Record operators compare explicitly declared field pairs. Field extraction uses
+`value-path`, not diagnostic `projection`.
+
+```cem
+{field-pair
+    @binding="profile"
+    @actual-value-path="functionProfile"
+    @expected-value-path="functionProfile"
+    @operator="schema:equals"
+    @state="optional-valid"
+    @presence="both-or-none"}
+```
+
+Field-pair fields:
+
+- `@binding`: stable field-pair identity used in comparison metadata.
+- `@actual-value-path`: constrained path within the normalized actual record.
+- `@expected-value-path`: constrained path within the normalized expected
+  record.
+- `@forbidden-value-path`: constrained path within the normalized forbidden
+  record for forbidden-record operators.
+- `@operator`: scalar or set operator for the selected field values; omitted
+  means `schema:equals`.
+- `@state`: per-field state policy using the same
+  `required-valid|optional-valid|allow-unresolved|allow-unsupported` values as
+  operands. Omitted means `required-valid`.
+- `@presence`: optional per-field comparison presence policy using the same
+  `when-present|both-or-none` values as comparisons.
+
+The selected values inherit the normalizer/item-normalizer metadata from their
+own normalized record fields. A missing field is a field-level `missing` state;
+an incompatible field shape or item normalizer is `invalid` with
+`reason=malformed-comparison`. Field-pair results are summarized under
+`comparison.operands` and field-specific comparison metadata; they do not add
+new public diagnostic buckets by themselves.
 
 ## Projection And Detail Ownership
 
@@ -149,6 +190,10 @@ This comparison note owns only the comparison-side semantics:
   before comparison runs.
 - `comparison` metadata describes operator, pass/fail result, primary binding,
   stable reason code, and role-keyed operand summaries.
+  Role operand summaries include the operand state and non-valid reason.
+  Structured set/item summaries preserve per-item reasons when invalid,
+  unresolved, unsupported, or duplicate members affect the comparison or
+  diagnostics.
   Lookup key bindings are provenance and must not replace role operand
   bindings in comparison metadata.
 
@@ -172,9 +217,9 @@ ordered value arrays.
 
 ## Syntax Shape
 
-The concrete CEM surface keeps selector, operand, lookup, comparison, and
-projection pieces separate. The endpoint content-type/schema check lowers to
-this non-parseable conceptual IR summary:
+The target CEM surface keeps selector, operand, lookup, comparison, and
+diagnostic projection pieces separate. The endpoint content-type/schema check
+lowers to this non-parseable conceptual IR summary:
 
 ```text
 actual operand:

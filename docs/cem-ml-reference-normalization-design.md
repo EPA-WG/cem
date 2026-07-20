@@ -1,6 +1,7 @@
 # CEM-ML Reference Normalization Vocabulary
 
-Status: design decision for schema-owned reference constraints.
+Status: accepted target design for schema-owned reference constraints;
+implementation pending.
 
 This note defines the normalized value vocabulary used by
 `schema:reference-resolution`. Comparison operators are defined separately in
@@ -8,6 +9,8 @@ This note defines the normalized value vocabulary used by
 Selector syntax, lookup syntax, execution boundaries, and diagnostic projection
 are defined in
 [`cem-ml-reference-vocabulary-design.md`](cem-ml-reference-vocabulary-design.md).
+The current implemented schema-package surface remains documented in
+[`../packages/cem_ml/schema-packages/schema-package/v1/README.md`](../packages/cem_ml/schema-packages/schema-package/v1/README.md).
 
 ## Goals
 
@@ -243,6 +246,10 @@ source extraction
 -> comparison
 -> diagnostic projection
 ```
+
+Normalization stages annotate values and finalize operand state. They do not
+emit assertion violations by themselves; state policy, comparison, and
+diagnostic projection own that transition.
 
 For operands without lookup, the comparable-result extraction stage is the
 source value itself. For operands with lookup, the operand normalizer applies to

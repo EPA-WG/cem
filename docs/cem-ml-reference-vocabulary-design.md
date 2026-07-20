@@ -1,6 +1,7 @@
 # CEM-ML Declarative Reference Vocabulary
 
-Status: design decision for schema-owned cross-node reference constraints.
+Status: accepted target design for schema-owned cross-node reference
+constraints; implementation pending.
 
 This note defines the CEM surface vocabulary for schema-owned reference checks
 that are currently declared in CEM-ML but still partly executed by Rust. It
@@ -8,12 +9,21 @@ builds on the normalized value model in
 [`cem-ml-reference-normalization-design.md`](cem-ml-reference-normalization-design.md)
 and the comparison operators in
 [`cem-ml-reference-comparison-design.md`](cem-ml-reference-comparison-design.md).
+The current implemented schema-package surface remains documented in
+[`../packages/cem_ml/schema-packages/schema-package/v1/README.md`](../packages/cem_ml/schema-packages/schema-package/v1/README.md).
 
 The vocabulary is centered on `schema:reference-resolution` constraints. It
 lets schemas declare candidate selection, operand extraction, lookup, execution
 requirements, comparison, and diagnostic projection without introducing
 package-specific syntax for schema-package converter endpoints or artifact
 metadata checks.
+
+`schema:reference-resolution` is an orchestration and compatibility behavior.
+Its target stages are normalization annotation, optional lookup, comparison,
+then diagnostic projection. The behavior does not directly convert
+normalization outcomes into violations; operand state policy, comparison
+presence policy, and comparison operators decide assertion results before
+projection formats diagnostics.
 
 ## Goals
 
@@ -726,7 +736,10 @@ not perform implicit fallback lookups.
 
 ## Diagnostic Projection
 
-Projection is operand-owned by default, with optional schema-level aliases.
+Diagnostic projection is operand-owned by default, with optional schema-level
+aliases. In this document, `projection` refers to diagnostic output only. Record
+field extraction for comparison uses `value-path` in the comparison vocabulary,
+not projection.
 
 Projection fields:
 
@@ -767,7 +780,8 @@ Token semantics:
 - `invalid`: project `invalidValues` and `invalidFields`.
 - `missing`: project `missingValues`.
 - `unresolved`: project `unresolvedValues`.
-- `unsupported`: project `unsupportedValues`.
+- `unsupported`: target/additive token that projects `unsupportedValues` after
+  the implementation and schema result contract support that bucket.
 - `comparison`: project stable `comparison` metadata.
 - `source-range`: project top-level `sourceRange`.
 - `source-ranges`: project structured per-bucket `sourceRanges`; implies
@@ -775,7 +789,8 @@ Token semantics:
 - `provenance`: project lookup/registry provenance.
 - `aliases`: project alias metadata from `@diagnostic-field`.
 - `candidate`: project selected candidate context.
-- `all`: project every stable token except implementation/debug-only metadata.
+- `all`: project every stable implemented token except
+  implementation/debug-only metadata.
 
 Unknown `@project` tokens are schema-definition errors. Duplicate tokens are
 deduped without warning. Tokens are semantic names, not JSON bucket names: use
@@ -784,8 +799,8 @@ deduped without warning. Tokens are semantic names, not JSON bucket names: use
 Projection defaults:
 
 ```text
-compatibility -> actual expected invalid missing unresolved unsupported source-range
-structured    -> actual expected invalid missing unresolved unsupported source-range source-ranges candidate
+compatibility -> actual expected invalid missing unresolved source-range
+structured    -> actual expected invalid missing unresolved source-range source-ranges candidate
 ```
 
 If `@project` is omitted, validators use the selected profile's default token
@@ -882,10 +897,19 @@ reason
 operands
 operands.<role>.binding
 operands.<role>.state
+operands.<role>.reason
 operands.<role>.normalizer
 operands.<role>.itemNormalizer
 operands.<role>.values
+operands.<role>.items[].state
+operands.<role>.items[].reason
 ```
+
+`operands.<role>.reason` is omitted when the role operand is `valid`. For set
+operands, structured metadata may include `items` with source-ordered item
+states and reasons so invalid, unresolved, unsupported, and duplicate members
+do not lose their root cause when the comparable `values` array contains only
+valid comparison values.
 
 Stable reason codes:
 
@@ -959,8 +983,10 @@ Structured projection uses the role-keyed `operands` object.
 
 Standard diagnostic buckets are fixed and cannot be renamed by schemas. Fixed
 buckets include `actualValues`, `expectedValues`, `invalidValues`,
-`missingValues`, `unresolvedValues`, `unsupportedValues`, `invalidFields`,
-`comparison`, `sourceRange`, `sourceRanges`, and `provenance`.
+`missingValues`, `unresolvedValues`, `invalidFields`, `comparison`,
+`sourceRange`, `sourceRanges`, and `provenance`. `unsupportedValues` is a
+target additive bucket until the implementation and schema result contract
+ship it.
 
 `@diagnostic-field` is an additive display/report alias for an operand; it does
 not replace `@binding` in canonical diagnostics.
@@ -1000,7 +1026,6 @@ expectedValues
 invalidValues
 missingValues
 unresolvedValues
-unsupportedValues
 invalidFields
 sourceRange
 ```
@@ -1013,6 +1038,7 @@ sourceRanges
 provenance
 aliases
 candidate
+unsupportedValues
 ```
 
 `sourceRange` remains the top-level primary diagnostic anchor. `sourceRanges`
