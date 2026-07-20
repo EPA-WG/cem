@@ -5074,6 +5074,7 @@ fn observe_pipeline_with_scope(
             NormalizedEvent::ModeSwitch {
                 content_type,
                 handoff,
+                ..
             } => emit.parse(
                 ParseEventKind::ModeSwitch,
                 Some(content_type.clone()),

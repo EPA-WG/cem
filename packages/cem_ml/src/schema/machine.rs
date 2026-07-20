@@ -22,7 +22,7 @@ use crate::schema::vocab::CompiledSchema;
 use crate::schema::xslt;
 use crate::schema::{FramePhase, SchemaFrame, SchemaMachine, ScopeId};
 use crate::source::ByteRange;
-use crate::source_map::SourceMapStack;
+use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 use std::collections::BTreeMap;
 
 pub struct CemSchemaMachine<E: EventNormalizer> {
@@ -379,7 +379,8 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             NormalizedEvent::ModeSwitch {
                 content_type,
                 handoff,
-            } => self.on_mode_switch(content_type, handoff),
+                source_map,
+            } => self.on_mode_switch(content_type, handoff, source_map),
             NormalizedEvent::Error {
                 code,
                 byte_range,
@@ -653,7 +654,12 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         }
     }
 
-    fn on_mode_switch(&mut self, content_type: String, mut handoff: HandoffRecord) {
+    fn on_mode_switch(
+        &mut self,
+        content_type: String,
+        mut handoff: HandoffRecord,
+        source_map: SourceMapStack,
+    ) {
         // `@type="..."` only opens a content-type handoff on an anonymous
         // scope per `cem-ml-syntax.md` §"Content-Type Handoffs Stay
         // Schema-Owned". On a named element (`<input type="email">`) it's
@@ -678,6 +684,18 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         handoff.inherited_context.schema_id = self.frames.last().map(|f| f.schema_id);
 
         let span = handoff.source_span;
+        let diagnostic_source_map = handoff_source_map(&source_map, content_type.as_str(), span);
+        let details = Some(serde_json::json!({
+            "contentType": content_type.as_str(),
+            "sourceRange": {
+                "span": {
+                    "start": span.start,
+                    "len": span.len,
+                    "end": span.end(),
+                },
+            },
+            "returnCondition": "parent-scope-close",
+        }));
         if !is_supported_content_type(&content_type) {
             self.diagnostics.push(Diagnostic {
                 uri: None,
@@ -690,8 +708,8 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     "content type `{content_type}` has no Tier A handoff; region is bounded but not interpreted"
                 ),
                 node: None,
-                details: None,
-                source_map: None,
+                details,
+                source_map: Some(diagnostic_source_map),
             });
         } else {
             self.diagnostics.push(Diagnostic {
@@ -705,8 +723,8 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     "child parser for `{content_type}` lands in Phase 11; region preserved as opaque text bounded by the parent scope's close"
                 ),
                 node: None,
-                details: None,
-                source_map: None,
+                details,
+                source_map: Some(diagnostic_source_map),
             });
         }
         self.handoffs.push(handoff);
@@ -1285,6 +1303,26 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
     }
 }
 
+fn handoff_source_map(
+    source_map: &SourceMapStack,
+    child_content_type: &str,
+    span: ByteRange,
+) -> SourceMapStack {
+    let mut source_map = source_map.clone();
+    let source_id = source_map
+        .current()
+        .map(|frame| frame.source_id)
+        .unwrap_or(crate::source::SourceId(0));
+    source_map.push(SourceMapFrame {
+        source_id,
+        span: FrameSpan::Single(span),
+        transform: TransformKind::HandoffBoundary {
+            child_content_type: child_content_type.to_owned(),
+        },
+    });
+    source_map
+}
+
 pub struct SchemaMachineOutcome {
     pub frames: Vec<SchemaFrame>,
     pub handoffs_at_eof: usize,
@@ -1321,6 +1359,57 @@ mod tests {
         let tok = CemTokenizer::from_source(src);
         let normalizer = CemEventNormalizer::new(tok);
         CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer).run()
+    }
+
+    fn handoff_diagnostic<'a>(
+        out: &'a SchemaMachineOutcome,
+        code: &str,
+        content_type: &str,
+    ) -> &'a Diagnostic {
+        out.diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code == code
+                    && diagnostic
+                        .details
+                        .as_ref()
+                        .and_then(|details| details["contentType"].as_str())
+                        == Some(content_type)
+            })
+            .unwrap_or_else(|| panic!("expected `{code}` diagnostic for `{content_type}`"))
+    }
+
+    fn assert_handoff_diagnostic_bounds(diagnostic: &Diagnostic, content_type: &str) {
+        let details = diagnostic.details.as_ref().expect("handoff details");
+        let start = details["sourceRange"]["span"]["start"]
+            .as_u64()
+            .expect("handoff start");
+        let len = details["sourceRange"]["span"]["len"]
+            .as_u64()
+            .expect("handoff length");
+        let end = details["sourceRange"]["span"]["end"]
+            .as_u64()
+            .expect("handoff end");
+        assert_eq!(diagnostic.byte_offset, Some(start));
+        assert!(len > 0, "handoff diagnostic should carry a non-empty range");
+        assert_eq!(end, start + len);
+
+        let source_map = diagnostic.source_map.as_ref().expect("handoff source map");
+        let current = source_map.current().expect("current source-map frame");
+        assert_eq!(
+            current.transform,
+            TransformKind::HandoffBoundary {
+                child_content_type: content_type.to_owned()
+            }
+        );
+        assert_eq!(
+            current.span,
+            FrameSpan::Single(ByteRange::new(start, len as u32))
+        );
+        assert!(source_map
+            .frames
+            .iter()
+            .any(|frame| matches!(frame.transform, TransformKind::CemTokenizer)));
     }
 
     #[test]
@@ -1449,13 +1538,10 @@ mod tests {
     #[test]
     fn supported_content_type_emits_deferred_info_diag() {
         let out = run_schema(r#"{@type="text/html" | <p>hi</p>}"#);
-        let deferred = out
-            .diagnostics
-            .iter()
-            .find(|d| d.code == "cem.handoff.child_parser_deferred")
-            .expect("expected child_parser_deferred diag");
+        let deferred = handoff_diagnostic(&out, "cem.handoff.child_parser_deferred", "text/html");
         assert_eq!(deferred.severity, Severity::Info);
         assert!(deferred.message.contains("text/html"));
+        assert_handoff_diagnostic_bounds(deferred, "text/html");
         // No hard violations from a supported handoff.
         let hard: Vec<&Diagnostic> = out
             .diagnostics
@@ -1466,19 +1552,78 @@ mod tests {
     }
 
     #[test]
+    fn embedded_language_payload_handoffs_emit_bounded_deferred_diagnostics() {
+        for (content_type, input) in [
+            (
+                "text/css; charset=utf-8",
+                r#"{@type="text/css; charset=utf-8" | ```.card { color: red; }```}"#,
+            ),
+            (
+                "application/javascript",
+                r#"{@type="application/javascript" | ```export default { title: "Button" };```}"#,
+            ),
+            (
+                "application/xml",
+                r#"{@type="application/xml" | ```<root><![CDATA[{token}]]></root>```}"#,
+            ),
+            (
+                "application/json",
+                r#"{@type="application/json" | ```{"query":"{ user { id } }"}```}"#,
+            ),
+        ] {
+            let out = run_schema(input);
+            let deferred =
+                handoff_diagnostic(&out, "cem.handoff.child_parser_deferred", content_type);
+            assert_eq!(deferred.severity, Severity::Info);
+            assert_handoff_diagnostic_bounds(deferred, content_type);
+            assert_eq!(
+                out.hard_violations(),
+                0,
+                "{content_type} should not produce hard diagnostics: {:?}",
+                out.diagnostics
+            );
+        }
+    }
+
+    #[test]
     fn unsupported_content_type_emits_error_but_region_is_bounded() {
         let out = run_schema(r#"{@type="application/x-rocks" | totally opaque }"#);
-        let bad = out
-            .diagnostics
-            .iter()
-            .find(|d| d.code == "cem.handoff.unsupported_content_type")
-            .expect("expected unsupported_content_type diag");
+        let bad = handoff_diagnostic(
+            &out,
+            "cem.handoff.unsupported_content_type",
+            "application/x-rocks",
+        );
         assert_eq!(bad.severity, Severity::Error);
+        assert_handoff_diagnostic_bounds(bad, "application/x-rocks");
         // The scope still closed: no `cem.schema.unclosed_scope` should fire.
         assert!(out
             .diagnostics
             .iter()
             .all(|d| d.code != "cem.schema.unclosed_scope"));
+    }
+
+    #[test]
+    fn future_vendor_and_csf_like_content_types_emit_bounded_unsupported_diagnostics() {
+        for (content_type, input) in [
+            (
+                "application/vnd.storybook.csf+json",
+                r#"{@type="application/vnd.storybook.csf+json" | ```{"default":{"title":"Atoms/Button"},"stories":{"Primary":{"args":{"label":"Save"}}}}```}"#,
+            ),
+            (
+                "application/vnd.example.future+json",
+                r#"{@type="application/vnd.example.future+json" | ```{"future":true}```}"#,
+            ),
+        ] {
+            let out = run_schema(input);
+            let bad =
+                handoff_diagnostic(&out, "cem.handoff.unsupported_content_type", content_type);
+            assert_eq!(bad.severity, Severity::Error);
+            assert_handoff_diagnostic_bounds(bad, content_type);
+            assert!(out
+                .diagnostics
+                .iter()
+                .all(|d| d.code != "cem.schema.unclosed_scope"));
+        }
     }
 
     #[test]
@@ -1528,6 +1673,7 @@ mod tests {
                     },
                     return_condition: ReturnCondition::ParentScopeClose,
                 },
+                source_map: ctx.clone(),
             },
             NormalizedEvent::CloseScope {
                 name: qn(""),

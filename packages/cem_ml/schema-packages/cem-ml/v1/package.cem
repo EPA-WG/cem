@@ -301,6 +301,15 @@
     }
 
     {example
+        @id="embedded-handoffs"
+        @path="examples/embedded-handoffs.cem"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @expected-result="pass"
+        @expected-diagnostics="cem.handoff.child_parser_deferred"
+    }
+
+    {example
         @id="formatter-coloring-pipeline-package-artifacts"
         @path="examples/formatter-coloring-pipeline.package-artifacts.fixture.cem"
         @content-type="application/cem"
@@ -315,5 +324,14 @@
         @schema="https://cem.dev/ns/cem-ml/1"
         @expected-result="fail"
         @expected-diagnostics="cem.ast.unclosed_scope"
+    }
+
+    {example
+        @id="invalid-unsupported-handoffs"
+        @path="examples/invalid-unsupported-handoffs.cem"
+        @content-type="application/cem"
+        @schema="https://cem.dev/ns/cem-ml/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.handoff.unsupported_content_type"
     }
 }

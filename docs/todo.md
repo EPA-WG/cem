@@ -10,12 +10,11 @@ history.
 Close the remaining Phase 2 gaps from [`../roadmap.md`](../roadmap.md) before
 continuing Phase 3 substrate expansion. The parser/runtime report-consumer
 slice, browser runtime proof, and stable chunked binary handoff are verified,
-but the full Phase 2 exit criteria still need embedded-payload handoff
-coverage and web-host coordinate projection.
+and embedded-payload handoff coverage is verified. The full Phase 2 exit
+criteria still need web-host coordinate projection.
 
-Current active slice: complete embedded-language handoff coverage for
-style/script payloads, XML CDATA or schema-tagged text, JSON string
-subdocuments, CSF-like fields, and unsupported/future content types.
+Current active slice: add web-host reporting coordinate projection on top of
+byte offsets for CLI, WASM, and browser/devtools consumers.
 
 ### Phase 2 Completion Gaps
 
@@ -30,7 +29,7 @@ subdocuments, CSF-like fields, and unsupported/future content types.
       contract: subtree chunk metadata, child links, replay-from-cache
       behavior, deterministic routing to multiple sinks, and CEM-QL/query
       access without JSON reserialization.
-- [ ] Complete embedded-language handoff coverage for the Phase 2 exit
+- [x] Complete embedded-language handoff coverage for the Phase 2 exit
       criterion: style/script payloads, XML CDATA or schema-tagged text,
       JSON string subdocuments, CSF-like fields, and unsupported/future
       content types must either validate through explicit scoped handoff
@@ -64,20 +63,24 @@ subdocuments, CSF-like fields, and unsupported/future content types.
 
 ### Next Work Item
 
-Complete embedded-language handoff coverage for the Phase 2 exit criterion:
+Add web-host reporting coordinate projection on top of byte offsets:
 
-- audit the tokenizer/normalizer/parser/schema handoff path across
-  `packages/cem_ml/src/events`, `packages/cem_ml/src/parser`,
-  `packages/cem_ml/src/validation`, `packages/cem_ml/src/transform_template.rs`,
-  and the HTML, XML, JSON, CSS, CEM-ML, and schema-package fixtures to find
-  payloads that still fall through without scoped validation or diagnostics;
-- add focused fixtures for style/script payloads, XML CDATA or schema-tagged
-  text, JSON string subdocuments, CSF-like fields, and unsupported/future
-  content types, preserving source-map bounds on both successful handoffs and
-  actionable diagnostics;
-- verify first with focused Rust tests for the touched handoff layer, then run
-  `NX_DAEMON=false NX_ISOLATE_PLUGINS=false yarn nx run cem_ml:test` and the
-  relevant `cem_ml_cli` validation/e2e targets if CLI report surfaces change.
+- audit `packages/cem_ml/src/source`, diagnostic/report serialization, CLI JSON
+  report projection, WASM/browser/devtools report consumers, and source-map
+  frame projection to find every place that currently exposes only raw byte
+  offsets to host tooling;
+- implement `LineIndex`-based projection from parser byte offsets and
+  source-map ranges into one-based line/column plus UTF-16 offsets, keeping
+  byte offsets as the durable parser truth and treating host coordinates as a
+  derived reporting view;
+- cover UTF-8 multibyte characters, UTF-16 surrogate pairs, CRLF/LF boundaries,
+  and mapped source-map frames with focused Rust tests plus CLI JSON assertions
+  that prove diagnostics and handoff/source-map ranges expose stable web-host
+  coordinates;
+- verify first with focused source/diagnostic projection tests, then run
+  `NX_DAEMON=false NX_ISOLATE_PLUGINS=false yarn nx run cem_ml:test`,
+  `NX_DAEMON=false NX_ISOLATE_PLUGINS=false yarn nx run cem_ml_cli:test`, and
+  the relevant WASM/browser/devtools target if exported report shapes change.
 
 ## Current Verification Commands
 

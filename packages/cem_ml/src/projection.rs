@@ -888,6 +888,7 @@ fn encode_event(out: &mut Vec<u8>, sequence: u64, event: &NormalizedEvent) {
         NormalizedEvent::ModeSwitch {
             content_type,
             handoff,
+            ..
         } => {
             write_u8(out, 8);
             write_source_range(out, Some(handoff.source_span));

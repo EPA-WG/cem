@@ -1,0 +1,12 @@
+@doc cem-ml 1
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+{main @id="unsupported-handoffs" |
+    {@type="application/vnd.storybook.csf+json" |
+        ```{"default":{"title":"Atoms/Button"},"stories":{"Primary":{"args":{"label":"Save"}}}}```
+    }
+    {@type="application/vnd.example.future+json" |
+        ```{"future":true}```
+    }
+}

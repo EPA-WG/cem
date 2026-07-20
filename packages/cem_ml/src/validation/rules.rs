@@ -31,6 +31,7 @@ use crate::schema::document_model::{
     load_builtin_document_model_for_identity, load_document_model_for_identity,
     validate_document_model_with_behavior_evaluator, SchemaDocumentModel,
 };
+use crate::schema::machine::CemSchemaMachine;
 use crate::schema::package_consistency::validate_schema_package_source_consistency;
 use crate::schema::reference_resolution::{
     compare_references, EngineAssistedReferenceNormalizerEvaluator, NormalizedReferenceValue,
@@ -52,6 +53,7 @@ use crate::schema::registry::{
     XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_CONTENT_TYPE,
     XSLT_SCHEMA_URI,
 };
+use crate::schema::vocab::CompiledSchema;
 use crate::source::{BytesSource, SourceId};
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack};
 use crate::tokenizer::cem::CemTokenizer;
@@ -2797,12 +2799,24 @@ fn schema_package_example_tokenizer(
 }
 
 fn parse_example_cem_document(bytes: &[u8]) -> CemDocument {
+    let handoff_diagnostics = {
+        let src = BytesSource::new(SourceId(1), bytes.to_vec());
+        let tok = CemTokenizer::from_source(src);
+        let normalizer = CemEventNormalizer::new(tok);
+        CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer)
+            .run()
+            .diagnostics
+            .into_iter()
+            .filter(|diagnostic| diagnostic.code.starts_with("cem.handoff."))
+    };
+
     let src = BytesSource::new(SourceId(1), bytes.to_vec());
     let mut tok = CemTokenizer::from_source(src);
     let tok_diags = tok.take_diagnostics();
     let normalizer = CemEventNormalizer::new(tok);
     let mut document = CemAstBuilder::new(normalizer).build();
     document.diagnostics.extend(tok_diags);
+    document.diagnostics.extend(handoff_diagnostics);
     document
 }
 
@@ -4332,6 +4346,49 @@ mod tests {
                     }) != Some("example-expected-diagnostics")
             }),
             "declared CEM schema-package identity should validate the .html source as CEM and match expected diagnostics: {diags:?}"
+        );
+    }
+
+    #[test]
+    fn schema_package_example_contract_uses_schema_machine_handoff_diagnostics() {
+        let dir = schema_package_artifact_contract_fixture_dir(
+            "example-source-handoff-diagnostics",
+            &[(
+                "examples/invalid-handoff.cem",
+                r#"@doc cem-ml 1
+{@type="application/vnd.example.future+json" | ```{"future":true}```}
+"#,
+            )],
+        );
+        let package_uri = dir.join("package.cem").display().to_string();
+        let diags = run_rules_with_identity_and_source_uri(
+            r#"{package @id=demo @version="1.0.0" |
+                {schema @uri="https://cem.dev/ns/cem-ml/1"}
+                {content-type @value="application/cem" @primary=true}
+                {example
+                    @id="invalid-handoff"
+                    @path="examples/invalid-handoff.cem"
+                    @content-type="application/cem"
+                    @schema="https://cem.dev/ns/cem-ml/1"
+                    @expected-result="fail"
+                    @expected-diagnostics="cem.handoff.unsupported_content_type"
+                }
+            }"#,
+            Some(CEM_SCHEMA_PACKAGE_URI),
+            Some(CEM_SCHEMA_PACKAGE_CONTENT_TYPE),
+            Some(&package_uri),
+        );
+
+        assert!(
+            diags.iter().all(|diagnostic| {
+                diagnostic.details.as_ref().and_then(|details| {
+                    details.get("checkKind").and_then(serde_json::Value::as_str)
+                }) != Some("example-source-validation")
+                    && diagnostic.details.as_ref().and_then(|details| {
+                        details.get("checkKind").and_then(serde_json::Value::as_str)
+                    }) != Some("example-expected-diagnostics")
+            }),
+            "manifest-loaded CEM example should satisfy expected handoff diagnostics through schema-machine validation: {diags:?}"
         );
     }
 

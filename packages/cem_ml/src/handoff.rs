@@ -14,6 +14,9 @@ pub const SUPPORTED_CONTENT_TYPES: &[&str] = &[
     "text/html",
     "text/css",
     "text/javascript",
+    "application/javascript",
+    "application/ecmascript",
+    "text/ecmascript",
     "application/json",
     "application/yaml",
     "application/x-yaml",
@@ -40,7 +43,16 @@ pub const SUPPORTED_CONTENT_TYPES: &[&str] = &[
 ];
 
 pub fn is_supported_content_type(ct: &str) -> bool {
-    SUPPORTED_CONTENT_TYPES.contains(&ct)
+    let essence = content_type_essence(ct);
+    SUPPORTED_CONTENT_TYPES.contains(&essence.as_str())
+}
+
+fn content_type_essence(ct: &str) -> String {
+    ct.split(';')
+        .next()
+        .unwrap_or(ct)
+        .trim()
+        .to_ascii_lowercase()
 }
 
 #[derive(Debug, Default)]
@@ -127,6 +139,26 @@ mod tests {
     #[test]
     fn css_content_type_is_supported_opaque_handoff() {
         assert!(is_supported_content_type("text/css"));
+        assert!(is_supported_content_type("TEXT/CSS; charset=utf-8"));
+    }
+
+    #[test]
+    fn javascript_content_types_are_supported_opaque_handoffs() {
+        for content_type in [
+            "text/javascript",
+            "application/javascript",
+            "application/ecmascript",
+            "text/ecmascript",
+        ] {
+            assert!(is_supported_content_type(content_type));
+        }
+    }
+
+    #[test]
+    fn future_vendor_json_content_type_is_not_tier_a_handoff() {
+        assert!(!is_supported_content_type(
+            "application/vnd.storybook.csf+json"
+        ));
     }
 
     #[test]

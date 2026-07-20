@@ -112,6 +112,7 @@ impl<T: SchemaTokenizer> CemEventNormalizer<T> {
                                 },
                                 return_condition: ReturnCondition::ParentScopeClose,
                             },
+                            source_map: source_map.clone(),
                         });
                     }
                 }
@@ -315,6 +316,26 @@ mod tests {
         assert!(e
             .iter()
             .any(|ev| matches!(ev, NormalizedEvent::ModeSwitch { content_type, .. } if content_type == "text/html")));
+    }
+
+    #[test]
+    fn type_directive_mode_switch_preserves_source_map() {
+        let e = events_for(r#"{@type="text/css" | .card { color: red; }}"#);
+        let switch = e
+            .iter()
+            .find_map(|ev| match ev {
+                NormalizedEvent::ModeSwitch {
+                    content_type,
+                    source_map,
+                    ..
+                } if content_type == "text/css" => Some(source_map),
+                _ => None,
+            })
+            .expect("expected text/css mode switch");
+        assert!(switch.frames.iter().any(|frame| matches!(
+            frame.transform,
+            crate::source_map::TransformKind::CemTokenizer
+        )));
     }
 
     #[test]

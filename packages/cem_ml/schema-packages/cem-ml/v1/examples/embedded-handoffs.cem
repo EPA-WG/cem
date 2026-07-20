@@ -1,0 +1,23 @@
+@doc cem-ml 1
+@ns html = "http://www.w3.org/1999/xhtml"
+@default html
+
+{main @id="embedded-handoffs" |
+    {section @class="style-script-payloads" |
+        {h1 | Embedded handoff coverage}
+        {@type="text/css; charset=utf-8" |
+            ```.card { color: var(--accent); }```
+        }
+        {@type="application/javascript" |
+            ```export default { title: "Atoms/Button", args: { label: "Save" } };```
+        }
+    }
+    {section @class="xml-json-payloads" |
+        {@type="application/xml" |
+            ```<resource><body><![CDATA[{token-name}]]></body></resource>```
+        }
+        {@type="application/json" |
+            ```{"query":"{ viewer { id name } }","variables":{"id":"42"}}```
+        }
+    }
+}

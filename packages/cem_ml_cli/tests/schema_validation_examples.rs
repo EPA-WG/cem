@@ -336,12 +336,28 @@ fn schema_owned_examples_validate_through_cli() {
             expected_diagnostics: &["cem.handoff.child_parser_deferred"],
         },
         ValidationExample {
+            name: "cem-ml embedded handoffs",
+            path: "packages/cem_ml/schema-packages/cem-ml/v1/examples/embedded-handoffs.cem",
+            content_type: CEM_ML_CONTENT_TYPE,
+            schema_uri: CEM_ML_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &["cem.handoff.child_parser_deferred"],
+        },
+        ValidationExample {
             name: "cem-ml invalid unclosed scope",
             path: "packages/cem_ml/schema-packages/cem-ml/v1/examples/invalid-unclosed-scope.cem",
             content_type: CEM_ML_CONTENT_TYPE,
             schema_uri: CEM_ML_SCHEMA_URI,
             expected_exit: EXIT_HARD_FAILURE,
             expected_diagnostics: &["cem.schema.unclosed_scope"],
+        },
+        ValidationExample {
+            name: "cem-ml invalid unsupported handoffs",
+            path: "packages/cem_ml/schema-packages/cem-ml/v1/examples/invalid-unsupported-handoffs.cem",
+            content_type: CEM_ML_CONTENT_TYPE,
+            schema_uri: CEM_ML_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.handoff.unsupported_content_type"],
         },
         ValidationExample {
             name: "schema basic",
@@ -1534,6 +1550,93 @@ fn schema_owned_examples_validate_through_cli() {
             );
         }
     }
+}
+
+#[test]
+fn cem_ml_embedded_handoff_diagnostics_carry_source_map_bounds_through_cli() {
+    let path =
+        workspace_path("packages/cem_ml/schema-packages/cem-ml/v1/examples/embedded-handoffs.cem");
+    let output = validate_example(
+        &ValidationExample {
+            name: "cem-ml embedded handoffs",
+            path: "packages/cem_ml/schema-packages/cem-ml/v1/examples/embedded-handoffs.cem",
+            content_type: CEM_ML_CONTENT_TYPE,
+            schema_uri: CEM_ML_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &[],
+        },
+        &path,
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(EXIT_OK),
+        "embedded handoff source-map stderr:\n{}",
+        stderr(&output)
+    );
+    let report: serde_json::Value = serde_json::from_str(stdout(&output).trim())
+        .expect("embedded handoff stdout is validation JSON");
+    let diagnostic = diagnostics(&report)
+        .iter()
+        .find(|diagnostic| {
+            diagnostic["code"] == "cem.handoff.child_parser_deferred"
+                && diagnostic["details"]["contentType"] == "text/css; charset=utf-8"
+                && diagnostic["details"]["sourceRange"]["span"]["start"].is_u64()
+                && diagnostic["details"]["sourceRange"]["span"]["len"].is_u64()
+                && diagnostic["sourceMap"]["frames"]
+                    .as_array()
+                    .is_some_and(|frames| !frames.is_empty())
+        })
+        .unwrap_or_else(|| {
+            panic!(
+                "expected source-mapped text/css handoff diagnostic in {}",
+                stdout(&output)
+            )
+        });
+    assert_eq!(diagnostic["severity"], "info");
+}
+
+#[test]
+fn cem_ml_unsupported_handoff_diagnostics_carry_source_map_bounds_through_cli() {
+    let path = workspace_path(
+        "packages/cem_ml/schema-packages/cem-ml/v1/examples/invalid-unsupported-handoffs.cem",
+    );
+    let output = validate_example(
+        &ValidationExample {
+            name: "cem-ml invalid unsupported handoffs",
+            path: "packages/cem_ml/schema-packages/cem-ml/v1/examples/invalid-unsupported-handoffs.cem",
+            content_type: CEM_ML_CONTENT_TYPE,
+            schema_uri: CEM_ML_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &[],
+        },
+        &path,
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(EXIT_HARD_FAILURE),
+        "unsupported handoff source-map stderr:\n{}",
+        stderr(&output)
+    );
+    let report: serde_json::Value = serde_json::from_str(stdout(&output).trim())
+        .expect("unsupported handoff stdout is validation JSON");
+    let diagnostic = diagnostics(&report)
+        .iter()
+        .find(|diagnostic| {
+            diagnostic["code"] == "cem.handoff.unsupported_content_type"
+                && diagnostic["details"]["contentType"] == "application/vnd.storybook.csf+json"
+                && diagnostic["details"]["sourceRange"]["span"]["start"].is_u64()
+                && diagnostic["details"]["sourceRange"]["span"]["len"].is_u64()
+                && diagnostic["sourceMap"]["frames"]
+                    .as_array()
+                    .is_some_and(|frames| !frames.is_empty())
+        })
+        .unwrap_or_else(|| {
+            panic!(
+                "expected source-mapped unsupported handoff diagnostic in {}",
+                stdout(&output)
+            )
+        });
+    assert_eq!(diagnostic["severity"], "error");
 }
 
 #[test]

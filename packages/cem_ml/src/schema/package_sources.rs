@@ -724,7 +724,19 @@ mod tests {
     #[test]
     fn cem_ml_package_examples_are_manifest_indexed() {
         let examples =
-            manifest_indexed_package_examples("cem-ml", CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, 4);
+            manifest_indexed_package_examples("cem-ml", CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, 6);
+        let embedded = examples
+            .iter()
+            .find(|example| example.id == "embedded-handoffs")
+            .expect("embedded CEM-ML handoff example");
+        assert_eq!(
+            embedded.expected_result,
+            SchemaPackageExampleExpectedResult::Pass
+        );
+        assert_eq!(
+            embedded.expected_diagnostic_codes,
+            vec!["cem.handoff.child_parser_deferred".to_owned()]
+        );
         let invalid = examples
             .iter()
             .find(|example| example.id == "invalid-unclosed-scope")
@@ -736,6 +748,18 @@ mod tests {
         assert_eq!(
             invalid.expected_diagnostic_codes,
             vec!["cem.ast.unclosed_scope".to_owned()]
+        );
+        let unsupported = examples
+            .iter()
+            .find(|example| example.id == "invalid-unsupported-handoffs")
+            .expect("unsupported CEM-ML handoff example");
+        assert_eq!(
+            unsupported.expected_result,
+            SchemaPackageExampleExpectedResult::Fail
+        );
+        assert_eq!(
+            unsupported.expected_diagnostic_codes,
+            vec!["cem.handoff.unsupported_content_type".to_owned()]
         );
     }
 

@@ -120,6 +120,7 @@ pub enum NormalizedEvent {
     ModeSwitch {
         content_type: String,
         handoff: HandoffRecord,
+        source_map: SourceMapStack,
     },
     Error {
         code: String,
