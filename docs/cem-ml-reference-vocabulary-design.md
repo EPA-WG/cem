@@ -341,6 +341,15 @@ and does not receive enough context finalizes to `unresolved` with
 `reason=ambiguous-content-type`; validators must not fall back to a global
 alias table.
 
+Schema identity and namespace identity remain separate operand domains in this
+vocabulary. Schema-reference operands bind to `schema:schema-uri-declaration`,
+`schema:schema-uri`, or `schema:schema-identity` results. Namespace-claim
+operands bind to `schema:namespace-uri` or `schema:namespace-uri-set` results.
+Namespace metadata lookups may carry resolved `schemaUri` and `schemaVersion`
+as lookup provenance, but those fields do not turn the namespace operand into a
+schema operand unless a versioned adapter has projected an explicit schema
+URI/identity result with its own binding.
+
 Operand states:
 
 - `valid`: value exists, has the declared shape, and normalized successfully.

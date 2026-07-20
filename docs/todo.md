@@ -81,7 +81,7 @@ identity.
       coercion, add `schema:string-exact` for text-only contracts, and add a
       distinct lexical normalizer where spelling matters. Keep
       `declaredValue`, `sourceLexeme`, and `sourceRange` separate.
-- [ ] **[C10] Separate schema and namespace identity domains.** Compare manifest
+- [x] **[C10] Separate schema and namespace identity domains.** Compare manifest
       schema references with canonical schema identity or explicit URI
       declarations, and compare namespace claims only with namespace values.
       Treat schema v1's namespace-as-identity behavior as a versioned

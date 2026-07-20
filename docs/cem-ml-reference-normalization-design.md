@@ -356,6 +356,35 @@ policy stamps. If a namespace has no metadata and no explicit AC-F-2 schema
 form, AC-P-6.7 scope policy selects `reject`, `allow`, or `ignore`; the
 normalizer records that as provenance rather than inventing a schema identity.
 
+Schema and namespace operands remain separate domains even when namespace
+metadata resolves schema fields. A `schema:namespace-uri` value is never
+comparable to `schema:schema-uri-declaration`, `schema:schema-uri`, or
+`schema:schema-identity`. Schema-reference checks consume schema-source or
+descriptor URI/identity fields. Namespace-claim checks consume namespace fields
+only. The `schemaUri` and `schemaVersion` values produced by
+`schema:namespace-metadata` are dispatch metadata and provenance; they do not
+make the namespace text itself a schema identity.
+
+## Schema V1 Compatibility Adapter
+
+The current schema definition language v1 uses `schema @namespace` to identify
+the target schema being described. That behavior is a versioned compatibility
+adapter, not the long-term schema identity model.
+
+For schema v1 sources, the loader may read `schema @namespace` as a legacy
+target-schema reference only inside the schema-v1 adapter. The adapter must
+project explicit schema-source identity data for downstream checks: a schema URI
+declaration when the source provides one, and the complete
+`schema:schema-identity` once descriptor resolution has succeeded. It also
+retains the original namespace attribute spelling and source range as
+provenance. Downstream comparison rules then use schema normalizers for
+schema-reference checks and namespace normalizers for namespace-claim checks.
+They must not compare a manifest schema URI directly with the legacy namespace
+attribute.
+
+A later schema source version should expose an explicit schema identity field
+or descriptor identity record instead of preserving namespace-as-identity.
+
 ## Package Validation Bootstrap
 
 Local schema-package validation has two distinct phases: declaration
@@ -384,6 +413,10 @@ registry:
   types use `schema:media-type-essence-set`;
 - manifest namespace claims and schema source namespace claims use
   `schema:namespace-uri-set`.
+
+These declaration checks do not cross-bind schema and namespace operands. A
+missing schema-source URI is not satisfied by a namespace claim, and namespace
+agreement does not prove schema URI agreement.
 
 Only after those checks pass may the validator construct a provisional
 descriptor. The provisional descriptor is isolated to the current package
