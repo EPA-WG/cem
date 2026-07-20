@@ -38,17 +38,22 @@ tooling:
 - validation, applicator, annotation, format, and unevaluated keywords are kept
   distinct so engines can report unsupported vocabulary precisely.
 
+Generic CEM reference normalization may finalize a document URI, but JSON
+Schema reference traversal remains loader-owned. `$ref` and `$dynamicRef`
+resolution must account for `$id`, anchors, dynamic anchors, dialect, and
+dynamic scope instead of reducing those edges to generic URL joining.
+
 ## Validation Examples
 
 The schema-owned examples live in [`examples/`](examples/) and are used by the
 CLI validation integration tests.
 
-| Example | Purpose | Expected result |
-| --- | --- | --- |
-| [`basic-schema.schema.json`](examples/basic-schema.schema.json) | Minimal Draft 2020-12 object schema with required properties. | Pass |
-| [`catalog-schema.schema.json`](examples/catalog-schema.schema.json) | Draft 2020-12 schema with `$defs`, arrays, string constraints, and `$ref`. | Pass |
-| [`invalid-unsupported-dialect.schema.json`](examples/invalid-unsupported-dialect.schema.json) | Schema declaring an unsupported pre-2020-12 dialect. | Fail with `cem.json_schema.unsupported_dialect` |
-| [`invalid-parse.schema.json`](examples/invalid-parse.schema.json) | JSON syntax error in a schema resource. | Fail with `cem.json_schema.parse_error` |
+| Example                                                                                       | Purpose                                                                    | Expected result                                 |
+| --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------- |
+| [`basic-schema.schema.json`](examples/basic-schema.schema.json)                               | Minimal Draft 2020-12 object schema with required properties.              | Pass                                            |
+| [`catalog-schema.schema.json`](examples/catalog-schema.schema.json)                           | Draft 2020-12 schema with `$defs`, arrays, string constraints, and `$ref`. | Pass                                            |
+| [`invalid-unsupported-dialect.schema.json`](examples/invalid-unsupported-dialect.schema.json) | Schema declaring an unsupported pre-2020-12 dialect.                       | Fail with `cem.json_schema.unsupported_dialect` |
+| [`invalid-parse.schema.json`](examples/invalid-parse.schema.json)                             | JSON syntax error in a schema resource.                                    | Fail with `cem.json_schema.parse_error`         |
 
 Validate an example explicitly against this schema:
 

@@ -381,6 +381,12 @@ an explicit ID field exists. Artifact path or URI operands first resolve through
 registry context. Validators must not derive an artifact name from a path
 basename or compare a resolved artifact URI as an authored ID.
 
+Document URI bindings are identity finalization, not resource access.
+`schema:document-uri` applies effective base URI, resolver purpose,
+package/module-map context, and policy to produce declared/resolved URI values
+and resolver provenance. A later explicit lookup or resource behavior must own
+fetching, reading, listing, parsing, schema loading, or compilation.
+
 Composite function/artifact lookup keys use canonical `lookup` child form with
 one `key` child per component. Each key child declares its own binding,
 source, normalizer, cardinality, and shape. Required components include the
@@ -432,6 +438,13 @@ must use child form.
 Lookup produces a raw result envelope. The parent operand then extracts the
 declared comparable result from that raw result and applies the parent
 operand's `@normalizer`. Lookup key envelopes remain provenance.
+
+Lookup is the first stage that may assert target availability. Normalizers such
+as `schema:document-uri` may finalize a key to a resolved URI, but they must
+not assert that the target exists, is readable, parses, or compiles. Resource
+availability is represented by explicit lookup names or behaviors, for example
+`schema:resource-readable`, `schema:resource-parse`,
+`schema:registry.descriptor`, or `schema:function-identity`.
 
 Use child form when lookup needs `@as`, `@key`, `key` children, `@result`,
 `@requires`, `@package`, `@support`, source-range options, explicit state
@@ -522,6 +535,13 @@ lookup result wrong shape          -> invalid
 required result field absent       -> missing
 comparable result malformed        -> invalid
 ```
+
+URI identity finalization is not a lookup target miss. A malformed URI is
+`invalid(reason=invalid-document-uri)`. A URI that cannot be finalized because
+the required resolver, module-map entry, package context, or policy mapping is
+missing is `unresolved(reason=unresolved-document)`. A finalized URI whose
+resource does not exist is reported by the explicit lookup/resource behavior
+that tried to read or inspect it.
 
 Do not use a generic lookup `@on-missing` policy in the initial vocabulary.
 Candidate absence belongs to `@on-empty`; operand/lookup state acceptability

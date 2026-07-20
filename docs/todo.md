@@ -18,9 +18,8 @@ source provenance, keep normalization annotative and symmetric, make execution
 placement explicit, avoid implicit canonicalization, and retain complete schema
 identity.
 
-Current active slice: complete C13 by bounding document URI normalization,
-resolver context, and lookup lifecycle before moving to ordered-reference scope
-decisions.
+Current active slice: complete C14 by deciding whether ordered and mutable
+references are in the first release or explicitly deferred.
 
 ### Contract And Documentation
 
@@ -144,7 +143,7 @@ decisions.
       Keep `schema:reference-resolution` as orchestration and compatibility
       behavior; it must not directly convert normalization outcomes into
       violations.
-- [ ] **[C13] Bound document URI normalization and lookup lifecycle.** Define
+- [x] **[C13] Bound document URI normalization and lookup lifecycle.** Define
       document identity against effective base URI, resolver purpose,
       package/module-map context, and policy without fetching or asserting
       existence. Preserve declared/resolved URIs and resolver provenance, keep

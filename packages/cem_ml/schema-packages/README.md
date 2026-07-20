@@ -513,6 +513,11 @@ their own instances. Attribute datatype params such as `@stringPrefixes`,
 `@mediaTypeRequiredParameters` then narrow those compatible primitives
 declaratively in the schema document.
 
+Reference-normalization target design treats these path values as URI identity
+finalization against the active base, resolver purpose, package/module-map
+context, and policy. Finalization does not imply that the resource exists or is
+readable; schema-owned resource checks own those assertions.
+
 ## CEMT Transformation Ownership
 
 Input validation, content conversion, and output serialization are separate
