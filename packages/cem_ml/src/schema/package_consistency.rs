@@ -4,11 +4,17 @@ use crate::parser::builder::CemAstBuilder;
 use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
 use crate::resolver::{has_uri_scheme, is_windows_drive_path, parse_local_file_uri};
+use crate::schema::document_model::{
+    compare_reference_declarative_operands, evaluate_reference_declarative_operands,
+    load_builtin_document_model_for_identity, project_reference_declarative_diagnostic,
+    select_reference_candidates, ReferenceCandidateSelection, ReferenceCapabilitySet,
+    ReferenceDeclarativeComparisonEvaluation, ReferenceResolutionConstraint,
+    ReferenceSourceBindings, ReferenceSourceValue, ReferenceSourceValueKind,
+};
 use crate::schema::reference_resolution::{
     compare_references, normalize_namespace_uri, normalize_namespace_uri_set, normalize_schema_uri,
-    NormalizedReferenceValue, ReferenceComparisonInput, ReferenceComparisonOperator,
-    ReferenceNormalizer, ReferenceOperand, ReferenceOperandRole, ReferenceStatePolicy,
-    ReferenceValue, ReferenceValueCardinality,
+    ReferenceComparisonInput, ReferenceComparisonOperator, ReferenceOperand, ReferenceOperandRole,
+    ReferenceStatePolicy,
 };
 use crate::schema::registry::{content_type_essence, CEM_SCHEMA_PACKAGE_URI};
 use crate::source::{BytesSource, SourceId};
@@ -16,6 +22,7 @@ use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack};
 use crate::tokenizer::cem::CemTokenizer;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 #[allow(dead_code)]
 pub(crate) const SCHEMA_PACKAGE_SOURCE_CONSISTENCY_CONSTRAINT_DIAGNOSTICS: &[(&str, &str)] = &[
@@ -147,6 +154,7 @@ pub fn validate_schema_package_source_consistency(
                     ["uri"],
                     serde_json::json!({ "uri": manifest_schema_uri }),
                     serde_json::json!({ "uri": schema_namespace }),
+                    None,
                 ),
             ));
         }
@@ -154,9 +162,13 @@ pub fn validate_schema_package_source_consistency(
 
     let package_content_types = package_content_type_claims(manifest, package_id);
     let schema_content_types = schema_content_type_claims(&schema_document, schema_id);
-    let content_type_comparison =
-        compare_schema_content_type_consistency(&package_content_types, &schema_content_types);
-    if !schema_content_types.is_empty() && !content_type_comparison.passed {
+    let content_type_evaluation =
+        evaluate_schema_content_type_consistency(manifest, package_id, &schema_document, schema_id);
+    let content_type_consistency_passed = content_type_evaluation
+        .as_ref()
+        .map(schema_content_type_consistency_passed)
+        .unwrap_or_else(|| package_content_types == schema_content_types);
+    if !schema_content_types.is_empty() && !content_type_consistency_passed {
         let content_type_node_id =
             cem_child_element_ids_by_local_name(manifest, package_id, "content-type")
                 .first()
@@ -180,6 +192,7 @@ pub fn validate_schema_package_source_consistency(
                 ["value"],
                 serde_json::json!({ "content-type": package_content_types }),
                 serde_json::json!({ "content-type": schema_content_types }),
+                content_type_evaluation.as_ref(),
             ),
         ));
     }
@@ -211,6 +224,7 @@ pub fn validate_schema_package_source_consistency(
                         ["uri"],
                         serde_json::json!({ "uri": namespace_uri }),
                         serde_json::json!({ "uri": schema_namespace_uris }),
+                        None,
                     ),
                 ));
             }
@@ -241,27 +255,6 @@ fn compare_schema_uri_consistency(
     })
 }
 
-fn compare_schema_content_type_consistency(
-    package_content_types: &BTreeSet<String>,
-    schema_content_types: &BTreeSet<String>,
-) -> crate::schema::reference_resolution::ReferenceComparisonResult {
-    compare_references(ReferenceComparisonInput {
-        operator: ReferenceComparisonOperator::Equals,
-        actual: ReferenceOperand::new(
-            ReferenceOperandRole::Actual,
-            "content-type",
-            normalized_scalar_set("content-type", package_content_types),
-        ),
-        expected: Some(ReferenceOperand::new(
-            ReferenceOperandRole::Expected,
-            "content-type",
-            normalized_scalar_set("content-type", schema_content_types),
-        )),
-        forbidden: None,
-        state_policy: ReferenceStatePolicy::RequiredValid,
-    })
-}
-
 fn compare_schema_namespace_consistency(
     namespace_uri: &str,
     schema_namespace_uris: &BTreeSet<String>,
@@ -283,14 +276,91 @@ fn compare_schema_namespace_consistency(
     })
 }
 
-fn normalized_scalar_set(name: &str, values: &BTreeSet<String>) -> ReferenceValue {
-    ReferenceValue::valid(
-        name,
-        ReferenceNormalizer::ScalarExact,
-        ReferenceValueCardinality::Set,
-        None,
-        NormalizedReferenceValue::StringSet(values.clone()),
-    )
+struct SchemaContentTypeConsistencyEvaluation {
+    constraint: ReferenceResolutionConstraint,
+    candidates: Option<ReferenceCandidateSelection>,
+    comparison: ReferenceDeclarativeComparisonEvaluation,
+}
+
+fn schema_content_type_consistency_passed(
+    evaluation: &SchemaContentTypeConsistencyEvaluation,
+) -> bool {
+    evaluation
+        .comparison
+        .result
+        .as_ref()
+        .is_some_and(|result| result.passed)
+}
+
+fn evaluate_schema_content_type_consistency(
+    manifest: &CemDocument,
+    package_id: AstNodeId,
+    schema_document: &CemDocument,
+    schema_id: AstNodeId,
+) -> Option<SchemaContentTypeConsistencyEvaluation> {
+    let constraint =
+        schema_package_reference_resolution_constraint("schema-content-type-consistency")?;
+    let mut bindings = ReferenceSourceBindings::default();
+    bindings.bind_nodes("package", vec![package_id]);
+    bindings.bind_field_values(
+        "package",
+        "content-types",
+        package_content_type_claim_source_values(manifest, package_id),
+    );
+    bindings.bind_field_values(
+        "schema-source",
+        "content-types",
+        schema_content_type_claim_source_values(schema_document, schema_id),
+    );
+
+    let candidates = constraint
+        .candidates
+        .first()
+        .map(|declaration| select_reference_candidates(manifest, &[package_id], declaration));
+    if let Some(candidates) = candidates.as_ref() {
+        bindings.bind_candidate_selection(candidates);
+    }
+
+    let operands = evaluate_reference_declarative_operands(
+        manifest,
+        &[package_id],
+        &bindings,
+        &constraint.execution,
+        &constraint.operands,
+        &ReferenceCapabilitySet::default(),
+    );
+    let comparison = compare_reference_declarative_operands(operands, constraint.compare.as_ref());
+
+    Some(SchemaContentTypeConsistencyEvaluation {
+        constraint,
+        candidates,
+        comparison,
+    })
+}
+
+fn schema_package_reference_resolution_constraint(
+    kind: &str,
+) -> Option<ReferenceResolutionConstraint> {
+    static REFERENCE_CONSTRAINTS: OnceLock<BTreeMap<String, ReferenceResolutionConstraint>> =
+        OnceLock::new();
+    REFERENCE_CONSTRAINTS
+        .get_or_init(|| {
+            load_builtin_document_model_for_identity(Some(CEM_SCHEMA_PACKAGE_URI), None)
+                .map(|model| {
+                    model
+                        .constraints
+                        .into_iter()
+                        .filter_map(|(kind, constraint)| {
+                            constraint
+                                .reference_resolution
+                                .map(|reference| (kind, reference))
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
+        })
+        .get(kind)
+        .cloned()
 }
 
 fn schema_source_path(
@@ -350,6 +420,16 @@ fn package_content_type_claims(document: &CemDocument, package_id: AstNodeId) ->
         .collect()
 }
 
+fn package_content_type_claim_source_values(
+    document: &CemDocument,
+    package_id: AstNodeId,
+) -> Vec<ReferenceSourceValue> {
+    cem_child_element_ids_by_local_name(document, package_id, "content-type")
+        .into_iter()
+        .filter_map(|node_id| content_type_claim_source_value(document, node_id))
+        .collect()
+}
+
 fn schema_content_type_claims(document: &CemDocument, schema_id: AstNodeId) -> BTreeSet<String> {
     let mut claims = BTreeSet::new();
     for content_types_id in
@@ -366,6 +446,25 @@ fn schema_content_type_claims(document: &CemDocument, schema_id: AstNodeId) -> B
     claims
 }
 
+fn schema_content_type_claim_source_values(
+    document: &CemDocument,
+    schema_id: AstNodeId,
+) -> Vec<ReferenceSourceValue> {
+    let mut values = Vec::new();
+    for content_types_id in
+        cem_child_element_ids_by_local_name(document, schema_id, "content-types")
+    {
+        for content_type_id in
+            cem_child_element_ids_by_local_name(document, content_types_id, "content-type")
+        {
+            if let Some(value) = content_type_claim_source_value(document, content_type_id) {
+                values.push(value);
+            }
+        }
+    }
+    values
+}
+
 fn content_type_claim(document: &CemDocument, node_id: AstNodeId) -> Option<String> {
     let attrs = cem_collect_attrs(document, node_id);
     let value = cem_optional_attr(&attrs, "value")?;
@@ -375,6 +474,20 @@ fn content_type_claim(document: &CemDocument, node_id: AstNodeId) -> Option<Stri
         "alias"
     };
     Some(format!("{role}:{}", content_type_essence(value)))
+}
+
+fn content_type_claim_source_value(
+    document: &CemDocument,
+    node_id: AstNodeId,
+) -> Option<ReferenceSourceValue> {
+    Some(ReferenceSourceValue {
+        kind: ReferenceSourceValueKind::Field,
+        binding: "content-type".to_owned(),
+        name: Some("content-type".to_owned()),
+        value: Some(content_type_claim(document, node_id)?),
+        node_id: Some(node_id),
+        source_map: cem_node_source_map(document, node_id).unwrap_or_default(),
+    })
 }
 
 fn schema_namespace_uri_claims(document: &CemDocument, schema_id: AstNodeId) -> BTreeSet<String> {
@@ -466,8 +579,9 @@ fn schema_reference_resolution_details<const N: usize>(
     invalid_fields: [&str; N],
     invalid_values: serde_json::Value,
     expected_values: serde_json::Value,
+    reference_evaluation: Option<&SchemaContentTypeConsistencyEvaluation>,
 ) -> serde_json::Value {
-    serde_json::json!({
+    let details = serde_json::json!({
         "schemaUri": CEM_SCHEMA_PACKAGE_URI,
         "element": element,
         "contract": constraint,
@@ -480,7 +594,34 @@ fn schema_reference_resolution_details<const N: usize>(
         "expectedValues": expected_values,
         "actualValues": cem_collect_attrs(document, node_id),
         "sourceRange": cem_node_source_range_details(document, node_id),
-    })
+    });
+    let Some(reference_evaluation) = reference_evaluation else {
+        return details;
+    };
+    let projection = project_reference_declarative_diagnostic(
+        &reference_evaluation.comparison,
+        reference_evaluation.constraint.projection.as_ref(),
+        reference_evaluation.candidates.as_ref(),
+    );
+    merge_reference_projection_details(details, projection)
+}
+
+fn merge_reference_projection_details(
+    mut details: serde_json::Value,
+    projection: serde_json::Value,
+) -> serde_json::Value {
+    let (serde_json::Value::Object(details), serde_json::Value::Object(projection)) =
+        (&mut details, projection)
+    else {
+        return details;
+    };
+    for (key, value) in projection {
+        if matches!(key.as_str(), "actualValues" | "invalidFields") && details.contains_key(&key) {
+            continue;
+        }
+        details.insert(key, value);
+    }
+    serde_json::Value::Object(details.clone())
 }
 
 fn schema_package_source_consistency_diagnostic_code(constraint: &str) -> &'static str {
@@ -699,6 +840,35 @@ mod tests {
             "content-type",
             "schema:reference-resolution",
         );
+        let content_type_details = diagnostic_details(
+            &diagnostics,
+            "cem.schema_package.schema_content_type_mismatch",
+        );
+        assert_eq!(
+            content_type_details["actualValues"],
+            serde_json::json!({
+                "primary": "true",
+                "value": "application/vnd.example.manifest+cem",
+            })
+        );
+        assert_eq!(
+            content_type_details["invalidFields"],
+            serde_json::json!(["value"])
+        );
+        assert_eq!(
+            content_type_details["invalidValues"],
+            serde_json::json!({
+                "content-type": ["primary:application/vnd.example.manifest+cem"],
+            })
+        );
+        assert_eq!(
+            content_type_details["expectedValues"],
+            serde_json::json!({
+                "content-type": ["primary:application/vnd.example.actual+cem"],
+            })
+        );
+        assert!(content_type_details.get("comparison").is_none());
+        assert!(content_type_details.get("sourceRanges").is_none());
         assert_source_consistency_detail(
             &diagnostics,
             "cem.schema_package.schema_namespace_mismatch",
@@ -738,6 +908,18 @@ mod tests {
             "schema:resource-readable",
         );
         fs::remove_dir_all(temp_dir).ok();
+    }
+
+    fn diagnostic_details<'a>(
+        diagnostics: &'a [Diagnostic],
+        code: &str,
+    ) -> &'a serde_json::Map<String, serde_json::Value> {
+        diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == code)
+            .and_then(|diagnostic| diagnostic.details.as_ref())
+            .and_then(serde_json::Value::as_object)
+            .unwrap_or_else(|| panic!("expected details for {code}: {diagnostics:?}"))
     }
 
     fn assert_source_consistency_detail(

@@ -58,7 +58,18 @@
         {element @name="choice" @required-attributes="name mode" @children="case*"}
         {element @name="case" @optional-attributes="name attributes children"}
         {element @name="constraints" @children="constraint"}
-        {element @name="constraint" @required-attributes="kind" @optional-attributes="target value policy diagnostic behavior"}
+        {element @name="constraint" @required-attributes="kind" @optional-attributes="target value policy diagnostic behavior execution requires support package" @children="candidates actual expected forbidden lookup compare projection"}
+        {element @name="candidates" @required-attributes="select" @optional-attributes="as cardinality on-empty"}
+        {element @name="actual" @required-attributes="binding from" @optional-attributes="normalizer cardinality shape result-cardinality result-shape state lookup diagnostic-field" @children="lookup projection"}
+        {element @name="expected" @required-attributes="binding from" @optional-attributes="normalizer cardinality shape result-cardinality result-shape state lookup diagnostic-field" @children="lookup projection"}
+        {element @name="forbidden" @required-attributes="binding from" @optional-attributes="normalizer cardinality shape result-cardinality result-shape state lookup diagnostic-field" @children="lookup projection"}
+        {element @name="lookup" @optional-attributes="name execution select key as result result-cardinality result-shape result-key provenance source-range requires support package" @children="key result-key"}
+        {element @name="key" @required-attributes="binding from" @optional-attributes="normalizer cardinality shape"}
+        {element @name="result-key" @required-attributes="binding" @optional-attributes="from value-path normalizer"}
+        {element @name="compare" @optional-attributes="operator presence" @children="field-pair"}
+        {element @name="field-pair" @optional-attributes="binding actual-value-path expected-value-path forbidden-value-path operator state presence"}
+        {element @name="projection" @optional-attributes="profile project source value-view" @children="bucket"}
+        {element @name="bucket" @optional-attributes="name value-view"}
         {element @name="diagnostics" @children="diagnostic"}
         {element @name="diagnostic" @required-attributes="code severity" @optional-attributes="behavior message" @children="arguments"}
         {element @name="arguments" @children="argument"}
@@ -146,6 +157,33 @@
         {attribute @name="match" @type="schema:cem-ql-expression"}
         {attribute @name="source" @type="schema:behavior-input-source"}
         {attribute @name="source-range" @type="schema:source-range-propagation"}
+        {attribute @name="requires" @type="schema:behavior-reference"}
+        {attribute @name="support" @type="cemml:identifier"}
+        {attribute @name="package" @type="cemml:identifier"}
+        {attribute @name="binding" @type="cemml:identifier"}
+        {attribute @name="cardinality" @type="cemml:identifier"}
+        {attribute @name="on-empty" @type="cemml:identifier"}
+        {attribute @name="from" @type="schema:string"}
+        {attribute @name="normalizer" @type="schema:type-reference"}
+        {attribute @name="shape" @type="cemml:identifier"}
+        {attribute @name="result-cardinality" @type="cemml:identifier"}
+        {attribute @name="result-shape" @type="cemml:identifier"}
+        {attribute @name="state" @type="cemml:identifier"}
+        {attribute @name="lookup" @type="schema:behavior-reference"}
+        {attribute @name="diagnostic-field" @type="cemml:identifier"}
+        {attribute @name="key" @type="schema:string"}
+        {attribute @name="result" @type="schema:string"}
+        {attribute @name="result-key" @type="cemml:identifier"}
+        {attribute @name="provenance" @type="cemml:identifier"}
+        {attribute @name="value-path" @type="schema:string"}
+        {attribute @name="operator" @type="schema:behavior-reference"}
+        {attribute @name="presence" @type="cemml:identifier"}
+        {attribute @name="actual-value-path" @type="schema:string"}
+        {attribute @name="expected-value-path" @type="schema:string"}
+        {attribute @name="forbidden-value-path" @type="schema:string"}
+        {attribute @name="profile" @type="cemml:identifier"}
+        {attribute @name="project" @type="cemml:name-list"}
+        {attribute @name="value-view" @type="cemml:identifier"}
         {attribute @name="returns" @type="schema:function-return-type"}
         {attribute @name="visibility" @type="schema:function-visibility"}
         {attribute @name="nullable" @type="schema:boolean"}

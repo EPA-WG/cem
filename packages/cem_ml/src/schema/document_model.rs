@@ -20626,6 +20626,52 @@ mod tests {
             assert_eq!(constraint.behavior.as_deref(), Some(behavior));
             assert_eq!(constraint.engine_behavior, Some(engine_behavior));
         }
+        let schema_content_type_consistency = model
+            .constraint("schema-content-type-consistency")
+            .expect("schema content-type source consistency constraint");
+        let reference = schema_content_type_consistency
+            .reference_resolution
+            .as_ref()
+            .expect("schema content-type consistency reference-resolution declaration");
+        assert_eq!(reference.candidates.len(), 1);
+        assert_eq!(
+            reference.candidates[0].select.as_deref(),
+            Some("$target.child(content-type)")
+        );
+        assert_eq!(reference.operands.len(), 2);
+        assert!(reference.operands.iter().any(|operand| {
+            operand.role == ReferenceOperandDeclarationRole::Actual
+                && operand.binding.as_deref() == Some("content-type")
+                && operand.from.as_deref() == Some("package.field(content-types)")
+        }));
+        assert!(reference.operands.iter().any(|operand| {
+            operand.role == ReferenceOperandDeclarationRole::Expected
+                && operand.binding.as_deref() == Some("content-type")
+                && operand.from.as_deref() == Some("schema-source.field(content-types)")
+        }));
+        assert_eq!(
+            reference
+                .compare
+                .as_ref()
+                .and_then(|compare| compare.operator.as_deref()),
+            Some("schema:equals")
+        );
+        assert_eq!(
+            reference
+                .projection
+                .as_ref()
+                .map(|projection| projection.project.as_slice()),
+            Some(
+                [
+                    "expected".to_owned(),
+                    "invalid".to_owned(),
+                    "missing".to_owned(),
+                    "unresolved".to_owned(),
+                    "source-range".to_owned(),
+                ]
+                .as_slice()
+            )
+        );
         let artifact = model.element("artifact").unwrap();
         assert!(artifact
             .field_contracts

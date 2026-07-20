@@ -274,7 +274,31 @@
         {constraint @kind="schema-source-readable" @target="schema" @diagnostic="cem.schema_package.schema_source_unreadable" @behavior="schema:resource-readable" @policy="schema source paths must resolve to readable local CEM-ML resources"}
         {constraint @kind="schema-source-valid" @target="schema" @diagnostic="cem.schema_package.schema_source_invalid" @behavior="schema:resource-parse" @policy="schema source paths must parse to CEM-ML documents with a schema root"}
         {constraint @kind="schema-uri-consistency" @target="schema" @diagnostic="cem.schema_package.schema_uri_mismatch" @behavior="schema:reference-resolution" @policy="package schema URI must match the namespace declared by the schema source"}
-        {constraint @kind="schema-content-type-consistency" @target="content-type" @diagnostic="cem.schema_package.schema_content_type_mismatch" @behavior="schema:reference-resolution" @policy="package content-type claims must match content types declared by the schema source"}
+        {constraint @kind="schema-content-type-consistency" @target="content-type" @diagnostic="cem.schema_package.schema_content_type_mismatch" @behavior="schema:reference-resolution" @policy="package content-type claims must match content types declared by the schema source" |
+            {candidates
+                @select="$target.child(content-type)"
+                @as="manifest-content-type"
+                @cardinality="zero-or-more"
+                @on-empty="pass"}
+            {actual
+                @binding="content-type"
+                @from="package.field(content-types)"
+                @normalizer="schema:scalar-exact"
+                @cardinality="set"
+                @shape="scalar"
+                @state="required-valid"}
+            {expected
+                @binding="content-type"
+                @from="schema-source.field(content-types)"
+                @normalizer="schema:scalar-exact"
+                @cardinality="set"
+                @shape="scalar"
+                @state="required-valid"}
+            {compare @operator="schema:equals"}
+            {projection
+                @profile="compatibility"
+                @project="expected invalid missing unresolved source-range"}
+        }
         {constraint @kind="schema-namespace-consistency" @target="namespace" @diagnostic="cem.schema_package.schema_namespace_mismatch" @behavior="schema:reference-resolution" @policy="package namespace claims must be declared by the schema source"}
         {constraint @kind="artifact-output-stage-contract" @target="artifact" @policy="formatter, colorizer, formatter-helper, and colorizer-helper artifacts that provide runtime CEMT output stages or helpers must use package-relative CEMT paths under formatters/ or colorizers/, declare target-content-type, target-schema, target-category, function-name, function-profile when the CEMT declaration has a profile, and the applicable formatter-profile or color-profile"}
         {constraint @kind="example-contract" @target="example" @policy="schema-package examples must declare source path, content type, schema URL, pass/fail result, and expected diagnostics for failing examples; when example schema is known, content type must be registered by that schema"}

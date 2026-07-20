@@ -18,8 +18,8 @@ source provenance, keep normalization annotative and symmetric, make execution
 placement explicit, avoid implicit canonicalization, and retain complete schema
 identity.
 
-Current active slice: migrate one schema-package reference-resolution check to
-the declarative vocabulary as the first end-to-end fixture.
+Current active slice: design any further generic path-layout vocabulary beyond
+the current prefix, directory-name, extension, and basename facets.
 
 ### Contract And Documentation
 
@@ -215,10 +215,10 @@ compatibility, reconciling field names and IR shapes with the accepted design.
 - [x] Implement projection profiles and tokens: compatibility defaults,
       structured arrays, `sourceRange`/`sourceRanges`, `comparison`,
       `provenance`, `aliases`, and candidate context.
-- [ ] Migrate one existing schema-package reference-resolution check to the
+- [x] Migrate one existing schema-package reference-resolution check to the
       declarative vocabulary as the first end-to-end fixture, keeping current
       diagnostics stable.
-- [ ] Verify with focused Rust tests first, then run
+- [x] Verify with focused Rust tests first, then run
       `NX_DAEMON=false yarn nx run cem_ml:test`.
 
 ## Low Priority Deferred Design
