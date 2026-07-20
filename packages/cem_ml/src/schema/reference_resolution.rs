@@ -84,6 +84,7 @@ pub enum ReferenceValueState {
     Missing,
     Invalid,
     Unresolved,
+    Unsupported,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -96,6 +97,9 @@ pub enum ReferenceValueReason {
     UnresolvedNamespace,
     UnresolvedFunction,
     UnsupportedNormalizer,
+    UnsupportedCapability,
+    UnsupportedLookup,
+    PolicyDenied,
 }
 
 impl ReferenceValueReason {
@@ -109,6 +113,9 @@ impl ReferenceValueReason {
             Self::UnresolvedNamespace => "unresolved-namespace",
             Self::UnresolvedFunction => "unresolved-function",
             Self::UnsupportedNormalizer => "unsupported-normalizer",
+            Self::UnsupportedCapability => "unsupported-capability",
+            Self::UnsupportedLookup => "unsupported-lookup",
+            Self::PolicyDenied => "policy-denied",
         }
     }
 }
@@ -281,9 +288,17 @@ impl ReferenceValue {
         Self::non_valid(
             name,
             normalizer,
-            ReferenceValueState::Invalid,
+            ReferenceValueState::Unsupported,
             ReferenceValueReason::UnsupportedNormalizer,
         )
+    }
+
+    pub fn unsupported_with_reason(
+        name: impl Into<String>,
+        normalizer: ReferenceNormalizer,
+        reason: ReferenceValueReason,
+    ) -> Self {
+        Self::non_valid(name, normalizer, ReferenceValueState::Unsupported, reason)
     }
 
     fn non_valid(
@@ -1026,6 +1041,8 @@ pub enum ReferenceStatePolicy {
     OptionalAbsentOk,
     CompareWhenPresent,
     BothOrNone,
+    AllowUnresolved,
+    AllowUnsupported,
     UnresolvedFails,
 }
 
@@ -1137,12 +1154,14 @@ pub struct ReferenceComparisonResult {
     pub invalid_values: BTreeMap<String, Value>,
     pub missing_values: BTreeMap<String, Value>,
     pub unresolved_values: BTreeMap<String, Value>,
+    pub unsupported_values: BTreeMap<String, Value>,
     pub invalid_fields: BTreeSet<String>,
     pub comparison: Value,
     pub expected_value_sources: BTreeMap<String, ReferenceDiagnosticSource>,
     pub invalid_value_sources: BTreeMap<String, ReferenceDiagnosticSource>,
     pub missing_value_sources: BTreeMap<String, ReferenceDiagnosticSource>,
     pub unresolved_value_sources: BTreeMap<String, ReferenceDiagnosticSource>,
+    pub unsupported_value_sources: BTreeMap<String, ReferenceDiagnosticSource>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1275,12 +1294,14 @@ impl ReferenceComparisonResult {
             invalid_values: BTreeMap::new(),
             missing_values: BTreeMap::new(),
             unresolved_values: BTreeMap::new(),
+            unsupported_values: BTreeMap::new(),
             invalid_fields: BTreeSet::new(),
             comparison,
             expected_value_sources: BTreeMap::new(),
             invalid_value_sources: BTreeMap::new(),
             missing_value_sources: BTreeMap::new(),
             unresolved_value_sources: BTreeMap::new(),
+            unsupported_value_sources: BTreeMap::new(),
         }
     }
 
@@ -1292,12 +1313,14 @@ impl ReferenceComparisonResult {
             invalid_values: BTreeMap::new(),
             missing_values: BTreeMap::new(),
             unresolved_values: BTreeMap::new(),
+            unsupported_values: BTreeMap::new(),
             invalid_fields: BTreeSet::new(),
             comparison,
             expected_value_sources: BTreeMap::new(),
             invalid_value_sources: BTreeMap::new(),
             missing_value_sources: BTreeMap::new(),
             unresolved_value_sources: BTreeMap::new(),
+            unsupported_value_sources: BTreeMap::new(),
         }
     }
 
@@ -1326,6 +1349,12 @@ impl ReferenceComparisonResult {
             &mut object,
             "unresolvedValues",
             &self.unresolved_values,
+            options.include_empty_buckets,
+        );
+        insert_detail_map(
+            &mut object,
+            "unsupportedValues",
+            &self.unsupported_values,
             options.include_empty_buckets,
         );
         if options.include_empty_buckets || !self.invalid_fields.is_empty() {
@@ -1377,6 +1406,7 @@ impl ReferenceComparisonResult {
             .values()
             .chain(self.missing_value_sources.values())
             .chain(self.unresolved_value_sources.values())
+            .chain(self.unsupported_value_sources.values())
             .chain(self.expected_value_sources.values())
             .find_map(|source| source.source_range.clone())
     }
@@ -1390,6 +1420,11 @@ impl ReferenceComparisonResult {
             &mut object,
             "unresolvedValues",
             &self.unresolved_value_sources,
+        );
+        insert_source_map(
+            &mut object,
+            "unsupportedValues",
+            &self.unsupported_value_sources,
         );
         (!object.is_empty()).then_some(Value::Object(object))
     }
@@ -1548,7 +1583,9 @@ fn evaluate_state_policy(
             for operand in operands {
                 if matches!(
                     operand.value.state,
-                    ReferenceValueState::Invalid | ReferenceValueState::Unresolved
+                    ReferenceValueState::Invalid
+                        | ReferenceValueState::Unresolved
+                        | ReferenceValueState::Unsupported
                 ) {
                     add_state_failure(&mut result, operand);
                 }
@@ -1577,6 +1614,38 @@ fn evaluate_state_policy(
                 return Some(result);
             }
         }
+        ReferenceStatePolicy::AllowUnresolved => {
+            let mut result = ReferenceComparisonResult::failed(operator, comparison.clone());
+            for operand in operands {
+                if !matches!(
+                    operand.value.state,
+                    ReferenceValueState::Valid | ReferenceValueState::Unresolved
+                ) {
+                    add_state_failure(&mut result, operand);
+                }
+            }
+            return (!result.invalid_fields.is_empty()
+                || !result.missing_values.is_empty()
+                || !result.invalid_values.is_empty()
+                || !result.unsupported_values.is_empty())
+            .then_some(result);
+        }
+        ReferenceStatePolicy::AllowUnsupported => {
+            let mut result = ReferenceComparisonResult::failed(operator, comparison.clone());
+            for operand in operands {
+                if !matches!(
+                    operand.value.state,
+                    ReferenceValueState::Valid | ReferenceValueState::Unsupported
+                ) {
+                    add_state_failure(&mut result, operand);
+                }
+            }
+            return (!result.invalid_fields.is_empty()
+                || !result.missing_values.is_empty()
+                || !result.invalid_values.is_empty()
+                || !result.unresolved_values.is_empty())
+            .then_some(result);
+        }
         _ => {}
     }
 
@@ -1588,7 +1657,8 @@ fn evaluate_state_policy(
     }
     (!result.invalid_fields.is_empty()
         || !result.missing_values.is_empty()
-        || !result.unresolved_values.is_empty())
+        || !result.unresolved_values.is_empty()
+        || !result.unsupported_values.is_empty())
     .then_some(result)
 }
 
@@ -1622,6 +1692,15 @@ fn add_state_failure(result: &mut ReferenceComparisonResult, operand: &Reference
                 .invalid_values
                 .insert(operand.binding.clone(), Value::String(reason.to_owned()));
             result.invalid_value_sources.insert(
+                operand.binding.clone(),
+                ReferenceDiagnosticSource::from_operand(operand),
+            );
+        }
+        ReferenceValueState::Unsupported => {
+            result
+                .unsupported_values
+                .insert(operand.binding.clone(), Value::String(reason.to_owned()));
+            result.unsupported_value_sources.insert(
                 operand.binding.clone(),
                 ReferenceDiagnosticSource::from_operand(operand),
             );
@@ -1902,7 +1981,7 @@ mod tests {
             "content-type",
             "text/html",
         );
-        assert_eq!(unsupported.state, ReferenceValueState::Invalid);
+        assert_eq!(unsupported.state, ReferenceValueState::Unsupported);
         assert_eq!(
             unsupported.reason,
             Some(ReferenceValueReason::UnsupportedNormalizer)

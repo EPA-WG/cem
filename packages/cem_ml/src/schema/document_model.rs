@@ -46,6 +46,13 @@ use crate::resolver::{has_uri_scheme, is_windows_drive_path, uri_scheme};
 use crate::schema::package_loader::{
     load_builtin_schema_package, load_builtin_schema_package_for_content_type,
 };
+use crate::schema::reference_resolution::{
+    compare_references, EngineAssistedReferenceNormalizerEvaluator, NormalizedReferenceValue,
+    NormalizerPlacement, PureReferenceNormalizerEvaluator, ReferenceComparisonInput,
+    ReferenceComparisonOperator, ReferenceComparisonResult, ReferenceNormalizer, ReferenceOperand,
+    ReferenceOperandRole, ReferenceStatePolicy, ReferenceValue, ReferenceValueCardinality,
+    ReferenceValueReason, ReferenceValueState,
+};
 use crate::schema::registry::{
     SchemaRegistry, CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_PACKAGE_URI,
     CEM_SCHEMA_URI, CEM_TRANSFORM_SCHEMA_URI,
@@ -640,6 +647,29 @@ pub struct ReferenceLookupExpansion {
     pub state: ReferenceResolutionState,
     pub reason: Option<String>,
     pub raw_result: Option<ReferenceLookupRawResultEnvelope>,
+    pub source_map: SourceMapStack,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceDeclarativeOperandEvaluation {
+    pub role: ReferenceOperandDeclarationRole,
+    pub binding: String,
+    pub state_policy: String,
+    pub state: ReferenceResolutionState,
+    pub reason: Option<String>,
+    pub source: ReferenceOperandSourceEnvelope,
+    pub lookups: Vec<ReferenceLookupExpansion>,
+    pub value: ReferenceValue,
+    pub comparison_operand: ReferenceOperand,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceDeclarativeComparisonEvaluation {
+    pub state: ReferenceResolutionState,
+    pub reason: Option<String>,
+    pub input: Option<ReferenceComparisonInput>,
+    pub result: Option<ReferenceComparisonResult>,
+    pub operands: Vec<ReferenceDeclarativeOperandEvaluation>,
     pub source_map: SourceMapStack,
 }
 
@@ -10813,6 +10843,516 @@ pub fn expand_reference_constraint_lookups(
         .collect()
 }
 
+pub fn evaluate_reference_declarative_operands(
+    document: &CemDocument,
+    target_nodes: &[AstNodeId],
+    bindings: &ReferenceSourceBindings,
+    constraint_execution: &ReferenceConstraintExecution,
+    operands: &[ReferenceOperandDeclaration],
+    capabilities: &ReferenceCapabilitySet,
+) -> Vec<ReferenceDeclarativeOperandEvaluation> {
+    operands
+        .iter()
+        .map(|operand| {
+            evaluate_reference_declarative_operand(
+                document,
+                target_nodes,
+                bindings,
+                constraint_execution,
+                operand,
+                capabilities,
+            )
+        })
+        .collect()
+}
+
+pub fn evaluate_reference_declarative_operand(
+    document: &CemDocument,
+    target_nodes: &[AstNodeId],
+    bindings: &ReferenceSourceBindings,
+    constraint_execution: &ReferenceConstraintExecution,
+    operand: &ReferenceOperandDeclaration,
+    capabilities: &ReferenceCapabilitySet,
+) -> ReferenceDeclarativeOperandEvaluation {
+    let source = extract_reference_operand_sources(document, bindings, operand);
+    let lookups = expand_reference_operand_lookups(
+        document,
+        target_nodes,
+        bindings,
+        constraint_execution,
+        operand,
+        &source,
+        capabilities,
+    );
+    let binding = operand.binding.clone().unwrap_or_default();
+    let state_policy = operand
+        .state
+        .clone()
+        .unwrap_or_else(|| "required-valid".to_owned());
+    let normalizer = operand
+        .normalizer
+        .as_deref()
+        .and_then(reference_normalizer_from_name)
+        .unwrap_or(ReferenceNormalizer::ScalarExact);
+    let final_cardinality = operand
+        .result_cardinality
+        .as_deref()
+        .or(operand.cardinality.as_deref())
+        .unwrap_or("one");
+    let (state, reason, comparable_values, comparable_source_map) =
+        reference_comparable_source_values(&source, &lookups);
+    let value = if state == ReferenceResolutionState::Valid {
+        normalize_reference_declarative_values(
+            &binding,
+            normalizer,
+            final_cardinality,
+            comparable_values.as_slice(),
+        )
+    } else {
+        reference_value_from_resolution_state(&binding, normalizer, state, reason.as_deref())
+    };
+    let state = reference_resolution_state_from_value_state(value.state);
+    let reason = value
+        .reason
+        .map(|reason| reason.reference().to_owned())
+        .or(reason);
+    let comparison_operand = ReferenceOperand::new(
+        reference_operand_role_for_comparison(operand.role),
+        binding.clone(),
+        value.clone(),
+    );
+    let comparison_operand =
+        reference_operand_with_source_range(comparison_operand, Some(&comparable_source_map));
+
+    ReferenceDeclarativeOperandEvaluation {
+        role: operand.role,
+        binding,
+        state_policy,
+        state,
+        reason,
+        source,
+        lookups,
+        value,
+        comparison_operand,
+    }
+}
+
+pub fn compare_reference_declarative_operands(
+    operands: Vec<ReferenceDeclarativeOperandEvaluation>,
+    compare: Option<&ReferenceCompareDeclaration>,
+) -> ReferenceDeclarativeComparisonEvaluation {
+    let source_map = compare
+        .map(|compare| compare.source_map.clone())
+        .unwrap_or_default();
+    let Some(actual) = operands
+        .iter()
+        .find(|operand| operand.role == ReferenceOperandDeclarationRole::Actual)
+        .map(|operand| operand.comparison_operand.clone())
+    else {
+        return ReferenceDeclarativeComparisonEvaluation {
+            state: ReferenceResolutionState::Invalid,
+            reason: Some("missing-actual-operand".to_owned()),
+            input: None,
+            result: None,
+            operands,
+            source_map,
+        };
+    };
+    let expected = operands
+        .iter()
+        .find(|operand| operand.role == ReferenceOperandDeclarationRole::Expected)
+        .map(|operand| operand.comparison_operand.clone());
+    let forbidden = operands
+        .iter()
+        .find(|operand| operand.role == ReferenceOperandDeclarationRole::Forbidden)
+        .map(|operand| operand.comparison_operand.clone());
+    let operator = compare
+        .and_then(|compare| compare.operator.as_deref())
+        .and_then(reference_comparison_operator_from_name)
+        .unwrap_or(ReferenceComparisonOperator::Equals);
+    let state_policy = reference_comparison_state_policy(compare, &operands);
+    let input = ReferenceComparisonInput {
+        operator,
+        actual,
+        expected,
+        forbidden,
+        state_policy,
+    };
+    let result = compare_references(input.clone());
+    let state = if result.passed {
+        ReferenceResolutionState::Valid
+    } else if !result.unsupported_values.is_empty() {
+        ReferenceResolutionState::Unsupported
+    } else if !result.unresolved_values.is_empty() {
+        ReferenceResolutionState::Unresolved
+    } else if !result.missing_values.is_empty() {
+        ReferenceResolutionState::Missing
+    } else {
+        ReferenceResolutionState::Invalid
+    };
+    let reason = (!result.passed).then(|| "comparison-failed".to_owned());
+
+    ReferenceDeclarativeComparisonEvaluation {
+        state,
+        reason,
+        input: Some(input),
+        result: Some(result),
+        operands,
+        source_map,
+    }
+}
+
+fn reference_comparable_source_values(
+    source: &ReferenceOperandSourceEnvelope,
+    lookups: &[ReferenceLookupExpansion],
+) -> (
+    ReferenceResolutionState,
+    Option<String>,
+    Vec<ReferenceSourceValue>,
+    SourceMapStack,
+) {
+    if lookups.is_empty() {
+        return (
+            source.state,
+            source.reason.clone(),
+            source.values.clone(),
+            source.source_map.clone(),
+        );
+    }
+    if lookups.len() > 1 {
+        return (
+            ReferenceResolutionState::Unsupported,
+            Some("unsupported-multiple-lookups".to_owned()),
+            Vec::new(),
+            source.source_map.clone(),
+        );
+    }
+    let lookup = &lookups[0];
+    if lookup.state != ReferenceResolutionState::Valid {
+        return (
+            lookup.state,
+            lookup.reason.clone(),
+            Vec::new(),
+            lookup.source_map.clone(),
+        );
+    }
+    let Some(raw_result) = lookup.raw_result.as_ref() else {
+        return (
+            ReferenceResolutionState::Unsupported,
+            Some("unsupported-lookup-execution".to_owned()),
+            Vec::new(),
+            lookup.source_map.clone(),
+        );
+    };
+    (
+        raw_result.state,
+        raw_result.reason.clone(),
+        raw_result.values.clone(),
+        raw_result.source_map.clone(),
+    )
+}
+
+fn reference_normalizer_from_name(value: &str) -> Option<ReferenceNormalizer> {
+    match value.trim() {
+        "schema:scalar-exact" => Some(ReferenceNormalizer::ScalarExact),
+        "schema:identifier-token" => Some(ReferenceNormalizer::IdentifierToken),
+        "schema:media-type" => Some(ReferenceNormalizer::MediaType),
+        "schema:media-type-essence" => Some(ReferenceNormalizer::MediaTypeEssence),
+        "schema:media-type-essence-set" => Some(ReferenceNormalizer::MediaTypeEssenceSet),
+        "schema:schema-uri" => Some(ReferenceNormalizer::SchemaUri),
+        "schema:document-uri" => Some(ReferenceNormalizer::DocumentUri),
+        "schema:namespace-uri" => Some(ReferenceNormalizer::NamespaceUri),
+        "schema:artifact-name" => Some(ReferenceNormalizer::ArtifactName),
+        "schema:function-name" => Some(ReferenceNormalizer::FunctionName),
+        "schema:content-category" => Some(ReferenceNormalizer::ContentCategory),
+        "schema:profile-name" => Some(ReferenceNormalizer::ProfileName),
+        _ => None,
+    }
+}
+
+fn reference_comparison_operator_from_name(value: &str) -> Option<ReferenceComparisonOperator> {
+    match value.trim() {
+        "schema:equals" => Some(ReferenceComparisonOperator::Equals),
+        "schema:member-of" => Some(ReferenceComparisonOperator::MemberOf),
+        "schema:all-in" => Some(ReferenceComparisonOperator::AllIn),
+        "schema:contains-all" => Some(ReferenceComparisonOperator::ContainsAll),
+        "schema:intersects" => Some(ReferenceComparisonOperator::Intersects),
+        "schema:disjoint" => Some(ReferenceComparisonOperator::Disjoint),
+        "schema:exists" => Some(ReferenceComparisonOperator::Exists),
+        "schema:record-fields-equal" => Some(ReferenceComparisonOperator::RecordFieldsEqual),
+        "schema:record-fields-member-of" => Some(ReferenceComparisonOperator::RecordFieldsMemberOf),
+        _ => None,
+    }
+}
+
+fn reference_value_cardinality_from_name(value: &str) -> Option<ReferenceValueCardinality> {
+    match value.trim() {
+        "one" => Some(ReferenceValueCardinality::One),
+        "optional" => Some(ReferenceValueCardinality::Optional),
+        "set" => Some(ReferenceValueCardinality::Set),
+        _ => None,
+    }
+}
+
+fn normalize_reference_declarative_values(
+    binding: &str,
+    normalizer: ReferenceNormalizer,
+    cardinality: &str,
+    values: &[ReferenceSourceValue],
+) -> ReferenceValue {
+    let cardinality = reference_value_cardinality_from_name(cardinality)
+        .unwrap_or(ReferenceValueCardinality::One);
+    let declared_values = values
+        .iter()
+        .filter_map(reference_source_value_declared_string)
+        .collect::<Vec<_>>();
+    if declared_values.len() != values.len() {
+        return ReferenceValue::invalid(
+            binding,
+            normalizer,
+            "",
+            ReferenceValueReason::InvalidScalar,
+        );
+    }
+    match cardinality {
+        ReferenceValueCardinality::One => {
+            let Some(value) = declared_values.first() else {
+                return ReferenceValue::missing(binding, normalizer);
+            };
+            if declared_values.len() != 1 {
+                return ReferenceValue::invalid(
+                    binding,
+                    normalizer,
+                    declared_values.join(" "),
+                    ReferenceValueReason::InvalidScalar,
+                );
+            }
+            normalize_reference_declarative_scalar(binding, normalizer, value)
+        }
+        ReferenceValueCardinality::Optional => {
+            if declared_values.is_empty() {
+                ReferenceValue::missing(binding, normalizer)
+            } else if declared_values.len() == 1 {
+                normalize_reference_declarative_scalar(binding, normalizer, &declared_values[0])
+            } else {
+                ReferenceValue::invalid(
+                    binding,
+                    normalizer,
+                    declared_values.join(" "),
+                    ReferenceValueReason::InvalidScalar,
+                )
+            }
+        }
+        ReferenceValueCardinality::Set => {
+            normalize_reference_declarative_set(binding, normalizer, &declared_values)
+        }
+    }
+}
+
+fn normalize_reference_declarative_scalar(
+    binding: &str,
+    normalizer: ReferenceNormalizer,
+    value: &str,
+) -> ReferenceValue {
+    match normalizer {
+        ReferenceNormalizer::MediaType => {
+            EngineAssistedReferenceNormalizerEvaluator.media_type(binding, value)
+        }
+        ReferenceNormalizer::MediaTypeEssence => {
+            EngineAssistedReferenceNormalizerEvaluator.media_type_essence(binding, value)
+        }
+        ReferenceNormalizer::MediaTypeEssenceSet => {
+            EngineAssistedReferenceNormalizerEvaluator.media_type_essence_set(binding, [value])
+        }
+        ReferenceNormalizer::SchemaUri
+        | ReferenceNormalizer::DocumentUri
+        | ReferenceNormalizer::ArtifactName
+            if normalizer.placement() == NormalizerPlacement::EngineAssisted =>
+        {
+            ReferenceValue::unsupported_with_reason(
+                binding,
+                normalizer,
+                ReferenceValueReason::UnsupportedCapability,
+            )
+        }
+        _ => PureReferenceNormalizerEvaluator.normalize(normalizer, binding, value),
+    }
+}
+
+fn normalize_reference_declarative_set(
+    binding: &str,
+    normalizer: ReferenceNormalizer,
+    values: &[String],
+) -> ReferenceValue {
+    match normalizer {
+        ReferenceNormalizer::MediaTypeEssenceSet | ReferenceNormalizer::MediaTypeEssence => {
+            EngineAssistedReferenceNormalizerEvaluator.media_type_essence_set(binding, values)
+        }
+        ReferenceNormalizer::SchemaUri | ReferenceNormalizer::DocumentUri
+            if normalizer.placement() == NormalizerPlacement::EngineAssisted =>
+        {
+            ReferenceValue::unsupported_with_reason(
+                binding,
+                normalizer,
+                ReferenceValueReason::UnsupportedCapability,
+            )
+        }
+        _ => {
+            let mut normalized_values = BTreeSet::new();
+            for value in values {
+                let normalized = normalize_reference_declarative_scalar(binding, normalizer, value);
+                if normalized.state != ReferenceValueState::Valid {
+                    return normalized;
+                }
+                let Some(NormalizedReferenceValue::Scalar(value)) = normalized.normalized_value
+                else {
+                    return ReferenceValue::invalid(
+                        binding,
+                        normalizer,
+                        values.join(" "),
+                        ReferenceValueReason::InvalidScalar,
+                    );
+                };
+                normalized_values.insert(value);
+            }
+            ReferenceValue::valid(
+                binding,
+                normalizer,
+                ReferenceValueCardinality::Set,
+                Some(values.join(" ")),
+                NormalizedReferenceValue::StringSet(normalized_values),
+            )
+        }
+    }
+}
+
+fn reference_source_value_declared_string(value: &ReferenceSourceValue) -> Option<String> {
+    value.value.clone().or_else(|| value.name.clone())
+}
+
+fn reference_value_from_resolution_state(
+    binding: &str,
+    normalizer: ReferenceNormalizer,
+    state: ReferenceResolutionState,
+    reason: Option<&str>,
+) -> ReferenceValue {
+    match state {
+        ReferenceResolutionState::Valid => ReferenceValue::missing(binding, normalizer),
+        ReferenceResolutionState::Missing => ReferenceValue::missing(binding, normalizer),
+        ReferenceResolutionState::Invalid => ReferenceValue::invalid(
+            binding,
+            normalizer,
+            "",
+            reference_value_reason_from_string(reason)
+                .unwrap_or(ReferenceValueReason::InvalidScalar),
+        ),
+        ReferenceResolutionState::Unresolved => ReferenceValue::unresolved(
+            binding,
+            normalizer,
+            "",
+            reference_value_reason_from_string(reason)
+                .unwrap_or(ReferenceValueReason::UnresolvedDocument),
+        ),
+        ReferenceResolutionState::Unsupported => ReferenceValue::unsupported_with_reason(
+            binding,
+            normalizer,
+            reference_value_reason_from_string(reason)
+                .unwrap_or(ReferenceValueReason::UnsupportedLookup),
+        ),
+    }
+}
+
+fn reference_value_reason_from_string(reason: Option<&str>) -> Option<ReferenceValueReason> {
+    match reason? {
+        "missing-value" | "missing-source" | "missing-binding" | "missing-field"
+        | "lookup-key-missing" => Some(ReferenceValueReason::MissingValue),
+        "invalid-scalar"
+        | "source-cardinality"
+        | "lookup-result-cardinality"
+        | "lookup-key-invalid" => Some(ReferenceValueReason::InvalidScalar),
+        "invalid-media-type" => Some(ReferenceValueReason::InvalidMediaType),
+        "unresolved-schema" => Some(ReferenceValueReason::UnresolvedSchema),
+        "unresolved-document" | "lookup-target-absent" => {
+            Some(ReferenceValueReason::UnresolvedDocument)
+        }
+        "unresolved-namespace" => Some(ReferenceValueReason::UnresolvedNamespace),
+        "unresolved-function" => Some(ReferenceValueReason::UnresolvedFunction),
+        "unsupported-normalizer" => Some(ReferenceValueReason::UnsupportedNormalizer),
+        "unsupported-capability" => Some(ReferenceValueReason::UnsupportedCapability),
+        "unsupported-lookup"
+        | "unsupported-lookup-execution"
+        | "lookup-key-unsupported"
+        | "unsupported-multiple-lookups" => Some(ReferenceValueReason::UnsupportedLookup),
+        "policy-denied" => Some(ReferenceValueReason::PolicyDenied),
+        _ => None,
+    }
+}
+
+fn reference_resolution_state_from_value_state(
+    state: ReferenceValueState,
+) -> ReferenceResolutionState {
+    match state {
+        ReferenceValueState::Valid => ReferenceResolutionState::Valid,
+        ReferenceValueState::Missing => ReferenceResolutionState::Missing,
+        ReferenceValueState::Invalid => ReferenceResolutionState::Invalid,
+        ReferenceValueState::Unresolved => ReferenceResolutionState::Unresolved,
+        ReferenceValueState::Unsupported => ReferenceResolutionState::Unsupported,
+    }
+}
+
+fn reference_operand_role_for_comparison(
+    role: ReferenceOperandDeclarationRole,
+) -> ReferenceOperandRole {
+    match role {
+        ReferenceOperandDeclarationRole::Actual => ReferenceOperandRole::Actual,
+        ReferenceOperandDeclarationRole::Expected => ReferenceOperandRole::Expected,
+        ReferenceOperandDeclarationRole::Forbidden => ReferenceOperandRole::Forbidden,
+    }
+}
+
+fn reference_operand_with_source_range(
+    operand: ReferenceOperand,
+    source_map: Option<&SourceMapStack>,
+) -> ReferenceOperand {
+    if let Some(details) = source_map.and_then(source_map_details) {
+        operand.with_source_range(details)
+    } else {
+        operand
+    }
+}
+
+fn reference_comparison_state_policy(
+    compare: Option<&ReferenceCompareDeclaration>,
+    operands: &[ReferenceDeclarativeOperandEvaluation],
+) -> ReferenceStatePolicy {
+    if let Some(presence) = compare.and_then(|compare| compare.presence.as_deref()) {
+        return match presence {
+            "when-present" => ReferenceStatePolicy::CompareWhenPresent,
+            "both-or-none" => ReferenceStatePolicy::BothOrNone,
+            _ => ReferenceStatePolicy::RequiredValid,
+        };
+    }
+    if operands
+        .iter()
+        .any(|operand| operand.state_policy == "allow-unsupported")
+    {
+        return ReferenceStatePolicy::AllowUnsupported;
+    }
+    if operands
+        .iter()
+        .any(|operand| operand.state_policy == "allow-unresolved")
+    {
+        return ReferenceStatePolicy::AllowUnresolved;
+    }
+    if operands
+        .iter()
+        .any(|operand| operand.state_policy == "optional-valid")
+    {
+        return ReferenceStatePolicy::OptionalAbsentOk;
+    }
+    ReferenceStatePolicy::RequiredValid
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn expand_reference_lookup_declaration(
     document: &CemDocument,
@@ -20295,6 +20835,241 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["core", "theme"]
         );
+    }
+
+    #[test]
+    fn schema_reference_declarative_operands_normalize_and_compare_values() {
+        let document = parse_cem_document(
+            r#"@doc cem-ml 1
+{route |
+    {endpoint @content-type="Text/HTML; Charset=UTF-8" @expected="text/html"}
+}"#,
+        );
+        let endpoint_id =
+            first_element_id_by_local_name(&document, "endpoint").expect("endpoint element");
+        let mut bindings = ReferenceSourceBindings::default();
+        bindings.bind_nodes("endpoint", vec![endpoint_id]);
+        let mut actual = reference_test_operand("content-type", "endpoint.@content-type", "one");
+        actual.normalizer = Some("schema:media-type-essence".to_owned());
+        let mut expected = reference_test_operand("content-type", "endpoint.@expected", "one");
+        expected.role = ReferenceOperandDeclarationRole::Expected;
+        expected.normalizer = Some("schema:media-type-essence".to_owned());
+        let compare = ReferenceCompareDeclaration {
+            operator: Some("schema:equals".to_owned()),
+            presence: None,
+            field_pairs: Vec::new(),
+            source_map: SourceMapStack::default(),
+        };
+
+        let operands = evaluate_reference_declarative_operands(
+            &document,
+            &[endpoint_id],
+            &bindings,
+            &ReferenceConstraintExecution::default(),
+            &[actual, expected],
+            &ReferenceCapabilitySet::default(),
+        );
+        let actual_evaluation = operands
+            .iter()
+            .find(|operand| operand.role == ReferenceOperandDeclarationRole::Actual)
+            .expect("actual operand evaluation");
+        assert_eq!(actual_evaluation.state, ReferenceResolutionState::Valid);
+        assert_eq!(
+            actual_evaluation.value.normalized_value,
+            Some(NormalizedReferenceValue::Scalar("text/html".to_owned()))
+        );
+        assert_eq!(actual_evaluation.state_policy, "required-valid");
+
+        let comparison = compare_reference_declarative_operands(operands, Some(&compare));
+
+        assert_eq!(comparison.state, ReferenceResolutionState::Valid);
+        assert_eq!(comparison.reason, None);
+        let result = comparison.result.as_ref().expect("comparison result");
+        assert!(result.passed);
+        assert_eq!(result.operator, ReferenceComparisonOperator::Equals);
+        assert!(result.invalid_values.is_empty());
+        assert!(result.unsupported_values.is_empty());
+    }
+
+    #[test]
+    fn schema_reference_declarative_operands_preserve_unsupported_state() {
+        let document = parse_cem_document(
+            r#"@doc cem-ml 1
+{route |
+    {endpoint @path="./missing.cem"}
+}"#,
+        );
+        let endpoint_id =
+            first_element_id_by_local_name(&document, "endpoint").expect("endpoint element");
+        let mut bindings = ReferenceSourceBindings::default();
+        bindings.bind_nodes("endpoint", vec![endpoint_id]);
+        let mut actual = reference_test_operand("document", "endpoint.@path", "one");
+        actual.normalizer = Some("schema:document-uri".to_owned());
+        let compare = ReferenceCompareDeclaration {
+            operator: Some("schema:exists".to_owned()),
+            presence: None,
+            field_pairs: Vec::new(),
+            source_map: SourceMapStack::default(),
+        };
+
+        let operands = evaluate_reference_declarative_operands(
+            &document,
+            &[endpoint_id],
+            &bindings,
+            &ReferenceConstraintExecution::default(),
+            &[actual],
+            &ReferenceCapabilitySet::default(),
+        );
+        assert_eq!(operands[0].state, ReferenceResolutionState::Unsupported);
+        assert_eq!(
+            operands[0].reason.as_deref(),
+            Some("unsupported-capability")
+        );
+
+        let comparison = compare_reference_declarative_operands(operands, Some(&compare));
+
+        assert_eq!(comparison.state, ReferenceResolutionState::Unsupported);
+        let result = comparison.result.as_ref().expect("comparison result");
+        assert!(!result.passed);
+        assert_eq!(
+            result.unsupported_values.get("document"),
+            Some(&serde_json::Value::String(
+                "unsupported-capability".to_owned()
+            ))
+        );
+        assert!(result.invalid_values.is_empty());
+    }
+
+    #[test]
+    fn schema_reference_declarative_operands_preserve_non_valid_states() {
+        let document = parse_cem_document(
+            r#"@doc cem-ml 1
+{route |
+    {endpoint @name="core" |
+        {alias @name="a"}
+        {alias @name="b"}
+    }
+}"#,
+        );
+        let route_id = first_element_id_by_local_name(&document, "route").expect("route element");
+        let endpoint_id =
+            first_element_id_by_local_name(&document, "endpoint").expect("endpoint element");
+        let mut bindings = ReferenceSourceBindings::default();
+        bindings.bind_nodes("endpoint", vec![endpoint_id]);
+        let missing = reference_test_operand("content-type", "endpoint.@content-type", "one");
+        let invalid = reference_test_operand("alias", "endpoint.child(alias).@name", "one");
+        let mut unresolved = reference_test_operand("schema", "endpoint.@name", "one");
+        let mut lookup = reference_test_lookup("schema:local-schemas");
+        lookup.select = Some("endpoint.child(schema)".to_owned());
+        lookup.as_binding = Some("schema-node".to_owned());
+        lookup.result = Some("@name".to_owned());
+        lookup.result_cardinality = Some("one".to_owned());
+        unresolved.lookups = vec![lookup];
+
+        let operands = evaluate_reference_declarative_operands(
+            &document,
+            &[route_id],
+            &bindings,
+            &ReferenceConstraintExecution::default(),
+            &[missing, invalid, unresolved],
+            &ReferenceCapabilitySet::default(),
+        );
+
+        assert_eq!(operands[0].state, ReferenceResolutionState::Missing);
+        assert_eq!(operands[0].source.reason.as_deref(), Some("missing-source"));
+        assert_eq!(operands[0].reason.as_deref(), Some("missing-value"));
+        assert_eq!(operands[1].state, ReferenceResolutionState::Invalid);
+        assert_eq!(
+            operands[1].source.reason.as_deref(),
+            Some("source-cardinality")
+        );
+        assert_eq!(operands[1].reason.as_deref(), Some("invalid-scalar"));
+        assert_eq!(operands[2].state, ReferenceResolutionState::Unresolved);
+        assert_eq!(
+            operands[2].lookups[0]
+                .raw_result
+                .as_ref()
+                .and_then(|raw| raw.reason.as_deref()),
+            Some("lookup-target-absent")
+        );
+        assert_eq!(operands[2].reason.as_deref(), Some("unresolved-document"));
+    }
+
+    #[test]
+    fn schema_reference_declarative_operands_compare_pure_lookup_results() {
+        let document = parse_cem_document(
+            r#"@doc cem-ml 1
+{route |
+    {endpoint @name="core" |
+        {schema @name="core"}
+        {schema @name="theme"}
+    }
+}"#,
+        );
+        let route_id = first_element_id_by_local_name(&document, "route").expect("route element");
+        let endpoint_id =
+            first_element_id_by_local_name(&document, "endpoint").expect("endpoint element");
+        let mut bindings = ReferenceSourceBindings::default();
+        bindings.bind_nodes("endpoint", vec![endpoint_id]);
+        let actual = reference_test_operand("schema", "endpoint.@name", "one");
+        let mut expected = reference_test_operand("schema", "endpoint.@name", "one");
+        expected.role = ReferenceOperandDeclarationRole::Expected;
+        expected.result_cardinality = Some("set".to_owned());
+        let mut lookup = reference_test_lookup("schema:local-schemas");
+        lookup.select = Some("endpoint.child(schema)".to_owned());
+        lookup.as_binding = Some("schema-node".to_owned());
+        lookup.result = Some("@name".to_owned());
+        lookup.result_cardinality = Some("set".to_owned());
+        expected.lookups = vec![lookup];
+        let compare = ReferenceCompareDeclaration {
+            operator: Some("schema:member-of".to_owned()),
+            presence: None,
+            field_pairs: Vec::new(),
+            source_map: SourceMapStack::default(),
+        };
+
+        let operands = evaluate_reference_declarative_operands(
+            &document,
+            &[route_id],
+            &bindings,
+            &ReferenceConstraintExecution::default(),
+            &[actual, expected],
+            &ReferenceCapabilitySet::default(),
+        );
+        let expected_evaluation = operands
+            .iter()
+            .find(|operand| operand.role == ReferenceOperandDeclarationRole::Expected)
+            .expect("expected operand evaluation");
+        assert_eq!(expected_evaluation.binding, "schema");
+        assert_eq!(expected_evaluation.state, ReferenceResolutionState::Valid);
+        assert_eq!(
+            expected_evaluation.value.normalized_value,
+            Some(NormalizedReferenceValue::StringSet(BTreeSet::from([
+                "core".to_owned(),
+                "theme".to_owned()
+            ])))
+        );
+        let raw_result = expected_evaluation.lookups[0]
+            .raw_result
+            .as_ref()
+            .expect("pure lookup raw result");
+        assert_eq!(raw_result.binding, "schema-node");
+        assert_eq!(
+            raw_result
+                .values
+                .iter()
+                .filter_map(|value| value.value.as_deref())
+                .collect::<Vec<_>>(),
+            vec!["core", "theme"]
+        );
+
+        let comparison = compare_reference_declarative_operands(operands, Some(&compare));
+
+        assert_eq!(comparison.state, ReferenceResolutionState::Valid);
+        assert!(comparison
+            .result
+            .as_ref()
+            .is_some_and(|result| result.passed));
     }
 
     #[test]

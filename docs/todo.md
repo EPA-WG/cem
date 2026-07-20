@@ -18,8 +18,8 @@ source provenance, keep normalization annotative and symmetric, make execution
 placement explicit, avoid implicit canonicalization, and retain complete schema
 identity.
 
-Current active slice: wire declarative operands into normalized value and
-comparison evaluators for reference-resolution constraints.
+Current active slice: implement projection profiles and tokens for
+reference-resolution diagnostics.
 
 ### Contract And Documentation
 
@@ -209,7 +209,7 @@ compatibility, reconciling field names and IR shapes with the accepted design.
       canonical lookup children, pure document lookups, engine-assisted
       capability negotiation, `@support`, `@package`, provenance, and
       source-range policy.
-- [ ] Wire declarative operands into the existing normalized value and
+- [x] Wire declarative operands into the existing normalized value and
       comparison evaluators, preserving explicit `missing`, `invalid`,
       `unresolved`, and `unsupported` states.
 - [ ] Implement projection profiles and tokens: compatibility defaults,
