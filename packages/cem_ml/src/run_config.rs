@@ -196,6 +196,8 @@ pub struct NormalizedRunPlan {
     pub command_profile: Option<String>,
     pub config_identity: NormalizedConfigIdentity,
     #[serde(default)]
+    pub effective_config: RunConfig,
+    #[serde(default)]
     pub authored_sources: Vec<NormalizedAuthoredSource>,
     #[serde(default)]
     pub inputs: Vec<NormalizedInput>,
@@ -213,6 +215,12 @@ pub struct NormalizedRunPlan {
     pub provenance: Vec<NormalizedProvenance>,
     #[serde(default)]
     pub diagnostics: Vec<Diagnostic>,
+}
+
+impl NormalizedRunPlan {
+    pub fn effective_run_config(&self) -> RunConfig {
+        self.effective_config.clone()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -948,6 +956,7 @@ fn build_normalized_run_plan(
         run_id,
         command_profile,
         config_identity,
+        effective_config: normalized.clone(),
         authored_sources,
         inputs,
         outputs,
@@ -3292,6 +3301,12 @@ mod tests {
         assert_eq!(
             plan.outputs[0].identity.schema.as_deref(),
             Some("https://example.test/schema/html")
+        );
+        assert_eq!(
+            plan.effective_run_config().outputs[0]
+                .destination
+                .as_deref(),
+            Some("/workspace/configs/dist/a.html")
         );
     }
 

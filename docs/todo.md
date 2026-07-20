@@ -32,7 +32,7 @@ CLI-specific parsing details.
       parsing details: accept raw config bytes or raw record strings with config
       format identity, validate module-map/namespace/version-pin shape, resolve
       config-relative paths, and preserve source ranges.
-- [ ] Wire `cem_ml_cli` validate/convert paths to consume normalized
+- [x] Wire `cem_ml_cli` validate/convert paths to consume normalized
       `RunConfig` while keeping current enum flags and one-line options as
       aliases and rejecting duplicate or conflicting config sources.
 - [ ] Add a multi-document run context for input/output arrays with

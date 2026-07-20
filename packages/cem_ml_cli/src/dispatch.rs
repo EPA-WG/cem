@@ -480,7 +480,8 @@ fn run_config_with_context(
     defaults: RunConfigDefaults,
 ) -> Result<RunConfig, CliRequestError> {
     let mut config_base_uri = None;
-    let mut config = if let Some(path) = &options.config {
+    let mut config_error_uri = None;
+    let config_bytes = if let Some(path) = &options.config {
         let local_config_path = local_path_or_file_uri(path, "config path").ok();
         let config_source_uri = path.display().to_string();
         let read = read_source(
@@ -502,6 +503,7 @@ fn run_config_with_context(
                 .map(|path| path.display().to_string())
                 .unwrap_or_else(|| read.uri.clone()),
         );
+        config_error_uri = Some(config_source_uri.clone());
         let identity = eng::FormatIdentity {
             content_type: options
                 .config_content_type
@@ -523,44 +525,87 @@ fn run_config_with_context(
             namespaces: BTreeMap::new(),
             base_uri: Some(config_source_uri.clone()),
         };
-        run_config::parse_run_config(run_config::RunConfigParseRequest {
-            bytes: read.bytes,
-            identity,
-            base_uri: Some(config_source_uri.clone()),
-        })
-        .map_err(|error| CliRequestError::RunConfigDiagnostics {
-            config: None,
-            diagnostics: vec![run_config_error_diagnostic(
-                error.code,
-                error.message,
-                Some(config_source_uri),
-            )],
-        })
-        .map(|response| response.config)?
+        (Some(read.bytes), identity)
     } else {
-        RunConfig::default()
+        (
+            None,
+            eng::FormatIdentity {
+                content_type: options.config_content_type.clone(),
+                schema: Some(
+                    options
+                        .config_schema
+                        .clone()
+                        .unwrap_or_else(|| run_config::RUN_CONFIG_SCHEMA_URI.to_owned()),
+                ),
+                default_namespace: None,
+                namespaces: BTreeMap::new(),
+                base_uri: None,
+            },
+        )
     };
 
-    for record in &options.input_specs {
-        let spec = run_config::parse_input_spec_record(record)
-            .map_err(|error| CliRequestError::Usage(format!("invalid --input-spec: {error}")))?;
-        config.inputs.push(spec);
-    }
-    for record in &options.output_specs {
-        let spec = run_config::parse_output_spec_record(record)
-            .map_err(|error| CliRequestError::Usage(format!("invalid --output-spec: {error}")))?;
-        config.outputs.push(spec);
+    let (config_bytes, config_identity) = config_bytes;
+    let plan = run_config::parse_normalized_run_plan(run_config::NormalizedRunPlanRequest {
+        config_bytes,
+        config_identity,
+        config_base_uri: config_base_uri.clone(),
+        defaults,
+        input_records: options.input_specs.clone(),
+        output_records: options.output_specs.clone(),
+        diagnostics_mode: run_config::NormalizedDiagnosticsMode::default(),
+        command_profile: None,
+    })
+    .map_err(|error| CliRequestError::RunConfigDiagnostics {
+        config: None,
+        diagnostics: vec![run_config_error_diagnostic(
+            error.code,
+            error.message,
+            config_error_uri.clone(),
+        )],
+    })?;
+
+    if let Some(error) = run_config_record_usage_error(&plan.diagnostics) {
+        return Err(error);
     }
 
-    let response = run_config::normalize_run_config(config, defaults, config_base_uri.as_deref());
-    if response.diagnostics.is_empty() {
-        Ok(response.config)
+    let config = plan.effective_run_config();
+    let diagnostics = cli_blocking_run_config_diagnostics(&plan.diagnostics);
+    if diagnostics.is_empty() {
+        Ok(config)
     } else {
         Err(CliRequestError::RunConfigDiagnostics {
-            config: Some(Box::new(response.config)),
-            diagnostics: response.diagnostics,
+            config: Some(Box::new(config)),
+            diagnostics,
         })
     }
+}
+
+fn run_config_record_usage_error(
+    diagnostics: &[cem_ml::diagnostics::Diagnostic],
+) -> Option<CliRequestError> {
+    diagnostics.iter().find_map(|diagnostic| {
+        let prefix = match diagnostic.code.as_str() {
+            "cem.run_config.input_spec_invalid" => "invalid --input-spec",
+            "cem.run_config.output_spec_invalid" => "invalid --output-spec",
+            _ => return None,
+        };
+        Some(CliRequestError::Usage(format!(
+            "{prefix}: {}",
+            diagnostic.message
+        )))
+    })
+}
+
+fn cli_blocking_run_config_diagnostics(
+    diagnostics: &[cem_ml::diagnostics::Diagnostic],
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    diagnostics
+        .iter()
+        .filter(|diagnostic| {
+            diagnostic.severity.is_hard_violation() && diagnostic.details.is_none()
+        })
+        .cloned()
+        .collect()
 }
 
 fn run_config_error_diagnostic(
@@ -22387,6 +22432,56 @@ start =
         assert_eq!(
             report["diagnostics"][0]["code"],
             "cem.run_config.unsupported_schema_identity"
+        );
+    }
+
+    #[test]
+    fn invalid_input_spec_record_remains_usage_error() {
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &["validate", "--input-spec", "uri"],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_USAGE_OR_RESERVED);
+        assert!(stdout.trim().is_empty());
+        assert!(stderr.contains("invalid --input-spec"));
+        assert!(stderr.contains("spec field `uri` is missing `=`"));
+    }
+
+    #[test]
+    fn duplicate_input_across_config_and_record_fails_before_document_parsing() {
+        let config_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/run-config-duplicate-input-source.json");
+        std::fs::write(
+            &config_path,
+            serde_json::json!({
+                "inputs": [{ "uri": "/definitely/not/read.cem" }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--config",
+                config_path.to_str().unwrap(),
+                "--input-spec",
+                "uri=/definitely/not/read.cem",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_USAGE_OR_RESERVED);
+        assert!(stderr.contains("cem.run_config.input_uri_duplicate"));
+        assert!(
+            !stderr.contains("I/O error"),
+            "duplicate config sources must fail before input files are read: {stderr}"
+        );
+        let report: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(
+            report["diagnostics"][0]["code"],
+            "cem.run_config.input_uri_duplicate"
         );
     }
 
