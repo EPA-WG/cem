@@ -18,8 +18,8 @@ source provenance, keep normalization annotative and symmetric, make execution
 placement explicit, avoid implicit canonicalization, and retain complete schema
 identity.
 
-Current active slice: implement lookup declaration expansion for declarative
-reference-resolution constraints.
+Current active slice: wire declarative operands into normalized value and
+comparison evaluators for reference-resolution constraints.
 
 ### Contract And Documentation
 
@@ -205,7 +205,7 @@ compatibility, reconciling field names and IR shapes with the accepted design.
       collisions.
 - [x] Implement pure candidate selection and operand source extraction using the
       constrained CEM-QL/CEM source-path profiles from the design.
-- [ ] Implement lookup declaration expansion: operand `@lookup` shorthand,
+- [x] Implement lookup declaration expansion: operand `@lookup` shorthand,
       canonical lookup children, pure document lookups, engine-assisted
       capability negotiation, `@support`, `@package`, provenance, and
       source-range policy.

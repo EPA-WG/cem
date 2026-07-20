@@ -537,6 +537,112 @@ pub struct ReferenceOperandSourceEnvelope {
     pub source_map: SourceMapStack,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReferenceLookupOrigin {
+    OperandShorthand,
+    OperandChild,
+    ConstraintChild,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReferenceLookupExecutionKind {
+    Pure,
+    EngineAssisted,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ReferenceCapabilitySet {
+    pub available: BTreeMap<String, BTreeSet<Option<String>>>,
+    pub denied: BTreeSet<String>,
+    pub disabled: BTreeSet<String>,
+}
+
+impl ReferenceCapabilitySet {
+    pub fn with_capability(mut self, name: impl Into<String>, version: Option<&str>) -> Self {
+        self.add_capability(name, version);
+        self
+    }
+
+    pub fn add_capability(&mut self, name: impl Into<String>, version: Option<&str>) {
+        self.available
+            .entry(name.into())
+            .or_default()
+            .insert(version.map(str::to_owned));
+    }
+
+    pub fn deny(&mut self, name: impl Into<String>) {
+        self.denied.insert(name.into());
+    }
+
+    pub fn disable(&mut self, name: impl Into<String>) {
+        self.disabled.insert(name.into());
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceLookupCapabilityNegotiation {
+    pub requires: Option<String>,
+    pub support: String,
+    pub state: ReferenceResolutionState,
+    pub reason: Option<String>,
+    pub source_map: SourceMapStack,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceLookupKeyExpansion {
+    pub binding: String,
+    pub from: Option<String>,
+    pub normalizer: Option<String>,
+    pub cardinality: String,
+    pub shape: String,
+    pub source: ReferenceOperandSourceEnvelope,
+    pub source_map: SourceMapStack,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceLookupResultKeyExpansion {
+    pub binding: String,
+    pub from: Option<String>,
+    pub value_path: Option<String>,
+    pub normalizer: Option<String>,
+    pub source_map: SourceMapStack,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceLookupRawResultEnvelope {
+    pub binding: String,
+    pub lookup: Option<String>,
+    pub result: Option<String>,
+    pub result_cardinality: String,
+    pub result_shape: String,
+    pub state: ReferenceResolutionState,
+    pub reason: Option<String>,
+    pub values: Vec<ReferenceSourceValue>,
+    pub source_map: SourceMapStack,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceLookupExpansion {
+    pub origin: ReferenceLookupOrigin,
+    pub name: Option<String>,
+    pub execution: ReferenceLookupExecutionKind,
+    pub result_binding: String,
+    pub result: Option<String>,
+    pub result_cardinality: String,
+    pub result_shape: String,
+    pub result_keys: Vec<ReferenceLookupResultKeyExpansion>,
+    pub keys: Vec<ReferenceLookupKeyExpansion>,
+    pub capability: ReferenceLookupCapabilityNegotiation,
+    pub support: String,
+    pub package_context: String,
+    pub provenance: Option<String>,
+    pub source_range: String,
+    pub state: ReferenceResolutionState,
+    pub reason: Option<String>,
+    pub raw_result: Option<ReferenceLookupRawResultEnvelope>,
+    pub source_map: SourceMapStack,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BehaviorDefinition {
     pub schema_uri: String,
@@ -10646,6 +10752,901 @@ pub fn extract_reference_operand_sources(
     }
 }
 
+pub fn expand_reference_operand_lookups(
+    document: &CemDocument,
+    target_nodes: &[AstNodeId],
+    bindings: &ReferenceSourceBindings,
+    constraint_execution: &ReferenceConstraintExecution,
+    operand: &ReferenceOperandDeclaration,
+    operand_source: &ReferenceOperandSourceEnvelope,
+    capabilities: &ReferenceCapabilitySet,
+) -> Vec<ReferenceLookupExpansion> {
+    let mut expansions = Vec::new();
+    if let Some(lookup_name) = operand.lookup.as_deref() {
+        expansions.push(expand_reference_lookup_shorthand(
+            constraint_execution,
+            operand,
+            operand_source,
+            lookup_name,
+            capabilities,
+        ));
+    }
+    expansions.extend(operand.lookups.iter().map(|lookup| {
+        expand_reference_lookup_declaration(
+            document,
+            target_nodes,
+            bindings,
+            constraint_execution,
+            Some(operand),
+            Some(operand_source),
+            lookup,
+            ReferenceLookupOrigin::OperandChild,
+            capabilities,
+        )
+    }));
+    expansions
+}
+
+pub fn expand_reference_constraint_lookups(
+    document: &CemDocument,
+    target_nodes: &[AstNodeId],
+    bindings: &ReferenceSourceBindings,
+    constraint_execution: &ReferenceConstraintExecution,
+    lookups: &[ReferenceLookupDeclaration],
+    capabilities: &ReferenceCapabilitySet,
+) -> Vec<ReferenceLookupExpansion> {
+    lookups
+        .iter()
+        .map(|lookup| {
+            expand_reference_lookup_declaration(
+                document,
+                target_nodes,
+                bindings,
+                constraint_execution,
+                None,
+                None,
+                lookup,
+                ReferenceLookupOrigin::ConstraintChild,
+                capabilities,
+            )
+        })
+        .collect()
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn expand_reference_lookup_declaration(
+    document: &CemDocument,
+    target_nodes: &[AstNodeId],
+    bindings: &ReferenceSourceBindings,
+    constraint_execution: &ReferenceConstraintExecution,
+    parent_operand: Option<&ReferenceOperandDeclaration>,
+    parent_source: Option<&ReferenceOperandSourceEnvelope>,
+    lookup: &ReferenceLookupDeclaration,
+    origin: ReferenceLookupOrigin,
+    capabilities: &ReferenceCapabilitySet,
+) -> ReferenceLookupExpansion {
+    let result_binding = reference_lookup_result_binding(lookup, parent_operand);
+    let result_cardinality = lookup
+        .result_cardinality
+        .clone()
+        .or_else(|| parent_operand.and_then(|operand| operand.result_cardinality.clone()))
+        .unwrap_or_else(|| "one".to_owned());
+    let result_shape = lookup
+        .result_shape
+        .clone()
+        .or_else(|| parent_operand.and_then(|operand| operand.result_shape.clone()))
+        .unwrap_or_else(|| "scalar".to_owned());
+    let support = lookup
+        .support
+        .clone()
+        .or_else(|| constraint_execution.support.clone())
+        .unwrap_or_else(|| "required".to_owned());
+    let package_context = lookup
+        .package_context
+        .clone()
+        .or_else(|| constraint_execution.package_context.clone())
+        .unwrap_or_else(|| "none".to_owned());
+    let source_range = lookup
+        .source_range
+        .clone()
+        .unwrap_or_else(|| "key-reference".to_owned());
+    let result_keys = expand_reference_lookup_result_keys(lookup, &result_binding);
+
+    let execution = infer_reference_lookup_execution(lookup, constraint_execution);
+    let mut state = ReferenceResolutionState::Valid;
+    let mut reason = None;
+    if reference_lookup_mixes_pure_and_engine_fields(lookup) {
+        state = ReferenceResolutionState::Invalid;
+        reason = Some("mixed-lookup-execution".to_owned());
+    }
+
+    let keys = if state == ReferenceResolutionState::Valid {
+        expand_reference_lookup_keys(document, bindings, parent_operand, parent_source, lookup)
+    } else {
+        Vec::new()
+    };
+    if state == ReferenceResolutionState::Valid {
+        if let Some((key_state, key_reason)) = reference_lookup_key_state(&keys) {
+            state = key_state;
+            reason = Some(key_reason.to_owned());
+        }
+    }
+
+    let capability = reference_lookup_capability_negotiation(
+        lookup
+            .requires
+            .as_deref()
+            .or(constraint_execution.requires.as_deref()),
+        &support,
+        execution,
+        &lookup.source_map,
+        capabilities,
+    );
+    if state == ReferenceResolutionState::Valid
+        && capability.state != ReferenceResolutionState::Valid
+    {
+        state = capability.state;
+        reason = capability.reason.clone();
+    }
+
+    let raw_result = if state == ReferenceResolutionState::Valid
+        && execution == ReferenceLookupExecutionKind::Pure
+    {
+        Some(evaluate_reference_pure_lookup(
+            document,
+            target_nodes,
+            bindings,
+            lookup,
+            &result_binding,
+            &result_cardinality,
+            &result_shape,
+        ))
+    } else {
+        None
+    };
+    if let Some(raw_result) = raw_result.as_ref() {
+        if raw_result.state != ReferenceResolutionState::Valid {
+            state = raw_result.state;
+            reason = raw_result.reason.clone();
+        }
+    }
+
+    ReferenceLookupExpansion {
+        origin,
+        name: lookup.name.clone(),
+        execution,
+        result_binding,
+        result: lookup.result.clone(),
+        result_cardinality,
+        result_shape,
+        result_keys,
+        keys,
+        capability,
+        support,
+        package_context,
+        provenance: lookup.provenance.clone(),
+        source_range,
+        state,
+        reason,
+        raw_result,
+        source_map: lookup.source_map.clone(),
+    }
+}
+
+fn expand_reference_lookup_shorthand(
+    constraint_execution: &ReferenceConstraintExecution,
+    operand: &ReferenceOperandDeclaration,
+    operand_source: &ReferenceOperandSourceEnvelope,
+    lookup_name: &str,
+    capabilities: &ReferenceCapabilitySet,
+) -> ReferenceLookupExpansion {
+    let support = constraint_execution
+        .support
+        .clone()
+        .unwrap_or_else(|| "required".to_owned());
+    let package_context = constraint_execution
+        .package_context
+        .clone()
+        .unwrap_or_else(|| "none".to_owned());
+    let result_binding = operand.binding.clone().unwrap_or_default();
+    let result_cardinality = operand
+        .result_cardinality
+        .clone()
+        .unwrap_or_else(|| "one".to_owned());
+    let result_shape = operand
+        .result_shape
+        .clone()
+        .unwrap_or_else(|| "scalar".to_owned());
+    let execution = ReferenceLookupExecutionKind::EngineAssisted;
+    let source_map = operand.source_map.clone();
+    let capability = reference_lookup_capability_negotiation(
+        constraint_execution.requires.as_deref(),
+        &support,
+        execution,
+        &source_map,
+        capabilities,
+    );
+    let key = ReferenceLookupKeyExpansion {
+        binding: result_binding.clone(),
+        from: operand.from.clone(),
+        normalizer: None,
+        cardinality: operand_source.cardinality.clone(),
+        shape: operand.shape.clone().unwrap_or_else(|| "scalar".to_owned()),
+        source: operand_source.clone(),
+        source_map: operand.source_map.clone(),
+    };
+    let (state, reason) = if operand_source.state != ReferenceResolutionState::Valid {
+        (
+            operand_source.state,
+            operand_source
+                .reason
+                .clone()
+                .or_else(|| Some("lookup-key-source".to_owned())),
+        )
+    } else if capability.state != ReferenceResolutionState::Valid {
+        (capability.state, capability.reason.clone())
+    } else {
+        (ReferenceResolutionState::Valid, None)
+    };
+
+    ReferenceLookupExpansion {
+        origin: ReferenceLookupOrigin::OperandShorthand,
+        name: Some(lookup_name.to_owned()),
+        execution,
+        result_binding,
+        result: None,
+        result_cardinality,
+        result_shape,
+        result_keys: Vec::new(),
+        keys: vec![key],
+        capability,
+        support,
+        package_context,
+        provenance: Some("operand-shorthand".to_owned()),
+        source_range: "key-reference".to_owned(),
+        state,
+        reason,
+        raw_result: None,
+        source_map,
+    }
+}
+
+fn reference_lookup_result_binding(
+    lookup: &ReferenceLookupDeclaration,
+    parent_operand: Option<&ReferenceOperandDeclaration>,
+) -> String {
+    lookup
+        .as_binding
+        .clone()
+        .or_else(|| parent_operand.and_then(|operand| operand.binding.clone()))
+        .or_else(|| lookup.name.clone())
+        .unwrap_or_default()
+}
+
+fn infer_reference_lookup_execution(
+    lookup: &ReferenceLookupDeclaration,
+    constraint_execution: &ReferenceConstraintExecution,
+) -> ReferenceLookupExecutionKind {
+    match lookup.execution.as_deref() {
+        Some("pure") => ReferenceLookupExecutionKind::Pure,
+        Some("engine-assisted") => ReferenceLookupExecutionKind::EngineAssisted,
+        _ if lookup.select.is_some() && lookup.requires.is_none() => {
+            ReferenceLookupExecutionKind::Pure
+        }
+        _ if lookup.requires.is_some() => ReferenceLookupExecutionKind::EngineAssisted,
+        _ if constraint_execution.execution.as_deref() == Some("engine-assisted") => {
+            ReferenceLookupExecutionKind::EngineAssisted
+        }
+        _ => ReferenceLookupExecutionKind::Pure,
+    }
+}
+
+fn reference_lookup_mixes_pure_and_engine_fields(lookup: &ReferenceLookupDeclaration) -> bool {
+    lookup.select.is_some()
+        && (lookup.requires.is_some()
+            || lookup.execution.as_deref() == Some("engine-assisted")
+            || lookup
+                .package_context
+                .as_deref()
+                .is_some_and(|value| value != "none"))
+}
+
+fn expand_reference_lookup_keys(
+    document: &CemDocument,
+    bindings: &ReferenceSourceBindings,
+    parent_operand: Option<&ReferenceOperandDeclaration>,
+    parent_source: Option<&ReferenceOperandSourceEnvelope>,
+    lookup: &ReferenceLookupDeclaration,
+) -> Vec<ReferenceLookupKeyExpansion> {
+    if !lookup.keys.is_empty() {
+        return lookup
+            .keys
+            .iter()
+            .map(|key| {
+                expand_reference_lookup_key_child(
+                    document,
+                    bindings,
+                    parent_operand,
+                    parent_source,
+                    key,
+                )
+            })
+            .collect();
+    }
+
+    if let Some(key_source_path) = lookup.key.as_deref() {
+        let binding = parent_operand
+            .and_then(|operand| operand.binding.clone())
+            .or_else(|| lookup.as_binding.clone())
+            .or_else(|| lookup.name.clone())
+            .unwrap_or_else(|| "key".to_owned());
+        let source = extract_reference_lookup_key_source(
+            document,
+            bindings,
+            &binding,
+            Some(key_source_path),
+            parent_operand
+                .and_then(|operand| operand.cardinality.as_deref())
+                .unwrap_or("one"),
+            parent_operand
+                .and_then(|operand| operand.shape.as_deref())
+                .unwrap_or("scalar"),
+            &lookup.source_map,
+        );
+        return vec![ReferenceLookupKeyExpansion {
+            binding,
+            from: Some(key_source_path.to_owned()),
+            normalizer: None,
+            cardinality: source.cardinality.clone(),
+            shape: parent_operand
+                .and_then(|operand| operand.shape.clone())
+                .unwrap_or_else(|| "scalar".to_owned()),
+            source,
+            source_map: lookup.source_map.clone(),
+        }];
+    }
+
+    let Some(parent_source) = parent_source else {
+        if lookup.select.is_some() {
+            return Vec::new();
+        }
+        let binding = lookup
+            .as_binding
+            .clone()
+            .or_else(|| lookup.name.clone())
+            .unwrap_or_else(|| "key".to_owned());
+        return vec![ReferenceLookupKeyExpansion {
+            binding: binding.clone(),
+            from: None,
+            normalizer: None,
+            cardinality: "one".to_owned(),
+            shape: "scalar".to_owned(),
+            source: missing_reference_lookup_key_source(
+                binding,
+                None,
+                "one",
+                "missing-lookup-key-source",
+                &lookup.source_map,
+            ),
+            source_map: lookup.source_map.clone(),
+        }];
+    };
+
+    let binding = parent_operand
+        .and_then(|operand| operand.binding.clone())
+        .or_else(|| lookup.as_binding.clone())
+        .or_else(|| lookup.name.clone())
+        .unwrap_or_else(|| "key".to_owned());
+    vec![ReferenceLookupKeyExpansion {
+        binding,
+        from: parent_source.from.clone(),
+        normalizer: None,
+        cardinality: parent_source.cardinality.clone(),
+        shape: parent_operand
+            .and_then(|operand| operand.shape.clone())
+            .unwrap_or_else(|| "scalar".to_owned()),
+        source: parent_source.clone(),
+        source_map: lookup.source_map.clone(),
+    }]
+}
+
+fn expand_reference_lookup_key_child(
+    document: &CemDocument,
+    bindings: &ReferenceSourceBindings,
+    parent_operand: Option<&ReferenceOperandDeclaration>,
+    parent_source: Option<&ReferenceOperandSourceEnvelope>,
+    key: &ReferenceLookupKeyDeclaration,
+) -> ReferenceLookupKeyExpansion {
+    let binding = key
+        .binding
+        .clone()
+        .or_else(|| parent_operand.and_then(|operand| operand.binding.clone()))
+        .unwrap_or_else(|| "key".to_owned());
+    let cardinality = key
+        .cardinality
+        .as_deref()
+        .or_else(|| parent_operand.and_then(|operand| operand.cardinality.as_deref()))
+        .unwrap_or("one");
+    let shape = key
+        .shape
+        .as_deref()
+        .or_else(|| parent_operand.and_then(|operand| operand.shape.as_deref()))
+        .unwrap_or("scalar");
+    let source = if let Some(from) = key.from.as_deref() {
+        extract_reference_lookup_key_source(
+            document,
+            bindings,
+            &binding,
+            Some(from),
+            cardinality,
+            shape,
+            &key.source_map,
+        )
+    } else if let Some(parent_source) = parent_source {
+        parent_source.clone()
+    } else {
+        missing_reference_lookup_key_source(
+            binding.clone(),
+            None,
+            cardinality,
+            "missing-lookup-key-source",
+            &key.source_map,
+        )
+    };
+
+    ReferenceLookupKeyExpansion {
+        binding,
+        from: key.from.clone().or_else(|| source.from.clone()),
+        normalizer: key.normalizer.clone(),
+        cardinality: cardinality.to_owned(),
+        shape: shape.to_owned(),
+        source,
+        source_map: key.source_map.clone(),
+    }
+}
+
+fn extract_reference_lookup_key_source(
+    document: &CemDocument,
+    bindings: &ReferenceSourceBindings,
+    binding: &str,
+    from: Option<&str>,
+    cardinality: &str,
+    shape: &str,
+    source_map: &SourceMapStack,
+) -> ReferenceOperandSourceEnvelope {
+    let Some(from) = from else {
+        return missing_reference_lookup_key_source(
+            binding.to_owned(),
+            None,
+            cardinality,
+            "missing-lookup-key-source",
+            source_map,
+        );
+    };
+    let operand = ReferenceOperandDeclaration {
+        role: ReferenceOperandDeclarationRole::Actual,
+        binding: Some(binding.to_owned()),
+        from: Some(from.to_owned()),
+        normalizer: None,
+        cardinality: Some(cardinality.to_owned()),
+        shape: Some(shape.to_owned()),
+        result_cardinality: None,
+        result_shape: None,
+        state: Some("required-valid".to_owned()),
+        lookup: None,
+        diagnostic_field: None,
+        lookups: Vec::new(),
+        projection: None,
+        source_map: source_map.clone(),
+    };
+    extract_reference_operand_sources(document, bindings, &operand)
+}
+
+fn missing_reference_lookup_key_source(
+    binding: String,
+    from: Option<String>,
+    cardinality: &str,
+    reason: &'static str,
+    source_map: &SourceMapStack,
+) -> ReferenceOperandSourceEnvelope {
+    ReferenceOperandSourceEnvelope {
+        binding,
+        from,
+        cardinality: cardinality.to_owned(),
+        state: ReferenceResolutionState::Missing,
+        reason: Some(reason.to_owned()),
+        values: Vec::new(),
+        source_map: source_map.clone(),
+    }
+}
+
+fn expand_reference_lookup_result_keys(
+    lookup: &ReferenceLookupDeclaration,
+    result_binding: &str,
+) -> Vec<ReferenceLookupResultKeyExpansion> {
+    let mut result_keys = lookup
+        .result_keys
+        .iter()
+        .map(|result_key| ReferenceLookupResultKeyExpansion {
+            binding: result_key
+                .binding
+                .clone()
+                .unwrap_or_else(|| result_binding.to_owned()),
+            from: result_key.from.clone(),
+            value_path: result_key.value_path.clone(),
+            normalizer: result_key.normalizer.clone(),
+            source_map: result_key.source_map.clone(),
+        })
+        .collect::<Vec<_>>();
+    if let Some(value_path) = lookup.result_key.as_deref() {
+        result_keys.push(ReferenceLookupResultKeyExpansion {
+            binding: result_binding.to_owned(),
+            from: None,
+            value_path: Some(value_path.to_owned()),
+            normalizer: None,
+            source_map: lookup.source_map.clone(),
+        });
+    }
+    result_keys
+}
+
+fn reference_lookup_key_state(
+    keys: &[ReferenceLookupKeyExpansion],
+) -> Option<(ReferenceResolutionState, &'static str)> {
+    for key in keys {
+        match key.source.state {
+            ReferenceResolutionState::Valid => {}
+            ReferenceResolutionState::Missing => {
+                return Some((ReferenceResolutionState::Missing, "lookup-key-missing"));
+            }
+            ReferenceResolutionState::Invalid => {
+                return Some((ReferenceResolutionState::Invalid, "lookup-key-invalid"));
+            }
+            ReferenceResolutionState::Unresolved => {
+                return Some((
+                    ReferenceResolutionState::Unresolved,
+                    "lookup-key-unresolved",
+                ));
+            }
+            ReferenceResolutionState::Unsupported => {
+                return Some((
+                    ReferenceResolutionState::Unsupported,
+                    "lookup-key-unsupported",
+                ));
+            }
+        }
+    }
+    None
+}
+
+fn reference_lookup_capability_negotiation(
+    requires: Option<&str>,
+    support: &str,
+    execution: ReferenceLookupExecutionKind,
+    source_map: &SourceMapStack,
+    capabilities: &ReferenceCapabilitySet,
+) -> ReferenceLookupCapabilityNegotiation {
+    let requires = requires.map(str::to_owned);
+    if execution == ReferenceLookupExecutionKind::Pure {
+        return ReferenceLookupCapabilityNegotiation {
+            requires,
+            support: support.to_owned(),
+            state: ReferenceResolutionState::Valid,
+            reason: None,
+            source_map: source_map.clone(),
+        };
+    }
+    let Some(requirement) = requires.as_deref() else {
+        return ReferenceLookupCapabilityNegotiation {
+            requires,
+            support: support.to_owned(),
+            state: ReferenceResolutionState::Invalid,
+            reason: Some("missing-capability-requirement".to_owned()),
+            source_map: source_map.clone(),
+        };
+    };
+    let (name, version_constraint) = reference_capability_requirement_parts(requirement);
+    let state_reason = if capabilities.denied.contains(name) {
+        Some(("policy-denied", ReferenceResolutionState::Unsupported))
+    } else if capabilities.disabled.contains(name) {
+        Some((
+            "unsupported-capability",
+            ReferenceResolutionState::Unsupported,
+        ))
+    } else if !reference_capability_is_available(capabilities, name, version_constraint) {
+        Some((
+            "unsupported-capability",
+            ReferenceResolutionState::Unsupported,
+        ))
+    } else {
+        None
+    };
+
+    let (state, reason) = state_reason.map_or(
+        (ReferenceResolutionState::Valid, None),
+        |(reason, state)| (state, Some(reason.to_owned())),
+    );
+    ReferenceLookupCapabilityNegotiation {
+        requires,
+        support: support.to_owned(),
+        state,
+        reason,
+        source_map: source_map.clone(),
+    }
+}
+
+fn reference_capability_requirement_parts(requirement: &str) -> (&str, Option<&str>) {
+    requirement
+        .split_once('@')
+        .map_or((requirement, None), |(name, version)| (name, Some(version)))
+}
+
+fn reference_capability_is_available(
+    capabilities: &ReferenceCapabilitySet,
+    name: &str,
+    version_constraint: Option<&str>,
+) -> bool {
+    let Some(versions) = capabilities.available.get(name) else {
+        return false;
+    };
+    let Some(version_constraint) = version_constraint else {
+        return true;
+    };
+    versions.iter().any(|version| {
+        version.as_deref().is_some_and(|version| {
+            reference_capability_version_matches(version_constraint, version)
+        })
+    })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct ReferenceSemVer {
+    major: u64,
+    minor: u64,
+    patch: u64,
+    prerelease: Option<String>,
+    build: Option<String>,
+}
+
+fn reference_capability_version_matches(constraint: &str, version: &str) -> bool {
+    let Some(version) = parse_reference_semver(version) else {
+        return false;
+    };
+    if let Some(exact) = constraint.strip_prefix('=') {
+        let Some(exact) = parse_reference_semver(exact) else {
+            return false;
+        };
+        return version == exact;
+    }
+    if let Some(minimum) = constraint.strip_prefix('^') {
+        let Some(minimum) = parse_reference_semver(minimum) else {
+            return false;
+        };
+        return version.prerelease.is_none()
+            && version.build.is_none()
+            && version.major == minimum.major
+            && reference_semver_core_at_least(&version, &minimum);
+    }
+    let segments = constraint.split('.').collect::<Vec<_>>();
+    match segments.as_slice() {
+        [major] => major
+            .parse::<u64>()
+            .ok()
+            .is_some_and(|major| version.major == major && reference_semver_is_stable(&version)),
+        [major, minor] => major
+            .parse::<u64>()
+            .ok()
+            .zip(minor.parse::<u64>().ok())
+            .is_some_and(|(major, minor)| {
+                version.major == major
+                    && version.minor == minor
+                    && reference_semver_is_stable(&version)
+            }),
+        [_, _, _] => {
+            let Some(minimum) = parse_reference_semver(constraint) else {
+                return false;
+            };
+            if minimum.prerelease.is_some() || minimum.build.is_some() {
+                return version == minimum;
+            }
+            version.prerelease.is_none()
+                && version.build.is_none()
+                && version.major == minimum.major
+                && reference_semver_core_at_least(&version, &minimum)
+        }
+        _ => false,
+    }
+}
+
+fn parse_reference_semver(value: &str) -> Option<ReferenceSemVer> {
+    if !is_semver(value) {
+        return None;
+    }
+    let (core_and_pre, build) = value
+        .split_once('+')
+        .map_or((value, None), |(core, build)| {
+            (core, Some(build.to_owned()))
+        });
+    let (core, prerelease) = core_and_pre
+        .split_once('-')
+        .map_or((core_and_pre, None), |(core, prerelease)| {
+            (core, Some(prerelease.to_owned()))
+        });
+    let parts = core.split('.').collect::<Vec<_>>();
+    let [major, minor, patch] = parts.as_slice() else {
+        return None;
+    };
+    Some(ReferenceSemVer {
+        major: major.parse().ok()?,
+        minor: minor.parse().ok()?,
+        patch: patch.parse().ok()?,
+        prerelease,
+        build,
+    })
+}
+
+fn reference_semver_is_stable(version: &ReferenceSemVer) -> bool {
+    version.prerelease.is_none() && version.build.is_none()
+}
+
+fn reference_semver_core_at_least(version: &ReferenceSemVer, minimum: &ReferenceSemVer) -> bool {
+    (version.major, version.minor, version.patch) >= (minimum.major, minimum.minor, minimum.patch)
+}
+
+fn evaluate_reference_pure_lookup(
+    document: &CemDocument,
+    target_nodes: &[AstNodeId],
+    bindings: &ReferenceSourceBindings,
+    lookup: &ReferenceLookupDeclaration,
+    result_binding: &str,
+    result_cardinality: &str,
+    result_shape: &str,
+) -> ReferenceLookupRawResultEnvelope {
+    let Some(select) = lookup.select.as_deref() else {
+        return ReferenceLookupRawResultEnvelope {
+            binding: result_binding.to_owned(),
+            lookup: lookup.name.clone(),
+            result: lookup.result.clone(),
+            result_cardinality: result_cardinality.to_owned(),
+            result_shape: result_shape.to_owned(),
+            state: ReferenceResolutionState::Invalid,
+            reason: Some("missing-pure-lookup-selector".to_owned()),
+            values: Vec::new(),
+            source_map: lookup.source_map.clone(),
+        };
+    };
+    let values = match parse_reference_candidate_selector(select).and_then(|selector| {
+        evaluate_reference_candidate_selector_with_bindings(
+            document,
+            target_nodes,
+            Some(bindings),
+            &selector,
+        )
+    }) {
+        Ok(node_ids) => node_ids
+            .into_iter()
+            .filter_map(|node_id| reference_node_source_value(document, result_binding, node_id))
+            .collect::<Vec<_>>(),
+        Err(failure) => {
+            return ReferenceLookupRawResultEnvelope {
+                binding: result_binding.to_owned(),
+                lookup: lookup.name.clone(),
+                result: lookup.result.clone(),
+                result_cardinality: result_cardinality.to_owned(),
+                result_shape: result_shape.to_owned(),
+                state: failure.state(),
+                reason: Some(failure.reason.to_owned()),
+                values: Vec::new(),
+                source_map: lookup.source_map.clone(),
+            };
+        }
+    };
+    let values = if let Some(result) = lookup.result.as_deref() {
+        extract_reference_pure_lookup_result(document, bindings, result_binding, result, &values)
+    } else {
+        values
+    };
+    let (state, reason) =
+        reference_lookup_raw_result_state(values.len(), result_cardinality, "lookup-target-absent");
+    ReferenceLookupRawResultEnvelope {
+        binding: result_binding.to_owned(),
+        lookup: lookup.name.clone(),
+        result: lookup.result.clone(),
+        result_cardinality: result_cardinality.to_owned(),
+        result_shape: result_shape.to_owned(),
+        state,
+        reason: reason.map(str::to_owned),
+        values,
+        source_map: lookup.source_map.clone(),
+    }
+}
+
+fn extract_reference_pure_lookup_result(
+    document: &CemDocument,
+    bindings: &ReferenceSourceBindings,
+    result_binding: &str,
+    result: &str,
+    raw_values: &[ReferenceSourceValue],
+) -> Vec<ReferenceSourceValue> {
+    let mut result_bindings = bindings.clone();
+    result_bindings.bind_nodes(
+        result_binding.to_owned(),
+        raw_values
+            .iter()
+            .filter_map(|value| value.node_id)
+            .collect::<Vec<_>>(),
+    );
+    let source_path = if result.starts_with(result_binding) {
+        result.to_owned()
+    } else if result.starts_with('@')
+        || result == "name"
+        || result == "text"
+        || result.starts_with("child(")
+    {
+        format!("{result_binding}.{result}")
+    } else {
+        return bindings
+            .field_bindings
+            .get(result_binding)
+            .and_then(|fields| fields.get(result))
+            .cloned()
+            .unwrap_or_default();
+    };
+    let operand = ReferenceOperandDeclaration {
+        role: ReferenceOperandDeclarationRole::Expected,
+        binding: Some(result_binding.to_owned()),
+        from: Some(source_path),
+        normalizer: None,
+        cardinality: Some("set".to_owned()),
+        shape: Some("scalar".to_owned()),
+        result_cardinality: None,
+        result_shape: None,
+        state: Some("required-valid".to_owned()),
+        lookup: None,
+        diagnostic_field: None,
+        lookups: Vec::new(),
+        projection: None,
+        source_map: SourceMapStack::default(),
+    };
+    extract_reference_operand_sources(document, &result_bindings, &operand).values
+}
+
+fn reference_lookup_raw_result_state(
+    count: usize,
+    cardinality: &str,
+    empty_reason: &'static str,
+) -> (ReferenceResolutionState, Option<&'static str>) {
+    match cardinality {
+        "one" => match count {
+            0 => (ReferenceResolutionState::Unresolved, Some(empty_reason)),
+            1 => (ReferenceResolutionState::Valid, None),
+            _ => (
+                ReferenceResolutionState::Invalid,
+                Some("lookup-result-cardinality"),
+            ),
+        },
+        "optional" => match count {
+            0 => (ReferenceResolutionState::Unresolved, Some(empty_reason)),
+            1 => (ReferenceResolutionState::Valid, None),
+            _ => (
+                ReferenceResolutionState::Invalid,
+                Some("lookup-result-cardinality"),
+            ),
+        },
+        "set" => {
+            if count == 0 {
+                (ReferenceResolutionState::Unresolved, Some(empty_reason))
+            } else {
+                (ReferenceResolutionState::Valid, None)
+            }
+        }
+        _ => (
+            ReferenceResolutionState::Invalid,
+            Some("invalid-lookup-result-cardinality"),
+        ),
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ReferenceExtractionFailureKind {
     Invalid,
@@ -10681,10 +11682,11 @@ impl ReferenceExtractionFailure {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum ReferenceSelectorRoot {
     Target,
     Document,
+    Binding(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -10801,6 +11803,9 @@ fn parse_reference_selector_root(value: &str) -> Option<ReferenceSelectorRoot> {
     match value {
         "$target" => Some(ReferenceSelectorRoot::Target),
         "$document" => Some(ReferenceSelectorRoot::Document),
+        _ if is_reference_bare_name(value) => {
+            Some(ReferenceSelectorRoot::Binding(value.to_owned()))
+        }
         _ => None,
     }
 }
@@ -10810,12 +11815,24 @@ fn evaluate_reference_candidate_selector(
     target_nodes: &[AstNodeId],
     selector: &ReferenceCandidateSelector,
 ) -> Result<Vec<AstNodeId>, ReferenceExtractionFailure> {
+    evaluate_reference_candidate_selector_with_bindings(document, target_nodes, None, selector)
+}
+
+fn evaluate_reference_candidate_selector_with_bindings(
+    document: &CemDocument,
+    target_nodes: &[AstNodeId],
+    bindings: Option<&ReferenceSourceBindings>,
+    selector: &ReferenceCandidateSelector,
+) -> Result<Vec<AstNodeId>, ReferenceExtractionFailure> {
     match selector {
-        ReferenceCandidateSelector::Root(root) => {
-            Ok(reference_selector_root_nodes(document, target_nodes, *root))
-        }
+        ReferenceCandidateSelector::Root(root) => Ok(reference_selector_root_nodes(
+            document,
+            target_nodes,
+            bindings,
+            root,
+        )),
         ReferenceCandidateSelector::Traverse { root, axis, names } => {
-            let roots = reference_selector_root_nodes(document, target_nodes, *root);
+            let roots = reference_selector_root_nodes(document, target_nodes, bindings, root);
             let mut selected = Vec::new();
             for root_id in roots {
                 match axis {
@@ -10844,11 +11861,16 @@ fn evaluate_reference_candidate_selector(
 fn reference_selector_root_nodes(
     document: &CemDocument,
     target_nodes: &[AstNodeId],
-    root: ReferenceSelectorRoot,
+    bindings: Option<&ReferenceSourceBindings>,
+    root: &ReferenceSelectorRoot,
 ) -> Vec<AstNodeId> {
     match root {
         ReferenceSelectorRoot::Target => target_nodes.to_vec(),
         ReferenceSelectorRoot::Document => document.root().map_or_else(Vec::new, |_| vec![0]),
+        ReferenceSelectorRoot::Binding(binding) => bindings
+            .and_then(|bindings| bindings.node_bindings.get(binding))
+            .cloned()
+            .unwrap_or_default(),
     }
 }
 
@@ -19090,6 +20112,262 @@ mod tests {
         assert!(unsupported.candidates.is_empty());
     }
 
+    #[test]
+    fn schema_reference_lookup_shorthand_inherits_constraint_capability_policy() {
+        let document = parse_cem_document(
+            r#"@doc cem-ml 1
+{route |
+    {endpoint @schema="https://example.test/ns/core/1" @content-type="text/html"}
+}"#,
+        );
+        let endpoint_id =
+            first_element_id_by_local_name(&document, "endpoint").expect("endpoint element");
+        let mut bindings = ReferenceSourceBindings::default();
+        bindings.bind_nodes("endpoint", vec![endpoint_id]);
+        let mut operand = reference_test_operand("schema", "endpoint.@schema", "one");
+        operand.lookup = Some("schema:registry.descriptor".to_owned());
+        operand.result_cardinality = Some("one".to_owned());
+        operand.result_shape = Some("record".to_owned());
+        let operand_source = extract_reference_operand_sources(&document, &bindings, &operand);
+        let capabilities = ReferenceCapabilitySet::default()
+            .with_capability("schema:engine.registry", Some("1.4.0"));
+
+        let expansions = expand_reference_operand_lookups(
+            &document,
+            &[endpoint_id],
+            &bindings,
+            &reference_test_constraint_execution(),
+            &operand,
+            &operand_source,
+            &capabilities,
+        );
+
+        assert_eq!(expansions.len(), 1);
+        let expansion = &expansions[0];
+        assert_eq!(expansion.origin, ReferenceLookupOrigin::OperandShorthand);
+        assert_eq!(
+            expansion.name.as_deref(),
+            Some("schema:registry.descriptor")
+        );
+        assert_eq!(
+            expansion.execution,
+            ReferenceLookupExecutionKind::EngineAssisted
+        );
+        assert_eq!(expansion.support, "required");
+        assert_eq!(expansion.package_context, "current");
+        assert_eq!(expansion.source_range, "key-reference");
+        assert_eq!(expansion.capability.state, ReferenceResolutionState::Valid);
+        assert_eq!(expansion.state, ReferenceResolutionState::Valid);
+        assert!(expansion.raw_result.is_none());
+        assert_eq!(expansion.keys.len(), 1);
+        assert_eq!(expansion.keys[0].binding, "schema");
+        assert_eq!(
+            expansion.keys[0].source.values[0].value.as_deref(),
+            Some("https://example.test/ns/core/1")
+        );
+    }
+
+    #[test]
+    fn schema_reference_lookup_child_expansion_inherits_key_defaults_and_result_keys() {
+        let document = parse_cem_document(
+            r#"@doc cem-ml 1
+{route |
+    {endpoint @schema="https://example.test/ns/core/1"}
+}"#,
+        );
+        let endpoint_id =
+            first_element_id_by_local_name(&document, "endpoint").expect("endpoint element");
+        let mut bindings = ReferenceSourceBindings::default();
+        bindings.bind_nodes("endpoint", vec![endpoint_id]);
+        let mut operand = reference_test_operand("schema", "endpoint.@schema", "one");
+        operand.shape = Some("scalar".to_owned());
+        let operand_source = extract_reference_operand_sources(&document, &bindings, &operand);
+        let mut lookup = reference_test_lookup("schema:registry.descriptor");
+        lookup.execution = Some("engine-assisted".to_owned());
+        lookup.requires = Some("schema:engine.registry@1".to_owned());
+        lookup.support = Some("optional".to_owned());
+        lookup.package_context = Some("declared".to_owned());
+        lookup.as_binding = Some("descriptor".to_owned());
+        lookup.result = Some("contentTypes".to_owned());
+        lookup.result_cardinality = Some("set".to_owned());
+        lookup.result_shape = Some("record".to_owned());
+        lookup.result_key = Some("canonicalName".to_owned());
+        lookup.provenance = Some("registry".to_owned());
+        lookup.source_range = Some("result-preferred".to_owned());
+        lookup.keys = vec![ReferenceLookupKeyDeclaration {
+            binding: Some("schema-key".to_owned()),
+            from: None,
+            normalizer: Some("schema:schema-identity".to_owned()),
+            cardinality: None,
+            shape: None,
+            source_map: SourceMapStack::default(),
+        }];
+        let capabilities = ReferenceCapabilitySet::default()
+            .with_capability("schema:engine.registry", Some("1.4.0"));
+
+        let expansion = expand_reference_lookup_declaration(
+            &document,
+            &[endpoint_id],
+            &bindings,
+            &reference_test_constraint_execution(),
+            Some(&operand),
+            Some(&operand_source),
+            &lookup,
+            ReferenceLookupOrigin::OperandChild,
+            &capabilities,
+        );
+
+        assert_eq!(expansion.origin, ReferenceLookupOrigin::OperandChild);
+        assert_eq!(expansion.result_binding, "descriptor");
+        assert_eq!(expansion.result_cardinality, "set");
+        assert_eq!(expansion.result_shape, "record");
+        assert_eq!(expansion.support, "optional");
+        assert_eq!(expansion.package_context, "declared");
+        assert_eq!(expansion.provenance.as_deref(), Some("registry"));
+        assert_eq!(expansion.source_range, "result-preferred");
+        assert_eq!(expansion.keys.len(), 1);
+        assert_eq!(expansion.keys[0].binding, "schema-key");
+        assert_eq!(expansion.keys[0].cardinality, "one");
+        assert_eq!(expansion.keys[0].shape, "scalar");
+        assert_eq!(
+            expansion.keys[0].normalizer.as_deref(),
+            Some("schema:schema-identity")
+        );
+        assert_eq!(
+            expansion.keys[0].source.values[0].value.as_deref(),
+            Some("https://example.test/ns/core/1")
+        );
+        assert_eq!(expansion.result_keys.len(), 1);
+        assert_eq!(expansion.result_keys[0].binding, "descriptor");
+        assert_eq!(
+            expansion.result_keys[0].value_path.as_deref(),
+            Some("canonicalName")
+        );
+        assert_eq!(expansion.state, ReferenceResolutionState::Valid);
+        assert!(expansion.raw_result.is_none());
+    }
+
+    #[test]
+    fn schema_reference_pure_lookup_selects_bound_nodes_and_projects_results() {
+        let document = parse_cem_document(
+            r#"@doc cem-ml 1
+{route |
+    {endpoint |
+        {schema @name="core"}
+        {schema @name="theme"}
+    }
+}"#,
+        );
+        let route_id = first_element_id_by_local_name(&document, "route").expect("route element");
+        let endpoint_id =
+            first_element_id_by_local_name(&document, "endpoint").expect("endpoint element");
+        let mut bindings = ReferenceSourceBindings::default();
+        bindings.bind_nodes("endpoint", vec![endpoint_id]);
+        let mut lookup = reference_test_lookup("schema:local-schemas");
+        lookup.select = Some("endpoint.child(schema)".to_owned());
+        lookup.as_binding = Some("schema-node".to_owned());
+        lookup.result = Some("@name".to_owned());
+        lookup.result_cardinality = Some("set".to_owned());
+
+        let expansion = expand_reference_lookup_declaration(
+            &document,
+            &[route_id],
+            &bindings,
+            &ReferenceConstraintExecution::default(),
+            None,
+            None,
+            &lookup,
+            ReferenceLookupOrigin::ConstraintChild,
+            &ReferenceCapabilitySet::default(),
+        );
+
+        assert_eq!(expansion.execution, ReferenceLookupExecutionKind::Pure);
+        assert_eq!(expansion.capability.state, ReferenceResolutionState::Valid);
+        assert_eq!(expansion.state, ReferenceResolutionState::Valid);
+        let raw = expansion.raw_result.as_ref().expect("pure raw result");
+        assert_eq!(raw.binding, "schema-node");
+        assert_eq!(raw.state, ReferenceResolutionState::Valid);
+        assert_eq!(raw.values.len(), 2);
+        assert_eq!(
+            raw.values
+                .iter()
+                .filter_map(|value| value.value.as_deref())
+                .collect::<Vec<_>>(),
+            vec!["core", "theme"]
+        );
+    }
+
+    #[test]
+    fn schema_reference_lookup_expansion_reports_capability_and_execution_failures() {
+        let document = parse_cem_document(
+            r#"@doc cem-ml 1
+{route | {endpoint @schema="https://example.test/ns/core/1"}}"#,
+        );
+        let endpoint_id =
+            first_element_id_by_local_name(&document, "endpoint").expect("endpoint element");
+        let mut bindings = ReferenceSourceBindings::default();
+        bindings.bind_nodes("endpoint", vec![endpoint_id]);
+        let mut lookup = reference_test_lookup("schema:registry.descriptor");
+        lookup.execution = Some("engine-assisted".to_owned());
+        lookup.requires = Some("schema:engine.registry@2".to_owned());
+        lookup.key = Some("endpoint.@schema".to_owned());
+        let capabilities = ReferenceCapabilitySet::default()
+            .with_capability("schema:engine.registry", Some("1.4.0"));
+
+        let incompatible = expand_reference_lookup_declaration(
+            &document,
+            &[endpoint_id],
+            &bindings,
+            &reference_test_constraint_execution(),
+            None,
+            None,
+            &lookup,
+            ReferenceLookupOrigin::ConstraintChild,
+            &capabilities,
+        );
+        assert_eq!(incompatible.state, ReferenceResolutionState::Unsupported);
+        assert_eq!(
+            incompatible.reason.as_deref(),
+            Some("unsupported-capability")
+        );
+        assert_eq!(
+            incompatible.capability.reason.as_deref(),
+            Some("unsupported-capability")
+        );
+
+        let mut denied_capabilities = ReferenceCapabilitySet::default()
+            .with_capability("schema:engine.registry", Some("2.0.0"));
+        denied_capabilities.deny("schema:engine.registry");
+        let denied = expand_reference_lookup_declaration(
+            &document,
+            &[endpoint_id],
+            &bindings,
+            &reference_test_constraint_execution(),
+            None,
+            None,
+            &lookup,
+            ReferenceLookupOrigin::ConstraintChild,
+            &denied_capabilities,
+        );
+        assert_eq!(denied.state, ReferenceResolutionState::Unsupported);
+        assert_eq!(denied.reason.as_deref(), Some("policy-denied"));
+
+        lookup.select = Some("$document.child(route)".to_owned());
+        let mixed = expand_reference_lookup_declaration(
+            &document,
+            &[endpoint_id],
+            &bindings,
+            &reference_test_constraint_execution(),
+            None,
+            None,
+            &lookup,
+            ReferenceLookupOrigin::ConstraintChild,
+            &denied_capabilities,
+        );
+        assert_eq!(mixed.state, ReferenceResolutionState::Invalid);
+        assert_eq!(mixed.reason.as_deref(), Some("mixed-lookup-execution"));
+    }
+
     fn reference_test_candidates(
         select: &str,
         cardinality: Option<&str>,
@@ -19100,6 +20378,37 @@ mod tests {
             as_binding: Some("endpoint".to_owned()),
             cardinality: cardinality.map(str::to_owned),
             on_empty: on_empty.map(str::to_owned),
+            source_map: SourceMapStack::default(),
+        }
+    }
+
+    fn reference_test_constraint_execution() -> ReferenceConstraintExecution {
+        ReferenceConstraintExecution {
+            execution: Some("engine-assisted".to_owned()),
+            requires: Some("schema:engine.registry@1".to_owned()),
+            support: Some("required".to_owned()),
+            package_context: Some("current".to_owned()),
+        }
+    }
+
+    fn reference_test_lookup(name: &str) -> ReferenceLookupDeclaration {
+        ReferenceLookupDeclaration {
+            name: Some(name.to_owned()),
+            execution: None,
+            select: None,
+            key: None,
+            as_binding: None,
+            result: None,
+            result_cardinality: None,
+            result_shape: None,
+            result_key: None,
+            provenance: None,
+            source_range: None,
+            requires: None,
+            support: None,
+            package_context: None,
+            keys: Vec::new(),
+            result_keys: Vec::new(),
             source_map: SourceMapStack::default(),
         }
     }
