@@ -136,6 +136,14 @@ preserve duplicates as semantic data, such as future ARIA IDREF-sequence
 checks. It is deferred from the initial schema-package reference-resolution
 surface. Initial package checks use `one`, `optional`, and `set` only.
 
+The initial normalizer registry therefore has no host-language ID or IDREF-list
+normalizer. HTML/ARIA IDs, fragment identifiers, and slot target names must not
+be normalized with `schema:identifier-token`, and ordered IDREF sequences must
+not be normalized as sorted sets. A future runtime reference tier must add
+explicit host-language ID normalizers, sequence comparison semantics,
+snapshot/revision identity, pending-dependency behavior, and recomputation when
+the underlying reference registry changes.
+
 Set normalizers are named normalizers with an explicit item normalizer. They
 own item normalization, duplicate handling, deterministic comparison order, and
 per-item provenance.

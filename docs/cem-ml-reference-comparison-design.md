@@ -57,6 +57,13 @@ malformed unless the operator explicitly declares comparable item outputs or a
 value path that produces comparable values.
 `sequence` is reserved for future ordered duplicate-preserving comparisons and
 is not active in the initial package-check operator surface.
+The first release compares scalar and set values derived from schema-package
+registry, descriptor, document identity, artifact identity, and compiled
+function checks only. Operators must not compare accessible-name IDREF lists,
+HTML `for` links, fragment targets, or mutable slot references until a later
+runtime reference tier defines sequence semantics, host-language ID
+normalizers, snapshot/revision identity, pending dependency handling, and
+recomputation.
 
 ## Operand State Policies
 

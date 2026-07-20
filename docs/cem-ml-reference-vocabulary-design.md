@@ -25,6 +25,26 @@ normalization outcomes into violations; operand state policy, comparison
 presence policy, and comparison operators decide assertion results before
 projection formats diagnostics.
 
+## First-Release Scope
+
+The first vocabulary release is limited to schema-package registry, descriptor,
+document identity, artifact identity, and compiled-function checks needed by
+the current package validation surface. It covers immutable package/package
+dependency inputs and engine-assisted registry or artifact lookups.
+
+Ordered or mutable host-language references are explicitly deferred from the
+first release. This includes ARIA IDREF sequences such as `aria-labelledby`,
+HTML `for` links, URI fragment targets in rendered documents, and slot-to-target
+bindings whose result can become pending or stale during a render cycle.
+
+Initial constraints must not declare `@cardinality="sequence"` and must not
+lower an ordered IDREF list to a set normalizer. They also must not reuse
+`schema:identifier-token` for HTML, ARIA, fragment, or slot IDs. Future support
+for those references must define host-language ID and IDREF-list normalizers,
+snapshot/revision identity for normalized annotations, pending-dependency
+behavior, and recomputation when the relevant reference registry or slot state
+changes.
+
 ## Goals
 
 - Keep candidate selection declarative and based on a narrow pure CEM-QL

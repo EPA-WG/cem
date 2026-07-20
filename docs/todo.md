@@ -18,8 +18,9 @@ source provenance, keep normalization annotative and symmetric, make execution
 placement explicit, avoid implicit canonicalization, and retain complete schema
 identity.
 
-Current active slice: complete C14 by deciding whether ordered and mutable
-references are in the first release or explicitly deferred.
+Current active slice: align the dependent documentation in dependency order,
+starting with the accepted target reference designs and then the current
+schema-package surface docs.
 
 ### Contract And Documentation
 
@@ -149,7 +150,7 @@ references are in the first release or explicitly deferred.
       existence. Preserve declared/resolved URIs and resolver provenance, keep
       exact namespace equality separate, and leave language-specific behavior
       such as JSON Schema dynamic references in explicit capabilities.
-- [ ] **[C14] Decide the first-release boundary for ordered and mutable
+- [x] **[C14] Decide the first-release boundary for ordered and mutable
       references.** Either scope the first vocabulary release to
       schema-package registry/artifact checks or define sequence cardinality,
       host-language ID normalizers that preserve case and punctuation,
@@ -186,7 +187,7 @@ references are in the first release or explicitly deferred.
 - [ ] Document `missing`, `invalid`, `unresolved`, `unsupported`, and
       pending/deferred lifecycle outcomes.
 - [x] Document dotted profile symbols and composite function identities.
-- [ ] Document whether ordered ARIA IDREF sequences and dynamic JSON Schema
+- [x] Document whether ordered ARIA IDREF sequences and dynamic JSON Schema
       references are supported or deferred.
 
 ## Follow-on Implementation
