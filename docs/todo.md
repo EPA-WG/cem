@@ -13,8 +13,9 @@ binary handoff, embedded-payload handoff coverage, and web-host coordinate
 projection have all passed their focused and gate verification. Continue with
 Phase 3 substrate expansion.
 
-Current active slice: promote the first executable browser substrate contract
-for inline `<cem-element>` declarations into one focused runtime story/fixture.
+Current active slice: add focused unit/browser fixtures for declaration
+registration, payload capture, attribute invalidation, and data-island
+isolation using the existing `cem-elements` test harness.
 
 ### Phase 3 Custom-Element Runtime
 
@@ -27,7 +28,7 @@ for inline `<cem-element>` declarations into one focused runtime story/fixture.
       inline template, live declaration content is rejected, and the current
       implicit CEM-ML fallback path is removed or converted into an explicit
       diagnostic.
-- [ ] Promote the first executable browser substrate contract into one focused
+- [x] Promote the first executable browser substrate contract into one focused
       runtime story/fixture for inline `<cem-element>` declarations: exactly
       one inert declaration template, produced custom-element registration,
       captured instance data-island payload, visible light-DOM render
@@ -42,26 +43,22 @@ for inline `<cem-element>` declarations into one focused runtime story/fixture.
 
 ### Next Work Item
 
-Promote the first executable browser substrate contract into one focused
-runtime story/fixture:
+Add focused unit/browser fixtures for the runtime behaviors that sit behind the
+new inline substrate contract:
 
-- consolidate the currently separate assertions from `InlineDeclarationShape`,
-  `DataIslandCaptureAndRender`, `CemQlWasmRenderLoopUpgrade`, and the
-  data-island isolation stories into one story that starts from an inline
-  `<cem-element>` declaration with exactly one direct-child `<template>`;
-- assert in that one story that the declaration template remains inert, the
-  produced tag is registered, fallback payload is captured into
-  `<template data-cem-island="instance">`, visible output is owned by light DOM,
-  and rendered nodes carry template artifact, render-node, data revision, and
-  source-map fidelity labels;
-- add negative checks for missing inline templates, duplicate templates, and
-  live declaration content near the same contract story so shape regressions are
-  visible in the browser harness;
-- keep `src` declarations, legacy `lang="custom-element-v0"` bridge fixtures,
-  material parity, and Edge/SSR follow-up stories outside this focused contract;
+- keep the new `InlineBrowserSubstrateContract` story as the smoke fixture for
+  strict inline declarations, registration, payload capture, light-DOM render
+  ownership, and source-map/render metadata;
+- add or tighten focused coverage for attribute invalidation so host attribute
+  mutations after first render are proven against the same inline declaration
+  contract, not only the broader render-loop story;
+- add a small unit-level shape/registration fixture if useful so missing,
+  duplicate, and live-content declaration errors are covered outside Storybook
+  as well as in the browser harness;
+- avoid broad legacy/material parity changes unless a focused fixture exposes a
+  runtime regression;
 - verify with `yarn nx run cem-elements:test:unit`,
-  `yarn nx run cem-elements:test`, `yarn nx run cem-elements:verify-substrate`,
-  `yarn nx run cem-elements:verify-demo-fixtures`, and then the full
+  `yarn nx run cem-elements:test`, and then the full
   `yarn nx run cem-elements:verify` gate.
 
 ## Current Verification Commands

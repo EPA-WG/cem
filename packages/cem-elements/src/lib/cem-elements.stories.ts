@@ -182,6 +182,113 @@ export const MissingInlineTemplateShape: Story = {
     },
 };
 
+export const InlineBrowserSubstrateContract: Story = {
+    render: () => {
+        const root = document.createElement('section');
+        root.setAttribute('aria-label', 'inline browser substrate contract');
+
+        const runtime = new CemElementRuntime({ declarationTag: 'cem-element-story-inline-contract' });
+        runtime.install(window);
+
+        const declaration = document.createElement('cem-element-story-inline-contract');
+        declaration.setAttribute('tag', 'story-inline-contract');
+        const template = document.createElement('template');
+        template.setAttribute('type', 'text/cem-ml');
+        template.textContent = [
+            '{button',
+            ' @type=button',
+            ' @data-role=action',
+            ' @aria-label="{$datadom.attributes.label}"',
+            ' | {$datadom.attributes.label}',
+            '}',
+        ].join('');
+        declaration.appendChild(template);
+        root.appendChild(declaration);
+        runtime.registerDeclaration(declaration);
+
+        const instance = document.createElement('story-inline-contract');
+        instance.setAttribute('label', 'Submit');
+        instance.innerHTML = '<span data-contract-payload>Fallback payload</span>';
+        root.appendChild(instance);
+
+        return root;
+    },
+    play: async ({ canvasElement }) => {
+        const declaration = requiredElement(canvasElement, 'cem-element-story-inline-contract');
+        const declarationTemplates = Array.from(declaration.children).filter(
+            (child) => child.localName === 'template'
+        );
+        assertEqual(declarationTemplates.length, 1, 'inline declaration owns exactly one direct-child template');
+        assertEqual(
+            declaration.querySelector('button[data-role="action"]'),
+            null,
+            'declaration template content is inert and does not render at the declaration site'
+        );
+
+        assert(window.customElements.get('story-inline-contract'), 'produced custom element is registered');
+
+        const instance = requiredElement(canvasElement, 'story-inline-contract') as HTMLElement;
+        const button = await waitForElement(instance, 'button[data-role="action"]') as HTMLButtonElement;
+        const island = requiredElement(instance, 'template[data-cem-island="instance"]') as HTMLTemplateElement;
+        const capturedPayload = island.content.querySelector('[data-contract-payload]') as HTMLElement | null;
+
+        assert(capturedPayload, 'fallback payload is captured into the instance data island');
+        assert(!capturedPayload.isConnected, 'captured payload remains inert inside template.content');
+        assertEqual(
+            instance.querySelector('[data-contract-payload]'),
+            null,
+            'captured fallback payload is removed from the live instance DOM'
+        );
+
+        assertEqual(button.textContent?.trim(), 'Submit', 'visible light-DOM output renders from host data');
+        assertEqual(button.getAttribute('aria-label'), 'Submit', 'rendered attributes resolve host data');
+        assertEqual(instance.shadowRoot, null, 'produced instances do not attach shadow DOM');
+        assertEqual(button.getRootNode(), document, 'rendered output is owned by the document light DOM');
+        assertEqual(
+            canvasElement.querySelectorAll('button[data-role="action"]').length,
+            1,
+            'only the produced instance renders visible output'
+        );
+
+        assertEqual(
+            button.getAttribute('data-cem-render-node-id'),
+            'story-inline-contract-1',
+            'rendered output carries produced-tag scoped render-node identity'
+        );
+        assert(button.hasAttribute('data-cem-template-artifact-id'), 'rendered output carries template artifact identity');
+        assertEqual(button.getAttribute('data-cem-data-revision'), '1', 'rendered output carries data revision');
+        assertEqual(
+            button.getAttribute('data-cem-source-fidelity'),
+            'author-byte-exact',
+            'rendered output carries author-byte-exact source-map fidelity'
+        );
+        assertEqual(button.getAttribute('data-cem-source-frame'), 'cem:0', 'rendered output carries source byte frame');
+
+        const guardRuntime = new CemElementRuntime({ declarationTag: 'cem-element-story-inline-contract-guard' });
+        const missingTemplate = buildDeclaration({ tag: 'story-inline-contract-missing' });
+        assertEqual(guardRuntime.registerDeclaration(missingTemplate), false, 'missing inline template is rejected');
+        assertDiagnostic(guardRuntime.diagnosticsFor(missingTemplate), 'cem-element.inline_template_missing');
+
+        const duplicateTemplates = buildDeclaration({
+            tag: 'story-inline-contract-duplicate-template',
+            templates: [
+                { type: 'text/cem-ml', text: '{span | one}' },
+                { type: 'text/cem-ml', text: '{span | two}' },
+            ],
+        });
+        assertEqual(guardRuntime.registerDeclaration(duplicateTemplates), false, 'duplicate inline templates are rejected');
+        assertDiagnostic(guardRuntime.diagnosticsFor(duplicateTemplates), 'cem-element.inline_template_count');
+
+        const liveContent = buildDeclaration({
+            tag: 'story-inline-contract-live-content',
+            templates: [{ type: 'text/cem-ml', text: '{span | one}' }],
+            liveContent: true,
+        });
+        assertEqual(guardRuntime.registerDeclaration(liveContent), false, 'live declaration content is rejected');
+        assertDiagnostic(guardRuntime.diagnosticsFor(liveContent), 'cem-element.declaration_live_content');
+    },
+};
+
 export const DataIslandCaptureAndRender: Story = {
     render: () => {
         const root = document.createElement('section');
