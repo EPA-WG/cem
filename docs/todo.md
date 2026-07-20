@@ -13,9 +13,9 @@ binary handoff, embedded-payload handoff coverage, and web-host coordinate
 projection have all passed their focused and gate verification. Continue with
 Phase 3 substrate expansion.
 
-Current active slice: audit Phase 3.5 Edge/SSR processing follow-up readiness
-against `roadmap.md`, then populate the next focused implementation slice from
-the first uncovered server/edge processing boundary gap.
+Current active slice: audit Phase 3.6 `@epa-wg/custom-element` monorepo
+adoption readiness against `roadmap.md`, starting from the existing
+`packages/custom-element` package, its Nx gates, and its bridge fixtures.
 
 ### Phase 3 Custom-Element Runtime
 
@@ -64,37 +64,67 @@ the first uncovered server/edge processing boundary gap.
 
 ### Phase 3.5 Edge/SSR Processing Follow-Up
 
-- [ ] Audit the existing `@epa-wg/cem-elements` Edge/SSR processing APIs, unit
+- [x] Audit the existing `@epa-wg/cem-elements` Edge/SSR processing APIs, unit
       fixtures, Storybook stories, privacy/export policy coverage, render-state
       storage helpers, and Nx verification gates against the Phase 3.5
       deliverables and exit criteria from `roadmap.md`.
-- [ ] Populate a focused implementation slice from the audit, prioritizing the
+      The audit found SSR hydration, edge patch-frame, privacy/export policy,
+      render-state storage, and `verify-edge-ssr` coverage already present; the
+      weakest proof was privacy/export default-deny and redaction behavior living
+      only in a browser story instead of the fast processing-boundary unit suite.
+- [x] Populate a focused implementation slice from the audit, prioritizing the
       first missing proof around SSR hydration metadata, edge patch-frame
       streaming without live DOM access, privacy/export policy enforcement, or
-      render-state storage identity.
-- [ ] Add or repair the focused `cem-elements` fixture(s) for the selected gap
+      render-state storage identity. The selected slice was a unit-level
+      privacy/export policy fixture.
+- [x] Add or repair the focused `cem-elements` fixture(s) for the selected gap
       while keeping browser worker and main-thread fallback semantics unchanged.
-- [ ] Verify the selected Phase 3.5 slice with focused unit/browser target(s),
+      Added a `processing-boundary.spec.ts` unit fixture that asserts default
+      omission, explicit redaction, export policy stamp override, and detached
+      exported host attributes before snapshots leave for edge hosts.
+- [x] Verify the selected Phase 3.5 slice with focused unit/browser target(s),
       `yarn nx run cem-elements:verify-edge-ssr`, and
       `yarn nx run cem-elements:verify`.
 
+### Phase 3.6 `@epa-wg/custom-element` Monorepo Adoption
+
+- [ ] Audit the existing `packages/custom-element` source, dist package,
+      package identity, release config, Nx build/test/verify targets, legacy POC
+      docs/demos, material bridge fixtures, and dependency path on
+      `@epa-wg/cem-elements` against the Phase 3.6 deliverables and exit
+      criteria from `roadmap.md`.
+- [ ] Populate a focused implementation slice from the audit, prioritizing the
+      first missing proof around published `<custom-element>` tag continuity,
+      substrate inheritance, package fixture coverage, legacy bridge support, or
+      release/package-root correctness.
+- [ ] Add or repair the focused `@epa-wg/custom-element` package fixture,
+      adapter wiring, or verification script for the selected gap without
+      regressing the green Phase 3.5 Edge/SSR gates.
+- [ ] Verify the selected Phase 3.6 slice with focused target(s),
+      `yarn nx run @epa-wg/custom-element:verify`, and the relevant
+      `cem-elements` gate if substrate behavior is touched.
+
 ### Next Work Item
 
-Audit Phase 3.5 Edge/SSR processing readiness:
+Audit Phase 3.6 `@epa-wg/custom-element` monorepo adoption readiness:
 
-- compare `roadmap.md` Phase 3.5 and `docs/cem-element-design.md` sections 4.1
-  and 4.2 against the current `packages/cem-elements` implementation;
-- inspect `packages/cem-elements/src/lib/processing-boundary.spec.ts`,
-  `packages/cem-elements/src/lib/projection.disposition.spec.ts`,
-  `packages/cem-elements/src/lib/cem-elements.stories.ts`, and the
-  `verify-edge-ssr` target to map which SSR hydration, edge patch-frame,
-  privacy/export policy, and render-state storage proofs already exist;
+- compare `roadmap.md` Phase 3.6 and `docs/cem-element-design.md` sections 6.1
+  and 6.2 against the current `packages/custom-element` package;
+- inspect `packages/custom-element/package.json`,
+  `packages/custom-element/project.json`, `packages/custom-element/custom-element.js`,
+  `packages/custom-element/index.js`, `packages/custom-element/scripts/*.mjs`,
+  `packages/custom-element/test-fixtures/`, and
+  `packages/custom-element/material/` to map package identity, substrate
+  inheritance, bridge support, and fixture coverage;
+- confirm which migration work is already landed in-repo versus which Phase 3.6
+  proofs remain, especially published `<custom-element>` tag continuity,
+  next-major substrate adoption, package fixture coverage, and package-root
+  release correctness;
 - identify the first narrow missing or weak proof and add it to this checklist
   before implementing;
 - verify with the focused touched target first, then
-  `yarn nx run cem-elements:test:unit`,
-  `yarn nx run cem-elements:verify-edge-ssr`, and
-  `yarn nx run cem-elements:verify`.
+  `yarn nx run @epa-wg/custom-element:verify`, and
+  `yarn nx run cem-elements:verify-edge-ssr` if substrate behavior is touched.
 
 ## Current Verification Commands
 

@@ -122,6 +122,79 @@ describe('host processing boundary contracts', () => {
         expectPlainBoundaryValue(record);
     });
 
+    it('applies default-deny and redaction policy before exporting snapshots to edge hosts', () => {
+        const snapshot = snapshotFixture();
+        snapshot.dataset = { analyticsId: 'visitor-42' };
+        snapshot.slices = { draftInput: 'browser-local draft' };
+        snapshot.formData = { signin: { username: 'ada', password: 'secret' } };
+        snapshot.validationState = { valid: false, message: 'private validation detail' };
+        snapshot.eventPayloads = {
+            focus: { targetId: 'email' },
+            input: { isComposing: true, selectionStart: 3, value: 'raw browser input' },
+        };
+        snapshot.payload = {
+            ...snapshot.payload,
+            text: 'Sensitive detail',
+            data: [{
+                kind: 'data',
+                key: 'data-0',
+                value: 'secret',
+                label: 'Secret',
+                text: 'Sensitive data',
+                attributes: { value: 'secret' },
+                group: null,
+            }],
+            dataByValue: {
+                secret: {
+                    kind: 'data',
+                    key: 'data-0',
+                    value: 'secret',
+                    label: 'Secret',
+                    text: 'Sensitive data',
+                    attributes: { value: 'secret' },
+                    group: null,
+                },
+            },
+        };
+
+        const defaultExport = exportDataIslandSnapshotForEdge(snapshot);
+        expect(defaultExport.privacyPolicyStamp).toBe('boundary-privacy');
+        expect(defaultExport).not.toHaveProperty('hostAttributes');
+        expect(defaultExport).not.toHaveProperty('dataset');
+        expect(defaultExport).not.toHaveProperty('payload');
+        expect(defaultExport).not.toHaveProperty('slices');
+        expect(defaultExport).not.toHaveProperty('formData');
+        expect(defaultExport).not.toHaveProperty('validationState');
+        expect(defaultExport).not.toHaveProperty('eventPayloads');
+
+        const exported = exportDataIslandSnapshotForEdge(snapshot, {
+            privacyPolicyStamp: 'edge-export-policy-v1',
+            fields: {
+                dataset: 'omit',
+                eventPayloads: 'omit',
+                formData: 'redact',
+                hostAttributes: 'allow',
+                payload: 'redact',
+                slices: 'omit',
+                validationState: 'redact',
+            },
+        });
+        expect(exported.privacyPolicyStamp).toBe('edge-export-policy-v1');
+        expect(exported.hostAttributes).toEqual({ label: 'Projected' });
+        expect(exported).not.toHaveProperty('dataset');
+        expect(exported).not.toHaveProperty('slices');
+        expect(exported).not.toHaveProperty('eventPayloads');
+        expect(exported.payload?.text).toBe('');
+        expect(exported.payload?.childCount).toBe(0);
+        expect(exported.payload?.data).toEqual([]);
+        expect(exported.payload?.dataByValue).toEqual({});
+        expect(exported.formData).toEqual({});
+        expect(exported.validationState).toEqual({});
+
+        snapshot.hostAttributes.label = 'Mutated After Export';
+        expect(exported.hostAttributes?.label).toBe('Projected');
+    });
+
     it('rejects live or host-owned values at the edge content boundary', () => {
         const unsafeValues: Record<string, unknown> = {
             function: () => 'nope',
