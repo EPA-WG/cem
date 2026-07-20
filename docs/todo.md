@@ -7,42 +7,42 @@ history.
 
 ## Immediate Goal
 
-Advance Phase 3 from [`../roadmap.md`](../roadmap.md): establish the
-`@epa-wg/cem-elements` browser substrate for the `<cem-element>` declarative
-authoring tag before expanding the component catalog. Focus first on the
-runtime contracts that consume the Phase 2 parser/report spine: declaration
-template loading, inert data-island isolation, light-DOM rendering, source-map
-fidelity, and executable parity fixtures.
+Close the remaining Phase 2 gaps from [`../roadmap.md`](../roadmap.md) before
+continuing Phase 3 substrate expansion. The parser/runtime report-consumer
+slice and browser runtime proof are verified, but the full Phase 2 exit
+criteria still need stable chunked binary handoff semantics, embedded-payload
+handoff coverage, and web-host coordinate projection.
 
-Current active slice: audit the existing `cem-elements` substrate targets and
-lock the first runtime-facing contract gap around inline declaration templates
-and instance data-island isolation.
+Current active slice: promote the binary projection handoff from sealed-root
+debug output to the first stable multi-chunk DOM/AST/events contract.
 
-### Phase 2 Parser And Runtime
+### Phase 2 Completion Gaps
 
-- [x] Route XSLT 1.0 custom-element compatibility validation and conversion
-      through the same lifecycle adapter registry, preserving scoped handoff
-      diagnostics and source-map boundaries.
-- [x] Add remaining fixtures for CEM-ML, HTML/XML parity, and
-      custom-element-XSLT validate/load/export behavior across content-identity
-      selection and enum aliases. Start by expanding CLI-normalized
-      `--input-spec` / `--output-spec` cases so content type, schema,
-      namespace, root-scope identity, and legacy enum hints are exercised
-      through the same normalized run path rather than only direct engine
-      request construction.
-- [x] Verify with focused Rust tests first, then run
-      `NX_DAEMON=false yarn nx run cem_ml:test`,
-      `NX_DAEMON=false yarn nx run cem_ml_cli:e2e`, and the relevant adapter
-      parity target.
-- [x] Define the executable layered parser/runtime contract for one semantic
-      document fixture, covering byte source, tokenizer, normalized event
-      stream, schema validation, AST/source-map construction, and export
-      reporting through the same scheduler trace.
-- [x] Add fixture assertions that every parser-stage report entry carries the
-      root-scope input identity, stage name, source-map boundary, and
-      diagnostics needed by CLI, WASM, and future host runtimes.
-- [x] Verify the layered runtime fixture with focused Rust tests and the Phase
-      2 CLI/Nx targets that consume validate/load/export reports.
+- [x] Prove the Phase 2 "rendered by the component runtime" exit criterion:
+      feed one canonical fixture such as `examples/cem-ml/login.cem` through
+      decode/tokenize/normalize/schema/AST/export, then into the
+      `@epa-wg/cem-elements` browser runtime, and assert rendered light DOM,
+      template/runtime identity, and source-map fidelity in an executable Nx
+      target.
+- [ ] Promote the DOM/AST/events binary projection handoff from single
+      sealed-root chunks and the debug AST encoder to a stable multi-chunk
+      contract: subtree chunk metadata, child links, replay-from-cache
+      behavior, deterministic routing to multiple sinks, and CEM-QL/query
+      access without JSON reserialization.
+- [ ] Complete embedded-language handoff coverage for the Phase 2 exit
+      criterion: style/script payloads, XML CDATA or schema-tagged text,
+      JSON string subdocuments, CSF-like fields, and unsupported/future
+      content types must either validate through explicit scoped handoff
+      fixtures or emit actionable diagnostics with source-map bounds.
+- [ ] Add web-host reporting coordinate projection on top of byte offsets:
+      line/column and UTF-16 position derivation should be available to CLI,
+      WASM, and browser/devtools consumers without storing non-byte
+      coordinates as parser truth.
+- [ ] Re-run the Phase 2 completion gate after those gaps close:
+      focused Rust tests for the touched layer, `NX_DAEMON=false yarn nx run
+      cem_ml:test`, `NX_DAEMON=false yarn nx run cem_ml_cli:test`,
+      `NX_DAEMON=false yarn nx run cem_ml_cli:e2e`, and the focused
+      `cem-elements` runtime target that proves the browser fixture.
 
 ### Phase 3 Custom-Element Runtime
 
@@ -57,27 +57,27 @@ and instance data-island isolation.
 - [ ] Add focused unit/browser fixtures for declaration registration, payload
       capture, attribute invalidation, and data-island isolation using the
       existing `cem-elements` test harness.
-- [ ] Wire one Phase 2 CEM-ML/CEMT parser-output fixture into the
-      `cem-elements` runtime verification path so parser reports and rendered
-      light DOM are checked together.
 - [ ] Verify with the focused `cem-elements` unit target first, then the
       substrate, Storybook, legacy/material parity, demo fixture, and full
       `cem-elements:verify` gates that cover the touched runtime path.
 
 ### Next Work Item
 
-Start Phase 3 by auditing and tightening the browser substrate contract:
+Promote the binary projection handoff beyond sealed-root chunks:
 
-- inspect `packages/cem-elements/src/lib`, `packages/cem-elements/tests/parity`,
-  `packages/cem-elements/docs`, and `tools/scripts/verify-cem-elements-*.mjs`
-  against `docs/cem-element-design.md` and the Phase 3.1 roadmap exit criteria;
-- run the baseline gates most likely to expose the first substrate gap:
-  `NX_DAEMON=false yarn nx run cem-elements:test:unit`,
-  `NX_DAEMON=false yarn nx run cem-elements:verify-substrate`, and the focused
-  `verify-legacy-fixtures` / `verify-material-fixtures` targets as needed;
-- implement the smallest missing contract around inline declaration template
-  shape, inert declaration source, instance data-island capture, or light-DOM
-  render ownership, then expand verification only to the touched runtime path.
+- audit `packages/cem_ml/src/projection.rs`,
+  `packages/cem_ml/src/ast.rs`,
+  `packages/cem_ml/src/ast/{format,encode,decode}.rs`, the
+  `cem-{dom,ast,events}-projection` schema packages, and CLI binary export
+  and validation tests to identify where the current debug encoder still
+  collapses projection output to one root chunk;
+- define the first stable multi-chunk contract for one projection kind,
+  preserving subtree chunk metadata, child links, hash identity, source-map
+  deltas, and compatibility with existing single-root consumers;
+- add focused Rust tests for the projection stream and cache-replay behavior
+  before wiring CLI/browser consumers, then rerun
+  `NX_DAEMON=false NX_ISOLATE_PLUGINS=false yarn nx run cem_ml:test` and the
+  relevant CLI validation/e2e targets if binary export surfaces change.
 
 ## Current Verification Commands
 

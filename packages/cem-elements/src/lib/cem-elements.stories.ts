@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
+import canonicalLoginFixture from '../../../../examples/cem-ml/login.cem?raw';
 import {
     CemElementRuntime,
     SNAPSHOT_SCHEMA_VERSION,
@@ -566,6 +567,59 @@ export const CemQlWasmRenderLoopUpgrade: Story = {
             'WASM nodes mark author-byte-exact fidelity'
         );
         assertEqual(button.getAttribute('data-cem-source-frame'), 'cem:0', 'WASM root frame is the source byte offset');
+    },
+};
+
+export const Phase2CanonicalLoginRuntimeFixture: Story = {
+    render: () =>
+        renderInstanceStory({
+            declarationTag: 'cem-element-story-phase2-login',
+            producedTag: 'story-phase2-login',
+            ariaLabel: 'Phase 2 canonical login fixture',
+            type: 'text/cem-ml',
+            text: canonicalLoginFixture,
+        }),
+    play: async ({ canvasElement }) => {
+        const instance = requiredElement(canvasElement, 'story-phase2-login') as HTMLElement;
+        const main = await waitForElement(instance, 'main[cem\\:screen="login"]');
+        const form = requiredElement(instance, 'form[cem\\:form="sign-in"]') as HTMLFormElement;
+        const email = requiredElement(instance, 'input#email') as HTMLInputElement;
+        const password = requiredElement(instance, 'input#password') as HTMLInputElement;
+        const button = requiredElement(instance, 'button[cem\\:action="primary"]') as HTMLButtonElement;
+        const island = requiredElement(instance, 'template[data-cem-island="instance"]') as HTMLTemplateElement;
+
+        assertEqual(main.getAttribute('aria-labelledby'), 'login-title', 'login landmark preserves label reference');
+        assertEqual(requiredElement(instance, '#login-title').textContent, 'Sign in', 'login title renders');
+        assertEqual(form.getAttribute('method'), 'post', 'form method survives canonical render');
+        assertEqual(form.getAttribute('action'), '/session', 'form action survives canonical render');
+        assertEqual(email.getAttribute('type'), 'email', 'email field type renders');
+        assert(email.required, 'email field keeps required boolean semantics');
+        assertEqual(password.getAttribute('autocomplete'), 'current-password', 'password autocomplete renders');
+        assertEqual(button.getAttribute('type'), 'submit', 'submit button type renders');
+        assertEqual(button.textContent?.trim(), 'Sign in', 'submit button label renders');
+        assertEqual(island.content.childNodes.length, 0, 'empty instance payload remains inert');
+
+        for (const element of [main, form, email, password, button]) {
+            assert(
+                element.hasAttribute('data-cem-template-artifact-id'),
+                `${element.localName} carries template artifact identity`
+            );
+            assertEqual(
+                element.getAttribute('data-cem-source-fidelity'),
+                'author-byte-exact',
+                `${element.localName} carries author-byte-exact source fidelity`
+            );
+            assert(
+                /^cem:\d+$/.test(element.getAttribute('data-cem-source-frame') ?? ''),
+                `${element.localName} source frame is a CEM byte offset`
+            );
+        }
+
+        assertEqual(
+            instance.getAttribute('data-cem-scope')?.startsWith('cem-scope-story-phase2-login-'),
+            true,
+            'runtime scope uid is attached to the produced instance'
+        );
     },
 };
 
