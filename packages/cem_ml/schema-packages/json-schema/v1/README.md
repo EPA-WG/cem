@@ -11,7 +11,7 @@ documents.
 
 ## Owned Identities
 
-- Schema URL: `https://cem.dev/ns/data/json-schema/1`
+- Schema URI: `https://cem.dev/ns/data/json-schema/1`
 - Primary content type: `application/schema+json`
 - Common file forms: `.schema.json`, `.jsonschema`
 

@@ -3,10 +3,12 @@
 Status: current implemented schema-package overview. Reference-normalization
 target design lives in
 [`../../../docs/cem-ml-reference-normalization-design.md`](../../../docs/cem-ml-reference-normalization-design.md).
+This overview describes shipped package folders and current CLI behavior unless
+it explicitly says "target design".
 
 [cem-ml-schema-content-registry-design.md](../../../docs/cem-ml-schema-content-registry-design.md)
 
-Schema packages are versioned schema modules registered by schema URL and
+Schema packages are versioned schema modules registered by schema URI and
 content type. The first packages form the bootstrap chain for the CEM stack:
 
 ```text
@@ -87,8 +89,8 @@ instances validate against it. This package owns
 Built-in runtime schema descriptors are loaded from embedded `package.cem`
 manifests plus each schema document's explicit `{uses}` declarations. The
 Rust registry keeps public constants for stable identities, but package
-metadata is the source for schema URI, content type, namespace, and source-file
-registration.
+metadata is the source for schema URI, complete version identity, content type,
+namespace, source-file registration, and descriptor provenance.
 
 `cem-native-template/v1` defines the CEM-native template module language used
 by template adapters. It owns `application/vnd.cem.template+cem` and also
@@ -229,7 +231,7 @@ The relationship is layered validation, not broad inheritance:
   behavior argument binding and the full engine primitive library are still
   being built out.
 
-Schema dependencies should be resolved by schema URL and content type, not by
+Schema dependencies should be resolved by schema URI and content type, not by
 filesystem path. Filesystem layout is a distribution detail for local packages.
 
 ## Package Folder Contract
@@ -269,9 +271,9 @@ constraints, diagnostics, and explicit `{uses}` dependencies.
 Examples are not only naked source files. Each example set includes the source
 file in the matching content type and a CEM-format example reference, either as
 package manifest metadata or as a package-relative `.example.cem` sidecar. That
-reference must name the source path, content type, schema URL, expected
+reference must name the source path, content type, schema URI, expected
 pass/fail result, and expected diagnostic codes for invalid cases. When an
-example is loaded, the loader resolves the declared content type and schema URL
+example is loaded, the loader resolves the declared content type and schema URI
 and validates the source bytes against that schema; it must not rely on filename
 extension inference alone.
 
@@ -366,7 +368,7 @@ schema-packages/{package-id}/v1/
 
 7. Add examples that cover the smallest valid instance, the common production
    shape, and at least one invalid contract. Pair every source example with a
-   CEM-format example reference that names the content type and schema URL, link
+   CEM-format example reference that names the content type and schema URI, link
    those examples from the package README, and keep expected diagnostics
    explicit.
 
@@ -394,6 +396,15 @@ must explicitly load or embed the validated package descriptor before its
 content types, namespaces, converters, or schema rules participate in global
 registry resolution. A provisional validation overlay is local to the validator
 run and is discarded unless required checks pass.
+
+Target descriptor records preserve provenance for this migration: complete
+schema identity, package id/version, manifest and schema source artifact
+identity, raw and normalized content-type claims, namespace claims, descriptor
+origin, registry layer, match rule, and source ranges when available. Current
+CLI/report projection may keep shipped diagnostic codes and broad value buckets,
+but structured metadata should retain the target operand bindings,
+declared/normalized values, lookup provenance, and per-item or per-operand
+reasons.
 
 ## Schema-Owned CEMT Output Pipeline
 
@@ -583,8 +594,8 @@ Native producers exist for performance, bootstrap, binary framing, and clarity,
 but are paired with CEMT implementations and cross-checked. Each supported
 schema package should eventually declare:
 
-- output source identity: CEM AST projection content type and schema URL;
-- destination identity: owned content type and schema URL;
+- output source identity: CEM AST projection content type and schema URI;
+- destination identity: owned content type and schema URI;
 - CEMT output producer: asset path, content type, and entrypoint;
 - encoder and formatter profiles: escaping, namespace, whitespace, ordering,
   line ending, scalar style, chunk framing, and canonicalization policy;
@@ -604,7 +615,7 @@ encode(subject, target, options?) -> encoded-artifact
 ```
 
 `subject` is unencoded typed data, `target` identifies destination content type,
-schema URL, and encoding category, and the result carries output identity so it
+schema URI, and encoding category, and the result carries output identity so it
 cannot be silently double-encoded or inserted into the wrong context. Formatting
 and terminal/HTML color helpers belong to the same CEMT stack.
 

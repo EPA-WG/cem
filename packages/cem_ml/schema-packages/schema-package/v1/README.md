@@ -2,7 +2,11 @@
 
 Status: current implemented surface for the schema-package manifest package.
 Reference-normalization target design lives in
-[`../../../../../docs/cem-ml-reference-normalization-design.md`](../../../../../docs/cem-ml-reference-normalization-design.md).
+[`../../../../../docs/cem-ml-reference-normalization-design.md`](../../../../../docs/cem-ml-reference-normalization-design.md),
+with lookup and comparison vocabulary in
+[`../../../../../docs/cem-ml-reference-vocabulary-design.md`](../../../../../docs/cem-ml-reference-vocabulary-design.md)
+and
+[`../../../../../docs/cem-ml-reference-comparison-design.md`](../../../../../docs/cem-ml-reference-comparison-design.md).
 
 This package defines `package.cem`, the metadata manifest found at:
 
@@ -77,6 +81,14 @@ symbol, compiled CEMT declarations expose function identity records, and
 profile fields use dotted profile-symbol semantics. Current validators may
 project that structure internally while preserving the existing manifest field
 names and diagnostic compatibility.
+
+Compatibility projection is part of the migration contract. Current CLI/report
+output may keep existing diagnostic codes and broad value buckets while
+structured metadata records target operand bindings, lookup key provenance,
+normalized values, and per-item or per-operand reasons. The compatibility
+projection must not collapse schema identity to URI-only equality or treat
+namespace claims as schema identity.
+
 For local `package.cem` inputs, validation also reads the declared schema
 source before registry admission. The first pass is pure declaration
 consistency: manifest schema URI, content type claims, and namespace URI claims
@@ -84,8 +96,11 @@ must match the referenced `schema/*.cem` file without resolving the package
 through the runtime catalog. After those checks pass, the validator may build an
 isolated provisional descriptor for the current package and run registry-backed
 endpoint, example, artifact, and namespace checks against built-ins plus that
-overlay. The provisional descriptor is admitted to a host catalog only after all
-required checks pass.
+overlay. The provisional descriptor records complete schema identity, package
+id/version, manifest and schema source artifact identity, declared content-type
+and namespace claims, descriptor origin, registry layer, match rule, and source
+ranges when available. It is admitted to a host catalog only after all required
+checks pass.
 
 ## Validation Examples
 

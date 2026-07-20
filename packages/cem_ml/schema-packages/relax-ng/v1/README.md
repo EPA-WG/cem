@@ -8,7 +8,7 @@ resources are parsed as compact syntax text.
 
 ## Owned Identities
 
-- Schema URL: `https://cem.dev/ns/data/relax-ng/1`
+- Schema URI: `https://cem.dev/ns/data/relax-ng/1`
 - Primary content type: `application/relax-ng+xml`
 - Alias content types: `application/relax-ng-compact-syntax`
 - Preferred extensions: `.rng`, `.rnc`
@@ -27,7 +27,7 @@ The schema describes RELAX NG resources as validation schema inputs:
 
 ## Validation Examples
 
-Validate RELAX NG XML syntax through the CLI with the schema URL and content
+Validate RELAX NG XML syntax through the CLI with the schema URI and content
 type:
 
 ```bash

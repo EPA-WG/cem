@@ -10,7 +10,7 @@ parsed by a Markdown parser or adapter.
 
 ## Owned Identities
 
-- Schema URL: `https://cem.dev/ns/data/markdown/1`
+- Schema URI: `https://cem.dev/ns/data/markdown/1`
 - Primary content type: `text/markdown`
 - Preferred extensions: `.md`, `.markdown`
 
@@ -45,12 +45,12 @@ instead of changing the generic Markdown schema identity.
 The schema-owned examples live in [`examples/`](examples/) and are used by the
 CLI validation integration tests.
 
-| Example | Purpose | Expected result |
-| --- | --- | --- |
-| [`basic-document.md`](examples/basic-document.md) | CommonMark headings, emphasis, links, and lists. | Pass |
-| [`gfm-worklog.md`](examples/gfm-worklog.md) | GFM-style table and task list using the `variant=GFM` parser profile. | Pass |
-| [`invalid-embedded-html.md`](examples/invalid-embedded-html.md) | Raw HTML rejected by the default embedded HTML policy. | Fail with `cem.markdown.embedded_html_rejected` |
-| [`unknown-variant.md`](examples/unknown-variant.md) | Valid Markdown with an unregistered `variant` content-type parameter. | Pass with warning `cem.markdown.unknown_variant` |
+| Example                                                         | Purpose                                                               | Expected result                                  |
+| --------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------ |
+| [`basic-document.md`](examples/basic-document.md)               | CommonMark headings, emphasis, links, and lists.                      | Pass                                             |
+| [`gfm-worklog.md`](examples/gfm-worklog.md)                     | GFM-style table and task list using the `variant=GFM` parser profile. | Pass                                             |
+| [`invalid-embedded-html.md`](examples/invalid-embedded-html.md) | Raw HTML rejected by the default embedded HTML policy.                | Fail with `cem.markdown.embedded_html_rejected`  |
+| [`unknown-variant.md`](examples/unknown-variant.md)             | Valid Markdown with an unregistered `variant` content-type parameter. | Pass with warning `cem.markdown.unknown_variant` |
 
 Validate an example explicitly against this schema:
 

@@ -77,7 +77,7 @@ literal, or binary chunk. `options` controls canonicalization, charset, line
 ending, namespace policy, quoting, indentation, and source-map behavior.
 
 The result is not a plain string. It is an encoded artifact carrying target
-content type, schema URL, category, output kind (`text`, `bytes`, `tokens`, or
+content type, schema URI, category, output kind (`text`, `bytes`, `tokens`, or
 `chunks`), source-map spans, and a double-encoding guard. Template output must
 reject encoded artifacts whose identity or category is incompatible with the
 surrounding output context.
@@ -145,16 +145,16 @@ worked-example source in
 The schema-owned examples live in [`examples/`](examples/) and are used by the
 CLI validation integration tests.
 
-| Example | Purpose | Expected result |
-| --- | --- | --- |
-| [`basic-transform.cemt`](examples/basic-transform.cemt) | Minimal CEMT module with one template body. | Pass |
-| [`module-transform.cemt`](examples/module-transform.cemt) | Converter template module with import metadata, params, nested output, and `with:*` data propagation. | Pass |
-| [`function-declarations.cemt`](examples/function-declarations.cemt) | Internal helper, encoding, formatting, color, and custom function declarations for CEMT output production. | Pass |
-| [`formatter-coloring-pipeline.cemt`](examples/formatter-coloring-pipeline.cemt) | Executable CEM tree formatter and colorizer bodies that materialize formatted and colored CEM trees before the writer phase. | Pass |
-| [`formatter-coloring-pipeline.fixture.cem`](examples/formatter-coloring-pipeline.fixture.cem) | CEM-native stage fixture paired with the formatter/coloring CEMT example for Storybook and fixture tests. | Pass |
-| [`invalid-missing-required-attribute.cemt`](examples/invalid-missing-required-attribute.cemt) | Template declaration missing the inherited required `name` attribute. | Fail with `cem.schema_model.missing_required_attribute` |
-| [`invalid-function-missing-category.cemt`](examples/invalid-function-missing-category.cemt) | Encoding function declaration missing required output category metadata. | Fail with `cem.schema_model.missing_required_attribute` |
-| [`invalid-function-missing-contract-metadata.cemt`](examples/invalid-function-missing-contract-metadata.cemt) | Encoding function declaration missing required canonical and streamable contract metadata. | Fail with `cem.schema_model.missing_required_attribute` |
+| Example                                                                                                       | Purpose                                                                                                                      | Expected result                                         |
+| ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| [`basic-transform.cemt`](examples/basic-transform.cemt)                                                       | Minimal CEMT module with one template body.                                                                                  | Pass                                                    |
+| [`module-transform.cemt`](examples/module-transform.cemt)                                                     | Converter template module with import metadata, params, nested output, and `with:*` data propagation.                        | Pass                                                    |
+| [`function-declarations.cemt`](examples/function-declarations.cemt)                                           | Internal helper, encoding, formatting, color, and custom function declarations for CEMT output production.                   | Pass                                                    |
+| [`formatter-coloring-pipeline.cemt`](examples/formatter-coloring-pipeline.cemt)                               | Executable CEM tree formatter and colorizer bodies that materialize formatted and colored CEM trees before the writer phase. | Pass                                                    |
+| [`formatter-coloring-pipeline.fixture.cem`](examples/formatter-coloring-pipeline.fixture.cem)                 | CEM-native stage fixture paired with the formatter/coloring CEMT example for Storybook and fixture tests.                    | Pass                                                    |
+| [`invalid-missing-required-attribute.cemt`](examples/invalid-missing-required-attribute.cemt)                 | Template declaration missing the inherited required `name` attribute.                                                        | Fail with `cem.schema_model.missing_required_attribute` |
+| [`invalid-function-missing-category.cemt`](examples/invalid-function-missing-category.cemt)                   | Encoding function declaration missing required output category metadata.                                                     | Fail with `cem.schema_model.missing_required_attribute` |
+| [`invalid-function-missing-contract-metadata.cemt`](examples/invalid-function-missing-contract-metadata.cemt) | Encoding function declaration missing required canonical and streamable contract metadata.                                   | Fail with `cem.schema_model.missing_required_attribute` |
 
 Validate an example explicitly against this schema:
 

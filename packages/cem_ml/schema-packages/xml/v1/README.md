@@ -10,7 +10,7 @@ parser or adapter.
 
 ## Owned Identities
 
-- Schema URL: `https://cem.dev/ns/data/xml/1`
+- Schema URI: `https://cem.dev/ns/data/xml/1`
 - Primary content type: `application/xml`
 - Alias content types: `text/xml`, `application/xml-external-parsed-entity`,
   `text/xml-external-parsed-entity`, `application/xml-dtd`
@@ -46,7 +46,7 @@ The public colorizer profile names are `terminal`, `html`, and `md`.
 
 ## Validation Examples
 
-Validate XML resources through the CLI with the schema URL and content type:
+Validate XML resources through the CLI with the schema URI and content type:
 
 ```bash
 cem-ml validate --format json \

@@ -2,7 +2,7 @@
 
 This package defines CEM schema identity for XSLT stylesheet resources and for the legacy custom-element XSLT compatibility markers.
 
-- Schema URL: `https://cem.dev/ns/transform/xslt/1`
+- Schema URI: `https://cem.dev/ns/transform/xslt/1`
 - Primary content type: `application/xslt+xml`
 - Alias content types: `text/xsl`, `custom-element-xslt`, `text/custom-element-xslt`, `application/custom-element-xslt`, `text/x-custom-element-xslt`
 - Document namespace: `http://www.w3.org/1999/XSL/Transform`
@@ -18,7 +18,7 @@ The current executable support is intentionally bounded: copied custom-element a
 
 ## Validation
 
-Validate XSLT stylesheet resources through the CLI with the schema URL and
+Validate XSLT stylesheet resources through the CLI with the schema URI and
 content type:
 
 ```bash

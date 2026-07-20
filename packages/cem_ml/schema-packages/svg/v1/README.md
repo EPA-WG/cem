@@ -8,7 +8,7 @@ parsed as XML and validated as SVG vocabulary in the SVG namespace.
 
 ## Owned Identities
 
-- Schema URL: `https://cem.dev/ns/data/svg/1`
+- Schema URI: `https://cem.dev/ns/data/svg/1`
 - Primary content type: `image/svg+xml`
 - Document namespace: `http://www.w3.org/2000/svg`
 - Preferred extensions: `.svg`, `.svgz`
@@ -40,7 +40,7 @@ remains an embedded-namespace hint for the HTML adapter.
 
 ## Validation
 
-Validate SVG resources through the CLI with the schema URL and content type:
+Validate SVG resources through the CLI with the schema URI and content type:
 
 ```bash
 cem-ml validate --format json \

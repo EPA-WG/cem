@@ -8,7 +8,7 @@ are parsed as XML and validated as HTML vocabulary in the XHTML namespace.
 
 ## Owned Identities
 
-- Schema URL: `https://cem.dev/ns/data/xhtml/1`
+- Schema URI: `https://cem.dev/ns/data/xhtml/1`
 - Primary content type: `application/xhtml+xml`
 - Document namespace: `http://www.w3.org/1999/xhtml`
 - Preferred extensions: `.xhtml`, `.xht`
@@ -38,7 +38,7 @@ validation surface.
 
 ## Validation Examples
 
-Validate XHTML resources through the CLI with the schema URL and content type:
+Validate XHTML resources through the CLI with the schema URI and content type:
 
 ```bash
 cem-ml validate --format json \

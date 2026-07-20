@@ -11,7 +11,7 @@ by a CSV parser or adapter.
 
 ## Owned Identities
 
-- Schema URL: `https://cem.dev/ns/data/csv/1`
+- Schema URI: `https://cem.dev/ns/data/csv/1`
 - Primary content type: `text/csv`
 - Preferred extension: `.csv`
 
@@ -45,12 +45,12 @@ being silently treated as CSV.
 The schema-owned examples live in [`examples/`](examples/) and are used by the
 CLI validation integration tests.
 
-| Example | Purpose | Expected result |
-| --- | --- | --- |
-| [`basic-table.csv`](examples/basic-table.csv) | Minimal table with a header row and scalar fields. | Pass |
-| [`quoted-fields.csv`](examples/quoted-fields.csv) | Quoted fields with an embedded newline and escaped quote. | Pass |
-| [`invalid-unclosed-quote.csv`](examples/invalid-unclosed-quote.csv) | Unterminated quoted field rejected by the CSV quote policy. | Fail with `cem.csv.unclosed_quote` |
-| [`ragged-row.csv`](examples/ragged-row.csv) | Row width differs from the first row. | Pass with warning `cem.csv.inconsistent_field_count` |
+| Example                                                             | Purpose                                                     | Expected result                                      |
+| ------------------------------------------------------------------- | ----------------------------------------------------------- | ---------------------------------------------------- |
+| [`basic-table.csv`](examples/basic-table.csv)                       | Minimal table with a header row and scalar fields.          | Pass                                                 |
+| [`quoted-fields.csv`](examples/quoted-fields.csv)                   | Quoted fields with an embedded newline and escaped quote.   | Pass                                                 |
+| [`invalid-unclosed-quote.csv`](examples/invalid-unclosed-quote.csv) | Unterminated quoted field rejected by the CSV quote policy. | Fail with `cem.csv.unclosed_quote`                   |
+| [`ragged-row.csv`](examples/ragged-row.csv)                         | Row width differs from the first row.                       | Pass with warning `cem.csv.inconsistent_field_count` |
 
 Validate an example explicitly against this schema:
 

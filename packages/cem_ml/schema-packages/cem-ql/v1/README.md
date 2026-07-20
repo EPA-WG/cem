@@ -11,7 +11,7 @@ content type are parsed by the `cem-ql` crate.
 
 ## Owned Identities
 
-- Schema URL: `https://cem.dev/ns/query/cem-ql/1`
+- Schema URI: `https://cem.dev/ns/query/cem-ql/1`
 - Primary source content type: `application/vnd.cem.query+cem-ql`
 - Authoring alias: `text/cem-ql`
 - Compiled artifact alias: `application/vnd.cem.query-artifact+cem-bin`
@@ -39,12 +39,12 @@ The schema describes the query resource model used by loaders and caches:
 The schema-owned examples live in [`examples/`](examples/) and are used by the
 CLI validation integration tests.
 
-| Example | Purpose | Expected result |
-| --- | --- | --- |
-| [`basic-query.cemql`](examples/basic-query.cemql) | Minimal query module with a module URI, variable declaration, and expression. | Pass |
-| [`module-query.cemql`](examples/module-query.cemql) | Query module with import, variable declaration, function declaration, and conditional expression. | Pass |
-| [`invalid-parse.cemql`](examples/invalid-parse.cemql) | Incomplete expression rejected by the CEM-QL parser. | Fail with `cem.ql.parse_error` |
-| [`invalid-missing-module.cemql`](examples/invalid-missing-module.cemql) | Query source missing the required module URI declaration. | Fail with `cem.ql.module_uri_missing` |
+| Example                                                                 | Purpose                                                                                           | Expected result                       |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| [`basic-query.cemql`](examples/basic-query.cemql)                       | Minimal query module with a module URI, variable declaration, and expression.                     | Pass                                  |
+| [`module-query.cemql`](examples/module-query.cemql)                     | Query module with import, variable declaration, function declaration, and conditional expression. | Pass                                  |
+| [`invalid-parse.cemql`](examples/invalid-parse.cemql)                   | Incomplete expression rejected by the CEM-QL parser.                                              | Fail with `cem.ql.parse_error`        |
+| [`invalid-missing-module.cemql`](examples/invalid-missing-module.cemql) | Query source missing the required module URI declaration.                                         | Fail with `cem.ql.module_uri_missing` |
 
 Validate an example explicitly against this schema:
 

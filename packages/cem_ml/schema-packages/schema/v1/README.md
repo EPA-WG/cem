@@ -2,7 +2,11 @@
 
 Status: current implemented surface for the schema definition language package.
 Reference-normalization target design lives in
-[`../../../../../docs/cem-ml-reference-normalization-design.md`](../../../../../docs/cem-ml-reference-normalization-design.md).
+[`../../../../../docs/cem-ml-reference-normalization-design.md`](../../../../../docs/cem-ml-reference-normalization-design.md),
+with lookup and comparison vocabulary in
+[`../../../../../docs/cem-ml-reference-vocabulary-design.md`](../../../../../docs/cem-ml-reference-vocabulary-design.md)
+and
+[`../../../../../docs/cem-ml-reference-comparison-design.md`](../../../../../docs/cem-ml-reference-comparison-design.md).
 
 This package defines the CEM-ML schema declaration language used to describe
 validation schemas for input content.
@@ -31,6 +35,14 @@ must compare against an explicit schema URI or resolved schema identity
 projection, and namespace consistency must compare only namespace claims. A
 future schema-source version should expose an explicit schema identity field
 instead of relying on namespace-as-identity.
+
+When schema v1 source is projected into a target descriptor, descriptor
+provenance records the schema source artifact, source content type, package or
+built-in origin, authored namespace compatibility value, declared content-type
+claims, namespace claims, and source ranges when available. Current validators
+may still emit compatibility diagnostics keyed to the shipped schema/package
+fields, but target reference checks consume explicit schema URI declarations,
+complete schema identity records, and namespace claims as separate domains.
 
 ## Field Contract Requirement
 

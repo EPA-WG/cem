@@ -4,12 +4,12 @@ Status: schema, examples, formatter, colorizer, and converter package frame
 
 This package defines the CEM schema identity for HTML resources.
 
-- Schema URL: `https://cem.dev/ns/data/html/1`
+- Schema URI: `https://cem.dev/ns/data/html/1`
 - Primary content type: `text/html`
 - DOM namespaces:
-  - HTML: `http://www.w3.org/1999/xhtml`
-  - SVG: `http://www.w3.org/2000/svg`
-  - MathML: `http://www.w3.org/1998/Math/MathML`
+    - HTML: `http://www.w3.org/1999/xhtml`
+    - SVG: `http://www.w3.org/2000/svg`
+    - MathML: `http://www.w3.org/1998/Math/MathML`
 - Source schema: `schema/html.cem`
 
 HTML is not XML. The package models `text/html` as an HTML-parser-backed source format that can recover incomplete or non-normalized markup into a normalized DOM, preserving source identity where parser offsets are available.
@@ -27,7 +27,7 @@ The public colorizer profile names are `terminal`, `html`, and `md`.
 
 ## Validation
 
-Validate HTML resources through the CLI with the schema URL and content type:
+Validate HTML resources through the CLI with the schema URI and content type:
 
 ```bash
 cem-ml validate --format json \

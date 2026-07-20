@@ -2,7 +2,7 @@
 
 This package defines the CEM schema identity for MathML resources.
 
-- Schema URL: `https://cem.dev/ns/data/mathml/1`
+- Schema URI: `https://cem.dev/ns/data/mathml/1`
 - Primary content type: `application/mathml+xml`
 - Alias content types: `application/mathml-presentation+xml`, `application/mathml-content+xml`
 - Document namespace: `http://www.w3.org/1998/Math/MathML`
@@ -12,13 +12,13 @@ MathML is XML-backed. Direct validation routes MathML content types through
 this schema package and reuses the XML event reader as the parser. Conversion
 and export lifecycle routing still uses the XML adapter for standalone MathML
 resources, while MathML embedded in HTML can be selected by namespace through
-the HTML adapter when no explicit content type or package schema URL is present.
+the HTML adapter when no explicit content type or package schema URI is present.
 
 The schema keeps the presentation, content, semantics, annotation, source-map, and accessibility-related fields explicit so later converters can normalize MathML without losing source identity.
 
 ## Validation
 
-Validate MathML resources through the CLI with the schema URL and content type:
+Validate MathML resources through the CLI with the schema URI and content type:
 
 ```bash
 cem-ml validate --format json \

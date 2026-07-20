@@ -4,7 +4,7 @@ Status: schema, examples, formatter, and colorizer package frame
 
 This package defines the CEM schema identity for CSS stylesheets and scoped style content.
 
-- Schema URL: `https://cem.dev/ns/data/css/1`
+- Schema URI: `https://cem.dev/ns/data/css/1`
 - Primary content type: `text/css`
 - Source schema: `schema/css.cem`
 
@@ -20,7 +20,7 @@ The public colorizer profile names are `terminal`, `html`, and `md`.
 
 ## Validation
 
-Validate CSS resources through the CLI with the schema URL and content type:
+Validate CSS resources through the CLI with the schema URI and content type:
 
 ```bash
 cem-ml validate --format json \

@@ -1,6 +1,7 @@
 # CEM-ML Schema Content Registry Design
 
-Status: target architecture
+Status: accepted target architecture for schema/content registry behavior;
+implementation pending.
 
 This design chooses a manifest-driven schema package architecture for CEM-ML
 content identity, schema ownership, and content-to-content transformation. It
@@ -11,7 +12,7 @@ shape.
 
 CEM-ML schemas are distributed as schema packages. A schema package owns:
 
-- schema URL and version identity;
+- schema URI and complete version identity;
 - public content types;
 - namespace identities, when applicable;
 - schema source artifacts;
@@ -115,19 +116,52 @@ output, docs, and conformance matrices.
 
 ## Identity Model
 
-Content type is the public identity for source and target artifacts. Schema URL
-is the authority that defines the content type contract. Namespace is a
-secondary matching signal for XML/HTML-derived surfaces.
+Content type is the public identity for source and target artifacts. Schema URI
+is the stable semantic identifier for the schema contract that owns the content
+type. A fetchable URL is only a resolver locator and must not replace schema URI
+identity. Namespace is a secondary matching signal for XML/HTML-derived
+surfaces.
 
 ```text
-source identity = content type + optional schema URL + optional namespace set
-target identity = content type + optional schema URL + optional namespace set
+source identity = content type + optional schema URI + optional namespace set
+target identity = content type + optional schema URI + optional namespace set
 ```
 
 If exactly one schema package claims a content type, that content type resolves
-to the package's schema URL. If more than one package claims a content type, the
-caller must provide a schema URL or the planner rejects the identity as
-ambiguous.
+to the package's complete schema identity. If more than one package claims a
+content type, the caller must provide a schema URI or complete schema identity,
+or the planner rejects the identity as ambiguous.
+
+Complete schema identity is the descriptor's stable schema URI plus its embedded
+full SemVer. A declared schema URI, URI-only projection, version-tail
+constraint, registry alias, resolver location, package-relative source path, or
+namespace claim is not complete identity by itself.
+
+Schema descriptor records preserve provenance separately from comparison
+identity:
+
+```text
+descriptor {
+  uri: <stable schema URI>
+  embeddedVersion: <full SemVer>
+  contentTypes: <declared owned/alias content-type claims>
+  namespaces: <declared namespace claims>
+  packageId?: <schema package id>
+  packageVersion?: <schema package version>
+  sourceContentType?: <schema source content type>
+  sourceUri?: <resolved schema source artifact URI>
+  descriptorOrigin: <built-in | dependency | provisional-overlay | generated>
+  declaredSchemaUri?: <authored package/schema declaration>
+  versionConstraint?: <declared URI version-tail constraint>
+  matchRule?: <AC-V-10 descriptor match rule>
+  sourceRanges?: <manifest/schema source ranges when available>
+}
+```
+
+Generated registry projections may expose older field names such as
+`schemaUrl` only as compatibility projection aliases for `schemaUri`. New target
+registry records use schema URI terminology and carry the complete identity
+record above.
 
 ## Converter Graph
 
@@ -186,7 +220,7 @@ Implicit rules:
 - Use only registered implicit edges.
 - Prefer CEMT over Rust when both are equivalent in identity, cost, and
   capability. Remember, CEMT can be compile-able and optimized for platform by vendor implementation.
-- Prefer exact schema URL match over content type alone.
+- Prefer exact schema identity, then exact schema URI, over content type alone.
 - Prefer content type essence match over namespace-only match.
 - Prefer direct edge over multi-edge path.
 - Prefer lower total cost, then stable converter ID sort order.
@@ -216,6 +250,12 @@ schema URI -> schema descriptor
 content type -> schema descriptor candidates
 namespace -> schema descriptor candidates
 ```
+
+Descriptor lookup returns the complete identity record and provenance described
+above. Descriptor provenance explains where the answer came from; comparison
+and cache identity use only the declared comparable fields for that contract.
+Namespace lookup can help dispatch to candidate descriptors, but it does not
+make namespace URI textual equality equivalent to schema identity.
 
 During schema-package validation, the registry also supports a validation-only
 provisional overlay. The overlay contains descriptors constructed from package

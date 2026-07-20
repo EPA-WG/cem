@@ -18,9 +18,8 @@ source provenance, keep normalization annotative and symmetric, make execution
 placement explicit, avoid implicit canonicalization, and retain complete schema
 identity.
 
-Current active slice: align the dependent documentation in dependency order,
-starting with the accepted target reference designs and then the current
-schema-package surface docs.
+Current active slice: standardize reference terminology now that the semantic
+model is frozen in the accepted target docs.
 
 ### Contract And Documentation
 
@@ -156,7 +155,7 @@ schema-package surface docs.
       host-language ID normalizers that preserve case and punctuation,
       snapshot/revision identity, pending dependencies, and recomputation. Do
       not reuse identifier-token or set semantics for ordered ARIA IDREFs.
-- [ ] **Align the dependent documentation in dependency order.** Update the
+- [x] **Align the dependent documentation in dependency order.** Update the
       normalization, vocabulary, comparison, and registry designs first; then
       update `schema/v1`, `schema-package/v1`, the schema-package overview, and
       relevant package READMEs. Distinguish the shipped surface from the target,
