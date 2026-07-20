@@ -96,7 +96,7 @@
                 {
                   "stage": "formatter",
                   "function": "cem.format-tree",
-                  "profile": "cem.format-tree",
+                  "profile": "compact",
                   "contentType": "application/cem",
                   "schema": "https://cem.dev/ns/cem-ml/1",
                   "category": "cem-tree",

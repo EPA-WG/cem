@@ -13,8 +13,9 @@ multi-document lifecycle layer that lets `cem_ml`, `cem_ml_cli`, WASM, and
 future hosts validate, load, and export documents through the same root-scope
 context.
 
-Current active slice: implement or align `cem_ml` config normalization before
-CLI-specific parsing details.
+Current active slice: promote lifecycle adapter selection to content-type and
+schema identity while keeping existing CLI format enums as compatibility
+aliases.
 
 ### Phase 2 Parser And Runtime
 
@@ -39,8 +40,30 @@ CLI-specific parsing details.
       per-document root-scope diagnostics, source maps, resolver budgets,
       deterministic report identity, and a scheduler boundary suitable for
       thread-pool or WASM hosts.
-- [ ] Verify with focused Rust tests first, then run
+- [x] Verify with focused Rust tests first, then run
       `NX_DAEMON=false yarn nx run cem_ml:test` and the relevant CLI e2e target.
+- [ ] Audit current `cem_ml` lifecycle adapter registry and `cem_ml_cli`
+      validate/convert selection paths against the Phase 2 adapter and
+      content-identity deliverables: validate/load/export spine, CEM-ML,
+      HTML/XML parity, XSLT/custom-element compatibility, source maps,
+      diagnostics, and enum alias behavior.
+- [ ] Define the shared lifecycle adapter selection contract: primary selection
+      by input/output content type plus schema or namespace identity, explicit
+      adapter capabilities, unsupported/ambiguous diagnostics, and stable
+      fallback rules for legacy enum aliases.
+- [ ] Promote CLI validate/convert options and run config defaults so
+      `--content-type` / `--schema` and target content identity are primary,
+      while `--from-format` / `--to-format` remain deterministic aliases.
+- [ ] Route XSLT 1.0 custom-element compatibility validation and conversion
+      through the same lifecycle adapter registry, preserving scoped handoff
+      diagnostics and source-map boundaries.
+- [ ] Add or update fixtures for CEM-ML, HTML/XML parity, and
+      custom-element-XSLT validate/load/export behavior across content-identity
+      selection and enum aliases.
+- [ ] Verify with focused Rust tests first, then run
+      `NX_DAEMON=false yarn nx run cem_ml:test`,
+      `NX_DAEMON=false yarn nx run cem_ml_cli:e2e`, and the relevant adapter
+      parity target.
 
 ### Completed Reference Normalization Contract And Documentation
 
