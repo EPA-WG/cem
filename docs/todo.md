@@ -7,15 +7,16 @@ history.
 
 ## Immediate Goal
 
-Advance Phase 2 from [`../roadmap.md`](../roadmap.md): schema-defined parser
-and document runtime. Focus first on the shared run configuration and
-multi-document lifecycle layer that lets `cem_ml`, `cem_ml_cli`, WASM, and
-future hosts validate, load, and export documents through the same root-scope
-context.
+Advance Phase 3 from [`../roadmap.md`](../roadmap.md): establish the
+`@epa-wg/cem-elements` browser substrate for the `<cem-element>` declarative
+authoring tag before expanding the component catalog. Focus first on the
+runtime contracts that consume the Phase 2 parser/report spine: declaration
+template loading, inert data-island isolation, light-DOM rendering, source-map
+fidelity, and executable parity fixtures.
 
-Current active slice: verify the executable Phase 2 layered runtime fixture
-through the focused Rust tests and the CLI/Nx targets that consume
-validate/load/export reports.
+Current active slice: audit the existing `cem-elements` substrate targets and
+lock the first runtime-facing contract gap around inline declaration templates
+and instance data-island isolation.
 
 ### Phase 2 Parser And Runtime
 
@@ -40,22 +41,43 @@ validate/load/export reports.
 - [x] Add fixture assertions that every parser-stage report entry carries the
       root-scope input identity, stage name, source-map boundary, and
       diagnostics needed by CLI, WASM, and future host runtimes.
-- [ ] Verify the layered runtime fixture with focused Rust tests and the Phase
+- [x] Verify the layered runtime fixture with focused Rust tests and the Phase
       2 CLI/Nx targets that consume validate/load/export reports.
+
+### Phase 3 Custom-Element Runtime
+
+- [ ] Audit the existing `@epa-wg/cem-elements` substrate implementation,
+      parity inventories, Storybook fixtures, and Nx verification targets
+      against the Phase 3.1 exit criteria from `roadmap.md`.
+- [ ] Define the first executable browser substrate contract for inline
+      `<cem-element>` declarations: exactly one inert WHATWG declaration
+      template, produced custom-element registration, captured instance
+      data-island payload, visible light-DOM render ownership, and source-map
+      fidelity labels.
+- [ ] Add focused unit/browser fixtures for declaration registration, payload
+      capture, attribute invalidation, and data-island isolation using the
+      existing `cem-elements` test harness.
+- [ ] Wire one Phase 2 CEM-ML/CEMT parser-output fixture into the
+      `cem-elements` runtime verification path so parser reports and rendered
+      light DOM are checked together.
+- [ ] Verify with the focused `cem-elements` unit target first, then the
+      substrate, Storybook, legacy/material parity, demo fixture, and full
+      `cem-elements:verify` gates that cover the touched runtime path.
 
 ### Next Work Item
 
-Verify the layered runtime fixture across the Phase 2 report consumers:
+Start Phase 3 by auditing and tightening the browser substrate contract:
 
-- keep the focused Rust gates green:
-  `cargo test -p cem-ml trace_response_embeds_scheduler_projection_in_report_ast`,
-  `cargo test -p cem-ml cli_report_json_schema_artifact_matches_contract`, and
-  `cargo test -p cem-ml-cli layered_runtime_fixture_connects_parser_stage_contract_through_reports`;
-- run the Phase 2 Nx consumers for the report path, starting with
-  `NX_DAEMON=false yarn nx run cem_ml:test` and then the relevant
-  `cem_ml_cli` test/e2e targets that consume validate/load/export reports;
-- triage or fix the currently unrelated `cem_ml_cli:test` failures in legacy
-  convert/transform helper cases before marking the verification item closed.
+- inspect `packages/cem-elements/src/lib`, `packages/cem-elements/tests/parity`,
+  `packages/cem-elements/docs`, and `tools/scripts/verify-cem-elements-*.mjs`
+  against `docs/cem-element-design.md` and the Phase 3.1 roadmap exit criteria;
+- run the baseline gates most likely to expose the first substrate gap:
+  `NX_DAEMON=false yarn nx run cem-elements:test:unit`,
+  `NX_DAEMON=false yarn nx run cem-elements:verify-substrate`, and the focused
+  `verify-legacy-fixtures` / `verify-material-fixtures` targets as needed;
+- implement the smallest missing contract around inline declaration template
+  shape, inert declaration source, instance data-island capture, or light-DOM
+  render ownership, then expand verification only to the touched runtime path.
 
 ## Current Verification Commands
 

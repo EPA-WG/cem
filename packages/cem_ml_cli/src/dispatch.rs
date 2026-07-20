@@ -20,7 +20,7 @@ use cem_ml::transform_config::{
     self, TransformGraphConfig, TransformGraphEdgeRole, TransformGraphJoinMode, TransformGraphNode,
     TransformGraphNodeKind,
 };
-use cem_ml_transform_cem_ql::register_cem_ql_runtime_adapters;
+use cem_ml_transform_cem_ql::engine_context_with_cem_ql_template_adapter;
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsStr;
 use std::fs;
@@ -895,15 +895,14 @@ fn context_with_template_adapters(
     c: &cli::ContextOptions,
     register_runtime_template_adapters: bool,
 ) -> eng::EngineContext {
-    let mut context = eng::EngineContext {
-        schema: c.schema.clone(),
-        content_type: c.content_type.clone(),
-        base_uri: c.base_uri.clone(),
-        ..eng::EngineContext::default()
+    let mut context = if register_runtime_template_adapters {
+        engine_context_with_cem_ql_template_adapter()
+    } else {
+        eng::EngineContext::default()
     };
-    if register_runtime_template_adapters {
-        register_cli_transform_template_adapters(&mut context);
-    }
+    context.schema = c.schema.clone();
+    context.content_type = c.content_type.clone();
+    context.base_uri = c.base_uri.clone();
     register_cli_resolvers(&mut context.resolver_registry, c, None);
     context.schema_package_manifests.extend(
         c.schema_packages
@@ -939,10 +938,6 @@ fn context_with_config(c: &cli::ContextOptions, config: &RunConfig) -> eng::Engi
         }),
     );
     context
-}
-
-fn register_cli_transform_template_adapters(context: &mut eng::EngineContext) {
-    register_cem_ql_runtime_adapters(context);
 }
 
 fn register_cli_resolvers(
@@ -12191,6 +12186,13 @@ mod tests {
             }
             buf.clear();
         }
+    }
+
+    fn write_cem_ml_schema_source(schema_dir: &Path) {
+        let schema_source =
+            cem_ml::schema::package_sources::builtin_schema_package_source("cem-ml")
+                .expect("embedded CEM-ML schema source");
+        std::fs::write(schema_dir.join("cem-ml.cem"), schema_source.schema_source).unwrap();
     }
 
     fn test_source_map(len: u32) -> cem_ml::source_map::SourceMapStack {
@@ -24078,9 +24080,11 @@ start =
         let root = std::env::temp_dir().join("cem-ml-cli-tests/schema-package-cemt-output");
         let mirror = root.join("mirror");
         let package_dir = mirror.join("packages/cem-ml/v1");
+        let schema_dir = package_dir.join("schema");
         let formatter_dir = package_dir.join("formatters");
         let colorizer_dir = package_dir.join("colorizers");
         let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&schema_dir).unwrap();
         std::fs::create_dir_all(&formatter_dir).unwrap();
         std::fs::create_dir_all(&colorizer_dir).unwrap();
         std::fs::write(
@@ -24092,6 +24096,11 @@ start =
 {package @id="cem-ml" @version="1.0.0" |
     {schema @uri="https://cem.dev/ns/cem-ml/1" @source="schema/cem-ml.cem"}
     {content-type @value="application/cem" @primary=true}
+    {content-type @value="text/cem-ml" @alias=true}
+    {content-type @value="text/cem" @alias=true}
+    {content-type @value="application/cem+xml" @alias=true}
+    {namespace @prefix="cemml" @uri="https://cem.dev/ns/cem-ml/1"}
+    {namespace @prefix="schema" @uri="https://cem.dev/ns/schema/1"}
     {artifact
         @kind="formatter"
         @path="formatters/cem-format-tree.cemt"
@@ -24101,7 +24110,7 @@ start =
         @target-schema="https://cem.dev/ns/cem-ml/1"
         @target-category="cem-tree"
         @function-name="cem.format-tree"
-        @formatter-profile="cem.format-tree"
+        @formatter-profile="compact"
     }
     {artifact
         @kind="colorizer"
@@ -24131,6 +24140,7 @@ start =
 "#,
         )
         .unwrap();
+        write_cem_ml_schema_source(&schema_dir);
         std::fs::write(
             formatter_dir.join("cem-format-tree.cemt"),
             r#"@doc cem-ml 1
@@ -24157,19 +24167,19 @@ start =
                 category: "cem-tree",
                 mode: "fragment",
                 canonical: true,
-                formatterProfile: "cem.format-tree",
+                formatterProfile: "compact",
                 formatNodes: [
                     {
                         kind: "format-marker",
                         name: "cem.format-tree",
                         formatterRole: "formatter.boundary",
-                        formatterProfile: "cem.format-tree"
+                        formatterProfile: "compact"
                     },
                     {
                         kind: "format-decision",
                         name: "cli-external-formatter",
                         formatterRole: "formatter.external-override",
-                        formatterProfile: "cem.format-tree"
+                        formatterProfile: "compact"
                     }
                 ],
                 nodes: [{
@@ -24500,9 +24510,11 @@ start =
         let root = std::env::temp_dir().join("cem-ml-cli-tests/schema-package-cemt-ambiguity");
         let mirror = root.join("mirror");
         let package_dir = mirror.join("packages/cem-ml/v1");
+        let schema_dir = package_dir.join("schema");
         let formatter_dir = package_dir.join("formatters");
         let colorizer_dir = package_dir.join("colorizers");
         let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&schema_dir).unwrap();
         std::fs::create_dir_all(&formatter_dir).unwrap();
         std::fs::create_dir_all(&colorizer_dir).unwrap();
         std::fs::write(
@@ -24514,6 +24526,11 @@ start =
 {package @id="cem-ml" @version="1.0.0" |
     {schema @uri="https://cem.dev/ns/cem-ml/1" @source="schema/cem-ml.cem"}
     {content-type @value="application/cem" @primary=true}
+    {content-type @value="text/cem-ml" @alias=true}
+    {content-type @value="text/cem" @alias=true}
+    {content-type @value="application/cem+xml" @alias=true}
+    {namespace @prefix="cemml" @uri="https://cem.dev/ns/cem-ml/1"}
+    {namespace @prefix="schema" @uri="https://cem.dev/ns/schema/1"}
     {artifact
         @kind="formatter"
         @path="formatters/acme-format-a.cemt"
@@ -24566,6 +24583,7 @@ start =
 "#,
         )
         .unwrap();
+        write_cem_ml_schema_source(&schema_dir);
         std::fs::write(
             formatter_dir.join("acme-format-a.cemt"),
             formatter_source("acme.format-a", "explicit-a"),
@@ -24595,7 +24613,7 @@ start =
             &[
                 "convert",
                 "--to-format",
-                "html",
+                "cem",
                 "--resolver-read-map",
                 &resolver_map,
                 "--schema-package",
@@ -24624,7 +24642,7 @@ start =
             &[
                 "convert",
                 "--to-format",
-                "html",
+                "cem",
                 "--resolver-read-map",
                 &resolver_map,
                 "--schema-package",
@@ -24643,10 +24661,7 @@ start =
 
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert!(stderr.trim().is_empty(), "{stderr}");
-        assert_eq!(
-            stdout,
-            r#"<explicit-a class="selected-color-a"></explicit-a>"#
-        );
+        assert_eq!(stdout, "{explicit-a}\n");
     }
 
     #[test]
@@ -24727,7 +24742,7 @@ start =
             &["convert", "--to-format", "xml", p.to_str().unwrap()],
         );
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
-        assert_eq!(stdout, r#"<input required=""></input>"#);
+        assert_eq!(stdout, r#"<input required=""/>"#);
     }
 
     #[test]

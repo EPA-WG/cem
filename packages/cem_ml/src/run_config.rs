@@ -2158,6 +2158,21 @@ fn merge_scope_defaults(scope: &mut ScopeConfig, defaults: &ScopeConfig) {
     if scope.schema.is_none() {
         scope.schema = defaults.schema.clone();
     }
+    if scope.output_color_type.is_none() {
+        scope.output_color_type = defaults.output_color_type.clone();
+    }
+    if scope.cemt_formatter.is_none() {
+        scope.cemt_formatter = defaults.cemt_formatter.clone();
+    }
+    if scope.cemt_formatter_profile.is_none() {
+        scope.cemt_formatter_profile = defaults.cemt_formatter_profile.clone();
+    }
+    if scope.cemt_colorizer.is_none() {
+        scope.cemt_colorizer = defaults.cemt_colorizer.clone();
+    }
+    if scope.cemt_color_profile.is_none() {
+        scope.cemt_color_profile = defaults.cemt_color_profile.clone();
+    }
     if scope.default_namespace.is_none() {
         scope.default_namespace = defaults.default_namespace.clone();
     }
@@ -3270,6 +3285,43 @@ mod tests {
             .diagnostics
             .iter()
             .all(|diag| diag.uri.as_deref() == Some("file:///run-config.json")));
+    }
+
+    #[test]
+    fn normalize_run_config_merges_output_pipeline_defaults() {
+        let response = normalize_run_config(
+            RunConfig {
+                outputs: vec![OutputSpec::default()],
+                ..RunConfig::default()
+            },
+            RunConfigDefaults {
+                output_scope: ScopeConfig {
+                    output_color_type: Some("html".to_owned()),
+                    cemt_formatter: Some("acme.format-tree".to_owned()),
+                    cemt_formatter_profile: Some("acme.format-tree".to_owned()),
+                    cemt_colorizer: Some("acme.color-tree".to_owned()),
+                    cemt_color_profile: Some("classes".to_owned()),
+                    ..ScopeConfig::default()
+                },
+                ..RunConfigDefaults::default()
+            },
+            None,
+        );
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        let scope = &response.config.outputs[0].root_scope;
+        assert_eq!(scope.output_color_type.as_deref(), Some("html"));
+        assert_eq!(scope.cemt_formatter.as_deref(), Some("acme.format-tree"));
+        assert_eq!(
+            scope.cemt_formatter_profile.as_deref(),
+            Some("acme.format-tree")
+        );
+        assert_eq!(scope.cemt_colorizer.as_deref(), Some("acme.color-tree"));
+        assert_eq!(scope.cemt_color_profile.as_deref(), Some("classes"));
     }
 
     #[test]
