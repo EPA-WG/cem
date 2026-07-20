@@ -31,6 +31,9 @@ provenance, not comparison operands. Each operand has:
 - `role`: `actual`, `expected`, or `forbidden`.
 - `binding`: schema-local name from the future reference rule.
 - `normalizer`: the normalizer applied to the operand.
+- `itemNormalizer`: the scalar/item normalizer that defines value equivalence.
+  For scalar operands this usually equals `normalizer`; for set operands it is
+  declared by the collection normalizer.
 - `projection`: optional field path for record normalizers, such as
   `essence`, `schemaUri`, `category`, or `profile`.
 - `cardinality`: `one`, `optional`, `set`, or conceptual `sequence`.
@@ -40,8 +43,10 @@ provenance, not comparison operands. Each operand has:
 - `presencePolicy`: optional relational rule for comparing missing or present
   operands together, such as optional profile metadata.
 
-Comparisons should use the same normalizer on both sides. Mixed normalizers are
-allowed only when the operator explicitly defines comparable projected outputs.
+Comparisons require compatible item-normalization and equivalence semantics,
+not necessarily identical operand normalizer names. Mixed normalizers are
+malformed unless the operator explicitly declares comparable item outputs or a
+projection that produces comparable values.
 `sequence` is reserved for future ordered duplicate-preserving comparisons and
 is not active in the initial package-check operator surface.
 
@@ -73,19 +78,29 @@ change normalization outcomes:
 | `schema:compare-when-present` | Missing on either side passes; when both sides are present they must satisfy the comparison. Use for advisory optional metadata.               |
 | `schema:both-or-none`         | Missing on both sides passes; exactly one missing side fails; when both are present they must satisfy the comparison. Use for paired metadata. |
 
+## Normalizer Compatibility By Operator
+
+| Operator Family        | Compatibility Rule                                                                                                                                                                                 |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schema:equals`        | Operands must have the same cardinality and shape, and the same or explicitly compatible normalizer/item-normalizer semantics after projection. Scalar `N` is not equal to `set-of(N)` by default. |
+| `schema:member-of`     | Actual `cardinality=one` may compare with expected `cardinality=set` only when actual `itemNormalizer` matches, or is declared compatible with, the expected set's `itemNormalizer`.               |
+| Set operators          | `schema:all-in`, `schema:contains-all`, `schema:intersects`, and `schema:disjoint` require set operands whose `itemNormalizer` values or declared item equivalence semantics are compatible.       |
+| Record field operators | Field-pair projections apply the selected scalar/set operator compatibility rule per declared field.                                                                                               |
+| `schema:exists`        | Ignores value equivalence; it only consumes operand state after state policy.                                                                                                                      |
+
 ## Operators
 
-| Operator                         | Operand Shape                             | Pass Condition                                                                                   | Primary Use                                                               |
-| -------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
-| `schema:equals`                  | one actual, one expected                  | Normalized projected values are equal.                                                           | Schema URI consistency, namespace URI consistency, exact scalar metadata. |
-| `schema:member-of`               | one actual, expected set                  | Actual value is a member of the expected set.                                                    | Endpoint/example content type is registered by the referenced schema.     |
-| `schema:all-in`                  | actual set, expected set                  | Every actual value is a member of the expected set. Empty actual set is handled by state policy. | Package content-type claims must all be declared by the schema source.    |
-| `schema:contains-all`            | actual set, expected set                  | Every expected value is present in the actual set.                                               | Required diagnostic/code/profile sets once expressed declaratively.       |
-| `schema:intersects`              | actual set, expected set                  | Actual and expected sets share at least one value.                                               | Compatibility checks where any shared capability is enough.               |
-| `schema:disjoint`                | actual set, forbidden set                 | Actual and forbidden sets have no shared values.                                                 | Forbidden content types, categories, profiles, or capabilities.           |
-| `schema:exists`                  | one actual                                | Operand exists and is valid after state policy.                                                  | Artifact CEMT function is declared.                                       |
-| `schema:record-fields-equal`     | actual record, expected record            | Each declared field pair is equal after projection and per-field state policy.                   | CEMT output function metadata contract matching.                          |
-| `schema:record-fields-member-of` | actual record, expected record/set record | Each declared field pair satisfies `schema:member-of` after projection.                          | Descriptor records whose fields expose allowed sets.                      |
+| Operator                         | Operand Shape                             | Pass Condition                                                                                             | Primary Use                                                               |
+| -------------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `schema:equals`                  | one actual, one expected                  | Normalized projected values are equal under compatible item semantics.                                     | Schema URI consistency, namespace URI consistency, exact scalar metadata. |
+| `schema:member-of`               | one actual, expected set                  | Actual item-normalized value is a member of the expected set's compatible `comparisonSet`.                 | Endpoint/example content type is registered by the referenced schema.     |
+| `schema:all-in`                  | actual set, expected set                  | Every actual item is a member of the compatible expected set. Empty actual set is handled by state policy. | Package content-type claims must all be declared by the schema source.    |
+| `schema:contains-all`            | actual set, expected set                  | Every expected item is present in the compatible actual set.                                               | Required diagnostic/code/profile sets once expressed declaratively.       |
+| `schema:intersects`              | actual set, expected set                  | Compatible actual and expected sets share at least one value.                                              | Compatibility checks where any shared capability is enough.               |
+| `schema:disjoint`                | actual set, forbidden set                 | Compatible actual and forbidden sets have no shared values.                                                | Forbidden content types, categories, profiles, or capabilities.           |
+| `schema:exists`                  | one actual                                | Operand exists and is valid after state policy.                                                            | Artifact CEMT function is declared.                                       |
+| `schema:record-fields-equal`     | actual record, expected record            | Each declared field pair is equal after projection and per-field state policy.                             | CEMT output function metadata contract matching.                          |
+| `schema:record-fields-member-of` | actual record, expected record/set record | Each declared field pair satisfies `schema:member-of` after projection.                                    | Descriptor records whose fields expose allowed sets.                      |
 
 Operators are deterministic and side-effect-free. They do not read registries or
 resources; lookup-key normalization, lookup, comparable-result normalization,
@@ -93,6 +108,8 @@ and state policy happen before comparison.
 Set operators consume the operand's sorted duplicate-free `comparisonSet`.
 Duplicate origins, invalid items, and source-ordered item outcomes remain
 diagnostic/provenance data rather than operator inputs.
+Operators reject operands with incompatible `itemNormalizer` semantics before
+attempting value comparison.
 
 ## Projection And Detail Ownership
 
@@ -139,6 +156,7 @@ this conceptual comparison input:
 actual operand:
   binding: content-type
   normalizer: schema:media-type-essence
+  itemNormalizer: schema:media-type-essence
   value source: endpoint.@content-type
 
 expected lookup key provenance:
@@ -149,6 +167,7 @@ expected lookup key provenance:
 expected operand:
   binding: content-type
   normalizer: schema:media-type-essence-set
+  itemNormalizer: schema:media-type-essence
   value source: schema descriptor contentTypes selected by lookup
 
 comparison:
@@ -159,7 +178,9 @@ The normative element/attribute vocabulary is defined in
 [`cem-ml-reference-vocabulary-design.md`](cem-ml-reference-vocabulary-design.md).
 The comparison design decision is that comparison declarations name bindings,
 normalizers, operators, and state policies explicitly, while lookup-key
-bindings remain provenance.
+bindings remain provenance. For set operands, the declared normalizer remains
+the collection normalizer and `itemNormalizer` records the scalar equivalence
+normalizer used by the operator.
 
 ## Implementation Notes
 

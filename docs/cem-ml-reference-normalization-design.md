@@ -17,8 +17,9 @@ are defined in
   values.
 - Separate pure scalar normalization from engine-assisted normalization that
   needs a registry, resolver, parser, or compiled CEMT module.
-- Apply the same named normalizer to declared values and referenced values
-  before comparison.
+- Apply compatible item-normalization and equivalence semantics to declared
+  values and referenced values before comparison, even when one side is a named
+  set normalizer.
 - Keep normalization annotation-like: it produces derived values and state, but
   it does not mutate source data or decide assertion success by itself.
 
@@ -37,8 +38,8 @@ comparison or lookup syntax:
 - Elasticsearch keyword normalizers are useful because they guarantee a scalar
   normalizer yields a single token and apply the same normalization at indexing
   and search time. CEM adopts the same invariant: scalar normalizers produce
-  one value, set normalizers are named separately, and both comparison sides
-  use the same normalizer.
+  one value, set normalizers are named separately, and comparison sides expose
+  compatible item-normalization semantics.
 - RFC 3986's URI comparison ladder is useful because it separates simple string
   comparison, syntax-based normalization, scheme-based normalization, and
   protocol/resource equivalence. CEM keeps declared schema URI text, resolved
@@ -71,6 +72,9 @@ A normalized reference value has these conceptual fields:
 
 - `name`: schema-local binding name selected by the future reference rule.
 - `normalizer`: one of the vocabulary names below.
+- `itemNormalizer`: the scalar/item normalizer that defines comparison
+  equivalence. For scalar operands this is the same as `normalizer`; for set
+  normalizers it is declared by the collection normalizer.
 - `cardinality`: `one`, `optional`, `set`, or conceptual `sequence`.
 - `shape`: `scalar` or `record`.
 - `declaredValue`: the source scalar or list item as written by the schema
@@ -148,6 +152,29 @@ items:
 Comparisons consume `comparisonSet`. Diagnostics and structured provenance use
 `items` so invalid entries, duplicate origins, and source order remain
 addressable.
+
+## Normalizer Compatibility
+
+Normalizer symmetry means the same item-normalization and equivalence
+semantics, not necessarily the same named collection normalizer on both
+comparison operands.
+
+A scalar operand normalized by `N` can compare against a set operand normalized
+by a named `set-of(N)` normalizer only when the comparison operator declares
+that scalar/set pairing compatible. `schema:member-of` is the canonical case:
+the actual scalar `schema:media-type-essence` value may be tested against an
+expected `schema:media-type-essence-set` because both expose
+`itemNormalizer=schema:media-type-essence`.
+
+Set-to-set operators compare duplicate-free `comparisonSet` values only when
+their `itemNormalizer` values, or explicitly declared item equivalence
+semantics, are compatible. `schema:equals` does not treat a scalar value and a
+set containing that scalar as equal unless a future operator-specific
+projection rule explicitly says so.
+
+Mixed normalizer names without operator-declared compatible item outputs are
+malformed comparison declarations. They must be rejected before value
+comparison rather than silently coerced.
 
 ## Placement
 
@@ -458,10 +485,11 @@ projection is not part of this normalization vocabulary.
 - Scalar normalizers must return exactly one normalized value when valid. Any
   normalizer that can return multiple values must be named as a set normalizer
   and produce deterministic ordering.
-- A comparison must identify the normalizer for each side. Most reference
-  checks should use the same normalizer on both sides; mixed normalizers are
-  allowed only when the comparison vocabulary explicitly says how their outputs
-  are comparable.
+- A comparison must identify the collection/scalar `normalizer` and effective
+  `itemNormalizer` for each side. Operators compare item-normalized values
+  with compatible equivalence semantics; identical normalizer names are not
+  required for scalar `N` against an operator-compatible `set-of(N)`, and
+  incompatible mixed normalizers are malformed.
 - URI, Unicode, and case normalization are never implicit. They happen only
   through a named normalizer with documented equivalence semantics.
 - Source ranges attach to the declared field or list item that fed the

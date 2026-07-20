@@ -57,7 +57,7 @@ identity.
       `schema:namespace-uri-set`, and preserve a sorted,
       deduplicated comparison set alongside source-ordered item outcomes,
       duplicates, declared/normalized values, reasons, and source ranges.
-- [ ] **[C6] Define scalar/set normalization symmetry.** Require the same item
+- [x] **[C6] Define scalar/set normalization symmetry.** Require the same item
       normalization and equivalence semantics rather than identical collection
       normalizer names. Permit scalar `N` against `set-of(N)` only for an
       operator-declared compatible item type, expose collection and item

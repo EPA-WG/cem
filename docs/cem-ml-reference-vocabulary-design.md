@@ -322,6 +322,11 @@ Comparison operators consume `comparisonSet`. Diagnostic projection and
 structured provenance consume `items`, so invalid entries and duplicate origins
 remain addressable even when comparison values dedupe.
 
+The operand's `@normalizer` remains the collection normalizer for set results.
+Structured comparison metadata also exposes the effective `itemNormalizer`: for
+scalar operands it is the scalar normalizer itself, and for set operands it is
+the item normalizer declared by the named set normalizer.
+
 Operand states:
 
 - `valid`: value exists, has the declared shape, and normalized successfully.
@@ -744,6 +749,8 @@ keys, resolver retry details, or engine-private error objects.
 For lookup-based operands, comparison metadata describes the final comparable
 result after lookup and result normalization. Lookup keys are provenance and
 are not listed as role operands.
+`normalizer` reports the operand's scalar or collection normalizer.
+`itemNormalizer` reports the item equivalence normalizer used by comparison.
 
 Structured `comparison` fields:
 
@@ -756,6 +763,7 @@ operands
 operands.<role>.binding
 operands.<role>.state
 operands.<role>.normalizer
+operands.<role>.itemNormalizer
 operands.<role>.values
 ```
 
@@ -791,12 +799,14 @@ Example:
                 "binding": "content-type",
                 "state": "valid",
                 "normalizer": "schema:media-type-essence",
+                "itemNormalizer": "schema:media-type-essence",
                 "values": ["text/html"]
             },
             "expected": {
                 "binding": "content-type",
                 "state": "valid",
                 "normalizer": "schema:media-type-essence-set",
+                "itemNormalizer": "schema:media-type-essence",
                 "values": ["application/json"]
             }
         }
@@ -805,8 +815,9 @@ Example:
 ```
 
 Compatibility projection may continue exposing existing camelCase fields such
-as `actualBinding`, `expectedBinding`, and `actualNormalizer`. Structured
-projection uses the role-keyed `operands` object.
+as `actualBinding`, `expectedBinding`, and `actualNormalizer`, with
+item-normalizer aliases added only as compatibility extensions when needed.
+Structured projection uses the role-keyed `operands` object.
 
 ## Aliases
 
