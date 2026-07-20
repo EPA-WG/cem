@@ -230,6 +230,12 @@ the immediate CLI lifecycle contract.
 
 ### Run Configuration Shape
 
+The target two-layer authored-config and normalized-run-plan contract is now
+defined in
+[`cem-ml-phase2-run-config-contract.md`](cem-ml-phase2-run-config-contract.md).
+The shape below remains the authored/API-level surface that normalization
+consumes.
+
 The API-level shape is an array model, not a set of global options:
 
 ```text

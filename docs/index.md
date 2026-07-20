@@ -20,6 +20,8 @@ This index links the active project, release, and token workflow documents.
 - [CEM ML CLI plan](./cem-ml-cli-plan.md) — Rust `cem-ml` CLI implementation plan with `cem-ml` library separation.
 - [CEM ML Phase 2 run-config audit](./cem-ml-phase2-run-config-audit.md) — current `cem_ml` and `cem_ml_cli`
   run-config/lifecycle surfaces mapped to the Phase 2 parser/runtime contract.
+- [CEM ML Phase 2 normalized run-config contract](./cem-ml-phase2-run-config-contract.md) — target authored-config
+  and normalized-run-plan contract for lib, CLI, WASM, and host integrations.
 - [CEM ML parser/schema ADR](./cem-ml-parser-schema-adr.md) — Phase 1 parser engine, schema mirror, source-location,
   security, and WASM decisions.
 - [CEM ML syntax](./cem-ml-syntax.md) — canonical `{name @attributes | content...}` syntax and XML convention

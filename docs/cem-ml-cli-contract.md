@@ -67,6 +67,13 @@ Configuration surfaces:
 - Rust library and WASM APIs MUST accept structured arrays of input specs and output
   specs so one run can validate or transform multiple sources without collapsing their
   per-document root scopes.
+- The target normalized run-config contract is split into authored config and
+  normalized run-plan layers in
+  [`cem-ml-phase2-run-config-contract.md`](cem-ml-phase2-run-config-contract.md).
+  The authored JSON and CLI flag surfaces remain compatibility inputs; the
+  normalized plan owns effective scopes, typed policy/budget values,
+  resolver/module-map identities, provenance, diagnostics mode, and
+  deterministic per-input/per-output execution ids.
 - Config parsing, validation, normalization, and defaulting MUST be implemented in
   `cem_ml`. The CLI, WASM adapter, and Rust callers provide raw config bytes or raw
   spec-record strings plus declared config content type and schema identity; they must
