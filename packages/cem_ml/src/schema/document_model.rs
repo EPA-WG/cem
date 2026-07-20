@@ -71,6 +71,8 @@ pub const UNRESOLVED_BEHAVIOR_FUNCTION_CODE: &str =
 pub const INVALID_DIAGNOSTIC_BEHAVIOR_CONTRACT_CODE: &str =
     "cem.schema_definition.invalid_diagnostic_behavior_contract";
 pub const INVALID_SCHEMA_FIELD_CONTRACT_CODE: &str = "cem.schema_definition.invalid_field_contract";
+pub const INVALID_REFERENCE_RESOLUTION_CONSTRAINT_CODE: &str =
+    "cem.schema_definition.invalid_reference_resolution_constraint";
 pub const INVALID_SCHEMA_DATATYPE_PARAM_CODE: &str = "cem.schema_definition.invalid_datatype_param";
 pub const INVALID_SCHEMA_DEFAULT_VALUE_CODE: &str = "cem.schema_definition.invalid_default_value";
 pub const SCHEMA_BEHAVIOR_QUERY_INVALID_CODE: &str = "cem.schema_behavior.query_invalid";
@@ -338,7 +340,7 @@ pub struct ReferenceCandidatesDeclaration {
     pub source_map: SourceMapStack,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ReferenceOperandDeclarationRole {
     Actual,
     Expected,
@@ -9391,7 +9393,1041 @@ fn validate_constraint_definitions(
                 }),
             ));
         }
+
+        if let Some(reference) = constraint.reference_resolution.as_ref() {
+            validate_reference_resolution_constraint(
+                schema_uri,
+                constraint,
+                reference,
+                diagnostics,
+            );
+        }
     }
+}
+
+fn validate_reference_resolution_constraint(
+    schema_uri: &str,
+    constraint: &ConstraintDefinition,
+    reference: &ReferenceResolutionConstraint,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if !reference_resolution_has_declarative_surface(reference) {
+        return;
+    }
+
+    validate_reference_execution_fields(
+        schema_uri,
+        constraint,
+        &reference.execution,
+        &constraint.source_map,
+        diagnostics,
+    );
+    validate_reference_candidates(schema_uri, constraint, &reference.candidates, diagnostics);
+    validate_reference_operands(schema_uri, constraint, &reference.operands, diagnostics);
+    validate_reference_lookups(schema_uri, constraint, &reference.lookups, diagnostics);
+    if let Some(projection) = reference.projection.as_ref() {
+        validate_reference_projection(schema_uri, constraint, projection, diagnostics);
+    }
+    validate_reference_aliases(schema_uri, constraint, reference, diagnostics);
+}
+
+fn reference_resolution_has_declarative_surface(reference: &ReferenceResolutionConstraint) -> bool {
+    !reference.candidates.is_empty()
+        || !reference.operands.is_empty()
+        || !reference.lookups.is_empty()
+        || reference.compare.is_some()
+        || reference.projection.is_some()
+        || reference.execution.execution.is_some()
+        || reference.execution.requires.is_some()
+        || reference.execution.support.is_some()
+        || reference.execution.package_context.is_some()
+}
+
+fn validate_reference_execution_fields(
+    schema_uri: &str,
+    constraint: &ConstraintDefinition,
+    execution: &ReferenceConstraintExecution,
+    source_map: &SourceMapStack,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if let Some(value) = execution.execution.as_deref() {
+        validate_reference_enum_field(
+            schema_uri,
+            constraint,
+            source_map,
+            "reference-execution",
+            "execution",
+            value,
+            &["pure", "engine-assisted"],
+            diagnostics,
+        );
+    }
+    if let Some(value) = execution.support.as_deref() {
+        validate_reference_enum_field(
+            schema_uri,
+            constraint,
+            source_map,
+            "reference-support",
+            "support",
+            value,
+            &["required", "optional"],
+            diagnostics,
+        );
+    }
+    if let Some(value) = execution.package_context.as_deref() {
+        validate_reference_enum_field(
+            schema_uri,
+            constraint,
+            source_map,
+            "reference-package-context",
+            "package",
+            value,
+            &["none", "current", "declared"],
+            diagnostics,
+        );
+    }
+    if let Some(value) = execution.requires.as_deref() {
+        validate_reference_capability_requirement(
+            schema_uri,
+            constraint,
+            source_map,
+            "requires",
+            value,
+            diagnostics,
+        );
+    }
+    if execution.execution.as_deref() == Some("engine-assisted") && execution.requires.is_none() {
+        push_reference_declaration_diagnostic(
+            schema_uri,
+            constraint,
+            source_map,
+            "reference-capability",
+            "requires",
+            None,
+            "engine-assisted reference-resolution constraints must declare `@requires`",
+            diagnostics,
+        );
+    }
+}
+
+fn validate_reference_candidates(
+    schema_uri: &str,
+    constraint: &ConstraintDefinition,
+    candidates: &[ReferenceCandidatesDeclaration],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for candidate in candidates {
+        if let Some(value) = candidate.cardinality.as_deref() {
+            validate_reference_enum_field(
+                schema_uri,
+                constraint,
+                &candidate.source_map,
+                "reference-candidate-cardinality",
+                "cardinality",
+                value,
+                &["zero-or-more", "optional", "one-or-more", "exactly-one"],
+                diagnostics,
+            );
+        }
+        if let Some(value) = candidate.on_empty.as_deref() {
+            validate_reference_enum_field(
+                schema_uri,
+                constraint,
+                &candidate.source_map,
+                "reference-candidate-on-empty",
+                "on-empty",
+                value,
+                &["pass", "missing", "unmatched"],
+                diagnostics,
+            );
+        }
+        if let Some(value) = candidate.as_binding.as_deref() {
+            validate_reference_binding_token(
+                schema_uri,
+                constraint,
+                &candidate.source_map,
+                "reference-candidate-binding",
+                "as",
+                value,
+                diagnostics,
+            );
+        }
+    }
+}
+
+fn validate_reference_operands(
+    schema_uri: &str,
+    constraint: &ConstraintDefinition,
+    operands: &[ReferenceOperandDeclaration],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut seen_by_role: BTreeSet<(ReferenceOperandDeclarationRole, String)> = BTreeSet::new();
+    for operand in operands {
+        match operand.binding.as_deref() {
+            Some(binding) => {
+                validate_reference_binding_token(
+                    schema_uri,
+                    constraint,
+                    &operand.source_map,
+                    "reference-operand-binding",
+                    "binding",
+                    binding,
+                    diagnostics,
+                );
+                if !seen_by_role.insert((operand.role, binding.to_owned())) {
+                    push_reference_declaration_diagnostic(
+                        schema_uri,
+                        constraint,
+                        &operand.source_map,
+                        "reference-operand-binding",
+                        "binding",
+                        Some(binding),
+                        "operand `@binding` values must be unique within each operand role",
+                        diagnostics,
+                    );
+                }
+            }
+            None => push_reference_declaration_diagnostic(
+                schema_uri,
+                constraint,
+                &operand.source_map,
+                "reference-operand-binding",
+                "binding",
+                None,
+                "reference operands must declare `@binding`",
+                diagnostics,
+            ),
+        }
+
+        validate_reference_optional_source_path(
+            schema_uri,
+            constraint,
+            &operand.source_map,
+            "reference-operand-from",
+            "from",
+            operand.from.as_deref(),
+            diagnostics,
+        );
+        validate_reference_optional_cardinality(
+            schema_uri,
+            constraint,
+            &operand.source_map,
+            "reference-operand-cardinality",
+            "cardinality",
+            operand.cardinality.as_deref(),
+            diagnostics,
+        );
+        validate_reference_optional_shape(
+            schema_uri,
+            constraint,
+            &operand.source_map,
+            "reference-operand-shape",
+            "shape",
+            operand.shape.as_deref(),
+            diagnostics,
+        );
+        validate_reference_optional_cardinality(
+            schema_uri,
+            constraint,
+            &operand.source_map,
+            "reference-operand-result-cardinality",
+            "result-cardinality",
+            operand.result_cardinality.as_deref(),
+            diagnostics,
+        );
+        validate_reference_optional_shape(
+            schema_uri,
+            constraint,
+            &operand.source_map,
+            "reference-operand-result-shape",
+            "result-shape",
+            operand.result_shape.as_deref(),
+            diagnostics,
+        );
+        if let Some(projection) = operand.projection.as_ref() {
+            validate_reference_projection(schema_uri, constraint, projection, diagnostics);
+        }
+        validate_reference_lookups(schema_uri, constraint, &operand.lookups, diagnostics);
+    }
+}
+
+fn validate_reference_lookups(
+    schema_uri: &str,
+    constraint: &ConstraintDefinition,
+    lookups: &[ReferenceLookupDeclaration],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for lookup in lookups {
+        if let Some(value) = lookup.execution.as_deref() {
+            validate_reference_enum_field(
+                schema_uri,
+                constraint,
+                &lookup.source_map,
+                "reference-lookup-execution",
+                "execution",
+                value,
+                &["pure", "engine-assisted"],
+                diagnostics,
+            );
+        }
+        if let Some(value) = lookup.support.as_deref() {
+            validate_reference_enum_field(
+                schema_uri,
+                constraint,
+                &lookup.source_map,
+                "reference-support",
+                "support",
+                value,
+                &["required", "optional"],
+                diagnostics,
+            );
+        }
+        if let Some(value) = lookup.package_context.as_deref() {
+            validate_reference_enum_field(
+                schema_uri,
+                constraint,
+                &lookup.source_map,
+                "reference-package-context",
+                "package",
+                value,
+                &["none", "current", "declared"],
+                diagnostics,
+            );
+        }
+        if let Some(value) = lookup.requires.as_deref() {
+            validate_reference_capability_requirement(
+                schema_uri,
+                constraint,
+                &lookup.source_map,
+                "requires",
+                value,
+                diagnostics,
+            );
+        }
+        if lookup.execution.as_deref() == Some("engine-assisted") && lookup.requires.is_none() {
+            push_reference_declaration_diagnostic(
+                schema_uri,
+                constraint,
+                &lookup.source_map,
+                "reference-capability",
+                "requires",
+                None,
+                "engine-assisted reference-resolution lookups must declare `@requires`",
+                diagnostics,
+            );
+        }
+        validate_reference_optional_source_path(
+            schema_uri,
+            constraint,
+            &lookup.source_map,
+            "reference-lookup-key",
+            "key",
+            lookup.key.as_deref(),
+            diagnostics,
+        );
+        validate_reference_optional_cardinality(
+            schema_uri,
+            constraint,
+            &lookup.source_map,
+            "reference-lookup-result-cardinality",
+            "result-cardinality",
+            lookup.result_cardinality.as_deref(),
+            diagnostics,
+        );
+        validate_reference_optional_shape(
+            schema_uri,
+            constraint,
+            &lookup.source_map,
+            "reference-lookup-result-shape",
+            "result-shape",
+            lookup.result_shape.as_deref(),
+            diagnostics,
+        );
+        validate_reference_record_set_result_key(schema_uri, constraint, lookup, diagnostics);
+
+        for key in &lookup.keys {
+            match key.binding.as_deref() {
+                Some(binding) => validate_reference_binding_token(
+                    schema_uri,
+                    constraint,
+                    &key.source_map,
+                    "reference-lookup-key-binding",
+                    "binding",
+                    binding,
+                    diagnostics,
+                ),
+                None => push_reference_declaration_diagnostic(
+                    schema_uri,
+                    constraint,
+                    &key.source_map,
+                    "reference-lookup-key-binding",
+                    "binding",
+                    None,
+                    "lookup key children must declare `@binding`",
+                    diagnostics,
+                ),
+            }
+            validate_reference_optional_source_path(
+                schema_uri,
+                constraint,
+                &key.source_map,
+                "reference-lookup-key-from",
+                "from",
+                key.from.as_deref(),
+                diagnostics,
+            );
+            validate_reference_optional_cardinality(
+                schema_uri,
+                constraint,
+                &key.source_map,
+                "reference-lookup-key-cardinality",
+                "cardinality",
+                key.cardinality.as_deref(),
+                diagnostics,
+            );
+            validate_reference_optional_shape(
+                schema_uri,
+                constraint,
+                &key.source_map,
+                "reference-lookup-key-shape",
+                "shape",
+                key.shape.as_deref(),
+                diagnostics,
+            );
+        }
+
+        for result_key in &lookup.result_keys {
+            match result_key.binding.as_deref() {
+                Some(binding) => validate_reference_binding_token(
+                    schema_uri,
+                    constraint,
+                    &result_key.source_map,
+                    "reference-lookup-result-key-binding",
+                    "binding",
+                    binding,
+                    diagnostics,
+                ),
+                None => push_reference_declaration_diagnostic(
+                    schema_uri,
+                    constraint,
+                    &result_key.source_map,
+                    "reference-lookup-result-key-binding",
+                    "binding",
+                    None,
+                    "lookup result-key children must declare `@binding`",
+                    diagnostics,
+                ),
+            }
+            validate_reference_optional_source_path(
+                schema_uri,
+                constraint,
+                &result_key.source_map,
+                "reference-lookup-result-key-from",
+                "from",
+                result_key.from.as_deref(),
+                diagnostics,
+            );
+            if let Some(value_path) = result_key.value_path.as_deref() {
+                validate_reference_value_path(
+                    schema_uri,
+                    constraint,
+                    &result_key.source_map,
+                    "reference-lookup-result-key-value-path",
+                    "value-path",
+                    value_path,
+                    diagnostics,
+                );
+            }
+        }
+    }
+}
+
+fn validate_reference_record_set_result_key(
+    schema_uri: &str,
+    constraint: &ConstraintDefinition,
+    lookup: &ReferenceLookupDeclaration,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if lookup.result_cardinality.as_deref() == Some("set")
+        && lookup.result_shape.as_deref() == Some("record")
+        && lookup.result_key.is_none()
+        && lookup.result_keys.is_empty()
+    {
+        push_reference_declaration_diagnostic(
+            schema_uri,
+            constraint,
+            &lookup.source_map,
+            "reference-lookup-result-key",
+            "result-key",
+            None,
+            "record-set lookup results must declare `@result-key` or result-key children",
+            diagnostics,
+        );
+    }
+}
+
+fn validate_reference_projection(
+    schema_uri: &str,
+    constraint: &ConstraintDefinition,
+    projection: &ReferenceProjectionDeclaration,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if let Some(value) = projection.profile.as_deref() {
+        validate_reference_enum_field(
+            schema_uri,
+            constraint,
+            &projection.source_map,
+            "reference-projection-profile",
+            "profile",
+            value,
+            &["compatibility", "structured"],
+            diagnostics,
+        );
+    }
+    if let Some(value) = projection.source.as_deref() {
+        validate_reference_enum_field(
+            schema_uri,
+            constraint,
+            &projection.source_map,
+            "reference-projection-source",
+            "source",
+            value,
+            &["operand", "candidate", "lookup", "constraint"],
+            diagnostics,
+        );
+    }
+    if let Some(value) = projection.value_view.as_deref() {
+        validate_reference_enum_field(
+            schema_uri,
+            constraint,
+            &projection.source_map,
+            "reference-projection-value-view",
+            "value-view",
+            value,
+            &["raw", "normalized", "both"],
+            diagnostics,
+        );
+    }
+    for token in &projection.project {
+        if !REFERENCE_PROJECTION_TOKENS.contains(&token.as_str()) {
+            push_reference_declaration_diagnostic(
+                schema_uri,
+                constraint,
+                &projection.source_map,
+                "reference-projection-token",
+                "project",
+                Some(token),
+                "reference projection `@project` contains an unknown token",
+                diagnostics,
+            );
+        }
+    }
+    for bucket in &projection.buckets {
+        if let Some(name) = bucket.name.as_deref() {
+            if !REFERENCE_PROJECTION_TOKENS.contains(&name) {
+                push_reference_declaration_diagnostic(
+                    schema_uri,
+                    constraint,
+                    &bucket.source_map,
+                    "reference-projection-token",
+                    "bucket",
+                    Some(name),
+                    "reference projection bucket names must use semantic projection tokens",
+                    diagnostics,
+                );
+            }
+        }
+        if let Some(value_view) = bucket.value_view.as_deref() {
+            validate_reference_enum_field(
+                schema_uri,
+                constraint,
+                &bucket.source_map,
+                "reference-projection-value-view",
+                "value-view",
+                value_view,
+                &["raw", "normalized", "both"],
+                diagnostics,
+            );
+        }
+    }
+}
+
+fn validate_reference_aliases(
+    schema_uri: &str,
+    constraint: &ConstraintDefinition,
+    reference: &ReferenceResolutionConstraint,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut reserved: BTreeMap<String, (&'static str, &SourceMapStack)> = BTreeMap::new();
+    for bucket in FIXED_REFERENCE_DIAGNOSTIC_BUCKETS {
+        reserved.insert(
+            (*bucket).to_owned(),
+            ("fixed-bucket", &constraint.source_map),
+        );
+    }
+    for candidate in &reference.candidates {
+        if let Some(as_binding) = candidate.as_binding.as_deref() {
+            if let Some((kind, source_map)) =
+                reserved.insert(as_binding.to_owned(), ("candidate", &candidate.source_map))
+            {
+                push_reference_alias_collision(
+                    schema_uri,
+                    constraint,
+                    &candidate.source_map,
+                    as_binding,
+                    kind,
+                    source_map,
+                    diagnostics,
+                );
+            }
+        }
+    }
+    for operand in &reference.operands {
+        if let Some(binding) = operand.binding.as_deref() {
+            reserved
+                .entry(binding.to_owned())
+                .or_insert(("operand", &operand.source_map));
+        }
+    }
+
+    let mut aliases = BTreeMap::new();
+    for operand in &reference.operands {
+        let Some(alias) = operand.diagnostic_field.as_deref() else {
+            continue;
+        };
+        validate_reference_binding_token(
+            schema_uri,
+            constraint,
+            &operand.source_map,
+            "reference-alias",
+            "diagnostic-field",
+            alias,
+            diagnostics,
+        );
+        if let Some((kind, source_map)) = reserved.get(alias) {
+            push_reference_alias_collision(
+                schema_uri,
+                constraint,
+                &operand.source_map,
+                alias,
+                kind,
+                source_map,
+                diagnostics,
+            );
+        }
+        if let Some(previous_source_map) = aliases.insert(alias.to_owned(), &operand.source_map) {
+            push_reference_alias_collision(
+                schema_uri,
+                constraint,
+                &operand.source_map,
+                alias,
+                "alias",
+                previous_source_map,
+                diagnostics,
+            );
+        }
+    }
+}
+
+fn push_reference_alias_collision(
+    schema_uri: &str,
+    constraint: &ConstraintDefinition,
+    source_map: &SourceMapStack,
+    alias: &str,
+    existing_kind: &str,
+    existing_source_map: &SourceMapStack,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    diagnostics.push(schema_compile_diagnostic(
+        INVALID_REFERENCE_RESOLUTION_CONSTRAINT_CODE,
+        format!(
+            "reference-resolution constraint `{}` declares alias `{alias}` that collides with an existing {existing_kind}",
+            constraint.kind
+        ),
+        source_map,
+        serde_json::json!({
+            "schemaUri": schema_uri,
+            "constraint": &constraint.kind,
+            "checkKind": "reference-alias-collision",
+            "alias": alias,
+            "existingKind": existing_kind,
+            "existingSourceRange": source_map_details(existing_source_map),
+        }),
+    ));
+}
+
+fn validate_reference_optional_cardinality(
+    schema_uri: &str,
+    constraint: &ConstraintDefinition,
+    source_map: &SourceMapStack,
+    check_kind: &'static str,
+    field: &'static str,
+    value: Option<&str>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if let Some(value) = value {
+        validate_reference_enum_field(
+            schema_uri,
+            constraint,
+            source_map,
+            check_kind,
+            field,
+            value,
+            &["one", "optional", "set"],
+            diagnostics,
+        );
+    }
+}
+
+fn validate_reference_optional_shape(
+    schema_uri: &str,
+    constraint: &ConstraintDefinition,
+    source_map: &SourceMapStack,
+    check_kind: &'static str,
+    field: &'static str,
+    value: Option<&str>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if let Some(value) = value {
+        validate_reference_enum_field(
+            schema_uri,
+            constraint,
+            source_map,
+            check_kind,
+            field,
+            value,
+            &["scalar", "record"],
+            diagnostics,
+        );
+    }
+}
+
+fn validate_reference_optional_source_path(
+    schema_uri: &str,
+    constraint: &ConstraintDefinition,
+    source_map: &SourceMapStack,
+    check_kind: &'static str,
+    field: &'static str,
+    value: Option<&str>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(value) = value else {
+        return;
+    };
+    if !reference_source_path_is_valid(value) {
+        push_reference_declaration_diagnostic(
+            schema_uri,
+            constraint,
+            source_map,
+            check_kind,
+            field,
+            Some(value),
+            "reference source paths must use the constrained reference path grammar",
+            diagnostics,
+        );
+    }
+}
+
+fn validate_reference_value_path(
+    schema_uri: &str,
+    constraint: &ConstraintDefinition,
+    source_map: &SourceMapStack,
+    check_kind: &'static str,
+    field: &'static str,
+    value: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if !reference_value_path_is_valid(value) {
+        push_reference_declaration_diagnostic(
+            schema_uri,
+            constraint,
+            source_map,
+            check_kind,
+            field,
+            Some(value),
+            "reference value paths must be a dot-separated record field path",
+            diagnostics,
+        );
+    }
+}
+
+fn validate_reference_binding_token(
+    schema_uri: &str,
+    constraint: &ConstraintDefinition,
+    source_map: &SourceMapStack,
+    check_kind: &'static str,
+    field: &'static str,
+    value: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if !is_reference_bare_name(value) {
+        push_reference_declaration_diagnostic(
+            schema_uri,
+            constraint,
+            source_map,
+            check_kind,
+            field,
+            Some(value),
+            "reference declaration bindings must use the bare-name grammar",
+            diagnostics,
+        );
+    }
+}
+
+fn validate_reference_enum_field(
+    schema_uri: &str,
+    constraint: &ConstraintDefinition,
+    source_map: &SourceMapStack,
+    check_kind: &'static str,
+    field: &'static str,
+    value: &str,
+    allowed: &'static [&'static str],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if !allowed.contains(&value) {
+        push_reference_declaration_diagnostic(
+            schema_uri,
+            constraint,
+            source_map,
+            check_kind,
+            field,
+            Some(value),
+            "reference declaration field has an unsupported value",
+            diagnostics,
+        );
+    }
+}
+
+fn validate_reference_capability_requirement(
+    schema_uri: &str,
+    constraint: &ConstraintDefinition,
+    source_map: &SourceMapStack,
+    field: &'static str,
+    value: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if !reference_capability_requirement_is_valid(value) {
+        push_reference_declaration_diagnostic(
+            schema_uri,
+            constraint,
+            source_map,
+            "reference-capability",
+            field,
+            Some(value),
+            "reference capability requirements must use the versioned capability grammar",
+            diagnostics,
+        );
+    }
+}
+
+fn push_reference_declaration_diagnostic(
+    schema_uri: &str,
+    constraint: &ConstraintDefinition,
+    source_map: &SourceMapStack,
+    check_kind: &'static str,
+    field: &'static str,
+    value: Option<&str>,
+    message: &'static str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    diagnostics.push(schema_compile_diagnostic(
+        INVALID_REFERENCE_RESOLUTION_CONSTRAINT_CODE,
+        format!(
+            "reference-resolution constraint `{}` is invalid in schema `{schema_uri}`: {message}",
+            constraint.kind
+        ),
+        source_map,
+        serde_json::json!({
+            "schemaUri": schema_uri,
+            "constraint": &constraint.kind,
+            "checkKind": check_kind,
+            "field": field,
+            "value": value,
+        }),
+    ));
+}
+
+const REFERENCE_PROJECTION_TOKENS: &[&str] = &[
+    "actual",
+    "expected",
+    "invalid",
+    "missing",
+    "unresolved",
+    "unsupported",
+    "comparison",
+    "source-range",
+    "source-ranges",
+    "provenance",
+    "aliases",
+    "candidate",
+    "all",
+];
+
+const FIXED_REFERENCE_DIAGNOSTIC_BUCKETS: &[&str] = &[
+    "actualValues",
+    "expectedValues",
+    "invalidValues",
+    "missingValues",
+    "unresolvedValues",
+    "invalidFields",
+    "comparison",
+    "sourceRange",
+    "sourceRanges",
+    "provenance",
+    "unsupportedValues",
+];
+
+fn reference_source_path_is_valid(value: &str) -> bool {
+    let value = value.trim();
+    if value.is_empty() || value.split_whitespace().count() > 1 {
+        return false;
+    }
+    let Some((binding, rest)) = value.split_once('.') else {
+        return is_reference_bare_name(value);
+    };
+    if !is_reference_bare_name(binding) || rest.is_empty() {
+        return false;
+    }
+    if rest == "name" || rest == "text" {
+        return true;
+    }
+    if let Some(attribute) = rest.strip_prefix('@') {
+        return reference_name_arg_is_valid(attribute);
+    }
+    if let Some(arg) = rest
+        .strip_prefix("child(")
+        .and_then(|tail| tail.strip_suffix(')'))
+    {
+        return reference_name_arg_is_valid(arg);
+    }
+    if let Some((arg, attribute)) = rest
+        .strip_prefix("child(")
+        .and_then(|tail| tail.split_once(").@"))
+    {
+        return reference_name_arg_is_valid(arg) && reference_name_arg_is_valid(attribute);
+    }
+    if let Some(arg) = rest
+        .strip_prefix("field(")
+        .and_then(|tail| tail.strip_suffix(')'))
+    {
+        return reference_name_arg_is_valid(arg);
+    }
+    false
+}
+
+fn reference_value_path_is_valid(value: &str) -> bool {
+    let value = value.trim();
+    !value.is_empty() && value.split('.').all(is_reference_bare_name)
+}
+
+fn reference_name_arg_is_valid(value: &str) -> bool {
+    let value = value.trim();
+    is_reference_qname(value)
+        || reference_bracketed_string_is_valid(value)
+        || reference_bracketed_pair_is_valid(value)
+}
+
+fn is_reference_qname(value: &str) -> bool {
+    let value = value.trim();
+    if let Some((prefix, local)) = value.split_once(':') {
+        is_reference_bare_name(prefix) && is_reference_bare_name(local)
+    } else {
+        is_reference_bare_name(value)
+    }
+}
+
+fn is_reference_bare_name(value: &str) -> bool {
+    let mut chars = value.chars();
+    chars
+        .next()
+        .is_some_and(|ch| ch.is_ascii_alphabetic() || ch == '_')
+        && chars.all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
+}
+
+fn reference_bracketed_string_is_valid(value: &str) -> bool {
+    value
+        .strip_prefix("[\"")
+        .and_then(|tail| tail.strip_suffix("\"]"))
+        .is_some_and(|inner| !inner.is_empty() && !inner.contains('"') && !inner.contains('\n'))
+}
+
+fn reference_bracketed_pair_is_valid(value: &str) -> bool {
+    let Some(inner) = value
+        .strip_prefix("[\"")
+        .and_then(|tail| tail.strip_suffix("\"]"))
+    else {
+        return false;
+    };
+    let Some((namespace, local)) = inner.split_once("\", \"") else {
+        return false;
+    };
+    !namespace.is_empty()
+        && !local.is_empty()
+        && !namespace.contains('"')
+        && !local.contains('"')
+        && !namespace.contains('\n')
+        && !local.contains('\n')
+}
+
+fn reference_capability_requirement_is_valid(value: &str) -> bool {
+    let value = value.trim();
+    if value.is_empty() || value.split_whitespace().count() > 1 {
+        return false;
+    }
+    let at_count = value.matches('@').count();
+    if at_count > 1 {
+        return false;
+    }
+    let (name, version) = value
+        .split_once('@')
+        .map_or((value, None), |(name, version)| (name, Some(version)));
+    reference_capability_name_is_valid(name)
+        && version.is_none_or(reference_capability_version_constraint_is_valid)
+}
+
+fn reference_capability_name_is_valid(value: &str) -> bool {
+    let Some((head, tail)) = value.split_once(':') else {
+        return false;
+    };
+    if tail.is_empty() {
+        return false;
+    }
+    if is_reference_bare_name(head)
+        && tail
+            .split('.')
+            .all(|segment| is_reference_bare_name(segment) && !segment.contains(':'))
+    {
+        return true;
+    }
+    is_uri_scheme_name(head)
+        && tail
+            .bytes()
+            .all(|byte| !byte.is_ascii_whitespace() && byte != b'@')
+}
+
+fn reference_capability_version_constraint_is_valid(value: &str) -> bool {
+    let Some(value) = (!value.is_empty()).then_some(value) else {
+        return false;
+    };
+    if let Some(full) = value.strip_prefix('=') {
+        return is_semver(full);
+    }
+    if let Some(full) = value.strip_prefix('^') {
+        return !full.contains('-') && is_semver(full);
+    }
+    let parts = value.split('.').collect::<Vec<_>>();
+    match parts.as_slice() {
+        [major] => semver_numeric_identifier_is_valid(major),
+        [major, minor] => {
+            semver_numeric_identifier_is_valid(major) && semver_numeric_identifier_is_valid(minor)
+        }
+        [_, _, _] => is_semver(value),
+        _ => false,
+    }
+}
+
+fn source_map_details(source_map: &SourceMapStack) -> Option<serde_json::Value> {
+    source_map.current().map(source_frame_range_details)
 }
 
 fn collect_diagnostic_behaviors(
@@ -16925,6 +17961,163 @@ mod tests {
         assert_eq!(
             projection.buckets[0].value_view.as_deref(),
             Some("normalized")
+        );
+    }
+
+    #[test]
+    fn schema_reference_resolution_declaration_validation_reports_malformed_ir() {
+        let model = compile_document_model(
+            "https://example.test/ns/reference-ir-invalid/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="reference-ir-invalid" @namespace="https://example.test/ns/reference-ir-invalid/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="item" @optional-attributes="content-type schema path"}
+    }
+    {constraints |
+        {constraint
+            @kind="invalid-reference"
+            @target="item"
+            @diagnostic="example.reference_check"
+            @behavior="schema:reference-resolution"
+            @execution="engine-assisted"
+            @requires="schema:engine.registry@^1.2.3-rc.1"
+            @support="soft"
+            @package="workspace" |
+
+            {candidates
+                @select="$target.child(item)"
+                @as="actualValues"
+                @cardinality="many"
+                @on-empty="ignore"}
+            {candidates
+                @select="$target.child(item)"
+                @as="dup"
+                @cardinality="optional"}
+            {candidates
+                @select="$target.child(item)"
+                @as="dup"
+                @cardinality="optional"}
+
+            {actual
+                @from="candidate.where(x)"
+                @cardinality="sequence"
+                @shape="record-set"
+                @diagnostic-field="dup"}
+            {expected
+                @binding="content-type"
+                @from="endpoint.@content-type.where(x)"
+                @normalizer="schema:content-type-identity-set"
+                @cardinality="one"
+                @shape="scalar"
+                @diagnostic-field="actualValues"}
+            {expected
+                @binding="content-type"
+                @from="endpoint.field(canonicalName)"
+                @normalizer="schema:function-name"
+                @cardinality="one"
+                @shape="scalar"}
+
+            {lookup
+                @name="schema:function-index"
+                @execution="engine-assisted"
+                @requires="schema:engine.registry@@1"
+                @result-cardinality="sequence"
+                @result-shape="object" |
+                {key
+                    @from="endpoint.@schema.where(x)"
+                    @cardinality="sequence"
+                    @shape="object"}
+            }
+            {lookup
+                @name="schema:function-records"
+                @execution="engine-assisted"
+                @requires="schema:engine.artifact"
+                @result-cardinality="set"
+                @result-shape="record"}
+
+            {projection
+                @profile="rich"
+                @project="expected bogus source-ranges"
+                @source="node"
+                @value-view="semantic" |
+                {bucket @name="badbucket" @value-view="semantic"}
+            }
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.reference_check"
+            @severity="error"
+            @behavior="schema:reference-resolution"}
+    }
+}"#,
+        );
+
+        let check_kinds: BTreeSet<String> = model
+            .compile_diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == INVALID_REFERENCE_RESOLUTION_CONSTRAINT_CODE)
+            .filter_map(|diagnostic| {
+                diagnostic
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("checkKind"))
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_owned)
+            })
+            .collect();
+
+        for expected_check_kind in [
+            "reference-candidate-cardinality",
+            "reference-candidate-on-empty",
+            "reference-operand-binding",
+            "reference-operand-from",
+            "reference-operand-cardinality",
+            "reference-operand-shape",
+            "reference-lookup-key-binding",
+            "reference-lookup-key-from",
+            "reference-lookup-key-cardinality",
+            "reference-lookup-key-shape",
+            "reference-lookup-result-cardinality",
+            "reference-lookup-result-shape",
+            "reference-lookup-result-key",
+            "reference-capability",
+            "reference-projection-token",
+            "reference-alias-collision",
+        ] {
+            assert!(
+                check_kinds.contains(expected_check_kind),
+                "expected `{expected_check_kind}` in reference declaration diagnostics: {:#?}",
+                model.compile_diagnostics
+            );
+        }
+        assert!(model
+            .compile_diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == INVALID_REFERENCE_RESOLUTION_CONSTRAINT_CODE)
+            .all(|diagnostic| diagnostic
+                .source_map
+                .as_ref()
+                .is_some_and(|source_map| !source_map.frames.is_empty())));
+    }
+
+    #[test]
+    fn schema_reference_resolution_validation_leaves_legacy_constraints_compatible() {
+        let model =
+            load_builtin_document_model_for_identity(Some(CEM_SCHEMA_PACKAGE_URI), None).unwrap();
+
+        assert!(
+            model.compile_diagnostics.iter().all(|diagnostic| {
+                diagnostic.code != INVALID_REFERENCE_RESOLUTION_CONSTRAINT_CODE
+            }),
+            "legacy reference-resolution constraints without declarative child IR must stay compatible: {:#?}",
+            model.compile_diagnostics
         );
     }
 

@@ -18,8 +18,8 @@ source provenance, keep normalization annotative and symmetric, make execution
 placement explicit, avoid implicit canonicalization, and retain complete schema
 identity.
 
-Current active slice: add schema-definition validation for malformed
-declarative reference-resolution declarations before evaluator wiring.
+Current active slice: implement pure candidate selection and operand source
+extraction for declarative reference-resolution constraints.
 
 ### Contract And Documentation
 
@@ -199,7 +199,7 @@ compatibility, reconciling field names and IR shapes with the accepted design.
 - [x] Add parser/schema IR coverage for `candidates`, operand role elements,
       canonical `lookup` children, `compare`, `projection`, and constraint
       execution fields.
-- [ ] Validate declaration errors for candidate cardinality, operand
+- [x] Validate declaration errors for candidate cardinality, operand
       `@binding`, `@from` grammar, lookup-key/result cardinality and shape,
       capability names/version constraints, projection tokens, and alias
       collisions.
