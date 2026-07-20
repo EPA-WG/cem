@@ -67,7 +67,7 @@ identity.
       relational presence rules such as `when-present|both-or-none` on the
       comparison, remove redundant `unresolved-fails`, lower shorthands into
       explicit IR, and replace or clearly label non-parseable pseudocode.
-- [ ] **[C8] Separate MIME syntax from registered content identity.** Keep RFC
+- [x] **[C8] Separate MIME syntax from registered content identity.** Keep RFC
       media-type normalizers strict and move registered RFC and legacy aliases
       to engine-assisted content-identity normalizers. Preserve alias owner,
       routing profile, canonical identity, and declared spelling; define stable
@@ -193,7 +193,7 @@ in CEM-ML but some are still executed by Rust. For example,
 `SchemaPackageConverterContractRule` still reads each endpoint's `@schema`,
 resolves that URI through `SchemaRegistry`, and checks whether
 `content_type_essence(@content-type)` is included in the referenced schema's
-registered content-type essences. Similar Rust-executed reference-resolution
+registered content identities. Similar Rust-executed reference-resolution
 shapes exist for example content-type/schema compatibility and artifact CEMT
 function lookup/metadata matching.
 

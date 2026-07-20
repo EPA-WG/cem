@@ -59,7 +59,7 @@ Example:
     {actual
         @binding="content-type"
         @from="endpoint.@content-type"
-        @normalizer="schema:media-type-essence"
+        @normalizer="schema:content-type-identity"
         @cardinality="one"
         @shape="scalar"
         @state="required-valid"}
@@ -67,7 +67,7 @@ Example:
     {expected
         @binding="content-type"
         @from="endpoint.@schema"
-        @normalizer="schema:media-type-essence-set"
+        @normalizer="schema:content-type-identity-set"
         @cardinality="one"
         @shape="scalar"
         @result-cardinality="set"
@@ -326,6 +326,14 @@ The operand's `@normalizer` remains the collection normalizer for set results.
 Structured comparison metadata also exposes the effective `itemNormalizer`: for
 scalar operands it is the scalar normalizer itself, and for set operands it is
 the item normalizer declared by the named set normalizer.
+
+Some engine-assisted normalizers need contextual provenance. For
+`schema:content-type-identity`, an explicit schema lookup key, namespace
+metadata lookup, package validation overlay, or host content registry supplies
+the schema/content registry context. A content-type alias that needs context
+and does not receive enough context finalizes to `unresolved` with
+`reason=ambiguous-content-type`; validators must not fall back to a global
+alias table.
 
 Operand states:
 
@@ -866,16 +874,32 @@ Example:
             "actual": {
                 "binding": "content-type",
                 "state": "valid",
-                "normalizer": "schema:media-type-essence",
-                "itemNormalizer": "schema:media-type-essence",
-                "values": ["text/html"]
+                "normalizer": "schema:content-type-identity",
+                "itemNormalizer": "schema:content-type-identity",
+                "values": [
+                    {
+                        "contentType": "text/html",
+                        "schemaIdentity": {
+                            "uri": "https://cem.dev/ns/data/html/1",
+                            "embeddedVersion": "1.0.0"
+                        }
+                    }
+                ]
             },
             "expected": {
                 "binding": "content-type",
                 "state": "valid",
-                "normalizer": "schema:media-type-essence-set",
-                "itemNormalizer": "schema:media-type-essence",
-                "values": ["application/json"]
+                "normalizer": "schema:content-type-identity-set",
+                "itemNormalizer": "schema:content-type-identity",
+                "values": [
+                    {
+                        "contentType": "application/json",
+                        "schemaIdentity": {
+                            "uri": "https://cem.dev/ns/data/json/1",
+                            "embeddedVersion": "1.0.0"
+                        }
+                    }
+                ]
             }
         }
     }

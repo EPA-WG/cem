@@ -738,6 +738,12 @@ their portability is host-defined, and they are **not** added to the
 default preference list — callers asking for a plugin type MUST pass
 it explicitly via form (2) or form (3).
 
+The alias table in this section is scoped to CEM-QL `read(uri, accepts?)`
+negotiation and the `read()` policy stamps in AC-QC-3. It is not a global
+content-type alias registry for schema reference normalization. Schema-owned
+reference checks that need registered aliases use the schema/content registry
+identity normalizers defined by the CEM-ML reference-normalization design.
+
 A cem-ql stdlib module `cem:stdlib/content-types` (Tier B; see
 AC-QI-3) MUST expose the canonical identifiers above as exported
 string constants (e.g. `ct:html`, `ct:json`, `ct:cemml`) and the
