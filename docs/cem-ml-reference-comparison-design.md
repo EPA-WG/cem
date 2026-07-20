@@ -33,27 +33,45 @@ provenance, not comparison operands. Each operand has:
 - `normalizer`: the normalizer applied to the operand.
 - `projection`: optional field path for record normalizers, such as
   `essence`, `schemaUri`, `category`, or `profile`.
-- `cardinality`: `one`, `optional`, or `set`.
+- `cardinality`: `one`, `optional`, `set`, or conceptual `sequence`.
+- `shape`: `scalar` or `record`.
 - `statePolicy`: how `missing`, `invalid`, `unresolved`, and `unsupported`
   operand states are interpreted before value comparison.
+- `presencePolicy`: optional relational rule for comparing missing or present
+  operands together, such as optional profile metadata.
 
 Comparisons should use the same normalizer on both sides. Mixed normalizers are
 allowed only when the operator explicitly defines comparable projected outputs.
+`sequence` is reserved for future ordered duplicate-preserving comparisons and
+is not active in the initial package-check operator surface.
 
-## State Policies
+## Operand State Policies
 
-State policy runs before value comparison:
+Operand state policy runs before value comparison and is evaluated per operand:
 
-| Policy                        | Semantics                                                                                                                                                                                           |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `schema:required-valid`       | Operand must exist and normalize to `state=valid`. `missing`, `invalid`, `unresolved`, and `unsupported` fail.                                                                                      |
-| `schema:optional-absent-ok`   | Missing operand passes without running the value comparison. Invalid, unresolved, and unsupported still fail.                                                                                       |
-| `schema:compare-when-present` | Missing on either side passes; when both sides are present they must satisfy the comparison. Use for advisory optional metadata.                                                                    |
-| `schema:both-or-none`         | Missing on both sides passes; exactly one missing side fails; when both are present they must satisfy the comparison. Use for optional profile metadata that must match if either side declares it. |
-| `schema:unresolved-fails`     | Unresolved references fail with an unresolved-reference reason and the source range of the reference field. This is the default for schema, document, and function lookups.                         |
+| Policy                     | Semantics                                                                                                      |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `schema:required-valid`    | Operand must exist and normalize to `state=valid`. `missing`, `invalid`, `unresolved`, and `unsupported` fail. |
+| `schema:optional-valid`    | `valid` or `missing` passes. `invalid`, `unresolved`, and `unsupported` fail.                                  |
+| `schema:allow-unresolved`  | `valid` or `unresolved` passes. `missing`, `invalid`, and `unsupported` fail.                                  |
+| `schema:allow-unsupported` | `valid` or `unsupported` passes. `missing`, `invalid`, and `unresolved` fail.                                  |
 
-Default state policy is `schema:required-valid` for required operands and
-`schema:unresolved-fails` for engine-assisted lookup operands.
+Default state policy is `schema:required-valid`. Engine-assisted lookup
+operands also default to `schema:required-valid`; an unresolved lookup fails
+because `unresolved` is not accepted by that state policy.
+
+`pending` is not a comparison-visible operand state. Deferred lookups must
+finalize before comparison or the comparison must be deferred.
+
+## Comparison Presence Policies
+
+Presence policies are relational rules. They are not operand states and do not
+change normalization outcomes:
+
+| Policy                        | Semantics                                                                                                                                      |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schema:compare-when-present` | Missing on either side passes; when both sides are present they must satisfy the comparison. Use for advisory optional metadata.               |
+| `schema:both-or-none`         | Missing on both sides passes; exactly one missing side fails; when both are present they must satisfy the comparison. Use for paired metadata. |
 
 ## Operators
 
@@ -72,6 +90,9 @@ Default state policy is `schema:required-valid` for required operands and
 Operators are deterministic and side-effect-free. They do not read registries or
 resources; lookup-key normalization, lookup, comparable-result normalization,
 and state policy happen before comparison.
+Set operators consume the operand's sorted duplicate-free `comparisonSet`.
+Duplicate origins, invalid items, and source-ordered item outcomes remain
+diagnostic/provenance data rather than operator inputs.
 
 ## Projection And Detail Ownership
 
@@ -99,7 +120,7 @@ ordered value arrays.
 
 | Current Check                     | Normalized Operands                                                                                                                                                                                                                                                             | Operator                                                                                                                                                      |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `endpoint-content-type-schema`    | endpoint `@content-type` as `actual` `content-type` using `schema:media-type-essence`; endpoint `@schema` as lookup key `schema` using `schema:schema-identity`; referenced schema descriptor `contentTypes` as `expected` `content-type` using `schema:media-type-essence-set` | `schema:member-of` with `schema:required-valid` and `schema:unresolved-fails`.                                                                                |
+| `endpoint-content-type-schema`    | endpoint `@content-type` as `actual` `content-type` using `schema:media-type-essence`; endpoint `@schema` as lookup key `schema` using `schema:schema-identity`; referenced schema descriptor `contentTypes` as `expected` `content-type` using `schema:media-type-essence-set` | `schema:member-of` with `schema:required-valid`.                                                                                                              |
 | `example-content-type-schema`     | example `@content-type` as `actual` `content-type`; example `@schema` as lookup key `schema`; referenced schema descriptor `contentTypes` as `expected` `content-type`                                                                                                          | `schema:member-of` with the same policies as endpoint compatibility.                                                                                          |
 | `schema-uri-consistency`          | package manifest schema URI declaration as `actual`; loaded schema source URI declaration as `expected`; both use `schema:schema-uri-declaration` before registry admission                                                                                                     | `schema:equals`.                                                                                                                                              |
 | `schema-content-type-consistency` | package manifest content-type claims as `actual` set; loaded schema source content types as `expected` set                                                                                                                                                                      | `schema:all-in`.                                                                                                                                              |
@@ -149,6 +170,7 @@ bindings remain provenance.
 - Diagnostic details should preserve today's broad keys (`expectedValues`,
   `invalidValues`, `actualValues`, `invalidFields`, `checkKind`) and add
   comparison metadata only as structured detail extensions.
-- Operator behavior must be deterministic over sorted normalized sets.
+- Operator behavior must be deterministic over sorted normalized
+  `comparisonSet` values.
 - Empty sets are not automatically failures. State policy and cardinality decide
   whether an empty operand is valid before an operator runs.

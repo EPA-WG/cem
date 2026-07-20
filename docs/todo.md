@@ -38,7 +38,7 @@ identity.
       manifest/source declaration checks, isolated provisional descriptor
       construction, validation against built-ins plus the provisional overlay,
       and catalog admission only after every required check passes.
-- [ ] **[C4] Unify outcome, support, and lifecycle taxonomies.** Freeze terminal
+- [x] **[C4] Unify outcome, support, and lifecycle taxonomies.** Freeze terminal
       states as `valid|missing|invalid|unresolved|unsupported`, require a reason
       for every non-valid outcome, keep availability support as
       `required|optional`, and lower any `soft` shorthand to optional support
@@ -48,7 +48,7 @@ identity.
       known unsupported required operations as schema/compiler errors. Keep
       `unsupported-normalizer`, `unsupported-capability`, and `policy-denied` as
       reasons rather than states.
-- [ ] **[C5] Separate cardinality, shape, and collection provenance.** Define
+- [x] **[C5] Separate cardinality, shape, and collection provenance.** Define
       cardinality as `one|optional|set|sequence` independently from
       `scalar|record` shape, keep candidate cardinality separate, and do not
       treat `record-set` as a fundamental shape. Either define `sequence`

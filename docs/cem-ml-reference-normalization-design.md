@@ -71,7 +71,8 @@ A normalized reference value has these conceptual fields:
 
 - `name`: schema-local binding name selected by the future reference rule.
 - `normalizer`: one of the vocabulary names below.
-- `cardinality`: `one`, `optional`, or `set`.
+- `cardinality`: `one`, `optional`, `set`, or conceptual `sequence`.
+- `shape`: `scalar` or `record`.
 - `declaredValue`: the source scalar or list item as written by the schema
   author.
 - `normalizedValue`: the normalized scalar, record, or set used by later
@@ -85,14 +86,68 @@ A normalized reference value has these conceptual fields:
 - `reason`: stable identifier for every non-valid value.
 - `support`: `required` or `optional` for the behavior using the normalizer.
   Unsupported required normalizers are schema/compiler errors when statically
-  known per AC-S-7 and AC-S-8, or `unsupported-normalizer` normalization
-  outcomes at runtime when the need is discovered dynamically.
+  known per AC-S-7 and AC-S-8, or `state=unsupported` normalization outcomes
+  at runtime when the need is discovered dynamically.
   Unsupported optional normalizers may be reported as annotations but must not
   make an otherwise independent comparison pass or fail.
 
 `missing`, `invalid`, `unresolved`, and `unsupported` are normalization
 outcomes, not failed comparisons. The comparison vocabulary decides which
 outcomes are violations.
+
+`pending` is not a terminal normalized state. Deferred or asynchronous lookup
+execution may track `pending` internally, but it must either defer comparison or
+finalize to one of the terminal states above before diagnostics are emitted. A
+lookup that can still complete must not be reported as final `unresolved`.
+
+Source compatibility may accept `@support="soft"` only as syntax sugar. It
+lowers immediately to `support=optional` plus an additive reporting/provenance
+flag that requests a warning when the capability is unsupported. Normalized IR
+and comparison metadata use only `required` or `optional`.
+
+## Cardinality, Shape, And Collection Provenance
+
+Cardinality and shape are independent axes:
+
+```text
+cardinality: one | optional | set | sequence
+shape:       scalar | record
+```
+
+`scalar`, `record`, `set`, and `record-set` are not peer concepts. A record set
+is `cardinality=set, shape=record`. A scalar set is `cardinality=set,
+shape=scalar`. Candidate cardinality remains separately scoped to candidate
+selection and uses its own `zero-or-more|optional|one-or-more|exactly-one`
+vocabulary.
+
+`sequence` is reserved in the conceptual model for ordered reference lists that
+preserve duplicates as semantic data, such as future ARIA IDREF-sequence
+checks. It is deferred from the initial schema-package reference-resolution
+surface. Initial package checks use `one`, `optional`, and `set` only.
+
+Set normalizers are named normalizers with an explicit item normalizer. They
+own item normalization, duplicate handling, deterministic comparison order, and
+per-item provenance.
+
+A valid set result has two views:
+
+```text
+comparisonSet:
+  sorted duplicate-free normalized values
+
+items:
+  source-ordered item outcomes:
+    declaredValue
+    normalizedValue, when valid
+    state
+    reason, when non-valid
+    sourceRange
+    duplicateGroup, when the normalized value duplicates another item
+```
+
+Comparisons consume `comparisonSet`. Diagnostics and structured provenance use
+`items` so invalid entries, duplicate origins, and source order remain
+addressable.
 
 ## Placement
 
@@ -129,10 +184,10 @@ source extraction
 -> source cardinality guard
 -> lookup-key normalization
 -> lookup
--> raw-result cardinality guard
+-> raw-result cardinality and shape guard
 -> comparable-result extraction
 -> comparable-result normalization
--> normalized-result cardinality guard
+-> normalized-result cardinality and shape guard
 -> state policy
 -> comparison
 -> diagnostic projection
@@ -276,7 +331,7 @@ registry:
 - manifest content-type claims and schema source content-type claims use
   `schema:media-type-essence-set`;
 - manifest namespace claims and schema source namespace claims use
-  `schema:namespace-uri` until the named set normalizer is added.
+  `schema:namespace-uri-set`.
 
 Only after those checks pass may the validator construct a provisional
 descriptor. The provisional descriptor is isolated to the current package
@@ -303,12 +358,13 @@ normalization outcomes; required failures block admission.
 | `schema:identifier-token`       | string                | pure                                                                            | Validate an identifier-like token and preserve it exactly. Use for content category and profile values whose vocabulary is schema-owned.                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `schema:media-type`             | record                | engine-assisted initially; pure when content-type parsing is exposed            | Parse a media type or legacy content-type alias into `essence`, `type`, `subtype`, optional `suffix`, and `parameters`. Type, subtype, suffix, and parameter names normalize to lowercase. Parameter values are unquoted and otherwise preserved unless a registered parameter-specific rule declares case-insensitive comparison. Invalid media syntax produces `state=invalid`.                                                                                                                                                            |
 | `schema:media-type-essence`     | string                | engine-assisted initially; pure when content-type parsing is exposed            | Apply `schema:media-type` and project its lowercase essence. `Text/HTML; Charset=UTF-8` normalizes to `text/html`. Parameter information remains available through `schema:media-type` when needed.                                                                                                                                                                                                                                                                                                                                          |
-| `schema:media-type-essence-set` | sorted string set     | engine-assisted for registry descriptors; pure for literal lists                | Apply `schema:media-type-essence` to each declared content-type claim, drop duplicates after normalization, and keep invalid items addressable by source range.                                                                                                                                                                                                                                                                                                                                                                              |
+| `schema:media-type-essence-set` | set of scalar strings | engine-assisted for registry descriptors; pure for literal lists                | Set normalizer with `itemNormalizer=schema:media-type-essence`. It applies the item normalizer to each declared content-type claim, exposes a sorted duplicate-free `comparisonSet`, and keeps source-ordered item outcomes with invalid items and duplicate origins addressable by source range.                                                                                                                                                                                                                                            |
 | `schema:schema-uri-declaration` | string                | pure                                                                            | Preserve the declared schema URI exactly after CEM-ML parsing and validate only schema-URI declaration syntax. If the last path segment is an AC-V-10 version tail, expose the parsed constraint as provenance. This normalizer does not resolve a descriptor, select a version, or apply generic URI text canonicalization.                                                                                                                                                                                                                 |
 | `schema:schema-identity`        | record                | engine-assisted                                                                 | Resolve a schema reference through the AC-F-2/AC-P-6-aware schema resolution context using AC-V-9 through AC-V-13. The normalized value is the complete identity record `{ uri, embeddedVersion }`, where `uri` is the matched descriptor's stable schema URI and `embeddedVersion` is the descriptor's complete SemVer 2.0 string. Provenance retains the source form, declared URI or alias when present, version constraint, resolver or metadata source, and match rule; unresolved or ambiguous resolution produces `state=unresolved`. |
 | `schema:schema-uri`             | URI projection string | engine-assisted                                                                 | Apply `schema:schema-identity` and project only the resolved descriptor `uri`. This is a lossy compatibility normalizer for rules that explicitly want stable URI equality without version identity. It must not be used where complete schema identity, cache identity, or schema-version compatibility is intended.                                                                                                                                                                                                                        |
 | `schema:document-uri`           | URI record            | engine-assisted                                                                 | Resolve a resource URI or path against the active document/package base and resolver context. The normalized record contains `declaredUri` and `resolvedUri`; diagnostics keep both when they differ. Non-local or otherwise policy-gated resolution follows the active scope policy; resolver policy failures produce `state=unresolved`.                                                                                                                                                                                                   |
 | `schema:namespace-uri`          | string                | pure                                                                            | Preserve the namespace URI string exactly after CEM-ML parsing. Namespace equality remains textual. Dispatch and content-type/schema selection use `schema:namespace-metadata`, not this text normalizer.                                                                                                                                                                                                                                                                                                                                    |
+| `schema:namespace-uri-set`      | set of scalar strings | pure                                                                            | Set normalizer with `itemNormalizer=schema:namespace-uri`. It exposes a sorted duplicate-free `comparisonSet` while preserving source-ordered namespace claim outcomes, duplicate origins, states, reasons, and source ranges.                                                                                                                                                                                                                                                                                                               |
 | `schema:namespace-metadata`     | record                | engine-assisted                                                                 | Resolve namespace metadata per AC-P-6.1 through the local-first metadata chain. The normalized record contains `{ namespaceUri, contentType, schemaUri, schemaVersion }`, where `schemaUri` and `schemaVersion` are the resolved `schema:schema-identity` pair. Missing metadata without an explicit schema form is governed by AC-P-6.7 scope policy.                                                                                                                                                                                       |
 | `schema:artifact-name`          | string                | pure                                                                            | Preserve an artifact identity token exactly. Intended for manifest-owned artifact ids or path-derived stable artifact names before lookup.                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `schema:function-name`          | string                | pure for declared manifest values; engine-assisted for CEMT module declarations | Preserve a declared function name exactly. When normalizing a compiled CEMT module declaration, use the compiler's canonical function identity.                                                                                                                                                                                                                                                                                                                                                                                              |
@@ -326,7 +382,7 @@ normalizers as declared manifest values:
 - Schema descriptor identity uses `schema:schema-identity`; when the descriptor
   itself is the registry-derived value, the engine lifts the descriptor's
   resolved identity directly instead of resolving its URI again.
-- Schema descriptor namespaces use `schema:namespace-uri` as a set.
+- Schema descriptor namespaces use `schema:namespace-uri-set`.
 - Namespace-dispatch metadata uses `schema:namespace-metadata`; the resolved
   metadata source participates in cache and policy identity per AC-P-6.1.
 - CEMT function output metadata uses `schema:function-name`,
@@ -357,6 +413,9 @@ The first stable reason identifiers are:
   function.
 - `unsupported-normalizer`: the active engine cannot execute the requested
   normalizer.
+- `unsupported-capability`: the active engine cannot execute the requested
+  engine-assisted capability.
+- `policy-denied`: the active scope policy denied the requested operation.
 
 Comparison rules may project these reasons into `invalidValues`,
 `expectedValues`, or a dedicated unresolved-reference detail, but that
@@ -373,7 +432,7 @@ projection is not part of this normalization vocabulary.
 - Package schema source metadata consistency normalizes manifest schema URI,
   manifest content-type claims, and manifest namespace claims with
   `schema:schema-uri-declaration`, `schema:media-type-essence-set`, and
-  `schema:namespace-uri` before registry admission. After provisional
+  `schema:namespace-uri-set` before registry admission. After provisional
   descriptor construction, registry consumers use `schema:schema-identity`
   against the validation overlay.
 - Namespace-driven content-type/schema dispatch normalizes the active namespace
@@ -408,4 +467,6 @@ projection is not part of this normalization vocabulary.
 - Source ranges attach to the declared field or list item that fed the
   normalizer. Registry-derived values attach to the registry descriptor range
   when available; otherwise they carry descriptor identity only.
-- Normalized sets are sorted and duplicate-free for deterministic diagnostics.
+- Normalized set comparison views are sorted and duplicate-free for
+  deterministic comparisons; source-ordered item outcomes retain invalid
+  entries, duplicate origins, reasons, and source ranges for diagnostics.

@@ -60,15 +60,18 @@ Example:
         @binding="content-type"
         @from="endpoint.@content-type"
         @normalizer="schema:media-type-essence"
-        @cardinality="scalar"
+        @cardinality="one"
+        @shape="scalar"
         @state="required-valid"}
 
     {expected
         @binding="content-type"
         @from="endpoint.@schema"
         @normalizer="schema:media-type-essence-set"
-        @cardinality="scalar"
+        @cardinality="one"
+        @shape="scalar"
         @result-cardinality="set"
+        @result-shape="scalar"
         @state="required-valid" |
 
         {lookup
@@ -76,7 +79,8 @@ Example:
             @execution="engine-assisted"
             @requires="schema:engine.registry"
             @result="contentTypes"
-            @result-cardinality="record"
+            @result-cardinality="one"
+            @result-shape="record"
             @source-range="key" |
 
             {key
@@ -174,9 +178,13 @@ Operand fields:
 - `@from`: constrained source path relative to a candidate or lookup binding.
 - `@normalizer`: named normalizer for the final comparable value. When the
   operand declares a lookup, lookup keys use their own key normalizers.
-- `@cardinality`: `scalar`, `set`, or `record`.
-- `@result-cardinality`: final comparable result shape when it differs from
-  source shape.
+- `@cardinality`: `one`, `optional`, or `set`; conceptual `sequence` is
+  reserved but not active in the initial package-check surface.
+- `@shape`: `scalar` or `record`.
+- `@result-cardinality`: final comparable result cardinality when it differs
+  from source cardinality.
+- `@result-shape`: final comparable result shape when it differs from source
+  shape.
 - `@state`: state policy.
 - `@lookup`: simple inline lookup shorthand.
 - `@diagnostic-field`: optional display/report alias. Canonical diagnostics
@@ -188,9 +196,10 @@ unless a future grouped operand design explicitly allows repeated bindings.
 For lookup-based operands, `@binding` names the comparable result, not the
 lookup key. Lookup key bindings are provenance identities only.
 
-Attribute/child parity applies to `from`, `normalizer`, `cardinality`, `state`,
-`lookup`, `projection`, and potentially `compare`. It does not apply to operand
-`@binding` or candidate `@as`; those identify the declaration itself.
+Attribute/child parity applies to `from`, `normalizer`, `cardinality`, `shape`,
+`state`, `lookup`, `projection`, and potentially `compare`. It does not apply
+to operand `@binding` or candidate `@as`; those identify the declaration
+itself.
 
 Use child form when the declaration needs multiple values, nested options,
 source-range override, capability requirements, `@support` policy, projection
@@ -243,8 +252,8 @@ child(["namespace-uri", "local-name"])
 
 `binding.child(x)` returns all direct matching child elements in document order.
 It never silently chooses the first match. Multiple direct children for
-`@cardinality="scalar"` are `invalid`; zero results are `missing` unless
-`@state` allows absence. Deeper traversal belongs in `candidates @select`.
+`@cardinality="one"` are `invalid`; zero results are `missing` unless `@state`
+allows absence. Deeper traversal belongs in `candidates @select`.
 
 ## Normalization, Cardinality, And State
 
@@ -255,10 +264,10 @@ Operand evaluation order:
 -> source cardinality guard
 -> lookup-key normalization, if lookup is present
 -> lookup, if present
--> raw-result cardinality guard, if lookup is present
+-> raw-result cardinality and shape guard, if lookup is present
 -> comparable-result extraction
 -> comparable-result normalization
--> normalized-result cardinality guard
+-> normalized-result cardinality and shape guard
 -> state policy
 -> comparison
 ```
@@ -275,11 +284,43 @@ Cardinality is checked in three phases:
 
 - `@cardinality`: source values extracted by `@from`.
 - lookup `@result-cardinality`: raw result returned by the lookup operation.
-- `@result-cardinality`: normalized comparable result shape.
+- `@result-cardinality`: normalized comparable result cardinality.
 
-Multiple extracted source values for `@cardinality="scalar"` are `invalid`.
+Shape is checked independently from cardinality:
+
+- `@shape`: source item shape.
+- lookup `@result-shape`: raw lookup result item shape.
+- `@result-shape`: normalized comparable result item shape.
+
+Multiple extracted source values for `@cardinality="one"` are `invalid`.
 Validators must not normalize or dedupe multiple source values into an
 accidental scalar.
+
+`sequence` is reserved for ordered duplicate-preserving reference lists and is
+not accepted by the initial package-check vocabulary. Use `set` only when
+ordering and duplicates are not semantic after item provenance has been
+recorded.
+
+Named set normalizers declare an item normalizer and produce a structured set
+result:
+
+```text
+comparisonSet:
+  sorted duplicate-free normalized values
+
+items:
+  source-ordered item outcomes:
+    declaredValue
+    normalizedValue, when valid
+    state
+    reason, when non-valid
+    sourceRange
+    duplicateGroup, when the normalized value duplicates another item
+```
+
+Comparison operators consume `comparisonSet`. Diagnostic projection and
+structured provenance consume `items`, so invalid entries and duplicate origins
+remain addressable even when comparison values dedupe.
 
 Operand states:
 
@@ -291,6 +332,8 @@ Operand states:
   absent.
 - `unsupported`: validator cannot or must not execute the declared operation.
 
+Every non-`valid` operand state carries a stable `reason`.
+
 State policies:
 
 - `required-valid`: only `valid` passes.
@@ -301,6 +344,11 @@ State policies:
 
 Default reference-resolution checks use `@state="required-valid"` so missing,
 invalid, unresolved, and unsupported operands all produce diagnostics.
+
+`pending` is not a final operand state. A deferred lookup may be pending while
+the validator waits for an allowed resource or capability, but comparison is
+deferred until the operand finalizes to `valid`, `missing`, `invalid`,
+`unresolved`, or `unsupported`.
 
 ## Lookup
 
@@ -331,9 +379,12 @@ Lookup fields:
 - `@result`: field or constrained source path selected from the raw lookup
   result before operand normalization. Omitted means the raw lookup result
   itself is the comparable result.
-- `@result-cardinality`: raw lookup result shape.
-- `@result-key`: simple `record-set` identity field.
-- `result-key` children: composite `record-set` identity.
+- `@result-cardinality`: raw lookup result cardinality.
+- `@result-shape`: raw lookup result item shape.
+- `@result-key`: simple record set identity field for `cardinality=set,
+shape=record` results.
+- `result-key` children: composite record set identity for `cardinality=set,
+shape=record` results.
 - `@provenance`: lookup provenance kind.
 - `@source-range`: lookup key/result source-range policy.
 - `@requires`: engine capability identifier.
@@ -347,6 +398,7 @@ Lookup key child fields:
 - `@normalizer`: normalizer for this key envelope.
 - `@cardinality`: key source cardinality; omitted inherits the parent
   operand's source cardinality.
+- `@shape`: key item shape; omitted inherits the parent operand's source shape.
 
 Key bindings are not comparison operand bindings. They may appear under
 structured provenance when projected, but they must not populate
@@ -365,23 +417,27 @@ Lookup execution:
 - A lookup containing both `@select` and engine capability fields is invalid
   unless a future composed lookup design explicitly allows it.
 
-Lookup result shapes:
+Lookup result cardinality:
 
-- `scalar`: exactly one raw result value. Zero results become `missing` or
+- `one`: exactly one raw result value. Zero results become `missing` or
   `unresolved` depending on lookup kind; multiple results are `invalid`.
 - `optional`: zero or one raw result value. Multiple results are `invalid`.
 - `set`: zero or more raw result values.
-- `record`: exactly one structured raw result with named fields.
-- `record-set`: zero or more structured raw records, sorted/deduped by key.
 
-`stream` is not a schema-declared lookup result shape.
+Lookup result shape:
 
-`record-set` requires explicit `@result-key` or one or more `result-key`
-children. A `record-set` lookup without a result key is a schema-definition
-error. Sort and dedupe use the normalized key tuple. Duplicate normalized keys
-with identical records collapse to one record; duplicate keys with different
-non-key fields are `invalid`. Validators must not sort/dedupe record sets by
-implicit object serialization.
+- `scalar`: scalar raw item.
+- `record`: structured raw item with named fields.
+
+`sequence` and `stream` are not schema-declared lookup result cardinalities in
+the initial package-check vocabulary.
+
+A `cardinality=set, shape=record` lookup requires explicit `@result-key` or one
+or more `result-key` children. A record set lookup without a result key is a
+schema-definition error. Sort and dedupe use the normalized key tuple.
+Duplicate normalized keys with identical records collapse to one record;
+duplicate keys with different non-key fields are `invalid`. Validators must not
+sort/dedupe record sets by implicit object serialization.
 
 Lookup failures:
 
@@ -458,10 +514,10 @@ Capability failure mapping:
 
 ```text
 malformed constraint syntax      -> schema-definition invalid
-unknown capability name          -> unsupported
-no compatible capability version -> unsupported
+unknown capability name          -> unsupported(reason=unsupported-capability)
+no compatible capability version -> unsupported(reason=unsupported-capability)
 capability blocked by policy     -> unsupported(reason=policy-denied)
-capability exists but disabled   -> unsupported
+capability exists but disabled   -> unsupported(reason=unsupported-capability)
 ```
 
 Policy-denied capability execution always produces
@@ -476,8 +532,12 @@ not replace the `unsupported` state and does not change `@support` or operand
   constraint diagnostic and produces `unsupported`.
 - `optional`: capability may be absent; absence produces `unsupported`, then
   operand `@state` decides pass/fail.
-- `soft`: absence produces `unsupported` and emits a warning/provenance event;
-  operand `@state` still decides pass/fail.
+
+`@support="soft"` is not part of the normalized vocabulary. Source
+compatibility may accept it only as shorthand for `@support="optional"` plus an
+additive warning/provenance reporting flag for unsupported capability absence.
+After lowering, validators and comparison metadata must expose `optional`, not
+`soft`.
 
 ## Engine-Assisted Execution
 
@@ -708,6 +768,7 @@ missing-required
 invalid-value
 unresolved-reference
 unsupported-capability
+policy-denied
 forbidden-overlap
 missing-required-members
 no-intersection
