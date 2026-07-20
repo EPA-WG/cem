@@ -864,6 +864,74 @@ projection is not part of this normalization vocabulary.
   schema, target category, function profile, and function name with the
   corresponding vocabulary terms above.
 
+## Acceptance Examples
+
+Schema URI version-tail constraints are provenance, not complete identity. If
+the registry contains this descriptor:
+
+```text
+{
+  uri: "https://example.test/ns/widget",
+  embeddedVersion: "1.4.2+20260720"
+}
+```
+
+then declarations such as `https://example.test/ns/widget`,
+`https://example.test/ns/widget/1`, `https://example.test/ns/widget/1.4`, and
+`https://example.test/ns/widget/1.4.2` can resolve to the same
+`schema:schema-identity` record. The declared URI and parsed version constraint
+remain provenance; cache and complete identity use the resolved
+`embeddedVersion`.
+
+Local custom package validation starts outside the host catalog. A package
+manifest that declares `@uri="https://example.test/ns/note/1"` and
+`@source="schema/note.cem"` first validates the manifest and schema-source
+declarations with pure URI, media-type, and namespace normalizers. Only after
+those checks pass does validation construct an isolated provisional descriptor
+for registry-backed endpoint, example, artifact, and namespace checks. The
+descriptor is admitted to the host catalog only after every required check
+passes.
+
+Media syntax and registered content identity produce different outcomes:
+
+- `Text/HTML; Charset=UTF-8` is valid `schema:media-type`; its essence
+  projection is `text/html`;
+- `text/xsl` is a valid RFC media type and may resolve through
+  `schema:content-type-identity` to the XSLT package's registered canonical
+  identity when that package claims the alias;
+- `custom-element-xslt` is invalid under `schema:media-type`, but can be a
+  valid registered legacy alias under `schema:content-type-identity` when the
+  compatibility package owns it;
+- a registered alias claimed by multiple packages without required schema
+  context is `unresolved, reason=ambiguous-content-type`;
+- a malformed media string is `invalid, reason=invalid-media-type`.
+
+Scalar-to-set comparison uses item-normalizer compatibility. An actual scalar
+`schema:media-type-essence` value such as `text/html` may be checked against an
+expected `schema:media-type-essence-set` because both sides expose media-type
+essence equivalence. The expected set's `comparisonSet` is sorted and
+duplicate-free, while `items` preserve source order, duplicate groups, invalid
+member reasons, declared values, normalized values, and source ranges for
+diagnostics.
+
+Lifecycle outcomes remain distinct:
+
+- `missing`: source extraction found no value, such as an absent optional
+  package field;
+- `invalid`: a value exists but violates syntax, shape, cardinality, or
+  normalizer rules;
+- `unresolved`: a lookup key normalized but no target, resolver mapping, or
+  unambiguous registry owner was found;
+- `unsupported`: the active engine cannot execute the declared normalizer,
+  lookup, or capability;
+- `pending`: an internal non-terminal lookup state; comparison is deferred
+  until the value finalizes to a terminal state.
+
+Ordered ARIA IDREF sequences and JSON Schema dynamic reference traversal are
+explicitly deferred from the first package-check release. ARIA/HTML/slot
+references need future sequence and runtime revision semantics; JSON Schema
+`$ref` and `$dynamicRef` traversal remains owned by the JSON Schema loader.
+
 ## Implementation Notes
 
 - Existing Rust helpers such as media-type essence extraction become

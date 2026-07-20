@@ -18,8 +18,8 @@ source provenance, keep normalization annotative and symmetric, make execution
 placement explicit, avoid implicit canonicalization, and retain complete schema
 identity.
 
-Current active slice: run the final documentation consistency gate before
-resuming `.cem` source, Rust IR/evaluator, fixture, or diagnostic changes.
+Current active slice: start follow-on implementation by adding parser/schema IR
+coverage for the declarative reference vocabulary.
 
 ### Contract And Documentation
 
@@ -168,22 +168,22 @@ resuming `.cem` source, Rust IR/evaluator, fixture, or diagnostic changes.
       descriptor provenance fields for complete schema identity, raw and
       normalized content claims, namespaces, descriptor origin/source ranges,
       and CEMT output metadata.
-- [ ] **Run a final documentation consistency gate.** Confirm the design trio,
+- [x] **Run a final documentation consistency gate.** Confirm the design trio,
       registry design, resolver contracts, schema-package documentation, and
       package examples express one contract before changing `.cem` sources,
       Rust IR/evaluators, fixtures, or diagnostics.
 
 ### Acceptance Cases
 
-- [ ] Document an example of different schema URI version-tail constraints
+- [x] Document an example of different schema URI version-tail constraints
       resolving to the same descriptor and embedded version.
-- [ ] Document an example of local custom package validation before registry
+- [x] Document an example of local custom package validation before registry
       admission.
-- [ ] Document examples of RFC media types, registered RFC aliases, bare legacy
+- [x] Document examples of RFC media types, registered RFC aliases, bare legacy
       aliases, ambiguous aliases, and invalid media syntax.
-- [ ] Document scalar-to-set membership with duplicates, invalid members,
+- [x] Document scalar-to-set membership with duplicates, invalid members,
       source-ordered provenance, and deterministic comparison values.
-- [ ] Document `missing`, `invalid`, `unresolved`, `unsupported`, and
+- [x] Document `missing`, `invalid`, `unresolved`, `unsupported`, and
       pending/deferred lifecycle outcomes.
 - [x] Document dotted profile symbols and composite function identities.
 - [x] Document whether ordered ARIA IDREF sequences and dynamic JSON Schema
@@ -191,8 +191,8 @@ resuming `.cem` source, Rust IR/evaluator, fixture, or diagnostic changes.
 
 ## Follow-on Implementation
 
-Blocked until the immediate documentation contract and acceptance cases are
-complete. Then implement the declarative CEM-ML reference vocabulary behind
+The immediate documentation contract and acceptance cases are complete.
+Implement the declarative CEM-ML reference vocabulary behind
 `schema:reference-resolution` without changing existing public diagnostic
 compatibility, reconciling field names and IR shapes with the accepted design.
 
