@@ -13,76 +13,59 @@ binary handoff, embedded-payload handoff coverage, and web-host coordinate
 projection have all passed their focused and gate verification. Continue with
 Phase 3 substrate expansion.
 
-Current active slice: audit the existing `@epa-wg/cem-elements` substrate
-implementation, parity inventories, Storybook fixtures, and Nx verification
-targets against the Phase 3.1 exit criteria.
-
-### Phase 2 Completion Gaps
-
-- [x] Prove the Phase 2 "rendered by the component runtime" exit criterion:
-      feed one canonical fixture such as `examples/cem-ml/login.cem` through
-      decode/tokenize/normalize/schema/AST/export, then into the
-      `@epa-wg/cem-elements` browser runtime, and assert rendered light DOM,
-      template/runtime identity, and source-map fidelity in an executable Nx
-      target.
-- [x] Promote the DOM/AST/events binary projection handoff from single
-      sealed-root chunks and the debug AST encoder to a stable multi-chunk
-      contract: subtree chunk metadata, child links, replay-from-cache
-      behavior, deterministic routing to multiple sinks, and CEM-QL/query
-      access without JSON reserialization.
-- [x] Complete embedded-language handoff coverage for the Phase 2 exit
-      criterion: style/script payloads, XML CDATA or schema-tagged text,
-      JSON string subdocuments, CSF-like fields, and unsupported/future
-      content types must either validate through explicit scoped handoff
-      fixtures or emit actionable diagnostics with source-map bounds.
-- [x] Add web-host reporting coordinate projection on top of byte offsets:
-      line/column and UTF-16 position derivation should be available to CLI,
-      WASM, and browser/devtools consumers without storing non-byte
-      coordinates as parser truth.
-- [x] Re-run the Phase 2 completion gate after those gaps close:
-      focused Rust tests for the touched layer, the `cem_ml:test`,
-      `cem_ml_cli:test`, and `cem_ml_cli:e2e` Nx targets with
-      `NX_DAEMON=false NX_ISOLATE_PLUGINS=false`, and the focused
-      `cem-elements` runtime target that proves the browser fixture.
+Current active slice: tighten the first executable browser substrate contract
+for inline `<cem-element>` declarations so it matches the Phase 3.1 WHATWG
+template/data-island contract.
 
 ### Phase 3 Custom-Element Runtime
 
-- [ ] Audit the existing `@epa-wg/cem-elements` substrate implementation,
+- [x] Audit the existing `@epa-wg/cem-elements` substrate implementation,
       parity inventories, Storybook fixtures, and Nx verification targets
       against the Phase 3.1 exit criteria from `roadmap.md`.
-- [ ] Define the first executable browser substrate contract for inline
-      `<cem-element>` declarations: exactly one inert WHATWG declaration
-      template, produced custom-element registration, captured instance
-      data-island payload, visible light-DOM render ownership, and source-map
-      fidelity labels.
+- [ ] Tighten inline declaration shape validation to match
+      `docs/cem-element-design.md`: inline declarations require exactly one
+      direct-child WHATWG `<template>`, `src` declarations must not include an
+      inline template, live declaration content is rejected, and the current
+      implicit CEM-ML fallback path is removed or converted into an explicit
+      diagnostic.
+- [ ] Promote the first executable browser substrate contract into one focused
+      runtime story/fixture for inline `<cem-element>` declarations: exactly
+      one inert declaration template, produced custom-element registration,
+      captured instance data-island payload, visible light-DOM render
+      ownership, and source-map fidelity labels on rendered nodes.
 - [ ] Add focused unit/browser fixtures for declaration registration, payload
       capture, attribute invalidation, and data-island isolation using the
       existing `cem-elements` test harness.
 - [ ] Verify with the focused `cem-elements` unit target first, then the
-      substrate, Storybook, legacy/material parity, demo fixture, and full
-      `cem-elements:verify` gates that cover the touched runtime path.
+      Storybook browser target, substrate, legacy/material parity, demo
+      fixture, and full `cem-elements:verify` gates that cover the touched
+      runtime path.
 
 ### Next Work Item
 
-Audit the existing `@epa-wg/cem-elements` substrate implementation against the
-Phase 3.1 exit criteria:
+Tighten the inline declaration shape contract found during the Phase 3.1 audit:
 
-- inventory the current `cem-elements` runtime source, Storybook stories,
-  parity fixtures, and Nx targets that already exercise inline declaration,
-  data-island, light-DOM render, and source-map behavior;
-- compare the existing coverage with `roadmap.md` Phase 3.1 and identify the
-  smallest missing executable browser contract for inline `<cem-element>`
-  declarations;
-- populate any concrete gaps in this file as checked, executable tasks before
-  implementation, keeping Phase 3 substrate work separated from legacy/material
-  parity cleanup;
-- start verification with the focused `cem-elements` unit or story target that
-  owns the audited path, then broaden to the relevant substrate and full
-  `cem-elements:verify` targets once implementation begins.
+- update `analyzeDeclarationShape` so inline declarations require exactly one
+  direct-child `<template>` and emit a missing-template diagnostic instead of
+  accepting implicit CEM-ML live content;
+- remove or quarantine `implicitCemMlTemplate()` from the registration path so
+  raw declaration text cannot become live authoring syntax by accident;
+- update `InlineDeclarationShape`, `ImplicitCemMlTemplateShape`, and
+  `DeclarationShapeGuardrailsPreventLiveData` to prove the strict contract in
+  the browser harness;
+- keep existing `src` support, legacy `lang="custom-element-v0"` bridge
+  fixtures, and material parity fixture inventories separate from this
+  contract-tightening slice;
+- verify first with `yarn nx run cem-elements:test:unit`, then
+  `yarn nx run cem-elements:test`, and broaden to `cem-elements:verify` after
+  the focused browser contract is green.
 
 ## Current Verification Commands
 
 - `yarn nx run @epa-wg/cem-theme:verify:phase13`
+- `yarn nx run cem-elements:test:unit`
+- `yarn nx run cem-elements:test`
+- `yarn nx run cem-elements:verify-substrate`
 - `yarn nx run cem-elements:verify`
 - `yarn nx run @epa-wg/cem-components:verify`
 - `yarn nx run cem-elements:verify-edge-ssr`
