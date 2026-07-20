@@ -13,16 +13,16 @@ multi-document lifecycle layer that lets `cem_ml`, `cem_ml_cli`, WASM, and
 future hosts validate, load, and export documents through the same root-scope
 context.
 
-Current active slice: fill the remaining lifecycle fixture matrix for
-content-identity selection and compatibility aliases after the
-`custom-element-xslt-compat` adapter profile promotion.
+Current active slice: promote the Phase 2 layered runtime contract into an
+executable parser-stage fixture path with source-map and scheduler-report
+assertions.
 
 ### Phase 2 Parser And Runtime
 
 - [x] Route XSLT 1.0 custom-element compatibility validation and conversion
       through the same lifecycle adapter registry, preserving scoped handoff
       diagnostics and source-map boundaries.
-- [ ] Add remaining fixtures for CEM-ML, HTML/XML parity, and
+- [x] Add remaining fixtures for CEM-ML, HTML/XML parity, and
       custom-element-XSLT validate/load/export behavior across content-identity
       selection and enum aliases. Start by expanding CLI-normalized
       `--input-spec` / `--output-spec` cases so content type, schema,
@@ -33,21 +33,29 @@ content-identity selection and compatibility aliases after the
       `NX_DAEMON=false yarn nx run cem_ml:test`,
       `NX_DAEMON=false yarn nx run cem_ml_cli:e2e`, and the relevant adapter
       parity target.
+- [ ] Define the executable layered parser/runtime contract for one semantic
+      document fixture, covering byte source, tokenizer, normalized event
+      stream, schema validation, AST/source-map construction, and export
+      reporting through the same scheduler trace.
+- [ ] Add fixture assertions that every parser-stage report entry carries the
+      root-scope input identity, stage name, source-map boundary, and
+      diagnostics needed by CLI, WASM, and future host runtimes.
+- [ ] Verify the layered runtime fixture with focused Rust tests and the Phase
+      2 CLI/Nx targets that consume validate/load/export reports.
 
 ### Next Work Item
 
-Build the remaining fixture matrix around normalized CLI/run-config inputs:
+Define the first executable layered runtime fixture from the Phase 2 roadmap:
 
-- prove CEM-ML, HTML, XML, XHTML, SVG, MathML, and XSLT identities select the
-  intended lifecycle adapters from content type first, then schema, then
-  namespace;
-- cover alias fallback behavior for `--from-format` / `--to-format` alongside
-  explicit content identity, including unsupported explicit identity
-  diagnostics;
-- add report assertions that lifecycle adapter/profile details survive validate
-  and convert reports for `custom-element-xslt-compat`;
-- prefer CLI fixtures backed by `RunConfig`/`--input-spec` over only direct
-  `EngineInput` unit tests, because the remaining risk is normalization drift.
+- inventory the current `cem_ml` parse/validate/convert stage boundaries and
+  identify the smallest existing report or trace structure that can carry
+  stage names without inventing a parallel reporting path;
+- use one semantic CEM document fixture as the contract case and assert byte
+  source identity, tokenizer output, normalized events, schema diagnostics,
+  AST/source-map construction, and export metadata stay connected;
+- keep the first slice CLI-visible through validate/load/export reports so
+  later WASM and host-runtime work can consume the same contract instead of
+  rebuilding parser-stage state.
 
 ## Current Verification Commands
 

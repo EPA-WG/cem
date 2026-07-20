@@ -4032,8 +4032,6 @@ fn direct_source_validation_report(
             diagnostics.extend(collect_mathml_source_diagnostics(std::slice::from_ref(
                 input,
             )));
-        } else if is_xslt_source_input(input) {
-            diagnostics.extend(collect_xslt_source_diagnostics(std::slice::from_ref(input)));
         } else if is_xml_source_input(input) {
             diagnostics.extend(collect_xml_source_diagnostics(std::slice::from_ref(input)));
         } else if is_json_source_input(input) {
@@ -4100,10 +4098,6 @@ fn is_svg_source_input(input: &eng::EngineInput) -> bool {
 
 fn is_mathml_source_input(input: &eng::EngineInput) -> bool {
     source_input_matches_schema_uri(input, cem_ml::schema::registry::MATHML_SCHEMA_URI)
-}
-
-fn is_xslt_source_input(input: &eng::EngineInput) -> bool {
-    source_input_matches_schema_uri(input, cem_ml::schema::registry::XSLT_SCHEMA_URI)
 }
 
 fn is_cem_dom_projection_source_input(input: &eng::EngineInput) -> bool {
@@ -7608,610 +7602,6 @@ fn mathml_not_well_formed_diagnostic(
 }
 
 fn mathml_diagnostic(
-    input: &eng::EngineInput,
-    source: &str,
-    byte_offset: Option<u64>,
-    code: &'static str,
-    severity: cem_ml::diagnostics::Severity,
-    message: String,
-) -> cem_ml::diagnostics::Diagnostic {
-    let (line, column) = byte_offset
-        .and_then(|offset| usize::try_from(offset).ok())
-        .map(|offset| markdown_line_col(source, offset))
-        .map(|(line, column)| (Some(line), Some(column)))
-        .unwrap_or((None, None));
-    cem_ml::diagnostics::Diagnostic {
-        uri: Some(input.uri.clone()),
-        line,
-        column,
-        byte_offset,
-        code: code.to_owned(),
-        severity,
-        message,
-        ..cem_ml::diagnostics::Diagnostic::default()
-    }
-}
-
-fn collect_xslt_source_diagnostics(
-    inputs: &[eng::EngineInput],
-) -> Vec<cem_ml::diagnostics::Diagnostic> {
-    let mut diagnostics = Vec::new();
-    for input in inputs {
-        let content_type =
-            input_source_content_type(input).map(|value| cli_content_type_essence(&value));
-        let source = match std::str::from_utf8(&input.bytes) {
-            Ok(source) => source,
-            Err(error) => {
-                diagnostics.push(xslt_not_well_formed_diagnostic(
-                    input,
-                    "",
-                    u64::try_from(error.valid_up_to()).ok(),
-                    format!("XSLT source must be valid UTF-8: {error}"),
-                ));
-                continue;
-            }
-        };
-
-        if content_type
-            .as_deref()
-            .is_some_and(is_xslt_custom_element_source_content_type)
-            && !xslt_source_has_stylesheet_root(source)
-        {
-            diagnostics.extend(validate_xslt_legacy_fragment_source(input, source));
-        } else {
-            diagnostics.extend(validate_xslt_source(input, source));
-        }
-    }
-    diagnostics
-}
-
-fn is_xslt_custom_element_source_content_type(content_type: &str) -> bool {
-    matches!(
-        content_type,
-        "custom-element-xslt"
-            | "text/custom-element-xslt"
-            | "application/custom-element-xslt"
-            | "text/x-custom-element-xslt"
-    )
-}
-
-fn xslt_source_has_stylesheet_root(source: &str) -> bool {
-    let mut reader = quick_xml::Reader::from_str(source);
-    reader.config_mut().check_comments = true;
-    let mut namespace_stack = vec![xml_initial_namespaces()];
-
-    loop {
-        match reader.read_event() {
-            Ok(quick_xml::events::Event::Start(start))
-            | Ok(quick_xml::events::Event::Empty(start)) => {
-                let (_, namespaces, _) = xslt_start_frame_for_detection(&start, &namespace_stack);
-                let qualified_name = xml_qname_display(start.name().as_ref());
-                let (namespace_uri, local_name) = xhtml_expanded_name(&qualified_name, &namespaces);
-                return matches!(local_name.as_str(), "stylesheet" | "transform")
-                    && namespace_uri == cem_ml::schema::registry::XSLT_NAMESPACE_URI;
-            }
-            Ok(quick_xml::events::Event::End(_)) => {
-                if namespace_stack.len() > 1 {
-                    namespace_stack.pop();
-                }
-            }
-            Ok(quick_xml::events::Event::Eof) => return false,
-            Ok(_) => {}
-            Err(_) => return false,
-        }
-    }
-}
-
-fn xslt_start_frame_for_detection(
-    start: &quick_xml::events::BytesStart<'_>,
-    namespace_stack: &[BTreeMap<String, String>],
-) -> (String, BTreeMap<String, String>, String) {
-    let mut namespaces = namespace_stack
-        .last()
-        .cloned()
-        .unwrap_or_else(xml_initial_namespaces);
-    for attribute in start.attributes().with_checks(false).flatten() {
-        let name = xml_qname_display(attribute.key.as_ref());
-        let value = String::from_utf8_lossy(attribute.value.as_ref()).into_owned();
-        if name == "xmlns" {
-            namespaces.insert(String::new(), value);
-        } else if let Some(prefix) = name.strip_prefix("xmlns:") {
-            namespaces.insert(prefix.to_owned(), value);
-        }
-    }
-    let qualified_name = xml_qname_display(start.name().as_ref());
-    (qualified_name, namespaces, String::new())
-}
-
-fn validate_xslt_legacy_fragment_source(
-    input: &eng::EngineInput,
-    source: &str,
-) -> Vec<cem_ml::diagnostics::Diagnostic> {
-    let mut diagnostics = Vec::new();
-    if xslt_legacy_fragment_contains_unsupported_construct(source) {
-        diagnostics.push(xslt_diagnostic(
-            input,
-            source,
-            Some(0),
-            "legacy_xslt.unsupported_construct",
-            cem_ml::diagnostics::Severity::Warning,
-            "Legacy custom-element XSLT fragment contains a construct outside the bounded compatibility profile"
-                .to_owned(),
-        ));
-    }
-    diagnostics
-}
-
-fn xslt_legacy_fragment_contains_unsupported_construct(source: &str) -> bool {
-    let lower = source.to_ascii_lowercase();
-    [
-        "<xsl:copy-of",
-        "<xsl:result-document",
-        "<xsl:function",
-        "<xsl:import",
-        "<xsl:include",
-        "<msxsl:script",
-        "document(",
-    ]
-    .iter()
-    .any(|needle| lower.contains(needle))
-}
-
-#[derive(Clone, Debug)]
-struct XsltAttributeView {
-    local_name: String,
-    value: String,
-}
-
-#[derive(Clone, Debug)]
-struct XsltElementFrame {
-    local_name: String,
-    namespace_uri: String,
-    attributes: Vec<XsltAttributeView>,
-}
-
-#[derive(Clone, Debug, Default)]
-struct XsltDocumentState {
-    root_is_stylesheet: bool,
-    saw_top_level_template: bool,
-    reported_external_uri: bool,
-    reported_unsupported_construct: bool,
-}
-
-fn validate_xslt_source(
-    input: &eng::EngineInput,
-    source: &str,
-) -> Vec<cem_ml::diagnostics::Diagnostic> {
-    let mut diagnostics = Vec::new();
-    let mut reader = quick_xml::Reader::from_str(source);
-    reader.config_mut().check_comments = true;
-
-    let mut element_stack: Vec<XsltElementFrame> = Vec::new();
-    let mut namespace_stack = vec![xml_initial_namespaces()];
-    let mut root_count = 0usize;
-    let mut state = XsltDocumentState::default();
-
-    loop {
-        match reader.read_event() {
-            Ok(quick_xml::events::Event::Start(start)) => {
-                let start_offset = xml_event_position(&reader, &start, false);
-                let (frame, namespaces, mut event_diagnostics) =
-                    xslt_start_frame(input, source, &start, &namespace_stack, start_offset);
-                diagnostics.append(&mut event_diagnostics);
-                xslt_validate_element(
-                    input,
-                    source,
-                    start_offset,
-                    &frame,
-                    &element_stack,
-                    &mut state,
-                    &mut root_count,
-                    &mut diagnostics,
-                );
-                element_stack.push(frame);
-                namespace_stack.push(namespaces);
-            }
-            Ok(quick_xml::events::Event::Empty(start)) => {
-                let start_offset = xml_event_position(&reader, &start, true);
-                let (frame, _, mut event_diagnostics) =
-                    xslt_start_frame(input, source, &start, &namespace_stack, start_offset);
-                diagnostics.append(&mut event_diagnostics);
-                xslt_validate_element(
-                    input,
-                    source,
-                    start_offset,
-                    &frame,
-                    &element_stack,
-                    &mut state,
-                    &mut root_count,
-                    &mut diagnostics,
-                );
-            }
-            Ok(quick_xml::events::Event::End(_)) => {
-                if element_stack.pop().is_some() && namespace_stack.len() > 1 {
-                    namespace_stack.pop();
-                }
-            }
-            Ok(quick_xml::events::Event::Text(text)) => {
-                if element_stack.is_empty() && !xml_bytes_are_whitespace(text.as_ref()) {
-                    diagnostics.push(xslt_not_well_formed_diagnostic(
-                        input,
-                        source,
-                        Some(reader.error_position()),
-                        "XSLT document cannot contain character data outside the document element"
-                            .to_owned(),
-                    ));
-                }
-            }
-            Ok(quick_xml::events::Event::DocType(_)) => {
-                if !state.reported_external_uri {
-                    state.reported_external_uri = true;
-                    diagnostics.push(xslt_diagnostic(
-                        input,
-                        source,
-                        Some(reader.error_position()),
-                        "cem.xslt.external_uri_rejected",
-                        cem_ml::diagnostics::Severity::Error,
-                        "XSLT DOCTYPE declarations are rejected because they can reference external resources"
-                            .to_owned(),
-                    ));
-                }
-            }
-            Ok(quick_xml::events::Event::Eof) => break,
-            Ok(_) => {}
-            Err(error) => {
-                diagnostics.push(xslt_xml_error_diagnostic(
-                    input,
-                    source,
-                    Some(reader.error_position()),
-                    &error,
-                ));
-                break;
-            }
-        }
-    }
-
-    if root_count == 0 {
-        diagnostics.push(xslt_not_well_formed_diagnostic(
-            input,
-            source,
-            Some(0),
-            "XSLT document must contain a document element".to_owned(),
-        ));
-    } else if state.root_is_stylesheet && !state.saw_top_level_template {
-        diagnostics.push(xslt_diagnostic(
-            input,
-            source,
-            Some(0),
-            "cem.xslt.entrypoint_missing",
-            cem_ml::diagnostics::Severity::Error,
-            "XSLT stylesheet must declare at least one top-level xsl:template".to_owned(),
-        ));
-    }
-
-    diagnostics
-}
-
-fn xslt_start_frame(
-    input: &eng::EngineInput,
-    source: &str,
-    start: &quick_xml::events::BytesStart<'_>,
-    namespace_stack: &[BTreeMap<String, String>],
-    byte_offset: Option<u64>,
-) -> (
-    XsltElementFrame,
-    BTreeMap<String, String>,
-    Vec<cem_ml::diagnostics::Diagnostic>,
-) {
-    let mut diagnostics = Vec::new();
-    let mut raw_attributes = Vec::new();
-    let mut namespaces = namespace_stack
-        .last()
-        .cloned()
-        .unwrap_or_else(xml_initial_namespaces);
-
-    for attribute in start.attributes().with_checks(false) {
-        match attribute {
-            Ok(attribute) => {
-                let name = xml_qname_display(attribute.key.as_ref());
-                let value = String::from_utf8_lossy(attribute.value.as_ref()).into_owned();
-                if name == "xmlns" {
-                    namespaces.insert(String::new(), value.clone());
-                } else if let Some(prefix) = name.strip_prefix("xmlns:") {
-                    namespaces.insert(prefix.to_owned(), value.clone());
-                }
-                raw_attributes.push((name, value));
-            }
-            Err(error) => diagnostics.push(xslt_not_well_formed_diagnostic(
-                input,
-                source,
-                byte_offset,
-                format!("XSLT XML attribute parse error: {error}"),
-            )),
-        }
-    }
-
-    let qualified_name = xml_qname_display(start.name().as_ref());
-    if let Some(prefix) = xml_qname_prefix(&qualified_name) {
-        if !xml_prefix_is_bound(&namespaces, prefix) {
-            diagnostics.push(xslt_not_well_formed_diagnostic(
-                input,
-                source,
-                byte_offset,
-                format!("XSLT namespace prefix `{prefix}` is not bound for `{qualified_name}`"),
-            ));
-        }
-    }
-
-    let (namespace_uri, local_name) = xhtml_expanded_name(&qualified_name, &namespaces);
-    let attributes = raw_attributes
-        .into_iter()
-        .filter(|(qualified_name, _)| !xml_attribute_is_namespace_declaration(qualified_name))
-        .map(|(qualified_name, value)| {
-            if let Some(prefix) = xml_qname_prefix(&qualified_name) {
-                if !xml_prefix_is_bound(&namespaces, prefix) {
-                    diagnostics.push(xslt_not_well_formed_diagnostic(
-                        input,
-                        source,
-                        byte_offset,
-                        format!(
-                            "XSLT namespace prefix `{prefix}` is not bound for attribute `{qualified_name}`"
-                        ),
-                    ));
-                }
-            }
-            let (_, local_name) = xml_attribute_expanded_name(&qualified_name, &namespaces);
-            XsltAttributeView { local_name, value }
-        })
-        .collect();
-
-    (
-        XsltElementFrame {
-            local_name,
-            namespace_uri,
-            attributes,
-        },
-        namespaces,
-        diagnostics,
-    )
-}
-
-fn xslt_validate_element(
-    input: &eng::EngineInput,
-    source: &str,
-    byte_offset: Option<u64>,
-    frame: &XsltElementFrame,
-    element_stack: &[XsltElementFrame],
-    state: &mut XsltDocumentState,
-    root_count: &mut usize,
-    diagnostics: &mut Vec<cem_ml::diagnostics::Diagnostic>,
-) {
-    if element_stack.is_empty() {
-        *root_count += 1;
-        if *root_count > 1 {
-            diagnostics.push(xslt_not_well_formed_diagnostic(
-                input,
-                source,
-                byte_offset,
-                "XSLT document must have exactly one document element".to_owned(),
-            ));
-            return;
-        }
-        if !matches!(frame.local_name.as_str(), "stylesheet" | "transform") {
-            diagnostics.push(xslt_diagnostic(
-                input,
-                source,
-                byte_offset,
-                "cem.xslt.root_not_stylesheet",
-                cem_ml::diagnostics::Severity::Error,
-                format!(
-                    "XSLT root element must be `stylesheet` or `transform`, found `{}`",
-                    frame.local_name
-                ),
-            ));
-            return;
-        }
-        if frame.namespace_uri != cem_ml::schema::registry::XSLT_NAMESPACE_URI {
-            diagnostics.push(xslt_diagnostic(
-                input,
-                source,
-                byte_offset,
-                "cem.xslt.namespace_missing",
-                cem_ml::diagnostics::Severity::Error,
-                "XSLT root element must use the http://www.w3.org/1999/XSL/Transform namespace"
-                    .to_owned(),
-            ));
-            return;
-        }
-
-        state.root_is_stylesheet = true;
-        xslt_validate_root_version(input, source, byte_offset, frame, diagnostics);
-        return;
-    }
-
-    if !state.root_is_stylesheet {
-        return;
-    }
-
-    let is_xslt_element = frame.namespace_uri == cem_ml::schema::registry::XSLT_NAMESPACE_URI;
-    if is_xslt_element && element_stack.len() == 1 && frame.local_name == "template" {
-        state.saw_top_level_template = true;
-    }
-
-    if is_xslt_element {
-        xslt_validate_external_uri_policy(input, source, byte_offset, frame, state, diagnostics);
-        if matches!(frame.local_name.as_str(), "function" | "result-document")
-            && !state.reported_unsupported_construct
-        {
-            state.reported_unsupported_construct = true;
-            diagnostics.push(xslt_diagnostic(
-                input,
-                source,
-                byte_offset,
-                "legacy_xslt.unsupported_construct",
-                cem_ml::diagnostics::Severity::Warning,
-                format!(
-                    "XSLT construct `xsl:{}` is outside the bounded legacy compatibility profile",
-                    frame.local_name
-                ),
-            ));
-        }
-    } else if xslt_is_extension_construct(frame) && !state.reported_unsupported_construct {
-        state.reported_unsupported_construct = true;
-        diagnostics.push(xslt_diagnostic(
-            input,
-            source,
-            byte_offset,
-            "legacy_xslt.unsupported_construct",
-            cem_ml::diagnostics::Severity::Warning,
-            format!(
-                "XSLT extension construct `{}` is outside the bounded legacy compatibility profile",
-                frame.local_name
-            ),
-        ));
-    }
-}
-
-fn xslt_validate_root_version(
-    input: &eng::EngineInput,
-    source: &str,
-    byte_offset: Option<u64>,
-    frame: &XsltElementFrame,
-    diagnostics: &mut Vec<cem_ml::diagnostics::Diagnostic>,
-) {
-    let Some(version) = xslt_attribute_value(frame, "version") else {
-        diagnostics.push(xslt_diagnostic(
-            input,
-            source,
-            byte_offset,
-            "cem.xslt.version_missing",
-            cem_ml::diagnostics::Severity::Error,
-            "XSLT stylesheet root must declare a version attribute".to_owned(),
-        ));
-        return;
-    };
-
-    let Some(parsed) = cem_ml::schema::xslt::parse_xslt_version(version) else {
-        diagnostics.push(xslt_diagnostic(
-            input,
-            source,
-            byte_offset,
-            "cem.xslt.version_malformed",
-            cem_ml::diagnostics::Severity::Error,
-            format!("XSLT version `{version}` is malformed"),
-        ));
-        return;
-    };
-
-    if parsed.major == 0 || parsed.major > 3 {
-        diagnostics.push(xslt_diagnostic(
-            input,
-            source,
-            byte_offset,
-            "cem.xslt.unsupported_version",
-            cem_ml::diagnostics::Severity::Error,
-            format!("XSLT version `{version}` is not supported by the schema package"),
-        ));
-    }
-}
-
-fn xslt_validate_external_uri_policy(
-    input: &eng::EngineInput,
-    source: &str,
-    byte_offset: Option<u64>,
-    frame: &XsltElementFrame,
-    state: &mut XsltDocumentState,
-    diagnostics: &mut Vec<cem_ml::diagnostics::Diagnostic>,
-) {
-    if state.reported_external_uri {
-        return;
-    }
-
-    let direct_href_requires_policy = matches!(
-        frame.local_name.as_str(),
-        "include" | "import" | "result-document"
-    ) && xslt_attribute_value(frame, "href")
-        .is_some_and(xslt_uri_requires_policy);
-    let expression_document_requires_policy = frame.attributes.iter().any(|attribute| {
-        matches!(attribute.local_name.as_str(), "select" | "test")
-            && xslt_expression_uses_external_document(&attribute.value)
-    });
-
-    if direct_href_requires_policy || expression_document_requires_policy {
-        state.reported_external_uri = true;
-        diagnostics.push(xslt_diagnostic(
-            input,
-            source,
-            byte_offset,
-            "cem.xslt.external_uri_rejected",
-            cem_ml::diagnostics::Severity::Error,
-            "XSLT external URI access requires an explicit resolver policy".to_owned(),
-        ));
-    }
-}
-
-fn xslt_attribute_value<'a>(frame: &'a XsltElementFrame, local_name: &str) -> Option<&'a str> {
-    frame
-        .attributes
-        .iter()
-        .find(|attribute| attribute.local_name == local_name)
-        .map(|attribute| attribute.value.as_str())
-}
-
-fn xslt_uri_requires_policy(value: &str) -> bool {
-    let trimmed = value.trim().trim_matches('"').trim_matches('\'');
-    !(trimmed.is_empty()
-        || trimmed.starts_with('#')
-        || trimmed.to_ascii_lowercase().starts_with("data:"))
-}
-
-fn xslt_expression_uses_external_document(value: &str) -> bool {
-    value.to_ascii_lowercase().contains("document(")
-}
-
-fn xslt_is_extension_construct(frame: &XsltElementFrame) -> bool {
-    if frame.namespace_uri.is_empty()
-        || frame.namespace_uri == cem_ml::schema::registry::XSLT_NAMESPACE_URI
-    {
-        return false;
-    }
-
-    frame.local_name == "script"
-        || frame.namespace_uri.contains("microsoft.com")
-        || frame.namespace_uri.contains("exslt.org")
-}
-
-fn xslt_xml_error_diagnostic(
-    input: &eng::EngineInput,
-    source: &str,
-    byte_offset: Option<u64>,
-    error: &quick_xml::Error,
-) -> cem_ml::diagnostics::Diagnostic {
-    xslt_not_well_formed_diagnostic(
-        input,
-        source,
-        byte_offset,
-        format!("XSLT XML parse error: {error}"),
-    )
-}
-
-fn xslt_not_well_formed_diagnostic(
-    input: &eng::EngineInput,
-    source: &str,
-    byte_offset: Option<u64>,
-    message: String,
-) -> cem_ml::diagnostics::Diagnostic {
-    xslt_diagnostic(
-        input,
-        source,
-        byte_offset,
-        "cem.xslt.not_well_formed_xml",
-        cem_ml::diagnostics::Severity::Error,
-        message,
-    )
-}
-
-fn xslt_diagnostic(
     input: &eng::EngineInput,
     source: &str,
     byte_offset: Option<u64>,
@@ -13021,6 +12411,38 @@ mod tests {
                 "stderr did not contain `{needle}`:\n{stderr}"
             );
         }
+    }
+
+    fn report_diagnostics(report: &serde_json::Value) -> &Vec<serde_json::Value> {
+        report["diagnostics"]
+            .as_array()
+            .expect("report diagnostics array")
+    }
+
+    fn assert_report_has_no_lifecycle_adapter_unsupported(report: &serde_json::Value) {
+        assert!(
+            !report_diagnostics(report)
+                .iter()
+                .any(|diag| diag["code"] == "cem.lifecycle.adapter_unsupported"),
+            "{report:#}"
+        );
+    }
+
+    fn assert_report_has_xslt_lifecycle_diagnostic(report: &serde_json::Value, code: &str) {
+        let diagnostic = report_diagnostics(report)
+            .iter()
+            .find(|diag| diag["code"] == code)
+            .unwrap_or_else(|| panic!("missing diagnostic `{code}` in {report:#}"));
+        let lifecycle = &diagnostic["details"]["lifecycle"];
+        assert_eq!(
+            lifecycle["adapterId"],
+            cem_ml::lifecycle::CUSTOM_ELEMENT_XSLT_COMPAT_ADAPTER_ID
+        );
+        assert_eq!(
+            lifecycle["profile"],
+            "xslt-1.0-limited-exslt-custom-element-compat"
+        );
+        assert_eq!(lifecycle["sourceMapContract"], "generated-boundary");
     }
 
     fn assert_remote_resolver_boundary(stderr: &str, uri: &str) {
@@ -18686,7 +18108,7 @@ start =
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(v["summary"]["hardViolationCount"], 0);
-        assert!(v["diagnostics"].as_array().unwrap().is_empty());
+        assert_report_has_no_lifecycle_adapter_unsupported(&v);
     }
 
     #[test]
@@ -19803,10 +19225,13 @@ start =
     }
 
     #[test]
-    fn validate_xslt_namespace_selects_legacy_xslt_input_adapter() {
+    fn validate_xslt_namespace_selects_custom_element_xslt_input_adapter() {
         let p = write_fixture(
             "validate-xslt-namespace.data",
-            r#"<xsl:if test="$ready"><button>Go</button></xsl:if>"#,
+            r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0">
+  <xsl:template match="/"><main/></xsl:template>
+</xsl:stylesheet>
+"#,
         );
         let (outcome, stdout, stderr) = run(
             &RealCemMlEngine::new(),
@@ -19878,6 +19303,254 @@ start =
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         assert_eq!(v["summary"]["hardViolationCount"], 0);
         assert_eq!(v["summary"]["inputCount"], 1);
+    }
+
+    #[test]
+    fn validate_input_spec_lifecycle_identity_matrix() {
+        let xslt_source = r#"<?xml version="1.0" encoding="UTF-8"?>
+<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0">
+  <xsl:template match="/">
+    <main><h1>Sign in</h1></main>
+  </xsl:template>
+</xsl:stylesheet>
+"#;
+        let xhtml_source = r#"<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+  <head><title>Document</title></head>
+  <body><p>Hello.</p></body>
+</html>
+"#;
+        let svg_source = r#"<svg xmlns="http://www.w3.org/2000/svg" role="img" viewBox="0 0 24 24">
+  <title>Download</title>
+  <path d="M12 3v12"/>
+</svg>
+"#;
+        let mathml_source = r#"<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline" alttext="x">
+  <mi>x</mi>
+</math>
+"#;
+        let cases = vec![
+            (
+                "cem-content-type",
+                "{p | Hi}",
+                format!(
+                    "contentType={}",
+                    cem_ml::schema::registry::CEM_ML_CONTENT_TYPE
+                ),
+            ),
+            (
+                "html-content-type",
+                "<button>Go</button>",
+                format!(
+                    "contentType={}",
+                    cem_ml::schema::registry::HTML_CONTENT_TYPE
+                ),
+            ),
+            (
+                "xml-content-type",
+                "<root><item>Hi</item></root>",
+                format!("contentType={}", cem_ml::schema::registry::XML_CONTENT_TYPE),
+            ),
+            (
+                "xhtml-content-type",
+                xhtml_source,
+                format!(
+                    "contentType={}",
+                    cem_ml::schema::registry::XHTML_CONTENT_TYPE
+                ),
+            ),
+            (
+                "svg-content-type",
+                svg_source,
+                format!("contentType={}", cem_ml::schema::registry::SVG_CONTENT_TYPE),
+            ),
+            (
+                "mathml-content-type",
+                mathml_source,
+                format!(
+                    "contentType={}",
+                    cem_ml::schema::registry::MATHML_CONTENT_TYPE
+                ),
+            ),
+            (
+                "xslt-content-type",
+                xslt_source,
+                format!(
+                    "contentType={}",
+                    cem_ml::schema::registry::XSLT_CONTENT_TYPE
+                ),
+            ),
+            (
+                "html-content-type-over-schema",
+                "<button>Go</button>",
+                format!(
+                    "contentType={},schema={}",
+                    cem_ml::schema::registry::HTML_CONTENT_TYPE,
+                    cem_ml::schema::registry::XSLT_SCHEMA_URI
+                ),
+            ),
+            (
+                "cem-schema",
+                "{p | Hi}",
+                format!("schema={}", cem_ml::schema::registry::CEM_ML_SCHEMA_URI),
+            ),
+            (
+                "html-schema",
+                "<button>Go</button>",
+                format!("schema={}", cem_ml::schema::registry::HTML_SCHEMA_URI),
+            ),
+            (
+                "xml-schema",
+                "<root><item>Hi</item></root>",
+                format!("schema={}", cem_ml::schema::registry::XML_SCHEMA_URI),
+            ),
+            (
+                "xhtml-schema",
+                xhtml_source,
+                format!("schema={}", cem_ml::schema::registry::XHTML_SCHEMA_URI),
+            ),
+            (
+                "svg-schema",
+                svg_source,
+                format!("schema={}", cem_ml::schema::registry::SVG_SCHEMA_URI),
+            ),
+            (
+                "mathml-schema",
+                mathml_source,
+                format!("schema={}", cem_ml::schema::registry::MATHML_SCHEMA_URI),
+            ),
+            (
+                "xslt-schema",
+                xslt_source,
+                format!("schema={}", cem_ml::schema::registry::XSLT_SCHEMA_URI),
+            ),
+            (
+                "cem-namespace",
+                "{p | Hi}",
+                "defaultNs=https://cem.dev/ns/core/1".to_owned(),
+            ),
+            (
+                "html-namespace",
+                "<button>Go</button>",
+                format!("defaultNs={}", cem_ml::schema::registry::HTML_NAMESPACE_URI),
+            ),
+            (
+                "svg-namespace",
+                svg_source,
+                format!("defaultNs={}", cem_ml::schema::registry::SVG_NAMESPACE_URI),
+            ),
+            (
+                "mathml-namespace",
+                mathml_source,
+                format!(
+                    "defaultNs={}",
+                    cem_ml::schema::registry::MATHML_NAMESPACE_URI
+                ),
+            ),
+            (
+                "xslt-namespace",
+                xslt_source,
+                format!(
+                    "namespaces=xsl:{}",
+                    cem_ml::schema::registry::XSLT_NAMESPACE_URI
+                ),
+            ),
+        ];
+
+        for (name, source, identity) in cases {
+            let p = write_fixture(
+                &format!("validate-input-spec-lifecycle-identity-{name}.data"),
+                source,
+            );
+            let input_spec = format!("uri={},{}", p.display(), identity);
+            let (outcome, stdout, stderr) = run(
+                &RealCemMlEngine::new(),
+                &["validate", "--format", "json", "--input-spec", &input_spec],
+            );
+
+            let report: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+            if name == "mathml-namespace" {
+                assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{name}: {stderr}");
+                assert!(
+                    report["summary"]["hardViolationCount"]
+                        .as_u64()
+                        .is_some_and(|count| count > 0),
+                    "{name}: {report:#}"
+                );
+            } else {
+                assert_eq!(outcome.exit_code, EXIT_OK, "{name}: {stderr}");
+                assert_eq!(
+                    report["summary"]["hardViolationCount"], 0,
+                    "{name}: {report:#}"
+                );
+            }
+            assert_eq!(report["summary"]["inputCount"], 1, "{name}: {report:#}");
+            assert_report_has_no_lifecycle_adapter_unsupported(&report);
+        }
+    }
+
+    #[test]
+    fn validate_input_spec_unknown_identity_reports_adapter_diagnostic_with_alias_fallback() {
+        let p = write_fixture(
+            "validate-input-spec-unknown-identity.html",
+            r#"<button>Go</button>"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--from-format",
+                "html",
+                "--input-spec",
+                &format!(
+                    "uri={},contentType=application/vnd.example.widget+json,schema=https://example.test/ns/widgets/1",
+                    p.display()
+                ),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let report: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_eq!(report["summary"]["hardViolationCount"], 0);
+        assert!(report_diagnostics(&report).iter().any(|diag| {
+            diag["code"] == "cem.lifecycle.adapter_unsupported"
+                && diag["message"].as_str().is_some_and(|message| {
+                    message.contains("content type `application/vnd.example.widget+json`")
+                        && message.contains("schema `https://example.test/ns/widgets/1`")
+                })
+        }));
+    }
+
+    #[test]
+    fn validate_xslt_input_spec_reports_lifecycle_profile_details() {
+        let p = write_fixture(
+            "validate-input-spec-xslt-missing-version.xsl",
+            r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+  <xsl:template match="/"><main/></xsl:template>
+</xsl:stylesheet>
+"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--input-spec",
+                &format!(
+                    "uri={},contentType={},schema={}",
+                    p.display(),
+                    cem_ml::schema::registry::XSLT_CONTENT_TYPE,
+                    cem_ml::schema::registry::XSLT_SCHEMA_URI
+                ),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let report: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        assert_report_has_xslt_lifecycle_diagnostic(&report, "cem.xslt.version_missing");
     }
 
     #[test]
@@ -22229,6 +21902,32 @@ start =
         );
         let written = std::fs::read_to_string(&out_path).unwrap();
         assert_eq!(written, COLORED_P_HI_HTML);
+    }
+
+    #[test]
+    fn output_spec_content_type_overrides_to_format_alias() {
+        let input = write_fixture("convert-output-content-type-over-alias.cem", "{p Hi}");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-format",
+                "events",
+                "--output-spec",
+                &format!(
+                    "contentType={}",
+                    cem_ml::schema::registry::HTML_CONTENT_TYPE
+                ),
+                input.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(
+            !stderr.contains("cem.lifecycle.target_adapter_unsupported"),
+            "{stderr}"
+        );
+        assert_eq!(stdout, COLORED_P_HI_HTML);
     }
 
     #[test]
@@ -25138,6 +24837,73 @@ start =
             stdout,
             "{cem:if @test=\"not (disabled)\" |\n  {button | Go}\n}\n"
         );
+    }
+
+    #[test]
+    fn convert_input_spec_content_type_overrides_from_format_alias() {
+        let p = write_fixture(
+            "convert-input-spec-html-over-cem-alias.html",
+            "<button>Go</button>",
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--from-format",
+                "cem",
+                "--to-content-type",
+                "application/cem+xml",
+                "--input-spec",
+                &format!(
+                    "uri={},contentType={}",
+                    p.display(),
+                    cem_ml::schema::registry::HTML_CONTENT_TYPE
+                ),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(
+            !stderr.contains("cem.lifecycle.adapter_unsupported"),
+            "{stderr}"
+        );
+        assert_eq!(stdout, "{button | Go}\n");
+    }
+
+    #[test]
+    fn convert_xslt_input_spec_report_preserves_lifecycle_profile_details() {
+        let p = write_fixture(
+            "convert-input-spec-xslt-missing-version.xsl",
+            r#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+  <xsl:template match="/"><main/></xsl:template>
+</xsl:stylesheet>
+"#,
+        );
+        let report_path =
+            std::env::temp_dir().join("cem-ml-cli-tests/convert-xslt-lifecycle-report.json");
+        let _ = std::fs::remove_file(&report_path);
+        let (outcome, _stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--to-content-type",
+                "application/cem+xml",
+                "--input-spec",
+                &format!(
+                    "uri={},contentType={},schema={}",
+                    p.display(),
+                    cem_ml::schema::registry::XSLT_CONTENT_TYPE,
+                    cem_ml::schema::registry::XSLT_SCHEMA_URI
+                ),
+                "--report-json",
+                report_path.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let report: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(report_path).unwrap()).unwrap();
+        assert_report_has_xslt_lifecycle_diagnostic(&report, "cem.xslt.version_missing");
     }
 
     #[test]
