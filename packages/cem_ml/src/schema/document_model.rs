@@ -307,6 +307,136 @@ pub struct ConstraintDefinition {
     pub behavior: Option<String>,
     pub definition: Option<BehaviorDefinition>,
     pub engine_behavior: Option<EngineDiagnosticBehavior>,
+    pub reference_resolution: Option<ReferenceResolutionConstraint>,
+    pub source_map: SourceMapStack,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ReferenceResolutionConstraint {
+    pub execution: ReferenceConstraintExecution,
+    pub candidates: Vec<ReferenceCandidatesDeclaration>,
+    pub operands: Vec<ReferenceOperandDeclaration>,
+    pub lookups: Vec<ReferenceLookupDeclaration>,
+    pub compare: Option<ReferenceCompareDeclaration>,
+    pub projection: Option<ReferenceProjectionDeclaration>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ReferenceConstraintExecution {
+    pub execution: Option<String>,
+    pub requires: Option<String>,
+    pub support: Option<String>,
+    pub package_context: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceCandidatesDeclaration {
+    pub select: Option<String>,
+    pub as_binding: Option<String>,
+    pub cardinality: Option<String>,
+    pub on_empty: Option<String>,
+    pub source_map: SourceMapStack,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReferenceOperandDeclarationRole {
+    Actual,
+    Expected,
+    Forbidden,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceOperandDeclaration {
+    pub role: ReferenceOperandDeclarationRole,
+    pub binding: Option<String>,
+    pub from: Option<String>,
+    pub normalizer: Option<String>,
+    pub cardinality: Option<String>,
+    pub shape: Option<String>,
+    pub result_cardinality: Option<String>,
+    pub result_shape: Option<String>,
+    pub state: Option<String>,
+    pub lookup: Option<String>,
+    pub diagnostic_field: Option<String>,
+    pub lookups: Vec<ReferenceLookupDeclaration>,
+    pub projection: Option<ReferenceProjectionDeclaration>,
+    pub source_map: SourceMapStack,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceLookupDeclaration {
+    pub name: Option<String>,
+    pub execution: Option<String>,
+    pub select: Option<String>,
+    pub key: Option<String>,
+    pub as_binding: Option<String>,
+    pub result: Option<String>,
+    pub result_cardinality: Option<String>,
+    pub result_shape: Option<String>,
+    pub result_key: Option<String>,
+    pub provenance: Option<String>,
+    pub source_range: Option<String>,
+    pub requires: Option<String>,
+    pub support: Option<String>,
+    pub package_context: Option<String>,
+    pub keys: Vec<ReferenceLookupKeyDeclaration>,
+    pub result_keys: Vec<ReferenceLookupResultKeyDeclaration>,
+    pub source_map: SourceMapStack,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceLookupKeyDeclaration {
+    pub binding: Option<String>,
+    pub from: Option<String>,
+    pub normalizer: Option<String>,
+    pub cardinality: Option<String>,
+    pub shape: Option<String>,
+    pub source_map: SourceMapStack,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceLookupResultKeyDeclaration {
+    pub binding: Option<String>,
+    pub from: Option<String>,
+    pub value_path: Option<String>,
+    pub normalizer: Option<String>,
+    pub source_map: SourceMapStack,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceCompareDeclaration {
+    pub operator: Option<String>,
+    pub presence: Option<String>,
+    pub field_pairs: Vec<ReferenceFieldPairDeclaration>,
+    pub source_map: SourceMapStack,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceFieldPairDeclaration {
+    pub binding: Option<String>,
+    pub actual_value_path: Option<String>,
+    pub expected_value_path: Option<String>,
+    pub forbidden_value_path: Option<String>,
+    pub operator: Option<String>,
+    pub state: Option<String>,
+    pub presence: Option<String>,
+    pub source_map: SourceMapStack,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceProjectionDeclaration {
+    pub profile: Option<String>,
+    pub project: Vec<String>,
+    pub source: Option<String>,
+    pub value_view: Option<String>,
+    pub buckets: Vec<ReferenceProjectionBucketDeclaration>,
+    pub source_map: SourceMapStack,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceProjectionBucketDeclaration {
+    pub name: Option<String>,
+    pub value_view: Option<String>,
     pub source_map: SourceMapStack,
 }
 
@@ -8947,6 +9077,11 @@ fn collect_constraint_definitions(
                 resolve_behavior_definition(behavior, schema_uri, uses, local_behaviors)
             });
             let engine_behavior = definition.as_ref().and_then(supported_engine_behavior);
+            let is_reference_resolution = engine_behavior
+                == Some(EngineDiagnosticBehavior::ReferenceResolution)
+                || behavior.as_deref() == Some(REFERENCE_RESOLUTION_DIAGNOSTIC_BEHAVIOR);
+            let reference_resolution = is_reference_resolution
+                .then(|| collect_reference_resolution_constraint(document, *child_id, &attrs));
             constraints.insert(
                 kind.to_owned(),
                 ConstraintDefinition {
@@ -8959,12 +9094,241 @@ fn collect_constraint_definitions(
                     behavior,
                     definition,
                     engine_behavior,
+                    reference_resolution,
                     source_map: source_stack_for_node(child).clone(),
                 },
             );
         }
     }
     constraints
+}
+
+fn collect_reference_resolution_constraint(
+    document: &CemDocument,
+    constraint_id: AstNodeId,
+    constraint_attrs: &BTreeMap<String, String>,
+) -> ReferenceResolutionConstraint {
+    ReferenceResolutionConstraint {
+        execution: ReferenceConstraintExecution {
+            execution: optional_non_empty_attr(constraint_attrs, "execution").map(str::to_owned),
+            requires: optional_non_empty_attr(constraint_attrs, "requires").map(str::to_owned),
+            support: optional_non_empty_attr(constraint_attrs, "support").map(str::to_owned),
+            package_context: optional_non_empty_attr(constraint_attrs, "package")
+                .map(str::to_owned),
+        },
+        candidates: collect_reference_candidates(document, constraint_id),
+        operands: collect_reference_operands(document, constraint_id),
+        lookups: collect_reference_lookups(document, constraint_id),
+        compare: collect_reference_compare(document, constraint_id),
+        projection: collect_reference_projection(document, constraint_id),
+    }
+}
+
+fn collect_reference_candidates(
+    document: &CemDocument,
+    constraint_id: AstNodeId,
+) -> Vec<ReferenceCandidatesDeclaration> {
+    element_child_ids_by_local_name(document, constraint_id, "candidates")
+        .into_iter()
+        .map(|candidates_id| {
+            let attrs = collect_attrs(document, candidates_id);
+            ReferenceCandidatesDeclaration {
+                select: optional_non_empty_attr(&attrs, "select").map(str::to_owned),
+                as_binding: optional_non_empty_attr(&attrs, "as").map(str::to_owned),
+                cardinality: optional_non_empty_attr(&attrs, "cardinality").map(str::to_owned),
+                on_empty: optional_non_empty_attr(&attrs, "on-empty").map(str::to_owned),
+                source_map: source_stack_for_node_id(document, candidates_id),
+            }
+        })
+        .collect()
+}
+
+fn collect_reference_operands(
+    document: &CemDocument,
+    constraint_id: AstNodeId,
+) -> Vec<ReferenceOperandDeclaration> {
+    let Some(CemAstNode::Element { children, .. }) = document.get(constraint_id) else {
+        return Vec::new();
+    };
+
+    children
+        .iter()
+        .filter_map(|operand_id| {
+            let node = document.get(*operand_id)?;
+            let role = match element_local_name(node)? {
+                "actual" => ReferenceOperandDeclarationRole::Actual,
+                "expected" => ReferenceOperandDeclarationRole::Expected,
+                "forbidden" => ReferenceOperandDeclarationRole::Forbidden,
+                _ => return None,
+            };
+            let attrs = collect_attrs(document, *operand_id);
+            Some(ReferenceOperandDeclaration {
+                role,
+                binding: optional_non_empty_attr(&attrs, "binding").map(str::to_owned),
+                from: optional_non_empty_attr(&attrs, "from").map(str::to_owned),
+                normalizer: optional_non_empty_attr(&attrs, "normalizer").map(str::to_owned),
+                cardinality: optional_non_empty_attr(&attrs, "cardinality").map(str::to_owned),
+                shape: optional_non_empty_attr(&attrs, "shape").map(str::to_owned),
+                result_cardinality: optional_non_empty_attr(&attrs, "result-cardinality")
+                    .map(str::to_owned),
+                result_shape: optional_non_empty_attr(&attrs, "result-shape").map(str::to_owned),
+                state: optional_non_empty_attr(&attrs, "state").map(str::to_owned),
+                lookup: optional_non_empty_attr(&attrs, "lookup").map(str::to_owned),
+                diagnostic_field: optional_non_empty_attr(&attrs, "diagnostic-field")
+                    .map(str::to_owned),
+                lookups: collect_reference_lookups(document, *operand_id),
+                projection: collect_reference_projection(document, *operand_id),
+                source_map: source_stack_for_node(node).clone(),
+            })
+        })
+        .collect()
+}
+
+fn collect_reference_lookups(
+    document: &CemDocument,
+    owner_id: AstNodeId,
+) -> Vec<ReferenceLookupDeclaration> {
+    element_child_ids_by_local_name(document, owner_id, "lookup")
+        .into_iter()
+        .map(|lookup_id| {
+            let attrs = collect_attrs(document, lookup_id);
+            ReferenceLookupDeclaration {
+                name: optional_non_empty_attr(&attrs, "name").map(str::to_owned),
+                execution: optional_non_empty_attr(&attrs, "execution").map(str::to_owned),
+                select: optional_non_empty_attr(&attrs, "select").map(str::to_owned),
+                key: optional_non_empty_attr(&attrs, "key").map(str::to_owned),
+                as_binding: optional_non_empty_attr(&attrs, "as").map(str::to_owned),
+                result: optional_non_empty_attr(&attrs, "result").map(str::to_owned),
+                result_cardinality: optional_non_empty_attr(&attrs, "result-cardinality")
+                    .map(str::to_owned),
+                result_shape: optional_non_empty_attr(&attrs, "result-shape").map(str::to_owned),
+                result_key: optional_non_empty_attr(&attrs, "result-key").map(str::to_owned),
+                provenance: optional_non_empty_attr(&attrs, "provenance").map(str::to_owned),
+                source_range: optional_non_empty_attr(&attrs, "source-range").map(str::to_owned),
+                requires: optional_non_empty_attr(&attrs, "requires").map(str::to_owned),
+                support: optional_non_empty_attr(&attrs, "support").map(str::to_owned),
+                package_context: optional_non_empty_attr(&attrs, "package").map(str::to_owned),
+                keys: collect_reference_lookup_keys(document, lookup_id),
+                result_keys: collect_reference_lookup_result_keys(document, lookup_id),
+                source_map: source_stack_for_node_id(document, lookup_id),
+            }
+        })
+        .collect()
+}
+
+fn collect_reference_lookup_keys(
+    document: &CemDocument,
+    lookup_id: AstNodeId,
+) -> Vec<ReferenceLookupKeyDeclaration> {
+    element_child_ids_by_local_name(document, lookup_id, "key")
+        .into_iter()
+        .map(|key_id| {
+            let attrs = collect_attrs(document, key_id);
+            ReferenceLookupKeyDeclaration {
+                binding: optional_non_empty_attr(&attrs, "binding").map(str::to_owned),
+                from: optional_non_empty_attr(&attrs, "from").map(str::to_owned),
+                normalizer: optional_non_empty_attr(&attrs, "normalizer").map(str::to_owned),
+                cardinality: optional_non_empty_attr(&attrs, "cardinality").map(str::to_owned),
+                shape: optional_non_empty_attr(&attrs, "shape").map(str::to_owned),
+                source_map: source_stack_for_node_id(document, key_id),
+            }
+        })
+        .collect()
+}
+
+fn collect_reference_lookup_result_keys(
+    document: &CemDocument,
+    lookup_id: AstNodeId,
+) -> Vec<ReferenceLookupResultKeyDeclaration> {
+    element_child_ids_by_local_name(document, lookup_id, "result-key")
+        .into_iter()
+        .map(|result_key_id| {
+            let attrs = collect_attrs(document, result_key_id);
+            ReferenceLookupResultKeyDeclaration {
+                binding: optional_non_empty_attr(&attrs, "binding").map(str::to_owned),
+                from: optional_non_empty_attr(&attrs, "from").map(str::to_owned),
+                value_path: optional_non_empty_attr(&attrs, "value-path").map(str::to_owned),
+                normalizer: optional_non_empty_attr(&attrs, "normalizer").map(str::to_owned),
+                source_map: source_stack_for_node_id(document, result_key_id),
+            }
+        })
+        .collect()
+}
+
+fn collect_reference_compare(
+    document: &CemDocument,
+    constraint_id: AstNodeId,
+) -> Option<ReferenceCompareDeclaration> {
+    let compare_id = element_child_ids_by_local_name(document, constraint_id, "compare")
+        .into_iter()
+        .next()?;
+    let attrs = collect_attrs(document, compare_id);
+    Some(ReferenceCompareDeclaration {
+        operator: optional_non_empty_attr(&attrs, "operator").map(str::to_owned),
+        presence: optional_non_empty_attr(&attrs, "presence").map(str::to_owned),
+        field_pairs: collect_reference_field_pairs(document, compare_id),
+        source_map: source_stack_for_node_id(document, compare_id),
+    })
+}
+
+fn collect_reference_field_pairs(
+    document: &CemDocument,
+    compare_id: AstNodeId,
+) -> Vec<ReferenceFieldPairDeclaration> {
+    element_child_ids_by_local_name(document, compare_id, "field-pair")
+        .into_iter()
+        .map(|field_pair_id| {
+            let attrs = collect_attrs(document, field_pair_id);
+            ReferenceFieldPairDeclaration {
+                binding: optional_non_empty_attr(&attrs, "binding").map(str::to_owned),
+                actual_value_path: optional_non_empty_attr(&attrs, "actual-value-path")
+                    .map(str::to_owned),
+                expected_value_path: optional_non_empty_attr(&attrs, "expected-value-path")
+                    .map(str::to_owned),
+                forbidden_value_path: optional_non_empty_attr(&attrs, "forbidden-value-path")
+                    .map(str::to_owned),
+                operator: optional_non_empty_attr(&attrs, "operator").map(str::to_owned),
+                state: optional_non_empty_attr(&attrs, "state").map(str::to_owned),
+                presence: optional_non_empty_attr(&attrs, "presence").map(str::to_owned),
+                source_map: source_stack_for_node_id(document, field_pair_id),
+            }
+        })
+        .collect()
+}
+
+fn collect_reference_projection(
+    document: &CemDocument,
+    owner_id: AstNodeId,
+) -> Option<ReferenceProjectionDeclaration> {
+    let projection_id = element_child_ids_by_local_name(document, owner_id, "projection")
+        .into_iter()
+        .next()?;
+    let attrs = collect_attrs(document, projection_id);
+    Some(ReferenceProjectionDeclaration {
+        profile: optional_non_empty_attr(&attrs, "profile").map(str::to_owned),
+        project: parse_name_sequence(attrs.get("project")),
+        source: optional_non_empty_attr(&attrs, "source").map(str::to_owned),
+        value_view: optional_non_empty_attr(&attrs, "value-view").map(str::to_owned),
+        buckets: collect_reference_projection_buckets(document, projection_id),
+        source_map: source_stack_for_node_id(document, projection_id),
+    })
+}
+
+fn collect_reference_projection_buckets(
+    document: &CemDocument,
+    projection_id: AstNodeId,
+) -> Vec<ReferenceProjectionBucketDeclaration> {
+    element_child_ids_by_local_name(document, projection_id, "bucket")
+        .into_iter()
+        .map(|bucket_id| {
+            let attrs = collect_attrs(document, bucket_id);
+            ReferenceProjectionBucketDeclaration {
+                name: optional_non_empty_attr(&attrs, "name").map(str::to_owned),
+                value_view: optional_non_empty_attr(&attrs, "value-view").map(str::to_owned),
+                source_map: source_stack_for_node_id(document, bucket_id),
+            }
+        })
+        .collect()
 }
 
 fn validate_constraint_definitions(
@@ -13570,6 +13934,14 @@ fn source_stack_for_node(node: &CemAstNode) -> &SourceMapStack {
     }
 }
 
+fn source_stack_for_node_id(document: &CemDocument, node_id: AstNodeId) -> SourceMapStack {
+    document
+        .get(node_id)
+        .map(source_stack_for_node)
+        .cloned()
+        .unwrap_or_default()
+}
+
 fn node_source_range_details(node: &CemAstNode) -> Option<serde_json::Value> {
     source_stack_for_node(node)
         .current()
@@ -16245,6 +16617,314 @@ mod tests {
                 .get("example.artifact_check")
                 .map(|behavior| behavior.engine_behavior),
             Some(Some(EngineDiagnosticBehavior::FieldContract))
+        );
+    }
+
+    #[test]
+    fn schema_reference_resolution_declarations_are_captured_as_ir() {
+        let model = compile_document_model(
+            "https://example.test/ns/reference-ir/1",
+            r#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
+
+{schema @name="reference-ir" @namespace="https://example.test/ns/reference-ir/1" @version="1.0.0" |
+    {uses |
+        {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+    }
+    {elements |
+        {element @name="from" @optional-attributes="content-type schema path function-name profile target-content-type target-schema target-category"}
+        {element @name="to"}
+    }
+    {constraints |
+        {constraint
+            @kind="endpoint-content-type-schema"
+            @target="from to"
+            @diagnostic="example.reference_check"
+            @behavior="schema:reference-resolution"
+            @execution="engine-assisted"
+            @requires="schema:engine.registry@1"
+            @support="required"
+            @package="current" |
+
+            {candidates
+                @select="$target.child(from, to)"
+                @as="endpoint"
+                @cardinality="zero-or-more"
+                @on-empty="pass"}
+
+            {actual
+                @binding="content-type"
+                @from="endpoint.@content-type"
+                @normalizer="schema:content-type-identity"
+                @cardinality="one"
+                @shape="scalar"
+                @state="required-valid"}
+
+            {expected
+                @binding="content-type"
+                @from="endpoint.@schema"
+                @normalizer="schema:content-type-identity-set"
+                @cardinality="one"
+                @shape="scalar"
+                @result-cardinality="set"
+                @result-shape="scalar"
+                @state="required-valid" |
+
+                {lookup
+                    @name="schema:registry.descriptor"
+                    @execution="engine-assisted"
+                    @requires="schema:engine.registry"
+                    @support="required"
+                    @package="current"
+                    @as="descriptor"
+                    @result="contentTypes"
+                    @result-cardinality="one"
+                    @result-shape="record"
+                    @source-range="key" |
+
+                    {key
+                        @binding="schema"
+                        @normalizer="schema:schema-identity"
+                        @cardinality="one"
+                        @shape="record"}
+                }}
+
+            {forbidden
+                @binding="deprecated-content-type"
+                @from="endpoint.@content-type"
+                @normalizer="schema:content-type-identity"
+                @cardinality="set"
+                @shape="scalar"
+                @state="optional-valid"
+                @lookup="schema:deprecated-content-types"
+                @diagnostic-field="deprecatedContentType"}
+
+            {lookup
+                @name="schema:function-index"
+                @execution="engine-assisted"
+                @requires="schema:engine.artifact"
+                @as="function-index"
+                @result="functions"
+                @result-cardinality="set"
+                @result-shape="record"
+                @result-key="canonicalName"
+                @provenance="registry"
+                @source-range="result-preferred" |
+
+                {key
+                    @binding="artifact"
+                    @from="endpoint.@path"
+                    @normalizer="schema:artifact-identity"
+                    @cardinality="one"
+                    @shape="record"}
+                {result-key
+                    @binding="function"
+                    @value-path="canonicalName"
+                    @normalizer="schema:function-name"}
+            }
+
+            {compare @operator="schema:record-fields-equal" @presence="both-or-none" |
+                {field-pair
+                    @binding="profile"
+                    @actual-value-path="functionProfile"
+                    @expected-value-path="functionProfile"
+                    @operator="schema:equals"
+                    @state="optional-valid"
+                    @presence="both-or-none"}
+            }
+
+            {projection
+                @profile="structured"
+                @project="expected invalid comparison source-ranges aliases candidate"
+                @source="lookup"
+                @value-view="both" |
+                {bucket @name="expected" @value-view="normalized"}
+            }
+        }
+    }
+    {diagnostics |
+        {diagnostic
+            @code="example.reference_check"
+            @severity="error"
+            @behavior="schema:reference-resolution"}
+    }
+}"#,
+        );
+
+        assert!(
+            model.compile_diagnostics.is_empty(),
+            "reference IR fixture should compile without diagnostics: {:#?}",
+            model.compile_diagnostics
+        );
+        let constraint = model
+            .constraint("endpoint-content-type-schema")
+            .expect("reference-resolution constraint");
+        assert_eq!(
+            constraint.engine_behavior,
+            Some(EngineDiagnosticBehavior::ReferenceResolution)
+        );
+        let reference = constraint
+            .reference_resolution
+            .as_ref()
+            .expect("reference-resolution IR");
+
+        assert_eq!(
+            reference.execution.execution.as_deref(),
+            Some("engine-assisted")
+        );
+        assert_eq!(
+            reference.execution.requires.as_deref(),
+            Some("schema:engine.registry@1")
+        );
+        assert_eq!(reference.execution.support.as_deref(), Some("required"));
+        assert_eq!(
+            reference.execution.package_context.as_deref(),
+            Some("current")
+        );
+
+        assert_eq!(reference.candidates.len(), 1);
+        let candidates = &reference.candidates[0];
+        assert_eq!(
+            candidates.select.as_deref(),
+            Some("$target.child(from, to)")
+        );
+        assert_eq!(candidates.as_binding.as_deref(), Some("endpoint"));
+        assert_eq!(candidates.cardinality.as_deref(), Some("zero-or-more"));
+        assert_eq!(candidates.on_empty.as_deref(), Some("pass"));
+        assert!(!candidates.source_map.frames.is_empty());
+
+        assert_eq!(reference.operands.len(), 3);
+        let actual = reference
+            .operands
+            .iter()
+            .find(|operand| operand.role == ReferenceOperandDeclarationRole::Actual)
+            .expect("actual operand");
+        assert_eq!(actual.binding.as_deref(), Some("content-type"));
+        assert_eq!(actual.from.as_deref(), Some("endpoint.@content-type"));
+        assert_eq!(
+            actual.normalizer.as_deref(),
+            Some("schema:content-type-identity")
+        );
+        assert_eq!(actual.cardinality.as_deref(), Some("one"));
+        assert_eq!(actual.shape.as_deref(), Some("scalar"));
+        assert_eq!(actual.state.as_deref(), Some("required-valid"));
+
+        let expected = reference
+            .operands
+            .iter()
+            .find(|operand| operand.role == ReferenceOperandDeclarationRole::Expected)
+            .expect("expected operand");
+        assert_eq!(expected.binding.as_deref(), Some("content-type"));
+        assert_eq!(
+            expected.normalizer.as_deref(),
+            Some("schema:content-type-identity-set")
+        );
+        assert_eq!(expected.result_cardinality.as_deref(), Some("set"));
+        assert_eq!(expected.result_shape.as_deref(), Some("scalar"));
+        assert_eq!(expected.lookups.len(), 1);
+        let descriptor_lookup = &expected.lookups[0];
+        assert_eq!(
+            descriptor_lookup.name.as_deref(),
+            Some("schema:registry.descriptor")
+        );
+        assert_eq!(
+            descriptor_lookup.execution.as_deref(),
+            Some("engine-assisted")
+        );
+        assert_eq!(
+            descriptor_lookup.requires.as_deref(),
+            Some("schema:engine.registry")
+        );
+        assert_eq!(descriptor_lookup.support.as_deref(), Some("required"));
+        assert_eq!(
+            descriptor_lookup.package_context.as_deref(),
+            Some("current")
+        );
+        assert_eq!(descriptor_lookup.as_binding.as_deref(), Some("descriptor"));
+        assert_eq!(descriptor_lookup.result.as_deref(), Some("contentTypes"));
+        assert_eq!(descriptor_lookup.result_cardinality.as_deref(), Some("one"));
+        assert_eq!(descriptor_lookup.result_shape.as_deref(), Some("record"));
+        assert_eq!(descriptor_lookup.source_range.as_deref(), Some("key"));
+        assert_eq!(descriptor_lookup.keys.len(), 1);
+        assert_eq!(descriptor_lookup.keys[0].binding.as_deref(), Some("schema"));
+        assert_eq!(
+            descriptor_lookup.keys[0].normalizer.as_deref(),
+            Some("schema:schema-identity")
+        );
+
+        let forbidden = reference
+            .operands
+            .iter()
+            .find(|operand| operand.role == ReferenceOperandDeclarationRole::Forbidden)
+            .expect("forbidden operand");
+        assert_eq!(
+            forbidden.lookup.as_deref(),
+            Some("schema:deprecated-content-types")
+        );
+        assert_eq!(
+            forbidden.diagnostic_field.as_deref(),
+            Some("deprecatedContentType")
+        );
+
+        assert_eq!(reference.lookups.len(), 1);
+        let function_lookup = &reference.lookups[0];
+        assert_eq!(
+            function_lookup.name.as_deref(),
+            Some("schema:function-index")
+        );
+        assert_eq!(function_lookup.result_key.as_deref(), Some("canonicalName"));
+        assert_eq!(function_lookup.provenance.as_deref(), Some("registry"));
+        assert_eq!(function_lookup.keys.len(), 1);
+        assert_eq!(function_lookup.result_keys.len(), 1);
+        assert_eq!(
+            function_lookup.result_keys[0].value_path.as_deref(),
+            Some("canonicalName")
+        );
+        assert_eq!(
+            function_lookup.result_keys[0].normalizer.as_deref(),
+            Some("schema:function-name")
+        );
+
+        let compare = reference.compare.as_ref().expect("compare declaration");
+        assert_eq!(
+            compare.operator.as_deref(),
+            Some("schema:record-fields-equal")
+        );
+        assert_eq!(compare.presence.as_deref(), Some("both-or-none"));
+        assert_eq!(compare.field_pairs.len(), 1);
+        assert_eq!(
+            compare.field_pairs[0].actual_value_path.as_deref(),
+            Some("functionProfile")
+        );
+        assert_eq!(
+            compare.field_pairs[0].presence.as_deref(),
+            Some("both-or-none")
+        );
+
+        let projection = reference
+            .projection
+            .as_ref()
+            .expect("projection declaration");
+        assert_eq!(projection.profile.as_deref(), Some("structured"));
+        assert_eq!(
+            projection.project,
+            vec![
+                "expected".to_owned(),
+                "invalid".to_owned(),
+                "comparison".to_owned(),
+                "source-ranges".to_owned(),
+                "aliases".to_owned(),
+                "candidate".to_owned(),
+            ]
+        );
+        assert_eq!(projection.source.as_deref(), Some("lookup"));
+        assert_eq!(projection.value_view.as_deref(), Some("both"));
+        assert_eq!(projection.buckets.len(), 1);
+        assert_eq!(projection.buckets[0].name.as_deref(), Some("expected"));
+        assert_eq!(
+            projection.buckets[0].value_view.as_deref(),
+            Some("normalized")
         );
     }
 

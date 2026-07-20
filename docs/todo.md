@@ -18,8 +18,8 @@ source provenance, keep normalization annotative and symmetric, make execution
 placement explicit, avoid implicit canonicalization, and retain complete schema
 identity.
 
-Current active slice: start follow-on implementation by adding parser/schema IR
-coverage for the declarative reference vocabulary.
+Current active slice: add schema-definition validation for malformed
+declarative reference-resolution declarations before evaluator wiring.
 
 ### Contract And Documentation
 
@@ -196,7 +196,7 @@ Implement the declarative CEM-ML reference vocabulary behind
 `schema:reference-resolution` without changing existing public diagnostic
 compatibility, reconciling field names and IR shapes with the accepted design.
 
-- [ ] Add parser/schema IR coverage for `candidates`, operand role elements,
+- [x] Add parser/schema IR coverage for `candidates`, operand role elements,
       canonical `lookup` children, `compare`, `projection`, and constraint
       execution fields.
 - [ ] Validate declaration errors for candidate cardinality, operand
