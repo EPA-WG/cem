@@ -7,22 +7,40 @@ history.
 
 ## Immediate Goal
 
-Freeze one implementable schema-owned reference-normalization contract across
-[`cem-ml-reference-normalization-design.md`](cem-ml-reference-normalization-design.md),
-[`cem-ml-reference-vocabulary-design.md`](cem-ml-reference-vocabulary-design.md),
-and
-[`cem-ml-reference-comparison-design.md`](cem-ml-reference-comparison-design.md)
-before resuming implementation. High-level goals and design concepts take
-priority over older concrete fields and examples: preserve declared values and
-source provenance, keep normalization annotative and symmetric, make execution
-placement explicit, avoid implicit canonicalization, and retain complete schema
-identity.
+Advance Phase 2 from [`../roadmap.md`](../roadmap.md): schema-defined parser
+and document runtime. Focus first on the shared run configuration and
+multi-document lifecycle layer that lets `cem_ml`, `cem_ml_cli`, WASM, and
+future hosts validate, load, and export documents through the same root-scope
+context.
 
-Current active slice: design declarative CEMT body/output assertion vocabulary
-for schema-owned artifact constraints currently centralized in Rust helper
-checks.
+Current active slice: audit the current `cem_ml` and `cem_ml_cli` run-config
+and lifecycle surfaces against the Phase 2 roadmap contract.
 
-### Contract And Documentation
+### Phase 2 Parser And Runtime
+
+- [ ] Audit current `cem_ml` and `cem_ml_cli` run-config and lifecycle surfaces
+      against Phase 2 roadmap deliverables, including input/output spec arrays,
+      content-type/schema identities, module-map/resolver/base URI/scope-policy
+      fields, budgets, source maps, and existing CLI aliases.
+- [ ] Define the normalized `RunConfig` contract shared by lib, CLI, and WASM:
+      root-scope context, default and named namespaces, version pins,
+      module-map/resolver identity, base URI, resolver purpose, scope policy,
+      budgets, diagnostics mode, and compatibility aliases.
+- [ ] Implement or align `cem_ml` config normalization before CLI-specific
+      parsing details: accept raw config bytes or raw record strings with config
+      format identity, validate module-map/namespace/version-pin shape, resolve
+      config-relative paths, and preserve source ranges.
+- [ ] Wire `cem_ml_cli` validate/convert paths to consume normalized
+      `RunConfig` while keeping current enum flags and one-line options as
+      aliases and rejecting duplicate or conflicting config sources.
+- [ ] Add a multi-document run context for input/output arrays with
+      per-document root-scope diagnostics, source maps, resolver budgets,
+      deterministic report identity, and a scheduler boundary suitable for
+      thread-pool or WASM hosts.
+- [ ] Verify with focused Rust tests first, then run
+      `NX_DAEMON=false yarn nx run cem_ml:test` and the relevant CLI e2e target.
+
+### Completed Reference Normalization Contract And Documentation
 
 - [x] **[C1] Define staged lookup normalization.** Specify source extraction,
       source cardinality guard, lookup-key normalization, lookup, raw-result
@@ -190,7 +208,7 @@ checks.
 - [x] Document whether ordered ARIA IDREF sequences and dynamic JSON Schema
       references are supported or deferred.
 
-## Follow-on Implementation
+## Completed Reference Normalization Implementation
 
 The immediate documentation contract and acceptance cases are complete.
 Implement the declarative CEM-ML reference vocabulary behind
@@ -222,7 +240,7 @@ compatibility, reconciling field names and IR shapes with the accepted design.
 - [x] Verify with focused Rust tests first, then run
       `NX_DAEMON=false yarn nx run cem_ml:test`.
 
-## Low Priority Deferred Design
+## Completed Reference Normalization Deferred Design
 
 Current cross-node/reference background: schema-owned constraints are declared
 in CEM-ML but some are still executed by Rust. For example,
@@ -247,7 +265,7 @@ function lookup/metadata matching.
       need an explicit generic CEM semantics decision before implementation so
       path layout remains schema-owned and independent of package-specific Rust
       validation branches.
-- [ ] Design declarative CEMT body/output assertion vocabulary for
+- [x] Design declarative CEMT body/output assertion vocabulary for
       schema-owned artifact constraints currently centralized in Rust helper
       checks. Immediate background: schema-package artifact declarations now
       express source readability (`artifact-source-readable`), CEMT parse

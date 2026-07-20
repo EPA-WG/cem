@@ -601,6 +601,14 @@ interprets a manifest artifact path as document/artifact identity after
 resolver context is applied, a manifest function name as exact exported symbol
 spelling, and a compiled CEMT declaration as a function identity record tied to
 the resolved artifact/module. Profile selectors remain exact dotted symbols.
+Declarative artifact validation uses that split in stages: resource-readable
+and resource-parse checks own artifact availability and CEMT syntax validity,
+then the read-only `schema:cemt-output-function` lookup selects exported
+`encoding-function`, `format-function`, or `color-function` declaration
+metadata by resolved artifact identity plus lexical function name. Contract
+checks compare manifest target content type, target schema, category, profile,
+and subject metadata against the selected declaration without executing the
+CEMT body or writer pipeline.
 
 Native producers exist for performance, bootstrap, binary framing, and clarity,
 but are paired with CEMT implementations and cross-checked. Each supported

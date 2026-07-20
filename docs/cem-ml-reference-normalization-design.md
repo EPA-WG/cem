@@ -565,7 +565,11 @@ function declaration. Its normalized value is a record:
   moduleIdentity: <compiled module or artifact identity>,
   canonicalName: <compiler canonical exported function name>,
   functionProfile?: <schema:profile-name>,
-  functionKind?: <schema:identifier-token>
+  functionKind?: <schema:identifier-token>,
+  targetContentType?: <schema:content-type-identity>,
+  targetSchemaIdentity?: <schema:schema-identity>,
+  targetCategory?: <schema:content-category>,
+  subjectType?: <schema:identifier-token>
 }
 ```
 
@@ -573,8 +577,12 @@ function declaration. Its normalized value is a record:
 `schema:artifact-identity` for schema-package CEMT assets. `canonicalName` is
 the compiler's canonical export spelling and must compare with manifest
 `@function-name` through the `schema:function-name` normalizer. The optional
-profile and kind fields are compared only when the schema contract declares
-those field pairs.
+profile, kind, target content type, target schema, target category, and subject
+fields are CEMT declaration metadata. They are compared only when the schema
+contract declares those field pairs. Internal helper declarations may expose
+name, profile, and kind metadata, but they must not satisfy output producer
+metadata checks unless a future schema contract explicitly asks for helper
+identity rather than output identity.
 
 ## Artifact Name And Identity Domains
 
@@ -681,7 +689,7 @@ reason=unresolved-document`.
 Resource existence, readability, parsing, schema loading, and CEMT compilation
 belong to explicit lookup or resource behaviors such as
 `schema:resource-readable`, `schema:resource-parse`,
-`schema:schema-identity`, or `schema:function-identity`.
+`schema:schema-identity`, or `schema:cemt-output-function`.
 
 Language-specific reference semantics are separate capabilities. JSON Schema
 `$ref` and `$dynamicRef` resolution depends on `$id`, anchors, dynamic anchors,
@@ -745,6 +753,36 @@ can point to the path, function name, target content type, target schema,
 category, profile, or subject source independently instead of pointing at a
 synthetic combined key.
 
+## CEMT Output Declaration Inspection
+
+The first CEMT-specific reference capability is the read-only
+`schema:cemt-output-function` lookup. It is engine-assisted because it may need
+resolver context, artifact reads, CEMT parsing, and compiled module declaration
+metadata. It must not execute a CEMT function body, render output, call writer
+primitives, mutate package files, or treat cache hits as semantic inputs.
+
+The lookup consumes a composite key whose required fields are the resolved
+`schema:artifact-identity` and the manifest `schema:function-name`. Contract
+checks may include target content type, target schema identity, target category,
+function profile, and subject type as additional independently normalized key
+or comparison fields. The raw lookup result is the selected output declaration
+metadata from a parsed or compiled CEMT module. The comparable result is a
+`schema:function-identity` record.
+
+The initial lookup selects exported output producer declarations only:
+`encoding-function`, `format-function`, and `color-function`. Internal helper
+`function` declarations remain reusable body helpers and do not register as
+destination output producers. Parse and compile validity are owned by explicit
+resource behaviors such as `schema:resource-parse`; this lookup asserts that a
+compiled declaration with matching output identity exists and exposes the
+metadata needed for comparison.
+
+Failure outcomes stay in the normalization lifecycle. A missing declaration is
+`state=unresolved, reason=unresolved-function`; malformed declaration metadata
+is `state=invalid`; unsupported CEMT inspection is `state=unsupported,
+reason=unsupported-capability`; resolver or package policy denial is
+`state=unsupported, reason=policy-denied`.
+
 ## Vocabulary
 
 | Normalizer                         | Output                | Placement                                                            | Semantics                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -768,7 +806,7 @@ synthetic combined key.
 | `schema:artifact-name`             | string                | pure                                                                 | Validate an authored manifest artifact ID using `schema:identifier-token` grammar and preserve it exactly. This normalizer is not used for package-relative paths, resolved URIs, basenames, function names, or path-derived artifact identity.                                                                                                                                                                                                                                                                                                                                     |
 | `schema:artifact-identity`         | record                | engine-assisted                                                      | Resolve an artifact URI/path through `schema:document-uri` and package/registry context into `{ declaredUri, resolvedUri, packageContext?, artifactKind?, sourceContentType?, sourceSchemaIdentity? }`. Equality uses the resolved artifact URI in its package/registry context, plus artifact kind when the contract requires it. Declared spelling, source range, resolver steps, and aliases remain provenance.                                                                                                                                                                  |
 | `schema:function-name`             | string                | pure                                                                 | Validate a dotted exported function symbol and preserve it exactly. This normalizer owns lexical function-name equality only; it does not identify the compiled module or artifact that declares the function.                                                                                                                                                                                                                                                                                                                                                                      |
-| `schema:function-identity`         | record                | engine-assisted                                                      | Lift a compiled CEMT function declaration into `{ moduleIdentity, canonicalName, functionProfile?, functionKind? }`. The module or artifact identity is supplied by resolver context; `canonicalName` is compared with manifest `@function-name` using `schema:function-name`; optional profile/kind fields compare only when declared by the schema contract.                                                                                                                                                                                                                      |
+| `schema:function-identity`         | record                | engine-assisted                                                      | Lift a compiled CEMT function declaration into `{ moduleIdentity, canonicalName, functionProfile?, functionKind?, targetContentType?, targetSchemaIdentity?, targetCategory?, subjectType? }`. The module or artifact identity is supplied by resolver context; `canonicalName` is compared with manifest `@function-name` using `schema:function-name`; optional output metadata fields compare only when declared by the schema contract.                                                                                                                                          |
 | `schema:content-category`          | string                | pure                                                                 | Alias of `schema:identifier-token` for artifact/converter target categories. Kept as a named normalizer so diagnostics can report the domain-specific value kind.                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `schema:profile-name`              | string                | pure                                                                 | Validate a dotted `schema:symbol-reference` profile symbol and preserve it exactly. Profiles are case-sensitive schema-owned symbols; no case folding, segment normalization, alias expansion, or conversion to bare identifier tokens is applied.                                                                                                                                                                                                                                                                                                                                  |
 
@@ -788,8 +826,9 @@ normalizers as declared manifest values:
 - Schema descriptor namespaces use `schema:namespace-uri-set`.
 - Namespace-dispatch metadata uses `schema:namespace-metadata`; the resolved
   metadata source participates in cache and policy identity per AC-P-6.1.
-- CEMT function output metadata uses `schema:function-identity`,
-  `schema:function-name`,
+- CEMT function output metadata is selected through the read-only
+  `schema:cemt-output-function` lookup and normalized with
+  `schema:function-identity`, `schema:function-name`,
   `schema:content-type-identity`, `schema:media-type`,
   `schema:media-type-essence`, `schema:schema-identity`,
   `schema:content-category`, and `schema:profile-name` as applicable.
@@ -855,14 +894,14 @@ projection is not part of this normalization vocabulary.
   with `schema:namespace-metadata`. An explicit AC-F-2 schema form may refine
   the resolved schema within the namespace-selected content type, but a direct
   form that selects a different content type is invalid per AC-P-6.1.
-- Artifact function lookup normalizes manifest `@function-name` with
-  `schema:function-name` and compiled CEMT declarations with
-  `schema:function-identity`. Lookup compares the manifest lexical function
-  name with the identity record's `canonicalName` inside the resolved
-  module/artifact identity.
-- Artifact function metadata matching normalizes target content type, target
-  schema, target category, function profile, and function name with the
-  corresponding vocabulary terms above.
+- Artifact function lookup uses `schema:cemt-output-function` with a composite
+  key containing resolved artifact identity and manifest `@function-name`.
+  Lookup compares the manifest lexical function name with the identity record's
+  `canonicalName` inside the resolved module/artifact identity.
+- Artifact function metadata matching compares the manifest target content
+  type, target schema, target category, function profile, subject type, and
+  function name against the selected `schema:function-identity` output
+  metadata using the corresponding vocabulary terms above.
 
 ## Acceptance Examples
 

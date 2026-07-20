@@ -390,7 +390,9 @@ Function-name and function-identity bindings are separate domains. Manifest
 `@function-name` operands bind to `schema:function-name`, which preserves the
 authored exported symbol. Compiled CEMT declarations bind to
 `schema:function-identity`, whose record carries the module/artifact identity,
-canonical exported function name, and optional profile/kind metadata. Lookup
+canonical exported function name, optional profile/kind metadata, and output
+producer metadata such as target content type, target schema, target category,
+and subject type when the CEMT declaration exposes those fields. Lookup
 provenance may show both values, but comparisons must project the intended
 field pair explicitly.
 
@@ -464,7 +466,7 @@ as `schema:document-uri` may finalize a key to a resolved URI, but they must
 not assert that the target exists, is readable, parses, or compiles. Resource
 availability is represented by explicit lookup names or behaviors, for example
 `schema:resource-readable`, `schema:resource-parse`,
-`schema:registry.descriptor`, or `schema:function-identity`.
+`schema:registry.descriptor`, or `schema:cemt-output-function`.
 
 Use child form when lookup needs `@as`, `@key`, `key` children, `@result`,
 `@requires`, `@package`, `@support`, source-range options, explicit state
@@ -519,6 +521,17 @@ Lookup execution:
 - `lookup` with `@requires` defaults to `@execution="engine-assisted"`.
 - A lookup containing both `@select` and engine capability fields is invalid
   unless a future composed lookup design explicitly allows it.
+
+The first CEMT inspection lookup is `schema:cemt-output-function`. It is an
+engine-assisted read-only lookup that selects exported CEMT output producer
+declarations from a resolved artifact. Required key children are the resolved
+artifact identity and the lexical function name; target content type, target
+schema identity, target category, function profile, and subject type may be
+additional keys or later record field-pairs when the schema contract needs
+them. The lookup result is declaration metadata only, normalized as
+`schema:function-identity`; validators must not execute the CEMT body or writer
+pipeline to answer this lookup. Internal helper `function` declarations do not
+satisfy this lookup unless a future helper-specific capability is declared.
 
 Lookup result cardinality:
 

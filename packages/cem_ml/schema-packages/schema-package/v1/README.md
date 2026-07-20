@@ -81,6 +81,14 @@ symbol, compiled CEMT declarations expose function identity records, and
 profile fields use dotted profile-symbol semantics. Current validators may
 project that structure internally while preserving the existing manifest field
 names and diagnostic compatibility.
+The target declarative check sequence keeps source readability and CEMT parse
+validity in explicit resource behaviors, then uses read-only
+`schema:cemt-output-function` inspection to select output declaration metadata
+by resolved artifact identity plus lexical function name. The selected
+declaration is normalized as `schema:function-identity`; artifact contract
+checks compare its kind, target content type, target schema, target category,
+optional profile, and subject metadata against manifest fields without
+executing the CEMT function body.
 
 Compatibility projection is part of the migration contract. Current CLI/report
 output may keep existing diagnostic codes and broad value buckets while
