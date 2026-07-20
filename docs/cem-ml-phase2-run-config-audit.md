@@ -126,7 +126,7 @@ Gaps:
 Current status: the core adapter boundary is present.
 
 - `LifecycleRegistry` owns input load and target export selection.
-- Built-in adapters cover CEM-ML, HTML, XML, legacy custom-element XSLT, and
+- Built-in adapters cover CEM-ML, HTML, XML, custom-element XSLT compatibility, and
   DOM/AST/events projections.
 - Adapter matching uses content type, schema, and namespace identity, with
   unsupported or ambiguous identities reported as lifecycle diagnostics.

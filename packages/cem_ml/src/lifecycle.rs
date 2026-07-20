@@ -20,6 +20,8 @@ use crate::schema::registry::{
     XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_NAMESPACE_URI, XSLT_SCHEMA_URI,
 };
 use crate::transform_config::TRANSFORM_CONFIG_SCHEMA_URI;
+use crate::validation::xslt::{validate_xslt_source_bytes, XsltSourceValidationRequest};
+use serde_json::json;
 
 pub const ADAPTER_AMBIGUOUS_CODE: &str = "cem.lifecycle.adapter_ambiguous";
 pub const ADAPTER_UNSUPPORTED_CODE: &str = "cem.lifecycle.adapter_unsupported";
@@ -29,6 +31,7 @@ pub const DOM_JSON_PROJECTION_SCHEMA: &str = "https://cem.dev/ns/projection/dom-
 pub const DOM_PROJECTION_SCHEMA: &str = CEM_DOM_PROJECTION_SCHEMA_URI;
 pub const AST_PROJECTION_SCHEMA: &str = CEM_AST_PROJECTION_SCHEMA_URI;
 pub const EVENTS_PROJECTION_SCHEMA: &str = CEM_EVENTS_PROJECTION_SCHEMA_URI;
+pub const CUSTOM_ELEMENT_XSLT_COMPAT_ADAPTER_ID: &str = "custom-element-xslt-compat";
 
 const HTML_NAMESPACE: &str = HTML_NAMESPACE_URI;
 const SVG_NAMESPACE: &str = SVG_NAMESPACE_URI;
@@ -94,7 +97,7 @@ impl LifecycleRegistry {
         registry.register(CemMlAdapter);
         registry.register(HtmlAdapter);
         registry.register(XmlAdapter);
-        registry.register(LegacyCustomElementXsltAdapter);
+        registry.register(CustomElementXsltCompatAdapter);
         registry.register(DomBinaryProjectionAdapter);
         registry.register(AstBinaryProjectionAdapter);
         registry.register(EventsBinaryProjectionAdapter);
@@ -112,6 +115,7 @@ impl LifecycleRegistry {
         let identity = input
             .identity
             .clone()
+            .or_else(|| input.root_scope.format_identity_option())
             .unwrap_or_else(|| FormatIdentity::from(context));
         let matches: Vec<&dyn LifecycleAdapter> = self
             .adapters
@@ -536,11 +540,11 @@ impl LifecycleAdapter for XmlAdapter {
     }
 }
 
-struct LegacyCustomElementXsltAdapter;
+struct CustomElementXsltCompatAdapter;
 
-impl LifecycleAdapter for LegacyCustomElementXsltAdapter {
+impl LifecycleAdapter for CustomElementXsltCompatAdapter {
     fn id(&self) -> &'static str {
-        "legacy-custom-element-xslt"
+        CUSTOM_ELEMENT_XSLT_COMPAT_ADAPTER_ID
     }
 
     fn matches_input(&self, identity: &FormatIdentity) -> bool {
@@ -553,21 +557,88 @@ impl LifecycleAdapter for LegacyCustomElementXsltAdapter {
             || matches_namespace_without_content_type_or_schema(identity, &[XSLT_NAMESPACE])
     }
 
-    fn load(&self, input: &EngineInput, _: &FormatIdentity) -> LoadedInput {
+    fn load(&self, input: &EngineInput, identity: &FormatIdentity) -> LoadedInput {
         let legacy_source = String::from_utf8_lossy(&input.bytes);
+        let source_content_type = input
+            .identity
+            .as_ref()
+            .and_then(|identity| identity.content_type.as_deref())
+            .or_else(|| input.root_scope.default_content_type.as_deref())
+            .or(identity.content_type.as_deref());
+        let mut diagnostics = validate_xslt_source_bytes(XsltSourceValidationRequest {
+            bytes: &input.bytes,
+            source_uri: &input.uri,
+            content_type: source_content_type,
+        });
         let converted =
             crate::legacy_custom_element::convert_template_source(legacy_source.as_ref());
+        diagnostics.extend(
+            converted
+                .diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.to_engine_diagnostic(Some(input.uri.clone()))),
+        );
+        let diagnostics = lifecycle_adapter_diagnostics(self.id(), diagnostics);
         LoadedInput {
             bytes: converted.source.into_bytes(),
             from_format: InputFormat::Cem,
-            diagnostics: converted
-                .diagnostics
-                .iter()
-                .map(|diagnostic| diagnostic.to_engine_diagnostic(Some(input.uri.clone())))
-                .collect(),
+            diagnostics,
             adapter_id: Some(self.id()),
         }
     }
+}
+
+fn lifecycle_adapter_diagnostics(
+    adapter_id: &'static str,
+    diagnostics: Vec<Diagnostic>,
+) -> Vec<Diagnostic> {
+    let mut seen = std::collections::HashSet::<(String, String, Option<u64>)>::new();
+    diagnostics
+        .into_iter()
+        .filter_map(|mut diagnostic| {
+            let key = lifecycle_diagnostic_dedup_key(&diagnostic);
+            if !seen.insert(key) {
+                return None;
+            }
+
+            let lifecycle_details = json!({
+                "adapterId": adapter_id,
+                "operation": "load",
+                "profile": "xslt-1.0-limited-exslt-custom-element-compat",
+                "sourceMapContract": "generated-boundary",
+                "generatedContentType": CEM_ML_CONTENT_TYPE,
+                "generatedSchema": CEM_ML_SCHEMA_URI,
+            });
+            diagnostic.details = match diagnostic.details.take() {
+                Some(mut details) if details.is_object() => {
+                    if let Some(object) = details.as_object_mut() {
+                        object.insert("lifecycle".to_owned(), lifecycle_details);
+                    }
+                    Some(details)
+                }
+                Some(details) => Some(json!({
+                    "lifecycle": lifecycle_details,
+                    "upstream": details,
+                })),
+                None => Some(json!({
+                    "lifecycle": lifecycle_details,
+                })),
+            };
+            Some(diagnostic)
+        })
+        .collect()
+}
+
+fn lifecycle_diagnostic_dedup_key(diagnostic: &Diagnostic) -> (String, String, Option<u64>) {
+    if diagnostic.code == crate::legacy_custom_element::UNSUPPORTED_CONSTRUCT_CODE {
+        return (diagnostic.code.clone(), String::new(), None);
+    }
+
+    (
+        diagnostic.code.clone(),
+        diagnostic.message.clone(),
+        diagnostic.byte_offset,
+    )
 }
 
 struct DomJsonProjectionAdapter;
@@ -814,13 +885,16 @@ mod tests {
     }
 
     #[test]
-    fn builtins_load_legacy_custom_element_xslt_to_cem() {
+    fn builtins_load_custom_element_xslt_compat_to_cem() {
         let loaded = LifecycleRegistry::with_builtin_adapters().load(
             &input(br#"<if test="$ready"><button>Go</button></if>"#),
             &context("custom-element-xslt"),
         );
         assert_eq!(loaded.from_format, InputFormat::Cem);
-        assert_eq!(loaded.adapter_id, Some("legacy-custom-element-xslt"));
+        assert_eq!(
+            loaded.adapter_id,
+            Some(CUSTOM_ELEMENT_XSLT_COMPAT_ADAPTER_ID)
+        );
         assert!(String::from_utf8(loaded.bytes)
             .unwrap()
             .contains("{cem:if @test=\"ready\""));
@@ -829,27 +903,94 @@ mod tests {
     #[test]
     fn builtins_load_standard_xslt_content_type_to_cem() {
         let loaded = LifecycleRegistry::with_builtin_adapters().load(
-            &input(br#"<xsl:if test="$ready"><button>Go</button></xsl:if>"#),
+            &input(
+                br#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0"><xsl:template match="/"><xsl:if test="$ready"><button>Go</button></xsl:if></xsl:template></xsl:stylesheet>"#,
+            ),
             &context("application/xslt+xml"),
         );
         assert_eq!(loaded.from_format, InputFormat::Cem);
-        assert_eq!(loaded.adapter_id, Some("legacy-custom-element-xslt"));
+        assert_eq!(
+            loaded.adapter_id,
+            Some(CUSTOM_ELEMENT_XSLT_COMPAT_ADAPTER_ID)
+        );
+        assert!(loaded.diagnostics.is_empty());
         assert!(String::from_utf8(loaded.bytes)
             .unwrap()
             .contains("{cem:if @test=\"ready\""));
     }
 
     #[test]
-    fn xslt_schema_selects_legacy_xslt_input_when_content_type_absent() {
+    fn xslt_schema_selects_custom_element_xslt_compat_when_content_type_absent() {
         let loaded = LifecycleRegistry::with_builtin_adapters().load(
-            &input(br#"<xsl:if test="$ready"><button>Go</button></xsl:if>"#),
+            &input(
+                br#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0"><xsl:template match="/"><xsl:if test="$ready"><button>Go</button></xsl:if></xsl:template></xsl:stylesheet>"#,
+            ),
             &EngineContext {
                 schema: Some(XSLT_SCHEMA_URI.to_owned()),
                 ..EngineContext::default()
             },
         );
         assert_eq!(loaded.from_format, InputFormat::Cem);
-        assert_eq!(loaded.adapter_id, Some("legacy-custom-element-xslt"));
+        assert_eq!(
+            loaded.adapter_id,
+            Some(CUSTOM_ELEMENT_XSLT_COMPAT_ADAPTER_ID)
+        );
+        assert!(loaded.diagnostics.is_empty());
+        assert!(String::from_utf8(loaded.bytes)
+            .unwrap()
+            .contains("{cem:if @test=\"ready\""));
+    }
+
+    #[test]
+    fn custom_element_xslt_compat_reports_source_validation_diagnostics_with_profile_details() {
+        let loaded = LifecycleRegistry::with_builtin_adapters().load(
+            &input(
+                br#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform"><xsl:template match="/"><main/></xsl:template></xsl:stylesheet>"#,
+            ),
+            &context("application/xslt+xml"),
+        );
+
+        let diagnostic = loaded
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "cem.xslt.version_missing")
+            .expect("source validation diagnostic");
+        assert_eq!(diagnostic.severity, Severity::Error);
+        assert_eq!(diagnostic.uri.as_deref(), Some("test-input"));
+        assert_eq!(
+            diagnostic
+                .details
+                .as_ref()
+                .and_then(|details| details.get("lifecycle"))
+                .and_then(|lifecycle| lifecycle.get("adapterId"))
+                .and_then(serde_json::Value::as_str),
+            Some(CUSTOM_ELEMENT_XSLT_COMPAT_ADAPTER_ID)
+        );
+        assert_eq!(
+            diagnostic
+                .details
+                .as_ref()
+                .and_then(|details| details.get("lifecycle"))
+                .and_then(|lifecycle| lifecycle.get("sourceMapContract"))
+                .and_then(serde_json::Value::as_str),
+            Some("generated-boundary")
+        );
+    }
+
+    #[test]
+    fn input_root_scope_identity_selects_custom_element_xslt_compat() {
+        let mut source = input(br#"<if test="$ready"><button>Go</button></if>"#);
+        source.root_scope.default_content_type = Some("custom-element-xslt".to_owned());
+
+        let loaded =
+            LifecycleRegistry::with_builtin_adapters().load(&source, &EngineContext::default());
+
+        assert_eq!(loaded.from_format, InputFormat::Cem);
+        assert_eq!(
+            loaded.adapter_id,
+            Some(CUSTOM_ELEMENT_XSLT_COMPAT_ADAPTER_ID)
+        );
+        assert!(loaded.diagnostics.is_empty());
         assert!(String::from_utf8(loaded.bytes)
             .unwrap()
             .contains("{cem:if @test=\"ready\""));
@@ -1152,8 +1293,10 @@ mod tests {
     }
 
     #[test]
-    fn xslt_namespace_selects_legacy_xslt_input_when_content_type_and_schema_absent() {
-        let mut source = input(br#"<xsl:if test="$ready"><button>Go</button></xsl:if>"#);
+    fn xslt_namespace_selects_custom_element_xslt_compat_when_content_type_and_schema_absent() {
+        let mut source = input(
+            br#"<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0"><xsl:template match="/"><xsl:if test="$ready"><button>Go</button></xsl:if></xsl:template></xsl:stylesheet>"#,
+        );
         source.identity = Some(FormatIdentity {
             namespaces: std::collections::BTreeMap::from([(
                 "xsl".to_owned(),
@@ -1166,7 +1309,10 @@ mod tests {
             LifecycleRegistry::with_builtin_adapters().load(&source, &EngineContext::default());
 
         assert_eq!(loaded.from_format, InputFormat::Cem);
-        assert_eq!(loaded.adapter_id, Some("legacy-custom-element-xslt"));
+        assert_eq!(
+            loaded.adapter_id,
+            Some(CUSTOM_ELEMENT_XSLT_COMPAT_ADAPTER_ID)
+        );
         assert!(loaded.diagnostics.is_empty());
         assert!(String::from_utf8(loaded.bytes)
             .unwrap()

@@ -79,7 +79,7 @@ already models a useful first-generation adapter registry.
   - `cem-ml`;
   - `html`;
   - `xml`;
-  - `legacy-custom-element-xslt`;
+  - `custom-element-xslt-compat`;
   - DOM, AST, and events projection adapters for JSON and binary outputs.
 - Input matching uses content type first. Schema identity participates only when
   content type is absent. Namespace identity participates only when both content

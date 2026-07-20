@@ -573,7 +573,7 @@ Current implementation status:
   `http://www.w3.org/2000/svg`) also select the HTML adapter when no content type is present.
   SVG content type (`image/svg+xml`) selects the XML adapter.
   XSLT namespace identity (`http://www.w3.org/1999/XSL/Transform`) selects the
-  legacy custom-element XSLT compatibility adapter when no content type or schema is present,
+  `custom-element-xslt-compat` adapter when no content type or schema is present,
   while explicit content type remains authoritative. Unsupported input identities
   emit deterministic lifecycle diagnostics with the declared content type, schema, and/or
   namespace while preserving the fallback input format. CEM/HTML target export selection is
@@ -626,7 +626,7 @@ Current implementation status:
   destinations still reject explicitly unless a host, CLI resolver-map option, or
   run-config `resolvers` entry installs one.
 - `validate` / `check` / `convert` route `custom-element-xslt` input through the first
-  shared lifecycle adapter path, lowering legacy custom-element XSLT to canonical
+  shared lifecycle adapter path, lowering custom-element XSLT compatibility input to canonical
   CEM-ML through `cem_ml::legacy_custom_element`; the `custom-element-xslt` to
   `application/cem+xml` route selects canonical CEM-ML export from the declared
   target identity through the lifecycle registry.

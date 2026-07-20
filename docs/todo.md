@@ -13,22 +13,41 @@ multi-document lifecycle layer that lets `cem_ml`, `cem_ml_cli`, WASM, and
 future hosts validate, load, and export documents through the same root-scope
 context.
 
-Current active slice: route XSLT 1.0 custom-element compatibility validation
-and conversion through the shared lifecycle adapter registry while preserving
-scoped handoff diagnostics and source-map boundaries.
+Current active slice: fill the remaining lifecycle fixture matrix for
+content-identity selection and compatibility aliases after the
+`custom-element-xslt-compat` adapter profile promotion.
 
 ### Phase 2 Parser And Runtime
 
-- [ ] Route XSLT 1.0 custom-element compatibility validation and conversion
+- [x] Route XSLT 1.0 custom-element compatibility validation and conversion
       through the same lifecycle adapter registry, preserving scoped handoff
       diagnostics and source-map boundaries.
-- [ ] Add or update fixtures for CEM-ML, HTML/XML parity, and
+- [ ] Add remaining fixtures for CEM-ML, HTML/XML parity, and
       custom-element-XSLT validate/load/export behavior across content-identity
-      selection and enum aliases.
-- [ ] Verify with focused Rust tests first, then run
+      selection and enum aliases. Start by expanding CLI-normalized
+      `--input-spec` / `--output-spec` cases so content type, schema,
+      namespace, root-scope identity, and legacy enum hints are exercised
+      through the same normalized run path rather than only direct engine
+      request construction.
+- [x] Verify with focused Rust tests first, then run
       `NX_DAEMON=false yarn nx run cem_ml:test`,
       `NX_DAEMON=false yarn nx run cem_ml_cli:e2e`, and the relevant adapter
       parity target.
+
+### Next Work Item
+
+Build the remaining fixture matrix around normalized CLI/run-config inputs:
+
+- prove CEM-ML, HTML, XML, XHTML, SVG, MathML, and XSLT identities select the
+  intended lifecycle adapters from content type first, then schema, then
+  namespace;
+- cover alias fallback behavior for `--from-format` / `--to-format` alongside
+  explicit content identity, including unsupported explicit identity
+  diagnostics;
+- add report assertions that lifecycle adapter/profile details survive validate
+  and convert reports for `custom-element-xslt-compat`;
+- prefer CLI fixtures backed by `RunConfig`/`--input-spec` over only direct
+  `EngineInput` unit tests, because the remaining risk is normalization drift.
 
 ## Current Verification Commands
 

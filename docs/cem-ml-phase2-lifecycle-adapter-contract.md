@@ -80,7 +80,7 @@ LifecycleAdapterDescriptor {
 cem-ml
 html
 xml
-legacy-custom-element-xslt
+custom-element-xslt-compat
 dom-json-projection
 dom-binary-projection
 ast-projection
@@ -321,10 +321,12 @@ Input and target identities include:
 
 It selects internal format `xml`.
 
-### Legacy Custom-Element XSLT Adapter
+### Custom-Element XSLT Compatibility Adapter
 
-`legacy-custom-element-xslt` supports input `lower-compatibility`, `load`, and
-validation through the CEM-ML spine after lowering.
+`custom-element-xslt-compat` supports input `validate`,
+`lower-compatibility`, and `load` for the inventory-backed XSLT 1.0 plus
+limited EXSLT compatibility profile. It is separate from any future XSLT
+3.0/4.0 peer-language engine.
 
 Input identities include:
 
@@ -337,7 +339,10 @@ Input identities include:
 - XSLT schema identity when content type is absent;
 - XSLT namespace when content type and schema are absent.
 
-It selects internal format `cem` after lowering to generated CEM-ML.
+It validates the original XSLT/custom-element source first, then selects
+internal format `cem` after lowering to generated CEM-ML. Lifecycle diagnostics
+carry the adapter id, profile, operation, generated CEM-ML identity, and
+`generated-boundary` source-map contract in structured details.
 
 Target/export behavior is not supported in Phase 2 unless a future adapter
 declares it explicitly. A request to export to custom-element XSLT must produce
@@ -456,7 +461,7 @@ Phase 2 target for built-ins:
 - CEM-ML, HTML, and XML document adapters: `preserve-input`;
 - DOM/AST/events projections: `preserve-input`;
 - binary projections: `preserve-input`;
-- legacy custom-element XSLT: `generated-boundary` now, `full-stack` later for
+- custom-element XSLT compatibility: `generated-boundary` now, `full-stack` later for
   lowered nodes that can be traced to original XSLT/custom-element source.
 
 When an adapter lowers one language to another, diagnostics from the generated

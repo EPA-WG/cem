@@ -28,7 +28,7 @@ The first implementation target for this lifecycle is XSLT 1.0:
 
 - `application/xslt+xml` / `text/xsl` / `text/custom-element-xslt` inputs are recognized
   as XSLT 1.0-family content types;
-- the existing legacy custom-element XSLT 1.0 compatibility lowering
+- the existing custom-element XSLT 1.0 compatibility lowering
   (`cem_ml::legacy_custom_element`) becomes a registered input adapter instead of a
   one-off `convert` branch;
 - CLI validation can run the XSLT adapter directly, producing diagnostics for unsupported
@@ -67,7 +67,7 @@ the immediate CLI lifecycle contract.
     - `validate(ast/events, identity) -> diagnostics`;
     - `export(ast, identity) -> bytes/projection + source map`.
 5. Back the lifecycle with a registry:
-    - built-in adapters: CEM-ML, HTML parity, XML parity, legacy custom-element XSLT 1.0;
+    - built-in adapters: CEM-ML, HTML parity, XML parity, custom-element XSLT 1.0 compatibility;
     - future adapters registered through the existing plugin descriptor/content-type model;
     - deterministic adapter selection errors when no adapter matches or more than one adapter matches.
 6. Define one serializable run configuration shared by lib, WASM, and CLI:
@@ -97,7 +97,7 @@ the immediate CLI lifecycle contract.
    `.xhtml` path inference feeds `application/xhtml+xml` into
    the same HTML adapter. SVG content type (`image/svg+xml`) selects the XML adapter.
    XSLT namespace identity (`http://www.w3.org/1999/XSL/Transform`)
-   selects the legacy custom-element XSLT compatibility adapter when no content type or
+   selects the `custom-element-xslt-compat` adapter when no content type or
    schema is present, while explicit content type remains authoritative. Unsupported input
    and target identities emit deterministic lifecycle diagnostics with the declared
    content type, schema, and/or namespace while preserving the requested fallback input
