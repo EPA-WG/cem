@@ -27,6 +27,7 @@ pub mod real;
 pub mod registry;
 pub mod resolver;
 pub mod run_config;
+pub mod run_context;
 pub mod scheduler;
 pub mod schema;
 pub mod source;

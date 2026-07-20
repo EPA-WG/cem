@@ -35,7 +35,7 @@ CLI-specific parsing details.
 - [x] Wire `cem_ml_cli` validate/convert paths to consume normalized
       `RunConfig` while keeping current enum flags and one-line options as
       aliases and rejecting duplicate or conflicting config sources.
-- [ ] Add a multi-document run context for input/output arrays with
+- [x] Add a multi-document run context for input/output arrays with
       per-document root-scope diagnostics, source maps, resolver budgets,
       deterministic report identity, and a scheduler boundary suitable for
       thread-pool or WASM hosts.
