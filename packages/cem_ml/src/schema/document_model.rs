@@ -49,9 +49,9 @@ use crate::schema::package_loader::{
 use crate::schema::reference_resolution::{
     compare_references, EngineAssistedReferenceNormalizerEvaluator, NormalizedReferenceValue,
     NormalizerPlacement, PureReferenceNormalizerEvaluator, ReferenceComparisonInput,
-    ReferenceComparisonOperator, ReferenceComparisonResult, ReferenceNormalizer, ReferenceOperand,
-    ReferenceOperandRole, ReferenceStatePolicy, ReferenceValue, ReferenceValueCardinality,
-    ReferenceValueReason, ReferenceValueState,
+    ReferenceComparisonOperator, ReferenceComparisonResult, ReferenceDiagnosticProjectionOptions,
+    ReferenceNormalizer, ReferenceOperand, ReferenceOperandRole, ReferenceStatePolicy,
+    ReferenceValue, ReferenceValueCardinality, ReferenceValueReason, ReferenceValueState,
 };
 use crate::schema::registry::{
     SchemaRegistry, CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_PACKAGE_URI,
@@ -654,6 +654,7 @@ pub struct ReferenceLookupExpansion {
 pub struct ReferenceDeclarativeOperandEvaluation {
     pub role: ReferenceOperandDeclarationRole,
     pub binding: String,
+    pub diagnostic_field: Option<String>,
     pub state_policy: String,
     pub state: ReferenceResolutionState,
     pub reason: Option<String>,
@@ -10505,6 +10506,8 @@ const FIXED_REFERENCE_DIAGNOSTIC_BUCKETS: &[&str] = &[
     "sourceRange",
     "sourceRanges",
     "provenance",
+    "aliases",
+    "candidate",
     "unsupportedValues",
 ];
 
@@ -10927,6 +10930,7 @@ pub fn evaluate_reference_declarative_operand(
     ReferenceDeclarativeOperandEvaluation {
         role: operand.role,
         binding,
+        diagnostic_field: operand.diagnostic_field.clone(),
         state_policy,
         state,
         reason,
@@ -11002,6 +11006,751 @@ pub fn compare_reference_declarative_operands(
     }
 }
 
+pub fn project_reference_declarative_diagnostic(
+    evaluation: &ReferenceDeclarativeComparisonEvaluation,
+    projection: Option<&ReferenceProjectionDeclaration>,
+    candidates: Option<&ReferenceCandidateSelection>,
+) -> serde_json::Value {
+    let tokens = reference_projection_tokens(projection);
+    let mut options = ReferenceDiagnosticProjectionOptions::compatibility();
+    if tokens.contains("actual") {
+        let value_view = reference_projection_value_view(projection, "actual");
+        options =
+            options.with_actual_values(reference_projection_actual_values(evaluation, &value_view));
+    }
+    if tokens.contains("comparison") {
+        options = options.with_comparison();
+    }
+    if tokens.contains("source-ranges") {
+        options = options.with_source_ranges();
+    }
+    if let Some(source_range) =
+        reference_projection_primary_source_range(evaluation, projection, candidates)
+    {
+        options = options.with_source_range(source_range);
+    }
+
+    let mut details = if let Some(result) = evaluation.result.as_ref() {
+        result.diagnostic_details(options)
+    } else {
+        reference_projection_malformed_details(evaluation, options)
+    };
+    let Some(object) = details.as_object_mut() else {
+        return details;
+    };
+
+    if tokens.contains("comparison") {
+        reference_projection_enrich_comparison(object, evaluation);
+    }
+    if tokens.contains("provenance") {
+        if let Some(provenance) = reference_projection_provenance(evaluation) {
+            object.insert("provenance".to_owned(), provenance);
+        }
+    }
+    if tokens.contains("aliases") {
+        if let Some(aliases) = reference_projection_aliases(evaluation) {
+            object.insert("aliases".to_owned(), aliases);
+        }
+    }
+    if tokens.contains("candidate") {
+        if let Some(candidate) = candidates.and_then(reference_projection_candidate_context) {
+            object.insert("candidate".to_owned(), candidate);
+        }
+    }
+    if tokens.contains("source-ranges") {
+        reference_projection_add_related_source_ranges(object, evaluation, candidates);
+    }
+
+    reference_projection_filter_tokens(object, &tokens);
+    if projection
+        .and_then(|projection| projection.profile.as_deref())
+        .unwrap_or("compatibility")
+        == "structured"
+    {
+        reference_projection_structured_arrays(object);
+    }
+
+    details
+}
+
+fn reference_projection_tokens(
+    projection: Option<&ReferenceProjectionDeclaration>,
+) -> BTreeSet<String> {
+    let profile = projection
+        .and_then(|projection| projection.profile.as_deref())
+        .unwrap_or("compatibility");
+    let mut tokens = projection
+        .map(|projection| projection.project.iter().cloned().collect::<BTreeSet<_>>())
+        .unwrap_or_default();
+    if tokens.is_empty() {
+        let default_tokens = match profile {
+            "structured" => vec![
+                "actual",
+                "expected",
+                "invalid",
+                "missing",
+                "unresolved",
+                "source-range",
+                "source-ranges",
+                "candidate",
+            ],
+            _ => vec![
+                "actual",
+                "expected",
+                "invalid",
+                "missing",
+                "unresolved",
+                "source-range",
+            ],
+        };
+        tokens.extend(default_tokens.into_iter().map(str::to_owned));
+    }
+    if tokens.contains("all") {
+        tokens.extend(
+            [
+                "actual",
+                "expected",
+                "invalid",
+                "missing",
+                "unresolved",
+                "unsupported",
+                "comparison",
+                "source-range",
+                "source-ranges",
+                "provenance",
+                "aliases",
+                "candidate",
+            ]
+            .into_iter()
+            .map(str::to_owned),
+        );
+        tokens.remove("all");
+    }
+    if tokens.contains("source-ranges") {
+        tokens.insert("source-range".to_owned());
+    }
+    tokens
+}
+
+fn reference_projection_value_view(
+    projection: Option<&ReferenceProjectionDeclaration>,
+    bucket: &str,
+) -> String {
+    projection
+        .and_then(|projection| {
+            projection
+                .buckets
+                .iter()
+                .find(|candidate| candidate.name.as_deref() == Some(bucket))
+                .and_then(|bucket| bucket.value_view.as_deref())
+                .or(projection.value_view.as_deref())
+        })
+        .unwrap_or("raw")
+        .to_owned()
+}
+
+fn reference_projection_actual_values(
+    evaluation: &ReferenceDeclarativeComparisonEvaluation,
+    value_view: &str,
+) -> Vec<(String, serde_json::Value)> {
+    evaluation
+        .operands
+        .iter()
+        .filter(|operand| operand.role == ReferenceOperandDeclarationRole::Actual)
+        .map(|operand| {
+            (
+                operand.binding.clone(),
+                reference_projection_operand_value(operand, value_view),
+            )
+        })
+        .collect()
+}
+
+fn reference_projection_operand_value(
+    operand: &ReferenceDeclarativeOperandEvaluation,
+    value_view: &str,
+) -> serde_json::Value {
+    match value_view {
+        "normalized" => operand
+            .value
+            .normalized_value
+            .as_ref()
+            .map(normalized_reference_value_to_json)
+            .unwrap_or(serde_json::Value::Null),
+        "both" => serde_json::json!({
+            "declared": reference_source_values_to_json(&operand.source.values),
+            "normalized": operand
+                .value
+                .normalized_value
+                .as_ref()
+                .map(normalized_reference_value_to_json)
+                .unwrap_or(serde_json::Value::Null),
+        }),
+        _ => reference_source_values_to_json(&operand.source.values),
+    }
+}
+
+fn reference_source_values_to_json(values: &[ReferenceSourceValue]) -> serde_json::Value {
+    let values = values
+        .iter()
+        .map(reference_source_value_to_json)
+        .collect::<Vec<_>>();
+    match values.as_slice() {
+        [] => serde_json::Value::Null,
+        [value] => value.clone(),
+        _ => serde_json::Value::Array(values),
+    }
+}
+
+fn reference_source_value_to_json(value: &ReferenceSourceValue) -> serde_json::Value {
+    value
+        .value
+        .clone()
+        .or_else(|| value.name.clone())
+        .map(serde_json::Value::String)
+        .unwrap_or(serde_json::Value::Null)
+}
+
+fn normalized_reference_value_to_json(value: &NormalizedReferenceValue) -> serde_json::Value {
+    match value {
+        NormalizedReferenceValue::Scalar(value) => serde_json::Value::String(value.clone()),
+        NormalizedReferenceValue::StringSet(values) => values
+            .iter()
+            .cloned()
+            .map(serde_json::Value::String)
+            .collect(),
+        NormalizedReferenceValue::MediaType(media_type) => {
+            let mut object = serde_json::Map::new();
+            object.insert(
+                "essence".to_owned(),
+                serde_json::Value::String(media_type.essence.clone()),
+            );
+            if let Some(type_name) = &media_type.type_name {
+                object.insert(
+                    "type".to_owned(),
+                    serde_json::Value::String(type_name.clone()),
+                );
+            }
+            if let Some(subtype) = &media_type.subtype {
+                object.insert(
+                    "subtype".to_owned(),
+                    serde_json::Value::String(subtype.clone()),
+                );
+            }
+            if let Some(suffix) = &media_type.suffix {
+                object.insert(
+                    "suffix".to_owned(),
+                    serde_json::Value::String(suffix.clone()),
+                );
+            }
+            object.insert(
+                "parameters".to_owned(),
+                serde_json::to_value(&media_type.parameters).unwrap_or(serde_json::Value::Null),
+            );
+            serde_json::Value::Object(object)
+        }
+        NormalizedReferenceValue::UriRecord {
+            declared_uri,
+            resolved_uri,
+        } => serde_json::json!({
+            "declaredUri": declared_uri,
+            "resolvedUri": resolved_uri,
+        }),
+        NormalizedReferenceValue::Record(fields) => fields
+            .iter()
+            .map(|(name, value)| (name.clone(), normalized_reference_value_to_json(value)))
+            .collect(),
+    }
+}
+
+fn reference_projection_primary_source_range(
+    evaluation: &ReferenceDeclarativeComparisonEvaluation,
+    projection: Option<&ReferenceProjectionDeclaration>,
+    candidates: Option<&ReferenceCandidateSelection>,
+) -> Option<serde_json::Value> {
+    match projection.and_then(|projection| projection.source.as_deref()) {
+        Some("candidate") => candidates.and_then(reference_candidate_primary_source_range),
+        Some("lookup") => evaluation
+            .operands
+            .iter()
+            .flat_map(|operand| operand.lookups.iter())
+            .find_map(|lookup| {
+                if lookup.state != ReferenceResolutionState::Valid {
+                    return source_map_details(&lookup.source_map);
+                }
+                lookup
+                    .raw_result
+                    .as_ref()
+                    .filter(|raw_result| raw_result.state != ReferenceResolutionState::Valid)
+                    .and_then(|raw_result| source_map_details(&raw_result.source_map))
+                    .or_else(|| source_map_details(&lookup.source_map))
+            }),
+        Some("constraint") => projection
+            .and_then(|projection| source_map_details(&projection.source_map))
+            .or_else(|| source_map_details(&evaluation.source_map)),
+        _ => None,
+    }
+}
+
+fn reference_candidate_primary_source_range(
+    selection: &ReferenceCandidateSelection,
+) -> Option<serde_json::Value> {
+    selection
+        .candidates
+        .first()
+        .and_then(|candidate| source_map_details(&candidate.source_map))
+        .or_else(|| source_map_details(&selection.source_map))
+}
+
+fn reference_projection_malformed_details(
+    evaluation: &ReferenceDeclarativeComparisonEvaluation,
+    options: ReferenceDiagnosticProjectionOptions,
+) -> serde_json::Value {
+    let mut object = serde_json::Map::new();
+    object.insert(
+        "invalidValues".to_owned(),
+        serde_json::json!({"comparison": evaluation.reason.as_deref().unwrap_or("malformed-comparison")}),
+    );
+    object.insert(
+        "invalidFields".to_owned(),
+        serde_json::json!(["comparison"]),
+    );
+    if let Some(source_range) = options
+        .source_range
+        .clone()
+        .or_else(|| source_map_details(&evaluation.source_map))
+    {
+        object.insert("sourceRange".to_owned(), source_range);
+    }
+    serde_json::Value::Object(object)
+}
+
+fn reference_projection_enrich_comparison(
+    object: &mut serde_json::Map<String, serde_json::Value>,
+    evaluation: &ReferenceDeclarativeComparisonEvaluation,
+) {
+    let comparison = object
+        .entry("comparison")
+        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+    let serde_json::Value::Object(comparison) = comparison else {
+        return;
+    };
+    if let Some(primary) = reference_projection_primary_binding(evaluation) {
+        comparison.insert("primary".to_owned(), serde_json::Value::String(primary));
+    }
+    if let Some(reason) = reference_projection_comparison_reason(evaluation) {
+        comparison.insert("reason".to_owned(), serde_json::Value::String(reason));
+    }
+    let operands = evaluation
+        .operands
+        .iter()
+        .map(|operand| {
+            (
+                reference_operand_declaration_role_name(operand.role).to_owned(),
+                reference_projection_operand_summary(operand),
+            )
+        })
+        .collect();
+    comparison.insert("operands".to_owned(), serde_json::Value::Object(operands));
+}
+
+fn reference_projection_primary_binding(
+    evaluation: &ReferenceDeclarativeComparisonEvaluation,
+) -> Option<String> {
+    let result = evaluation.result.as_ref()?;
+    result
+        .invalid_fields
+        .iter()
+        .next()
+        .cloned()
+        .or_else(|| result.missing_values.keys().next().cloned())
+        .or_else(|| result.unresolved_values.keys().next().cloned())
+        .or_else(|| result.unsupported_values.keys().next().cloned())
+        .or_else(|| {
+            evaluation
+                .operands
+                .first()
+                .map(|operand| operand.binding.clone())
+        })
+}
+
+fn reference_projection_comparison_reason(
+    evaluation: &ReferenceDeclarativeComparisonEvaluation,
+) -> Option<String> {
+    let result = evaluation.result.as_ref()?;
+    if result.passed {
+        return None;
+    }
+    if result.invalid_values.contains_key("comparison") {
+        return Some("malformed-comparison".to_owned());
+    }
+    if !result.missing_values.is_empty() {
+        return Some("missing-required".to_owned());
+    }
+    if !result.unresolved_values.is_empty() {
+        return Some("unresolved-reference".to_owned());
+    }
+    if let Some(reason) = result
+        .unsupported_values
+        .values()
+        .find_map(serde_json::Value::as_str)
+    {
+        return Some(
+            match reason {
+                "policy-denied" => "policy-denied",
+                _ => "unsupported-capability",
+            }
+            .to_owned(),
+        );
+    }
+    Some(
+        match result.operator {
+            ReferenceComparisonOperator::Equals => "not-equal",
+            ReferenceComparisonOperator::MemberOf => "not-member",
+            ReferenceComparisonOperator::AllIn => "missing-required-members",
+            ReferenceComparisonOperator::ContainsAll => "missing-required-members",
+            ReferenceComparisonOperator::Intersects => "no-intersection",
+            ReferenceComparisonOperator::Disjoint => "forbidden-overlap",
+            ReferenceComparisonOperator::Exists => "missing-required",
+            ReferenceComparisonOperator::RecordFieldsEqual => "record-field-mismatch",
+            ReferenceComparisonOperator::RecordFieldsMemberOf => "record-field-not-member",
+        }
+        .to_owned(),
+    )
+}
+
+fn reference_projection_operand_summary(
+    operand: &ReferenceDeclarativeOperandEvaluation,
+) -> serde_json::Value {
+    let mut object = serde_json::Map::new();
+    object.insert(
+        "binding".to_owned(),
+        serde_json::Value::String(operand.binding.clone()),
+    );
+    object.insert(
+        "state".to_owned(),
+        serde_json::Value::String(reference_resolution_state_name(operand.state).to_owned()),
+    );
+    if let Some(reason) = &operand.reason {
+        object.insert(
+            "reason".to_owned(),
+            serde_json::Value::String(reason.clone()),
+        );
+    }
+    object.insert(
+        "normalizer".to_owned(),
+        serde_json::Value::String(operand.value.normalizer.reference().to_owned()),
+    );
+    object.insert(
+        "itemNormalizer".to_owned(),
+        serde_json::Value::String(operand.value.normalizer.reference().to_owned()),
+    );
+    if let Some(value) = operand.value.normalized_value.as_ref() {
+        object.insert(
+            "values".to_owned(),
+            normalized_reference_value_to_json(value),
+        );
+    }
+    serde_json::Value::Object(object)
+}
+
+fn reference_projection_provenance(
+    evaluation: &ReferenceDeclarativeComparisonEvaluation,
+) -> Option<serde_json::Value> {
+    let provenance = evaluation
+        .operands
+        .iter()
+        .filter(|operand| !operand.lookups.is_empty())
+        .map(|operand| {
+            (
+                operand.binding.clone(),
+                serde_json::Value::Array(
+                    operand
+                        .lookups
+                        .iter()
+                        .map(reference_projection_lookup_provenance)
+                        .collect(),
+                ),
+            )
+        })
+        .collect::<serde_json::Map<_, _>>();
+    (!provenance.is_empty()).then_some(serde_json::Value::Object(provenance))
+}
+
+fn reference_projection_lookup_provenance(lookup: &ReferenceLookupExpansion) -> serde_json::Value {
+    let keys = lookup
+        .keys
+        .iter()
+        .map(|key| {
+            serde_json::json!({
+                "binding": key.binding,
+                "from": key.from,
+                "normalizer": key.normalizer,
+                "cardinality": key.cardinality,
+                "shape": key.shape,
+                "state": reference_resolution_state_name(key.source.state),
+                "reason": key.source.reason,
+                "declaredValue": reference_source_values_to_json(&key.source.values),
+                "sourceRange": source_map_details(&key.source.source_map),
+            })
+        })
+        .collect::<Vec<_>>();
+    serde_json::json!({
+        "lookup": lookup.name,
+        "origin": reference_lookup_origin_name(lookup.origin),
+        "execution": reference_lookup_execution_name(lookup.execution),
+        "resultBinding": lookup.result_binding,
+        "result": lookup.result,
+        "resultCardinality": lookup.result_cardinality,
+        "resultShape": lookup.result_shape,
+        "support": lookup.support,
+        "package": lookup.package_context,
+        "provenance": lookup.provenance,
+        "sourceRangePolicy": lookup.source_range,
+        "state": reference_resolution_state_name(lookup.state),
+        "reason": lookup.reason,
+        "capability": {
+            "requires": lookup.capability.requires,
+            "support": lookup.capability.support,
+            "state": reference_resolution_state_name(lookup.capability.state),
+            "reason": lookup.capability.reason,
+        },
+        "keys": keys,
+        "rawResult": lookup.raw_result.as_ref().map(reference_projection_raw_result),
+        "sourceRange": source_map_details(&lookup.source_map),
+    })
+}
+
+fn reference_projection_raw_result(
+    raw_result: &ReferenceLookupRawResultEnvelope,
+) -> serde_json::Value {
+    serde_json::json!({
+        "binding": raw_result.binding,
+        "lookup": raw_result.lookup,
+        "result": raw_result.result,
+        "cardinality": raw_result.result_cardinality,
+        "shape": raw_result.result_shape,
+        "state": reference_resolution_state_name(raw_result.state),
+        "reason": raw_result.reason,
+        "declaredValue": reference_source_values_to_json(&raw_result.values),
+        "sourceRange": source_map_details(&raw_result.source_map),
+    })
+}
+
+fn reference_projection_aliases(
+    evaluation: &ReferenceDeclarativeComparisonEvaluation,
+) -> Option<serde_json::Value> {
+    let aliases = evaluation
+        .operands
+        .iter()
+        .filter_map(|operand| {
+            operand.diagnostic_field.as_ref().map(|alias| {
+                (
+                    alias.clone(),
+                    serde_json::json!({
+                        "binding": operand.binding,
+                        "role": reference_operand_declaration_role_name(operand.role),
+                    }),
+                )
+            })
+        })
+        .collect::<serde_json::Map<_, _>>();
+    (!aliases.is_empty()).then_some(serde_json::Value::Object(aliases))
+}
+
+fn reference_projection_candidate_context(
+    selection: &ReferenceCandidateSelection,
+) -> Option<serde_json::Value> {
+    let mut object = serde_json::Map::new();
+    object.insert(
+        "binding".to_owned(),
+        serde_json::Value::String(selection.binding.clone()),
+    );
+    object.insert(
+        "state".to_owned(),
+        serde_json::Value::String(reference_resolution_state_name(selection.state).to_owned()),
+    );
+    if let Some(reason) = &selection.reason {
+        object.insert(
+            "reason".to_owned(),
+            serde_json::Value::String(reason.clone()),
+        );
+    }
+    object.insert(
+        "count".to_owned(),
+        serde_json::json!(selection.candidates.len()),
+    );
+    object.insert(
+        "candidates".to_owned(),
+        serde_json::Value::Array(
+            selection
+                .candidates
+                .iter()
+                .map(|candidate| {
+                    serde_json::json!({
+                        "binding": candidate.binding,
+                        "ordinal": candidate.ordinal,
+                        "sourceRange": source_map_details(&candidate.source_map),
+                    })
+                })
+                .collect(),
+        ),
+    );
+    Some(serde_json::Value::Object(object))
+}
+
+fn reference_projection_add_related_source_ranges(
+    object: &mut serde_json::Map<String, serde_json::Value>,
+    evaluation: &ReferenceDeclarativeComparisonEvaluation,
+    candidates: Option<&ReferenceCandidateSelection>,
+) {
+    let source_ranges = object
+        .entry("sourceRanges")
+        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+    let serde_json::Value::Object(source_ranges) = source_ranges else {
+        return;
+    };
+    let operands = evaluation
+        .operands
+        .iter()
+        .filter_map(|operand| {
+            source_map_details(&operand.source.source_map).map(|source_range| {
+                (
+                    reference_operand_declaration_role_name(operand.role).to_owned(),
+                    serde_json::json!({
+                        "binding": operand.binding,
+                        "sourceRange": source_range,
+                    }),
+                )
+            })
+        })
+        .collect::<serde_json::Map<_, _>>();
+    if !operands.is_empty() {
+        source_ranges.insert("operands".to_owned(), serde_json::Value::Object(operands));
+    }
+    if let Some(candidate) = candidates.and_then(reference_projection_candidate_context) {
+        source_ranges.insert("candidate".to_owned(), candidate);
+    }
+    let lookups = evaluation
+        .operands
+        .iter()
+        .filter(|operand| !operand.lookups.is_empty())
+        .map(|operand| {
+            (
+                operand.binding.clone(),
+                serde_json::Value::Array(
+                    operand
+                        .lookups
+                        .iter()
+                        .filter_map(|lookup| {
+                            source_map_details(&lookup.source_map).map(|source_range| {
+                                serde_json::json!({
+                                    "lookup": lookup.name,
+                                    "sourceRange": source_range,
+                                })
+                            })
+                        })
+                        .collect(),
+                ),
+            )
+        })
+        .collect::<serde_json::Map<_, _>>();
+    if !lookups.is_empty() {
+        source_ranges.insert("lookups".to_owned(), serde_json::Value::Object(lookups));
+    }
+}
+
+fn reference_projection_filter_tokens(
+    object: &mut serde_json::Map<String, serde_json::Value>,
+    tokens: &BTreeSet<String>,
+) {
+    let bucket_tokens = [
+        ("actualValues", "actual"),
+        ("expectedValues", "expected"),
+        ("invalidValues", "invalid"),
+        ("invalidFields", "invalid"),
+        ("missingValues", "missing"),
+        ("unresolvedValues", "unresolved"),
+        ("unsupportedValues", "unsupported"),
+        ("comparison", "comparison"),
+        ("sourceRange", "source-range"),
+        ("sourceRanges", "source-ranges"),
+        ("provenance", "provenance"),
+        ("aliases", "aliases"),
+        ("candidate", "candidate"),
+    ];
+    for (bucket, token) in bucket_tokens {
+        if !tokens.contains(token) {
+            object.remove(bucket);
+        }
+    }
+}
+
+fn reference_projection_structured_arrays(object: &mut serde_json::Map<String, serde_json::Value>) {
+    for bucket in [
+        "actualValues",
+        "expectedValues",
+        "invalidValues",
+        "missingValues",
+        "unresolvedValues",
+        "unsupportedValues",
+    ] {
+        let Some(serde_json::Value::Object(values)) = object.get_mut(bucket) else {
+            continue;
+        };
+        let entries = values
+            .iter()
+            .map(|(binding, value)| {
+                let mut entry = serde_json::Map::new();
+                entry.insert(
+                    "binding".to_owned(),
+                    serde_json::Value::String(binding.clone()),
+                );
+                let value_key = match bucket {
+                    "missingValues" | "unresolvedValues" | "unsupportedValues" => "reason",
+                    _ => "value",
+                };
+                entry.insert(value_key.to_owned(), value.clone());
+                serde_json::Value::Object(entry)
+            })
+            .collect::<Vec<_>>();
+        object.insert(bucket.to_owned(), serde_json::Value::Array(entries));
+    }
+}
+
+fn reference_resolution_state_name(state: ReferenceResolutionState) -> &'static str {
+    match state {
+        ReferenceResolutionState::Valid => "valid",
+        ReferenceResolutionState::Missing => "missing",
+        ReferenceResolutionState::Invalid => "invalid",
+        ReferenceResolutionState::Unresolved => "unresolved",
+        ReferenceResolutionState::Unsupported => "unsupported",
+    }
+}
+
+fn reference_operand_declaration_role_name(role: ReferenceOperandDeclarationRole) -> &'static str {
+    match role {
+        ReferenceOperandDeclarationRole::Actual => "actual",
+        ReferenceOperandDeclarationRole::Expected => "expected",
+        ReferenceOperandDeclarationRole::Forbidden => "forbidden",
+    }
+}
+
+fn reference_lookup_origin_name(origin: ReferenceLookupOrigin) -> &'static str {
+    match origin {
+        ReferenceLookupOrigin::OperandShorthand => "operand-shorthand",
+        ReferenceLookupOrigin::OperandChild => "operand-child",
+        ReferenceLookupOrigin::ConstraintChild => "constraint-child",
+    }
+}
+
+fn reference_lookup_execution_name(execution: ReferenceLookupExecutionKind) -> &'static str {
+    match execution {
+        ReferenceLookupExecutionKind::Pure => "pure",
+        ReferenceLookupExecutionKind::EngineAssisted => "engine-assisted",
+    }
+}
+
 fn reference_comparable_source_values(
     source: &ReferenceOperandSourceEnvelope,
     lookups: &[ReferenceLookupExpansion],
@@ -11016,7 +11765,11 @@ fn reference_comparable_source_values(
             source.state,
             source.reason.clone(),
             source.values.clone(),
-            source.source_map.clone(),
+            source
+                .values
+                .first()
+                .map(|value| value.source_map.clone())
+                .unwrap_or_else(|| source.source_map.clone()),
         );
     }
     if lookups.len() > 1 {
@@ -21070,6 +21823,164 @@ mod tests {
             .result
             .as_ref()
             .is_some_and(|result| result.passed));
+    }
+
+    #[test]
+    fn schema_reference_projection_defaults_to_compatibility_details() {
+        let document = parse_cem_document(
+            r#"@doc cem-ml 1
+{route |
+    {endpoint @content-type="Text/HTML; Charset=UTF-8" @expected="application/xml"}
+}"#,
+        );
+        let endpoint_id =
+            first_element_id_by_local_name(&document, "endpoint").expect("endpoint element");
+        let mut bindings = ReferenceSourceBindings::default();
+        bindings.bind_nodes("endpoint", vec![endpoint_id]);
+        let mut actual = reference_test_operand("content-type", "endpoint.@content-type", "one");
+        actual.normalizer = Some("schema:media-type-essence".to_owned());
+        let mut expected = reference_test_operand("content-type", "endpoint.@expected", "one");
+        expected.role = ReferenceOperandDeclarationRole::Expected;
+        expected.normalizer = Some("schema:media-type-essence".to_owned());
+        let compare = ReferenceCompareDeclaration {
+            operator: Some("schema:equals".to_owned()),
+            presence: None,
+            field_pairs: Vec::new(),
+            source_map: SourceMapStack::default(),
+        };
+        let operands = evaluate_reference_declarative_operands(
+            &document,
+            &[endpoint_id],
+            &bindings,
+            &ReferenceConstraintExecution::default(),
+            &[actual, expected],
+            &ReferenceCapabilitySet::default(),
+        );
+        let comparison = compare_reference_declarative_operands(operands, Some(&compare));
+
+        let details = project_reference_declarative_diagnostic(&comparison, None, None);
+
+        assert_eq!(
+            details["actualValues"],
+            serde_json::json!({"content-type": "Text/HTML; Charset=UTF-8"})
+        );
+        assert_eq!(
+            details["expectedValues"],
+            serde_json::json!({"content-type": "application/xml"})
+        );
+        assert_eq!(
+            details["invalidValues"],
+            serde_json::json!({"content-type": "text/html"})
+        );
+        assert_eq!(
+            details["invalidFields"],
+            serde_json::json!(["content-type"])
+        );
+        assert!(details.get("sourceRange").is_some());
+        assert!(details.get("comparison").is_none());
+        assert!(details.get("sourceRanges").is_none());
+        assert!(details.get("provenance").is_none());
+        assert!(details.get("aliases").is_none());
+        assert!(details.get("candidate").is_none());
+    }
+
+    #[test]
+    fn schema_reference_projection_structured_all_adds_metadata() {
+        let document = parse_cem_document(
+            r#"@doc cem-ml 1
+{route |
+    {endpoint @name="other" |
+        {schema @name="core"}
+        {schema @name="theme"}
+    }
+}"#,
+        );
+        let route_id = first_element_id_by_local_name(&document, "route").expect("route element");
+        let selection = select_reference_candidates(
+            &document,
+            &[route_id],
+            &reference_test_candidates("$target.child(endpoint)", Some("one-or-more"), None),
+        );
+        let mut bindings = ReferenceSourceBindings::default();
+        bindings.bind_candidate(&selection.candidates[0]);
+        let mut actual = reference_test_operand("schema", "endpoint.@name", "one");
+        actual.diagnostic_field = Some("observedSchema".to_owned());
+        let mut expected = reference_test_operand("schema", "endpoint.@name", "one");
+        expected.role = ReferenceOperandDeclarationRole::Expected;
+        expected.diagnostic_field = Some("allowedSchemas".to_owned());
+        expected.result_cardinality = Some("set".to_owned());
+        let mut lookup = reference_test_lookup("schema:local-schemas");
+        lookup.select = Some("endpoint.child(schema)".to_owned());
+        lookup.as_binding = Some("schema-node".to_owned());
+        lookup.result = Some("@name".to_owned());
+        lookup.result_cardinality = Some("set".to_owned());
+        expected.lookups = vec![lookup];
+        let compare = ReferenceCompareDeclaration {
+            operator: Some("schema:member-of".to_owned()),
+            presence: None,
+            field_pairs: Vec::new(),
+            source_map: SourceMapStack::default(),
+        };
+        let projection = ReferenceProjectionDeclaration {
+            profile: Some("structured".to_owned()),
+            project: vec!["all".to_owned()],
+            source: Some("candidate".to_owned()),
+            value_view: Some("both".to_owned()),
+            buckets: Vec::new(),
+            source_map: SourceMapStack::default(),
+        };
+        let operands = evaluate_reference_declarative_operands(
+            &document,
+            &[route_id],
+            &bindings,
+            &ReferenceConstraintExecution::default(),
+            &[actual, expected],
+            &ReferenceCapabilitySet::default(),
+        );
+        let comparison = compare_reference_declarative_operands(operands, Some(&compare));
+
+        let details = project_reference_declarative_diagnostic(
+            &comparison,
+            Some(&projection),
+            Some(&selection),
+        );
+
+        assert_eq!(details["actualValues"][0]["binding"], "schema");
+        assert_eq!(details["actualValues"][0]["value"]["declared"], "other");
+        assert_eq!(details["actualValues"][0]["value"]["normalized"], "other");
+        assert_eq!(details["invalidValues"][0]["value"], "other");
+        assert_eq!(
+            details["expectedValues"][0]["value"],
+            serde_json::json!(["core", "theme"])
+        );
+        assert_eq!(details["comparison"]["operator"], "schema:member-of");
+        assert_eq!(details["comparison"]["reason"], "not-member");
+        assert_eq!(
+            details["comparison"]["operands"]["actual"]["binding"],
+            "schema"
+        );
+        assert_eq!(
+            details["comparison"]["operands"]["expected"]["values"],
+            serde_json::json!(["core", "theme"])
+        );
+        assert_eq!(details["candidate"]["binding"], "endpoint");
+        assert_eq!(details["candidate"]["count"], 1);
+        assert_eq!(
+            details["sourceRange"],
+            details["candidate"]["candidates"][0]["sourceRange"]
+        );
+        assert_eq!(details["sourceRanges"]["candidate"]["binding"], "endpoint");
+        assert_eq!(
+            details["provenance"]["schema"][0]["lookup"],
+            "schema:local-schemas"
+        );
+        assert_eq!(
+            details["provenance"]["schema"][0]["rawResult"]["declaredValue"],
+            serde_json::json!(["core", "theme"])
+        );
+        assert_eq!(details["aliases"]["observedSchema"]["binding"], "schema");
+        assert_eq!(details["aliases"]["observedSchema"]["role"], "actual");
+        assert_eq!(details["aliases"]["allowedSchemas"]["role"], "expected");
     }
 
     #[test]

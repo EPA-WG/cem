@@ -18,8 +18,8 @@ source provenance, keep normalization annotative and symmetric, make execution
 placement explicit, avoid implicit canonicalization, and retain complete schema
 identity.
 
-Current active slice: implement projection profiles and tokens for
-reference-resolution diagnostics.
+Current active slice: migrate one schema-package reference-resolution check to
+the declarative vocabulary as the first end-to-end fixture.
 
 ### Contract And Documentation
 
@@ -212,7 +212,7 @@ compatibility, reconciling field names and IR shapes with the accepted design.
 - [x] Wire declarative operands into the existing normalized value and
       comparison evaluators, preserving explicit `missing`, `invalid`,
       `unresolved`, and `unsupported` states.
-- [ ] Implement projection profiles and tokens: compatibility defaults,
+- [x] Implement projection profiles and tokens: compatibility defaults,
       structured arrays, `sourceRange`/`sourceRanges`, `comparison`,
       `provenance`, `aliases`, and candidate context.
 - [ ] Migrate one existing schema-package reference-resolution check to the
