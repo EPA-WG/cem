@@ -9,6 +9,15 @@ This package defines the semantic CEM event-stream projection layer:
 The events projection is designed for replay, multicast, and incremental
 consumers. JSON output remains a view over this event layer.
 
+## Chunk Stream Contract
+
+Binary events projection envelopes expose sealed semantic-record chunks. The
+root chunk carries the binary header and links to event sequence chunks; event
+chunks use stable `event:{sequence}` root ids, parent chunk ids, per-chunk
+hashes, and source-map deltas derived from byte source truth. Native consumers
+can replay the original artifact by sorting chunks by `byteOffset` without
+reserializing the JSON debug view.
+
 ## Validation Examples
 
 The schema-owned examples live in [`examples/`](examples/) and are used by the

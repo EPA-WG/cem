@@ -24,7 +24,9 @@
 
     {elements |
         {element @name="document" @required-attributes="schema content-type hash-scheme" @children="chunk* node*"}
-        {element @name="chunk" @required-attributes="id sealed" @optional-attributes="parent-id byte-offset byte-length hash"}
+        {element @name="chunk" @required-attributes="id sealed" @optional-attributes="parent-id root-id byte-offset byte-length hash" @children="child-link* source-map-delta*"}
+        {element @name="child-link" @required-attributes="chunk-id root-id"}
+        {element @name="source-map-delta" @required-attributes="source-id byte-offset byte-length transform"}
         {element @name="node" @required-attributes="id kind" @optional-attributes="parent-id order name namespace value source-id byte-offset byte-length chunk-id" @children="attribute* annotation*"}
         {element @name="attribute" @required-attributes="name" @optional-attributes="namespace value source-id byte-offset byte-length"}
         {element @name="annotation" @required-attributes="kind" @optional-attributes="name value schema"}
@@ -33,6 +35,8 @@
     {attributes |
         {attribute @name="id" @type="schema:identifier"}
         {attribute @name="parent-id" @type="schema:identifier"}
+        {attribute @name="root-id" @type="schema:string"}
+        {attribute @name="chunk-id" @type="schema:identifier"}
         {attribute @name="order" @type="cemml:integer"}
         {attribute @name="kind" @type="schema:identifier" @values="document element text whitespace comment processing-instruction cdata raw-text error expression fragment"}
         {attribute @name="name" @type="schema:qualified-name"}
@@ -45,7 +49,7 @@
         {attribute @name="source-id" @type="schema:uri"}
         {attribute @name="byte-offset" @type="cemml:integer"}
         {attribute @name="byte-length" @type="cemml:integer"}
-        {attribute @name="chunk-id" @type="schema:identifier"}
+        {attribute @name="transform" @type="schema:identifier"}
         {attribute @name="sealed" @type="schema:boolean"}
     }
 
@@ -54,6 +58,8 @@
         {constraint @kind="json-debug-view" @target="document" @policy="application/vnd.cem.dom+json must be derived from the semantic DOM projection"}
         {constraint @kind="stable-node-identity" @target="node" @policy="required within one artifact revision"}
         {constraint @kind="sealed-chunk-immutable" @target="chunk" @policy="sealed chunks are immutable and may be multicast or replayed"}
+        {constraint @kind="chunk-child-links" @target="chunk" @policy="child-link entries must point to sealed chunks in the same artifact and preserve tree order"}
+        {constraint @kind="chunk-source-map-deltas" @target="source-map-delta" @policy="chunk-local source-map deltas preserve byte source truth for cache replay and host diagnostics"}
         {constraint @kind="source-map-preserved" @target="node" @policy="required when source identity is available"}
     }
 

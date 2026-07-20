@@ -24,7 +24,9 @@
 
     {elements |
         {element @name="event-stream" @required-attributes="schema content-type hash-scheme" @children="chunk* event* checkpoint*"}
-        {element @name="chunk" @required-attributes="id sealed" @optional-attributes="parent-id first-sequence last-sequence byte-offset byte-length hash"}
+        {element @name="chunk" @required-attributes="id sealed" @optional-attributes="parent-id root-id first-sequence last-sequence byte-offset byte-length hash" @children="child-link* source-map-delta*"}
+        {element @name="child-link" @required-attributes="chunk-id root-id"}
+        {element @name="source-map-delta" @required-attributes="source-id byte-offset byte-length transform"}
         {element @name="event" @required-attributes="sequence kind" @optional-attributes="name value source-id byte-offset byte-length chunk-id"}
         {element @name="checkpoint" @required-attributes="sequence state" @optional-attributes="chunk-id hash"}
     }
@@ -32,6 +34,8 @@
     {attributes |
         {attribute @name="id" @type="schema:identifier"}
         {attribute @name="parent-id" @type="schema:identifier"}
+        {attribute @name="root-id" @type="schema:string"}
+        {attribute @name="chunk-id" @type="schema:identifier"}
         {attribute @name="sequence" @type="cemml:integer"}
         {attribute @name="first-sequence" @type="cemml:integer"}
         {attribute @name="last-sequence" @type="cemml:integer"}
@@ -45,7 +49,7 @@
         {attribute @name="source-id" @type="schema:uri"}
         {attribute @name="byte-offset" @type="cemml:integer"}
         {attribute @name="byte-length" @type="cemml:integer"}
-        {attribute @name="chunk-id" @type="schema:identifier"}
+        {attribute @name="transform" @type="schema:identifier"}
         {attribute @name="sealed" @type="schema:boolean"}
         {attribute @name="state" @type="schema:identifier" @values="streaming complete failed aborted"}
     }
@@ -55,6 +59,8 @@
         {constraint @kind="json-debug-view" @target="event-stream" @policy="application/vnd.cem.events+json must be derived from the semantic event-stream projection"}
         {constraint @kind="sequence-monotonic" @target="event" @policy="required"}
         {constraint @kind="sealed-chunk-immutable" @target="chunk" @policy="sealed chunks are immutable and may be multicast or replayed"}
+        {constraint @kind="chunk-child-links" @target="chunk" @policy="child-link entries must point to sealed chunks in the same artifact and preserve event sequence order"}
+        {constraint @kind="chunk-source-map-deltas" @target="source-map-delta" @policy="chunk-local source-map deltas preserve byte source truth for cache replay and host diagnostics"}
         {constraint @kind="checkpoint-replayable" @target="checkpoint" @policy="required for resumable streams"}
     }
 

@@ -24,6 +24,7 @@ use crate::tokenizer::html::HtmlTokenizer;
 use crate::tokenizer::xml::XmlTokenizer;
 use crate::tokenizer::SchemaTokenizer;
 use serde_json::{json, Value};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 const BINARY_FORMAT_VERSION: &str = "cem-projection-bin/1";
@@ -82,15 +83,44 @@ pub struct BinaryProjectionArtifact {
     pub hash_scheme: String,
     pub hash: String,
     pub bytes: Vec<u8>,
+    pub chunk_metadata: Vec<ProjectionChunkMetadata>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectionChunkMetadata {
+    pub id: String,
+    pub parent_id: Option<String>,
+    pub root_id: Option<String>,
+    pub byte_offset: u64,
+    pub byte_length: usize,
+    pub child_links: Vec<ProjectionChildLink>,
+    pub source_map_deltas: Vec<ProjectionSourceMapDelta>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectionChildLink {
+    pub chunk_id: String,
+    pub root_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectionSourceMapDelta {
+    pub source_id: u32,
+    pub byte_offset: u64,
+    pub byte_length: u32,
+    pub transform: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SealedProjectionChunk {
     pub id: String,
     pub parent_id: Option<String>,
+    pub root_id: Option<String>,
     pub byte_offset: u64,
     pub byte_length: usize,
     pub hash: String,
+    pub child_links: Vec<ProjectionChildLink>,
+    pub source_map_deltas: Vec<ProjectionSourceMapDelta>,
     bytes: Arc<[u8]>,
 }
 
@@ -119,6 +149,20 @@ pub struct ProjectionChunkStream {
 impl ProjectionChunkStream {
     pub fn chunks(&self) -> &[SealedProjectionChunk] {
         &self.chunks
+    }
+
+    pub fn chunk_by_id(&self, id: &str) -> Option<&SealedProjectionChunk> {
+        self.chunks.iter().find(|chunk| chunk.id == id)
+    }
+
+    pub fn chunk_by_root_id(&self, root_id: &str) -> Option<&SealedProjectionChunk> {
+        self.chunks
+            .iter()
+            .find(|chunk| chunk.root_id.as_deref() == Some(root_id))
+    }
+
+    pub fn replay_bytes(&self) -> Vec<u8> {
+        replay_projection_chunks(&self.chunks, self.byte_length)
     }
 }
 
@@ -156,13 +200,7 @@ pub struct RoutedProjectionStream {
 
 impl RoutedProjectionStream {
     pub fn concatenated_bytes(&self) -> Vec<u8> {
-        let mut out = Vec::with_capacity(self.byte_length);
-        let mut chunks = self.chunks.clone();
-        chunks.sort_by_key(|chunk| chunk.byte_offset);
-        for chunk in chunks {
-            out.extend_from_slice(chunk.bytes());
-        }
-        out
+        replay_projection_chunks(&self.chunks, self.byte_length)
     }
 }
 
@@ -183,15 +221,18 @@ impl std::error::Error for ProjectionRouteError {}
 
 impl BinaryProjectionArtifact {
     pub fn to_chunk_stream(&self) -> ProjectionChunkStream {
-        let bytes: Arc<[u8]> = Arc::from(self.bytes.clone().into_boxed_slice());
-        let chunk = SealedProjectionChunk {
-            id: ROOT_CHUNK_ID.to_owned(),
-            parent_id: None,
-            byte_offset: 0,
-            byte_length: bytes.len(),
-            hash: self.hash.clone(),
-            bytes,
+        let metadata = if self.chunk_metadata.is_empty() {
+            vec![single_chunk_metadata(
+                self.projection.as_str(),
+                self.bytes.len(),
+            )]
+        } else {
+            self.chunk_metadata.clone()
         };
+        let chunks = metadata
+            .into_iter()
+            .map(|metadata| sealed_chunk_from_metadata(&self.bytes, metadata))
+            .collect::<Vec<_>>();
         ProjectionChunkStream {
             projection: self.projection.clone(),
             schema: self.schema.clone(),
@@ -200,7 +241,7 @@ impl BinaryProjectionArtifact {
             hash_scheme: self.hash_scheme.clone(),
             hash: self.hash.clone(),
             byte_length: self.bytes.len(),
-            chunks: vec![chunk],
+            chunks,
         }
     }
 
@@ -247,7 +288,79 @@ fn chunk_json_envelope(chunk: &SealedProjectionChunk) -> Value {
     if let Some(parent_id) = &chunk.parent_id {
         value["parentId"] = json!(parent_id);
     }
+    if let Some(root_id) = &chunk.root_id {
+        value["rootId"] = json!(root_id);
+    }
+    if !chunk.child_links.is_empty() {
+        value["childLinks"] = json!(chunk
+            .child_links
+            .iter()
+            .map(|link| json!({
+                "chunkId": &link.chunk_id,
+                "rootId": &link.root_id,
+            }))
+            .collect::<Vec<_>>());
+    }
+    if !chunk.source_map_deltas.is_empty() {
+        value["sourceMapDeltas"] = json!(chunk
+            .source_map_deltas
+            .iter()
+            .map(|delta| json!({
+                "sourceId": delta.source_id,
+                "byteOffset": delta.byte_offset,
+                "byteLength": delta.byte_length,
+                "transform": &delta.transform,
+            }))
+            .collect::<Vec<_>>());
+    }
     value
+}
+
+fn sealed_chunk_from_metadata(
+    artifact_bytes: &[u8],
+    metadata: ProjectionChunkMetadata,
+) -> SealedProjectionChunk {
+    let start = metadata.byte_offset as usize;
+    let end = start.saturating_add(metadata.byte_length);
+    let bytes: Arc<[u8]> = Arc::from(artifact_bytes[start..end].to_vec().into_boxed_slice());
+    let hash = projection_chunk_hash(bytes.as_ref());
+    SealedProjectionChunk {
+        id: metadata.id,
+        parent_id: metadata.parent_id,
+        root_id: metadata.root_id,
+        byte_offset: metadata.byte_offset,
+        byte_length: metadata.byte_length,
+        hash,
+        child_links: metadata.child_links,
+        source_map_deltas: metadata.source_map_deltas,
+        bytes,
+    }
+}
+
+fn projection_chunk_hash(bytes: &[u8]) -> String {
+    format!("{HASH_SCHEME}:{}", blake3::hash(bytes).to_hex())
+}
+
+fn single_chunk_metadata(projection: &str, byte_length: usize) -> ProjectionChunkMetadata {
+    ProjectionChunkMetadata {
+        id: ROOT_CHUNK_ID.to_owned(),
+        parent_id: None,
+        root_id: Some(format!("projection:{projection}")),
+        byte_offset: 0,
+        byte_length,
+        child_links: Vec::new(),
+        source_map_deltas: Vec::new(),
+    }
+}
+
+fn replay_projection_chunks(chunks: &[SealedProjectionChunk], byte_length: usize) -> Vec<u8> {
+    let mut out = Vec::with_capacity(byte_length);
+    let mut chunks = chunks.to_vec();
+    chunks.sort_by_key(|chunk| chunk.byte_offset);
+    for chunk in chunks {
+        out.extend_from_slice(chunk.bytes());
+    }
+    out
 }
 
 pub fn route_projection_stream(
@@ -349,19 +462,27 @@ pub fn events_binary_projection_artifact_as(
     input: &[u8],
     from_format: InputFormat,
 ) -> BinaryProjectionArtifact {
-    let bytes = encode_events_binary(input, from_format);
-    binary_artifact(BinaryProjectionKind::Events, bytes)
+    let encoded = encode_events_binary(input, from_format);
+    binary_artifact_with_chunks(
+        BinaryProjectionKind::Events,
+        encoded.bytes,
+        encoded.chunk_metadata,
+    )
 }
 
 fn document_binary_artifact(
     doc: &CemDocument,
     kind: BinaryProjectionKind,
 ) -> BinaryProjectionArtifact {
-    let bytes = encode_document_binary(doc, kind);
-    binary_artifact(kind, bytes)
+    let encoded = encode_document_binary(doc, kind);
+    binary_artifact_with_chunks(kind, encoded.bytes, encoded.chunk_metadata)
 }
 
-fn binary_artifact(kind: BinaryProjectionKind, bytes: Vec<u8>) -> BinaryProjectionArtifact {
+fn binary_artifact_with_chunks(
+    kind: BinaryProjectionKind,
+    bytes: Vec<u8>,
+    chunk_metadata: Vec<ProjectionChunkMetadata>,
+) -> BinaryProjectionArtifact {
     let hash_hex = blake3::hash(&bytes).to_hex().to_string();
     let hash = format!("{HASH_SCHEME}:{hash_hex}");
     BinaryProjectionArtifact {
@@ -372,20 +493,173 @@ fn binary_artifact(kind: BinaryProjectionKind, bytes: Vec<u8>) -> BinaryProjecti
         hash_scheme: HASH_SCHEME.to_owned(),
         hash,
         bytes,
+        chunk_metadata,
     }
 }
 
-fn encode_document_binary(doc: &CemDocument, kind: BinaryProjectionKind) -> Vec<u8> {
+struct EncodedBinaryProjection {
+    bytes: Vec<u8>,
+    chunk_metadata: Vec<ProjectionChunkMetadata>,
+}
+
+#[derive(Debug, Default)]
+struct DocumentChunkRelationships {
+    roots: Vec<AstNodeId>,
+    parents: BTreeMap<AstNodeId, AstNodeId>,
+    children: BTreeMap<AstNodeId, Vec<AstNodeId>>,
+}
+
+fn document_chunk_relationships(doc: &CemDocument) -> DocumentChunkRelationships {
+    let mut relationships = DocumentChunkRelationships::default();
+    let mut node_ids = Vec::with_capacity(doc.nodes.len());
+    for node in &doc.nodes {
+        let node_id = ast_node_id(node);
+        node_ids.push(node_id);
+        let children = ast_node_children(node);
+        for child_id in &children {
+            relationships.parents.insert(*child_id, node_id);
+        }
+        if !children.is_empty() {
+            relationships.children.insert(node_id, children);
+        }
+    }
+    relationships.roots = node_ids
+        .into_iter()
+        .filter(|node_id| !relationships.parents.contains_key(node_id))
+        .collect();
+    relationships
+}
+
+fn ast_node_id(node: &CemAstNode) -> AstNodeId {
+    match node {
+        CemAstNode::Document { node_id, .. }
+        | CemAstNode::Element { node_id, .. }
+        | CemAstNode::Attribute { node_id, .. }
+        | CemAstNode::Text { node_id, .. }
+        | CemAstNode::Whitespace { node_id, .. }
+        | CemAstNode::Comment { node_id, .. }
+        | CemAstNode::ProcessingInstruction { node_id, .. }
+        | CemAstNode::Cdata { node_id, .. }
+        | CemAstNode::RawText { node_id, .. }
+        | CemAstNode::Error { node_id, .. } => *node_id,
+    }
+}
+
+fn ast_node_children(node: &CemAstNode) -> Vec<AstNodeId> {
+    match node {
+        CemAstNode::Document { root_children, .. } => root_children.clone(),
+        CemAstNode::Element {
+            attributes,
+            children,
+            ..
+        } => attributes
+            .iter()
+            .chain(children.iter())
+            .copied()
+            .collect::<Vec<_>>(),
+        _ => Vec::new(),
+    }
+}
+
+fn ast_node_source_map(node: &CemAstNode) -> &SourceMapStack {
+    match node {
+        CemAstNode::Document { source, .. }
+        | CemAstNode::Element { source, .. }
+        | CemAstNode::Attribute { source, .. }
+        | CemAstNode::Text { source, .. }
+        | CemAstNode::Whitespace { source, .. }
+        | CemAstNode::Comment { source, .. }
+        | CemAstNode::ProcessingInstruction { source, .. }
+        | CemAstNode::Cdata { source, .. }
+        | CemAstNode::RawText { source, .. }
+        | CemAstNode::Error { source, .. } => source,
+    }
+}
+
+fn node_chunk_id(node_id: AstNodeId) -> String {
+    format!("node-{node_id}")
+}
+
+fn node_root_id(node_id: AstNodeId) -> String {
+    format!("node:{node_id}")
+}
+
+fn event_chunk_id(sequence: u64) -> String {
+    format!("event-{sequence}")
+}
+
+fn event_root_id(sequence: u64) -> String {
+    format!("event:{sequence}")
+}
+
+fn encode_document_binary(
+    doc: &CemDocument,
+    kind: BinaryProjectionKind,
+) -> EncodedBinaryProjection {
+    let relationships = document_chunk_relationships(doc);
     let mut out = Vec::new();
     write_binary_header(&mut out, kind);
     write_u32(&mut out, doc.nodes.len() as u32);
+    let header_len = out.len();
+
+    let mut chunk_metadata = Vec::with_capacity(doc.nodes.len().saturating_add(1));
+    chunk_metadata.push(ProjectionChunkMetadata {
+        id: ROOT_CHUNK_ID.to_owned(),
+        parent_id: None,
+        root_id: Some(format!("projection:{}", kind.name())),
+        byte_offset: 0,
+        byte_length: header_len,
+        child_links: relationships
+            .roots
+            .iter()
+            .map(|node_id| ProjectionChildLink {
+                chunk_id: node_chunk_id(*node_id),
+                root_id: node_root_id(*node_id),
+            })
+            .collect(),
+        source_map_deltas: Vec::new(),
+    });
+
     for node in doc.nodes.iter() {
+        let node_id = ast_node_id(node);
+        let start = out.len();
         encode_ast_node(&mut out, node);
+        let byte_length = out.len() - start;
+        let parent_id = relationships
+            .parents
+            .get(&node_id)
+            .map(|parent| node_chunk_id(*parent))
+            .unwrap_or_else(|| ROOT_CHUNK_ID.to_owned());
+        let child_links = relationships
+            .children
+            .get(&node_id)
+            .map(|children| {
+                children
+                    .iter()
+                    .map(|child_id| ProjectionChildLink {
+                        chunk_id: node_chunk_id(*child_id),
+                        root_id: node_root_id(*child_id),
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        chunk_metadata.push(ProjectionChunkMetadata {
+            id: node_chunk_id(node_id),
+            parent_id: Some(parent_id),
+            root_id: Some(node_root_id(node_id)),
+            byte_offset: start as u64,
+            byte_length,
+            child_links,
+            source_map_deltas: source_map_deltas(ast_node_source_map(node)),
+        });
     }
-    out
+    EncodedBinaryProjection {
+        bytes: out,
+        chunk_metadata,
+    }
 }
 
-fn encode_events_binary(input: &[u8], from_format: InputFormat) -> Vec<u8> {
+fn encode_events_binary(input: &[u8], from_format: InputFormat) -> EncodedBinaryProjection {
     let src = BytesSource::new(SourceId(1), input.to_vec());
     let mut events = match from_format {
         InputFormat::Cem => collect_normalized_events(CemTokenizer::from_source(src)),
@@ -395,10 +669,40 @@ fn encode_events_binary(input: &[u8], from_format: InputFormat) -> Vec<u8> {
     let mut out = Vec::new();
     write_binary_header(&mut out, BinaryProjectionKind::Events);
     write_u32(&mut out, events.len() as u32);
+    let header_len = out.len();
+    let mut chunk_metadata = Vec::with_capacity(events.len().saturating_add(1));
+    chunk_metadata.push(ProjectionChunkMetadata {
+        id: ROOT_CHUNK_ID.to_owned(),
+        parent_id: None,
+        root_id: Some("projection:events".to_owned()),
+        byte_offset: 0,
+        byte_length: header_len,
+        child_links: (0..events.len())
+            .map(|sequence| ProjectionChildLink {
+                chunk_id: event_chunk_id(sequence as u64),
+                root_id: event_root_id(sequence as u64),
+            })
+            .collect(),
+        source_map_deltas: Vec::new(),
+    });
     for (sequence, event) in events.drain(..).enumerate() {
+        let start = out.len();
         encode_event(&mut out, sequence as u64, &event);
+        let byte_length = out.len() - start;
+        chunk_metadata.push(ProjectionChunkMetadata {
+            id: event_chunk_id(sequence as u64),
+            parent_id: Some(ROOT_CHUNK_ID.to_owned()),
+            root_id: Some(event_root_id(sequence as u64)),
+            byte_offset: start as u64,
+            byte_length,
+            child_links: Vec::new(),
+            source_map_deltas: event_source_map_deltas(&event),
+        });
     }
-    out
+    EncodedBinaryProjection {
+        bytes: out,
+        chunk_metadata,
+    }
 }
 
 fn write_binary_header(out: &mut Vec<u8>, kind: BinaryProjectionKind) {
@@ -1024,6 +1328,73 @@ fn stack_origin(stack: &SourceMapStack) -> Option<ByteRange> {
     })
 }
 
+fn source_map_deltas(stack: &SourceMapStack) -> Vec<ProjectionSourceMapDelta> {
+    stack
+        .frames
+        .iter()
+        .flat_map(|frame| {
+            let ranges = match &frame.span {
+                FrameSpan::Single(range) => vec![*range],
+                FrameSpan::Multi(ranges) => ranges.clone(),
+            };
+            ranges
+                .into_iter()
+                .map(|range| ProjectionSourceMapDelta {
+                    source_id: frame.source_id.0,
+                    byte_offset: range.start,
+                    byte_length: range.len,
+                    transform: transform_kind_label(&frame.transform).to_owned(),
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+fn event_source_map_deltas(event: &NormalizedEvent) -> Vec<ProjectionSourceMapDelta> {
+    event_source_range(event)
+        .map(|range| {
+            vec![ProjectionSourceMapDelta {
+                source_id: SourceId(1).0,
+                byte_offset: range.start,
+                byte_length: range.len,
+                transform: "event-normalizer".to_owned(),
+            }]
+        })
+        .unwrap_or_default()
+}
+
+fn event_source_range(event: &NormalizedEvent) -> Option<ByteRange> {
+    match event {
+        NormalizedEvent::OpenScope { byte_range, .. }
+        | NormalizedEvent::CloseScope { byte_range, .. }
+        | NormalizedEvent::Name { byte_range, .. }
+        | NormalizedEvent::Value { byte_range, .. }
+        | NormalizedEvent::Trivia { byte_range, .. }
+        | NormalizedEvent::ProcessingInstruction { byte_range, .. }
+        | NormalizedEvent::Separator { byte_range, .. }
+        | NormalizedEvent::Error { byte_range, .. } => Some(*byte_range),
+        NormalizedEvent::ModeSwitch { handoff, .. } => Some(handoff.source_span),
+    }
+}
+
+fn transform_kind_label(transform: &TransformKind) -> &'static str {
+    match transform {
+        TransformKind::HtmlTokenizer => "html-tokenizer",
+        TransformKind::XmlTokenizer => "xml-tokenizer",
+        TransformKind::CemTokenizer => "cem-tokenizer",
+        TransformKind::EventNormalizer => "event-normalizer",
+        TransformKind::SchemaValidation { .. } => "schema-validation",
+        TransformKind::CemAstBuilder => "cem-ast-builder",
+        TransformKind::HandoffBoundary { .. } => "handoff-boundary",
+        TransformKind::ContentTypeTransform { .. } => "content-type-transform",
+        TransformKind::InterpreterRender => "interpreter-render",
+        TransformKind::Query => "query",
+        TransformKind::QueryStep => "query-step",
+        TransformKind::TemplateEmbedding { .. } => "template-embedding",
+        TransformKind::TemplateTransform { .. } => "template-transform",
+    }
+}
+
 fn project_byte_range(range: Option<ByteRange>) -> Value {
     match range {
         Some(r) => json!({ "start": r.start, "len": r.len }),
@@ -1235,21 +1606,36 @@ mod tests {
     }
 
     #[test]
-    fn dom_binary_artifact_is_hash_addressed_sealed_chunk() {
+    fn dom_binary_artifact_is_hash_addressed_multi_chunk_envelope() {
         let doc = parse("{p Hi}");
         let v = dom_binary_artifact(&doc);
-        let chunk = &v["chunks"][0];
+        let chunks = v["chunks"].as_array().expect("chunks array");
+        let root = &chunks[0];
+        let document = chunks
+            .iter()
+            .find(|chunk| chunk["id"] == "node-0")
+            .expect("document node chunk");
+        let text = chunks
+            .iter()
+            .find(|chunk| chunk["rootId"] == "node:2")
+            .expect("text node chunk");
 
         assert_eq!(v["kind"], "cem-binary-projection");
         assert_eq!(v["projection"], "dom");
         assert_eq!(v["contentType"], CEM_DOM_PROJECTION_CONTENT_TYPE);
         assert_eq!(v["hashScheme"], HASH_SCHEME);
-        assert_eq!(chunk["sealed"], true);
-        assert_eq!(chunk["byteOffset"], 0);
-        assert_eq!(chunk["byteLength"], v["byteLength"]);
-        assert_eq!(chunk["hash"], v["hash"]);
+        assert!(chunks.len() > 1);
+        assert_eq!(root["id"], ROOT_CHUNK_ID);
+        assert_eq!(root["rootId"], "projection:dom");
+        assert_eq!(root["sealed"], true);
+        assert_eq!(root["byteOffset"], 0);
+        assert!(root["byteLength"].as_u64().unwrap() < v["byteLength"].as_u64().unwrap());
+        assert_eq!(root["childLinks"][0]["chunkId"], "node-0");
+        assert_eq!(document["parentId"], ROOT_CHUNK_ID);
+        assert_eq!(document["childLinks"][0]["chunkId"], "node-1");
+        assert_eq!(text["sourceMapDeltas"][0]["transform"], "cem-tokenizer");
         assert!(v["hash"].as_str().unwrap().starts_with("cem-bin/1+blake3:"));
-        assert!(chunk["data"]
+        assert!(root["data"]
             .as_str()
             .unwrap()
             .starts_with("43454d50524f4a00"));
@@ -1270,21 +1656,33 @@ mod tests {
     }
 
     #[test]
-    fn binary_projection_stream_exposes_sealed_root_chunk() {
+    fn binary_projection_stream_exposes_stable_multi_chunk_contract() {
         let doc = parse("{p Hi}");
         let artifact = dom_binary_projection_artifact(&doc);
         let stream = artifact.to_chunk_stream();
-        let chunk = &stream.chunks()[0];
+        let root = &stream.chunks()[0];
+        let document = stream.chunk_by_root_id("node:0").expect("document chunk");
+        let element = stream.chunk_by_id("node-1").expect("element chunk");
+        let text = stream.chunk_by_root_id("node:2").expect("text chunk");
 
         assert_eq!(stream.projection, "dom");
         assert_eq!(stream.content_type, CEM_DOM_PROJECTION_CONTENT_TYPE);
         assert_eq!(stream.byte_length, artifact.bytes.len());
-        assert_eq!(chunk.id, ROOT_CHUNK_ID);
-        assert_eq!(chunk.parent_id, None);
-        assert_eq!(chunk.byte_offset, 0);
-        assert_eq!(chunk.byte_length, artifact.bytes.len());
-        assert_eq!(chunk.hash, artifact.hash);
-        assert_eq!(chunk.bytes(), artifact.bytes.as_slice());
+        assert_eq!(stream.replay_bytes(), artifact.bytes);
+        assert!(stream.chunks().len() > 1);
+        assert_eq!(root.id, ROOT_CHUNK_ID);
+        assert_eq!(root.parent_id, None);
+        assert_eq!(root.root_id.as_deref(), Some("projection:dom"));
+        assert_eq!(root.byte_offset, 0);
+        assert!(root.byte_length < artifact.bytes.len());
+        assert_eq!(root.child_links[0].chunk_id, "node-0");
+        assert_eq!(document.parent_id.as_deref(), Some(ROOT_CHUNK_ID));
+        assert_eq!(document.child_links[0].chunk_id, "node-1");
+        assert_eq!(element.parent_id.as_deref(), Some("node-0"));
+        assert_eq!(element.child_links[0].chunk_id, "node-2");
+        assert_eq!(text.parent_id.as_deref(), Some("node-1"));
+        assert!(!text.source_map_deltas.is_empty());
+        assert!(text.hash.starts_with("cem-bin/1+blake3:"));
     }
 
     #[test]
@@ -1352,17 +1750,28 @@ mod tests {
         assert_eq!(first["projection"], "ast");
         assert_eq!(first["contentType"], CEM_AST_PROJECTION_CONTENT_TYPE);
         assert_eq!(first["hash"], second["hash"]);
-        assert_eq!(first["chunks"][0]["data"], second["chunks"][0]["data"]);
+        assert_eq!(first["chunks"], second["chunks"]);
+        assert!(first["chunks"].as_array().unwrap().len() > 1);
     }
 
     #[test]
     fn events_binary_artifact_encodes_event_stream() {
         let v = events_binary_artifact_as(b"{p Hi}", InputFormat::Cem);
+        let chunks = v["chunks"].as_array().expect("chunks array");
 
         assert_eq!(v["projection"], "events");
         assert_eq!(v["contentType"], CEM_EVENTS_PROJECTION_CONTENT_TYPE);
         assert!(v["byteLength"].as_u64().unwrap() > BINARY_MAGIC.len() as u64);
-        assert!(v["chunks"][0]["data"]
+        assert!(chunks.len() > 1);
+        assert_eq!(chunks[0]["rootId"], "projection:events");
+        assert_eq!(chunks[0]["childLinks"][0]["chunkId"], "event-0");
+        assert_eq!(chunks[1]["parentId"], ROOT_CHUNK_ID);
+        assert_eq!(chunks[1]["rootId"], "event:0");
+        assert_eq!(
+            chunks[1]["sourceMapDeltas"][0]["transform"],
+            "event-normalizer"
+        );
+        assert!(chunks[0]["data"]
             .as_str()
             .unwrap()
             .starts_with("43454d50524f4a00"));

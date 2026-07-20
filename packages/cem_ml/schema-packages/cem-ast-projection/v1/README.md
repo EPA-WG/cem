@@ -9,6 +9,15 @@ This package defines the semantic CEM AST projection layer:
 The current JSON AST export keeps this schema identity but is treated as a view
 over the semantic AST projection, not as the canonical runtime artifact.
 
+## Chunk Stream Contract
+
+Binary AST projection envelopes expose sealed semantic-record chunks. The root
+chunk carries the binary header and links to the document node chunk; node
+chunks use stable `node:{id}` root ids, parent chunk ids, ordered child links,
+per-chunk hashes, and source-map deltas derived from byte source truth. Native
+consumers can replay the original artifact by sorting chunks by `byteOffset`
+without reserializing the JSON debug view.
+
 ## Validation Examples
 
 The schema-owned examples live in [`examples/`](examples/) and are used by the

@@ -9,12 +9,13 @@ history.
 
 Close the remaining Phase 2 gaps from [`../roadmap.md`](../roadmap.md) before
 continuing Phase 3 substrate expansion. The parser/runtime report-consumer
-slice and browser runtime proof are verified, but the full Phase 2 exit
-criteria still need stable chunked binary handoff semantics, embedded-payload
-handoff coverage, and web-host coordinate projection.
+slice, browser runtime proof, and stable chunked binary handoff are verified,
+but the full Phase 2 exit criteria still need embedded-payload handoff
+coverage and web-host coordinate projection.
 
-Current active slice: promote the binary projection handoff from sealed-root
-debug output to the first stable multi-chunk DOM/AST/events contract.
+Current active slice: complete embedded-language handoff coverage for
+style/script payloads, XML CDATA or schema-tagged text, JSON string
+subdocuments, CSF-like fields, and unsupported/future content types.
 
 ### Phase 2 Completion Gaps
 
@@ -24,7 +25,7 @@ debug output to the first stable multi-chunk DOM/AST/events contract.
       `@epa-wg/cem-elements` browser runtime, and assert rendered light DOM,
       template/runtime identity, and source-map fidelity in an executable Nx
       target.
-- [ ] Promote the DOM/AST/events binary projection handoff from single
+- [x] Promote the DOM/AST/events binary projection handoff from single
       sealed-root chunks and the debug AST encoder to a stable multi-chunk
       contract: subtree chunk metadata, child links, replay-from-cache
       behavior, deterministic routing to multiple sinks, and CEM-QL/query
@@ -39,9 +40,9 @@ debug output to the first stable multi-chunk DOM/AST/events contract.
       WASM, and browser/devtools consumers without storing non-byte
       coordinates as parser truth.
 - [ ] Re-run the Phase 2 completion gate after those gaps close:
-      focused Rust tests for the touched layer, `NX_DAEMON=false yarn nx run
-      cem_ml:test`, `NX_DAEMON=false yarn nx run cem_ml_cli:test`,
-      `NX_DAEMON=false yarn nx run cem_ml_cli:e2e`, and the focused
+      focused Rust tests for the touched layer, the `cem_ml:test`,
+      `cem_ml_cli:test`, and `cem_ml_cli:e2e` Nx targets with
+      `NX_DAEMON=false NX_ISOLATE_PLUGINS=false`, and the focused
       `cem-elements` runtime target that proves the browser fixture.
 
 ### Phase 3 Custom-Element Runtime
@@ -63,21 +64,20 @@ debug output to the first stable multi-chunk DOM/AST/events contract.
 
 ### Next Work Item
 
-Promote the binary projection handoff beyond sealed-root chunks:
+Complete embedded-language handoff coverage for the Phase 2 exit criterion:
 
-- audit `packages/cem_ml/src/projection.rs`,
-  `packages/cem_ml/src/ast.rs`,
-  `packages/cem_ml/src/ast/{format,encode,decode}.rs`, the
-  `cem-{dom,ast,events}-projection` schema packages, and CLI binary export
-  and validation tests to identify where the current debug encoder still
-  collapses projection output to one root chunk;
-- define the first stable multi-chunk contract for one projection kind,
-  preserving subtree chunk metadata, child links, hash identity, source-map
-  deltas, and compatibility with existing single-root consumers;
-- add focused Rust tests for the projection stream and cache-replay behavior
-  before wiring CLI/browser consumers, then rerun
+- audit the tokenizer/normalizer/parser/schema handoff path across
+  `packages/cem_ml/src/events`, `packages/cem_ml/src/parser`,
+  `packages/cem_ml/src/validation`, `packages/cem_ml/src/transform_template.rs`,
+  and the HTML, XML, JSON, CSS, CEM-ML, and schema-package fixtures to find
+  payloads that still fall through without scoped validation or diagnostics;
+- add focused fixtures for style/script payloads, XML CDATA or schema-tagged
+  text, JSON string subdocuments, CSF-like fields, and unsupported/future
+  content types, preserving source-map bounds on both successful handoffs and
+  actionable diagnostics;
+- verify first with focused Rust tests for the touched handoff layer, then run
   `NX_DAEMON=false NX_ISOLATE_PLUGINS=false yarn nx run cem_ml:test` and the
-  relevant CLI validation/e2e targets if binary export surfaces change.
+  relevant `cem_ml_cli` validation/e2e targets if CLI report surfaces change.
 
 ## Current Verification Commands
 
