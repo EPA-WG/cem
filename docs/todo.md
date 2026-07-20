@@ -13,10 +13,10 @@ binary handoff, embedded-payload handoff coverage, and web-host coordinate
 projection have all passed their focused and gate verification. Continue with
 Phase 3 substrate expansion.
 
-Current active slice: audit the existing `@epa-wg/cem-components` package
-against Phase 3.2 primitives deliverables, exit criteria, docs, component
-inventory, and verification targets before selecting the first implementation
-slice.
+Current active slice: add primitive-family visual snapshot coverage for
+`@epa-wg/cem-components` using the existing browser harness, starting with the
+action, input, layout/content, navigation, and feedback families already covered
+by DOM/ARIA tests.
 
 ### Phase 3 Custom-Element Runtime
 
@@ -44,15 +44,20 @@ slice.
 
 ### Phase 3.2 CEM Primitives
 
-- [ ] Audit the existing `@epa-wg/cem-components` package structure, docs,
+- [x] Audit the existing `@epa-wg/cem-components` package structure, docs,
       component inventory, Storybook/test harness, and dependency path on
       `@epa-wg/cem-elements` against the Phase 3.2 deliverables and exit
       criteria from `roadmap.md`.
-- [ ] Populate a focused implementation slice from the audit: the minimal
-      primitive or harness gap that blocks declarative no-JS component usage
-      before expanding the catalog.
-- [ ] Add or repair focused tests for DOM rendering, events, accessibility
-      assertions, and visual snapshots around the selected primitive slice.
+- [x] Populate a focused implementation slice from the audit: add
+      primitive-family visual snapshot coverage, because the existing package
+      already has the `@epa-wg/cem-elements` dependency, CEM-ML primitive
+      declarations, DOM rendering tests, event/state tests, accessibility
+      assertions, workflow fixtures, manifest verification, and token-only style
+      verification, while visual snapshots are currently exercised only by the
+      harness smoke test.
+- [ ] Add primitive-family visual snapshot coverage around the selected
+      representative primitives: action controls, input controls, layout/content
+      containers, navigation landmarks, and feedback/status surfaces.
 - [ ] Verify the selected primitive slice with focused
       `@epa-wg/cem-components` target(s), then
       `yarn nx run @epa-wg/cem-components:verify`, and the relevant
@@ -60,19 +65,23 @@ slice.
 
 ### Next Work Item
 
-Audit Phase 3.2 primitives readiness in `@epa-wg/cem-components` before
-starting component implementation:
+Add primitive-family visual snapshot coverage in `@epa-wg/cem-components`:
 
-- inspect `packages/cem-components/project.json`, source files, stories/tests,
-  docs, and package dependencies to identify what already exists;
-- map the current component inventory against the roadmap's minimal primitives:
-  action, field, surface, text, icon, stack, grid, list, nav, and dialog shell;
-- check whether existing primitives are authored exclusively with
-  `<cem-element>` and keep the no-shadow-DOM/light-DOM rendering contract;
-- identify the first narrow primitive or harness gap that should be implemented
-  next, avoiding broad catalog work until the audit proves the target;
-- update `docs/todo.md` with the resulting focused slice and recommended Nx
-  verification commands.
+- reuse `captureVisualSnapshot()` from
+  `packages/cem-components/src/lib/testing/component-harness.ts` rather than
+  adding a new screenshot system;
+- add a focused browser spec, or extend `primitives.browser.spec.ts`, with one
+  deterministic fixture per family: action controls, input controls,
+  layout/content containers, navigation landmarks, and feedback/status surfaces;
+- assert stable rendered HTML/text, non-zero dimensions, expected display/style
+  properties, and token-resolved computed styles where the current theme CSS is
+  available;
+- keep behavior assertions in the existing DOM/ARIA/state/workflow specs and use
+  this slice only for visual regression shape;
+- verify with `yarn nx run @epa-wg/cem-components:test-ci--src/lib/primitives.browser.spec.ts`
+  if the coverage lands there, then
+  `yarn nx run @epa-wg/cem-components:test`, and finally
+  `yarn nx run @epa-wg/cem-components:verify`.
 
 ## Current Verification Commands
 
