@@ -18,8 +18,9 @@ source provenance, keep normalization annotative and symmetric, make execution
 placement explicit, avoid implicit canonicalization, and retain complete schema
 identity.
 
-Current active slice: design any further generic path-layout vocabulary beyond
-the current prefix, directory-name, extension, and basename facets.
+Current active slice: design declarative CEMT body/output assertion vocabulary
+for schema-owned artifact constraints currently centralized in Rust helper
+checks.
 
 ### Contract And Documentation
 
@@ -236,7 +237,7 @@ registered content identities. Similar Rust-executed reference-resolution
 shapes exist for example content-type/schema compatibility and artifact CEMT
 function lookup/metadata matching.
 
-- [ ] Design any further generic path-layout vocabulary beyond the current
+- [x] Design any further generic path-layout vocabulary beyond the current
       prefix, directory-name allow/forbid, extension, and basename allow/forbid
       facets. Background: `path` is always resolved in scope context, not
       document context. `./` is relative to the context root, protocol-prefixed

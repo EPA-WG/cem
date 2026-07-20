@@ -155,6 +155,16 @@ Use `path-layout-attributes` with `path-layout-prefix`,
 such as formatter artifacts under `formatters/` and colorizer artifacts under
 `colorizers/`.
 
+The generic path-layout field-contract vocabulary is closed at prefix,
+directory-name allow/forbid, extension, and basename allow/forbid facets for
+the current design. A `schema:path` value resolves in the active scope context
+before these facets run: `./...` is relative to the active context root,
+protocol-prefixed values use their protocol resolver, and bare values use the
+active module map or aliases. Defer generic path depth, segment count, suffix,
+glob or segment-class, and alias or module-map matching facets until a concrete
+schema-owned check can define stable resolver provenance, source-range
+projection, and cross-protocol comparison behavior.
+
 ## Declarative Behavior Registry
 
 The schema definition language declares reusable validation behavior under

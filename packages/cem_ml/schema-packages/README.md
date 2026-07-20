@@ -524,6 +524,18 @@ their own instances. Attribute datatype params such as `@stringPrefixes`,
 `@mediaTypeRequiredParameters` then narrow those compatible primitives
 declaratively in the schema document.
 
+For package path-layout field contracts, the initial generic vocabulary is
+intentionally limited to prefix, directory-name allow/forbid, extension, and
+basename allow/forbid facets. The parallel `schema:path` datatype params expose
+only the existing prefix/forbidden-prefix, directory-name, extension, and
+basename allow/forbid checks listed above. These facets run after `schema:path`
+resolution in the active scope context; they do not inspect the authored
+spelling as a document-relative path. Additional generic facets such as path
+depth, segment count, suffix, glob or segment classes, and alias or module-map
+matching remain deferred until a concrete schema-owned check needs stable
+cross-protocol semantics. Package-specific Rust helpers must not introduce
+those checks as hidden generic CEM path semantics.
+
 Reference-normalization target design treats these path values as URI identity
 finalization against the active base, resolver purpose, package/module-map
 context, and policy. Finalization does not imply that the resource exists or is
