@@ -350,6 +350,35 @@ as lookup provenance, but those fields do not turn the namespace operand into a
 schema operand unless a versioned adapter has projected an explicit schema
 URI/identity result with its own binding.
 
+Identifier-token and profile-name bindings are also separate domains.
+`schema:identifier-token` is for schema-owned local tokens that use the
+`schema:identifier` datatype grammar. Dotted profile selectors bind to
+`schema:profile-name` and must not be normalized by first splitting, folding, or
+coercing them into identifier tokens.
+
+Function-name and function-identity bindings are separate domains. Manifest
+`@function-name` operands bind to `schema:function-name`, which preserves the
+authored exported symbol. Compiled CEMT declarations bind to
+`schema:function-identity`, whose record carries the module/artifact identity,
+canonical exported function name, and optional profile/kind metadata. Lookup
+provenance may show both values, but comparisons must project the intended
+field pair explicitly.
+
+Authored artifact IDs and path-derived artifact identities are separate
+domains. Manifest artifact ID operands bind to `schema:artifact-name` only when
+an explicit ID field exists. Artifact path or URI operands first resolve through
+`schema:document-uri`, then bind to `schema:artifact-identity` with package or
+registry context. Validators must not derive an artifact name from a path
+basename or compare a resolved artifact URI as an authored ID.
+
+Composite function/artifact lookup keys use canonical `lookup` child form with
+one `key` child per component. Each key child declares its own binding,
+source, normalizer, cardinality, and shape. Required components include the
+resolved artifact identity and lexical function name; contracts add content
+type, schema identity, category, profile, and subject type only when those
+fields participate in lookup identity. Validators must not pack composite keys
+into one string or apply one broad normalizer to every component.
+
 Operand states:
 
 - `valid`: value exists, has the declared shape, and normalized successfully.

@@ -18,6 +18,10 @@ source provenance, keep normalization annotative and symmetric, make execution
 placement explicit, avoid implicit canonicalization, and retain complete schema
 identity.
 
+Current active slice: complete C12 by correcting target/current status and
+diagnostic projection ownership before moving to URI lookup lifecycle and
+ordered-reference scope decisions.
+
 ### Contract And Documentation
 
 - [x] **[C1] Define staged lookup normalization.** Specify source extraction,
@@ -86,7 +90,7 @@ identity.
       declarations, and compare namespace claims only with namespace values.
       Treat schema v1's namespace-as-identity behavior as a versioned
       compatibility adapter and plan an explicit schema-identity field.
-- [ ] **[C11] Define identifier, profile, function, and artifact domains.** Link
+- [x] **[C11] Define identifier, profile, function, and artifact domains.** Link
       identifier tokens to an authoritative datatype grammar; define dotted,
       case-sensitive profile symbols; distinguish lexical function names from
       function identities containing module/artifact identity plus canonical
@@ -94,6 +98,42 @@ identity.
       separate path-derived artifact-identity normalizer after document-URI
       resolution. Normalize every component of composite lookup keys while
       preserving authored spellings and source ranges.
+- [x] **[C11.1] Define the base identifier grammar.** Link
+      `schema:identifier-token` to one authoritative schema datatype grammar and
+      state its exactness rules. Keep it narrow enough for schema-owned tokens,
+      but do not use it as a catch-all for profiles, functions, artifacts, or
+      path-derived identities.
+- [x] **[C11.2] Split profile symbols from identifiers.** Define
+      `schema:profile-name` as an exact, case-sensitive dotted symbol grammar
+      that accepts package-qualified values such as
+      `acme.showcase.format-tree`. Preserve the authored spelling and range;
+      do not case-fold, segment-normalize, or treat profiles as bare
+      identifiers.
+- [x] **[C11.3] Split function names from function identities.** Keep
+      `schema:function-name` as the authored exported lexical name. Add
+      `schema:function-identity` as the compiled/registry identity record that
+      includes module or artifact identity plus the canonical exported function
+      name and optional function profile when the schema contract requires it.
+- [x] **[C11.4] Split authored artifact names from path-derived identities.**
+      Reserve `schema:artifact-name` for authored manifest artifact IDs only.
+      Add a separate artifact path or artifact identity normalizer that runs
+      after `schema:document-uri` resolution and records declared URI, resolved
+      URI, package context, artifact kind, and provenance.
+- [x] **[C11.5] Define composite function/artifact lookup keys.** Require each
+      component to be normalized by its own domain normalizer: function
+      name/identity, authored artifact name or resolved artifact identity,
+      content-type identity, schema identity, content category, profile, and any
+      subject type. Composite equality compares the normalized record fields,
+      not one concatenated string.
+- [x] **[C11.6] Update reference docs and current package docs in dependency
+      order.** Patch normalization first, then vocabulary and comparison, then
+      schema-package README/example prose. Keep shipped compatibility wording
+      where current artifacts still expose only lexical names or paths.
+- [x] **[C11.7] Add acceptance coverage for the split.** Document dotted
+      profile symbols, authored artifact IDs versus path-derived artifact
+      identities, lexical function names versus compiled function identities,
+      and at least one composite lookup key with all component spellings and
+      source ranges preserved.
 - [ ] **[C12] Correct target/current status and diagnostic projection.** Mark
       the three reference documents as accepted target design with
       implementation pending and schema-package READMEs as the current shipped
@@ -146,7 +186,7 @@ identity.
       source-ordered provenance, and deterministic comparison values.
 - [ ] Document `missing`, `invalid`, `unresolved`, `unsupported`, and
       pending/deferred lifecycle outcomes.
-- [ ] Document dotted profile symbols and composite function identities.
+- [x] Document dotted profile symbols and composite function identities.
 - [ ] Document whether ordered ARIA IDREF sequences and dynamic JSON Schema
       references are supported or deferred.
 

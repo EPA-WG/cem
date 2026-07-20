@@ -65,6 +65,16 @@ package-relative `.cemt` paths under `colorizers/`. These directories sit beside
 `schema/` inside the same `schema-packages/{schema-name}/{version}/` hierarchy,
 so schema-owned formatting and coloring travel with the schema package instead
 of a writer-local string filter.
+
+The current shipped manifest surface remains lexical: artifacts declare
+package-relative `path`, lexical `function-name`, optional lexical
+`function-profile`, and stage profile selectors. The reference-normalization
+target treats those fields as separate domains: `path` resolves through
+document/artifact identity, `function-name` remains the authored exported
+symbol, compiled CEMT declarations expose function identity records, and
+profile fields use dotted profile-symbol semantics. Current validators may
+project that structure internally while preserving the existing manifest field
+names and diagnostic compatibility.
 For local `package.cem` inputs, validation also reads the declared schema
 source before registry admission. The first pass is pure declaration
 consistency: manifest schema URI, content type claims, and namespace URI claims

@@ -563,6 +563,13 @@ attribute ordering, scalar style, CSV quoting, and binary chunk framing.
 Encoding here means target syntax/context work; it is separate from character
 encoding such as UTF-8 and transport encoding such as gzip.
 
+For the current schema-package manifest surface, artifact paths and function
+names are still authored lexical fields. The reference-normalization target
+interprets a manifest artifact path as document/artifact identity after
+resolver context is applied, a manifest function name as exact exported symbol
+spelling, and a compiled CEMT declaration as a function identity record tied to
+the resolved artifact/module. Profile selectors remain exact dotted symbols.
+
 Native producers exist for performance, bootstrap, binary framing, and clarity,
 but are paired with CEMT implementations and cross-checked. Each supported
 schema package should eventually declare:

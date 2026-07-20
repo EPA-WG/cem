@@ -487,30 +487,219 @@ and compiled `accepts` policy stamps. It is not a global reference-normalization
 alias table. Reference normalization uses schema/content registries through
 `schema:content-type-identity`.
 
+## Identifier And Profile Domains
+
+`schema:identifier-token` is the reference-normalization view of the schema
+scalar datatype `schema:identifier`, which is based on the CEM-ML
+`cemml:identifier` / local-name grammar. For reference normalization, that
+grammar is:
+
+```text
+identifier-token := identifier-start identifier-char*
+identifier-start := [A-Za-z_]
+identifier-char  := [A-Za-z0-9_-]
+```
+
+Identifier-token equality is exact codepoint equality over the parsed string.
+No case folding, Unicode normalization, hyphen/underscore conversion,
+namespace-prefix expansion, URI normalization, whitespace trimming, or list
+splitting is applied. Values containing dots, colons, slashes, whitespace,
+empty text, or source quoting required only to escape non-identifier characters
+are not valid identifier tokens.
+
+Use `schema:identifier-token` only for schema-owned local tokens such as
+content categories, check kinds, simple enum values, and contract-local names.
+It is not a catch-all for profile symbols, function names, artifact identities,
+resource paths, namespace names, schema URIs, or host-language IDs.
+
+`schema:profile-name` uses the existing CEM-ML
+`schema:symbol-reference` / `cemml:symbol-reference` grammar: one or more
+identifier-token segments separated by a single dot.
+
+```text
+profile-name := identifier-token ( "." identifier-token )*
+```
+
+Profile equality is exact and case-sensitive over the whole symbol. Package
+qualified profiles such as `acme.showcase.format-tree` are valid. Empty
+segments, leading or trailing dots, repeated dots, path separators, URI syntax,
+and case-insensitive aliases are not valid profile names.
+
+## Function Name And Identity Domains
+
+`schema:function-name` is the authored exported function name. It uses the same
+dotted `schema:symbol-reference` grammar as profiles, but it belongs to the
+function-export domain rather than the profile domain.
+
+```text
+function-name := identifier-token ( "." identifier-token )*
+```
+
+Function-name equality is exact and case-sensitive over the parsed lexical
+name. It does not prove that a function exists in a compiled module, identify
+the artifact that declared it, or include target metadata such as content type,
+schema, category, subject, or profile.
+
+`schema:function-identity` is the engine-assisted identity for a compiled CEMT
+function declaration. Its normalized value is a record:
+
+```text
+{
+  moduleIdentity: <compiled module or artifact identity>,
+  canonicalName: <compiler canonical exported function name>,
+  functionProfile?: <schema:profile-name>,
+  functionKind?: <schema:identifier-token>
+}
+```
+
+`moduleIdentity` is supplied by artifact or document resolution, usually as
+`schema:artifact-identity` for schema-package CEMT assets. `canonicalName` is
+the compiler's canonical export spelling and must compare with manifest
+`@function-name` through the `schema:function-name` normalizer. The optional
+profile and kind fields are compared only when the schema contract declares
+those field pairs.
+
+## Artifact Name And Identity Domains
+
+`schema:artifact-name` is an authored manifest artifact ID. It uses
+`schema:identifier-token` grammar and is valid only when the source explicitly
+declares an artifact ID field. It is not derived from a file path, URI
+basename, function name, artifact kind, or registry lookup.
+
+`schema:artifact-identity` is the engine-assisted identity produced after
+`schema:document-uri` resolution for a package or registry artifact reference.
+Its normalized value is a record:
+
+```text
+{
+  declaredUri: <authored artifact URI or package-relative path>,
+  resolvedUri: <resolver-final artifact URI>,
+  packageContext?: <owning package or registry context>,
+  artifactKind?: <schema:identifier-token>,
+  sourceContentType?: <schema:content-type-identity or schema:media-type>,
+  sourceSchemaIdentity?: <schema:schema-identity>
+}
+```
+
+Artifact identity equality is based on the resolved artifact URI inside the
+same package or registry context, plus artifact kind when the contract requires
+kind-specific identity. `declaredUri`, source spelling, source range, resolver
+steps, and aliases remain provenance. A path-derived artifact identity must not
+be compared as `schema:artifact-name`, and an authored artifact ID must not be
+invented from a path.
+
+## Composite Function And Artifact Lookup Keys
+
+Function/artifact lookups use composite normalized records rather than
+concatenated strings. A package artifact function lookup key is built from the
+declared key parts that the schema contract requires:
+
+```text
+{
+  artifactIdentity: <schema:artifact-identity>,
+  functionName: <schema:function-name>,
+  sourceContentType?: <schema:content-type-identity or schema:media-type>,
+  sourceSchemaIdentity?: <schema:schema-identity>,
+  targetContentType?: <schema:content-type-identity>,
+  targetSchemaIdentity?: <schema:schema-identity>,
+  targetCategory?: <schema:content-category>,
+  functionProfile?: <schema:profile-name>,
+  subjectType?: <schema:identifier-token>
+}
+```
+
+Each field is normalized independently with its domain normalizer before the
+record participates in lookup or comparison. Composite equality is fieldwise
+over the declared normalized fields. Undeclared fields do not participate in
+identity; optional declared fields use explicit state or presence policy.
+Authored spellings, source ranges, lookup key bindings, resolver provenance,
+and registry provenance stay attached to each key part.
+
+Validators must not build a composite key by joining raw strings such as
+`path + "#" + function-name`, by comparing basenames, or by normalizing every
+component through `schema:identifier-token`.
+
+## Identifier And Artifact Split Examples
+
+The profile value `acme.showcase.format-tree` is valid
+`schema:profile-name` because it is a dotted symbol. It is not a valid
+`schema:identifier-token` because identifier tokens do not contain dots.
+`acme.showcase.format-tree` and `Acme.showcase.format-tree` are distinct
+profile values.
+
+An authored manifest field such as `@id="formatter-main"` may normalize as
+`schema:artifact-name`. A manifest field such as
+`@path="formatters/cem-format-tree.cemt"` does not normalize as an artifact
+name. It first normalizes as `schema:document-uri`, then as
+`schema:artifact-identity`:
+
+```text
+{
+  declaredUri: "formatters/cem-format-tree.cemt",
+  resolvedUri: "cem+repo://.../cem-ml/v1/formatters/cem-format-tree.cemt",
+  packageContext: "cem-ml@1",
+  artifactKind: "formatter"
+}
+```
+
+The manifest field `@function-name="cem.format-tree"` normalizes as
+`schema:function-name`. After the resolved CEMT artifact is compiled, the
+matching declaration normalizes as `schema:function-identity`:
+
+```text
+{
+  moduleIdentity: <artifact identity above>,
+  canonicalName: "cem.format-tree",
+  functionKind: "format-function"
+}
+```
+
+A formatter artifact lookup that checks executable output metadata uses a
+composite key with independently normalized parts:
+
+```text
+{
+  artifactIdentity: <schema:artifact-identity from @path>,
+  functionName: "cem.format-tree",
+  targetContentType: <schema:content-type-identity from @target-content-type>,
+  targetSchemaIdentity: <schema:schema-identity from @target-schema>,
+  targetCategory: "cem-tree",
+  functionProfile: "compact",
+  subjectType: "cem-ast-node"
+}
+```
+
+Each key part retains its own declared spelling and source range. Diagnostics
+can point to the path, function name, target content type, target schema,
+category, profile, or subject source independently instead of pointing at a
+synthetic combined key.
+
 ## Vocabulary
 
-| Normalizer                         | Output                | Placement                                                                       | Semantics                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| ---------------------------------- | --------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `schema:scalar-exact`              | typed scalar          | pure                                                                            | Preserve the parsed scalar type and semantic value exactly. Equality is `(type, value)` with no coercion: strings, integers, decimals, booleans, and null do not compare across types. Source spelling is not part of equality; use `schema:source-lexeme-exact` when spelling matters.                                                                                                                                                                                                                                                                                 |
-| `schema:string-exact`              | string                | pure                                                                            | Accept only parsed string/text values and compare codepoints exactly. No Unicode normalization, case folding, URI normalization, whitespace trimming, or conversion from numeric, boolean, null, record, or list values is applied.                                                                                                                                                                                                                                                                                                                                     |
-| `schema:source-lexeme-exact`       | string                | pure                                                                            | Compare the captured `sourceLexeme` exactly as authored for the selected scalar or list item. This normalizer is for spelling-sensitive contracts and must not reconstruct a lexeme from `declaredValue`; values without captured source lexemes cannot satisfy it.                                                                                                                                                                                                                                                                                                     |
-| `schema:identifier-token`          | string                | pure                                                                            | Validate an identifier-like token and preserve it exactly. Use for content category and profile values whose vocabulary is schema-owned.                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `schema:media-type`                | record                | engine-assisted initially; pure when content-type parsing is exposed            | Parse strict RFC media-type syntax into `essence`, `type`, `subtype`, optional `suffix`, and `parameters`. Type, subtype, suffix, and parameter names normalize to lowercase. Parameter values are unquoted and otherwise preserved unless a registered parameter-specific rule declares case-insensitive comparison. Legacy aliases and bare content identifiers are not accepted by this normalizer. Invalid media syntax produces `state=invalid`.                                                                                                                   |
-| `schema:media-type-essence`        | string                | engine-assisted initially; pure when content-type parsing is exposed            | Apply `schema:media-type` and project its lowercase essence. `Text/HTML; Charset=UTF-8` normalizes to `text/html`. Parameter information remains available through `schema:media-type` when needed.                                                                                                                                                                                                                                                                                                                                                                     |
-| `schema:media-type-essence-set`    | set of scalar strings | engine-assisted initially; pure when content-type parsing is exposed            | Set normalizer with `itemNormalizer=schema:media-type-essence`. It applies the strict RFC item normalizer to each declared media-type claim, exposes a sorted duplicate-free `comparisonSet`, and keeps source-ordered item outcomes with invalid items and duplicate origins addressable by source range.                                                                                                                                                                                                                                                              |
-| `schema:content-type-identity`     | record                | engine-assisted                                                                 | Resolve an RFC media type or registered content alias through the active schema/content registry. The normalized value is `{ contentType, schemaIdentity, routingProfile? }`; provenance preserves declared spelling, alias owner, registry layer, and source range. Unknown content types produce `state=unresolved, reason=unknown-content-type`; ambiguous values without required schema context produce `state=unresolved, reason=ambiguous-content-type`; values outside an explicit schema context produce `state=invalid, reason=content-type-schema-mismatch`. |
-| `schema:content-type-identity-set` | set of records        | engine-assisted                                                                 | Set normalizer with `itemNormalizer=schema:content-type-identity`. It resolves each registered content-type claim or alias against the active registry view, exposes a sorted duplicate-free `comparisonSet` of content identity records, and preserves source-ordered item outcomes, declared spellings, aliases, states, reasons, duplicates, and source ranges.                                                                                                                                                                                                      |
-| `schema:schema-uri-declaration`    | string                | pure                                                                            | Preserve the declared schema URI exactly after CEM-ML parsing and validate only schema-URI declaration syntax. If the last path segment is an AC-V-10 version tail, expose the parsed constraint as provenance. This normalizer does not resolve a descriptor, select a version, or apply generic URI text canonicalization.                                                                                                                                                                                                                                            |
-| `schema:schema-identity`           | record                | engine-assisted                                                                 | Resolve a schema reference through the AC-F-2/AC-P-6-aware schema resolution context using AC-V-9 through AC-V-13. The normalized value is the complete identity record `{ uri, embeddedVersion }`, where `uri` is the matched descriptor's stable schema URI and `embeddedVersion` is the descriptor's complete SemVer 2.0 string. Provenance retains the source form, declared URI or alias when present, version constraint, resolver or metadata source, and match rule; unresolved or ambiguous resolution produces `state=unresolved`.                            |
-| `schema:schema-uri`                | URI projection string | engine-assisted                                                                 | Apply `schema:schema-identity` and project only the resolved descriptor `uri`. This is a lossy compatibility normalizer for rules that explicitly want stable URI equality without version identity. It must not be used where complete schema identity, cache identity, or schema-version compatibility is intended.                                                                                                                                                                                                                                                   |
-| `schema:document-uri`              | URI record            | engine-assisted                                                                 | Resolve a resource URI or path against the active document/package base and resolver context. The normalized record contains `declaredUri` and `resolvedUri`; diagnostics keep both when they differ. Non-local or otherwise policy-gated resolution follows the active scope policy; resolver policy failures produce `state=unresolved`.                                                                                                                                                                                                                              |
-| `schema:namespace-uri`             | string                | pure                                                                            | Preserve the namespace URI string exactly after CEM-ML parsing. Namespace equality remains textual. Dispatch and content-type/schema selection use `schema:namespace-metadata`, not this text normalizer.                                                                                                                                                                                                                                                                                                                                                               |
-| `schema:namespace-uri-set`         | set of scalar strings | pure                                                                            | Set normalizer with `itemNormalizer=schema:namespace-uri`. It exposes a sorted duplicate-free `comparisonSet` while preserving source-ordered namespace claim outcomes, duplicate origins, states, reasons, and source ranges.                                                                                                                                                                                                                                                                                                                                          |
-| `schema:namespace-metadata`        | record                | engine-assisted                                                                 | Resolve namespace metadata per AC-P-6.1 through the local-first metadata chain. The normalized record contains `{ namespaceUri, contentType, schemaUri, schemaVersion }`, where `schemaUri` and `schemaVersion` are the resolved `schema:schema-identity` pair. Missing metadata without an explicit schema form is governed by AC-P-6.7 scope policy.                                                                                                                                                                                                                  |
-| `schema:artifact-name`             | string                | pure                                                                            | Preserve an artifact identity token exactly. Intended for manifest-owned artifact ids or path-derived stable artifact names before lookup.                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `schema:function-name`             | string                | pure for declared manifest values; engine-assisted for CEMT module declarations | Preserve a declared function name exactly. When normalizing a compiled CEMT module declaration, use the compiler's canonical function identity.                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `schema:content-category`          | string                | pure                                                                            | Alias of `schema:identifier-token` for artifact/converter target categories. Kept as a named normalizer so diagnostics can report the domain-specific value kind.                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `schema:profile-name`              | string                | pure                                                                            | Alias of `schema:identifier-token` for formatter/colorizer/function profiles. Profiles are case-sensitive schema-owned tokens.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Normalizer                         | Output                | Placement                                                            | Semantics                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ---------------------------------- | --------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schema:scalar-exact`              | typed scalar          | pure                                                                 | Preserve the parsed scalar type and semantic value exactly. Equality is `(type, value)` with no coercion: strings, integers, decimals, booleans, and null do not compare across types. Source spelling is not part of equality; use `schema:source-lexeme-exact` when spelling matters.                                                                                                                                                                                                                                                                                 |
+| `schema:string-exact`              | string                | pure                                                                 | Accept only parsed string/text values and compare codepoints exactly. No Unicode normalization, case folding, URI normalization, whitespace trimming, or conversion from numeric, boolean, null, record, or list values is applied.                                                                                                                                                                                                                                                                                                                                     |
+| `schema:source-lexeme-exact`       | string                | pure                                                                 | Compare the captured `sourceLexeme` exactly as authored for the selected scalar or list item. This normalizer is for spelling-sensitive contracts and must not reconstruct a lexeme from `declaredValue`; values without captured source lexemes cannot satisfy it.                                                                                                                                                                                                                                                                                                     |
+| `schema:identifier-token`          | string                | pure                                                                 | Validate the schema scalar datatype `schema:identifier` / CEM-ML local-name grammar and preserve it exactly. This is an exact, case-sensitive local token, not a profile, function, artifact, path, namespace, schema URI, or host-language ID normalizer.                                                                                                                                                                                                                                                                                                              |
+| `schema:media-type`                | record                | engine-assisted initially; pure when content-type parsing is exposed | Parse strict RFC media-type syntax into `essence`, `type`, `subtype`, optional `suffix`, and `parameters`. Type, subtype, suffix, and parameter names normalize to lowercase. Parameter values are unquoted and otherwise preserved unless a registered parameter-specific rule declares case-insensitive comparison. Legacy aliases and bare content identifiers are not accepted by this normalizer. Invalid media syntax produces `state=invalid`.                                                                                                                   |
+| `schema:media-type-essence`        | string                | engine-assisted initially; pure when content-type parsing is exposed | Apply `schema:media-type` and project its lowercase essence. `Text/HTML; Charset=UTF-8` normalizes to `text/html`. Parameter information remains available through `schema:media-type` when needed.                                                                                                                                                                                                                                                                                                                                                                     |
+| `schema:media-type-essence-set`    | set of scalar strings | engine-assisted initially; pure when content-type parsing is exposed | Set normalizer with `itemNormalizer=schema:media-type-essence`. It applies the strict RFC item normalizer to each declared media-type claim, exposes a sorted duplicate-free `comparisonSet`, and keeps source-ordered item outcomes with invalid items and duplicate origins addressable by source range.                                                                                                                                                                                                                                                              |
+| `schema:content-type-identity`     | record                | engine-assisted                                                      | Resolve an RFC media type or registered content alias through the active schema/content registry. The normalized value is `{ contentType, schemaIdentity, routingProfile? }`; provenance preserves declared spelling, alias owner, registry layer, and source range. Unknown content types produce `state=unresolved, reason=unknown-content-type`; ambiguous values without required schema context produce `state=unresolved, reason=ambiguous-content-type`; values outside an explicit schema context produce `state=invalid, reason=content-type-schema-mismatch`. |
+| `schema:content-type-identity-set` | set of records        | engine-assisted                                                      | Set normalizer with `itemNormalizer=schema:content-type-identity`. It resolves each registered content-type claim or alias against the active registry view, exposes a sorted duplicate-free `comparisonSet` of content identity records, and preserves source-ordered item outcomes, declared spellings, aliases, states, reasons, duplicates, and source ranges.                                                                                                                                                                                                      |
+| `schema:schema-uri-declaration`    | string                | pure                                                                 | Preserve the declared schema URI exactly after CEM-ML parsing and validate only schema-URI declaration syntax. If the last path segment is an AC-V-10 version tail, expose the parsed constraint as provenance. This normalizer does not resolve a descriptor, select a version, or apply generic URI text canonicalization.                                                                                                                                                                                                                                            |
+| `schema:schema-identity`           | record                | engine-assisted                                                      | Resolve a schema reference through the AC-F-2/AC-P-6-aware schema resolution context using AC-V-9 through AC-V-13. The normalized value is the complete identity record `{ uri, embeddedVersion }`, where `uri` is the matched descriptor's stable schema URI and `embeddedVersion` is the descriptor's complete SemVer 2.0 string. Provenance retains the source form, declared URI or alias when present, version constraint, resolver or metadata source, and match rule; unresolved or ambiguous resolution produces `state=unresolved`.                            |
+| `schema:schema-uri`                | URI projection string | engine-assisted                                                      | Apply `schema:schema-identity` and project only the resolved descriptor `uri`. This is a lossy compatibility normalizer for rules that explicitly want stable URI equality without version identity. It must not be used where complete schema identity, cache identity, or schema-version compatibility is intended.                                                                                                                                                                                                                                                   |
+| `schema:document-uri`              | URI record            | engine-assisted                                                      | Resolve a resource URI or path against the active document/package base and resolver context. The normalized record contains `declaredUri` and `resolvedUri`; diagnostics keep both when they differ. Non-local or otherwise policy-gated resolution follows the active scope policy; resolver policy failures produce `state=unresolved`.                                                                                                                                                                                                                              |
+| `schema:namespace-uri`             | string                | pure                                                                 | Preserve the namespace URI string exactly after CEM-ML parsing. Namespace equality remains textual. Dispatch and content-type/schema selection use `schema:namespace-metadata`, not this text normalizer.                                                                                                                                                                                                                                                                                                                                                               |
+| `schema:namespace-uri-set`         | set of scalar strings | pure                                                                 | Set normalizer with `itemNormalizer=schema:namespace-uri`. It exposes a sorted duplicate-free `comparisonSet` while preserving source-ordered namespace claim outcomes, duplicate origins, states, reasons, and source ranges.                                                                                                                                                                                                                                                                                                                                          |
+| `schema:namespace-metadata`        | record                | engine-assisted                                                      | Resolve namespace metadata per AC-P-6.1 through the local-first metadata chain. The normalized record contains `{ namespaceUri, contentType, schemaUri, schemaVersion }`, where `schemaUri` and `schemaVersion` are the resolved `schema:schema-identity` pair. Missing metadata without an explicit schema form is governed by AC-P-6.7 scope policy.                                                                                                                                                                                                                  |
+| `schema:artifact-name`             | string                | pure                                                                 | Validate an authored manifest artifact ID using `schema:identifier-token` grammar and preserve it exactly. This normalizer is not used for package-relative paths, resolved URIs, basenames, function names, or path-derived artifact identity.                                                                                                                                                                                                                                                                                                                         |
+| `schema:artifact-identity`         | record                | engine-assisted                                                      | Resolve an artifact URI/path through `schema:document-uri` and package/registry context into `{ declaredUri, resolvedUri, packageContext?, artifactKind?, sourceContentType?, sourceSchemaIdentity? }`. Equality uses the resolved artifact URI in its package/registry context, plus artifact kind when the contract requires it. Declared spelling, source range, resolver steps, and aliases remain provenance.                                                                                                                                                      |
+| `schema:function-name`             | string                | pure                                                                 | Validate a dotted exported function symbol and preserve it exactly. This normalizer owns lexical function-name equality only; it does not identify the compiled module or artifact that declares the function.                                                                                                                                                                                                                                                                                                                                                          |
+| `schema:function-identity`         | record                | engine-assisted                                                      | Lift a compiled CEMT function declaration into `{ moduleIdentity, canonicalName, functionProfile?, functionKind? }`. The module or artifact identity is supplied by resolver context; `canonicalName` is compared with manifest `@function-name` using `schema:function-name`; optional profile/kind fields compare only when declared by the schema contract.                                                                                                                                                                                                          |
+| `schema:content-category`          | string                | pure                                                                 | Alias of `schema:identifier-token` for artifact/converter target categories. Kept as a named normalizer so diagnostics can report the domain-specific value kind.                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `schema:profile-name`              | string                | pure                                                                 | Validate a dotted `schema:symbol-reference` profile symbol and preserve it exactly. Profiles are case-sensitive schema-owned symbols; no case folding, segment normalization, alias expansion, or conversion to bare identifier tokens is applied.                                                                                                                                                                                                                                                                                                                      |
 
 ## Registry-Derived Values
 
@@ -528,7 +717,8 @@ normalizers as declared manifest values:
 - Schema descriptor namespaces use `schema:namespace-uri-set`.
 - Namespace-dispatch metadata uses `schema:namespace-metadata`; the resolved
   metadata source participates in cache and policy identity per AC-P-6.1.
-- CEMT function output metadata uses `schema:function-name`,
+- CEMT function output metadata uses `schema:function-identity`,
+  `schema:function-name`,
   `schema:content-type-identity`, `schema:media-type`,
   `schema:media-type-essence`, `schema:schema-identity`,
   `schema:content-category`, and `schema:profile-name` as applicable.
@@ -592,8 +782,10 @@ projection is not part of this normalization vocabulary.
   the resolved schema within the namespace-selected content type, but a direct
   form that selects a different content type is invalid per AC-P-6.1.
 - Artifact function lookup normalizes manifest `@function-name` with
-  `schema:function-name` and CEMT module declarations with the engine-assisted
-  `schema:function-name` form.
+  `schema:function-name` and compiled CEMT declarations with
+  `schema:function-identity`. Lookup compares the manifest lexical function
+  name with the identity record's `canonicalName` inside the resolved
+  module/artifact identity.
 - Artifact function metadata matching normalizes target content type, target
   schema, target category, function profile, and function name with the
   corresponding vocabulary terms above.
