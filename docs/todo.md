@@ -13,9 +13,10 @@ binary handoff, embedded-payload handoff coverage, and web-host coordinate
 projection have all passed their focused and gate verification. Continue with
 Phase 3 substrate expansion.
 
-Current active slice: audit Phase 3.6 `@epa-wg/custom-element` monorepo
-adoption readiness against `roadmap.md`, starting from the existing
-`packages/custom-element` package, its Nx gates, and its bridge fixtures.
+Current active slice: audit Phase 4 CEM Component Set readiness against
+`roadmap.md`, starting from the existing `@epa-wg/cem-components` primitives,
+component MVP docs, workflow fixtures, and material/custom-element bridge
+coverage.
 
 ### Phase 3 Custom-Element Runtime
 
@@ -88,43 +89,71 @@ adoption readiness against `roadmap.md`, starting from the existing
 
 ### Phase 3.6 `@epa-wg/custom-element` Monorepo Adoption
 
-- [ ] Audit the existing `packages/custom-element` source, dist package,
+- [x] Audit the existing `packages/custom-element` source, dist package,
       package identity, release config, Nx build/test/verify targets, legacy POC
       docs/demos, material bridge fixtures, and dependency path on
       `@epa-wg/cem-elements` against the Phase 3.6 deliverables and exit
       criteria from `roadmap.md`.
-- [ ] Populate a focused implementation slice from the audit, prioritizing the
+      The audit found the package already migrated in-repo with preserved npm
+      identity, `<custom-element>` registration, source and dist browser smoke
+      fixtures, material bridge conversion, and dependency on the
+      `cem-elements` substrate. The weakest proof was package baseline coverage
+      for the source/dist substrate import split and release package-root
+      correctness.
+- [x] Populate a focused implementation slice from the audit, prioritizing the
       first missing proof around published `<custom-element>` tag continuity,
       substrate inheritance, package fixture coverage, legacy bridge support, or
-      release/package-root correctness.
-- [ ] Add or repair the focused `@epa-wg/custom-element` package fixture,
+      release/package-root correctness. The selected slice was to make package
+      baseline verification enforce substrate inheritance and release package
+      root configuration.
+- [x] Add or repair the focused `@epa-wg/custom-element` package fixture,
       adapter wiring, or verification script for the selected gap without
       regressing the green Phase 3.5 Edge/SSR gates.
-- [ ] Verify the selected Phase 3.6 slice with focused target(s),
+      Tightened `verify-package-baseline.mjs` to assert source and dist runtime
+      imports, `CemElementRuntime`/legacy bridge imports, verify/test command
+      shape, and `packages/custom-element/dist` publish/version roots.
+- [x] Verify the selected Phase 3.6 slice with focused target(s),
       `yarn nx run @epa-wg/custom-element:verify`, and the relevant
+      `cem-elements` gate if substrate behavior is touched.
+
+### Phase 4 CEM Component Set
+
+- [ ] Audit the existing `@epa-wg/cem-components` primitive inventory,
+      `docs/component-mvp.md`, component docs, browser harness, workflow
+      fixtures, style contract, and dependency path on `@epa-wg/cem-elements`
+      against the Phase 4 deliverables and exit criteria from `roadmap.md`.
+- [ ] Populate a focused implementation slice from the audit, prioritizing the
+      first missing proof around Material-style UI coverage, component state
+      matrix, app workflow coverage, semantic docs, token usage, or accessibility
+      behavior.
+- [ ] Add or repair the focused component primitive, workflow fixture, docs
+      page, style contract, or verification script for the selected Phase 4 gap.
+- [ ] Verify the selected Phase 4 slice with focused `@epa-wg/cem-components`
+      target(s), `yarn nx run @epa-wg/cem-components:verify`, and any relevant
       `cem-elements` gate if substrate behavior is touched.
 
 ### Next Work Item
 
-Audit Phase 3.6 `@epa-wg/custom-element` monorepo adoption readiness:
+Audit Phase 4 CEM Component Set readiness:
 
-- compare `roadmap.md` Phase 3.6 and `docs/cem-element-design.md` sections 6.1
-  and 6.2 against the current `packages/custom-element` package;
-- inspect `packages/custom-element/package.json`,
-  `packages/custom-element/project.json`, `packages/custom-element/custom-element.js`,
-  `packages/custom-element/index.js`, `packages/custom-element/scripts/*.mjs`,
-  `packages/custom-element/test-fixtures/`, and
-  `packages/custom-element/material/` to map package identity, substrate
-  inheritance, bridge support, and fixture coverage;
-- confirm which migration work is already landed in-repo versus which Phase 3.6
-  proofs remain, especially published `<custom-element>` tag continuity,
-  next-major substrate adoption, package fixture coverage, and package-root
-  release correctness;
+- compare `roadmap.md` Phase 4 and `docs/component-mvp.md` against the current
+  `packages/cem-components` package;
+- inspect `packages/cem-components/src/lib/primitives.ts`,
+  `packages/cem-components/src/lib/*.browser.spec.ts`,
+  `packages/cem-components/docs/`, `packages/cem-components/examples/`,
+  `packages/cem-components/tests/workflows/`, and
+  `tools/scripts/verify-cem-components-*.mjs` to map existing component
+  inventory, state/workflow coverage, docs, token usage, and accessibility
+  proofs;
+- confirm which Material-style surfaces are already represented by CEM semantic
+  primitives versus which Phase 4 component/workflow docs or fixtures remain,
+  especially tables, app shell/settings workflows, state matrices, and
+  component examples;
 - identify the first narrow missing or weak proof and add it to this checklist
   before implementing;
 - verify with the focused touched target first, then
-  `yarn nx run @epa-wg/custom-element:verify`, and
-  `yarn nx run cem-elements:verify-edge-ssr` if substrate behavior is touched.
+  `yarn nx run @epa-wg/cem-components:verify`, and the relevant
+  `cem-elements` gate if substrate behavior is touched.
 
 ## Current Verification Commands
 

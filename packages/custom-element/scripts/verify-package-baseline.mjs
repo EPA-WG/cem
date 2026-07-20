@@ -3,7 +3,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const roots = [projectRoot, join(projectRoot, 'dist')];
+const distRoot = join(projectRoot, 'dist');
+const roots = [projectRoot, distRoot];
 
 const requiredFiles = [
     'LICENSE',
@@ -20,11 +21,38 @@ const requiredFiles = [
     'ide/web-types-xsl.json',
 ];
 
+await verifyProjectConfig();
 for (const root of roots) {
     await verifyRoot(root);
 }
 
-await verifyDistRuntime(join(projectRoot, 'dist'));
+await verifyDistRuntime(distRoot);
+
+async function verifyProjectConfig() {
+    const projectJson = JSON.parse(await readFile(join(projectRoot, 'project.json'), 'utf8'));
+    assertEqual(projectJson.name, '@epa-wg/custom-element', 'project name');
+    assertArrayIncludes(projectJson.targets?.verify?.dependsOn, 'build', 'verify target dependsOn');
+    assertArrayIncludes(projectJson.targets?.verify?.dependsOn, 'test', 'verify target dependsOn');
+    assertArrayIncludes(projectJson.targets?.verify?.dependsOn, 'lint', 'verify target dependsOn');
+    assertArrayIncludes(projectJson.targets?.test?.dependsOn, 'build', 'test target dependsOn');
+    assertCommandIncludes(projectJson.targets?.test?.options?.commands, 'node scripts/verify-browser-fixtures.mjs', 'test target commands');
+    assertCommandIncludes(projectJson.targets?.test?.options?.commands, 'node scripts/verify-package-baseline.mjs', 'test target commands');
+    assertCommandIncludes(projectJson.targets?.test?.options?.commands, 'node scripts/verify-theme-vendor-runtime.mjs', 'test target commands');
+    assertEqual(
+        projectJson.targets?.['nx-release-publish']?.options?.packageRoot,
+        'packages/custom-element/dist',
+        'release publish packageRoot'
+    );
+    assertArrayIncludes(
+        projectJson.release?.version?.manifestRootsToUpdate,
+        'packages/custom-element/dist',
+        'release version manifestRootsToUpdate'
+    );
+
+    if (!dependsOnProjectTarget(projectJson.targets?.build?.dependsOn, 'cem-elements', 'build')) {
+        throw new Error('build target dependsOn: expected cem-elements:build');
+    }
+}
 
 async function verifyRoot(root) {
     const packageJson = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
@@ -44,9 +72,29 @@ async function verifyRoot(root) {
     const customElementSource = await readFile(join(root, 'custom-element.js'), 'utf8');
     assertIncludes(customElementSource, 'window.customElements.define(', `${root}: custom-element registration`);
     assertIncludes(customElementSource, "'custom-element'", `${root}: custom-element tag literal`);
+    assertIncludes(customElementSource, 'CemElementRuntime', `${root}: substrate runtime import`);
+    assertIncludes(customElementSource, 'LEGACY_CUSTOM_ELEMENT_TEMPLATE_LANG', `${root}: legacy bridge import`);
     assertNotIncludes(customElementSource, 'XSLTProcessor', `${root}: adapter must not use XSLTProcessor`);
     assertNotIncludes(customElementSource, 'createXsltFromDom', `${root}: adapter must not keep XSLT compiler`);
     assertNotIncludes(customElementSource, 'class DceElement', `${root}: adapter must not define legacy produced class`);
+    if (root === distRoot) {
+        assertIncludes(
+            customElementSource,
+            "from './vendor/@epa-wg/cem-elements/dist/index.js'",
+            `${root}: dist substrate import`
+        );
+        assertNotIncludes(
+            customElementSource,
+            "from '../cem-elements/dist/index.js'",
+            `${root}: dist must not reference workspace runtime path`
+        );
+    } else {
+        assertIncludes(
+            customElementSource,
+            "from '../cem-elements/dist/index.js'",
+            `${root}: source substrate import`
+        );
+    }
 
     const httpRequestSource = await readFile(join(root, 'http-request.js'), 'utf8');
     assertIncludes(httpRequestSource, "window.customElements.define( 'http-request'", `${root}: http-request registration`);
@@ -92,4 +140,25 @@ function assertNotIncludes(value, expected, label) {
     if (value.includes(expected)) {
         throw new Error(`${label}: expected not to include ${expected}`);
     }
+}
+
+function assertArrayIncludes(value, expected, label) {
+    if (!Array.isArray(value) || !value.includes(expected)) {
+        throw new Error(`${label}: expected to include ${expected}`);
+    }
+}
+
+function assertCommandIncludes(value, expected, label) {
+    if (!Array.isArray(value) || !value.includes(expected)) {
+        throw new Error(`${label}: expected command ${expected}`);
+    }
+}
+
+function dependsOnProjectTarget(dependsOn, project, target) {
+    return Array.isArray(dependsOn) && dependsOn.some((entry) =>
+        typeof entry === 'object' &&
+        Array.isArray(entry.projects) &&
+        entry.projects.includes(project) &&
+        entry.target === target
+    );
 }
