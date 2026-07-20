@@ -73,7 +73,9 @@ Source references used for this comparison:
 
 A normalized reference value has these conceptual fields:
 
-- `name`: schema-local binding name selected by the future reference rule.
+- `binding`: schema-local normalized-envelope identity selected by the
+  reference rule. Reserve `name` for domain values such as artifact names,
+  function names, profile names, element names, or namespace binding names.
 - `normalizer`: one of the vocabulary names below.
 - `itemNormalizer`: the scalar/item normalizer that defines comparison
   equivalence. For scalar operands this is the same as `normalizer`; for set

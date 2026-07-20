@@ -32,7 +32,7 @@ origins may explain how a comparable operand was produced, but they are
 provenance, not comparison operands. Each operand has:
 
 - `role`: `actual`, `expected`, or `forbidden`.
-- `binding`: schema-local name from the future reference rule.
+- `binding`: schema-local normalized-envelope identity from the reference rule.
 - `normalizer`: the normalizer applied to the operand.
 - `itemNormalizer`: the scalar/item normalizer that defines value equivalence.
   For scalar operands this usually equals `normalizer`; for set operands it is

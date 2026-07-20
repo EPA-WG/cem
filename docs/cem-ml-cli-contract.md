@@ -620,9 +620,9 @@ Current implementation status:
   run-config `resolvers` entry installs one.
 - `validate` / `check` / `convert` route `custom-element-xslt` input through the first
   shared lifecycle adapter path, lowering legacy custom-element XSLT to canonical
-  CEM-ML through `cem_ml::legacy_custom_element`; `convert --content-type
-  custom-element-xslt --to-content-type application/cem+xml` selects canonical
-  CEM-ML export from the declared target identity through the lifecycle registry.
+  CEM-ML through `cem_ml::legacy_custom_element`; the `custom-element-xslt` to
+  `application/cem+xml` route selects canonical CEM-ML export from the declared
+  target identity through the lifecycle registry.
 - `schema` and `plugin` CLI command groups are reserved until the registry and plugin
   lifecycle surfaces are promoted from library internals to command-line workflows.
 
@@ -657,9 +657,9 @@ Every resolver operation carries a purpose so hosts can apply policy by capabili
 Resolver requests include the declared URI, the effective base URI for relative values,
 the operation purpose, the direction (`read`, `write`, or `list`), an optional content-type hint,
 and the root-scope or output-scope identity that caused the request. Resolver responses
-return normalized/final URI, bytes for reads, write acknowledgement for writes, or sorted URI entries for lists,
+return the resolver-finalized `resolvedUri`, bytes for reads, write acknowledgement for writes, or sorted URI entries for lists,
 optional content type, and optional cache metadata. Reports and diagnostics should keep
-the declared URI visible while also allowing a normalized URI when it differs.
+the declared URI visible while also allowing `resolvedUri` when it differs.
 
 Built-in semantics:
 
@@ -728,33 +728,34 @@ I/O messages, but they must not replace the underlying resolver code or URI.
   target identity unless an `--output-spec` / config output supplies a richer output root scope.
 - `convert` is the implemented document-to-document conversion command, for example:
 
-  ```bash
-  cem-ml convert input.xml \
-    --content-type application/xml \
-    --to-content-type application/cem+xml \
-    --out output.cem
-  ```
+    ```bash
+    cem-ml convert input.xml \
+      --content-type application/xml \
+      --to-content-type application/cem+xml \
+      --out output.cem
+    ```
 
 - `transform` is the data + template -> document workflow. Its direct command shape is:
 
-  ```bash
-  cem-ml transform data.xml \
-    --data-content-type application/xml \
-    --template view.xsl \
-    --template-content-type application/xslt+xml \
-    --to-content-type text/html \
-    --out view.html
-  ```
+    ```bash
+    cem-ml transform data.xml \
+      --data-content-type application/xml \
+      --template view.xsl \
+      --template-content-type application/xslt+xml \
+      --to-content-type text/html \
+      --out view.html
+    ```
 
-  It also accepts `--data-schema`, `--template-schema`, `--template-entrypoint`, repeatable
-  `--param NAME=VALUE`, `--to-schema`, shared context options, `--report`, `--report-format`, and
-  compatibility aliases `--report-json` / `--report-md`. The current CLI runtime executes the one-to-one CEM-native path and CEM-ML
-  `--config` graph dispatch for concrete paths plus local and resolver-backed filename import globs, optional `**`
-  recursive import glob segments, source-derived output bindings, explicit `join @mode="collect"` aggregation, and
-  source-binding `join @mode="group-by" @by="..."` aggregation, and same-binding
-  `join @mode="match-by" @by="..." @with:...` aggregation, and positional
-  `join @mode="zip" @with:...` aggregation. Bounded XSLT 1.0 parity executes through the registered compatibility
-  adapter, while full XSLT 3.0/4.0 engine execution remains deferred.
+    It also accepts `--data-schema`, `--template-schema`, `--template-entrypoint`, repeatable
+    `--param NAME=VALUE`, `--to-schema`, shared context options, `--report`, `--report-format`, and
+    compatibility aliases `--report-json` / `--report-md`. The current CLI runtime executes the one-to-one CEM-native path and CEM-ML
+    `--config` graph dispatch for concrete paths plus local and resolver-backed filename import globs, optional `**`
+    recursive import glob segments, source-derived output bindings, explicit `join @mode="collect"` aggregation, and
+    source-binding `join @mode="group-by" @by="..."` aggregation, and same-binding
+    `join @mode="match-by" @by="..." @with:...` aggregation, and positional
+    `join @mode="zip" @with:...` aggregation. Bounded XSLT 1.0 parity executes through the registered compatibility
+    adapter, while full XSLT 3.0/4.0 engine execution remains deferred.
+
 - Multi-source configuration via config file, plus repeatable CSV option records for
   CLI one-liners. Config files are preferred for CI/build reproducibility.
 - Config-file content type via `--config-content-type`, inferred from extension when
@@ -843,12 +844,12 @@ metadata; it never changes the primary output bytes. It contains:
 - optional `converterId`, such as `cem-dom-projection-to-html-cemt`,
   `direct-cem-output`, or a project-local converter id;
 - optional `implementation`, currently one of:
-  - `cemt`: an executable CEMT converter template rendered, then its output
-    passed through the declared CEMT output pipeline when present;
-  - `direct-cemt-output-pipeline`: the selected converter or built-in route
-    supplied the formatter/colorizer/writer CEMT output pipeline directly;
-  - `rust-fallback`: a selected CEMT converter could not execute and used its
-    declared Rust fallback;
+    - `cemt`: an executable CEMT converter template rendered, then its output
+      passed through the declared CEMT output pipeline when present;
+    - `direct-cemt-output-pipeline`: the selected converter or built-in route
+      supplied the formatter/colorizer/writer CEMT output pipeline directly;
+    - `rust-fallback`: a selected CEMT converter could not execute and used its
+      declared Rust fallback;
 - optional `rustFallback` when the Rust fallback path was used;
 - optional `outputPipeline.stages[]`.
 

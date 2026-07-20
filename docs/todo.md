@@ -18,8 +18,8 @@ source provenance, keep normalization annotative and symmetric, make execution
 placement explicit, avoid implicit canonicalization, and retain complete schema
 identity.
 
-Current active slice: standardize reference terminology now that the semantic
-model is frozen in the accepted target docs.
+Current active slice: run the final documentation consistency gate before
+resuming `.cem` source, Rust IR/evaluator, fixture, or diagnostic changes.
 
 ### Contract And Documentation
 
@@ -161,7 +161,7 @@ model is frozen in the accepted target docs.
       relevant package READMEs. Distinguish the shipped surface from the target,
       document descriptor provenance and provisional overlays, and preserve
       compatibility projection throughout the migration.
-- [ ] **Standardize reference terminology after the model freezes.** Use schema
+- [x] **Standardize reference terminology after the model freezes.** Use schema
       URI versus fetchable URL, canonical registry identity, `binding` versus
       domain `name`, `declaredValue`, `sourceLexeme`, `normalizedValue`, and
       `resolvedUri` consistently across the affected Markdown corpus. Define
