@@ -24,6 +24,9 @@ schema-package folder alignment.
       field, quote, field-count, charset, and `header` parameter contracts as
       schema-declared constraints/diagnostics instead of package-specific Rust
       diagnostics.
+- [ ] Convert `csv/v1` to an Nx library with `*.cemt` sources tracked for
+      caching; CLI tests should depend on the package target and invoke it
+      through Nx.
 - [ ] Replace the current Rust-backed CSV validation path in
       `packages/cem_ml_cli/src/dispatch.rs` with a generic schema-package
       validation path that executes the CSV schema contracts and keeps CLI
@@ -43,7 +46,9 @@ schema-package folder alignment.
 - [ ] Verify the CSV ownership slice with focused schema-package tests, the CLI
       schema-owned example validation, the CEMT pipeline fixture, and
       `yarn nx run cem_ml:test` before resuming sibling package alignment.
-
+- [ ] Convert `schema-packages/*/v1` folders to Nx libraries with `*.cemt`
+      sources tracked for caching; CLI tests should depend on package targets
+      and invoke them through Nx.
 Implementation gaps to close during this slice:
 
 - [x] Define the schema-facing CSV parse-report nodes and fact vocabulary in
@@ -79,6 +84,15 @@ Started implementation:
       ragged rows, and parser fallback errors now flow through neutral parse
       facts and schema-declared diagnostic bindings in
       `packages/cem_ml/src/validation/csv.rs`.
+- [x] Reduced schema-validation CLI test runtime by exposing in-process CLI
+      dispatch for integration tests, grouping schema-owned example validation
+      by content type/schema/result, splitting schema-package-heavy cases into
+      focused package/contract tests, and making recursive schema-package
+      manifest self-validation an explicit ignored check.
+- [x] Added schema-package contract validation caching for built-in registry
+      reuse, package resource reads, and CEMT module parse results so repeated
+      formatter/colorizer artifact checks avoid duplicated work inside a rule
+      run.
 
 ### Immediate Execution Phase: Schema Package Folder Alignment
 

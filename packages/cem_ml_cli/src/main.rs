@@ -1,8 +1,5 @@
-mod cli;
-mod dispatch;
-mod template_pass;
-
 use cem_ml::real::RealCemMlEngine;
+use cem_ml_cli::{cli, dispatch};
 use clap::Parser;
 use dispatch::{Outcome, Streams};
 use std::io;

@@ -62,8 +62,9 @@ use crate::transform_template::{
     validate_transform_template_artifact_function_contract, TransformTemplateAdapter,
     TransformTemplateArtifactFunctionContract, TransformTemplateArtifactFunctionContractMismatch,
     TransformTemplateCompileRequest, TransformTemplateModuleOptions,
-    TransformTemplateModuleParseRequest, TransformTemplateModulePreflight,
-    TransformTemplateOutputFunctionDescriptor, TransformTemplateOutputFunctionRegistry,
+    TransformTemplateModuleParseRequest, TransformTemplateModuleParseResponse,
+    TransformTemplateModulePreflight, TransformTemplateOutputFunctionDescriptor,
+    TransformTemplateOutputFunctionRegistry,
 };
 use crate::validation::{
     cem_ast_projection::{
@@ -1391,6 +1392,101 @@ fn schema_document_model_descriptor() -> &'static RuleDescriptor {
 
 // ---------- Schema Package Converter Contract ----------
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct SchemaPackageResourceCacheKey {
+    uri: String,
+    content_type_hint: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct SchemaPackageCemtParseCacheKey {
+    uri: String,
+    content_type: Option<String>,
+    schema: Option<String>,
+}
+
+#[derive(Default)]
+struct SchemaPackageContractCache {
+    resources: BTreeMap<SchemaPackageResourceCacheKey, Result<RuleResourceRead, String>>,
+    cemt_parse: BTreeMap<SchemaPackageCemtParseCacheKey, TransformTemplateModuleParseResponse>,
+}
+
+impl SchemaPackageContractCache {
+    fn read_resource(
+        &mut self,
+        ctx: &RuleContext<'_>,
+        path: &str,
+        content_type_hint: Option<&str>,
+    ) -> Option<Result<RuleResourceRead, String>> {
+        if let Some(source_path) = resolve_schema_package_resource_path(ctx.source_uri, path) {
+            let key = SchemaPackageResourceCacheKey {
+                uri: source_path.display().to_string(),
+                content_type_hint: content_type_hint.map(str::to_owned),
+            };
+            if let Some(cached) = self.resources.get(&key) {
+                return Some(cached.clone());
+            }
+            let result = std::fs::read(&source_path)
+                .map(|bytes| RuleResourceRead {
+                    uri: source_path.display().to_string(),
+                    bytes,
+                    content_type: content_type_hint.map(str::to_owned),
+                })
+                .map_err(|error| error.to_string());
+            self.resources.insert(key, result.clone());
+            return Some(result);
+        }
+
+        let resource_reader = ctx.resource_reader?;
+        let key = SchemaPackageResourceCacheKey {
+            uri: format!("{}\n{}", ctx.source_uri.unwrap_or_default(), path.trim()),
+            content_type_hint: content_type_hint.map(str::to_owned),
+        };
+        if let Some(cached) = self.resources.get(&key) {
+            return Some(cached.clone());
+        }
+        let result = resource_reader(path, ctx.source_uri, content_type_hint);
+        self.resources.insert(key, result.clone());
+        Some(result)
+    }
+
+    fn parse_cemt_module(
+        &mut self,
+        source: &RuleResourceRead,
+        content_type: Option<String>,
+        schema: Option<String>,
+    ) -> TransformTemplateModuleParseResponse {
+        let key = SchemaPackageCemtParseCacheKey {
+            uri: source.uri.clone(),
+            content_type: content_type.clone(),
+            schema: schema.clone(),
+        };
+        if let Some(cached) = self.cemt_parse.get(&key) {
+            return cached.clone();
+        }
+        let response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: TemplateInput {
+                    uri: source.uri.clone(),
+                    bytes: source.bytes.clone(),
+                    identity: Some(FormatIdentity {
+                        content_type,
+                        schema,
+                        ..FormatIdentity::default()
+                    }),
+                    root_scope: ScopeConfig::default(),
+                },
+            });
+        self.cemt_parse.insert(key, response.clone());
+        response
+    }
+}
+
+fn schema_package_contract_registry() -> &'static SchemaRegistry {
+    static REGISTRY: OnceLock<SchemaRegistry> = OnceLock::new();
+    REGISTRY.get_or_init(SchemaRegistry::with_builtin_schemas)
+}
+
 pub struct SchemaPackageConverterContractRule;
 
 impl SemanticRule for SchemaPackageConverterContractRule {
@@ -1403,15 +1499,20 @@ impl SemanticRule for SchemaPackageConverterContractRule {
             return Vec::new();
         }
 
-        let registry = SchemaRegistry::with_builtin_schemas();
+        let registry = schema_package_contract_registry();
+        let mut cache = SchemaPackageContractCache::default();
         let mut out = Vec::new();
         for node in ctx.document.iter() {
             match element_local_name(node) {
                 Some("converter") => {
-                    validate_schema_package_converter(ctx, node, &registry, &mut out)
+                    validate_schema_package_converter(ctx, node, registry, &mut cache, &mut out)
                 }
-                Some("artifact") => validate_schema_package_artifact(ctx, node, &mut out),
-                Some("example") => validate_schema_package_example(ctx, node, &registry, &mut out),
+                Some("artifact") => {
+                    validate_schema_package_artifact(ctx, node, &mut cache, &mut out)
+                }
+                Some("example") => {
+                    validate_schema_package_example(ctx, node, registry, &mut cache, &mut out)
+                }
                 _ => {}
             }
         }
@@ -1423,6 +1524,7 @@ fn validate_schema_package_converter(
     ctx: &RuleContext<'_>,
     node: &CemAstNode,
     registry: &SchemaRegistry,
+    cache: &mut SchemaPackageContractCache,
     out: &mut Vec<Diagnostic>,
 ) {
     let doc = ctx.document;
@@ -1435,7 +1537,7 @@ fn validate_schema_package_converter(
         .map(str::trim)
         .filter(|value| !value.is_empty())
     {
-        Some("cemt") => validate_cemt_converter_contract(ctx, node, converter_id, out),
+        Some("cemt") => validate_cemt_converter_contract(ctx, node, converter_id, cache, out),
         Some("rust") => {}
         Some(_) => {}
         None => {}
@@ -1456,6 +1558,7 @@ fn validate_cemt_converter_contract(
     ctx: &RuleContext<'_>,
     node: &CemAstNode,
     converter_id: &str,
+    cache: &mut SchemaPackageContractCache,
     out: &mut Vec<Diagnostic>,
 ) {
     let doc = ctx.document;
@@ -1487,6 +1590,7 @@ fn validate_cemt_converter_contract(
             ctx,
             node,
             converter_id,
+            cache,
             template_path,
             template_content_type,
             template_schema,
@@ -1525,6 +1629,7 @@ fn validate_cemt_converter_template_source_contract(
     ctx: &RuleContext<'_>,
     node: &CemAstNode,
     converter_id: &str,
+    cache: &mut SchemaPackageContractCache,
     template_path: Option<&str>,
     template_content_type: &str,
     template_schema: Option<&str>,
@@ -1533,9 +1638,14 @@ fn validate_cemt_converter_template_source_contract(
     let Some(template_path) = template_path else {
         return;
     };
-    let Some(source) =
-        read_schema_package_converter_template_source(ctx, node, template_path, converter_id, out)
-    else {
+    let Some(source) = read_schema_package_converter_template_source(
+        ctx,
+        node,
+        cache,
+        template_path,
+        converter_id,
+        out,
+    ) else {
         return;
     };
 
@@ -1602,39 +1712,19 @@ fn validate_cemt_converter_template_source_contract(
 fn read_schema_package_converter_template_source(
     ctx: &RuleContext<'_>,
     node: &CemAstNode,
+    cache: &mut SchemaPackageContractCache,
     template_path: &str,
     converter_id: &str,
     out: &mut Vec<Diagnostic>,
 ) -> Option<RuleResourceRead> {
-    if let Some(source_path) = resolve_schema_package_resource_path(ctx.source_uri, template_path) {
-        return match std::fs::read(&source_path) {
-            Ok(bytes) => Some(RuleResourceRead {
-                uri: source_path.display().to_string(),
-                bytes,
-                content_type: attr_value(ctx.document, node, "template-content-type")
-                    .map(str::to_owned),
-            }),
-            Err(error) => {
-                out.push(schema_package_converter_template_source_read_failed_diag(
-                    ctx.document,
-                    node,
-                    template_path,
-                    converter_id,
-                    error.to_string(),
-                ));
-                None
-            }
-        };
-    }
-
-    let Some(resource_reader) = ctx.resource_reader else {
+    let Some(read) = cache.read_resource(
+        ctx,
+        template_path,
+        attr_value(ctx.document, node, "template-content-type"),
+    ) else {
         return None;
     };
-    match resource_reader(
-        template_path,
-        ctx.source_uri,
-        attr_value(ctx.document, node, "template-content-type"),
-    ) {
+    match read {
         Ok(source) => Some(source),
         Err(error) => {
             out.push(schema_package_converter_template_source_read_failed_diag(
@@ -1918,6 +2008,7 @@ fn schema_package_converter_endpoint_content_type_mismatch_diag(
 fn validate_schema_package_artifact(
     ctx: &RuleContext<'_>,
     node: &CemAstNode,
+    cache: &mut SchemaPackageContractCache,
     out: &mut Vec<Diagnostic>,
 ) {
     let Some(function_name) = attr_value(ctx.document, node, "function-name")
@@ -1932,28 +2023,20 @@ fn validate_schema_package_artifact(
     else {
         return;
     };
-    let Some(source) = read_schema_package_artifact_source(ctx, node, path, function_name, out)
+    let Some(source) =
+        read_schema_package_artifact_source(ctx, node, cache, path, function_name, out)
     else {
         return;
     };
 
-    let parse_response =
-        parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
-            template: TemplateInput {
-                uri: source.uri,
-                bytes: source.bytes,
-                identity: Some(FormatIdentity {
-                    content_type: attr_value(ctx.document, node, "content-type")
-                        .map(content_type_essence),
-                    schema: attr_value(ctx.document, node, "schema")
-                        .map(str::trim)
-                        .filter(|value| !value.is_empty())
-                        .map(str::to_owned),
-                    ..FormatIdentity::default()
-                }),
-                root_scope: ScopeConfig::default(),
-            },
-        });
+    let parse_response = cache.parse_cemt_module(
+        &source,
+        attr_value(ctx.document, node, "content-type").map(content_type_essence),
+        attr_value(ctx.document, node, "schema")
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned),
+    );
     if let Some(diagnostic) = parse_response
         .diagnostics
         .iter()
@@ -2074,38 +2157,16 @@ fn compare_artifact_function_contract(
 fn read_schema_package_artifact_source(
     ctx: &RuleContext<'_>,
     node: &CemAstNode,
+    cache: &mut SchemaPackageContractCache,
     path: &str,
     function_name: &str,
     out: &mut Vec<Diagnostic>,
 ) -> Option<RuleResourceRead> {
-    if let Some(source_path) = resolve_schema_package_resource_path(ctx.source_uri, path) {
-        return match std::fs::read(&source_path) {
-            Ok(bytes) => Some(RuleResourceRead {
-                uri: source_path.display().to_string(),
-                bytes,
-                content_type: attr_value(ctx.document, node, "content-type").map(str::to_owned),
-            }),
-            Err(error) => {
-                out.push(schema_package_artifact_source_read_failed_diag(
-                    ctx.document,
-                    node,
-                    path,
-                    function_name,
-                    error.to_string(),
-                ));
-                None
-            }
-        };
-    }
-
-    let Some(resource_reader) = ctx.resource_reader else {
+    let Some(read) = cache.read_resource(ctx, path, attr_value(ctx.document, node, "content-type"))
+    else {
         return None;
     };
-    match resource_reader(
-        path,
-        ctx.source_uri,
-        attr_value(ctx.document, node, "content-type"),
-    ) {
+    match read {
         Ok(source) => Some(source),
         Err(error) => {
             out.push(schema_package_artifact_source_read_failed_diag(
@@ -2333,6 +2394,7 @@ fn validate_schema_package_example(
     ctx: &RuleContext<'_>,
     node: &CemAstNode,
     registry: &SchemaRegistry,
+    cache: &mut SchemaPackageContractCache,
     out: &mut Vec<Diagnostic>,
 ) {
     let doc = ctx.document;
@@ -2401,6 +2463,7 @@ fn validate_schema_package_example(
     validate_schema_package_example_source_contract(
         ctx,
         node,
+        cache,
         example_id,
         path,
         content_type,
@@ -2412,13 +2475,15 @@ fn validate_schema_package_example(
 fn validate_schema_package_example_source_contract(
     ctx: &RuleContext<'_>,
     node: &CemAstNode,
+    cache: &mut SchemaPackageContractCache,
     example_id: &str,
     path: &str,
     content_type: &str,
     schema_uri: &str,
     out: &mut Vec<Diagnostic>,
 ) {
-    let Some(source) = read_schema_package_example_source(ctx, node, path, example_id, out) else {
+    let Some(source) = read_schema_package_example_source(ctx, node, cache, path, example_id, out)
+    else {
         return;
     };
     let Some(diagnostics) = validate_schema_package_example_source_bytes(
@@ -2534,38 +2599,16 @@ fn normalized_reference_string_set(name: &str, values: &[String]) -> ReferenceVa
 fn read_schema_package_example_source(
     ctx: &RuleContext<'_>,
     node: &CemAstNode,
+    cache: &mut SchemaPackageContractCache,
     path: &str,
     example_id: &str,
     out: &mut Vec<Diagnostic>,
 ) -> Option<RuleResourceRead> {
-    if let Some(source_path) = resolve_schema_package_resource_path(ctx.source_uri, path) {
-        return match std::fs::read(&source_path) {
-            Ok(bytes) => Some(RuleResourceRead {
-                uri: source_path.display().to_string(),
-                bytes,
-                content_type: attr_value(ctx.document, node, "content-type").map(str::to_owned),
-            }),
-            Err(error) => {
-                out.push(schema_package_example_source_read_failed_diag(
-                    ctx.document,
-                    node,
-                    path,
-                    example_id,
-                    error.to_string(),
-                ));
-                None
-            }
-        };
-    }
-
-    let Some(resource_reader) = ctx.resource_reader else {
+    let Some(read) = cache.read_resource(ctx, path, attr_value(ctx.document, node, "content-type"))
+    else {
         return None;
     };
-    match resource_reader(
-        path,
-        ctx.source_uri,
-        attr_value(ctx.document, node, "content-type"),
-    ) {
+    match read {
         Ok(source) => Some(source),
         Err(error) => {
             out.push(schema_package_example_source_read_failed_diag(

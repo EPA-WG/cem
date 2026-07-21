@@ -1,5 +1,8 @@
+use cem_ml::real::RealCemMlEngine;
 use cem_ml::schema::package_sources::builtin_schema_package_sources;
-use std::collections::BTreeSet;
+use cem_ml_cli::{cli, dispatch};
+use clap::Parser;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -68,7 +71,7 @@ const CEM_EVENTS_PROJECTION_SCHEMA_URI: &str = "https://cem.dev/ns/projection/ev
 const CEM_EVENTS_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.events+cem-bin";
 const CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE: &str = "application/vnd.cem.events+json";
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 struct ValidationExample {
     name: &'static str,
     path: &'static str,
@@ -78,7 +81,7 @@ struct ValidationExample {
     expected_diagnostics: &'static [&'static str],
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 struct DetailedValidationExample {
     name: &'static str,
     path: &'static str,
@@ -87,7 +90,7 @@ struct DetailedValidationExample {
     expected: &'static [DiagnosticDetailExpectation],
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 struct DiagnosticDetailExpectation {
     code: &'static str,
     severity: &'static str,
@@ -111,6 +114,13 @@ struct SchemaDefinitionDetailExpectation {
     attribute: &'static str,
     datatype_param: &'static str,
     param_value: &'static str,
+}
+
+#[derive(Debug)]
+struct InProcessOutput {
+    exit_code: i32,
+    stdout: String,
+    stderr: String,
 }
 
 const SCHEMA_PACKAGE_RUNTIME_CONSTRAINT_EXAMPLE_DIAGNOSTICS: &[(&str, &str)] = &[
@@ -180,6 +190,32 @@ fn cem_ml_owned(args: &[String]) -> Output {
         .expect("run cem-ml binary")
 }
 
+fn cem_ml_in_process(engine: &RealCemMlEngine, args: &[&str]) -> InProcessOutput {
+    let parsed = cli::Cli::try_parse_from(std::iter::once("cem-ml").chain(args.iter().copied()))
+        .unwrap_or_else(|err| panic!("parse in-process cem-ml args {args:?}: {err}"));
+    let quiet = parsed.quiet;
+    let no_color = parsed.no_color;
+    let mut stdout = Vec::new();
+    let mut stderr = Vec::new();
+    let mut streams = dispatch::Streams {
+        stdout: &mut stdout,
+        stderr: &mut stderr,
+        quiet,
+        no_color,
+    };
+    let outcome = dispatch::dispatch(engine, parsed, &mut streams);
+    InProcessOutput {
+        exit_code: i32::from(outcome.exit_code),
+        stdout: String::from_utf8(stdout).expect("in-process stdout is utf-8"),
+        stderr: String::from_utf8(stderr).expect("in-process stderr is utf-8"),
+    }
+}
+
+fn cem_ml_owned_in_process(engine: &RealCemMlEngine, args: &[String]) -> InProcessOutput {
+    let refs = args.iter().map(String::as_str).collect::<Vec<_>>();
+    cem_ml_in_process(engine, &refs)
+}
+
 fn workspace_path(relative: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
@@ -233,6 +269,16 @@ fn has_diagnostic(report: &serde_json::Value, code: &str) -> bool {
         .any(|diagnostic| diagnostic["code"] == code)
 }
 
+fn diagnostic_uri_matches(diagnostic: &serde_json::Value, uri: &str) -> bool {
+    diagnostic["uri"].as_str() == Some(uri)
+}
+
+fn has_diagnostic_for_uri(report: &serde_json::Value, code: &str, uri: &str) -> bool {
+    diagnostics(report)
+        .iter()
+        .any(|diagnostic| diagnostic["code"] == code && diagnostic_uri_matches(diagnostic, uri))
+}
+
 fn find_diagnostic_detail<'a>(
     report: &'a serde_json::Value,
     expected: &DiagnosticDetailExpectation,
@@ -257,6 +303,27 @@ fn has_diagnostic_detail(
     expected: &DiagnosticDetailExpectation,
 ) -> bool {
     find_diagnostic_detail(report, expected).is_some()
+}
+
+fn has_diagnostic_detail_for_uri(
+    report: &serde_json::Value,
+    expected: &DiagnosticDetailExpectation,
+    uri: &str,
+) -> bool {
+    diagnostics(report).iter().any(|diagnostic| {
+        diagnostic_uri_matches(diagnostic, uri)
+            && diagnostic["code"] == expected.code
+            && diagnostic["severity"] == expected.severity
+            && diagnostic["details"]["behavior"] == expected.behavior
+            && diagnostic["details"]["checkKind"] == expected.check_kind
+            && diagnostic["details"]["contract"] == expected.contract
+            && diagnostic["details"]["sourceRange"]["span"]["start"]
+                .as_u64()
+                .is_some()
+            && diagnostic["sourceMap"]["frames"]
+                .as_array()
+                .is_some_and(|frames| !frames.is_empty())
+    })
 }
 
 fn has_schema_definition_detail(
@@ -316,9 +383,8 @@ fn schema_package_id_from_manifest_path(path: &Path) -> String {
         .to_owned()
 }
 
-#[test]
-fn schema_owned_examples_validate_through_cli() {
-    let examples = [
+fn schema_owned_validation_examples() -> Vec<ValidationExample> {
+    vec![
         ValidationExample {
             name: "cem-ml basic",
             path: "packages/cem_ml/schema-packages/cem-ml/v1/examples/basic.cem",
@@ -1505,10 +1571,19 @@ fn schema_owned_examples_validate_through_cli() {
             expected_exit: EXIT_HARD_FAILURE,
             expected_diagnostics: &["cem.projection.events.binary_magic"],
         },
-    ];
+    ]
+}
 
-    assert_schema_package_runtime_constraint_example_coverage(&examples);
+fn schema_package_id_from_example_path(path: &str) -> &str {
+    path.strip_prefix("packages/cem_ml/schema-packages/")
+        .and_then(|rest| rest.split('/').next())
+        .unwrap_or_else(|| panic!("schema-owned example path has package prefix: {path}"))
+}
 
+fn validate_schema_owned_examples_grouped(examples: &[ValidationExample]) {
+    let engine = RealCemMlEngine::new();
+    let mut groups: BTreeMap<(&str, &str, i32), Vec<(&ValidationExample, String)>> =
+        BTreeMap::new();
     for example in examples {
         let path = workspace_path(example.path);
         assert!(
@@ -1518,46 +1593,205 @@ fn schema_owned_examples_validate_through_cli() {
             path.display()
         );
 
-        let output = validate_example(&example, &path);
+        groups
+            .entry((
+                example.content_type,
+                example.schema_uri,
+                example.expected_exit,
+            ))
+            .or_default()
+            .push((
+                example,
+                path.to_str().expect("example path is utf-8").to_owned(),
+            ));
+    }
+
+    for ((content_type, schema_uri, expected_exit), group) in groups {
+        let mut args = vec![
+            "validate".to_owned(),
+            "--format".to_owned(),
+            "json".to_owned(),
+            "--content-type".to_owned(),
+            content_type.to_owned(),
+            "--schema".to_owned(),
+            schema_uri.to_owned(),
+        ];
+        args.extend(group.iter().map(|(_, path)| path.clone()));
+        let output = cem_ml_owned_in_process(&engine, &args);
         assert_eq!(
-            output.status.code(),
-            Some(example.expected_exit),
-            "{} stderr:\n{}",
-            example.name,
-            stderr(&output)
+            output.exit_code, expected_exit,
+            "group {content_type} {schema_uri} exit {expected_exit} stderr:\n{}",
+            output.stderr
         );
         assert!(
-            stderr(&output).trim().is_empty(),
-            "{} stderr must stay empty:\n{}",
-            example.name,
-            stderr(&output)
+            output.stderr.trim().is_empty(),
+            "group {content_type} {schema_uri} stderr must stay empty:\n{}",
+            output.stderr
         );
 
-        let report: serde_json::Value = serde_json::from_str(stdout(&output).trim())
-            .unwrap_or_else(|err| panic!("{} stdout is validation JSON: {err}", example.name));
+        let report: serde_json::Value = serde_json::from_str(output.stdout.trim())
+            .unwrap_or_else(|err| panic!("group stdout is validation JSON: {err}"));
+        assert_eq!(
+            report["summary"]["inputCount"].as_u64(),
+            Some(group.len() as u64),
+            "group {content_type} {schema_uri} input count"
+        );
         let hard_violations = report["summary"]["hardViolationCount"]
             .as_u64()
             .expect("hardViolationCount is numeric");
-        if example.expected_exit == EXIT_OK {
-            assert_eq!(hard_violations, 0, "{} hard violation count", example.name);
+        if expected_exit == EXIT_OK {
+            assert_eq!(
+                hard_violations, 0,
+                "group {content_type} {schema_uri} hard violation count"
+            );
         } else {
             assert!(
                 hard_violations > 0,
-                "{} expected at least one hard violation",
-                example.name
+                "group {content_type} {schema_uri} expected at least one hard violation"
             );
         }
 
-        for expected in example.expected_diagnostics {
-            assert!(
-                has_diagnostic(&report, expected),
-                "{} expected diagnostic `{}` in {}",
-                example.name,
-                expected,
-                stdout(&output)
-            );
+        for (example, uri) in group {
+            for expected in example.expected_diagnostics {
+                assert!(
+                    has_diagnostic_for_uri(&report, expected, &uri),
+                    "{} expected diagnostic `{}` for `{}` in {}",
+                    example.name,
+                    expected,
+                    uri,
+                    output.stdout
+                );
+            }
         }
     }
+}
+
+fn validate_schema_owned_package_examples(package_id: &str) {
+    let examples = schema_owned_validation_examples()
+        .into_iter()
+        .filter(|example| schema_package_id_from_example_path(example.path) == package_id)
+        .collect::<Vec<_>>();
+    assert!(
+        !examples.is_empty(),
+        "schema package `{package_id}` has schema-owned validation examples"
+    );
+    validate_schema_owned_examples_grouped(&examples);
+}
+
+fn validate_schema_owned_example_paths(paths: &[&str]) {
+    let all_examples = schema_owned_validation_examples();
+    let examples = paths
+        .iter()
+        .map(|path| {
+            all_examples
+                .iter()
+                .find(|example| example.path == *path)
+                .copied()
+                .unwrap_or_else(|| panic!("schema-owned validation example is registered: {path}"))
+        })
+        .collect::<Vec<_>>();
+    validate_schema_owned_examples_grouped(&examples);
+}
+
+#[test]
+fn schema_owned_examples_cover_runtime_constraints() {
+    let examples = schema_owned_validation_examples();
+    assert_schema_package_runtime_constraint_example_coverage(&examples);
+}
+
+macro_rules! schema_owned_package_validation_test {
+    ($name:ident, $package_id:literal) => {
+        #[test]
+        fn $name() {
+            validate_schema_owned_package_examples($package_id);
+        }
+    };
+}
+
+schema_owned_package_validation_test!(
+    schema_owned_cem_ast_projection_examples_validate_through_cli,
+    "cem-ast-projection"
+);
+schema_owned_package_validation_test!(
+    schema_owned_cem_dom_projection_examples_validate_through_cli,
+    "cem-dom-projection"
+);
+schema_owned_package_validation_test!(
+    schema_owned_cem_events_projection_examples_validate_through_cli,
+    "cem-events-projection"
+);
+schema_owned_package_validation_test!(schema_owned_cem_ml_examples_validate_through_cli, "cem-ml");
+schema_owned_package_validation_test!(
+    schema_owned_cem_native_template_examples_validate_through_cli,
+    "cem-native-template"
+);
+schema_owned_package_validation_test!(schema_owned_cem_ql_examples_validate_through_cli, "cem-ql");
+schema_owned_package_validation_test!(
+    schema_owned_cem_transform_examples_validate_through_cli,
+    "cem-transform"
+);
+schema_owned_package_validation_test!(schema_owned_css_examples_validate_through_cli, "css");
+schema_owned_package_validation_test!(schema_owned_csv_examples_validate_through_cli, "csv");
+schema_owned_package_validation_test!(schema_owned_html_examples_validate_through_cli, "html");
+schema_owned_package_validation_test!(
+    schema_owned_json_schema_examples_validate_through_cli,
+    "json-schema"
+);
+schema_owned_package_validation_test!(schema_owned_json_examples_validate_through_cli, "json");
+schema_owned_package_validation_test!(
+    schema_owned_markdown_examples_validate_through_cli,
+    "markdown"
+);
+schema_owned_package_validation_test!(schema_owned_mathml_examples_validate_through_cli, "mathml");
+schema_owned_package_validation_test!(
+    schema_owned_relax_ng_examples_validate_through_cli,
+    "relax-ng"
+);
+schema_owned_package_validation_test!(schema_owned_schema_examples_validate_through_cli, "schema");
+schema_owned_package_validation_test!(schema_owned_svg_examples_validate_through_cli, "svg");
+schema_owned_package_validation_test!(schema_owned_xhtml_examples_validate_through_cli, "xhtml");
+schema_owned_package_validation_test!(schema_owned_xml_examples_validate_through_cli, "xml");
+schema_owned_package_validation_test!(schema_owned_xslt_examples_validate_through_cli, "xslt");
+schema_owned_package_validation_test!(schema_owned_yaml_examples_validate_through_cli, "yaml");
+
+#[test]
+fn schema_owned_schema_package_core_examples_validate_through_cli() {
+    validate_schema_owned_example_paths(&[
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/basic-package.cem",
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/converter-package.cem",
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-unclosed-package.cem",
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-missing-required-attribute.cem",
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-primary-content-type.cem",
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-primary-content-type-missing.cem",
+    ]);
+}
+
+#[test]
+fn schema_owned_schema_package_converter_examples_validate_through_cli() {
+    validate_schema_owned_example_paths(&[
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-converter-contract.cem",
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-converter-runtime-constraints.cem",
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-converter-template-contract.cem",
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-converter-template-unreadable.cem",
+    ]);
+}
+
+#[test]
+fn schema_owned_schema_package_artifact_schema_examples_validate_through_cli() {
+    validate_schema_owned_example_paths(&[
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-contract.cem",
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-layout.cem",
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-schema-metadata.cem",
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-schema-source-unreadable.cem",
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-schema-source-invalid.cem",
+    ]);
+}
+
+#[test]
+fn schema_owned_schema_package_example_contract_examples_validate_through_cli() {
+    validate_schema_owned_example_paths(&[
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-example-contract.cem",
+    ]);
 }
 
 #[test]
@@ -6404,9 +6638,8 @@ fn schema_field_contract_examples_emit_structured_definition_details() {
     }
 }
 
-#[test]
-fn schema_package_engine_behavior_examples_emit_structured_details() {
-    let examples = [
+fn schema_package_engine_behavior_detail_examples() -> Vec<DetailedValidationExample> {
+    vec![
         DetailedValidationExample {
             name: "schema-package invalid missing required attribute",
             path: "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-missing-required-attribute.cem",
@@ -6716,8 +6949,21 @@ fn schema_package_engine_behavior_examples_emit_structured_details() {
                 },
             ],
         },
-    ];
+    ]
+}
 
+fn validate_schema_package_engine_behavior_details(examples: &[DetailedValidationExample]) {
+    let engine = RealCemMlEngine::new();
+    let mut args = vec![
+        "validate".to_owned(),
+        "--format".to_owned(),
+        "json".to_owned(),
+        "--content-type".to_owned(),
+        CEM_SCHEMA_PACKAGE_CONTENT_TYPE.to_owned(),
+        "--schema".to_owned(),
+        CEM_SCHEMA_PACKAGE_URI.to_owned(),
+    ];
+    let mut expected_by_uri = Vec::new();
     for example in examples {
         let path = workspace_path(example.path);
         assert!(
@@ -6726,44 +6972,115 @@ fn schema_package_engine_behavior_examples_emit_structured_details() {
             example.name,
             path.display()
         );
-
-        let output = validate_example(
-            &ValidationExample {
-                name: example.name,
-                path: example.path,
-                content_type: example.content_type,
-                schema_uri: example.schema_uri,
-                expected_exit: EXIT_HARD_FAILURE,
-                expected_diagnostics: &[],
-            },
-            &path,
+        assert_eq!(
+            example.content_type, CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+            "{} content type is grouped by this test",
+            example.name
         );
         assert_eq!(
-            output.status.code(),
-            Some(EXIT_HARD_FAILURE),
-            "{} stderr:\n{}",
-            example.name,
-            stderr(&output)
+            example.schema_uri, CEM_SCHEMA_PACKAGE_URI,
+            "{} schema URI is grouped by this test",
+            example.name
         );
-        assert!(
-            stderr(&output).trim().is_empty(),
-            "{} stderr must stay empty:\n{}",
-            example.name,
-            stderr(&output)
-        );
+        let uri = path.to_str().expect("example path is utf-8").to_owned();
+        args.push(uri.clone());
+        expected_by_uri.push((example, uri));
+    }
 
-        let report: serde_json::Value = serde_json::from_str(stdout(&output).trim())
-            .unwrap_or_else(|err| panic!("{} stdout is validation JSON: {err}", example.name));
+    let output = cem_ml_owned_in_process(&engine, &args);
+    assert_eq!(
+        output.exit_code, EXIT_HARD_FAILURE,
+        "detailed schema validation group stderr:\n{}",
+        output.stderr
+    );
+    assert!(
+        output.stderr.trim().is_empty(),
+        "detailed schema validation group stderr must stay empty:\n{}",
+        output.stderr
+    );
+
+    let report: serde_json::Value = serde_json::from_str(output.stdout.trim())
+        .unwrap_or_else(|err| panic!("detailed schema validation stdout is JSON: {err}"));
+    assert_eq!(
+        report["summary"]["inputCount"].as_u64(),
+        Some(expected_by_uri.len() as u64),
+        "detailed schema validation input count"
+    );
+    for (example, uri) in expected_by_uri {
         for expected in example.expected {
             assert!(
-                has_diagnostic_detail(&report, expected),
-                "{} expected structured diagnostic {:?} in {}",
+                has_diagnostic_detail_for_uri(&report, expected, &uri),
+                "{} expected structured diagnostic {:?} for `{}` in {}",
                 example.name,
                 expected,
-                stdout(&output)
+                uri,
+                output.stdout
             );
         }
     }
+}
+
+fn validate_schema_package_engine_behavior_detail_paths(paths: &[&str]) {
+    let all_examples = schema_package_engine_behavior_detail_examples();
+    let examples = paths
+        .iter()
+        .map(|path| {
+            all_examples
+                .iter()
+                .find(|example| example.path == *path)
+                .copied()
+                .unwrap_or_else(|| {
+                    panic!("schema-package detail validation example is registered: {path}")
+                })
+        })
+        .collect::<Vec<_>>();
+    validate_schema_package_engine_behavior_details(&examples);
+}
+
+#[test]
+fn schema_package_engine_behavior_core_examples_emit_structured_details() {
+    validate_schema_package_engine_behavior_detail_paths(&[
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-missing-required-attribute.cem",
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-primary-content-type.cem",
+    ]);
+}
+
+#[test]
+fn schema_package_engine_behavior_converter_examples_emit_structured_details() {
+    validate_schema_package_engine_behavior_detail_paths(&[
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-converter-contract.cem",
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-converter-runtime-constraints.cem",
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-converter-template-unreadable.cem",
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-converter-template-contract.cem",
+    ]);
+}
+
+#[test]
+fn schema_package_engine_behavior_schema_source_examples_emit_structured_details() {
+    validate_schema_package_engine_behavior_detail_paths(&[
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-schema-source-unreadable.cem",
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-schema-source-invalid.cem",
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-schema-metadata.cem",
+    ]);
+}
+
+#[test]
+fn schema_package_engine_behavior_artifact_examples_emit_structured_details() {
+    validate_schema_package_engine_behavior_detail_paths(&[
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-layout.cem",
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-contract.cem",
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-function-missing.cem",
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-source-unreadable.cem",
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-artifact-source-parse.cem",
+    ]);
+}
+
+#[test]
+fn schema_package_engine_behavior_example_contract_examples_emit_structured_details() {
+    validate_schema_package_engine_behavior_detail_paths(&[
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-example-contract.cem",
+        "packages/cem_ml/schema-packages/schema-package/v1/examples/invalid-example-source-contract.cem",
+    ]);
 }
 
 #[test]
@@ -6918,7 +7235,7 @@ fn schema_package_resource_behavior_examples_emit_structured_payloads() {
 }
 
 #[test]
-fn builtin_schema_package_manifests_validate_through_cli() {
+fn builtin_schema_package_manifest_catalog_matches_folders() {
     let manifest_paths = schema_package_manifest_paths();
     let actual_package_ids = manifest_paths
         .iter()
@@ -6932,6 +7249,21 @@ fn builtin_schema_package_manifests_validate_through_cli() {
         actual_package_ids, expected_package_ids,
         "schema package folders must match embedded built-in package catalog"
     );
+}
+
+fn builtin_schema_package_manifest_path(package_id: &str) -> PathBuf {
+    workspace_path(&format!(
+        "packages/cem_ml/schema-packages/{package_id}/v1/package.cem"
+    ))
+}
+
+fn validate_builtin_schema_package_manifest(package_id: &str) {
+    let manifest_path = builtin_schema_package_manifest_path(package_id);
+    assert!(
+        manifest_path.exists(),
+        "schema package `{package_id}` manifest is missing at {}",
+        manifest_path.display()
+    );
 
     let mut args = vec![
         "validate".to_owned(),
@@ -6942,41 +7274,128 @@ fn builtin_schema_package_manifests_validate_through_cli() {
         "--schema".to_owned(),
         CEM_SCHEMA_PACKAGE_URI.to_owned(),
     ];
-    args.extend(
-        manifest_paths
-            .iter()
-            .map(|path| path.to_str().expect("manifest path is utf-8").to_owned()),
+    args.push(
+        manifest_path
+            .to_str()
+            .expect("manifest path is utf-8")
+            .to_owned(),
     );
 
-    let output = cem_ml_owned(&args);
+    let engine = RealCemMlEngine::new();
+    let output = cem_ml_owned_in_process(&engine, &args);
     assert_eq!(
-        output.status.code(),
-        Some(EXIT_OK),
-        "package manifest sweep failed\nstdout:\n{}\nstderr:\n{}",
-        stdout(&output),
-        stderr(&output)
+        output.exit_code, EXIT_OK,
+        "package `{package_id}` manifest validation failed\nstdout:\n{}\nstderr:\n{}",
+        output.stdout, output.stderr
     );
     assert!(
-        stderr(&output).trim().is_empty(),
-        "package manifest sweep stderr must stay empty:\n{}",
-        stderr(&output)
+        output.stderr.trim().is_empty(),
+        "package `{package_id}` manifest stderr must stay empty:\n{}",
+        output.stderr
     );
 
-    let report: serde_json::Value = serde_json::from_str(stdout(&output).trim())
-        .expect("package manifest sweep stdout is validation JSON");
+    let report: serde_json::Value = serde_json::from_str(output.stdout.trim())
+        .expect("package manifest stdout is validation JSON");
     assert_eq!(
         report["summary"]["inputCount"].as_u64(),
-        Some(manifest_paths.len() as u64),
-        "package manifest sweep input count"
+        Some(1),
+        "package `{package_id}` manifest input count"
     );
     assert_eq!(
         report["summary"]["hardViolationCount"].as_u64(),
         Some(0),
-        "package manifest sweep hard violations"
+        "package `{package_id}` manifest hard violations"
     );
     assert!(
         diagnostics(&report).is_empty(),
-        "package manifest sweep diagnostics must stay empty:\n{}",
-        stdout(&output)
+        "package `{package_id}` manifest diagnostics must stay empty:\n{}",
+        output.stdout
     );
 }
+
+macro_rules! builtin_schema_package_manifest_validation_test {
+    ($name:ident, $package_id:literal) => {
+        #[test]
+        fn $name() {
+            validate_builtin_schema_package_manifest($package_id);
+        }
+    };
+}
+
+builtin_schema_package_manifest_validation_test!(
+    builtin_cem_ast_projection_manifest_validates_through_cli,
+    "cem-ast-projection"
+);
+builtin_schema_package_manifest_validation_test!(
+    builtin_cem_dom_projection_manifest_validates_through_cli,
+    "cem-dom-projection"
+);
+builtin_schema_package_manifest_validation_test!(
+    builtin_cem_events_projection_manifest_validates_through_cli,
+    "cem-events-projection"
+);
+builtin_schema_package_manifest_validation_test!(
+    builtin_cem_ml_manifest_validates_through_cli,
+    "cem-ml"
+);
+builtin_schema_package_manifest_validation_test!(
+    builtin_cem_native_template_manifest_validates_through_cli,
+    "cem-native-template"
+);
+builtin_schema_package_manifest_validation_test!(
+    builtin_cem_ql_manifest_validates_through_cli,
+    "cem-ql"
+);
+builtin_schema_package_manifest_validation_test!(
+    builtin_cem_transform_manifest_validates_through_cli,
+    "cem-transform"
+);
+builtin_schema_package_manifest_validation_test!(builtin_css_manifest_validates_through_cli, "css");
+builtin_schema_package_manifest_validation_test!(builtin_csv_manifest_validates_through_cli, "csv");
+builtin_schema_package_manifest_validation_test!(
+    builtin_html_manifest_validates_through_cli,
+    "html"
+);
+builtin_schema_package_manifest_validation_test!(
+    builtin_json_schema_manifest_validates_through_cli,
+    "json-schema"
+);
+builtin_schema_package_manifest_validation_test!(
+    builtin_json_manifest_validates_through_cli,
+    "json"
+);
+builtin_schema_package_manifest_validation_test!(
+    builtin_markdown_manifest_validates_through_cli,
+    "markdown"
+);
+builtin_schema_package_manifest_validation_test!(
+    builtin_mathml_manifest_validates_through_cli,
+    "mathml"
+);
+builtin_schema_package_manifest_validation_test!(
+    builtin_relax_ng_manifest_validates_through_cli,
+    "relax-ng"
+);
+#[test]
+#[ignore = "recursive schema-package manifest validation replays the full schema-package behavior suite; run explicitly when editing schema-package/v1/package.cem"]
+fn builtin_schema_package_manifest_validates_through_cli() {
+    validate_builtin_schema_package_manifest("schema-package");
+}
+builtin_schema_package_manifest_validation_test!(
+    builtin_schema_manifest_validates_through_cli,
+    "schema"
+);
+builtin_schema_package_manifest_validation_test!(builtin_svg_manifest_validates_through_cli, "svg");
+builtin_schema_package_manifest_validation_test!(
+    builtin_xhtml_manifest_validates_through_cli,
+    "xhtml"
+);
+builtin_schema_package_manifest_validation_test!(builtin_xml_manifest_validates_through_cli, "xml");
+builtin_schema_package_manifest_validation_test!(
+    builtin_xslt_manifest_validates_through_cli,
+    "xslt"
+);
+builtin_schema_package_manifest_validation_test!(
+    builtin_yaml_manifest_validates_through_cli,
+    "yaml"
+);
