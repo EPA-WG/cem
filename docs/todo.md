@@ -13,10 +13,9 @@ binary handoff, embedded-payload handoff coverage, and web-host coordinate
 projection have all passed their focused and gate verification. Continue with
 Phase 3 substrate expansion.
 
-Current active slice: audit Phase 4 CEM Component Set readiness against
-`roadmap.md`, starting from the existing `@epa-wg/cem-components` primitives,
-component MVP docs, workflow fixtures, and material/custom-element bridge
-coverage.
+Current active slice: extend Phase 4 auth workflow coverage beyond the current
+login fixture, covering registration and password-reset surfaces plus
+required/invalid/loading form states with the existing MVP component primitives.
 
 ### Phase 3 Custom-Element Runtime
 
@@ -118,39 +117,53 @@ coverage.
 
 ### Phase 4 CEM Component Set
 
-- [ ] Audit the existing `@epa-wg/cem-components` primitive inventory,
+- [x] Audit the existing `@epa-wg/cem-components` primitive inventory,
       `docs/component-mvp.md`, component docs, browser harness, workflow
       fixtures, style contract, and dependency path on `@epa-wg/cem-elements`
       against the Phase 4 deliverables and exit criteria from `roadmap.md`.
-- [ ] Populate a focused implementation slice from the audit, prioritizing the
+      The audit found all 32 MVP primitives present, browser tests covering
+      primitive families, state/ARIA behavior, and five executable workflow
+      fixtures, plus manifest and token-only style gates. The weakest proof was
+      package-local examples drifting from the executable workflow fixtures:
+      profile editor and discussion thread were missing, and no static gate tied
+      workflow examples back to tested fixtures.
+- [x] Populate a focused implementation slice from the audit, prioritizing the
       first missing proof around Material-style UI coverage, component state
       matrix, app workflow coverage, semantic docs, token usage, or accessibility
-      behavior.
-- [ ] Add or repair the focused component primitive, workflow fixture, docs
+      behavior. The selected slice was workflow example parity for the five MVP
+      workflow surfaces.
+- [x] Add or repair the focused component primitive, workflow fixture, docs
       page, style contract, or verification script for the selected Phase 4 gap.
-- [ ] Verify the selected Phase 4 slice with focused `@epa-wg/cem-components`
+      Added missing `profile-editor`, `discussion-thread`, and `settings`
+      examples, documented them in `examples/README.md`, and added
+      `verify-cem-components-workflows.mjs` plus a `verify-workflows` Nx target.
+- [x] Verify the selected Phase 4 slice with focused `@epa-wg/cem-components`
       target(s), `yarn nx run @epa-wg/cem-components:verify`, and any relevant
       `cem-elements` gate if substrate behavior is touched.
+- [ ] Extend auth workflow coverage from the current sign-in fixture to the
+      Phase 4 MVP auth surface: registration, password reset, and
+      required/invalid/loading form states built only from existing MVP
+      primitives.
+- [ ] Add or repair focused auth workflow fixtures, browser assertions, examples,
+      and workflow-example verification so those auth surfaces remain
+      declarative, accessible, token-backed, and free of one-off controls.
+- [ ] Verify the auth workflow slice with the focused workflow target,
+      `yarn nx run @epa-wg/cem-components:test`, and
+      `yarn nx run @epa-wg/cem-components:verify`.
 
 ### Next Work Item
 
-Audit Phase 4 CEM Component Set readiness:
+Extend Phase 4 auth workflow coverage:
 
-- compare `roadmap.md` Phase 4 and `docs/component-mvp.md` against the current
-  `packages/cem-components` package;
-- inspect `packages/cem-components/src/lib/primitives.ts`,
-  `packages/cem-components/src/lib/*.browser.spec.ts`,
-  `packages/cem-components/docs/`, `packages/cem-components/examples/`,
-  `packages/cem-components/tests/workflows/`, and
-  `tools/scripts/verify-cem-components-*.mjs` to map existing component
-  inventory, state/workflow coverage, docs, token usage, and accessibility
-  proofs;
-- confirm which Material-style surfaces are already represented by CEM semantic
-  primitives versus which Phase 4 component/workflow docs or fixtures remain,
-  especially tables, app shell/settings workflows, state matrices, and
-  component examples;
-- identify the first narrow missing or weak proof and add it to this checklist
-  before implementing;
+- add registration and password-reset workflow fixtures under
+  `packages/cem-components/tests/workflows/`, using only current MVP primitives
+  such as `cem-card`, `cem-text-field`, `cem-checkbox`, `cem-alert`,
+  `cem-progress`, and `cem-action`;
+- cover required, invalid, disabled/loading, and help/error relationships with
+  focused browser assertions in `workflows.browser.spec.ts`;
+- add matching package-local examples and update
+  `verify-cem-components-workflows.mjs` so the examples stay aligned with the
+  executable fixtures;
 - verify with the focused touched target first, then
   `yarn nx run @epa-wg/cem-components:verify`, and the relevant
   `cem-elements` gate if substrate behavior is touched.

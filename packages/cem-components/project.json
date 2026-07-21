@@ -41,11 +41,27 @@
             ],
             "outputs": []
         },
+        "verify-workflows": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "node tools/scripts/verify-cem-components-workflows.mjs",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{workspaceRoot}/tools/scripts/verify-cem-components-workflows.mjs",
+                "{workspaceRoot}/docs/component-mvp.md",
+                "{projectRoot}/examples/**/*.html",
+                "{projectRoot}/examples/README.md",
+                "{projectRoot}/tests/workflows/**/*.html"
+            ],
+            "outputs": []
+        },
         "verify": {
             "executor": "nx:run-commands",
-            "dependsOn": ["verify-primitives", "verify-style-contract", "test"],
+            "dependsOn": ["verify-primitives", "verify-style-contract", "verify-workflows", "test"],
             "options": {
-                "command": "echo \"cem-components verification gate green: primitive manifest + style contract + browser harness tests passed.\"",
+                "command": "echo \"cem-components verification gate green: primitive manifest + style contract + workflow examples + browser harness tests passed.\"",
                 "cwd": "{workspaceRoot}"
             },
             "outputs": []
