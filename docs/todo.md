@@ -13,9 +13,9 @@ binary handoff, embedded-payload handoff coverage, and web-host coordinate
 projection have all passed their focused and gate verification. Continue with
 Phase 3 substrate expansion.
 
-Current active slice: extend Phase 4 auth workflow coverage beyond the current
-login fixture, covering registration and password-reset surfaces plus
-required/invalid/loading form states with the existing MVP component primitives.
+Current active slice: add a Phase 4 component state-matrix coverage audit/gate
+that ties `docs/component-mvp.md` state expectations to executable primitive,
+state, and workflow browser assertions.
 
 ### Phase 3 Custom-Element Runtime
 
@@ -140,33 +140,44 @@ required/invalid/loading form states with the existing MVP component primitives.
 - [x] Verify the selected Phase 4 slice with focused `@epa-wg/cem-components`
       target(s), `yarn nx run @epa-wg/cem-components:verify`, and any relevant
       `cem-elements` gate if substrate behavior is touched.
-- [ ] Extend auth workflow coverage from the current sign-in fixture to the
+- [x] Extend auth workflow coverage from the current sign-in fixture to the
       Phase 4 MVP auth surface: registration, password reset, and
       required/invalid/loading form states built only from existing MVP
       primitives.
-- [ ] Add or repair focused auth workflow fixtures, browser assertions, examples,
+- [x] Add or repair focused auth workflow fixtures, browser assertions, examples,
       and workflow-example verification so those auth surfaces remain
       declarative, accessible, token-backed, and free of one-off controls.
-- [ ] Verify the auth workflow slice with the focused workflow target,
+      Added registration and password-reset fixtures/examples with required,
+      invalid, readonly, disabled/loading, progress, alert, and help/error
+      relationships covered by browser assertions and workflow parity
+      verification.
+- [x] Verify the auth workflow slice with the focused workflow target,
       `yarn nx run @epa-wg/cem-components:test`, and
       `yarn nx run @epa-wg/cem-components:verify`.
+- [ ] Add a Phase 4 component state-matrix coverage audit/gate that maps
+      `docs/component-mvp.md` category state requirements to the executable
+      primitive, state, and workflow browser assertions.
+- [ ] Populate the first missing state fixture or assertion from that audit,
+      prioritizing selected, expanded, empty, and loading coverage across
+      navigation, content, and layout workflows.
+- [ ] Verify the state-matrix slice with focused `@epa-wg/cem-components`
+      target(s), then `yarn nx run @epa-wg/cem-components:verify`.
 
 ### Next Work Item
 
-Extend Phase 4 auth workflow coverage:
+Extend Phase 4 state-matrix coverage:
 
-- add registration and password-reset workflow fixtures under
-  `packages/cem-components/tests/workflows/`, using only current MVP primitives
-  such as `cem-card`, `cem-text-field`, `cem-checkbox`, `cem-alert`,
-  `cem-progress`, and `cem-action`;
-- cover required, invalid, disabled/loading, and help/error relationships with
-  focused browser assertions in `workflows.browser.spec.ts`;
-- add matching package-local examples and update
-  `verify-cem-components-workflows.mjs` so the examples stay aligned with the
-  executable fixtures;
+- derive a package-local coverage map from `docs/component-mvp.md` that lists the
+  required category states and the current executable proofs in
+  `states.browser.spec.ts`, `primitives.browser.spec.ts`,
+  `workflows.browser.spec.ts`, and workflow fixtures;
+- add a verifier that fails when a required category state has no maintained
+  primitive or workflow assertion;
+- use the verifier output to add the first missing focused fixture/assertion,
+  with priority on selected, expanded, empty, and loading states for navigation,
+  content, and layout workflows;
 - verify with the focused touched target first, then
-  `yarn nx run @epa-wg/cem-components:verify`, and the relevant
-  `cem-elements` gate if substrate behavior is touched.
+  `yarn nx run @epa-wg/cem-components:verify`.
 
 ## Current Verification Commands
 

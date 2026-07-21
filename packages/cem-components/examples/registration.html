@@ -1,0 +1,38 @@
+<cem-card label="Create account">
+  <span slot="title">Create account</span>
+  <form>
+    <cem-text-field name="full-name" required>
+      <span slot="label">Full name</span>
+      <span id="registration-name-help" slot="help">Use your legal name.</span>
+    </cem-text-field>
+
+    <cem-text-field
+      name="email"
+      placeholder="name@example.com"
+      required
+      invalid="true"
+      describedby="registration-email-help"
+      error="registration-email-error"
+    >
+      <span slot="label">Email</span>
+      <span id="registration-email-help" slot="help">Use your work address.</span>
+    </cem-text-field>
+    <p id="registration-email-error">Email is required.</p>
+
+    <cem-text-field name="password" type="password" required readonly value="temporary-pass">
+      <span slot="label">Password</span>
+      <span id="registration-password-help" slot="help">Use at least 12 characters.</span>
+    </cem-text-field>
+
+    <cem-checkbox
+      name="terms"
+      value="accepted"
+      required
+      invalid="true"
+    >Accept terms</cem-checkbox>
+
+    <cem-alert tone="warning" role="alert">Complete required fields before continuing.</cem-alert>
+    <cem-progress label="Registration progress" value="65" max="100"></cem-progress>
+    <cem-action variant="primary" loading="true" disabled>Create account</cem-action>
+  </form>
+</cem-card>

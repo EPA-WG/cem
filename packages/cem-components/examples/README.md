@@ -7,6 +7,8 @@ coverage remains in `src/lib/primitives.browser.spec.ts`.
 | Example | Purpose |
 | --- | --- |
 | [`auth-form.html`](./auth-form.html) | Auth form with action and input families. |
+| [`registration.html`](./registration.html) | Registration form with required, invalid, readonly, loading, and progress states. |
+| [`password-reset.html`](./password-reset.html) | Password-reset form with help/error relationships, loading submit action, and progress feedback. |
 | [`profile-editor.html`](./profile-editor.html) | Profile editor with avatar, editable fields, preferences, validation feedback, and save action. |
 | [`asset-browser.html`](./asset-browser.html) | Navigation plus content components for asset browsing. |
 | [`discussion-thread.html`](./discussion-thread.html) | Discussion thread with message list, composer, status badge, toast, alert, and post action. |

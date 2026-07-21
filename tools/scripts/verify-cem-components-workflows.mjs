@@ -16,6 +16,14 @@ const workflowContracts = [
         requiredTags: ['cem-action', 'cem-card', 'cem-checkbox', 'cem-text-field'],
     },
     {
+        name: 'registration',
+        requiredTags: ['cem-action', 'cem-alert', 'cem-card', 'cem-checkbox', 'cem-progress', 'cem-text-field'],
+    },
+    {
+        name: 'password-reset',
+        requiredTags: ['cem-action', 'cem-alert', 'cem-card', 'cem-progress', 'cem-text-field'],
+    },
+    {
         name: 'profile-editor',
         requiredTags: ['cem-action', 'cem-alert', 'cem-avatar', 'cem-card', 'cem-stack', 'cem-switch', 'cem-text-field', 'cem-textarea'],
     },

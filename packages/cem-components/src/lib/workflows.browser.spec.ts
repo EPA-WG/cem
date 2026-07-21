@@ -3,7 +3,9 @@ import { CemElementRuntime } from '@epa-wg/cem-elements';
 import assetBrowserFixture from '../../tests/workflows/asset-browser.html?raw';
 import authFormFixture from '../../tests/workflows/auth-form.html?raw';
 import discussionThreadFixture from '../../tests/workflows/discussion-thread.html?raw';
+import passwordResetFixture from '../../tests/workflows/password-reset.html?raw';
 import profileEditorFixture from '../../tests/workflows/profile-editor.html?raw';
+import registrationFixture from '../../tests/workflows/registration.html?raw';
 import settingsFixture from '../../tests/workflows/settings.html?raw';
 import { installCemComponentPrimitives } from './primitives.js';
 import {
@@ -17,6 +19,8 @@ import {
 
 const workflowFixtures = [
     ['auth form', authFormFixture],
+    ['registration', registrationFixture],
+    ['password reset', passwordResetFixture],
     ['profile editor', profileEditorFixture],
     ['asset browser', assetBrowserFixture],
     ['discussion thread', discussionThreadFixture],
@@ -64,6 +68,69 @@ describe('CEM component workflow fixtures', () => {
         expect(assertAccessibleName(remember, 'Remember this device')).toBe('Remember this device');
         expect(submit.type).toBe('button');
         expect(assertAccessibleName(submit, 'Continue')).toBe('Continue');
+        assertWorkflowIntegrity(harness.root);
+    });
+
+    it('renders the registration auth workflow with required, invalid, and loading states', async () => {
+        harness = createComponentHarness();
+        await renderWorkflow(harness, registrationFixture, 'cem-progress progress');
+
+        const card = harness.query<HTMLElement>('cem-card section');
+        const fullName = harness.query<HTMLInputElement>('cem-text-field input[name="full-name"]');
+        const email = harness.query<HTMLInputElement>('cem-text-field input[name="email"]');
+        const password = harness.query<HTMLInputElement>('cem-text-field input[name="password"]');
+        const terms = harness.query<HTMLInputElement>('cem-checkbox input[name="terms"]');
+        const alert = harness.query<HTMLElement>('cem-alert [role="alert"]');
+        const progress = harness.query<HTMLProgressElement>('cem-progress progress');
+        const submit = harness.query<HTMLButtonElement>('cem-action button');
+
+        expect(assertAccessibleName(card, 'Create account')).toBe('Create account');
+        expect(fullName.required).toBe(true);
+        expect(assertAccessibleName(fullName, 'Full name')).toBe('Full name');
+        expect(email.required).toBe(true);
+        expect(email.getAttribute('aria-invalid')).toBe('true');
+        expect(email.getAttribute('aria-describedby')).toBe('registration-email-help');
+        expect(email.getAttribute('aria-errormessage')).toBe('registration-email-error');
+        expect(assertAccessibleName(email, 'Email')).toBe('Email');
+        expect(password.type).toBe('password');
+        expect(password.required).toBe(true);
+        expect(password.readOnly).toBe(true);
+        expect(assertAccessibleName(password, 'Password')).toBe('Password');
+        expect(terms.required).toBe(true);
+        expect(terms.getAttribute('aria-invalid')).toBe('true');
+        expect(assertAccessibleName(terms, 'Accept terms')).toBe('Accept terms');
+        expect(alert.textContent?.trim()).toBe('Complete required fields before continuing.');
+        expect(assertAccessibleName(progress, 'Registration progress')).toBe('Registration progress');
+        expect(progress.getAttribute('value')).toBe('65');
+        expect(submit.disabled).toBe(true);
+        expect(submit.getAttribute('aria-busy')).toBe('true');
+        expect(assertAccessibleName(submit, 'Create account')).toBe('Create account');
+        assertWorkflowIntegrity(harness.root);
+    });
+
+    it('renders the password reset workflow with help, error, and loading feedback', async () => {
+        harness = createComponentHarness();
+        await renderWorkflow(harness, passwordResetFixture, 'cem-progress progress');
+
+        const card = harness.query<HTMLElement>('cem-card section');
+        const email = harness.query<HTMLInputElement>('cem-text-field input[name="email"]');
+        const alert = harness.query<HTMLElement>('cem-alert [role="status"]');
+        const progress = harness.query<HTMLProgressElement>('cem-progress progress');
+        const submit = harness.query<HTMLButtonElement>('cem-action button');
+
+        expect(assertAccessibleName(card, 'Reset password')).toBe('Reset password');
+        expect(email.required).toBe(true);
+        expect(email.getAttribute('placeholder')).toBe('name@example.com');
+        expect(email.getAttribute('aria-invalid')).toBe('true');
+        expect(email.getAttribute('aria-describedby')).toBe('password-reset-email-help');
+        expect(email.getAttribute('aria-errormessage')).toBe('password-reset-email-error');
+        expect(assertAccessibleName(email, 'Email')).toBe('Email');
+        expect(alert.textContent?.trim()).toBe('We will send a secure reset link.');
+        expect(assertAccessibleName(progress, 'Reset request progress')).toBe('Reset request progress');
+        expect(progress.getAttribute('value')).toBe('25');
+        expect(submit.disabled).toBe(true);
+        expect(submit.getAttribute('aria-busy')).toBe('true');
+        expect(assertAccessibleName(submit, 'Send reset link')).toBe('Send reset link');
         assertWorkflowIntegrity(harness.root);
     });
 
