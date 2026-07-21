@@ -24,7 +24,7 @@ schema-package folder alignment.
       field, quote, field-count, charset, and `header` parameter contracts as
       schema-declared constraints/diagnostics instead of package-specific Rust
       diagnostics.
-- [ ] Convert `csv/v1` to an Nx library with `*.cemt` sources tracked for
+- [x] Convert `csv/v1` to an Nx library with `*.cemt` sources tracked for
       caching; CLI tests should depend on the package target and invoke it
       through Nx.
 - [ ] Replace the current Rust-backed CSV validation path in
@@ -93,6 +93,10 @@ Started implementation:
       reuse, package resource reads, and CEMT module parse results so repeated
       formatter/colorizer artifact checks avoid duplicated work inside a rule
       run.
+- [x] Registered `packages/cem_ml/schema-packages/csv/v1` as the first
+      cacheable schema-package Nx library, tracking its manifest, schema,
+      formatter/colorizer CEMT assets, and examples, with `cem_ml_cli:test`
+      depending on the package `verify` target through Nx.
 
 ### Immediate Execution Phase: Schema Package Folder Alignment
 

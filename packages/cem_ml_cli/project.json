@@ -21,6 +21,9 @@
         "test": {
             "cache": true,
             "executor": "@monodon/rust:test",
+            "dependsOn": [
+                { "projects": ["cem_ml_schema_package_csv_v1"], "target": "verify" }
+            ],
             "outputs": ["{options.target-dir}"],
             "options": {
                 "package": "cem-ml-cli",
