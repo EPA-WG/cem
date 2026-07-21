@@ -23,9 +23,9 @@ use crate::schema::registry::{
     content_type_essence, SchemaContentTypeRole, SchemaDescriptor, SchemaRegistry,
     CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
     CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI,
-    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
-    JSON_CONTENT_TYPE, JSON_VALUE_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, YAML_CONTENT_TYPE,
-    YAML_SCHEMA_URI,
+    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSV_SCHEMA_URI, HTML_CONTENT_TYPE,
+    HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_VALUE_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
+    YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::source::{BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
@@ -7657,6 +7657,7 @@ fn builtin_converter_package_schema_uris() -> &'static [&'static str] {
         CEM_DOM_PROJECTION_SCHEMA_URI,
         CEM_AST_PROJECTION_SCHEMA_URI,
         CEM_EVENTS_PROJECTION_SCHEMA_URI,
+        CSV_SCHEMA_URI,
     ]
 }
 
@@ -12721,6 +12722,203 @@ mod tests {
         assert!(error.contains(
             "CEMT formatter `acme.format-tree` selected for canonical `cem.format-tree` must extend `cem.format-tree`"
         ));
+    }
+
+    fn execute_builtin_csv_formatter_profile(
+        profile: &str,
+    ) -> Result<(Value, ConversionOutputPipelineStageExecution), String> {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let target =
+            TransformTemplateEncodingTarget::new(CSV_CONTENT_TYPE, CSV_SCHEMA_URI, "csv-document");
+        let stage = cem_tree_cemt_output_stage(
+            &environment,
+            CemTreeCemtOutputStageSpec {
+                adapter_id: "csv-format-cemt",
+                artifact_kind: "formatter",
+                declaration_element: "{format-function",
+                function_kind: TransformTemplateOutputFunctionKind::Format,
+                function_name: "csv.format-document",
+                role: "formatter",
+            },
+            &target,
+            Some(profile),
+            Some("csv.format-document"),
+        )?;
+        let parse_response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: TemplateInput {
+                    uri: stage.template_uri.clone(),
+                    bytes: stage.template_bytes.clone(),
+                    identity: Some(FormatIdentity {
+                        content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                    root_scope: ScopeConfig::default(),
+                },
+            });
+        if !parse_response.diagnostics.is_empty() {
+            return Err(parse_response
+                .diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.message.as_str())
+                .collect::<Vec<_>>()
+                .join("; "));
+        }
+        let formatter = parse_response
+            .module_options
+            .output_functions
+            .iter()
+            .find(|function| {
+                function.kind == TransformTemplateOutputFunctionKind::Format
+                    && function.name == "csv.format-document"
+            })
+            .cloned()
+            .ok_or_else(|| {
+                "CSV formatter asset did not declare `csv.format-document`".to_owned()
+            })?;
+        let mut function_registry = TransformTemplateOutputFunctionRegistry::new();
+        function_registry.register(formatter);
+        let subject = serde_json::json!({
+            "kind": "csv-table",
+            "rows": [
+                {
+                    "index": 0,
+                    "fields": [
+                        {"index": 0, "value": "id"},
+                        {"index": 1, "value": "name"},
+                        {"index": 2, "value": "note"}
+                    ]
+                },
+                {
+                    "index": 1,
+                    "fields": [
+                        {"index": 0, "value": "1"},
+                        {"index": 1, "value": "Ada"},
+                        {"index": 2, "value": "Hello, \"CEM\""}
+                    ]
+                },
+                {
+                    "index": 2,
+                    "fields": [
+                        {"index": 0, "value": "2"},
+                        {"index": 1, "value": "Grace"},
+                        {"index": 2, "value": "line\nbreak"}
+                    ]
+                }
+            ]
+        });
+        let request = TransformTemplateEncodeBindingRequest::new(subject.clone(), target)
+            .with_subject_type("json")
+            .with_options(TransformTemplateEncodeOptions {
+                formatter: Some("csv.format-document".to_owned()),
+                formatter_profile: Some(profile.to_owned()),
+                canonical: profile == "compact",
+                line_ending: Some("lf".to_owned()),
+                ..TransformTemplateEncodeOptions::default()
+            });
+        let binding = function_registry
+            .resolve_format_binding(&request, &BTreeSet::new())
+            .map_err(|error| error.diagnostic(None).message)?;
+
+        execute_conversion_cem_tree_output_stage(&environment, stage, &binding, &subject)
+    }
+
+    fn writer_token_text(value: &Value) -> String {
+        value
+            .get("tokens")
+            .and_then(Value::as_array)
+            .expect("writer token stream")
+            .iter()
+            .map(|token| token.get("text").and_then(Value::as_str).unwrap_or(""))
+            .collect::<String>()
+    }
+
+    #[test]
+    fn builtin_csv_formatter_profiles_execute_package_cemt_assets() {
+        for (profile, expected_path, expected_layout) in [
+            (
+                "compact",
+                "schema-packages/csv/v1/formatters/compact.cemt",
+                "compact-records",
+            ),
+            (
+                "pretty",
+                "schema-packages/csv/v1/formatters/pretty.cemt",
+                "pretty-records",
+            ),
+            (
+                "tabular",
+                "schema-packages/csv/v1/formatters/tabular.cemt",
+                "tabular-records",
+            ),
+        ] {
+            let (formatted, execution) = execute_builtin_csv_formatter_profile(profile)
+                .unwrap_or_else(|error| panic!("{profile} CSV formatter failed: {error}"));
+
+            assert_eq!(
+                execution,
+                ConversionOutputPipelineStageExecution::CemtAdapter {
+                    adapter_id: "csv-format-cemt".to_owned(),
+                    function_name: "csv.format-document".to_owned(),
+                    body_function_name: Some("csv.format-document".to_owned()),
+                    fallback_function_name: None,
+                },
+                "{profile}"
+            );
+            assert_eq!(formatted["kind"], "token-stream", "{profile}");
+            assert_eq!(formatted["formatterProfile"], profile, "{profile}");
+            assert_eq!(
+                formatted["tokens"][0]["value"]["formatterProfile"], profile,
+                "{profile}"
+            );
+            assert_eq!(
+                formatted["tokens"][1]["value"]["layout"], expected_layout,
+                "{profile}"
+            );
+            assert_eq!(
+                writer_token_text(&formatted),
+                "id,name,note\n1,Ada,\"Hello, \"\"CEM\"\"\"\n2,Grace,\"line\nbreak\"\n",
+                "{profile}"
+            );
+            let target = TransformTemplateEncodingTarget::new(
+                CSV_CONTENT_TYPE,
+                CSV_SCHEMA_URI,
+                "csv-document",
+            );
+            let mut context =
+                TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+                    &target,
+                    Some(TransformTemplateOutputProducedKind::Tokens),
+                );
+            context.formatter_profile = Some(profile.to_owned());
+            context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+            context.canonical = Some(profile == "compact");
+            context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+            let mut identity = TransformTemplateEncodedArtifactIdentity::new(
+                TransformTemplateOutputProducedKind::Tokens,
+                target,
+            );
+            identity.formatter_profile = Some(profile.to_owned());
+            identity.mode = TransformTemplateEncodedArtifactMode::Document;
+            identity.canonical = profile == "compact";
+            identity.source_map_policy = TransformTemplateSourceMapPolicy::Generated;
+            TransformTemplateEncodedArtifact::new(identity, formatted)
+                .validate_insertion(&context)
+                .unwrap_or_else(|error| panic!("{profile} CSV formatter token stream: {error:?}"));
+            assert!(
+                builtin_schema_package_artifact_source("csv", expected_path)
+                    .is_some_and(|source| source.source.contains("{body |")),
+                "{profile} formatter asset must be embedded with an executable body"
+            );
+        }
     }
 
     #[test]

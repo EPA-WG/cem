@@ -5,6 +5,7 @@
 {module @version="1.0.0" |
     {format-function
         @name="csv.format-document"
+        @visibility="public"
         @category="csv-document"
         @subject="json"
         @produces="tokens"
@@ -15,5 +16,188 @@
         @deterministic=true
         @streamable=true |
         {param @name="subject" @type="json" @required=true}
+        {body |
+            {$ {
+                kind: "token-stream",
+                formatterProfile: "tabular",
+                tokens: extend(
+                    [
+                        {
+                            kind: "csv.format-marker",
+                            text: "",
+                            role: "formatter.boundary",
+                            value: {
+                                name: "csv.format-document",
+                                formatterProfile: "tabular"
+                            }
+                        },
+                        {
+                            kind: "csv.format-decision",
+                            text: "",
+                            role: "formatter.layout",
+                            value: {
+                                layout: "tabular-records",
+                                delimiter: ",",
+                                lineEnding: $lineEnding,
+                                dataPreserving: true
+                            }
+                        }
+                    ],
+                    call("csv.format-document.rows", {
+                        rows: $subject.rows,
+                        profile: "tabular"
+                    })
+                )
+            } }
+        }
+    }
+
+    {function
+        @name="csv.format-document.rows"
+        @visibility="private"
+        @returns="array"
+        @deterministic=true |
+        {param @name="rows" @type="array" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ fold($rows, [], extend(
+                extend($acc, call("csv.format-document.row-tokens", {
+                    row: $item,
+                    rowIndex: $index,
+                    profile: $profile
+                })),
+                [{
+                    kind: "csv.record-ending",
+                    text: match($lineEnding, { crlf: "\r\n", default: "\n" }),
+                    role: "syntax.punctuation",
+                    value: {
+                        rowIndex: $index,
+                        formatterProfile: $profile
+                    }
+                }]
+            )) }
+        }
+    }
+
+    {function
+        @name="csv.format-document.row-tokens"
+        @visibility="private"
+        @returns="array"
+        @deterministic=true |
+        {param @name="row" @type="object" @required=true}
+        {param @name="rowIndex" @type="integer" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ fold($row.fields, [], extend(
+                extend(
+                    $acc,
+                    match($index, {
+                        0: [],
+                        default: [{
+                            kind: "csv.delimiter",
+                            text: ",",
+                            role: "syntax.punctuation",
+                            value: {
+                                rowIndex: $rowIndex,
+                                fieldIndex: $index,
+                                formatterProfile: $profile
+                            }
+                        }]
+                    })
+                ),
+                [call("csv.format-document.field-token", {
+                    field: $item,
+                    rowIndex: $rowIndex,
+                    fieldIndex: $index,
+                    profile: $profile
+                })]
+            )) }
+        }
+    }
+
+    {function
+        @name="csv.format-document.field-token"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true |
+        {param @name="field" @type="object" @required=true}
+        {param @name="rowIndex" @type="integer" @required=true}
+        {param @name="fieldIndex" @type="integer" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ {
+                kind: "csv.field",
+                text: call("csv.format-document.field-text", { field: $field }),
+                role: "syntax.string",
+                style: {
+                    tabular: true
+                },
+                value: {
+                    rowIndex: $rowIndex,
+                    fieldIndex: $fieldIndex,
+                    raw: match(exists($field.value), {
+                        true: $field.value,
+                        false: ""
+                    }),
+                    formatterProfile: $profile
+                }
+            } }
+        }
+    }
+
+    {function
+        @name="csv.format-document.field-text"
+        @visibility="private"
+        @returns="string"
+        @deterministic=true |
+        {param @name="field" @type="object" @required=true}
+        {body |
+            {$ call("csv.format-document.quote-field", {
+                value: match(exists($field.value), {
+                    true: $field.value,
+                    false: ""
+                })
+            }) }
+        }
+    }
+
+    {function
+        @name="csv.format-document.quote-field"
+        @visibility="private"
+        @returns="string"
+        @deterministic=true |
+        {param @name="value" @type="string" @required=true}
+        {body |
+            {$ match(call("csv.format-document.needs-quotes", { value: $value }), {
+                true: concat("\"", concat(replace($value, "\"", "\"\""), "\"")),
+                false: $value
+            }) }
+        }
+    }
+
+    {function
+        @name="csv.format-document.needs-quotes"
+        @visibility="private"
+        @returns="boolean"
+        @deterministic=true |
+        {param @name="value" @type="string" @required=true}
+        {body |
+            {$ match(contains($value, ","), {
+                true: true,
+                false: match(contains($value, "\""), {
+                    true: true,
+                    false: match(contains($value, "\n"), {
+                        true: true,
+                        false: match(contains($value, "\r"), {
+                            true: true,
+                            false: match(startsWith($value, " "), {
+                                true: true,
+                                false: endsWith($value, " ")
+                            })
+                        })
+                    })
+                })
+            }) }
+        }
     }
 }

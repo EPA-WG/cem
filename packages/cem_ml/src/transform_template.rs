@@ -11822,6 +11822,15 @@ fn resolve_encode_subject_expression_at_depth(
     )? {
         return Ok(Some(value));
     }
+    if let Some(value) = resolve_cemt_extend_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
     if let Some(value) = resolve_cemt_metadata_accumulator_expression(
         expression,
         value_bindings,
@@ -12005,6 +12014,51 @@ fn resolve_encode_subject_expression_at_depth(
         return Ok(Some(value));
     }
     if let Some(value) = resolve_cemt_add_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
+    if let Some(value) = resolve_cemt_concat_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
+    if let Some(value) = resolve_cemt_contains_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
+    if let Some(value) = resolve_cemt_replace_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
+    if let Some(value) = resolve_cemt_starts_with_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
+    if let Some(value) = resolve_cemt_ends_with_expression(
         expression,
         value_bindings,
         runtime_functions,
@@ -12416,6 +12470,57 @@ fn resolve_cemt_append_expression(
         return Ok(None);
     };
     accumulator.push(value);
+    Ok(Some(Value::Array(accumulator)))
+}
+
+fn resolve_cemt_extend_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) =
+        parse_cemt_function_call_args(expression, "extend").map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 2 {
+        return Ok(None);
+    }
+    let Some(accumulator) = resolve_encode_subject_expression_at_depth(
+        &args[0],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Value::Array(mut accumulator) = accumulator else {
+        return Err(format!(
+            "CEMT extend expected array accumulator, got {}",
+            json_value_type_name(&accumulator)
+        ));
+    };
+    let Some(values) = resolve_encode_subject_expression_at_depth(
+        &args[1],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Value::Array(values) = values else {
+        return Err(format!(
+            "CEMT extend expected array values, got {}",
+            json_value_type_name(&values)
+        ));
+    };
+    accumulator.extend(values);
     Ok(Some(Value::Array(accumulator)))
 }
 
@@ -13846,6 +13951,201 @@ fn resolve_cemt_add_expression(
     Ok(Some(Value::Number(sum)))
 }
 
+fn resolve_cemt_concat_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) =
+        parse_cemt_function_call_args(expression, "concat").map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.is_empty() {
+        return Ok(None);
+    }
+    let mut output = String::new();
+    for (index, arg) in args.iter().enumerate() {
+        let Some(value) = resolve_encode_subject_expression_at_depth(
+            arg,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        )?
+        else {
+            return Ok(None);
+        };
+        output.push_str(&cemt_string_argument("concat", index, value)?);
+    }
+    Ok(Some(Value::String(output)))
+}
+
+fn resolve_cemt_contains_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    resolve_cemt_string_predicate_expression(
+        expression,
+        "contains",
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+        |value, needle| value.contains(needle),
+    )
+}
+
+fn resolve_cemt_starts_with_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    resolve_cemt_string_predicate_expression(
+        expression,
+        "startsWith",
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+        |value, needle| value.starts_with(needle),
+    )
+}
+
+fn resolve_cemt_ends_with_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    resolve_cemt_string_predicate_expression(
+        expression,
+        "endsWith",
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+        |value, needle| value.ends_with(needle),
+    )
+}
+
+fn resolve_cemt_string_predicate_expression(
+    expression: &str,
+    function_name: &'static str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+    predicate: impl Fn(&str, &str) -> bool,
+) -> Result<Option<Value>, String> {
+    let Some(args) = parse_cemt_function_call_args(expression, function_name)
+        .map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 2 {
+        return Ok(None);
+    }
+    let Some(value) = resolve_encode_subject_expression_at_depth(
+        &args[0],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some(needle) = resolve_encode_subject_expression_at_depth(
+        &args[1],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let value = cemt_string_argument(function_name, 0, value)?;
+    let needle = cemt_string_argument(function_name, 1, needle)?;
+    Ok(Some(Value::Bool(predicate(&value, &needle))))
+}
+
+fn resolve_cemt_replace_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) =
+        parse_cemt_function_call_args(expression, "replace").map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 3 {
+        return Ok(None);
+    }
+    let Some(value) = resolve_encode_subject_expression_at_depth(
+        &args[0],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some(from) = resolve_encode_subject_expression_at_depth(
+        &args[1],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some(to) = resolve_encode_subject_expression_at_depth(
+        &args[2],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let value = cemt_string_argument("replace", 0, value)?;
+    let from = cemt_string_argument("replace", 1, from)?;
+    let to = cemt_string_argument("replace", 2, to)?;
+    if from.is_empty() {
+        return Err("CEMT replace expected non-empty search string".to_owned());
+    }
+    Ok(Some(Value::String(value.replace(&from, &to))))
+}
+
+fn cemt_string_argument(
+    function_name: &'static str,
+    index: usize,
+    value: Value,
+) -> Result<String, String> {
+    value.as_str().map(str::to_owned).ok_or_else(|| {
+        format!(
+            "CEMT {function_name} expected string argument {index}, got {}",
+            json_value_type_name(&value)
+        )
+    })
+}
+
 fn resolve_cemt_repeat_expression(
     expression: &str,
     value_bindings: &BTreeMap<String, Value>,
@@ -14991,6 +15291,7 @@ fn cemt_runtime_expression_is_dynamic(value: &str) -> bool {
         || cemt_expression_starts_with_call(value, "map")
         || cemt_expression_starts_with_call(value, "fold")
         || cemt_expression_starts_with_call(value, "append")
+        || cemt_expression_starts_with_call(value, "extend")
         || cemt_expression_starts_with_call(value, "appendFormatNode")
         || cemt_expression_starts_with_call(value, "appendColorNode")
         || cemt_expression_starts_with_call(value, "appendDiagnostic")
@@ -15024,6 +15325,11 @@ fn cemt_runtime_expression_is_dynamic(value: &str) -> bool {
         || cemt_expression_starts_with_call(value, "last")
         || cemt_expression_starts_with_call(value, "typeOf")
         || cemt_expression_starts_with_call(value, "add")
+        || cemt_expression_starts_with_call(value, "concat")
+        || cemt_expression_starts_with_call(value, "contains")
+        || cemt_expression_starts_with_call(value, "replace")
+        || cemt_expression_starts_with_call(value, "startsWith")
+        || cemt_expression_starts_with_call(value, "endsWith")
         || cemt_expression_starts_with_call(value, "repeat")
         || cemt_expression_starts_with_call(value, "sourceMap")
         || cemt_expression_starts_with_call(value, "drainQueue")
@@ -21227,6 +21533,29 @@ mod tests {
         assert_eq!(
             resolve_encode_subject_expression(r#"{ value: repeat("  ", $node.depth) }"#, &values),
             Some(json!({ "value": "    " }))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(
+                r#"concat("Hello ", replace($node.label, "dy", "dy!"))"#,
+                &values,
+            ),
+            Some(json!("Hello Ready!"))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(r#"contains($node.label, "ea")"#, &values),
+            Some(json!(true))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(r#"startsWith($node.label, "Re")"#, &values),
+            Some(json!(true))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(r#"endsWith($node.label, "dy")"#, &values),
+            Some(json!(true))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(r#"extend(["a"], ["b", "c"])"#, &values),
+            Some(json!(["a", "b", "c"]))
         );
 
         let source_map =

@@ -35,7 +35,7 @@ schema-package folder alignment.
       ragged rows, unclosed quotes, invalid quote escapes, unsupported charset,
       US-ASCII byte mismatch, and invalid `header` metadata are all driven by
       schema-owned contracts.
-- [ ] Make CSV formatter profiles `compact`, `pretty`, and `tabular`
+- [x] Make CSV formatter profiles `compact`, `pretty`, and `tabular`
       executable through the CEMT assets in
       `packages/cem_ml/schema-packages/csv/v1/formatters/`, not Rust string
       formatting.
@@ -104,6 +104,10 @@ Started implementation:
 - [x] Expanded `csv/v1` package examples to the full current validation
       matrix and added focused CLI checks proving every CSV diagnostic fixture
       carries schema-owned `contract`, `behavior`, and `factKind` details.
+- [x] Made CSV formatter profiles `compact`, `pretty`, and `tabular`
+      executable from `csv/v1/formatters/*.cemt`, including CEMT-owned CSV
+      quoting, delimiter, record-ending, and token-stream layout metadata
+      verified through focused runtime tests and `cem_ml:test`.
 
 ### Immediate Execution Phase: Schema Package Folder Alignment
 
