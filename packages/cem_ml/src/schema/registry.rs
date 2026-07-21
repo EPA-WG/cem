@@ -542,8 +542,7 @@ fn collect_package_examples(
         else {
             continue;
         };
-        let Some(content_type) = optional_attr(&attrs, "content-type").map(content_type_essence)
-        else {
+        let Some(content_type) = optional_attr(&attrs, "content-type").map(str::to_owned) else {
             continue;
         };
         let Some(schema) = optional_attr(&attrs, "schema").map(str::to_owned) else {
@@ -1099,7 +1098,10 @@ mod tests {
             examples[0].path,
             "schema-packages/demo/v1/examples/basic.demo"
         );
-        assert_eq!(examples[0].content_type, "application/vnd.example.demo+cem");
+        assert_eq!(
+            examples[0].content_type,
+            "Application/Vnd.Example.Demo+CEM; charset=utf-8"
+        );
         assert_eq!(examples[0].schema, "https://example.test/ns/demo/1");
         assert_eq!(
             examples[0].expected_result,

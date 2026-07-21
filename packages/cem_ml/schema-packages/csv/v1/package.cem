@@ -14,73 +14,79 @@
 
     {artifact
         @kind="formatter"
-        @path="formatters/csv-format-document.cemt"
+        @path="formatters/compact.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="text/csv"
         @target-schema="https://cem.dev/ns/data/csv/1"
         @target-category="csv-document"
         @function-name="csv.format-document"
+        @function-profile="compact"
         @formatter-profile="compact"
     }
 
     {artifact
         @kind="formatter"
-        @path="formatters/csv-format-document.cemt"
+        @path="formatters/pretty.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="text/csv"
         @target-schema="https://cem.dev/ns/data/csv/1"
         @target-category="csv-document"
         @function-name="csv.format-document"
+        @function-profile="pretty"
         @formatter-profile="pretty"
     }
 
     {artifact
         @kind="formatter"
-        @path="formatters/csv-format-document.cemt"
+        @path="formatters/tabular.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="text/csv"
         @target-schema="https://cem.dev/ns/data/csv/1"
         @target-category="csv-document"
         @function-name="csv.format-document"
+        @function-profile="tabular"
         @formatter-profile="tabular"
     }
 
     {artifact
         @kind="colorizer"
-        @path="colorizers/csv-color-document.cemt"
+        @path="colorizers/terminal.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="text/csv"
         @target-schema="https://cem.dev/ns/data/csv/1"
         @target-category="csv-document"
         @function-name="csv.color-document"
+        @function-profile="terminal"
         @color-profile="terminal"
     }
 
     {artifact
         @kind="colorizer"
-        @path="colorizers/csv-color-document.cemt"
+        @path="colorizers/html.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="text/csv"
         @target-schema="https://cem.dev/ns/data/csv/1"
         @target-category="csv-document"
         @function-name="csv.color-document"
+        @function-profile="html"
         @color-profile="html"
     }
 
     {artifact
         @kind="colorizer"
-        @path="colorizers/csv-color-document.cemt"
+        @path="colorizers/md.cemt"
         @content-type="application/vnd.cem.transform+cem"
         @schema="https://cem.dev/ns/transform/cem/1"
         @target-content-type="text/csv"
         @target-schema="https://cem.dev/ns/data/csv/1"
         @target-category="csv-document"
         @function-name="csv.color-document"
+        @function-profile="md"
         @color-profile="md"
     }
 
@@ -116,5 +122,14 @@
         @schema="https://cem.dev/ns/data/csv/1"
         @expected-result="pass"
         @expected-diagnostics="cem.csv.inconsistent_field_count"
+    }
+
+    {example
+        @id="invalid-header-parameter"
+        @path="examples/invalid-header-parameter.csv"
+        @content-type="text/csv; header=maybe"
+        @schema="https://cem.dev/ns/data/csv/1"
+        @expected-result="pass"
+        @expected-diagnostics="cem.csv.invalid_header_parameter"
     }
 }

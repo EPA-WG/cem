@@ -181,13 +181,33 @@ static BUILTIN_SCHEMA_PACKAGE_ARTIFACT_SOURCES: &[BuiltinSchemaPackageArtifactSo
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "csv",
-        path: "schema-packages/csv/v1/formatters/csv-format-document.cemt",
-        source: include_str!("../../schema-packages/csv/v1/formatters/csv-format-document.cemt"),
+        path: "schema-packages/csv/v1/formatters/compact.cemt",
+        source: include_str!("../../schema-packages/csv/v1/formatters/compact.cemt"),
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "csv",
-        path: "schema-packages/csv/v1/colorizers/csv-color-document.cemt",
-        source: include_str!("../../schema-packages/csv/v1/colorizers/csv-color-document.cemt"),
+        path: "schema-packages/csv/v1/formatters/pretty.cemt",
+        source: include_str!("../../schema-packages/csv/v1/formatters/pretty.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "csv",
+        path: "schema-packages/csv/v1/formatters/tabular.cemt",
+        source: include_str!("../../schema-packages/csv/v1/formatters/tabular.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "csv",
+        path: "schema-packages/csv/v1/colorizers/terminal.cemt",
+        source: include_str!("../../schema-packages/csv/v1/colorizers/terminal.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "csv",
+        path: "schema-packages/csv/v1/colorizers/html.cemt",
+        source: include_str!("../../schema-packages/csv/v1/colorizers/html.cemt"),
+    },
+    BuiltinSchemaPackageArtifactSource {
+        package_id: "csv",
+        path: "schema-packages/csv/v1/colorizers/md.cemt",
+        source: include_str!("../../schema-packages/csv/v1/colorizers/md.cemt"),
     },
     BuiltinSchemaPackageArtifactSource {
         package_id: "markdown",
@@ -464,10 +484,10 @@ mod tests {
         CEM_TRANSFORM_SCHEMA_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI, CSV_CONTENT_TYPE,
         CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
         JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI,
-        MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI,
-        RELAX_NG_COMPACT_CONTENT_TYPE, RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE,
-        SVG_CONTENT_TYPE, SVG_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
-        XML_SCHEMA_URI, XSLT_CONTENT_TYPE, XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+        MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI, RELAX_NG_COMPACT_CONTENT_TYPE,
+        RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE, SVG_CONTENT_TYPE, SVG_SCHEMA_URI,
+        XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_CONTENT_TYPE,
+        XSLT_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
     };
     use crate::source::{BytesSource, SourceId};
     use crate::tokenizer::cem::CemTokenizer;
@@ -714,9 +734,11 @@ mod tests {
             "{package_id} top-level examples must be discoverable from package.cem"
         );
         assert_eq!(examples.len(), expected_count);
-        assert!(examples
-            .iter()
-            .all(|example| example.content_type == content_type));
+        let expected_content_type = crate::schema::registry::content_type_essence(content_type);
+        assert!(examples.iter().all(|example| {
+            crate::schema::registry::content_type_essence(&example.content_type)
+                == expected_content_type
+        }));
         assert!(examples.iter().all(|example| example.schema == schema_uri));
         examples
     }
@@ -1203,7 +1225,7 @@ mod tests {
     #[test]
     fn csv_package_examples_are_manifest_indexed() {
         let examples =
-            manifest_indexed_package_examples("csv", CSV_CONTENT_TYPE, CSV_SCHEMA_URI, 4);
+            manifest_indexed_package_examples("csv", CSV_CONTENT_TYPE, CSV_SCHEMA_URI, 5);
 
         let invalid = examples
             .iter()
@@ -1230,6 +1252,104 @@ mod tests {
             ragged.expected_diagnostic_codes,
             vec!["cem.csv.inconsistent_field_count".to_owned()]
         );
+
+        let invalid_header = examples
+            .iter()
+            .find(|example| example.id == "invalid-header-parameter")
+            .expect("invalid CSV header parameter example");
+        assert_eq!(
+            invalid_header.expected_result,
+            SchemaPackageExampleExpectedResult::Pass
+        );
+        assert_eq!(invalid_header.content_type, "text/csv; header=maybe");
+        assert_eq!(
+            invalid_header.expected_diagnostic_codes,
+            vec!["cem.csv.invalid_header_parameter".to_owned()]
+        );
+    }
+
+    #[test]
+    fn csv_output_assets_follow_schema_package_readme_contract() {
+        let package = builtin_schema_package_source("csv").expect("CSV package source");
+        let artifacts =
+            package_manifest_artifact_attrs(package.package_id, package.manifest_source);
+        let output_asset_paths = artifacts
+            .iter()
+            .filter(|attrs| {
+                matches!(
+                    attrs.get("kind").map(String::as_str),
+                    Some("formatter" | "colorizer")
+                )
+            })
+            .filter_map(|attrs| attrs.get("path").cloned())
+            .collect::<BTreeSet<_>>();
+        let expected_paths = [
+            "schema-packages/csv/v1/formatters/compact.cemt",
+            "schema-packages/csv/v1/formatters/pretty.cemt",
+            "schema-packages/csv/v1/formatters/tabular.cemt",
+            "schema-packages/csv/v1/colorizers/terminal.cemt",
+            "schema-packages/csv/v1/colorizers/html.cemt",
+            "schema-packages/csv/v1/colorizers/md.cemt",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect::<BTreeSet<_>>();
+
+        assert_eq!(output_asset_paths, expected_paths);
+
+        for (path, kind, profile_attr, profile) in [
+            (
+                "schema-packages/csv/v1/formatters/compact.cemt",
+                "formatter",
+                "formatter-profile",
+                "compact",
+            ),
+            (
+                "schema-packages/csv/v1/formatters/pretty.cemt",
+                "formatter",
+                "formatter-profile",
+                "pretty",
+            ),
+            (
+                "schema-packages/csv/v1/formatters/tabular.cemt",
+                "formatter",
+                "formatter-profile",
+                "tabular",
+            ),
+            (
+                "schema-packages/csv/v1/colorizers/terminal.cemt",
+                "colorizer",
+                "color-profile",
+                "terminal",
+            ),
+            (
+                "schema-packages/csv/v1/colorizers/html.cemt",
+                "colorizer",
+                "color-profile",
+                "html",
+            ),
+            (
+                "schema-packages/csv/v1/colorizers/md.cemt",
+                "colorizer",
+                "color-profile",
+                "md",
+            ),
+        ] {
+            let attrs = artifacts
+                .iter()
+                .find(|attrs| attrs.get("path").map(String::as_str) == Some(path))
+                .unwrap_or_else(|| panic!("CSV output asset `{path}`"));
+            assert_eq!(attrs.get("kind").map(String::as_str), Some(kind));
+            assert_eq!(attrs.get(profile_attr).map(String::as_str), Some(profile));
+            assert_eq!(
+                attrs.get("function-profile").map(String::as_str),
+                Some(profile)
+            );
+            assert!(
+                builtin_schema_package_artifact_source("csv", path).is_some(),
+                "CSV output asset `{path}` must be embedded"
+            );
+        }
     }
 
     #[test]
@@ -1255,25 +1375,25 @@ mod tests {
         for (id, content_type, expected_result, expected_code) in [
             (
                 "basic-document",
-                MARKDOWN_CONTENT_TYPE,
+                "text/markdown; charset=utf-8; variant=CommonMark",
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "gfm-worklog",
-                MARKDOWN_CONTENT_TYPE,
+                "text/markdown; charset=utf-8; variant=GFM",
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "invalid-embedded-html",
-                MARKDOWN_CONTENT_TYPE,
+                "text/markdown; charset=utf-8; variant=CommonMark",
                 SchemaPackageExampleExpectedResult::Fail,
                 Some("cem.markdown.embedded_html_rejected"),
             ),
             (
                 "unknown-variant",
-                MARKDOWN_CONTENT_TYPE,
+                "text/markdown; charset=utf-8; variant=CustomWiki",
                 SchemaPackageExampleExpectedResult::Pass,
                 Some("cem.markdown.unknown_variant"),
             ),
@@ -1429,7 +1549,7 @@ mod tests {
             ),
             (
                 "namespaced-document",
-                "text/xml",
+                "text/xml; charset=utf-8",
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
@@ -2538,21 +2658,33 @@ mod tests {
 
     #[test]
     fn catalog_exposes_csv_output_artifact_sources() {
-        let formatter = builtin_schema_package_artifact_source(
-            "csv",
-            "schema-packages/csv/v1/formatters/csv-format-document.cemt",
-        )
-        .expect("CSV formatter source");
-        let colorizer = builtin_schema_package_artifact_source(
-            "csv",
-            "schema-packages/csv/v1/colorizers/csv-color-document.cemt",
-        )
-        .expect("CSV colorizer source");
+        for profile in BASELINE_FORMATTER_PROFILES {
+            let formatter = builtin_schema_package_artifact_source(
+                "csv",
+                &format!("schema-packages/csv/v1/formatters/{profile}.cemt"),
+            )
+            .unwrap_or_else(|| panic!("CSV `{profile}` formatter source"));
 
-        assert!(formatter.source.contains(r#"@name="csv.format-document""#));
-        assert!(formatter.source.contains(r#"@category="csv-document""#));
-        assert!(colorizer.source.contains(r#"@name="csv.color-document""#));
-        assert!(colorizer.source.contains(r#"@content-type="text/csv""#));
+            assert!(formatter.source.contains(r#"@name="csv.format-document""#));
+            assert!(formatter.source.contains(r#"@category="csv-document""#));
+            assert!(formatter
+                .source
+                .contains(&format!(r#"@profile="{profile}""#)));
+        }
+
+        for profile in BASELINE_COLORIZER_PROFILES {
+            let colorizer = builtin_schema_package_artifact_source(
+                "csv",
+                &format!("schema-packages/csv/v1/colorizers/{profile}.cemt"),
+            )
+            .unwrap_or_else(|| panic!("CSV `{profile}` colorizer source"));
+
+            assert!(colorizer.source.contains(r#"@name="csv.color-document""#));
+            assert!(colorizer.source.contains(r#"@content-type="text/csv""#));
+            assert!(colorizer
+                .source
+                .contains(&format!(r#"@profile="{profile}""#)));
+        }
     }
 
     #[test]

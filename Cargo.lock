@@ -120,6 +120,7 @@ name = "cem-ml"
 version = "0.1.0"
 dependencies = [
  "blake3",
+ "csv",
  "js-sys",
  "quick-xml",
  "regex",
@@ -140,7 +141,6 @@ dependencies = [
  "cem-ml-transform-cem-ql",
  "cem-ql",
  "clap",
- "csv",
  "pulldown-cmark",
  "quick-xml",
  "serde_json",

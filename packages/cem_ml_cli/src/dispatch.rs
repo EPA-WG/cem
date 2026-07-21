@@ -4296,45 +4296,14 @@ fn collect_csv_source_diagnostics(
 ) -> Vec<cem_ml::diagnostics::Diagnostic> {
     let mut diagnostics = Vec::new();
     for input in inputs {
-        let source = match std::str::from_utf8(&input.bytes) {
-            Ok(source) => source,
-            Err(error) => {
-                diagnostics.push(csv_unsupported_encoding_diagnostic(input, &error));
-                continue;
-            }
-        };
-
-        diagnostics.extend(collect_csv_quote_policy_diagnostics(input, source));
-
-        let mut reader = csv::ReaderBuilder::new()
-            .has_headers(false)
-            .flexible(true)
-            .from_reader(source.as_bytes());
-        let mut expected_field_count = None;
-        for (row_index, result) in reader.records().enumerate() {
-            match result {
-                Ok(record) => {
-                    let field_count = record.len();
-                    if let Some(expected) = expected_field_count {
-                        if field_count != expected {
-                            diagnostics.push(csv_inconsistent_field_count_diagnostic(
-                                input,
-                                record.position(),
-                                row_index + 1,
-                                expected,
-                                field_count,
-                            ));
-                        }
-                    } else {
-                        expected_field_count = Some(field_count);
-                    }
-                }
-                Err(error) => {
-                    diagnostics.push(csv_parse_error_diagnostic(input, &error));
-                    break;
-                }
-            }
-        }
+        let content_type = input_source_content_type(input);
+        diagnostics.extend(cem_ml::validation::csv::validate_csv_source_bytes(
+            cem_ml::validation::csv::CsvSourceValidationRequest {
+                bytes: &input.bytes,
+                source_uri: &input.uri,
+                content_type: content_type.as_deref(),
+            },
+        ));
     }
     diagnostics
 }
@@ -9222,244 +9191,6 @@ fn yaml_unsafe_tag_diagnostic(
 
 fn yaml_tag_display(tag: &yaml_rust2::parser::Tag) -> String {
     format!("{}{}", tag.handle, tag.suffix)
-}
-
-fn csv_parse_error_diagnostic(
-    input: &eng::EngineInput,
-    error: &csv::Error,
-) -> cem_ml::diagnostics::Diagnostic {
-    let code = csv_parse_error_code(error);
-    cem_ml::diagnostics::Diagnostic {
-        uri: Some(input.uri.clone()),
-        line: csv_position_line(error.position()),
-        column: None,
-        byte_offset: csv_position_byte_offset(error.position()),
-        code: code.to_owned(),
-        severity: cem_ml::diagnostics::Severity::Error,
-        message: format!("CSV parse error: {error}"),
-        ..cem_ml::diagnostics::Diagnostic::default()
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct CsvSourcePosition {
-    line: u32,
-    column: u32,
-    byte_offset: u64,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum CsvQuoteState {
-    StartField,
-    InUnquoted,
-    InQuoted { open: CsvSourcePosition },
-    AfterQuote,
-}
-
-fn collect_csv_quote_policy_diagnostics(
-    input: &eng::EngineInput,
-    source: &str,
-) -> Vec<cem_ml::diagnostics::Diagnostic> {
-    let bytes = source.as_bytes();
-    let mut diagnostics = Vec::new();
-    let mut state = CsvQuoteState::StartField;
-    let mut byte = 0usize;
-    let mut line = 1u32;
-    let mut column = 1u32;
-
-    while byte < bytes.len() {
-        let current = CsvSourcePosition {
-            line,
-            column,
-            byte_offset: byte as u64,
-        };
-        match state {
-            CsvQuoteState::StartField => match bytes[byte] {
-                b'"' => {
-                    state = CsvQuoteState::InQuoted { open: current };
-                    advance_csv_cursor(bytes, &mut byte, &mut line, &mut column);
-                }
-                b',' => {
-                    advance_csv_cursor(bytes, &mut byte, &mut line, &mut column);
-                }
-                b'\r' | b'\n' => {
-                    advance_csv_cursor(bytes, &mut byte, &mut line, &mut column);
-                    state = CsvQuoteState::StartField;
-                }
-                _ => {
-                    state = CsvQuoteState::InUnquoted;
-                    advance_csv_cursor(bytes, &mut byte, &mut line, &mut column);
-                }
-            },
-            CsvQuoteState::InUnquoted => match bytes[byte] {
-                b'"' => {
-                    diagnostics.push(csv_quote_policy_diagnostic(
-                        input,
-                        "cem.csv.invalid_quote_escape",
-                        current,
-                        "CSV quote appears inside an unquoted field".to_owned(),
-                    ));
-                    advance_csv_cursor(bytes, &mut byte, &mut line, &mut column);
-                }
-                b',' => {
-                    state = CsvQuoteState::StartField;
-                    advance_csv_cursor(bytes, &mut byte, &mut line, &mut column);
-                }
-                b'\r' | b'\n' => {
-                    state = CsvQuoteState::StartField;
-                    advance_csv_cursor(bytes, &mut byte, &mut line, &mut column);
-                }
-                _ => {
-                    advance_csv_cursor(bytes, &mut byte, &mut line, &mut column);
-                }
-            },
-            CsvQuoteState::InQuoted { .. } => {
-                if bytes[byte] == b'"' {
-                    if bytes.get(byte + 1) == Some(&b'"') {
-                        byte += 2;
-                        column = column.saturating_add(2);
-                    } else {
-                        state = CsvQuoteState::AfterQuote;
-                        advance_csv_cursor(bytes, &mut byte, &mut line, &mut column);
-                    }
-                } else {
-                    advance_csv_cursor(bytes, &mut byte, &mut line, &mut column);
-                }
-            }
-            CsvQuoteState::AfterQuote => match bytes[byte] {
-                b',' => {
-                    state = CsvQuoteState::StartField;
-                    advance_csv_cursor(bytes, &mut byte, &mut line, &mut column);
-                }
-                b'\r' | b'\n' => {
-                    state = CsvQuoteState::StartField;
-                    advance_csv_cursor(bytes, &mut byte, &mut line, &mut column);
-                }
-                _ => {
-                    diagnostics.push(csv_quote_policy_diagnostic(
-                        input,
-                        "cem.csv.invalid_quote_escape",
-                        current,
-                        "CSV quoted field has non-delimiter content after the closing quote"
-                            .to_owned(),
-                    ));
-                    state = CsvQuoteState::InUnquoted;
-                    advance_csv_cursor(bytes, &mut byte, &mut line, &mut column);
-                }
-            },
-        }
-    }
-
-    if let CsvQuoteState::InQuoted { open } = state {
-        diagnostics.push(csv_quote_policy_diagnostic(
-            input,
-            "cem.csv.unclosed_quote",
-            open,
-            "CSV quoted field is missing a closing quote".to_owned(),
-        ));
-    }
-
-    diagnostics
-}
-
-fn advance_csv_cursor(bytes: &[u8], byte: &mut usize, line: &mut u32, column: &mut u32) {
-    match bytes.get(*byte).copied() {
-        Some(b'\r') => {
-            if bytes.get(*byte + 1) == Some(&b'\n') {
-                *byte += 2;
-            } else {
-                *byte += 1;
-            }
-            *line = line.saturating_add(1);
-            *column = 1;
-        }
-        Some(b'\n') => {
-            *byte += 1;
-            *line = line.saturating_add(1);
-            *column = 1;
-        }
-        Some(_) => {
-            *byte += 1;
-            *column = column.saturating_add(1);
-        }
-        None => {}
-    }
-}
-
-fn csv_quote_policy_diagnostic(
-    input: &eng::EngineInput,
-    code: &'static str,
-    position: CsvSourcePosition,
-    message: String,
-) -> cem_ml::diagnostics::Diagnostic {
-    cem_ml::diagnostics::Diagnostic {
-        uri: Some(input.uri.clone()),
-        line: Some(position.line),
-        column: Some(position.column),
-        byte_offset: Some(position.byte_offset),
-        code: code.to_owned(),
-        severity: cem_ml::diagnostics::Severity::Error,
-        message,
-        ..cem_ml::diagnostics::Diagnostic::default()
-    }
-}
-
-fn csv_parse_error_code(error: &csv::Error) -> &'static str {
-    let message = error.to_string().to_ascii_lowercase();
-    if message.contains("utf-8") || message.contains("utf8") {
-        "cem.csv.unsupported_encoding"
-    } else if (message.contains("eof") || message.contains("end of file"))
-        && message.contains("quote")
-    {
-        "cem.csv.unclosed_quote"
-    } else if message.contains("quote") {
-        "cem.csv.invalid_quote_escape"
-    } else {
-        "cem.csv.parse_error"
-    }
-}
-
-fn csv_unsupported_encoding_diagnostic(
-    input: &eng::EngineInput,
-    error: &std::str::Utf8Error,
-) -> cem_ml::diagnostics::Diagnostic {
-    cem_ml::diagnostics::Diagnostic {
-        uri: Some(input.uri.clone()),
-        byte_offset: u64::try_from(error.valid_up_to()).ok(),
-        code: "cem.csv.unsupported_encoding".to_owned(),
-        severity: cem_ml::diagnostics::Severity::Error,
-        message: format!("CSV source must be valid UTF-8: {error}"),
-        ..cem_ml::diagnostics::Diagnostic::default()
-    }
-}
-
-fn csv_inconsistent_field_count_diagnostic(
-    input: &eng::EngineInput,
-    position: Option<&csv::Position>,
-    row_index: usize,
-    expected: usize,
-    actual: usize,
-) -> cem_ml::diagnostics::Diagnostic {
-    cem_ml::diagnostics::Diagnostic {
-        uri: Some(input.uri.clone()),
-        line: csv_position_line(position),
-        column: None,
-        byte_offset: csv_position_byte_offset(position),
-        code: "cem.csv.inconsistent_field_count".to_owned(),
-        severity: cem_ml::diagnostics::Severity::Warning,
-        message: format!(
-            "CSV row {row_index} has {actual} fields; expected {expected} from the first row"
-        ),
-        ..cem_ml::diagnostics::Diagnostic::default()
-    }
-}
-
-fn csv_position_line(position: Option<&csv::Position>) -> Option<u32> {
-    position.and_then(|position| u32::try_from(position.line()).ok())
-}
-
-fn csv_position_byte_offset(position: Option<&csv::Position>) -> Option<u64> {
-    position.map(csv::Position::byte)
 }
 
 fn markdown_content_type_missing_charset(content_type: &str) -> bool {
@@ -16586,6 +16317,88 @@ retries: 3
                 "json",
                 "--content-type",
                 "text/csv",
+                "--schema",
+                cem_ml::schema::registry::CSV_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.csv.unsupported_encoding"));
+    }
+
+    #[test]
+    fn validate_csv_source_reports_invalid_header_parameter_warning() {
+        let p = write_fixture("validate-csv-source-invalid-header.csv", "id,name\n1,Ada\n");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "text/csv; header=maybe",
+                "--schema",
+                cem_ml::schema::registry::CSV_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert_eq!(v["summary"]["hardViolationCount"], 0);
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.csv.invalid_header_parameter"));
+    }
+
+    #[test]
+    fn validate_csv_source_reports_unsupported_charset() {
+        let p = write_fixture(
+            "validate-csv-source-unsupported-charset.csv",
+            "id,name\n1,Ada\n",
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "text/csv; charset=iso-8859-1",
+                "--schema",
+                cem_ml::schema::registry::CSV_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.csv.unsupported_encoding"));
+    }
+
+    #[test]
+    fn validate_csv_source_reports_us_ascii_mismatch() {
+        let p = write_binary_fixture(
+            "validate-csv-source-us-ascii-mismatch.csv",
+            b"id,name\n1,Ad\xc3\xa9\n",
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "text/csv; charset=us-ascii",
                 "--schema",
                 cem_ml::schema::registry::CSV_SCHEMA_URI,
                 p.to_str().unwrap(),

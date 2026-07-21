@@ -882,6 +882,14 @@ fn schema_owned_examples_validate_through_cli() {
             expected_diagnostics: &["cem.csv.inconsistent_field_count"],
         },
         ValidationExample {
+            name: "csv invalid header parameter",
+            path: "packages/cem_ml/schema-packages/csv/v1/examples/invalid-header-parameter.csv",
+            content_type: "text/csv; header=maybe",
+            schema_uri: CSV_SCHEMA_URI,
+            expected_exit: EXIT_OK,
+            expected_diagnostics: &["cem.csv.invalid_header_parameter"],
+        },
+        ValidationExample {
             name: "markdown basic document",
             path: "packages/cem_ml/schema-packages/markdown/v1/examples/basic-document.md",
             content_type: MARKDOWN_COMMONMARK_CONTENT_TYPE,

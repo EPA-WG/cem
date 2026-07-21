@@ -22,19 +22,44 @@
     }
 
     {elements |
-        {element @name="table" @required-attributes="encoding delimiter" @optional-attributes="header line-ending" @children="metadata? header? row*"}
+        {element @name="table" @required-attributes="encoding delimiter" @optional-attributes="header line-ending" @children="source? encoding-report? dialect? metadata? parse-facts? header? row*"}
+        {element @name="source" @optional-attributes="uri content-type byte-length"}
+        {element @name="encoding-report" @optional-attributes="declared-charset normalized-charset decoder-status invalid-byte-offset"}
+        {element @name="dialect" @optional-attributes="delimiter quote escape header line-ending"}
         {element @name="metadata" @children="column*"}
         {element @name="column" @required-attributes="index" @optional-attributes="name"}
+        {element @name="parse-facts" @children="parse-fact*"}
+        {element @name="parse-fact" @required-attributes="kind" @optional-attributes="contract behavior parameter actual expected row-index field-index expected-count actual-count line column byte-offset byte-length"}
         {element @name="header" @children="field*"}
         {element @name="row" @required-attributes="index" @children="field*"}
         {element @name="field" @required-attributes="index" @optional-attributes="name value quoted source-id byte-offset byte-length"}
     }
 
     {attributes |
+        {attribute @name="uri" @type="schema:string"}
+        {attribute @name="content-type" @type="schema:string"}
         {attribute @name="encoding" @type="schema:identifier" @values="utf-8 us-ascii other"}
+        {attribute @name="declared-charset" @type="schema:string"}
+        {attribute @name="normalized-charset" @type="schema:identifier" @values="utf-8 us-ascii other"}
+        {attribute @name="decoder-status" @type="schema:identifier" @values="decoded unsupported invalid"}
+        {attribute @name="invalid-byte-offset" @type="cemml:integer"}
         {attribute @name="delimiter" @type="schema:string"}
+        {attribute @name="quote" @type="schema:string"}
+        {attribute @name="escape" @type="schema:identifier" @values="double-quote other"}
         {attribute @name="header" @type="schema:identifier" @values="present absent unknown"}
         {attribute @name="line-ending" @type="schema:identifier" @values="crlf lf cr mixed"}
+        {attribute @name="kind" @type="schema:identifier" @values="parse-error unsupported-charset unsupported-encoding declared-us-ascii-non-ascii-byte invalid-header-parameter invalid-quote-escape unclosed-quote ragged-row"}
+        {attribute @name="contract" @type="schema:identifier"}
+        {attribute @name="behavior" @type="schema:identifier"}
+        {attribute @name="parameter" @type="schema:identifier"}
+        {attribute @name="actual" @type="schema:string"}
+        {attribute @name="expected" @type="schema:string"}
+        {attribute @name="row-index" @type="cemml:integer"}
+        {attribute @name="field-index" @type="cemml:integer"}
+        {attribute @name="expected-count" @type="cemml:integer"}
+        {attribute @name="actual-count" @type="cemml:integer"}
+        {attribute @name="line" @type="cemml:integer"}
+        {attribute @name="column" @type="cemml:integer"}
         {attribute @name="index" @type="cemml:integer"}
         {attribute @name="name" @type="schema:string"}
         {attribute @name="value" @type="schema:string"}
@@ -45,14 +70,19 @@
     }
 
     {constraints |
-        {constraint @kind="csv-source-parser" @target="table" @policy="delegate-to-csv-parser"}
+        {constraint @kind="csv-source-parser" @target="table" @diagnostic="cem.csv.parse_error" @behavior="csv-parse-report-fact" @policy="delegate-to-csv-parser"}
         {constraint @kind="text-csv-primary" @target="table" @policy="text/csv is the canonical media type for CSV resources"}
         {constraint @kind="comma-delimiter-default" @target="table" @policy="delimiter defaults to comma for text/csv"}
         {constraint @kind="header-parameter-preserved" @target="table" @policy="preserve MIME header parameter as present absent or unknown"}
+        {constraint @kind="header-parameter-values" @target="table" @diagnostic="cem.csv.invalid_header_parameter" @behavior="csv-parse-report-fact" @policy="header parameter values must be present or absent; other values are reported as metadata drift"}
+        {constraint @kind="charset-parameter-supported" @target="table" @diagnostic="cem.csv.unsupported_encoding" @behavior="csv-parse-report-fact" @policy="text/csv charset parameters are accepted for utf-8 and us-ascii; other encodings require an explicit converter"}
+        {constraint @kind="utf-8-decode" @target="table" @diagnostic="cem.csv.unsupported_encoding" @behavior="csv-parse-report-fact" @policy="CSV bytes must be valid UTF-8 after accepted charset handling"}
+        {constraint @kind="us-ascii-byte-compatibility" @target="table" @diagnostic="cem.csv.unsupported_encoding" @behavior="csv-parse-report-fact" @policy="US-ASCII declarations reject non-ASCII bytes"}
         {constraint @kind="field-order-preserved" @target="row" @policy="required"}
         {constraint @kind="row-order-preserved" @target="table" @policy="required"}
-        {constraint @kind="field-count-policy" @target="table" @policy="report inconsistent row width unless schema explicitly permits ragged rows"}
-        {constraint @kind="quote-escape-policy" @target="field" @policy="double quote inside quoted field is represented by two double quotes"}
+        {constraint @kind="field-count-policy" @target="table" @diagnostic="cem.csv.inconsistent_field_count" @behavior="csv-parse-report-fact" @policy="report inconsistent row width unless schema explicitly permits ragged rows"}
+        {constraint @kind="quote-escape-policy" @target="field" @diagnostic="cem.csv.invalid_quote_escape" @behavior="csv-parse-report-fact" @policy="double quote inside quoted field is represented by two double quotes"}
+        {constraint @kind="quote-closure-policy" @target="field" @diagnostic="cem.csv.unclosed_quote" @behavior="csv-parse-report-fact" @policy="quoted fields must close before the CSV source ends"}
         {constraint @kind="source-map-preferred" @target="field" @policy="required when parser exposes source ranges"}
     }
 
@@ -62,6 +92,7 @@
         {diagnostic @code="cem.csv.inconsistent_field_count" @severity="warning"}
         {diagnostic @code="cem.csv.unclosed_quote" @severity="error"}
         {diagnostic @code="cem.csv.invalid_quote_escape" @severity="error"}
+        {diagnostic @code="cem.csv.invalid_header_parameter" @severity="warning"}
         {diagnostic @code="cem.csv.source_map_unavailable" @severity="info"}
     }
 

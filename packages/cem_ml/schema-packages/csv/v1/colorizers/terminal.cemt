@@ -1,0 +1,19 @@
+@doc cem-ml 1
+@ns transform = "https://cem.dev/ns/transform/cem/1"
+@default transform
+
+{module @version="1.0.0" |
+    {color-function
+        @name="csv.color-document"
+        @category="csv-document"
+        @subject="tokens"
+        @produces="tokens"
+        @content-type="text/csv"
+        @schema="https://cem.dev/ns/data/csv/1"
+        @profile="terminal"
+        @canonical=false
+        @deterministic=true
+        @streamable=true |
+        {param @name="subject" @type="array" @required=true}
+    }
+}
