@@ -5,6 +5,7 @@
 {module @version="1.0.0" |
     {color-function
         @name="csv.color-document"
+        @visibility="public"
         @category="csv-document"
         @subject="tokens"
         @produces="tokens"
@@ -14,6 +15,102 @@
         @canonical=false
         @deterministic=true
         @streamable=true |
-        {param @name="subject" @type="array" @required=true}
+        {param @name="subject" @type="object" @required=true}
+        {body |
+            {$ {
+                kind: "token-stream",
+                formatterProfile: match(exists($subject.formatterProfile), {
+                    true: $subject.formatterProfile,
+                    false: "unknown"
+                }),
+                colorProfile: "html",
+                colorOutput: "html",
+                colored: true,
+                tokens: map(
+                    match(exists($subject.tokens), {
+                        true: $subject.tokens,
+                        false: []
+                    }),
+                    call("csv.color-document.token", {
+                        token: $item,
+                        profile: "html"
+                    })
+                )
+            } }
+        }
+    }
+
+    {function
+        @name="csv.color-document.token"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ merge(
+                set($token, "value", merge(
+                    match(exists($token.value), {
+                        true: $token.value,
+                        false: {}
+                    }),
+                    {
+                        colorProfile: $profile,
+                        colorRole: call("csv.color-document.role", { token: $token }),
+                        colorOutput: "html"
+                    }
+                )),
+                {
+                    style: call("csv.color-document.style", {
+                        token: $token,
+                        profile: $profile,
+                        role: call("csv.color-document.role", { token: $token })
+                    })
+                }
+            ) }
+        }
+    }
+
+    {function
+        @name="csv.color-document.role"
+        @visibility="private"
+        @returns="string"
+        @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {body |
+            {$ match(exists($token.role), {
+                true: $token.role,
+                false: match(contains($token.kind, "field"), {
+                    true: "syntax.string",
+                    false: match(contains($token.kind, "delimiter"), {
+                        true: "syntax.punctuation",
+                        false: match(contains($token.kind, "record-ending"), {
+                            true: "syntax.punctuation",
+                            false: "source.gutter"
+                        })
+                    })
+                })
+            }) }
+        }
+    }
+
+    {function
+        @name="csv.color-document.style"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {body |
+            {$ {
+                colorRole: $role,
+                colorProfile: $profile,
+                colorOutput: "html",
+                htmlMode: "classes",
+                class: concat("cem-color cem-color-", replace($role, ".", "-")),
+                color: concat("var(--cem-color-", concat(replace($role, ".", "-"), ")"))
+            } }
+        }
     }
 }

@@ -3831,6 +3831,13 @@ fn transform_template_target_is_explicit_format_output(
         || category.ends_with("-cem-tree")
 }
 
+fn transform_template_target_uses_named_color_stage_profiles(
+    target: &TransformTemplateEncodingTarget,
+) -> bool {
+    transform_template_target_is_explicit_format_output(target)
+        || transform_template_color_output_kind_for_target(target).is_none()
+}
+
 fn transform_template_canonical_color_profile_selector(
     profile: &TransformTemplateColorOutputProfile,
 ) -> String {
@@ -3852,7 +3859,7 @@ fn transform_template_color_binding_profile_selector(
     explicit_selector: &str,
     profile: &TransformTemplateColorOutputProfile,
 ) -> String {
-    if transform_template_target_is_explicit_format_output(target) {
+    if transform_template_target_uses_named_color_stage_profiles(target) {
         match explicit_selector.trim() {
             "terminal" => return "terminal".to_owned(),
             "html" => return "html".to_owned(),

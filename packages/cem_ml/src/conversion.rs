@@ -12831,6 +12831,166 @@ mod tests {
         execute_conversion_cem_tree_output_stage(&environment, stage, &binding, &subject)
     }
 
+    fn csv_test_output_span(start: u64, len: u32) -> Value {
+        serde_json::json!({
+            "outputRange": {
+                "start": start,
+                "len": len
+            },
+            "origin": {
+                "frames": [{
+                    "source_id": 0,
+                    "span": {
+                        "kind": "Single",
+                        "ranges": {
+                            "start": start,
+                            "len": len
+                        }
+                    },
+                    "transform": {
+                        "kind": "ContentTypeTransform",
+                        "content_type": CSV_CONTENT_TYPE
+                    }
+                }]
+            }
+        })
+    }
+
+    fn execute_builtin_csv_colorizer_profile(
+        profile: &str,
+    ) -> Result<
+        (
+            Value,
+            ConversionOutputPipelineStageExecution,
+            TransformTemplateEncodeBinding,
+        ),
+        String,
+    > {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let target =
+            TransformTemplateEncodingTarget::new(CSV_CONTENT_TYPE, CSV_SCHEMA_URI, "csv-document");
+        let stage = cem_tree_cemt_output_stage(
+            &environment,
+            CemTreeCemtOutputStageSpec {
+                adapter_id: "csv-color-cemt",
+                artifact_kind: "colorizer",
+                declaration_element: "{color-function",
+                function_kind: TransformTemplateOutputFunctionKind::Color,
+                function_name: "csv.color-document",
+                role: "colorizer",
+            },
+            &target,
+            Some(profile),
+            Some("csv.color-document"),
+        )?;
+        let parse_response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: TemplateInput {
+                    uri: stage.template_uri.clone(),
+                    bytes: stage.template_bytes.clone(),
+                    identity: Some(FormatIdentity {
+                        content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+                        schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                    root_scope: ScopeConfig::default(),
+                },
+            });
+        if !parse_response.diagnostics.is_empty() {
+            return Err(parse_response
+                .diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.message.as_str())
+                .collect::<Vec<_>>()
+                .join("; "));
+        }
+        let colorizer = parse_response
+            .module_options
+            .output_functions
+            .iter()
+            .find(|function| {
+                function.kind == TransformTemplateOutputFunctionKind::Color
+                    && function.name == "csv.color-document"
+            })
+            .cloned()
+            .ok_or_else(|| "CSV colorizer asset did not declare `csv.color-document`".to_owned())?;
+        let mut function_registry = TransformTemplateOutputFunctionRegistry::new();
+        function_registry.register(colorizer);
+        let subject = serde_json::json!({
+            "kind": "token-stream",
+            "formatterProfile": "compact",
+            "tokens": [
+                {
+                    "kind": "csv.field",
+                    "text": "id",
+                    "role": "syntax.string",
+                    "value": {
+                        "rowIndex": 0,
+                        "fieldIndex": 0,
+                        "formatterProfile": "compact"
+                    },
+                    "outputSpan": csv_test_output_span(0, 2)
+                },
+                {
+                    "kind": "csv.delimiter",
+                    "text": ",",
+                    "role": "syntax.punctuation",
+                    "value": {
+                        "rowIndex": 0,
+                        "fieldIndex": 1,
+                        "formatterProfile": "compact"
+                    },
+                    "outputSpan": csv_test_output_span(2, 1)
+                },
+                {
+                    "kind": "csv.field",
+                    "text": "name",
+                    "role": "syntax.string",
+                    "value": {
+                        "rowIndex": 0,
+                        "fieldIndex": 1,
+                        "formatterProfile": "compact"
+                    },
+                    "outputSpan": csv_test_output_span(3, 4)
+                },
+                {
+                    "kind": "csv.record-ending",
+                    "text": "\n",
+                    "role": "syntax.punctuation",
+                    "value": {
+                        "rowIndex": 0,
+                        "formatterProfile": "compact"
+                    },
+                    "outputSpan": csv_test_output_span(7, 1)
+                }
+            ]
+        });
+        let request = TransformTemplateEncodeBindingRequest::new(subject.clone(), target)
+            .with_subject_type("tokens")
+            .with_options(TransformTemplateEncodeOptions {
+                colorizer: Some("csv.color-document".to_owned()),
+                color_profile: Some(profile.to_owned()),
+                formatter_profile: Some("compact".to_owned()),
+                canonical: false,
+                ..TransformTemplateEncodeOptions::default()
+            });
+        let binding = function_registry
+            .resolve_color_binding(&request, &BTreeSet::new())
+            .map_err(|error| error.diagnostic(None).message)?
+            .into_encode_binding();
+        let (colored, execution) =
+            execute_conversion_cem_tree_output_stage(&environment, stage, &binding, &subject)?;
+
+        Ok((colored, execution, binding))
+    }
+
     fn writer_token_text(value: &Value) -> String {
         value
             .get("tokens")
@@ -12917,6 +13077,112 @@ mod tests {
                 builtin_schema_package_artifact_source("csv", expected_path)
                     .is_some_and(|source| source.source.contains("{body |")),
                 "{profile} formatter asset must be embedded with an executable body"
+            );
+        }
+    }
+
+    #[test]
+    fn builtin_csv_colorizer_profiles_execute_package_cemt_assets() {
+        for (profile, expected_path, expected_output, expected_style_key, expected_style_value) in [
+            (
+                "terminal",
+                "schema-packages/csv/v1/colorizers/terminal.cemt",
+                "terminal",
+                "terminalCapability",
+                "auto",
+            ),
+            (
+                "html",
+                "schema-packages/csv/v1/colorizers/html.cemt",
+                "html",
+                "htmlMode",
+                "classes",
+            ),
+            (
+                "md",
+                "schema-packages/csv/v1/colorizers/md.cemt",
+                "md",
+                "wrapper",
+                "span",
+            ),
+        ] {
+            let (colored, execution, binding) = execute_builtin_csv_colorizer_profile(profile)
+                .unwrap_or_else(|error| panic!("{profile} CSV colorizer failed: {error}"));
+
+            assert_eq!(
+                execution,
+                ConversionOutputPipelineStageExecution::CemtAdapter {
+                    adapter_id: "csv-color-cemt".to_owned(),
+                    function_name: "csv.color-document".to_owned(),
+                    body_function_name: Some("csv.color-document".to_owned()),
+                    fallback_function_name: None,
+                },
+                "{profile}"
+            );
+            assert_eq!(
+                binding.function.profile.as_deref(),
+                Some(profile),
+                "{profile}"
+            );
+            assert_eq!(
+                binding.identity.color_profile.as_deref(),
+                Some(profile),
+                "{profile}"
+            );
+            assert_eq!(colored["kind"], "token-stream", "{profile}");
+            assert_eq!(colored["formatterProfile"], "compact", "{profile}");
+            assert_eq!(colored["colorProfile"], profile, "{profile}");
+            assert_eq!(colored["colorOutput"], expected_output, "{profile}");
+            assert_eq!(colored["colored"], true, "{profile}");
+            assert_eq!(writer_token_text(&colored), "id,name\n", "{profile}");
+            assert_eq!(
+                colored["tokens"][0]["outputSpan"],
+                csv_test_output_span(0, 2),
+                "{profile}"
+            );
+            assert_eq!(colored["tokens"][0]["value"]["rowIndex"], 0, "{profile}");
+            assert_eq!(
+                colored["tokens"][0]["value"]["formatterProfile"], "compact",
+                "{profile}"
+            );
+            assert_eq!(
+                colored["tokens"][0]["value"]["colorProfile"], profile,
+                "{profile}"
+            );
+            assert_eq!(
+                colored["tokens"][0]["value"]["colorRole"], "syntax.string",
+                "{profile}"
+            );
+            assert_eq!(
+                colored["tokens"][1]["style"]["colorRole"], "syntax.punctuation",
+                "{profile}"
+            );
+            assert_eq!(
+                colored["tokens"][1]["style"][expected_style_key], expected_style_value,
+                "{profile}"
+            );
+            let target = TransformTemplateEncodingTarget::new(
+                CSV_CONTENT_TYPE,
+                CSV_SCHEMA_URI,
+                "csv-document",
+            );
+            let mut context =
+                TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+                    &target,
+                    Some(TransformTemplateOutputProducedKind::Tokens),
+                );
+            context.formatter_profile = Some("compact".to_owned());
+            context.color_profile = Some(profile.to_owned());
+            context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+            context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+            binding
+                .artifact_from_value(colored)
+                .validate_insertion(&context)
+                .unwrap_or_else(|error| panic!("{profile} CSV colorized token stream: {error:?}"));
+            assert!(
+                builtin_schema_package_artifact_source("csv", expected_path)
+                    .is_some_and(|source| source.source.contains("{body |")),
+                "{profile} colorizer asset must be embedded with an executable body"
             );
         }
     }

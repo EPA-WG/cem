@@ -39,7 +39,7 @@ schema-package folder alignment.
       executable through the CEMT assets in
       `packages/cem_ml/schema-packages/csv/v1/formatters/`, not Rust string
       formatting.
-- [ ] Make CSV colorizer profiles `terminal`, `html`, and `md` executable
+- [x] Make CSV colorizer profiles `terminal`, `html`, and `md` executable
       through the CEMT assets in
       `packages/cem_ml/schema-packages/csv/v1/colorizers/`, including
       source-map-safe token/color metadata for writer output.
@@ -108,6 +108,11 @@ Started implementation:
       executable from `csv/v1/formatters/*.cemt`, including CEMT-owned CSV
       quoting, delimiter, record-ending, and token-stream layout metadata
       verified through focused runtime tests and `cem_ml:test`.
+- [x] Made CSV colorizer profiles `terminal`, `html`, and `md` executable
+      from `csv/v1/colorizers/*.cemt`, preserving formatter token text and
+      output spans while adding CEMT-owned token color/style metadata verified
+      through focused runtime tests, the CSV package verify target, and
+      `cem_ml:test`.
 
 ### Immediate Execution Phase: Schema Package Folder Alignment
 
