@@ -3974,6 +3974,7 @@ fn direct_source_validation_report(
     inputs: &[eng::EngineInput],
     fail_level: cli::FailLevel,
     context: &cli::ContextOptions,
+    engine_context: &eng::EngineContext,
 ) -> Option<cem_ml::report::Report> {
     if inputs.is_empty() {
         return None;
@@ -3981,7 +3982,9 @@ fn direct_source_validation_report(
 
     let mut diagnostics = Vec::new();
     for input in inputs {
-        if is_cem_ql_source_input(input) {
+        if let Some(report) = collect_schema_package_source_validation(input, engine_context) {
+            diagnostics.extend(report.diagnostics);
+        } else if is_cem_ql_source_input(input) {
             diagnostics.extend(collect_cem_ql_source_diagnostics(std::slice::from_ref(
                 input,
             )));
@@ -4003,8 +4006,6 @@ fn direct_source_validation_report(
             ));
         } else if is_yaml_source_input(input) {
             diagnostics.extend(collect_yaml_source_diagnostics(std::slice::from_ref(input)));
-        } else if is_csv_source_input(input) {
-            diagnostics.extend(collect_csv_source_diagnostics(std::slice::from_ref(input)));
         } else if is_markdown_source_input(input) {
             diagnostics.extend(collect_markdown_source_diagnostics(std::slice::from_ref(
                 input,
@@ -4057,10 +4058,6 @@ fn is_json_schema_source_input(input: &eng::EngineInput) -> bool {
 
 fn is_yaml_source_input(input: &eng::EngineInput) -> bool {
     source_input_matches_schema_uri(input, cem_ml::schema::registry::YAML_SCHEMA_URI)
-}
-
-fn is_csv_source_input(input: &eng::EngineInput) -> bool {
-    source_input_matches_schema_uri(input, cem_ml::schema::registry::CSV_SCHEMA_URI)
 }
 
 fn is_markdown_source_input(input: &eng::EngineInput) -> bool {
@@ -4185,6 +4182,25 @@ fn input_source_content_type(input: &eng::EngineInput) -> Option<String> {
     identity.content_type
 }
 
+fn collect_schema_package_source_validation(
+    input: &eng::EngineInput,
+    engine_context: &eng::EngineContext,
+) -> Option<cem_ml::validation::schema_package_source::SchemaPackageSourceValidationReport> {
+    let identity = input
+        .identity
+        .clone()
+        .unwrap_or_else(|| input.root_scope.format_identity());
+    cem_ml::validation::schema_package_source::validate_schema_package_source(
+        cem_ml::validation::schema_package_source::SchemaPackageSourceValidationRequest {
+            bytes: &input.bytes,
+            source_uri: &input.uri,
+            content_type: identity.content_type.as_deref(),
+            schema_uri: identity.schema.as_deref(),
+            schema_registry: &engine_context.schema_registry,
+        },
+    )
+}
+
 fn collect_cem_ql_source_diagnostics(
     inputs: &[eng::EngineInput],
 ) -> Vec<cem_ml::diagnostics::Diagnostic> {
@@ -4287,23 +4303,6 @@ fn collect_yaml_source_diagnostics(
             diagnostics.push(yaml_parse_error_diagnostic(input, &error));
         }
         diagnostics.extend(receiver.diagnostics);
-    }
-    diagnostics
-}
-
-fn collect_csv_source_diagnostics(
-    inputs: &[eng::EngineInput],
-) -> Vec<cem_ml::diagnostics::Diagnostic> {
-    let mut diagnostics = Vec::new();
-    for input in inputs {
-        let content_type = input_source_content_type(input);
-        diagnostics.extend(cem_ml::validation::csv::validate_csv_source_bytes(
-            cem_ml::validation::csv::CsvSourceValidationRequest {
-                bytes: &input.bytes,
-                source_uri: &input.uri,
-                content_type: content_type.as_deref(),
-            },
-        ));
     }
     diagnostics
 }
@@ -10714,7 +10713,9 @@ pub fn run_validate<E: CemMlEngine + ?Sized>(
             s,
         );
     }
-    if let Some(report) = direct_source_validation_report(&inputs, args.fail_level, &args.context) {
+    if let Some(report) =
+        direct_source_validation_report(&inputs, args.fail_level, &args.context, &engine_context)
+    {
         if let Err(e) = write_report_files(
             &engine_context,
             &report,
@@ -10815,7 +10816,9 @@ pub fn run_check<E: CemMlEngine + ?Sized>(
             s,
         );
     }
-    if let Some(report) = direct_source_validation_report(&inputs, args.fail_level, &args.context) {
+    if let Some(report) =
+        direct_source_validation_report(&inputs, args.fail_level, &args.context, &engine_context)
+    {
         if let Err(e) = write_report_files(
             &engine_context,
             &report,
@@ -16272,9 +16275,19 @@ retries: 3
         assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
         let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
         let diagnostics = v["diagnostics"].as_array().unwrap();
-        assert!(diagnostics
+        let diagnostic = diagnostics
             .iter()
-            .any(|diag| diag["code"] == "cem.csv.unclosed_quote"));
+            .find(|diag| diag["code"] == "cem.csv.unclosed_quote")
+            .unwrap_or_else(|| panic!("missing CSV unclosed quote diagnostic in {v:#}"));
+        assert_eq!(diagnostic["details"]["contract"], "quote-closure-policy");
+        assert_eq!(diagnostic["details"]["behavior"], "csv-parse-report-fact");
+        assert_eq!(diagnostic["details"]["factKind"], "unclosed-quote");
+        assert_eq!(diagnostic["details"]["sourceRange"]["line"], 2);
+        assert_eq!(diagnostic["details"]["sourceRange"]["column"], 3);
+        assert_eq!(diagnostic["details"]["sourceRange"]["byteOffset"], 10);
+        assert_eq!(diagnostic["line"], 2);
+        assert_eq!(diagnostic["column"], 3);
+        assert_eq!(diagnostic["byteOffset"], 10);
     }
 
     #[test]

@@ -27,7 +27,7 @@ schema-package folder alignment.
 - [x] Convert `csv/v1` to an Nx library with `*.cemt` sources tracked for
       caching; CLI tests should depend on the package target and invoke it
       through Nx.
-- [ ] Replace the current Rust-backed CSV validation path in
+- [x] Replace the current Rust-backed CSV validation path in
       `packages/cem_ml_cli/src/dispatch.rs` with a generic schema-package
       validation path that executes the CSV schema contracts and keeps CLI
       diagnostics byte/source-map aware.
@@ -57,7 +57,7 @@ Implementation gaps to close during this slice:
 - [x] Add a generic host behavior hook for CSV parse fact extraction that
       returns neutral facts and never chooses `cem.csv.*` diagnostic codes or
       severities.
-- [ ] Teach the schema validation runtime how a non-CEM source such as
+- [x] Teach the schema validation runtime how a non-CEM source such as
       `text/csv` enters schema-owned contract evaluation without first becoming
       a CEM AST document.
 - [x] Add behavior/constraint bindings that map CSV parse facts to package-owned
@@ -97,6 +97,10 @@ Started implementation:
       cacheable schema-package Nx library, tracking its manifest, schema,
       formatter/colorizer CEMT assets, and examples, with `cem_ml_cli:test`
       depending on the package `verify` target through Nx.
+- [x] Added a generic `cem_ml::validation::schema_package_source` entry point
+      for schema-package-owned non-CEM sources and routed CLI CSV validation
+      through it, preserving schema-owned contract/fact details and byte,
+      line, and column source-map fields.
 
 ### Immediate Execution Phase: Schema Package Folder Alignment
 

@@ -41,6 +41,7 @@ pub mod html;
 pub mod mathml;
 pub mod relax_ng;
 pub mod rules;
+pub mod schema_package_source;
 pub mod svg;
 pub mod xhtml;
 pub mod xml;
