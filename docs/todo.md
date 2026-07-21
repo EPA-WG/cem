@@ -43,7 +43,7 @@ schema-package folder alignment.
       through the CEMT assets in
       `packages/cem_ml/schema-packages/csv/v1/colorizers/`, including
       source-map-safe token/color metadata for writer output.
-- [ ] Verify the CSV ownership slice with focused schema-package tests, the CLI
+- [x] Verify the CSV ownership slice with focused schema-package tests, the CLI
       schema-owned example validation, the CEMT pipeline fixture, and
       `yarn nx run cem_ml:test` before resuming sibling package alignment.
 - [ ] Convert `schema-packages/*/v1` folders to Nx libraries with `*.cemt`
@@ -113,6 +113,10 @@ Started implementation:
       output spans while adding CEMT-owned token color/style metadata verified
       through focused runtime tests, the CSV package verify target, and
       `cem_ml:test`.
+- [x] Closed the CSV ownership verification gate with focused CSV/schema-package
+      Rust tests, focused CLI schema-owned CSV example validation, the
+      `cem_ml_schema_package_csv_v1:verify` target, the CEMT pipeline fixture
+      target, and `cem_ml:test`.
 
 ### Immediate Execution Phase: Schema Package Folder Alignment
 
