@@ -1225,47 +1225,69 @@ mod tests {
     #[test]
     fn csv_package_examples_are_manifest_indexed() {
         let examples =
-            manifest_indexed_package_examples("csv", CSV_CONTENT_TYPE, CSV_SCHEMA_URI, 5);
+            manifest_indexed_package_examples("csv", CSV_CONTENT_TYPE, CSV_SCHEMA_URI, 8);
 
-        let invalid = examples
-            .iter()
-            .find(|example| example.id == "invalid-unclosed-quote")
-            .expect("invalid CSV quote example");
-        assert_eq!(
-            invalid.expected_result,
-            SchemaPackageExampleExpectedResult::Fail
-        );
-        assert_eq!(
-            invalid.expected_diagnostic_codes,
-            vec!["cem.csv.unclosed_quote".to_owned()]
-        );
-
-        let ragged = examples
-            .iter()
-            .find(|example| example.id == "ragged-row")
-            .expect("ragged CSV row example");
-        assert_eq!(
-            ragged.expected_result,
-            SchemaPackageExampleExpectedResult::Pass
-        );
-        assert_eq!(
-            ragged.expected_diagnostic_codes,
-            vec!["cem.csv.inconsistent_field_count".to_owned()]
-        );
-
-        let invalid_header = examples
-            .iter()
-            .find(|example| example.id == "invalid-header-parameter")
-            .expect("invalid CSV header parameter example");
-        assert_eq!(
-            invalid_header.expected_result,
-            SchemaPackageExampleExpectedResult::Pass
-        );
-        assert_eq!(invalid_header.content_type, "text/csv; header=maybe");
-        assert_eq!(
-            invalid_header.expected_diagnostic_codes,
-            vec!["cem.csv.invalid_header_parameter".to_owned()]
-        );
+        for (id, content_type, expected_result, expected_code) in [
+            (
+                "basic-table",
+                CSV_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "quoted-fields",
+                CSV_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "invalid-unclosed-quote",
+                CSV_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.csv.unclosed_quote"),
+            ),
+            (
+                "invalid-quote-escape",
+                CSV_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.csv.invalid_quote_escape"),
+            ),
+            (
+                "ragged-row",
+                CSV_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                Some("cem.csv.inconsistent_field_count"),
+            ),
+            (
+                "unsupported-charset",
+                "text/csv; charset=iso-8859-1",
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.csv.unsupported_encoding"),
+            ),
+            (
+                "us-ascii-non-ascii-byte",
+                "text/csv; charset=us-ascii",
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.csv.unsupported_encoding"),
+            ),
+            (
+                "invalid-header-parameter",
+                "text/csv; header=maybe",
+                SchemaPackageExampleExpectedResult::Pass,
+                Some("cem.csv.invalid_header_parameter"),
+            ),
+        ] {
+            let example = examples
+                .iter()
+                .find(|example| example.id == id)
+                .unwrap_or_else(|| panic!("CSV example `{id}`"));
+            assert_eq!(example.content_type, content_type);
+            assert_eq!(example.expected_result, expected_result);
+            let expected_codes = expected_code
+                .map(|code| vec![code.to_owned()])
+                .unwrap_or_default();
+            assert_eq!(example.expected_diagnostic_codes, expected_codes);
+        }
     }
 
     #[test]

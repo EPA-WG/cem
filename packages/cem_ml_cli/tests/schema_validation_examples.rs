@@ -940,12 +940,36 @@ fn schema_owned_validation_examples() -> Vec<ValidationExample> {
             expected_diagnostics: &["cem.csv.unclosed_quote"],
         },
         ValidationExample {
+            name: "csv invalid quote escape",
+            path: "packages/cem_ml/schema-packages/csv/v1/examples/invalid-quote-escape.csv",
+            content_type: CSV_CONTENT_TYPE,
+            schema_uri: CSV_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.csv.invalid_quote_escape"],
+        },
+        ValidationExample {
             name: "csv ragged row",
             path: "packages/cem_ml/schema-packages/csv/v1/examples/ragged-row.csv",
             content_type: CSV_CONTENT_TYPE,
             schema_uri: CSV_SCHEMA_URI,
             expected_exit: EXIT_OK,
             expected_diagnostics: &["cem.csv.inconsistent_field_count"],
+        },
+        ValidationExample {
+            name: "csv unsupported charset",
+            path: "packages/cem_ml/schema-packages/csv/v1/examples/unsupported-charset.csv",
+            content_type: "text/csv; charset=iso-8859-1",
+            schema_uri: CSV_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.csv.unsupported_encoding"],
+        },
+        ValidationExample {
+            name: "csv US-ASCII non-ASCII byte",
+            path: "packages/cem_ml/schema-packages/csv/v1/examples/us-ascii-non-ascii-byte.csv",
+            content_type: "text/csv; charset=us-ascii",
+            schema_uri: CSV_SCHEMA_URI,
+            expected_exit: EXIT_HARD_FAILURE,
+            expected_diagnostics: &["cem.csv.unsupported_encoding"],
         },
         ValidationExample {
             name: "csv invalid header parameter",
@@ -1691,6 +1715,167 @@ fn validate_schema_owned_example_paths(paths: &[&str]) {
         })
         .collect::<Vec<_>>();
     validate_schema_owned_examples_grouped(&examples);
+}
+
+#[test]
+fn schema_owned_csv_examples_emit_schema_owned_contract_details() {
+    let engine = RealCemMlEngine::new();
+    for (name, path, content_type) in [
+        (
+            "csv basic table",
+            "packages/cem_ml/schema-packages/csv/v1/examples/basic-table.csv",
+            CSV_CONTENT_TYPE,
+        ),
+        (
+            "csv quoted fields",
+            "packages/cem_ml/schema-packages/csv/v1/examples/quoted-fields.csv",
+            CSV_CONTENT_TYPE,
+        ),
+    ] {
+        let path = workspace_path(path);
+        let output = cem_ml_in_process(
+            &engine,
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                content_type,
+                "--schema",
+                CSV_SCHEMA_URI,
+                path.to_str().expect("CSV example path is utf-8"),
+            ],
+        );
+        assert_eq!(
+            output.exit_code, EXIT_OK,
+            "{name} stderr:\n{}",
+            output.stderr
+        );
+        assert!(
+            output.stderr.trim().is_empty(),
+            "{name} stderr must stay empty:\n{}",
+            output.stderr
+        );
+        let report: serde_json::Value = serde_json::from_str(output.stdout.trim())
+            .unwrap_or_else(|err| panic!("{name} stdout is validation JSON: {err}"));
+        assert!(
+            diagnostics(&report).is_empty(),
+            "{name} must stay diagnostic-free:\n{}",
+            output.stdout
+        );
+    }
+
+    for (name, path, content_type, expected_exit, code, severity, contract, fact_kind) in [
+        (
+            "csv ragged row",
+            "packages/cem_ml/schema-packages/csv/v1/examples/ragged-row.csv",
+            CSV_CONTENT_TYPE,
+            EXIT_OK,
+            "cem.csv.inconsistent_field_count",
+            "warning",
+            "field-count-policy",
+            "ragged-row",
+        ),
+        (
+            "csv invalid unclosed quote",
+            "packages/cem_ml/schema-packages/csv/v1/examples/invalid-unclosed-quote.csv",
+            CSV_CONTENT_TYPE,
+            EXIT_HARD_FAILURE,
+            "cem.csv.unclosed_quote",
+            "error",
+            "quote-closure-policy",
+            "unclosed-quote",
+        ),
+        (
+            "csv invalid quote escape",
+            "packages/cem_ml/schema-packages/csv/v1/examples/invalid-quote-escape.csv",
+            CSV_CONTENT_TYPE,
+            EXIT_HARD_FAILURE,
+            "cem.csv.invalid_quote_escape",
+            "error",
+            "quote-escape-policy",
+            "invalid-quote-escape",
+        ),
+        (
+            "csv unsupported charset",
+            "packages/cem_ml/schema-packages/csv/v1/examples/unsupported-charset.csv",
+            "text/csv; charset=iso-8859-1",
+            EXIT_HARD_FAILURE,
+            "cem.csv.unsupported_encoding",
+            "error",
+            "charset-parameter-supported",
+            "unsupported-charset",
+        ),
+        (
+            "csv US-ASCII non-ASCII byte",
+            "packages/cem_ml/schema-packages/csv/v1/examples/us-ascii-non-ascii-byte.csv",
+            "text/csv; charset=us-ascii",
+            EXIT_HARD_FAILURE,
+            "cem.csv.unsupported_encoding",
+            "error",
+            "us-ascii-byte-compatibility",
+            "declared-us-ascii-non-ascii-byte",
+        ),
+        (
+            "csv invalid header parameter",
+            "packages/cem_ml/schema-packages/csv/v1/examples/invalid-header-parameter.csv",
+            "text/csv; header=maybe",
+            EXIT_OK,
+            "cem.csv.invalid_header_parameter",
+            "warning",
+            "header-parameter-values",
+            "invalid-header-parameter",
+        ),
+    ] {
+        let path = workspace_path(path);
+        let uri = path.to_str().expect("CSV example path is utf-8");
+        let output = cem_ml_in_process(
+            &engine,
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                content_type,
+                "--schema",
+                CSV_SCHEMA_URI,
+                uri,
+            ],
+        );
+        assert_eq!(
+            output.exit_code, expected_exit,
+            "{name} stderr:\n{}",
+            output.stderr
+        );
+        assert!(
+            output.stderr.trim().is_empty(),
+            "{name} stderr must stay empty:\n{}",
+            output.stderr
+        );
+        let report: serde_json::Value = serde_json::from_str(output.stdout.trim())
+            .unwrap_or_else(|err| panic!("{name} stdout is validation JSON: {err}"));
+        let diagnostic = diagnostics(&report)
+            .iter()
+            .find(|diagnostic| {
+                diagnostic["code"] == code && diagnostic_uri_matches(diagnostic, uri)
+            })
+            .unwrap_or_else(|| panic!("{name} missing `{code}` in {}", output.stdout));
+        assert_eq!(diagnostic["severity"], severity, "{name}");
+        assert_eq!(diagnostic["details"]["contract"], contract, "{name}");
+        assert_eq!(
+            diagnostic["details"]["behavior"], "csv-parse-report-fact",
+            "{name}"
+        );
+        assert_eq!(diagnostic["details"]["factKind"], fact_kind, "{name}");
+        assert_eq!(
+            diagnostic["details"]["mediaType"]["contentType"], content_type,
+            "{name}"
+        );
+        assert!(
+            diagnostic["details"]["byteLength"].as_u64().is_some(),
+            "{name} should preserve source byte length in details: {diagnostic:#}"
+        );
+    }
 }
 
 #[test]

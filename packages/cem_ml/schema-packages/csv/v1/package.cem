@@ -116,12 +116,39 @@
     }
 
     {example
+        @id="invalid-quote-escape"
+        @path="examples/invalid-quote-escape.csv"
+        @content-type="text/csv"
+        @schema="https://cem.dev/ns/data/csv/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.csv.invalid_quote_escape"
+    }
+
+    {example
         @id="ragged-row"
         @path="examples/ragged-row.csv"
         @content-type="text/csv"
         @schema="https://cem.dev/ns/data/csv/1"
         @expected-result="pass"
         @expected-diagnostics="cem.csv.inconsistent_field_count"
+    }
+
+    {example
+        @id="unsupported-charset"
+        @path="examples/unsupported-charset.csv"
+        @content-type="text/csv; charset=iso-8859-1"
+        @schema="https://cem.dev/ns/data/csv/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.csv.unsupported_encoding"
+    }
+
+    {example
+        @id="us-ascii-non-ascii-byte"
+        @path="examples/us-ascii-non-ascii-byte.csv"
+        @content-type="text/csv; charset=us-ascii"
+        @schema="https://cem.dev/ns/data/csv/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.csv.unsupported_encoding"
     }
 
     {example

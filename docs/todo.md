@@ -31,7 +31,7 @@ schema-package folder alignment.
       `packages/cem_ml_cli/src/dispatch.rs` with a generic schema-package
       validation path that executes the CSV schema contracts and keeps CLI
       diagnostics byte/source-map aware.
-- [ ] Add focused package examples and tests proving valid CSV, quoted fields,
+- [x] Add focused package examples and tests proving valid CSV, quoted fields,
       ragged rows, unclosed quotes, invalid quote escapes, unsupported charset,
       US-ASCII byte mismatch, and invalid `header` metadata are all driven by
       schema-owned contracts.
@@ -101,6 +101,9 @@ Started implementation:
       for schema-package-owned non-CEM sources and routed CLI CSV validation
       through it, preserving schema-owned contract/fact details and byte,
       line, and column source-map fields.
+- [x] Expanded `csv/v1` package examples to the full current validation
+      matrix and added focused CLI checks proving every CSV diagnostic fixture
+      carries schema-owned `contract`, `behavior`, and `factKind` details.
 
 ### Immediate Execution Phase: Schema Package Folder Alignment
 

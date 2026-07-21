@@ -215,7 +215,10 @@ CLI validation integration tests.
 | [`basic-table.csv`](examples/basic-table.csv) | Minimal table with a header row and scalar fields. | Pass |
 | [`quoted-fields.csv`](examples/quoted-fields.csv) | Quoted fields with an embedded newline and escaped quote. | Pass |
 | [`invalid-unclosed-quote.csv`](examples/invalid-unclosed-quote.csv) | Unterminated quoted field rejected by the CSV quote policy. | Fail with `cem.csv.unclosed_quote` |
+| [`invalid-quote-escape.csv`](examples/invalid-quote-escape.csv) | Quote inside an unquoted field rejected by the CSV quote policy. | Fail with `cem.csv.invalid_quote_escape` |
 | [`ragged-row.csv`](examples/ragged-row.csv) | Row width differs from the first row. | Pass with warning `cem.csv.inconsistent_field_count` |
+| [`unsupported-charset.csv`](examples/unsupported-charset.csv) | MIME charset requires transcoding before direct CSV validation. | Fail with `cem.csv.unsupported_encoding` |
+| [`us-ascii-non-ascii-byte.csv`](examples/us-ascii-non-ascii-byte.csv) | Source declares US-ASCII but contains a non-ASCII byte. | Fail with `cem.csv.unsupported_encoding` |
 | [`invalid-header-parameter.csv`](examples/invalid-header-parameter.csv) | CSV bytes are valid, but MIME header metadata is invalid. | Pass with warning `cem.csv.invalid_header_parameter` |
 
 Validate an example explicitly against this schema:
