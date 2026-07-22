@@ -145,7 +145,7 @@ Dependency-ordered implementation checklist:
 - [x] Add a TypeScript runtime helper in `packages/cem-elements` for the direct
       CEM-QL WASM query-evaluation boundary, parallel to
       `internal/runtime-support/cem-ql-render.ts`.
-- [ ] Add `packages/cem-elements/src/lib/cem-ql-rust-first-parity.stories.ts`
+- [x] Add `packages/cem-elements/src/lib/cem-ql-rust-first-parity.stories.ts`
       with a table-driven showcase. Each row must show query source, input
       bindings, output items, diagnostics, and source category; the story's
       `play` function must assert every row.
