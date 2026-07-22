@@ -194,7 +194,7 @@ Run now that the Rust-first CEM-QL parser/runtime/docs/showcase slice is green.
       resolver, and type checker. Old XPath/Python syntax must fail with the
       Rust-first diagnostics defined by the rustification slice, not pass as a
       compatibility form.
-- [ ] Add functional validation fixtures for extracted expressions that need
+- [x] Add functional validation fixtures for extracted expressions that need
       runtime data. Group fixtures by owning package or story so expressions are
       evaluated against representative bindings instead of only parse-checked.
 - [ ] Record explicit waivers for expressions that cannot yet be functionally

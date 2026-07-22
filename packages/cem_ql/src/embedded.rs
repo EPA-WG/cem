@@ -1,23 +1,26 @@
 //! Embedded CEM-QL expression extraction and compile auditing for checked-in
 //! CEM/CEMT assets.
 //!
-//! Runtime fixture validation and waivers live in later audit phases. This layer
-//! preserves source provenance while compiling extracted expressions through the
-//! Rust-first parser, resolver, and type checker so stale host syntax fails with
-//! canonical CEM-QL diagnostics.
+//! Waivers live in later audit phases. This layer preserves source provenance
+//! while compiling extracted expressions through the Rust-first parser,
+//! resolver, and type checker so stale host syntax fails with canonical
+//! CEM-QL diagnostics. It also provides a small functional fixture harness for
+//! expressions whose host bindings can be represented by static runtime data.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path, PathBuf};
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::{fs, io, process::Command};
 
 use cem_ml::diagnostics::Diagnostic;
+use cem_ml::scheduler::ScopePolicy;
 use cem_ml::source::{ByteRange, BytesSource, SourceId};
 use cem_ml::tokenizer::cem::CemTokenizer;
 use cem_ml::tokenizer::{SchemaTokenKind, SchemaTokenizer};
 
 use crate::api;
+use crate::eval::{Item, ItemStream, QueryContextScope};
 use crate::parser::{
     Expression, FunctionParam, PathStep, PipelineStep, RecordKey, SurfaceModule, SurfaceNode,
     TypeExpr,
@@ -156,6 +159,82 @@ impl EmbeddedExpressionCompileReport {
         self.diagnostics
             .iter()
             .filter(move |diagnostic| diagnostic.stage == stage)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct EmbeddedFunctionalFixture {
+    pub id: String,
+    pub group: String,
+    pub expression: EmbeddedExpression,
+    pub bindings: BTreeMap<String, ItemStream>,
+    pub expected_items: Vec<Item>,
+    pub scope_policy: ScopePolicy,
+}
+
+impl EmbeddedFunctionalFixture {
+    pub fn new(
+        id: impl Into<String>,
+        group: impl Into<String>,
+        expression: EmbeddedExpression,
+        bindings: BTreeMap<String, ItemStream>,
+        expected_items: Vec<Item>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            group: group.into(),
+            expression,
+            bindings,
+            expected_items,
+            scope_policy: ScopePolicy::host_root().with_queue_size(2048),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct EmbeddedFunctionalValidationReport {
+    pub id: String,
+    pub group: String,
+    pub expression: EmbeddedExpression,
+    pub compile_report: EmbeddedExpressionCompileReport,
+    pub compile_error: Option<String>,
+    pub evaluation: Option<ItemStream>,
+    pub expected_items: Vec<Item>,
+}
+
+impl EmbeddedFunctionalValidationReport {
+    pub fn succeeded(&self) -> bool {
+        !self.compile_report.has_hard_diagnostics()
+            && self.compile_error.is_none()
+            && self
+                .evaluation
+                .as_ref()
+                .is_some_and(|stream| stream.error.is_none() && stream.items == self.expected_items)
+    }
+
+    pub fn failure_reason(&self) -> Option<String> {
+        if let Some(diagnostic) = self.compile_report.hard_diagnostics().next() {
+            return Some(format!(
+                "{}: {}",
+                diagnostic.diagnostic.code, diagnostic.diagnostic.message
+            ));
+        }
+        if let Some(error) = &self.compile_error {
+            return Some(error.clone());
+        }
+        let Some(evaluation) = &self.evaluation else {
+            return Some("fixture did not evaluate".to_owned());
+        };
+        if let Some(error) = &evaluation.error {
+            return Some(format!("runtime error: {error:?}"));
+        }
+        if evaluation.items != self.expected_items {
+            return Some(format!(
+                "expected {:?}, got {:?}",
+                self.expected_items, evaluation.items
+            ));
+        }
+        None
     }
 }
 
@@ -368,6 +447,61 @@ pub fn compile_repository_embedded_expressions(
 ) -> io::Result<Vec<EmbeddedExpressionCompileReport>> {
     let expressions = extract_repository_embedded_expressions(workspace_root)?;
     Ok(compile_embedded_expressions(&expressions))
+}
+
+/// Evaluate one embedded-expression fixture against representative host bindings.
+pub fn validate_embedded_functional_fixture(
+    fixture: &EmbeddedFunctionalFixture,
+) -> EmbeddedFunctionalValidationReport {
+    let compile_report = compile_embedded_expression(&fixture.expression);
+    let mut report = EmbeddedFunctionalValidationReport {
+        id: fixture.id.clone(),
+        group: fixture.group.clone(),
+        expression: fixture.expression.clone(),
+        compile_report,
+        compile_error: None,
+        evaluation: None,
+        expected_items: fixture.expected_items.clone(),
+    };
+
+    if report.compile_report.has_hard_diagnostics() {
+        return report;
+    }
+
+    let query = match api::compile(
+        &fixture.expression.normalized_source,
+        &api::CompileContext {
+            policy_bindings: fixture.bindings.clone(),
+            ..api::CompileContext::default()
+        },
+    ) {
+        Ok(query) => query,
+        Err(error) => {
+            report.compile_error = Some(error.to_string());
+            return report;
+        }
+    };
+
+    report.evaluation = Some(api::evaluate(
+        &query,
+        &api::EvaluationContext {
+            scope: QueryContextScope(0),
+            scope_policy: fixture.scope_policy,
+            diagnostics: Vec::new(),
+            policy_bindings: fixture.bindings.clone(),
+        },
+    ));
+    report
+}
+
+/// Evaluate a batch of embedded-expression fixtures.
+pub fn validate_embedded_functional_fixtures(
+    fixtures: &[EmbeddedFunctionalFixture],
+) -> Vec<EmbeddedFunctionalValidationReport> {
+    fixtures
+        .iter()
+        .map(validate_embedded_functional_fixture)
+        .collect()
 }
 
 #[cfg(not(target_arch = "wasm32"))]

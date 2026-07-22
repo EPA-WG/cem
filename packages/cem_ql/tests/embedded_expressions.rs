@@ -1,17 +1,61 @@
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use cem_ql::embedded::{
     checked_in_cem_sources, compile_embedded_expression, compile_embedded_expressions,
     compile_repository_embedded_expressions, extract_embedded_expressions_from_source,
-    extract_repository_embedded_expressions, EmbeddedArtifactRole, EmbeddedCompileStage,
+    extract_repository_embedded_expressions, validate_embedded_functional_fixtures,
+    EmbeddedArtifactRole, EmbeddedCompileStage, EmbeddedExpression, EmbeddedFunctionalFixture,
     EmbeddedHostKind,
 };
+use cem_ql::eval::{AtomValue, Item, ItemStream};
 
 fn workspace_root() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .and_then(Path::parent)
         .expect("packages/cem_ql has workspace root two levels up")
+}
+
+fn string(value: &str) -> Item {
+    Item::Atomic(AtomValue::String(value.to_owned()))
+}
+
+fn record(fields: &[(&str, Vec<Item>)]) -> Item {
+    Item::Record(
+        fields
+            .iter()
+            .map(|(name, items)| ((*name).to_owned(), items.clone()))
+            .collect::<BTreeMap<_, _>>(),
+    )
+}
+
+fn bindings(entries: &[(&str, ItemStream)]) -> BTreeMap<String, ItemStream> {
+    entries
+        .iter()
+        .map(|(name, stream)| ((*name).to_owned(), stream.clone()))
+        .collect()
+}
+
+fn real_expression(
+    expressions: &[EmbeddedExpression],
+    source_path: &str,
+    host_kind: EmbeddedHostKind,
+    normalized_source: &str,
+) -> EmbeddedExpression {
+    expressions
+        .iter()
+        .find(|expression| {
+            expression.source_path().ends_with(source_path)
+                && expression.host_kind() == host_kind
+                && expression.normalized_source == normalized_source
+        })
+        .unwrap_or_else(|| {
+            panic!(
+                "missing embedded expression `{normalized_source}` in `{source_path}` as {host_kind:?}"
+            )
+        })
+        .clone()
 }
 
 #[test]
@@ -257,8 +301,156 @@ fn repository_compile_audit_runs_parsable_expressions_and_flags_stale_syntax() {
                 uri.ends_with(
                     "packages/cem_ml/schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt",
                 )
-            })
+        })
     }));
+}
+
+#[test]
+fn functional_fixtures_evaluate_checked_in_expressions_by_group() {
+    let expressions =
+        extract_repository_embedded_expressions(workspace_root()).expect("repository expressions");
+    let dom_projection =
+        "packages/cem_ml/schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt";
+    let data_island_story = "packages/cem-elements/demo/data-island-tree.cemt";
+
+    let attribute = record(&[
+        ("name", vec![string("class")]),
+        ("namespace", vec![string("")]),
+        ("value", vec![string("hero")]),
+    ]);
+    let child = record(&[
+        ("kind", vec![string("text")]),
+        ("data", vec![string("Hello")]),
+    ]);
+    let dom_node = record(&[
+        ("kind", vec![string("element")]),
+        ("name", vec![string("article")]),
+        ("namespace", vec![string("https://example.test/html")]),
+        ("attributes", vec![attribute.clone()]),
+        ("children", vec![child.clone()]),
+    ]);
+    let story_node = record(&[
+        ("kind", vec![string("element")]),
+        ("name", vec![string("section")]),
+        ("tag", vec![string("section")]),
+        (
+            "attributes",
+            vec![record(&[
+                ("data-root", vec![string("root")]),
+                ("data-level", vec![string("1")]),
+            ])],
+        ),
+        ("children", vec![child.clone()]),
+    ]);
+
+    let fixtures = vec![
+        EmbeddedFunctionalFixture::new(
+            "cem-dom-projection.node-name",
+            "schema-package:cem-dom-projection/v1",
+            real_expression(
+                &expressions,
+                dom_projection,
+                EmbeddedHostKind::AttributeValueTemplate,
+                "node.name",
+            ),
+            bindings(&[("node", ItemStream::once(dom_node.clone()))]),
+            vec![string("article")],
+        ),
+        EmbeddedFunctionalFixture::new(
+            "cem-dom-projection.node-attributes",
+            "schema-package:cem-dom-projection/v1",
+            real_expression(
+                &expressions,
+                dom_projection,
+                EmbeddedHostKind::SelectAttribute,
+                "node.attributes",
+            ),
+            bindings(&[("node", ItemStream::once(dom_node.clone()))]),
+            vec![attribute.clone()],
+        ),
+        EmbeddedFunctionalFixture::new(
+            "cem-dom-projection.attribute-value",
+            "schema-package:cem-dom-projection/v1",
+            real_expression(
+                &expressions,
+                dom_projection,
+                EmbeddedHostKind::AttributeValueTemplate,
+                "attribute.value",
+            ),
+            bindings(&[("attribute", ItemStream::once(attribute.clone()))]),
+            vec![string("hero")],
+        ),
+        EmbeddedFunctionalFixture::new(
+            "cem-dom-projection.child-binding",
+            "schema-package:cem-dom-projection/v1",
+            real_expression(
+                &expressions,
+                dom_projection,
+                EmbeddedHostKind::AttributeValueTemplate,
+                "child",
+            ),
+            bindings(&[("child", ItemStream::once(child.clone()))]),
+            vec![child.clone()],
+        ),
+        EmbeddedFunctionalFixture::new(
+            "cem-elements.data-island.element-test",
+            "story:cem-elements/data-island-tree",
+            real_expression(
+                &expressions,
+                data_island_story,
+                EmbeddedHostKind::TestAttribute,
+                r#"node.kind == "element""#,
+            ),
+            bindings(&[("node", ItemStream::once(story_node.clone()))]),
+            vec![Item::Atomic(AtomValue::Boolean(true))],
+        ),
+        EmbeddedFunctionalFixture::new(
+            "cem-elements.data-island.attribute-test",
+            "story:cem-elements/data-island-tree",
+            real_expression(
+                &expressions,
+                data_island_story,
+                EmbeddedHostKind::TestAttribute,
+                "node.attributes.data-root",
+            ),
+            bindings(&[("node", ItemStream::once(story_node.clone()))]),
+            vec![string("root")],
+        ),
+        EmbeddedFunctionalFixture::new(
+            "cem-elements.data-island.children-select",
+            "story:cem-elements/data-island-tree",
+            real_expression(
+                &expressions,
+                data_island_story,
+                EmbeddedHostKind::SelectAttribute,
+                "node.children",
+            ),
+            bindings(&[("node", ItemStream::once(story_node))]),
+            vec![child],
+        ),
+    ];
+
+    let groups = fixtures
+        .iter()
+        .map(|fixture| fixture.group.as_str())
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        groups,
+        BTreeSet::from([
+            "schema-package:cem-dom-projection/v1",
+            "story:cem-elements/data-island-tree"
+        ])
+    );
+
+    let reports = validate_embedded_functional_fixtures(&fixtures);
+    for report in &reports {
+        assert!(
+            report.succeeded(),
+            "{} failed: {:?}\n{report:#?}",
+            report.id,
+            report.failure_reason()
+        );
+    }
 }
 
 #[test]
