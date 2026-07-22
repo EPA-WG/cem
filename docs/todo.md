@@ -7,135 +7,197 @@ history.
 
 ## Immediate Goal
 
-Phase 2 exit criteria from [`../roadmap.md`](../roadmap.md) are closed: the
-parser/runtime report-consumer slice, browser runtime proof, stable chunked
-binary handoff, embedded-payload handoff coverage, and web-host coordinate
-projection have all passed their focused and gate verification. Continue with
-Phase 3 substrate expansion through the schema-package registry surface.
+Phase 2 exit criteria from [`../roadmap.md`](../roadmap.md) are closed. The
+active Phase 3 slice now shifts from schema-package format alignment to the
+Rust-first `cem-ql` syntax decision recorded in
+[`cem-ql-ac.md`](cem-ql-ac.md). CSV and sibling format work is deferred below
+until the CEM-QL parser/runtime/docs/showcase gates are green.
 
-Current active slice: make `csv/v1` the proving slice for schema-owned source
-semantics and CEMT-owned output stages before returning to the wider built-in
-schema-package folder alignment.
+Current active slice: make `packages/cem_ql` implement Rust-style expression
+syntax and semantics as the canonical surface, while keeping XPath/XQuery and
+Python strictly as functional parity references. Prove every operator and
+function family from the parity list with Rust tests, schema-package examples,
+documentation, and a Storybook showcase.
 
-### Immediate Execution Phase: CSV Schema And CEMT Ownership
+### Immediate Execution Phase: Rust-First CEM-QL Syntax And Parity Showcase
 
-- [x] Move CSV parsing and validation ownership into
-      `packages/cem_ml/schema-packages/csv/v1/schema/csv.cem`: model row,
-      field, quote, field-count, charset, and `header` parameter contracts as
-      schema-declared constraints/diagnostics instead of package-specific Rust
+Observed code state:
+
+- [ ] `packages/cem_ql/src/lexer.rs` still tokenizes XPath operator keywords
+  (`eq`, `ne`, `lt`, `div`, `mod`, `and`, `or`, `not`) and treats `&&` / `||`
+  as reserved errors.
+- [ ] `packages/cem_ql/src/parser.rs` still parses XPath/XQuery forms:
+  `if ... then ... else ...`, `let name := ... in ...`, `for ... return ...`,
+  `some/every ... satisfies ...`, `instance of`, `cast as`, `treat as`, `/`
+  paths, and quoted-only record literals.
+- [ ] `packages/cem_ql/src/eval.rs` already has evaluator support for boolean
+  short-circuiting, numeric operators, set operations, pipelines, conditionals,
+  loops, and type checks, but the parser does not expose the Rust-first syntax.
+- [ ] `-` is the key semantic gap: it must work as numeric subtraction and stream
+  difference. Current tests route stream difference through `seq:difference`
+  because parser lowering treats `-` as arithmetic only.
+- [ ] `packages/cem_ql/tests/xpath_parity.rs`,
+  `packages/cem_ql/tests/parser_recovery.rs`, and the CEM-QL schema-package
+  examples still use the old XPath-oriented surface.
+- [ ] `packages/cem-elements` has CEM-QL render-loop stories, but no dedicated
+  operator/function parity showcase and no direct WASM query-evaluation
+  boundary for Storybook tables.
+
+Dependency-ordered implementation checklist:
+
+- [x] Add the missing function inventory section referenced by
+      `docs/cem-ql-ac.md` AC-QX-1 (`AC-QF-2` or an explicitly renamed
+      equivalent), listing the Tier A and Tier B function families that the
+      tests and Storybook showcase must cover.
+- [x] Update `docs/cem-ql-stack-design.md` and
+      `docs/cem-ql-stack-design-impl.md` so lexer tokens, Pratt precedence,
+      parser forms, diagnostic names, and examples follow Rust-first syntax:
+      `==`, `!=`, `<`, `<=`, `>`, `>=`, `+`, `-`, `*`, `/`, `%`, `&&`, `||`,
+      `!`, `if condition { ... } else { ... }`, `{ let name = value; expr }`,
+      `declare let name = expr`, Rust-style records, and dot pipelines.
+- [x] Decide and document the `-` overload contract before parser changes:
+      either lower `-` after type checking into numeric subtraction vs stream
+      difference, or introduce a typed operator node that the evaluator
+      dispatches by operand shape. The accepted design must preserve strict
+      typed identity and deterministic stream order.
+- [ ] Rename the diagnostic contract from `cem.ql.use_and_or` /
+      `USE_AND_OR` to `cem.ql.use_rust_boolean_ops`; update
+      `packages/cem_ql/src/diagnostics.rs`, tests, and docs to report XPath
+      boolean spellings as compatibility errors that suggest `&&`, `||`, and
+      `!`.
+- [ ] Update the lexer:
+      recognize `==`, `&&`, `||`, `!`, `%`, and single `=` for Rust-style
+      binding syntax; stop treating `&&` / `||` as reserved; classify
+      XPath-only operator words as compatibility-error tokens or ordinary
+      identifiers with targeted parser diagnostics.
+- [ ] Update Pratt precedence in `packages/cem_ql/src/parser/pratt.rs` to
+      Rust-first operator ordering, including `||`, `&&`, comparisons,
+      set operators, `+ -`, `* / %`, unary `!` / unary `-`, type/cast
+      postfixes, and dot calls/pipelines. Remove `/` as path syntax.
+- [ ] Update expression parsing in `packages/cem_ql/src/parser.rs`:
+      parse Rust-style `if` blocks, expression blocks with semicolon-separated
+      `let` bindings, `for name in stream { expr }`, Rust-style records with
+      bare keys / quoted keys / computed keys, prefix `!`, and `expr as Type`.
+- [ ] Replace XPath type syntax in parser/lowering with canonical CEM-QL
+      syntax: `expr is Type`, `expr as Type`, `treat_as(expr, Type)`, and
+      `same_node(a, b)`. Keep XPath spellings only as diagnostic suggestions,
+      not successful parses.
+- [ ] Convert quantified expression support from `some/every ... satisfies`
+      syntax to helper calls: `any(stream, fn)` and `all(stream, fn)`.
+      Retain `IrNode::Quantified` only if the helper lowering still benefits
+      evaluation; otherwise lower helpers directly.
+- [ ] Update module-level syntax: `declare let name = expr`,
+      `declare function ns:name(param as Type) { ... }`, and imports without
+      `$`-prefixed variables. Remove `declare variable` from passing fixtures.
+- [ ] Update IR, type checker, and evaluator naming where it leaks old syntax:
+      comparison variants should reflect `==` / `!=`, numeric division and
+      remainder should use `/` / `%`, and type diagnostics should talk about
+      Rust-first forms.
+- [ ] Define and test Rust numeric semantics explicitly: integer vs decimal vs
+      double division, `%` remainder behavior, division by zero, NaN
+      normalization for set identity, signed zero, and no implicit cross-type
+      promotion.
+- [ ] Wire stream difference through the canonical `-` operator and keep
+      `seq:difference(a, b)` as a named helper alias. Remove test comments that
+      describe `-` as unavailable for stream difference.
+- [ ] Replace `packages/cem_ql/tests/xpath_parity.rs` with a Rust-first
+      functional parity table. Keep QT3/XPath category names in metadata, but
+      every in-subset query must use canonical Rust-first CEM-QL syntax.
+- [ ] Update parser, IR lowering, type-checking, set-operator, evaluator,
+      compiled-artifact, fixture, policy-hook, and template-render tests so no
+      passing test depends on XPath operator, variable, path, or clause syntax.
+- [ ] Add negative parser tests for old XPath/Python syntax:
+      `eq/ne/lt/le/gt/ge`, `div`, `mod`, `and`, `or`, `not(...)`,
+      `if ... then ... else ...`, `let ... := ... in ...`, `for ... return`,
+      `some/every ... satisfies`, `a/b`, `instance of`, `cast as`, and
+      `treat as`. Each diagnostic should point to the Rust-first replacement.
+- [ ] Update `packages/cem_ml/schema-packages/cem-ql/v1/README.md`,
+      `schema/cem-ql.cem`, `package.cem`, and examples so package-owned
+      validation fixtures use Rust-first CEM-QL source.
+- [ ] Add CEM-QL schema-package examples for each parity group:
+      arithmetic, comparisons, boolean short-circuit, set operators,
+      pipeline/current item, records/arrays/streams, blocks/let, if/else,
+      for mapping, any/all, type tests/casts, stdlib sequence helpers,
+      string helpers, number helpers, date/time helpers, report helpers,
+      state/template helpers, read/content-type helpers, and old-syntax
       diagnostics.
-- [x] Convert `csv/v1` to an Nx library with `*.cemt` sources tracked for
-      caching; CLI tests should depend on the package target and invoke it
-      through Nx.
-- [x] Replace the current Rust-backed CSV validation path in
-      `packages/cem_ml_cli/src/dispatch.rs` with a generic schema-package
-      validation path that executes the CSV schema contracts and keeps CLI
-      diagnostics byte/source-map aware.
-- [x] Add focused package examples and tests proving valid CSV, quoted fields,
-      ragged rows, unclosed quotes, invalid quote escapes, unsupported charset,
-      US-ASCII byte mismatch, and invalid `header` metadata are all driven by
-      schema-owned contracts.
-- [x] Make CSV formatter profiles `compact`, `pretty`, and `tabular`
-      executable through the CEMT assets in
-      `packages/cem_ml/schema-packages/csv/v1/formatters/`, not Rust string
-      formatting.
-- [x] Make CSV colorizer profiles `terminal`, `html`, and `md` executable
-      through the CEMT assets in
-      `packages/cem_ml/schema-packages/csv/v1/colorizers/`, including
-      source-map-safe token/color metadata for writer output.
-- [x] Verify the CSV ownership slice with focused schema-package tests, the CLI
-      schema-owned example validation, the CEMT pipeline fixture, and
-      `yarn nx run cem_ml:test` before resuming sibling package alignment.
-- [ ] Convert `schema-packages/*/v1` folders to Nx libraries with `*.cemt`
-      sources tracked for caching; CLI tests should depend on package targets
-      and invoke them through Nx.
-Implementation gaps to close during this slice:
+- [ ] Update `packages/cem_ml/schema-packages/cem-ql/v1/formatters/` and
+      `colorizers/` so formatter/colorizer examples and token roles know the
+      Rust-first operators and highlight deprecated XPath/Python forms as
+      diagnostics, not canonical syntax.
+- [ ] Add a direct WASM query-evaluation export in
+      `packages/cem_ql/src/api/wasm.rs` for Storybook demonstrations:
+      compile/evaluate query source, accept JSON bindings, return items and
+      diagnostics as JSON. Keep template rendering exports unchanged.
+- [ ] Add a TypeScript runtime helper in `packages/cem-elements` for the direct
+      CEM-QL WASM query-evaluation boundary, parallel to
+      `internal/runtime-support/cem-ql-render.ts`.
+- [ ] Add `packages/cem-elements/src/lib/cem-ql-rust-first-parity.stories.ts`
+      with a table-driven showcase. Each row must show query source, input
+      bindings, output items, diagnostics, and source category; the story's
+      `play` function must assert every row.
+- [ ] Storybook operator rows must cover: `==`, `!=`, `<`, `<=`, `>`, `>=`,
+      `+`, `-` numeric subtraction, `*`, `/`, `%`, unary `-`, `&&`, `||`,
+      `!`, `??`, stream `|`, stream `&`, stream `-`, stream `^`, `.` pipeline,
+      leading `.`, `is`, `as`, `treat_as(...)`, and `same_node(...)`.
+- [ ] Storybook function rows must cover the parity function inventory:
+      `map`, `where`, `flat_map`, `take`, `drop`, `first`, `last`, `nth`,
+      `peek`, `union`, `intersect`, `difference`, `symmetric_difference`,
+      `count`, `unique`, `distinct_by`, `flatten`, `zip`, `enumerate`,
+      `chunked`, `windowed`, `sliding`, `group_by`, `count_by`, `partition`,
+      `take_while`, `drop_while`, `sorted`, `reversed`, `reduce`, `fold`,
+      `scan`, `any`, `all`, `none`, `min`, `max`, `sum`, `avg`, plus the
+      Tier A string, number, datetime, report, state, template, CEM-ML, and
+      content-type helper functions exposed by `ModuleRegistry`.
+- [ ] Split unimplemented Tier B helper rows into explicit pending/unsupported
+      diagnostics only if their implementation is not part of the current
+      slice. The story must still list them so the parity surface remains
+      visible.
+- [ ] Add or rename Nx targets as needed so the Rust-first parity suite can be
+      run independently from legacy XPath parity. Keep the old target only as
+      a compatibility harness if it no longer implies syntax parity.
+- [ ] Run the Rust-first gate after implementation:
+      `yarn nx run cem_ql:test`,
+      `yarn nx run cem_ql:test:xpath-parity` or its renamed parity target,
+      `yarn nx run cem_ql:test:set-operator-identity`,
+      `yarn nx run cem_ql:test:fixtures`,
+      `yarn nx run cem_ql:build:wasm`, and
+      `yarn nx run cem-elements:verify`.
 
-- [x] Define the schema-facing CSV parse-report nodes and fact vocabulary in
-      `schema/csv.cem`, including the exact source metadata, row, field,
-      parse-fact, and source-map fields exposed by the host parser behavior.
-- [x] Add a generic host behavior hook for CSV parse fact extraction that
-      returns neutral facts and never chooses `cem.csv.*` diagnostic codes or
-      severities.
-- [x] Teach the schema validation runtime how a non-CEM source such as
-      `text/csv` enters schema-owned contract evaluation without first becoming
-      a CEM AST document.
-- [x] Add behavior/constraint bindings that map CSV parse facts to package-owned
-      diagnostics, starting with one narrow fact-to-diagnostic path before
-      moving every CSV diagnostic.
-- [x] Add mutation-style tests proving a changed `schema/csv.cem` diagnostic or
-      behavior binding changes CSV validation output, so the ownership boundary
-      is testable.
-- [x] Preserve CLI JSON compatibility while moving diagnostic provenance into
-      schema-owned structured details (`contract`, `behavior`, `factKind`,
-      source range, media type, row/field indices, expected/actual values).
+### Follow-On Execution Phase: Embedded CEM-QL Expression Audit
 
-Started implementation:
+Run after the Rust-first CEM-QL parser/runtime/docs/showcase slice is green.
 
-- [x] Migrated the `text/csv; header=...` validation path to a neutral
-      `invalid-header-parameter` parse fact, with `cem.csv.invalid_header_parameter`
-      code and severity read from `csv/v1/schema/csv.cem`.
-- [x] Added schema-owned diagnostic provenance for that first path in CLI JSON
-      details (`contract`, `behavior`, `factKind`, media type, expected, actual,
-      and byte length).
-- [x] Moved the remaining current CSV diagnostics out of
-      `packages/cem_ml_cli/src/dispatch.rs`: unsupported charset, UTF-8 decode
-      failures, US-ASCII byte mismatch, invalid quote escapes, unclosed quotes,
-      ragged rows, and parser fallback errors now flow through neutral parse
-      facts and schema-declared diagnostic bindings in
-      `packages/cem_ml/src/validation/csv.rs`.
-- [x] Reduced schema-validation CLI test runtime by exposing in-process CLI
-      dispatch for integration tests, grouping schema-owned example validation
-      by content type/schema/result, splitting schema-package-heavy cases into
-      focused package/contract tests, and making recursive schema-package
-      manifest self-validation an explicit ignored check.
-- [x] Added schema-package contract validation caching for built-in registry
-      reuse, package resource reads, and CEMT module parse results so repeated
-      formatter/colorizer artifact checks avoid duplicated work inside a rule
-      run.
-- [x] Registered `packages/cem_ml/schema-packages/csv/v1` as the first
-      cacheable schema-package Nx library, tracking its manifest, schema,
-      formatter/colorizer CEMT assets, and examples, with `cem_ml_cli:test`
-      depending on the package `verify` target through Nx.
-- [x] Added a generic `cem_ml::validation::schema_package_source` entry point
-      for schema-package-owned non-CEM sources and routed CLI CSV validation
-      through it, preserving schema-owned contract/fact details and byte,
-      line, and column source-map fields.
-- [x] Expanded `csv/v1` package examples to the full current validation
-      matrix and added focused CLI checks proving every CSV diagnostic fixture
-      carries schema-owned `contract`, `behavior`, and `factKind` details.
-- [x] Made CSV formatter profiles `compact`, `pretty`, and `tabular`
-      executable from `csv/v1/formatters/*.cemt`, including CEMT-owned CSV
-      quoting, delimiter, record-ending, and token-stream layout metadata
-      verified through focused runtime tests and `cem_ml:test`.
-- [x] Made CSV colorizer profiles `terminal`, `html`, and `md` executable
-      from `csv/v1/colorizers/*.cemt`, preserving formatter token text and
-      output spans while adding CEMT-owned token color/style metadata verified
-      through focused runtime tests, the CSV package verify target, and
-      `cem_ml:test`.
-- [x] Closed the CSV ownership verification gate with focused CSV/schema-package
-      Rust tests, focused CLI schema-owned CSV example validation, the
-      `cem_ml_schema_package_csv_v1:verify` target, the CEMT pipeline fixture
-      target, and `cem_ml:test`.
+- [ ] Add a repository-wide extractor for CEM-QL expressions embedded in every
+      checked-in `*.cem` and `*.cemt` file. It must cover host-owned template
+      spans (`{...}` attributes, `select=` / `match=` / `test=`, and `{$ ...}`
+      content expressions), plus CEMT expression positions in formatter,
+      colorizer, converter, and validation assets.
+- [ ] Preserve source provenance for every extracted expression: source file,
+      byte range, host embedding kind, CEM-QL sub-span, schema-package identity
+      when applicable, and whether the expression came from a formatter,
+      colorizer, converter, validator, example, or documentation fixture.
+- [ ] Compile every extracted expression through the Rust-first CEM-QL parser,
+      resolver, and type checker. Old XPath/Python syntax must fail with the
+      Rust-first diagnostics defined by the rustification slice, not pass as a
+      compatibility form.
+- [ ] Add functional validation fixtures for extracted expressions that need
+      runtime data. Group fixtures by owning package or story so expressions are
+      evaluated against representative bindings instead of only parse-checked.
+- [ ] Record explicit waivers for expressions that cannot yet be functionally
+      evaluated because their host bindings, external resources, or Tier B/C
+      features are unavailable. Waivers must include owner, reason, and removal
+      condition.
+- [ ] Wire the audit as an Nx verification target, for example
+      `yarn nx run cem_ql:verify-embedded-expressions`, and include it in the
+      Rust-first release gate after the parser/runtime migration is complete.
+- [ ] Add regression coverage proving a stale XPath-style expression in a
+      `.cem` or `.cemt` asset fails the audit with the exact source file and
+      byte range.
 
-### Immediate Execution Phase: Schema Package Folder Alignment
+### Deferred: Schema Package Folder Alignment
 
-Observed package state:
-
-- every built-in package already has `package.cem`, `README.md`, `schema/`, and
-  `examples/`;
-- `cem-ml/v1/schema/cem-ml-generic.cem` and
-  `schema/v1/schema/cem-schema.cem` are the only schema-source filename
-  exceptions to the README shape `schema/{package-id}.cem`;
-- `schema`, `schema-package`, `cem-ast-projection`,
-  `cem-events-projection`, and `cem-dom-projection` lack package-owned
-  formatter/colorizer stage directories or baseline manifest artifacts;
-- no package currently has `examples/*.example.cem` sidecars; example contracts
-  are held in manifest metadata, so the execution pass must either generate the
-  sidecars or codify manifest metadata as the accepted README-compatible
-  representation before per-package cleanup starts.
-
-Contract gates for this slice:
+Resume after the Rust-first CEM-QL syntax/showcase slice is green.
 
 - [ ] Add a schema-package structure audit that walks every
       `schema-packages/{package-id}/v1` folder and reports `package.cem`,
@@ -152,73 +214,39 @@ Contract gates for this slice:
       `cem-ml-generic.cem` and `cem-schema.cem` are intentional, or rename them
       and update their manifests/readmes to the literal `schema/{package-id}.cem`
       shape.
+- [ ] Convert `schema-packages/*/v1` folders to Nx libraries with `*.cemt`
+      sources tracked for caching; CLI tests should depend on package targets
+      and invoke them through Nx.
 - [ ] Keep converter endpoint checks as a final registry pass because current
       manifests contain cross-package edges (`cem-ml` to projections, `xml` to
       DOM projection, and DOM projection back to HTML/XML) that should not force
       a false per-folder dependency cycle.
 
-Dependency-ordered package checklist:
+Deferred dependency-ordered package checklist:
 
-- [ ] `cem-ml/v1` (root CEM-ML syntax): align the schema-source filename
-      decision, keep the existing formatter/colorizer helper artifacts as the
-      canonical baseline, normalize example references, and leave projection
-      converter endpoint validation for the final registry pass.
-- [ ] `schema/v1` (uses `cem-ml`): align the schema-source filename decision,
-      add/register package-owned formatter and colorizer stages or a documented
-      bootstrap exception, and normalize its schema-definition examples.
-- [ ] `schema-package/v1` (uses `schema`): add/register package-owned formatter
-      and colorizer stages or a documented bootstrap exception, then normalize
-      the flat and nested manifest examples under `examples/`.
-- [ ] `cem-native-template/v1` (uses `schema`, `cem-ml`): verify the existing
-      formatter/colorizer baseline artifacts, then normalize manifest/readme
-      example references.
-- [ ] `cem-transform/v1` (uses `schema`, `cem-native-template`): verify the
-      existing CEMT formatter/colorizer baseline artifacts, then normalize the
-      formatter/coloring pipeline examples and expected diagnostics.
-- [ ] `cem-ql/v1` (uses `schema`): verify output-stage artifacts for the CEM-QL
-      source/parser boundary and normalize query examples.
-- [ ] `cem-ast-projection/v1` (uses `schema`, `cem-ml`): add/register
-      formatter/colorizer stage assets or an explicit binary-projection
-      exception, then normalize binary and JSON debug examples.
-- [ ] `cem-events-projection/v1` (uses `schema`, `cem-ml`): add/register
-      formatter/colorizer stage assets or an explicit binary-projection
-      exception, then normalize binary and JSON debug examples.
-- [ ] `json/v1` (uses `schema`): verify existing formatter/colorizer baseline
-      artifacts and normalize JSON examples.
-- [ ] `json-schema/v1` (uses `json`): verify existing formatter/colorizer
-      baseline artifacts and normalize JSON Schema examples.
-- [ ] `yaml/v1` (uses `schema`, `cem-ml`): verify existing
-      formatter/colorizer baseline artifacts and normalize YAML examples.
-- [ ] `csv/v1` (uses `schema`, `cem-ml`): finish the active CSV schema/CEMT
-      ownership slice above, keep the README-shaped formatter/colorizer asset
-      layout, and normalize CSV examples.
-- [ ] `markdown/v1` (uses `schema`, `cem-ml`): verify existing
-      formatter/colorizer baseline artifacts and normalize Markdown examples.
-- [ ] `xml/v1` (uses `schema`, `cem-ml`): verify existing formatter/colorizer
-      baseline artifacts, normalize XML examples, and defer the XML-to-DOM
-      converter endpoint check to the final registry pass.
-- [ ] `relax-ng/v1` (uses `xml`): verify existing formatter/colorizer baseline
-      artifacts and normalize XML/compact-syntax examples.
-- [ ] `xhtml/v1` (uses `xml`): verify existing formatter/colorizer baseline
-      artifacts and normalize XHTML examples.
-- [ ] `svg/v1` (uses `xml`): verify existing formatter/colorizer baseline
-      artifacts and normalize SVG examples.
-- [ ] `mathml/v1` (uses `xml`): verify existing formatter/colorizer baseline
-      artifacts and normalize MathML examples.
-- [ ] `xslt/v1` (uses `xml`): verify existing formatter/colorizer baseline
-      artifacts and normalize XSLT plus legacy custom-element compatibility
-      examples.
-- [ ] `html/v1` (uses `svg`, `mathml`, `schema`, `cem-ml`): verify existing
-      formatter/colorizer baseline artifacts and normalize HTML examples,
-      including SVG/MathML island coverage.
-- [ ] `cem-dom-projection/v1` (uses `schema`, `cem-ml`; converter endpoints
-      target `html` and `xml`): add/register package-owned formatter/colorizer
-      stage assets or an explicit binary-projection exception, verify
-      `converters/dom-to-html.cemt` and `converters/dom-to-xml.cemt` stay under
-      `converters/`, and normalize binary/JSON debug examples.
-- [ ] `css/v1` (uses `html`, `svg`, `mathml`, `schema`, `cem-ml`): verify
-      existing formatter/colorizer baseline artifacts and normalize stylesheet,
-      scoped-style, and style-attribute examples.
+- [ ] `cem-ml/v1`
+- [ ] `schema/v1`
+- [ ] `schema-package/v1`
+- [ ] `cem-native-template/v1`
+- [ ] `cem-transform/v1`
+- [ ] `cem-ql/v1` after the active Rust-first syntax slice updates its
+      examples, formatter, and colorizer.
+- [ ] `cem-ast-projection/v1`
+- [ ] `cem-events-projection/v1`
+- [ ] `json/v1`
+- [ ] `json-schema/v1`
+- [ ] `yaml/v1`
+- [ ] `csv/v1`
+- [ ] `markdown/v1`
+- [ ] `xml/v1`
+- [ ] `relax-ng/v1`
+- [ ] `xhtml/v1`
+- [ ] `svg/v1`
+- [ ] `mathml/v1`
+- [ ] `xslt/v1`
+- [ ] `html/v1`
+- [ ] `cem-dom-projection/v1`
+- [ ] `css/v1`
 - [ ] Run the final registry/package validation gate after the dependency
       checklist is green:
       `yarn nx run cem_ml:test:cli-schema-artifacts`,
@@ -226,10 +254,21 @@ Dependency-ordered package checklist:
       `yarn nx run cem_ml_cli:validate-converter-parity`,
       `yarn nx run cem_ml_cli:e2e`, then `yarn nx run cem_ml:test`.
 
+### Deferred: CSV And Other Format Polish
+
+- [ ] Resume CSV-specific polish only after Rust-first CEM-QL gates are green:
+      keep CSV schema-owned parsing/validation, CEMT formatter/colorizer assets,
+      and package verification intact while aligning it with the final
+      schema-package folder audit.
+- [ ] Keep JSON, YAML, XML, HTML, CSS, Markdown, SVG, MathML, XSLT, Relax NG,
+      and projection-package formatter/colorizer work behind the
+      schema-package folder alignment gate.
+
 ### Deferred: Phase 3 Custom-Element Runtime
 
 - [ ] Resume Phase 3 custom-element runtime substrate expansion after the
-      schema-package folder contract slice is closed.
+      Rust-first CEM-QL syntax/showcase slice and deferred schema-package
+      folder contract slice are closed.
 
 ### Deferred: Phase 4 CEM Component Set
 
@@ -244,26 +283,34 @@ Dependency-ordered package checklist:
 
 ### Next Work Item
 
-Continue the active CSV schema/CEMT ownership slice:
+Continue the Rust-first CEM-QL slice with the first implementation gate:
 
-1. Promote the new `cem_ml::validation::csv::validate_csv_source_bytes` path
-   behind the generic schema-package source-validation dispatcher, so
-   `text/csv` enters validation through schema URI/content-type resolution
-   instead of a CSV branch in `dispatch.rs`.
-2. Add the missing package-level CSV examples for unsupported charset,
-   US-ASCII byte mismatch, invalid UTF-8, and invalid quote escape, then wire
-   their expected diagnostics through `package.cem` so schema-owned example
-   validation covers every parse fact kind.
-3. Make the CSV formatter CEMT profiles executable in dependency order:
-   `compact` first as the minimal source-to-string proof, then `pretty`, then
-   `tabular` with row/field alignment and source-map-safe field spans.
-4. Make the CSV colorizer CEMT profiles executable after formatter output is
-   stable: `terminal`, then `html`, then `md`, preserving token/color metadata
-   without reparsing bytes in Rust.
-5. Verify with focused CSV tests, CLI schema-owned examples, the CEMT pipeline
-   fixture, and `yarn nx run cem_ml:test`.
+1. Update `packages/cem_ql/src/diagnostics.rs`,
+   `packages/cem_ql/src/lexer.rs`, and `packages/cem_ql/src/parser/pratt.rs`
+   for Rust-first operators, including renaming
+   `cem.ql.use_and_or` to `cem.ql.use_rust_boolean_ops`.
+2. Convert `packages/cem_ql/tests/parser_recovery.rs` and
+   `packages/cem_ql/tests/xpath_parity.rs` to Rust-first syntax as the first
+   executable gate before broadening evaluator/runtime changes.
+3. After the Rust tests pass, update the CEM-QL schema-package examples and add
+   the Storybook operator/function showcase.
+4. After the Rust-first gate is green, add the embedded-expression audit for
+   all checked-in `*.cem` and `*.cemt` files and functionally validate the
+   extracted CEM-QL expressions against owned fixtures.
 
 ## Current Verification Commands
+
+- `yarn nx run cem_ql:test`
+- `yarn nx run cem_ql:test:xpath-parity` (or the renamed Rust-first
+  functional parity target once added)
+- `yarn nx run cem_ql:test:set-operator-identity`
+- `yarn nx run cem_ql:test:fixtures`
+- `yarn nx run cem_ql:build:wasm`
+- `yarn nx run cem-elements:verify`
+- `yarn nx run cem_ql:verify-embedded-expressions` (to be added after
+  Rust-first syntax lands)
+
+Deferred schema-package/format gate commands:
 
 - `yarn nx run cem_ml:test:cli-schema-artifacts`
 - `yarn nx run cem_ml_cli:validate-cemt-pipeline-fixture`

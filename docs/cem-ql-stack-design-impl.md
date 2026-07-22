@@ -88,7 +88,7 @@ packages/cem_ql/
     eval/
       pipeline.rs        — pipeline-step iterator chains
       set_ops.rs         — union/intersect/difference/symmetric_difference
-      types_runtime.rs   — runtime type checks (instance of / cast as)
+      types_runtime.rs   — runtime type checks (`is` / `as` / `treat_as`)
     stdlib.rs            — module registry, public re-exports
     stdlib/
       sequence.rs        — cem:stdlib/sequence
@@ -174,29 +174,27 @@ pub struct Token {
 pub enum TokenKind {
     // Punctuation
     Dot, Comma, LParen, RParen, LBracket, RBracket, LBrace, RBrace,
-    Pipe, Amp, Minus, Caret, Assign, Colon, ColonColon,
+    Semicolon, Pipe, Amp, Minus, Caret, Assign, Colon, ColonColon,
 
     // Comparison operators
-    Eq, Ne, Lt, Le, Gt, Ge, EqOp, NeqOp,          // `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `=`, `!=`
+    EqEq, NeqOp, Lt, Le, Gt, Ge,                  // `==`, `!=`, `<`, `<=`, `>`, `>=`
 
     // Arithmetic
-    Plus, Star, DivKw, ModKw,                     // `+`, `*`, `div`, `mod`
+    Plus, Star, Slash, Percent,                   // `+`, `*`, `/`, `%`
 
     // Boolean
-    AndKw, OrKw, NotKw,                           // `and`, `or`, `not`
+    AmpAmp, PipePipe, Bang,                       // `&&`, `||`, `!`
 
-    // Reserved (parse error per AC-QO-5)
-    AmpAmpReserved, PipePipeReserved,
-
-    // Path tokens
-    Slash, DotDot,
+    // Receiver / traversal helpers
+    DotDot,
 
     // Keywords (Tier A)
-    Let, In, If, Then, Else, For, ReturnKw,
-    Some, Every, Satisfies,
-    Import, As, Declare, Variable, Function, Module,
-    InstanceKw, OfKw, CastKw, TreatKw, IsKw,
-    FnKw,
+    Let, In, If, Else, For,
+    Import, As, Declare, Function, Module,
+    IsKw, FnKw,
+
+    // Compatibility words rejected by the parser with Rust-syntax guidance.
+    XPathCompatWord,                               // `eq`, `ne`, `div`, `and`, `then`, etc.
 
     // Identifiers and literals
     Ident,                                        // payload: name
@@ -229,8 +227,8 @@ current codepoint, current token-start index. Behaviour per character
 class:
 
 - ASCII whitespace (`U+0020`, `U+0009`, `U+000A`, `U+000D`) → `Whitespace`.
-- `;` followed by `;` → `LineComment` to end-of-line.
-- `(` followed by `*` → `BlockComment` to matching `*)`.
+- `/` followed by `/` → `LineComment` to end-of-line.
+- `/` followed by `*` → `BlockComment` to matching `*/`.
 - `"` → `StringLit`; escape sequences `\n` `\t` `\r` `\\` `\"` `\u{HEX}`.
 - ASCII alpha/`_` → identifier or keyword (longest-match against keyword
   table). A `:` immediately following an identifier and followed by
@@ -238,9 +236,13 @@ class:
 - `0-9` → numeric literal; the scanner decides between `IntLit`,
   `DecimalLit`, and `DoubleLit` by character class (`.` switches to
   decimal; `e`/`E` switches to double).
-- Punctuation per `TokenKind` table above.
-- `&` followed by `&` → `AmpAmpReserved`; `|` followed by `|` →
-  `PipePipeReserved`. Both emit `cem.ql.use_and_or` at parse time.
+- Punctuation and operators per `TokenKind` table above. `&&`, `||`, and
+  prefix `!` are normal boolean operators; `/` is numeric division, not a
+  path separator.
+- XPath/Python compatibility words such as `eq`, `ne`, `div`, `mod`, `and`,
+  `or`, `not`, `then`, `return`, `instance`, `cast`, and `treat` produce
+  compatibility-error tokens so the parser can emit Rust-syntax guidance
+  without treating them as canonical CEM-QL syntax.
 
 Lexer errors emit `cem.ql.parse_error` with the byte range of the
 offending span and continue scanning at the next plausible token start.
@@ -290,7 +292,7 @@ pub enum Expression {
     Literal(LiteralValue, ByteRange),
     Name(QName, ByteRange),
     LeadingDot(ByteRange),                            // valid only inside pipeline step body
-    Path { steps: Vec<PathStep>, range: ByteRange },  // `/`-separated axis steps
+    AxisCall { axis: Axis, name_test: NameTest, predicates: Vec<Expression>, range: ByteRange },
     Pipeline { source: Box<Expression>, steps: Vec<PipelineStep>, range: ByteRange },
     BinaryOp { op: BinaryOp, lhs: Box<Expression>, rhs: Box<Expression>, range: ByteRange },
     UnaryOp { op: UnaryOp, operand: Box<Expression>, range: ByteRange },
@@ -298,21 +300,21 @@ pub enum Expression {
     If { cond: Box<Expression>, then_branch: Box<Expression>, else_branch: Box<Expression>, range: ByteRange },
     Let { name: QName, value: Box<Expression>, body: Box<Expression>, range: ByteRange },
     For { var: QName, source: Box<Expression>, body: Box<Expression>, range: ByteRange },
-    Quantified { kind: QuantifierKind, var: QName, source: Box<Expression>, predicate: Box<Expression>, range: ByteRange },
+    Block { bindings: Vec<LetBinding>, body: Box<Expression>, range: ByteRange },
     Record { entries: Vec<RecordEntry>, range: ByteRange },
     Sequence { items: Vec<Expression>, range: ByteRange },
     Lambda { params: Vec<FunctionParam>, body: Box<Expression>, range: ByteRange },
     Call { callee: Box<Expression>, args: Vec<Expression>, range: ByteRange },
-    InstanceOf { value: Box<Expression>, ty: TypeExpr, range: ByteRange },
-    CastAs { value: Box<Expression>, ty: TypeExpr, range: ByteRange },
-    TreatAs { value: Box<Expression>, ty: TypeExpr, range: ByteRange },
+    IsType { value: Box<Expression>, ty: TypeExpr, range: ByteRange },
+    CastAs { value: Box<Expression>, ty: TypeExpr, range: ByteRange }, // `expr as Type`
+    TreatAs { value: Box<Expression>, ty: TypeExpr, range: ByteRange }, // `treat_as(expr, Type)`
     Is { lhs: Box<Expression>, rhs: Box<Expression>, range: ByteRange },
 }
 
-pub enum PathStep {
-    Axis { axis: Axis, name_test: NameTest, predicates: Vec<Expression> },
-    Parent(ByteRange),
-    Self_(ByteRange),
+pub struct LetBinding {
+    pub name: QName,
+    pub value: Expression,
+    pub range: ByteRange,
 }
 
 pub enum PipelineStep {
@@ -321,9 +323,8 @@ pub enum PipelineStep {
 }
 
 pub enum SetOp { Union, Intersect, Difference, SymmetricDifference }
-pub enum BinaryOp { Eq, Ne, Lt, Le, Gt, Ge, EqOp, NeqOp, Plus, Minus, Star, Div, Mod, And, Or }
+pub enum BinaryOp { EqEq, NeqOp, Lt, Le, Gt, Ge, Plus, Minus, Star, Div, Rem, And, Or }
 pub enum UnaryOp { Negate, Not }
-pub enum QuantifierKind { Some, Every }
 
 pub struct QName { pub prefix: Option<String>, pub local: String }
 pub struct NameTest { pub prefix: Option<String>, pub local: Option<String> }   // `*`, `prefix:*`, `*:local`
@@ -336,23 +337,31 @@ From lowest to highest:
 
 | Level | Operator(s) | Associativity |
 |-------|-------------|---------------|
-| 1     | `or`        | left          |
-| 2     | `and`       | left          |
-| 3     | `not` (unary) | prefix      |
-| 4     | `eq` `ne` `lt` `le` `gt` `ge` `=` `!=` `is` | left |
+| 1     | `??`        | left          |
+| 2     | `||`        | left          |
+| 3     | `&&`        | left          |
+| 4     | `==` `!=` `<` `<=` `>` `>=` `is` | left |
 | 5     | `|` `^`     | left          |
 | 6     | `&`         | left          |
 | 7     | `+` `-` (binary) | left     |
-| 8     | `*` `div` `mod` | left      |
-| 9     | unary `-`   | prefix        |
-| 10    | `instance of` `cast as` `treat as` | left |
+| 8     | `*` `/` `%` | left          |
+| 9     | unary `-` `!` | prefix      |
+| 10    | `as` cast / type-postfix forms | left |
 | 11    | `.` (pipeline / step) | left |
-| 12    | `/` (path step) | left      |
-| 13    | call `(...)`, index `[...]`, member access | left |
+| 12    | call `(...)`, index `[...]`, member access | left |
 
-Reserved `&&` and `||` parse to a stub that emits
-`cem.ql.use_and_or` and is then dropped from the surface AST so the
-type checker does not see them.
+XPath boolean and comparison spellings (`and`, `or`, `not(...)`, `eq`, `ne`,
+`lt`, `le`, `gt`, `ge`, `div`, `mod`) emit `cem.ql.use_rust_boolean_ops` or
+`cem.ql.parse_error` with Rust-syntax guidance and are not lowered to the
+surface AST.
+
+The `-` token is intentionally shared. The Pratt parser records it at
+arithmetic precedence as `BinaryOp::Minus`; it does not inspect operand shape.
+During type checking and lowering, known numeric operands remain
+`BinaryOp::Minus`, known stream or collection operands are rewritten to
+`SetOp::Difference`, mixed numeric/stream operands emit `cem.ql.type_error`,
+and unresolved operands may lower to a typed runtime-dispatch node only if it
+preserves the same diagnostics and AC-QO-1 ordering/identity rules.
 
 ### 5.3 Recovery Synchronization
 
@@ -530,7 +539,7 @@ implementation MUST update both this table and AC-QE-1.
 | Code | Default severity | Emitting layer | Notes |
 |------|------------------|----------------|-------|
 | `cem.ql.parse_error` | error | L1 / L2 | Lexer or parser failed; range = offending tokens. |
-| `cem.ql.use_and_or` | error | L1 | `&&` / `||` reserved; suggest `and`/`or`. |
+| `cem.ql.use_rust_boolean_ops` | error | L1 / L2 | XPath boolean spellings used in CEM-QL; suggest `&&`, `||`, or `!`. |
 | `cem.ql.type_error` | error | L4 / L6 | Static failure prevents IR emission; runtime failure aborts evaluation. |
 | `cem.ql.unknown_type` | error | L4 | Type name not in active schema. |
 | `cem.ql.unknown_function` | error | L3 | Function name not in resolution chain. |
@@ -582,12 +591,12 @@ pub enum IrNode {
     StateSlot(StateSlotId),
 
     // Constructors
-    Record(Vec<(String, IrId)>),                  // keys are quoted-string literals
+    Record(Vec<(String, IrId)>),                  // bare identifier keys canonical; string keys for non-identifiers
     Array(Vec<IrId>),
     Sequence(Vec<IrId>),
     Lambda { params: Vec<(BindingId, Type)>, body: IrId, captures: Vec<BindingId> },
 
-    // Path / axes
+    // Axes
     AxisStep { axis: Axis, name_test: NameTest, predicates: Vec<IrId> },
     Parent,
     Self_,
@@ -613,9 +622,9 @@ pub enum IrNode {
     Quantified { kind: QuantifierKind, var: BindingId, source: IrId, predicate: IrId },
 
     // Type forms
-    InstanceOf { value: IrId, ty: Type },
-    CastAs { value: IrId, ty: Type },
-    TreatAs { value: IrId, ty: Type },
+    InstanceOf { value: IrId, ty: Type },         // lowered from `expr is Type`
+    CastAs { value: IrId, ty: Type },             // lowered from `expr as Type`
+    TreatAs { value: IrId, ty: Type },            // lowered from `treat_as(expr, Type)`
     Is { lhs: IrId, rhs: IrId },
 }
 
@@ -628,8 +637,10 @@ pub enum IrStep {
 
 ### 9.2 Lowering Rules
 
-- `Expression::Path { steps }` lowers to a chain of `AxisStep` nodes
-  threaded through `Pipeline { source: <first step>, steps: <rest> }`.
+- `Expression::AxisCall { ... }` and named DOM step helpers lower to
+  `AxisStep` nodes threaded through `Pipeline { source, steps }`.
+  XPath `/` path syntax is not a CEM-QL surface; `/` remains numeric
+  division.
 - `Expression::Pipeline { source, steps }` lowers source to an IR
   expression and each step to an `IrStep`. Named steps whose resolution
   points to a stdlib function become `NamedStdlib`; user-defined steps
@@ -637,6 +648,11 @@ pub enum IrStep {
   parallel `IrTree::resolutions` table not shown above).
 - `Expression::SetOp` lowers to `SetOp { op, lhs, rhs }`. The evaluator
   specializes by `op` so streaming behaviour matches AC-QO-4.
+- `Expression::BinaryOp { op: Minus, ... }` is resolved after type checking:
+  numeric operands remain numeric subtraction, stream or collection operands
+  lower to `SetOp { op: Difference, ... }`, and mixed numeric/stream operands
+  fail with `cem.ql.type_error`. This is the only overload in the Tier A
+  operator table.
 - `Expression::Lambda` lowers the body in a child binding scope and
   captures the lexical environment. AC-QV-6 closure-detachment runs at
   lowering: any captured `BindingId` whose binding holds a host AST
@@ -802,6 +818,7 @@ public-API floor):
 | `seq:last`        | `(stream<T>) -> stream<T>` | A |
 | `seq:nth`         | `(stream<T>, integer) -> stream<T>` | A |
 | `seq:peek`        | `(stream<T>, fn(T) -> ()) -> stream<T>` | A |
+| `seq:count`       | `(stream<T>) -> integer` | A |
 | `seq:union`       | `(stream<T>, stream<T>) -> stream<T>` | A — function alias for `|` |
 | `seq:intersect`   | `(stream<T>, stream<T>) -> stream<T>` | A — alias for `&` |
 | `seq:difference`  | `(stream<T>, stream<T>) -> stream<T>` | A — alias for `-` |
@@ -819,7 +836,11 @@ public-API floor):
 | `str:slice`       | `(string, integer, integer?) -> string` | A |
 | `str:concat`      | `(stream<string>, string?) -> string` | A |
 | `str:contains` `str:starts_with` `str:ends_with` | `(string, string) -> boolean` | A |
-| `str:nfc` `str:nfd` `str:matches` `str:replace` `str:split` | regex / normalization | B |
+| `str:normalize_space` | `(string) -> string` | A |
+| `str:replace` | `(string, string, string) -> string` | A |
+| `str:translate` | `(string, string, string) -> string` | A |
+| `str:substring` `str:substring_before` `str:substring_after` | substring helpers | A |
+| `str:nfc` `str:nfd` `str:matches` `str:split` | regex / normalization | B |
 
 ### 11.3 `cem:stdlib/numbers`
 
@@ -880,6 +901,7 @@ public-API floor):
 
 | Function | Signature | Tier |
 |----------|-----------|------|
+| `ct:read` | `(uri, accepts?) -> stream<node>` | B |
 | `ct:html` `ct:xml` `ct:svg` `ct:mathml` `ct:css` `ct:scss` `ct:json` `ct:yaml` `ct:csv` `ct:js` `ct:ts` `ct:cemml` `ct:floor` | canonical identifiers | B |
 | `ct:default_accepts` | `() -> array<string>` | B — the AC-QA-1.1 floor list |
 
@@ -943,7 +965,7 @@ Re-resolved schema-type IDs that fail to resolve emit
 Tier A:
   - Layers L1..L6 complete for the surface forms in AC-QS-1..AC-QS-6
   - Axes in AC-QD-1 Tier A set
-  - XPath 3.1 subset per AC-QX-1
+  - XPath 3.1 functional subset per AC-QX-1 expressed through Rust-first syntax
   - Set operators with strict-typed identity (AC-QO-1..AC-QO-5)
   - Pipeline composition (AC-QP-*)
   - Full scope chain with overlay support (AC-QV-3..AC-QV-8)
@@ -955,8 +977,8 @@ Tier A:
 
 Tier B:
   - try/catch surface keyword (AC-QE-2)
-  - FLWOR with where/order by (AC-QX-4)
-  - Comprehension sugar (AC-QO-7)
+  - Rust-style filtering/sorting/window composition with FLWOR-equivalent behavior (AC-QX-4)
+  - Rust-shaped comprehension sugar (AC-QO-7)
   - AC-QO-6 collection helper family
   - Regex (AC-QX-1 / strings)
   - read(uri, accepts?) (AC-QA-1..AC-QA-5)
@@ -968,7 +990,7 @@ Tier B:
   - cem:stdlib/content-types (§11.10)
 
 Tier C:
-  - Full XQuery 3.1 surface where it does not duplicate Tier A/B helpers
+  - Full XQuery 3.1 functional coverage where it does not duplicate Tier A/B helpers
   - NVDL-style schema dispatch (AC-QX-* extensions)
   - XPath 4.0 candidate function library (AC-QX-5)
   - Binary AST consumption inside queries

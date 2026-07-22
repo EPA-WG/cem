@@ -9,6 +9,21 @@ CEM-QL source is not CEM-ML syntax. The schema package and this manifest are
 authored in CEM-ML, but resources with the `application/vnd.cem.query+cem-ql`
 content type are parsed by the `cem-ql` crate.
 
+## Syntax Baseline
+
+CEM-QL authoring is Rust-first: comparison, arithmetic, boolean, cast, block,
+and binding forms use Rust-style spelling such as `==`, `/`, `%`, `&&`, `||`,
+`!`, `expr as Type`, `{ let name = value; body }`, and `declare let name =
+value`. XPath, XQuery, XSLT, JQ, and Python are functional parity references
+only; their path, variable, operator, and clause syntax is not the canonical
+CEM-QL surface.
+
+The `-` operator is canonical for both numeric subtraction and stream
+difference. The parser records one Rust-style token; type checking and IR
+lowering resolve numeric operands to subtraction and stream or collection
+operands to set difference. Mixed numeric/stream operands are validation
+errors, and `seq:difference(a, b)` remains only a named helper alias.
+
 ## Owned Identities
 
 - Schema URI: `https://cem.dev/ns/query/cem-ql/1`
@@ -29,7 +44,7 @@ The schema describes the query resource model used by loaders and caches:
 
 - query modules declare a module URI;
 - imports bind other module URIs through explicit aliases;
-- declarations define variables and functions;
+- declarations define immutable `declare let` bindings and functions;
 - expressions are compiled to typed evaluator IR;
 - compiled artifacts carry hash, mode, policy stamps, import closure, and
   optional source-map sidecars.
@@ -41,8 +56,8 @@ CLI validation integration tests.
 
 | Example                                                                 | Purpose                                                                                           | Expected result                       |
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| [`basic-query.cemql`](examples/basic-query.cemql)                       | Minimal query module with a module URI, variable declaration, and expression.                     | Pass                                  |
-| [`module-query.cemql`](examples/module-query.cemql)                     | Query module with import, variable declaration, function declaration, and conditional expression. | Pass                                  |
+| [`basic-query.cemql`](examples/basic-query.cemql)                       | Minimal query module with a module URI, immutable binding declaration, and expression.            | Pass                                  |
+| [`module-query.cemql`](examples/module-query.cemql)                     | Query module with import, immutable binding declaration, function declaration, and conditional expression. | Pass                                  |
 | [`invalid-parse.cemql`](examples/invalid-parse.cemql)                   | Incomplete expression rejected by the CEM-QL parser.                                              | Fail with `cem.ql.parse_error`        |
 | [`invalid-missing-module.cemql`](examples/invalid-missing-module.cemql) | Query source missing the required module URI declaration.                                         | Fail with `cem.ql.module_uri_missing` |
 

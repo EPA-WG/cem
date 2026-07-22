@@ -51,9 +51,14 @@ This language is the normative replacement for the
 attributes such as `select=`/`match=`/`test=`, and explicit `$` expression nodes for
 content. cem-ql defines no embedding delimiter of its own.
 
-The long-range parity target is XPath 3.1 / XQuery 3.1 expression coverage,
-XSLT-style user-defined functions and module composition, and Python-style
-set/sequence operations. Parity is tiered.
+The primary authoring model is a Rust-inspired expression surface: Rust
+operator spelling and precedence, Rust boolean and numeric operator
+semantics unless an AC states a CEM-specific override, immutable `let`
+bindings, and expression blocks. XPath/XQuery and Python remain functional
+parity targets only: cem-ql should compute equivalent tree, sequence, set,
+and function-library results where listed here, but it does not import their
+operator spelling, variable syntax, clause syntax, or path syntax unless an
+AC explicitly records that compatibility form.
 
 ## Conformance Tiers
 
@@ -74,7 +79,7 @@ Tier A profile without leaving open contracts.
   external module imports gated by scope policy, async iteration, cancel via
   `AbortSignal`, the full XPath axis set, sequence comprehensions, grouping,
   and FLWOR-equivalent constructs.
-- **Tier C — Full XSLT/XQuery surface.** Adds NVDL-style schema dispatch
+- **Tier C — Full XSLT/XQuery functional coverage.** Adds NVDL-style schema dispatch
   inside queries, regular-path operators, higher-order function library
   parity with XPath 3.1 + XPath 4.0 candidate functions per `qt4cg.org`,
   binary AST consumption, query-time hydration rule generation, and
@@ -119,7 +124,8 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
 - **AC-QL-1 [A] MUST** model every expression result as a **stream of items**
   with deterministic order. A single value is a one-item stream; the empty
   result is a zero-item stream. There is no scalar/sequence distinction at
-  the surface (XPath 3.1 sequence model).
+  the surface. This gives functional parity with the XPath 3.1 sequence
+  model without adopting XPath syntax.
 - **AC-QL-2 [A] MUST** support these item kinds:
   - `node` — any host AST node (input DOM, CEM AST, report node);
   - `attribute` — host attribute occurrence by `ExpandedName`;
@@ -141,9 +147,10 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
   is iterable as a stream of its items. This satisfies the project
   requirement that arrays of chars/numbers behave as collections.
 - **AC-QL-4 [A] MUST** distinguish **streams** from **arrays** the same way
-  XQuery distinguishes sequences from arrays: an array is one item that
-  happens to contain other items; a stream auto-flattens at the expression
-  boundary. Conversion functions: `array(stream)`, `stream(array)`.
+  XQuery distinguishes sequences from arrays at the data-model level: an
+  array is one item that happens to contain other items; a stream
+  auto-flattens at the expression boundary. Conversion functions:
+  `array(stream)`, `stream(array)`.
 - **AC-QL-5 [A] MUST** expose lambdas as values:
   `fn(arg, …) => expression`. Lambdas close over the lexical scope at
   definition time. They do **not** capture host AST identity for retention
@@ -158,7 +165,8 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
 
 - **AC-QS-1 [A] MUST** support **dot-chained pipeline** form where the
   left-hand stream is the receiver and the right-hand call is applied to
-  each item. Example:
+  each item. This is the canonical Rust-method-style traversal surface.
+  Example:
   ```
   descendants(Component)
     .where(.name == "Button")
@@ -166,32 +174,34 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
   ```
 - **AC-QS-2 [A] MUST** allow a **leading dot** (`.field`, `.method()`) inside
   a pipeline step body to mean "the current item." Outside a pipeline step
-  body, leading-dot is a syntax error. This matches the JQ-style projection
-  the design discussion settled on without making `this` implicit globally.
+  body, leading-dot is a syntax error. JQ remains a functional projection
+  reference only; the normative syntax is the Rust-style receiver chain plus
+  CEM's explicit current-item shorthand.
 - **AC-QS-3 [A] MUST** support **anonymous record literals** in the canonical
-  XQuery 3.1 map form `{ "key": expression, … }`:
-  - **Keys** are **string literals** (double-quoted), aligning with the
-    XQuery 3.1 map constructor and avoiding ambiguity with host-owned
-    attribute `{...}` spans, content `$` expression nodes, and `select="..."`
-    attribute embedding used by CEM-ML templates per `cem-ml-ac.md` AC-T-7.
+  Rust-inspired record form `{ key: expression, other_key: expression }`:
+  - **Keys** are bare identifiers when they are valid CEM-QL identifiers.
+    Quoted string keys are accepted only for keys that are not valid
+    identifiers. This keeps authored records close to Rust struct-literal
+    readability while still supporting external data keys.
   - **Computed keys** use `[expression]` and evaluate to a string.
   - **Values** are cem-ql expressions — the same expression grammar that
     appears inside template attribute `{...}` spans, `$` expression nodes, and
     `select=` attributes.
-  - Bare-identifier keys (`{ key: value }`, JSON-style) are **not**
-    accepted in Tier A; the parser emits `cem.ql.parse_error` and suggests
-    quoting. Tier C MAY reintroduce them as sugar if template embedding
-    can be disambiguated without re-opening this contract.
+  - XPath/XQuery map constructors are functional parity references only;
+    `{ "key": expression }`, `map { ... }`, and similar XPath/XQuery surface
+    forms are not canonical cem-ql syntax.
 - **AC-QS-4 [A] MUST** support **block expressions**
-  `let name := expression in body` for local binding inside any expression.
-  `let` cascades left-to-right; later bindings see earlier ones.
+  `{ let name = expression; body }` for local binding inside any expression.
+  `let` cascades top-to-bottom; later bindings see earlier ones. The
+  XPath/XQuery `let $name := expr return body` surface is functional parity
+  only, not cem-ql syntax.
 - **AC-QS-5 [A] MUST** support a **module declaration form** for top-level
   variable, function, and import statements:
   ```
   module urn:ex:my-module
-  import "cem:stdlib/strings" as str       ;; platform stdlib, always available per AC-QI-2
-  declare variable $TITLE := "hi"
-  declare function local:greet($who) { "hello " || $who }
+  import "cem:stdlib/strings" as str       // platform stdlib, always available per AC-QI-2
+  declare let TITLE = "hi"
+  declare function local:greet(who) { str:concat("hello ", who) }
   ```
 - **AC-QS-6 [A] MUST** define a stable lexical grammar that does not depend
   on host content type, host whitespace policy, or host trivia preservation
@@ -236,7 +246,7 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
   construction, computed atom).
 - **AC-QD-6 [A] MUST** treat tainted recovered subtrees per `cem-ml-ac.md`
   AC-V-8 as visible-but-marked: queries see them by default; `where(.tainted)`
-  / `where(not(.tainted))` filter accordingly. A scope policy MAY hide
+  / `where(!.tainted)` filter accordingly. A scope policy MAY hide
   tainted subtrees from queries inside that scope.
 - **AC-QD-7 [B] MUST** address machine-state slots and template-registry
   entries as first-class items (`state-slot`, `template-ref`) so transforms
@@ -246,44 +256,49 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
 
 ---
 
-## 4. XPath Functional Parity
+## 4. Rust Syntax, XPath/Python Functional Parity
 
-- **AC-QX-0 [A] MUST** treat parity with XPath 3.1 / XQuery 3.1 as
-  **functional, not syntactic**. cem-ql is expected to compute the same
-  results over the same inputs for the subset listed in AC-QX-1 and the
-  §4.1 matrix, but it is **not** required to mirror XPath/XQuery clause
-  syntax where a simpler construct — typically a stdlib helper drawn
-  from the Rust iterator / `itertools` ecosystem — covers the same
-  functional surface. Where such a helper exists and the host AC has no
-  contrary requirement, the helper form is canonical and the
-  XPath/XQuery syntactic form is **not** added. Concrete instances:
-  grouping uses `group_by()` (AC-QX-4, AC-QO-6) rather than a FLWOR
-  `group by` clause; set arithmetic uses the four infix operators
-  `| & - ^` (AC-QO-1) rather than the `union / intersect / except`
-  keyword forms; collection helpers are named functions (AC-QO-6) rather
-  than additional XPath-style operators. Decisions to omit XPath syntax
-  in favor of a helper MUST be recorded inline at the relevant AC so the
-  parity matrix remains testable.
+- **AC-QX-0 [A] MUST** treat Rust expression syntax and operator semantics
+  as the primary concept. cem-ql uses Rust-spelled comparison, arithmetic,
+  boolean, remainder, block, and immutable-binding forms unless an AC states
+  a CEM-specific override. XPath 3.1 / XQuery 3.1 and Python parity are
+  **functional, not syntactic**: cem-ql is expected to compute equivalent
+  results over equivalent inputs for the subset listed in AC-QX-1 and the
+  §4.1 matrix, but it does not mirror XPath/XQuery clause syntax, XPath path
+  syntax, XPath operator keywords, Python comprehension syntax, or Python
+  dunder semantics. Where a stdlib helper drawn from the Rust iterator /
+  `itertools` ecosystem covers the same functional surface, the helper form
+  is canonical and the XPath/Python syntactic form is not added. Concrete
+  instances: grouping uses `group_by()` (AC-QX-4, AC-QO-6) rather than a
+  FLWOR `group by` clause; set arithmetic uses the four Rust-spelled infix
+  operators `| & - ^` (AC-QO-1) rather than XPath `union / intersect /
+  except` keywords; collection helpers are named functions (AC-QO-6) rather
+  than additional XPath-style operators. Decisions to omit XPath/Python
+  syntax in favor of Rust-style syntax or a helper MUST be recorded inline
+  at the relevant AC so the parity matrix remains testable.
 - **AC-QX-1 [A] MUST** be **functionally equivalent to XPath 3.1** for the
   subset that operates over a tree-shaped node store: axes (per AC-QD-1),
   name and kind tests, predicates `[…]`, sequence construction, comparisons
-  (`= != < <= > >=`), arithmetic (`+ - * div mod`), boolean (`and or not()`),
-  conditional `if (…) then … else …`, `for $x in seq return …`, `let $x :=
-  … return …`, quantified `some/every $x in seq satisfies …`, and the
-  built-in function library subset listed in AC-QF-2.
+  (`== != < <= > >=`), arithmetic (`+ - * / %`), boolean (`&& || !`),
+  conditional `if condition { then_expr } else { else_expr }`, Rust-style
+  `for name in stream { expr }` / helper equivalents, `let name = expr`
+  bindings inside expression blocks, quantified equivalents through
+  `any(stream, fn)` / `all(stream, fn)`, and the built-in function library
+  subset listed in AC-QF-2.
 - **AC-QX-2 [A] MUST** preserve XPath document-order semantics for axis
   results. Stream order matches host event-emit order from the cem-ml
   parser, which is document order.
 - **AC-QX-3 [B] SHOULD** add XPath 3.1 maps and arrays (already covered by
   `record` and `array` in AC-QL-2; this item enforces the cast/round-trip
   rules).
-- **AC-QX-4 [B] SHOULD** add **FLWOR**: `for / let / where / order by /
-  return` with window clauses, semantically equivalent to XQuery 3.1
-  *minus* the `group by` clause. **Functional parity with XPath/XQuery
-  is not syntactic parity** (see AC-QX-0): grouping is provided by the
-  `group_by(stream, .key)` stdlib helper (AC-QO-6) and its companions
-  `count_by` / `partition`, which return `stream<record{key, items}>` and
-  compose with the rest of FLWOR through ordinary `for`/`let` bindings.
+- **AC-QX-4 [B] SHOULD** add FLWOR-equivalent query composition: Rust-style
+  `for` / `let` / filtering / sorting / returning forms with window
+  behavior, semantically equivalent to XQuery 3.1 *minus* the `group by`
+  clause. **Functional parity with XPath/XQuery is not syntactic parity**
+  (see AC-QX-0): grouping is provided by the `group_by(stream, .key)`
+  stdlib helper (AC-QO-6) and its companions `count_by` / `partition`,
+  which return `stream<record{key, items}>` and compose with the rest of
+  the query through ordinary Rust-style `for`/`let` bindings.
   cem-ql does **not** ship the FLWOR `group by` clause at any tier; the
   Rust-ecosystem-style helper covers the same functional surface with a
   simpler construct, and AVT/`select=` attributes favor short pipelines
@@ -296,41 +311,82 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
   form. The cem-ql analogue is `read(uri, content-type)` per AC-QA-* and is
   off by default.
 
-### 4.1 Parity Matrix (Informative Sketch)
+### 4.1 Functional Parity Matrix (Informative Sketch)
 
-| XPath 3.1 area                                        | cem-ql tier | Notes                                                                  |
+| Functional area                                      | cem-ql tier | Notes                                                                  |
 |-------------------------------------------------------|-------------|------------------------------------------------------------------------|
 | Forward axes (child, descendant, attribute, self, …)  | A           | Per AC-QD-1                                                            |
 | Reverse axes (parent, ancestor, preceding, …)         | A/B         | parent/ancestor in A; preceding/following in B                         |
 | Name tests, kind tests                                | A           | `*`, `prefix:*`, `*:local`, `Component`, `text()`, `comment()`         |
 | Predicates                                            | A           | One predicate per step in A; positional `[1]` / `[last()]` in A        |
-| Sequence operators `, \| except`                      | A           | Spelled `,`, `\|`, `-` (see AC-QO-1)                                   |
-| Arithmetic                                            | A           | Integer, decimal, double; explicit conversion only; no implicit numeric promotion per AC-QO-8 |
-| Comparisons                                           | A           | Value `eq ne lt gt`, general `= !=`                                    |
-| `if/then/else`, `let`                                 | A           | Per AC-QS-4                                                            |
-| `for…return`                                          | A           |                                                                        |
-| `some/every…satisfies`                                | A           |                                                                        |
-| FLWOR with `where/order by`                           | B           | No `group by` clause at any tier; grouping via `group_by()` per AC-QO-6 |
-| Path expressions `step / step`                        | A           | `/` and `.` chains are interchangeable; `.` form is canonical          |
-| Type expressions `instance of`, `cast as`, `treat as` | A           | Driven by schema-derived types                                         |
+| Sequence/set combination                              | A           | Rust-spelled `\|`, `&`, `-`, `^`; XPath `except` is functional parity only |
+| Arithmetic                                            | A           | Rust-spelled `+ - * / %`; explicit conversion only; no implicit numeric promotion per AC-QO-8 |
+| Comparisons                                           | A           | Rust-spelled `== != < <= > >=`; XPath `eq ne lt gt` are not canonical syntax |
+| Conditional and local binding                         | A           | Rust-style `if { } else { }` and `{ let name = value; expr }` per AC-QS-4 |
+| Iteration / return mapping                            | A           | Rust-style `for name in stream { expr }` or helper form                |
+| Quantified predicates                                 | A           | `any(stream, fn)` / `all(stream, fn)` helpers                           |
+| FLWOR behavior with filtering/sorting                 | B           | No XPath clause syntax; no `group by` clause at any tier; grouping via `group_by()` per AC-QO-6 |
+| Path traversal                                        | A           | Dot chains and named axis helpers are canonical; `/` is numeric division |
+| Type tests and explicit casts                         | A           | Rust-style `is`, `as`, `treat_as(...)`; driven by schema-derived types |
 | Higher-order functions                                | A           | Lambdas; `function-call` first-class                                   |
 | Maps and arrays                                       | A/B         | Records in A; XPath 3.1 array semantics in B                           |
 | Try/catch                                             | B           |                                                                        |
 | Regex (`fn:matches`, `fn:replace`)                    | B           |                                                                        |
 | `fn:doc / fn:collection`                              | B (renamed) | `read(uri, accepts?)` per AC-QA-1; `accepts` omitted / `Accept`-header string / collection of canonical IDs (AC-QA-1.1) |
 
-The full table will be tracked in `cem-ql-stack-design.md` once that document
-is created; this matrix exists to make the parity contract testable.
+The matrix above groups the parity obligations; AC-QF-2 below names the
+function inventory that makes those obligations executable.
+
+### 4.2 Function Inventory For Parity Gates
+
+- **AC-QF-2 [A/B] MUST** publish a concrete function inventory for the
+  Rust-first functional parity suite, schema-package examples, and Storybook
+  showcase. The inventory is the public verification floor; implementation
+  MAY expose additional functions only after adding them to the table in
+  `cem-ql-stack-design-impl.md §11` and marking their tier here.
+- **Tier A sequence and pipeline helpers:** `map`, `where`, `flat_map`,
+  `take`, `drop`, `first`, `last`, `nth`, `peek`, `union`, `intersect`,
+  `difference`, `symmetric_difference`, and `count`. The four named set
+  helpers are aliases for the Rust-spelled infix operators `|`, `&`, `-`,
+  and `^`; the operators remain canonical in authored examples.
+- **Tier A string helpers:** `str:length`, `str:codepoints`, `str:lower`,
+  `str:upper`, `str:slice`, `str:concat`, `str:contains`,
+  `str:starts_with`, `str:ends_with`, `str:normalize_space`,
+  `str:replace`, `str:translate`, `str:substring`,
+  `str:substring_before`, and `str:substring_after`.
+- **Tier A number helpers:** `num:double`, `num:decimal`, `num:integer`,
+  `num:string`, `num:abs`, `num:floor`, `num:ceil`, `num:round`, and
+  `num:format`.
+- **Tier A datetime helpers:** `dt:to_utc`, `dt:components`, and
+  `dt:format`.
+- **Tier A host helpers:** `dom:children`, `dom:descendants`, `dom:parent`,
+  `dom:attribute`, `dom:resolve_ref`, `dom:tainted`, `report:emit`,
+  `report:severity_floor`, `state:read`, `state:keys`, `tpl:lookup`,
+  `tpl:names`, `cemml:parse`, and `cemml:format`.
+- **Tier B sequence helpers:** `unique`, `distinct_by`, `flatten`, `zip`,
+  `enumerate`, `chunked`, `windowed`, `sliding`, `group_by`, `count_by`,
+  `partition`, `take_while`, `drop_while`, `sorted`, `reversed`, `reduce`,
+  `fold`, `scan`, `any`, `all`, `none`, `min`, `max`, `sum`, and `avg`.
+- **Tier B string and content-type helpers:** `str:nfc`, `str:nfd`,
+  `str:matches`, `str:split`, `ct:read`, `ct:html`, `ct:xml`, `ct:svg`,
+  `ct:mathml`, `ct:css`, `ct:scss`, `ct:json`, `ct:yaml`, `ct:csv`,
+  `ct:js`, `ct:ts`, `ct:cemml`, `ct:floor`, and `ct:default_accepts`.
+- **Verification rule:** every Tier A function in this inventory MUST have
+  at least one Rust test, one schema-package example or fixture, and one
+  Storybook showcase row before the Rust-first gate closes. Tier B functions
+  MAY appear as explicit pending/unsupported rows until their implementation
+  lands, but they must remain visible in the parity surface.
 
 ---
 
 ## 5. Stream / Set Operations
 
 - **AC-QO-1 [A] MUST** define exactly four binary infix set operators over
-  streams of host items, semantically and notationally aligned with XPath
-  node-set operators and Python set arithmetic, under **strict typed
-  identity with no implicit casting** (see AC-QO-3):
-  - `|` — **union** (XPath `|`; Python `a | b`). Removes duplicate items
+  streams of host items, using Rust operator spelling with functional parity
+  to XPath node-set operations and Python set arithmetic, under **strict
+  typed identity with no implicit casting** (see AC-QO-3):
+  - `|` — **union** (Rust `BitOr` spelling; functional parity with XPath
+    union and Python `a | b`). Removes duplicate items
     by typed identity per AC-QO-3. `1 :: integer` and `1.0 :: double`
     are **distinct** items and do **not** collapse — XPath's automatic
     numeric promotion is rejected here per the AC-QX-0 functional-not-
@@ -338,9 +394,22 @@ is created; this matrix exists to make the parity contract testable.
     convert the elements explicitly first, e.g.
     `(stream_a | stream_b).map(double(.)) .unique()` or
     `stream_a.map(double(.)) | stream_b.map(double(.))`.
-  - `&` — **intersection** (XPath `intersect`; Python `a & b`).
-  - `-` — **difference** (XPath `except`; Python `a - b`).
-  - `^` — **symmetric difference** (Python `a ^ b`; not present in XPath).
+  - `&` — **intersection** (Rust `BitAnd` spelling; functional parity
+    with XPath `intersect` and Python `a & b`).
+  - `-` — **difference** (Rust `Sub` spelling; functional parity with
+    XPath `except` and Python `a - b`).
+  - `^` — **symmetric difference** (Rust `BitXor` spelling; functional
+    parity with Python `a ^ b`; not present in XPath).
+  The `-` token has a single Rust-spelled parse shape. The parser MUST NOT
+  decide whether `a - b` is numeric subtraction or stream difference. The
+  type checker and IR lowerer resolve it as follows: known numeric operands
+  lower to numeric subtraction; known stream or collection operands lower to
+  `SetOp::Difference`; mixed numeric/stream operands emit
+  `cem.ql.type_error` with no implicit coercion; statically unknown operands
+  MAY lower to a typed runtime-dispatch node only if it preserves the same
+  operand-shape rules, diagnostics, strict typed identity, and deterministic
+  stream order. The named helper `seq:difference(a, b)` remains a Tier A
+  alias for stream difference, not the canonical authored surface.
 - **AC-QO-2 [A] MUST** preserve **document order** in the result of every
   set operator when both operands are node streams. For atom streams, order
   follows the left operand, then any new items from the right operand in
@@ -394,12 +463,17 @@ is created; this matrix exists to make the parity contract testable.
   materialize either operand fully unless the operator's semantics require
   it. `|` can stream both; `&`, `-`, `^` may buffer the right operand
   bounded by the host's scope-policy memory cap.
-- **AC-QO-5 [A] MUST** map **boolean operators** to their classical XPath
-  semantics: `and`, `or`, `not(…)`. The C-family `&&` and `||` are
-  **reserved** and parse as syntax errors with `cem.ql.use_and_or` so
-  authors are not misled into thinking they short-circuit set operators.
-- **AC-QO-6 [B] SHOULD** expose Python-style collection helpers as named
-  functions, not operators, so set/stream code reads consistently:
+- **AC-QO-5 [A] MUST** use Rust-spelled **boolean operators** with
+  short-circuit semantics: `&&`, `||`, and prefix `!`. The effective
+  boolean value of streams, arrays, records, and atoms is defined by the
+  cem-ql type rules, but the operator precedence and short-circuit behavior
+  follow Rust. XPath `and`, `or`, and `not(...)` are not Tier A syntax; if a
+  later tier accepts them as compatibility aliases, the canonical formatter
+  MUST emit `&&`, `||`, and `!`. Use of XPath boolean spellings in Tier A is
+  a syntax error with `cem.ql.use_rust_boolean_ops`.
+- **AC-QO-6 [B] SHOULD** expose collection helpers with Python functional
+  parity and Rust/`itertools` naming influence as named functions, not
+  operators, so set/stream code reads consistently:
   - `union(a, b, …)`, `intersect(a, b, …)`, `difference(a, b)`,
     `symmetric_difference(a, b)`;
   - `unique(stream)`, `distinct_by(stream, .key)`;
@@ -415,17 +489,18 @@ is created; this matrix exists to make the parity contract testable.
     `scan(stream, init, fn)`;
   - `any(stream, fn)`, `all(stream, fn)`, `none(stream, fn)`;
   - `min`, `max`, `sum`, `avg` with `by:` lambda parameter.
-- **AC-QO-7 [B] SHOULD** support comprehension syntax sugar that desugars to
-  the helpers above, e.g.
-  `[ .name for c in descendants(Component) where .visible ]`. Desugaring
-  rules MUST be one-to-one so authors can reason about cost.
+- **AC-QO-7 [B] SHOULD** support comprehension-like syntax sugar only when
+  the accepted surface is Rust-style and desugars to the helpers above.
+  Python list/set comprehension syntax is a functional parity reference, not
+  cem-ql syntax. Desugaring rules MUST be one-to-one so authors can reason
+  about cost.
 - **AC-QO-8 [A] MUST** define **comparison rules across collection types
   and across atom types**, consistent with the strict-typed identity in
   AC-QO-3. No implicit coercion is ever performed:
   - Comparing a string to an array of chars converts neither implicitly;
     authors call `string(…)` or `chars(…)` explicitly.
-  - Comparing atoms of different XPath types via `eq` / `=` (e.g.
-    `xs:integer(1) eq xs:double(1.0)`) is **false** by default and
+  - Comparing atoms of different XPath-derived types via Rust-spelled `==`
+    (e.g. `xs:integer(1) == xs:double(1.0)`) is **false** by default and
     emits `cem.ql.cross_type_compare` at warning severity. This
     departs from XPath 3.1's automatic numeric promotion per AC-QX-0.
     Authors call the explicit conversion (`double(.)`, `decimal(.)`,
@@ -444,9 +519,9 @@ is created; this matrix exists to make the parity contract testable.
 ## 6. Pipeline Composition
 
 - **AC-QP-1 [A] MUST** make `.` the canonical pipeline operator. `a.b` reads
-  as "evaluate `a`, pass each item to `b`, concatenate." Path expressions
-  `a/b` are accepted as a synonym for parity with XPath; the canonical form
-  is `.`.
+  as "evaluate `a`, pass each item to `b`, concatenate." XPath path
+  expressions such as `a/b` are functional parity only and are not cem-ql
+  syntax; `/` is numeric division.
 - **AC-QP-2 [A] MUST** allow lambdas as pipeline steps:
   `descendants(Button) .map(fn(b) => b.text)`. The `.map`, `.where`,
   `.flat_map`, `.take`, `.drop`, `.first`, `.last`, `.nth(n)`, `.peek(fn)`
@@ -459,16 +534,16 @@ is created; this matrix exists to make the parity contract testable.
 - **AC-QP-4 [A] MUST** evaluate `.`-chains **lazily**. A pipeline step does
   not consume more of its input than its output requires.
 - **AC-QP-5 [A] MUST** define **short-circuit semantics** for `.first`,
-  `.exists`, `.empty`, and `if (…) then … else …` so they stop iteration as
-  soon as the answer is known.
+  `.exists`, `.empty`, `&&`, `||`, and `if condition { … } else { … }` so
+  they stop iteration as soon as the answer is known.
 
 ---
 
 ## 7. Variables, Functions, Scope Inheritance
 
 - **AC-QV-1 [A] MUST** support variable declarations at module scope
-  (`declare variable $name := expr`) and at expression scope
-  (`let $name := expr in body`). All variables are immutable bindings.
+  (`declare let name = expr`) and at expression scope
+  (`{ let name = expr; body }`). All variables are immutable bindings.
 - **AC-QV-2 [A] MUST** support function declarations at module scope
   (`declare function ns:name(args) { body }`). Functions are first-class
   and can be passed to higher-order operators.
@@ -527,10 +602,11 @@ is created; this matrix exists to make the parity contract testable.
   `cem-ml-stack-design.md §8`: a re-declaration in the same scope shadows
   earlier uses from its source position forward; previously resolved
   references keep their original binding.
-- **AC-QV-5 [A] MUST** apply XSLT-style stylesheet/template-module precedence
-  for query modules attached to the same scope: a later attachment with the
-  same `module URI` overrides the earlier one for new resolutions but does
-  not invalidate already-resolved references.
+- **AC-QV-5 [A] MUST** apply XSLT-equivalent stylesheet/template-module
+  precedence behavior for query modules attached to the same scope: a later
+  attachment with the same `module URI` overrides the earlier one for new
+  resolutions but does not invalidate already-resolved references. This is a
+  module-resolution rule, not XSLT expression syntax.
 - **AC-QV-6 [A] MUST** define **closure capture rules**: lambdas capture
   only the variables visible in their lexical scope at definition time.
   Closures MUST NOT capture host AST nodes by reference if the closure
@@ -540,8 +616,8 @@ is created; this matrix exists to make the parity contract testable.
   may inject named bindings into the query environment for descendants
   through two distinct surfaces, both governed by AC-QV-3's
   per-scope inheritance:
-  - **`$scope.*` injection** — fresh names introduced into the
-    host-scope binding set, e.g. `$scope.theme` or `$scope.user`.
+  - **`scope.*` injection** — fresh names introduced into the
+    host-scope binding set, e.g. `scope.theme` or `scope.user`.
     Used for context that has no stdlib analogue.
   - **stdlib overlay** — re-binding of an existing
     `cem:stdlib/<topic>` name (the AC-QV-3 overlay map). Used to
@@ -550,14 +626,14 @@ is created; this matrix exists to make the parity contract testable.
     descendant subtree. Overlay entries MUST match the platform
     binding's signature per AC-QT-3, otherwise compile fails.
 
-  This mirrors XSLT's `xsl:param` passing and the host's
+  This is functional parity with XSLT parameter passing and the host's
   `MachineStateSlot` model. When a policy injects a binding via either
   surface, both forms below are available; the policy MUST declare which
   form applies per name (policy-declared, both available, with explicit
   cost ownership):
   - **`record(SchemaRef)`** — an eager value carrying a schema-derived
     record type per AC-QT-1. cem-ql code reads it as a normal record
-    (`$scope.theme.name`, `$scope.theme.tokens.where(...)`). Static
+    (`scope.theme.name`, `scope.theme.tokens.where(...)`). Static
     type-check applies. Use for small, immutable, public-facing context.
   - **`resource(content-type, SchemaRef?)`** — a host-mediated handle per
     AC-QL-2. cem-ql code dereferences it only through stdlib accessor
@@ -598,10 +674,14 @@ is created; this matrix exists to make the parity contract testable.
     `lambda(args …) -> T`;
   - **resource types**: `resource(content-type, schema?)` for unresolved
     external resources.
-- **AC-QT-2 [A] MUST** support `instance of`, `cast as`, `treat as`, and
-  `is` (identity for nodes). Type-test syntax in axis arguments
-  (`descendants(Button)`) is sugar for `descendants() .where(. instance of
-  Button)`.
+- **AC-QT-2 [A] MUST** support XPath-equivalent type-test, cast,
+  assertion, and node-identity behavior through Rust-style syntax:
+  `expr is Type` for type tests, `expr as Type` for explicit casts,
+  `treat_as(expr, Type)` for checked assertions, and `same_node(a, b)` for
+  node identity. XPath spellings (`instance of`, `cast as`, `treat as`) are
+  functional parity targets, not cem-ql syntax. Type-test syntax in axis
+  arguments (`descendants(Button)`) is sugar for
+  `descendants() .where(. is Button)`.
 - **AC-QT-3 [A] MUST** check types **statically at query compile time**
   when both sides are statically known, and fall back to runtime checks
   otherwise. Static failures are `cem.ql.type_error`; runtime failures emit
@@ -748,7 +828,7 @@ A cem-ql stdlib module `cem:stdlib/content-types` (Tier B; see
 AC-QI-3) MUST expose the canonical identifiers above as exported
 string constants (e.g. `ct:html`, `ct:json`, `ct:cemml`) and the
 default preference list as `ct:floor`, so authors can write
-`read($u, [ct:json, ct:yaml])` without re-typing string literals.
+`read(u, [ct:json, ct:yaml])` without re-typing string literals.
 
 - **AC-QA-2 [B] MUST** support **awaitable** semantics: pipeline operators
   consuming a `read()` stream automatically await partial results without
@@ -832,11 +912,11 @@ default preference list as `ct:floor`, so authors can write
 - **AC-QI-6 [A] MUST** make module identity stable: a module is keyed by
   its URI plus its declared `module` URI. Two attachments to the same scope
   with the same module URI deduplicate to one binding.
-- **AC-QI-7 [B] MUST** mirror **XSLT include/import precedence** for query
-  modules: `import` brings names with lower precedence; `include` (Tier B
-  syntactic form) brings names at the importing module's precedence. This
-  matches XSLT and is needed to keep XSLT-style override patterns
-  expressible.
+- **AC-QI-7 [B] MUST** mirror **XSLT include/import precedence behavior**
+  for query modules: `import` brings names with lower precedence; `include`
+  (Tier B module-composition form) brings names at the importing module's
+  precedence. This is functional module-composition parity with XSLT, not
+  adoption of XSLT expression syntax.
 
 ---
 
@@ -853,7 +933,7 @@ default preference list as `ct:floor`, so authors can write
   - `cem.ql.scope_violation`
   - `cem.ql.unresolved_reference`
   - `cem.ql.cross_type_compare`
-  - `cem.ql.use_and_or`
+  - `cem.ql.use_rust_boolean_ops`
   - `cem.ql.import_denied`
   - `cem.ql.import_unresolved`
   - `cem.ql.reserved_scheme`
@@ -864,9 +944,10 @@ default preference list as `ct:floor`, so authors can write
   - `cem.ql.budget_exceeded`
   - `cem.ql.closure_detached`
   - `cem.ql.policy_accessor_failed`
-- **AC-QE-2 [B] MUST** support an XPath/XQuery-style `try { … } catch (code,
-  msg) { … }` (Tier B for the surface keyword; Tier A reports through the
-  diagnostic channel only).
+- **AC-QE-2 [B] MUST** support diagnostic recovery with
+  `try { … } catch (code, msg) { … }` (Tier B for the surface keyword; Tier A
+  reports through the diagnostic channel only). The behavior is
+  XPath/XQuery-equivalent; XPath/XQuery expression syntax is not imported.
 - **AC-QE-3 [A] MUST** make every diagnostic include the query
   `SourceMapStack` and the active host scope context per `cem-ml-ac.md`
   AC-O-3.
@@ -958,7 +1039,7 @@ A `cem-ql` Tier A release is acceptance-tested with:
    each case collapses to one item, demonstrating the documented
    pattern for cross-type dedup.
    (d) **Cross-type comparison warning**: assert
-   `xs:integer(1) eq xs:double(1.0)` returns `false` and emits
+   `xs:integer(1) == xs:double(1.0)` returns `false` and emits
    `cem.ql.cross_type_compare` per AC-QO-8.
 7. **AC-QI-V-1** — import gating test, one case per AC-QI-2 scheme tier:
    (a) **`cem:` (platform)**: `import "cem:stdlib/sequence"` resolves
@@ -976,15 +1057,15 @@ A `cem-ql` Tier A release is acceptance-tested with:
 8. **AC-QA-V-1** — `read()` content-negotiation test under a Tier B
    policy that grants `file://fixtures/`. Covers all three input forms
    from AC-QA-1 plus the failure mode:
-   (a) **Form (1) — omitted**: `read($u)` over an HTML, an XML, a
+   (a) **Form (1) — omitted**: `read(u)` over an HTML, an XML, a
    JSON, and a CSV fixture; assert nodes typed as the matching floor
    entry from AC-QA-1.1 and that the emitted HTTP `Accept` header
    (when applicable) carries the floor list with descending q-values.
-   (b) **Form (2) — header string**: `read($u, "application/json;q=0.9,
+   (b) **Form (2) — header string**: `read(u, "application/json;q=0.9,
    application/yaml;q=1.0")` over a fixture the loader can return as
    either type; assert YAML wins on q-value and the `*/*` wildcard
    case expands at load time, not compile time.
-   (c) **Form (3) — collection**: `read($u, [ct:cemml, ct:json])`
+   (c) **Form (3) — collection**: `read(u, [ct:cemml, ct:json])`
    from `cem:stdlib/content-types`; assert preferred type is
    selected when reachable, otherwise the next entry; assert alias
    inputs (`text/xml` → `application/xml`) normalize before
@@ -1004,10 +1085,10 @@ A `cem-ql` Tier A release is acceptance-tested with:
     over a synthetic 10 MB fixture hits the per-pipeline materialization
     cap and aborts with `cem.ql.budget_exceeded`.
 11. **AC-QV-V-2** — policy-hook test: a parent scope's policy injects two
-    bindings — `$scope.theme` as `record(theme-schema)` and `$scope.user`
+    bindings — `scope.theme` as `record(theme-schema)` and `scope.user`
     as `resource("user-profile", user-schema)`. A descendant scope (a)
-    reads `$scope.theme.name` via record-style field access and statically
-    type-checks against the schema; (b) calls `user:has_role($scope.user,
+    reads `scope.theme.name` via record-style field access and statically
+    type-checks against the schema; (b) calls `user:has_role(scope.user,
     "admin")` from `cem:stdlib/user`; (c) confirms the bindings are
     inherited by reference (no clone-on-inherit cost on a deep scope
     chain); (d) forces the accessor to fail and asserts
@@ -1129,14 +1210,24 @@ here and tracked alongside the relevant AC item.*
   (schema frames, namespace context), §3.10 (`ScopedQuery`,
   `QueryContextScope`), §3.11 (visual content / machine state /
   hydration).
-- XPath 3.1: <https://www.w3.org/TR/xpath-31/>
-- XQuery 3.1: <https://www.w3.org/TR/xquery-31/>
-- XSLT 3.0: <https://www.w3.org/TR/xslt-30/>
+- Rust Reference, expressions and operators (primary syntax/semantics
+  baseline): <https://doc.rust-lang.org/reference/expressions.html>,
+  <https://doc.rust-lang.org/reference/expressions/operator-expr.html>
+- Rust iterator ecosystem / itertools (helper-shape influence):
+  <https://doc.rust-lang.org/std/iter/>,
+  <https://docs.rs/itertools/latest/itertools/>
+- XPath 3.1 (functional parity target, not syntax baseline):
+  <https://www.w3.org/TR/xpath-31/>
+- XQuery 3.1 (functional parity target, not syntax baseline):
+  <https://www.w3.org/TR/xquery-31/>
+- XSLT 3.0 (module/precedence behavior parity, not expression syntax):
+  <https://www.w3.org/TR/xslt-30/>
 - XSLT 4.0 candidate (qt4cg): <https://qt4cg.org/specifications/xslt-40/>
 - RELAX NG schema for XSLT 4.0: <https://qt4cg.org/specifications/xslt-40/schema-for-xslt40.rnc>
-- JQ language reference (selector + lambda design influence):
+- JQ language reference (functional projection influence, not syntax baseline):
   <https://jqlang.github.io/jq/manual/>
-- Python data model and set/sequence operators (collection-op influence):
+- Python data model and set/sequence operators (functional collection-op
+  parity, not syntax baseline):
   <https://docs.python.org/3/reference/datamodel.html>,
   <https://docs.python.org/3/library/stdtypes.html#set>
 - Companion docs to be created:

@@ -21,6 +21,13 @@ CEM AST, machine-state slots, report AST, template registries, source-map
 stacks) and produces streamed results for templates, validators, transforms,
 plugins, CLI projections, and runtime hydration rules.
 
+The normative authoring surface is Rust-first: Rust operator spelling,
+precedence, short-circuit boolean behavior, immutable `let` bindings, and
+expression blocks are the syntax baseline. XPath/XQuery, XSLT, JQ, and Python
+are functional parity references only; this design must not reintroduce their
+operator, path, variable, or clause syntax unless an AC explicitly records a
+compatibility form.
+
 This design fixes:
 
 - the functional layer boundaries inside the cem-ql evaluator,
@@ -195,28 +202,27 @@ policy.
 - Whitespace is trivia: lexed for diagnostic spans but not surfaced as a token
   to the parser unless required by a future surface rule (e.g. record-key
   quoting clarity).
-- Comments are lexed (line `;;` and block `(* … *)` to align with XPath
-  conventions while staying distinct from XML/HTML/JSON markers); the parser
-  ignores comment tokens but they survive to the source-map for diagnostics.
+- Comments are lexed with Rust-style markers (line `//` and block `/* … */`);
+  the parser ignores comment tokens but they survive to the source-map for
+  diagnostics.
 
 ### Token Categories
 
 | Category | Examples |
 |----------|----------|
-| Punctuation | `.` `,` `(` `)` `[` `]` `{` `}` `|` `&` `-` `^` `:=` `:` `::` |
-| Operators | `eq` `ne` `lt` `gt` `le` `ge` `=` `!=` `+` `-` `*` `div` `mod` `and` `or` `not` |
-| Reserved | `&&` `||` (parse as `cem.ql.use_and_or` per AC-QO-5) |
-| Keywords | `let` `in` `if` `then` `else` `for` `return` `some` `every` `satisfies` `import` `as` `declare` `variable` `function` `module` `instance` `of` `cast` `treat` `is` `fn` |
+| Punctuation | `.` `,` `;` `(` `)` `[` `]` `{` `}` `|` `&` `-` `^` `=` `:` `::` |
+| Operators | `==` `!=` `<` `<=` `>` `>=` `+` `-` `*` `/` `%` `&&` `||` `!` `??` |
+| Compatibility errors | XPath/Python operator or clause spellings such as `eq` `ne` `lt` `gt` `div` `mod` `and` `or` `not(...)` `then` `return` |
+| Keywords | `let` `in` `if` `else` `for` `import` `as` `declare` `function` `module` `fn` `true` `false` `null` |
 | Identifiers | `[A-Za-z_][A-Za-z0-9_-]*` with namespace-prefix form `prefix:local` |
 | Literals | string `"…"` (with `\n` `\t` `\u{…}` escapes), integer, decimal, double, boolean (`true`/`false`), `null` |
-| Path tokens | `/` (path step synonym for `.`), `..` (parent step) |
-| Pipeline step | leading `.` only inside a pipeline step body (AC-QS-2) |
+| Receiver / pipeline | `.` receiver chains and leading `.` only inside a pipeline step body (AC-QS-2) |
 
 ### Tier A Scope
 
 All token categories above are Tier A. Tier B adds regex literal escapes
-inside string literals, FLWOR-related keywords (`where`, `order`, `by`), and
-the `try`/`catch` keywords.
+inside string literals, Rust-style query-composition keywords as needed for
+filtering/sorting/window behavior, and the `try`/`catch` keywords.
 
 ---
 
@@ -235,13 +241,18 @@ sub-grammar.
   descent gives precise error spans, easy recovery synchronization on
   statement and step boundaries, and predictable performance.
 - **Pratt parsing** for the expression grammar: arithmetic, comparison,
-  boolean, set operators (`|` `&` `-` `^`), pipeline operator (`.`), path
-  operator (`/`). Pratt parsing is the standard choice for operator-precedence
-  expressions and integrates cleanly with recursive descent.
+  boolean, set operators (`|` `&` `-` `^`), and the pipeline receiver
+  operator (`.`). Pratt parsing is the standard choice for
+  operator-precedence expressions and integrates cleanly with recursive
+  descent.
+- **Shared `-` token.** The parser recognizes `-` as one Rust-spelled infix
+  operator at arithmetic precedence. It does not decide whether the operation
+  is numeric subtraction or stream difference; the typed lowering pass resolves
+  the operand shape per AC-QO-1.
 - **No parser generator.** cem-ql grammar is small and Pratt + recursive
   descent is the lowest-overhead choice. A future Tier C grammar extension
-  (XQuery 3.1 parity) MAY adopt LALR if the manual grammar becomes
-  unmanageable; that decision is deferred.
+  (broader XQuery functional parity) MAY adopt LALR if the manual grammar
+  becomes unmanageable; that decision is deferred.
 
 ### Error Recovery
 
@@ -260,12 +271,13 @@ The full surface syntax in AC-QS-1..AC-QS-6 is Tier A. Tier B adds:
 
 - comprehension sugar (AC-QO-7),
 - `try`/`catch` (AC-QE-2),
-- FLWOR with `where`/`order by` (AC-QX-4, AC-QO-6),
-- XSLT-style include/import precedence syntax (AC-QI-7),
+- Rust-style filtering/sorting/window composition with FLWOR-equivalent
+  behavior (AC-QX-4, AC-QO-6),
+- XSLT-equivalent include/import precedence behavior (AC-QI-7),
 - regex literal escapes inside strings.
 
-Tier C: full XQuery 3.1 surface where it does not duplicate Tier A/B helpers
-(AC-QX-0 functional-not-syntactic-parity).
+Tier C: full XQuery 3.1 functional coverage where it does not duplicate
+Tier A/B helpers (AC-QX-0 functional-not-syntactic-parity).
 
 ---
 
@@ -377,10 +389,10 @@ server-side hosts).
 
 ### Tier A Scope
 
-The full lattice in AC-QT-1, `instance of`/`cast as`/`treat as`/`is`, and
-scope-relative schema-type identity are Tier A. Tier B adds attribute-group
-record types (AC-QT-5). Tier B MAY emit TS/Rust type stubs for query
-modules (AC-QT-6).
+The full lattice in AC-QT-1, Rust-style `is` / `as` / `treat_as(...)` /
+`same_node(...)` behavior, and scope-relative schema-type identity are Tier A.
+Tier B adds attribute-group record types (AC-QT-5). Tier B MAY emit TS/Rust
+type stubs for query modules (AC-QT-6).
 
 ---
 
@@ -417,6 +429,11 @@ field layouts) lives in
   `SymmetricDifference` nodes with the strict-typed identity rule baked
   in (AC-QO-3). The IR does not lower set operators to comprehensions;
   evaluator-side specialization preserves AC-QO-4 streaming semantics.
+- **`-` resolution** is type-driven. Numeric operands lower to numeric
+  subtraction; stream or collection operands lower to `Difference`; mixed
+  numeric/stream operands emit `cem.ql.type_error`; unresolved operands may
+  use a typed runtime-dispatch node only when it preserves the same
+  diagnostics, strict typed identity, and deterministic stream order.
 - **`let`** lowers to a `Let { name, value, body }` node. Bindings are
   immutable.
 - **Lambdas** lower to closure values carrying a captured binding
@@ -429,7 +446,8 @@ field layouts) lives in
 ### Tier A Scope
 
 Lowering for every Tier A surface form is Tier A. Tier B lowers `try`/`catch`,
-FLWOR with `where`/`order by`, and comprehension sugar.
+Rust-style filtering/sorting/window composition, and any Rust-shaped
+comprehension sugar.
 
 ---
 
@@ -439,14 +457,15 @@ FLWOR with `where`/`order by`, and comprehension sugar.
 
 Walk the IR and produce a `Stream<Item>`. Streams are **lazy** (AC-QP-4):
 a pipeline step does not consume more of its input than its output
-requires. Short-circuit forms (`.first`, `.exists`, `.empty`, `if/then/else`)
-stop iteration as soon as the answer is known (AC-QP-5).
+requires. Short-circuit forms (`.first`, `.exists`, `.empty`, `&&`, `||`, and
+`if condition { ... } else { ... }`) stop iteration as soon as the answer is
+known (AC-QP-5).
 
 ### Algorithm Selection
 
 - **Pull-based stream model.** The evaluator returns iterators that the
   host (or another evaluator step) pulls. Pull-based evaluation is the
-  natural fit for XPath-style pipelines and aligns with the host's
+  natural fit for Rust-style receiver pipelines and aligns with the host's
   async stream API (AC-Q-6, `cem-ml-ac.md` AC-A-1).
 - **Tail-call elimination on pipeline chains.** AC-QL-6 requires that a
   long `.`-chain not grow the stack proportional to chain length. The
@@ -491,8 +510,8 @@ changing which module body the URI loads (AC-QV-3, AC-QV-7).
 
 | URI | Tier A scope |
 |-----|--------------|
-| `cem:stdlib/sequence` | Pipeline step helpers (`map`, `where`, `flat_map`, `take`, `drop`, `first`, `last`, `nth`, `peek`) plus function aliases for the four set operators (`union`, `intersect`, `difference`, `symmetric_difference`). |
-| `cem:stdlib/strings` | Codepoint iteration, length, slicing, casing, formatting. |
+| `cem:stdlib/sequence` | Pipeline step helpers (`map`, `where`, `flat_map`, `take`, `drop`, `first`, `last`, `nth`, `peek`, `count`) plus function aliases for the four set operators (`union`, `intersect`, `difference`, `symmetric_difference`). |
+| `cem:stdlib/strings` | Codepoint iteration, length, slicing, casing, formatting, containment, prefix/suffix checks, whitespace normalization, replacement, translation, and substring helpers. |
 | `cem:stdlib/numbers` | Math, formatting, conversion (`double`, `decimal`, `integer`, `string`). |
 | `cem:stdlib/datetime` | `xs:date`/`xs:dateTime` helpers, `to_utc`. |
 | `cem:stdlib/dom` | Function-form host AST helpers (axes, attribute access, reference resolution). |
@@ -506,7 +525,7 @@ changing which module body the URI loads (AC-QV-3, AC-QV-7).
 | URI | Tier B scope |
 |-----|--------------|
 | `cem:stdlib/sequence` | Full AC-QO-6 helper family (`group_by`, `count_by`, `partition`, `zip`, `chunked`, `windowed`, `sliding`, `take_while`, `drop_while`, `sorted`, `reversed`, `reduce`, `fold`, `scan`, `any`, `all`, `none`, `min`, `max`, `sum`, `avg`). |
-| `cem:stdlib/strings` | Regex (`matches`, `replace`, `split`), Unicode normalization (`nfc`, `nfd`). |
+| `cem:stdlib/strings` | Regex (`matches`, `split`), Unicode normalization (`nfc`, `nfd`). |
 | `cem:stdlib/content-types` | Canonical media-type identifiers and the default `read()` preference list per AC-QA-1.1. |
 
 Tier C MAY add domain-specific modules under `cem:stdlib/` for features
@@ -614,14 +633,14 @@ A Tier A `cem-ql` release ships:
 
 | Area | Tier A includes | Tier A excludes |
 |------|-----------------|-----------------|
-| Surface syntax | AC-QS-1..AC-QS-6 (dot pipelines, leading-dot in step body, record literals with quoted keys, `let … in`, module form). | Comprehension sugar, FLWOR, `try/catch`, bare-identifier record keys. |
+| Surface syntax | AC-QS-1..AC-QS-6 (dot pipelines, leading-dot in step body, Rust-inspired record literals with bare identifier keys, `{ let name = value; expr }` blocks, `declare let`, module form). | Rust-shaped comprehension sugar, FLWOR-equivalent helpers beyond Tier A, `try/catch`. |
 | Axes (AC-QD-1) | `self`, `child`, `parent`, `descendants`, `descendants-or-self`, `ancestors`, `ancestors-or-self`, `following-sibling`, `preceding-sibling`, `attributes`. | `following`, `preceding`, `namespace`. |
 | DOM access | Reference resolution (AC-QD-4), source-map preservation (AC-QD-5), tainted-subtree visibility (AC-QD-6). | Machine-state slots and template-registry entries as first-class items (AC-QD-7). |
-| XPath functional parity | AC-QX-1 subset (axes, predicates, sequence construction, comparisons, arithmetic, boolean, `if/then/else`, `for…return`, `some/every…satisfies`, built-in function library subset per AC-QF-2). | XPath 3.1 maps/arrays (Tier B), regex, `try/catch`. |
+| Rust syntax / XPath functional parity | AC-QX-1 behavior subset through Rust spellings: axes, predicates, sequence construction, `== != < <= > >=`, `+ - * / %`, `&& || !`, `if { } else { }`, Rust-style `for`, `let`, `any(...)`, `all(...)`, and built-in function library subset per AC-QF-2. | XPath 3.1 maps/arrays behavior (Tier B), regex, `try/catch`; XPath operator/path/clause syntax. |
 | Set operators | `|` `&` `-` `^` with strict-typed identity (AC-QO-1..AC-QO-5). | Collection-helper function family (Tier B, AC-QO-6); comprehensions (AC-QO-7). |
 | Pipeline | `.`-chain, named-function steps, lambda steps, laziness, short-circuit (AC-QP-1..AC-QP-5). | None — pipeline is fully Tier A. |
-| Scope inheritance | Full AC-QV-3 chain with stdlib overlays; AC-QV-4 source-position-aware shadowing; AC-QV-5 XSLT precedence; AC-QV-6 closure detachment; AC-QV-8 resolution trace. | XSLT-style `include` precedence syntax (Tier B, AC-QI-7); plugin-registered `urn:cem:` modules (Tier B, depends on plugin runtime). |
-| Type system | Full lattice (AC-QT-1), `instance of`/`cast as`/`treat as`/`is`, scope-relative schema-type identity, strict default failure. | Attribute-group record types (AC-QT-5, Tier B); TS/Rust type stubs (AC-QT-6, Tier B). |
+| Scope inheritance | Full AC-QV-3 chain with stdlib overlays; AC-QV-4 source-position-aware shadowing; AC-QV-5 XSLT-equivalent precedence behavior; AC-QV-6 closure detachment; AC-QV-8 resolution trace. | Plugin-registered `urn:cem:` modules (Tier B, depends on plugin runtime). |
+| Type system | Full lattice (AC-QT-1), Rust-style `is` / `as` / `treat_as(...)` / `same_node(...)`, scope-relative schema-type identity, strict default failure. | Attribute-group record types (AC-QT-5, Tier B); TS/Rust type stubs (AC-QT-6, Tier B). |
 | Stdlib | The Tier A modules in §11. | Tier B / Tier C modules in §11. |
 | External data | None at Tier A. | `read()` (AC-QA-1) is Tier B. |
 | Imports | Platform `cem:` imports always available; `urn:cem:` and network schemes Tier B. | All AC-QI-4 user modules. |
@@ -656,8 +675,9 @@ A Tier A `cem-ql` release ships:
 
 - `yarn nx run cem_ql:test` — unit tests for parser, type checker,
   evaluator, and stdlib (AC verification plan §13.1).
-- `yarn nx run cem_ql:test:xpath-parity` — XPath 3.1 conformance subset
-  per AC-QX-1 / §4.1 (AC verification plan §13.2).
+- `yarn nx run cem_ql:test:xpath-parity` — XPath 3.1 functional parity
+  subset expressed through Rust-first CEM-QL syntax per AC-QX-1 / §4.1
+  (AC verification plan §13.2).
 - `yarn nx run cem_ql:test:fixtures` — every Tier A query the CEM
   templates need to transform canonical fixtures; output snapshots match
   the host transform snapshots (AC verification plan §13.3).
@@ -700,8 +720,9 @@ Release checks for cem-ql follow the host pattern
 (`cem-ml-stack-design.md §18.4`): lint, test, WASM build, bench, browser/
 Node smoke, and manifest checks. cem-ql adds:
 
-- **XPath parity check** (`cem_ql:test:xpath-parity`) as a release gate
-  for Tier A and later.
+- **XPath functional parity check** (`cem_ql:test:xpath-parity`) as a
+  release gate for Tier A and later; query fixtures use Rust-first CEM-QL
+  syntax.
 - **Fixture snapshot check** (`cem_ql:test:fixtures`) as a release gate;
   snapshot drift forces an explicit AC-traceable change.
 
@@ -735,7 +756,7 @@ home in this document. AC items missing a check are not closeable
 | §1 (AC-QL-1..AC-QL-6) | Language model | §2, §10 Evaluator |
 | §2 (AC-QS-1..AC-QS-6) | Surface syntax | §5 Lexer, §6 Parser |
 | §3 (AC-QD-1..AC-QD-7) | DOM access | §10 Evaluator, §11 Stdlib (`cem:stdlib/dom`) |
-| §4 (AC-QX-0..AC-QX-6, §4.1) | XPath functional parity | §16 Algorithm Selection (rows for axes, comparisons), §11 Stdlib, §17 Verification (xpath-parity script) |
+| §4 (AC-QX-0..AC-QX-6, §4.1) | Rust syntax / XPath functional parity | §16 Algorithm Selection (rows for axes, comparisons), §11 Stdlib, §17 Verification (xpath-parity script) |
 | §5 (AC-QO-1..AC-QO-8) | Stream/set operations | §9 IR (`Union`/`Intersect`/`Difference`/`SymmetricDifference`), §10 Evaluator (streaming set semantics) |
 | §6 (AC-QP-1..AC-QP-5) | Pipeline composition | §6 Parser (Pratt for `.`), §10 Evaluator (pull-based iterators, short-circuit) |
 | §7 (AC-QV-1..AC-QV-8) | Variables/functions/scope | §7 Name Resolver |
