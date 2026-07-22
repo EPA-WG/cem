@@ -197,7 +197,7 @@ Run now that the Rust-first CEM-QL parser/runtime/docs/showcase slice is green.
 - [x] Add functional validation fixtures for extracted expressions that need
       runtime data. Group fixtures by owning package or story so expressions are
       evaluated against representative bindings instead of only parse-checked.
-- [ ] Record explicit waivers for expressions that cannot yet be functionally
+- [x] Record explicit waivers for expressions that cannot yet be functionally
       evaluated because their host bindings, external resources, or Tier B/C
       features are unavailable. Waivers must include owner, reason, and removal
       condition.

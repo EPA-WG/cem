@@ -18,6 +18,7 @@ use cem_ml::scheduler::ScopePolicy;
 use cem_ml::source::{ByteRange, BytesSource, SourceId};
 use cem_ml::tokenizer::cem::CemTokenizer;
 use cem_ml::tokenizer::{SchemaTokenKind, SchemaTokenizer};
+use serde_json::{Map, Value};
 
 use crate::api;
 use crate::eval::{Item, ItemStream, QueryContextScope};
@@ -235,6 +236,104 @@ impl EmbeddedFunctionalValidationReport {
             ));
         }
         None
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EmbeddedFunctionalWaiver {
+    pub id: String,
+    pub owner: String,
+    pub reason: String,
+    pub removal_condition: String,
+    pub scope: EmbeddedFunctionalWaiverScope,
+}
+
+impl EmbeddedFunctionalWaiver {
+    pub fn matches_expression(&self, expression: &EmbeddedExpression) -> bool {
+        self.scope.matches_expression(expression)
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct EmbeddedFunctionalWaiverScope {
+    pub source_path: Option<PathBuf>,
+    pub source_path_prefix: Option<PathBuf>,
+    pub schema_package: Option<SchemaPackageIdentity>,
+    pub artifact_role: Option<EmbeddedArtifactRole>,
+    pub host_kind: Option<EmbeddedHostKind>,
+    pub source_contains: Option<String>,
+    pub normalized_source: Option<String>,
+    pub normalized_source_contains: Option<String>,
+}
+
+impl EmbeddedFunctionalWaiverScope {
+    pub fn is_empty(&self) -> bool {
+        self.source_path.is_none()
+            && self.source_path_prefix.is_none()
+            && self.schema_package.is_none()
+            && self.artifact_role.is_none()
+            && self.host_kind.is_none()
+            && self.source_contains.is_none()
+            && self.normalized_source.is_none()
+            && self.normalized_source_contains.is_none()
+    }
+
+    pub fn matches_expression(&self, expression: &EmbeddedExpression) -> bool {
+        if self
+            .source_path
+            .as_ref()
+            .is_some_and(|path| expression.source_path() != path)
+        {
+            return false;
+        }
+        if self
+            .source_path_prefix
+            .as_ref()
+            .is_some_and(|prefix| !expression.source_path().starts_with(prefix))
+        {
+            return false;
+        }
+        if self
+            .schema_package
+            .as_ref()
+            .is_some_and(|schema_package| expression.schema_package() != Some(schema_package))
+        {
+            return false;
+        }
+        if self
+            .artifact_role
+            .is_some_and(|artifact_role| expression.artifact_role() != artifact_role)
+        {
+            return false;
+        }
+        if self
+            .host_kind
+            .is_some_and(|host_kind| expression.host_kind() != host_kind)
+        {
+            return false;
+        }
+        if self
+            .source_contains
+            .as_ref()
+            .is_some_and(|needle| !expression.source.contains(needle))
+        {
+            return false;
+        }
+        if self
+            .normalized_source
+            .as_ref()
+            .is_some_and(|source| expression.normalized_source != *source)
+        {
+            return false;
+        }
+        if self
+            .normalized_source_contains
+            .as_ref()
+            .is_some_and(|needle| !expression.normalized_source.contains(needle))
+        {
+            return false;
+        }
+        !self.is_empty()
     }
 }
 
@@ -504,6 +603,72 @@ pub fn validate_embedded_functional_fixtures(
         .collect()
 }
 
+/// Parse explicit embedded-expression functional waivers from JSON.
+pub fn parse_embedded_functional_waivers_json(
+    input: &str,
+) -> Result<Vec<EmbeddedFunctionalWaiver>, String> {
+    let root: Value = serde_json::from_str(input).map_err(|err| err.to_string())?;
+    let root = expect_object(&root, "root")?;
+    let waivers = expect_array_field(root, "waivers")?;
+    waivers
+        .iter()
+        .enumerate()
+        .map(|(index, value)| {
+            let object = expect_object(value, &format!("waivers[{index}]"))?;
+            Ok(EmbeddedFunctionalWaiver {
+                id: required_string_field(object, "id")?,
+                owner: required_string_field(object, "owner")?,
+                reason: required_string_field(object, "reason")?,
+                removal_condition: required_string_field(object, "removalCondition")?,
+                scope: parse_waiver_scope(expect_object_field(object, "scope")?)?,
+            })
+        })
+        .collect()
+}
+
+/// Validate waiver metadata and prove each waiver matches at least one expression.
+pub fn validate_embedded_functional_waivers(
+    waivers: &[EmbeddedFunctionalWaiver],
+    expressions: &[EmbeddedExpression],
+) -> Vec<String> {
+    let mut errors = Vec::new();
+    let mut ids = BTreeSet::new();
+    for waiver in waivers {
+        if waiver.id.trim().is_empty() {
+            errors.push("waiver has an empty id".to_owned());
+        } else if !ids.insert(waiver.id.clone()) {
+            errors.push(format!("duplicate waiver id `{}`", waiver.id));
+        }
+        if waiver.owner.trim().is_empty() {
+            errors.push(format!("waiver `{}` has an empty owner", waiver.id));
+        }
+        if waiver.reason.trim().is_empty() {
+            errors.push(format!("waiver `{}` has an empty reason", waiver.id));
+        }
+        if waiver.removal_condition.trim().is_empty() {
+            errors.push(format!(
+                "waiver `{}` has an empty removal condition",
+                waiver.id
+            ));
+        }
+        if waiver.scope.is_empty() {
+            errors.push(format!("waiver `{}` has an empty scope", waiver.id));
+            continue;
+        }
+        let matched = expressions
+            .iter()
+            .filter(|expression| waiver.matches_expression(expression))
+            .count();
+        if matched == 0 {
+            errors.push(format!(
+                "waiver `{}` does not match any embedded expression",
+                waiver.id
+            ));
+        }
+    }
+    errors
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 /// Return checked-in CEM/CEMT files. Falls back to a conservative walk outside git.
 pub fn checked_in_cem_sources(workspace_root: impl AsRef<Path>) -> io::Result<Vec<PathBuf>> {
@@ -753,6 +918,130 @@ fn map_compile_diagnostics(
             }
         })
         .collect()
+}
+
+fn parse_waiver_scope(
+    object: &Map<String, Value>,
+) -> Result<EmbeddedFunctionalWaiverScope, String> {
+    let schema_package = match optional_string_field(object, "schemaPackage")? {
+        Some(value) => Some(parse_schema_package_scope(&value)?),
+        None => None,
+    };
+    let artifact_role = match optional_string_field(object, "artifactRole")? {
+        Some(value) => Some(parse_artifact_role_scope(&value)?),
+        None => None,
+    };
+    let host_kind = match optional_string_field(object, "hostKind")? {
+        Some(value) => Some(parse_host_kind_scope(&value)?),
+        None => None,
+    };
+    Ok(EmbeddedFunctionalWaiverScope {
+        source_path: optional_string_field(object, "sourcePath")?.map(PathBuf::from),
+        source_path_prefix: optional_string_field(object, "sourcePathPrefix")?.map(PathBuf::from),
+        schema_package,
+        artifact_role,
+        host_kind,
+        source_contains: optional_string_field(object, "sourceContains")?,
+        normalized_source: optional_string_field(object, "normalizedSource")?,
+        normalized_source_contains: optional_string_field(object, "normalizedSourceContains")?,
+    })
+}
+
+fn parse_schema_package_scope(value: &str) -> Result<SchemaPackageIdentity, String> {
+    let Some((package_id, version)) = value.split_once('/') else {
+        return Err(format!(
+            "`schemaPackage` must use `package-id/version`, got `{value}`"
+        ));
+    };
+    if package_id.is_empty() || version.is_empty() {
+        return Err(format!(
+            "`schemaPackage` must use `package-id/version`, got `{value}`"
+        ));
+    }
+    Ok(SchemaPackageIdentity {
+        package_id: package_id.to_owned(),
+        version: version.to_owned(),
+    })
+}
+
+fn parse_artifact_role_scope(value: &str) -> Result<EmbeddedArtifactRole, String> {
+    match value {
+        "formatter" => Ok(EmbeddedArtifactRole::Formatter),
+        "colorizer" => Ok(EmbeddedArtifactRole::Colorizer),
+        "converter" => Ok(EmbeddedArtifactRole::Converter),
+        "validator" => Ok(EmbeddedArtifactRole::Validator),
+        "transform-config" => Ok(EmbeddedArtifactRole::TransformConfig),
+        "schema" => Ok(EmbeddedArtifactRole::Schema),
+        "package-manifest" => Ok(EmbeddedArtifactRole::PackageManifest),
+        "example" => Ok(EmbeddedArtifactRole::Example),
+        "documentation-fixture" => Ok(EmbeddedArtifactRole::DocumentationFixture),
+        "demo" => Ok(EmbeddedArtifactRole::Demo),
+        "unknown" => Ok(EmbeddedArtifactRole::Unknown),
+        other => Err(format!("unknown embedded artifact role `{other}`")),
+    }
+}
+
+fn parse_host_kind_scope(value: &str) -> Result<EmbeddedHostKind, String> {
+    match value {
+        "attribute-value-template" => Ok(EmbeddedHostKind::AttributeValueTemplate),
+        "select-attribute" => Ok(EmbeddedHostKind::SelectAttribute),
+        "match-attribute" => Ok(EmbeddedHostKind::MatchAttribute),
+        "test-attribute" => Ok(EmbeddedHostKind::TestAttribute),
+        "behavior-select-attribute" => Ok(EmbeddedHostKind::BehaviorSelectAttribute),
+        "behavior-match-attribute" => Ok(EmbeddedHostKind::BehaviorMatchAttribute),
+        "expression-node" => Ok(EmbeddedHostKind::ExpressionNode),
+        other => Err(format!("unknown embedded host kind `{other}`")),
+    }
+}
+
+fn expect_object<'value>(
+    value: &'value Value,
+    label: &str,
+) -> Result<&'value Map<String, Value>, String> {
+    value
+        .as_object()
+        .ok_or_else(|| format!("`{label}` must be an object"))
+}
+
+fn expect_object_field<'value>(
+    object: &'value Map<String, Value>,
+    field: &str,
+) -> Result<&'value Map<String, Value>, String> {
+    object
+        .get(field)
+        .ok_or_else(|| format!("missing required `{field}` field"))
+        .and_then(|value| expect_object(value, field))
+}
+
+fn expect_array_field<'value>(
+    object: &'value Map<String, Value>,
+    field: &str,
+) -> Result<&'value Vec<Value>, String> {
+    object
+        .get(field)
+        .and_then(Value::as_array)
+        .ok_or_else(|| format!("`{field}` must be an array"))
+}
+
+fn required_string_field(object: &Map<String, Value>, field: &str) -> Result<String, String> {
+    let value = object
+        .get(field)
+        .ok_or_else(|| format!("missing required `{field}` field"))?;
+    let Some(value) = value.as_str() else {
+        return Err(format!("`{field}` must be a string"));
+    };
+    Ok(value.to_owned())
+}
+
+fn optional_string_field(
+    object: &Map<String, Value>,
+    field: &str,
+) -> Result<Option<String>, String> {
+    match object.get(field) {
+        Some(Value::String(value)) => Ok(Some(value.clone())),
+        Some(Value::Null) | None => Ok(None),
+        Some(_) => Err(format!("`{field}` must be a string when present")),
+    }
 }
 
 struct EmbeddedExpressionInput<'a> {

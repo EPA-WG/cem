@@ -43,7 +43,9 @@ mod tests {
         use crate::diagnostics::{DiagnosticCode, DiagnosticSpec, QueryDiagnostic};
         use crate::embedded::{
             EmbeddedArtifactRole, EmbeddedExpression, EmbeddedExpressionProvenance,
-            EmbeddedHostKind, EmbeddedHostProvenance, SchemaPackageIdentity,
+            EmbeddedFunctionalFixture, EmbeddedFunctionalValidationReport,
+            EmbeddedFunctionalWaiver, EmbeddedFunctionalWaiverScope, EmbeddedHostKind,
+            EmbeddedHostProvenance, SchemaPackageIdentity,
         };
         use crate::eval::{
             AtomValue, BudgetAxis, EvalError, Evaluator, Item, ItemStream, QueryContextScope,
@@ -87,6 +89,10 @@ mod tests {
         _accept::<SchemaPackageIdentity>();
         _accept::<EmbeddedArtifactRole>();
         _accept::<EmbeddedHostKind>();
+        _accept::<EmbeddedFunctionalFixture>();
+        _accept::<EmbeddedFunctionalValidationReport>();
+        _accept::<EmbeddedFunctionalWaiver>();
+        _accept::<EmbeddedFunctionalWaiverScope>();
         _accept::<Evaluator>();
         _accept::<Item>();
         _accept::<AtomValue>();

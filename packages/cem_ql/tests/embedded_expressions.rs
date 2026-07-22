@@ -4,7 +4,8 @@ use std::path::Path;
 use cem_ql::embedded::{
     checked_in_cem_sources, compile_embedded_expression, compile_embedded_expressions,
     compile_repository_embedded_expressions, extract_embedded_expressions_from_source,
-    extract_repository_embedded_expressions, validate_embedded_functional_fixtures,
+    extract_repository_embedded_expressions, parse_embedded_functional_waivers_json,
+    validate_embedded_functional_fixtures, validate_embedded_functional_waivers,
     EmbeddedArtifactRole, EmbeddedCompileStage, EmbeddedExpression, EmbeddedFunctionalFixture,
     EmbeddedHostKind,
 };
@@ -449,6 +450,49 @@ fn functional_fixtures_evaluate_checked_in_expressions_by_group() {
             "{} failed: {:?}\n{report:#?}",
             report.id,
             report.failure_reason()
+        );
+    }
+}
+
+#[test]
+fn explicit_functional_waivers_are_well_scoped_and_owned() {
+    let expressions =
+        extract_repository_embedded_expressions(workspace_root()).expect("repository expressions");
+    let waivers = parse_embedded_functional_waivers_json(include_str!(
+        "../fixtures/embedded-expression-waivers.json"
+    ))
+    .expect("embedded functional waiver JSON parses");
+
+    assert!(
+        waivers.len() >= 6,
+        "expected concrete waivers for known embedded audit gaps, got {waivers:#?}"
+    );
+    let errors = validate_embedded_functional_waivers(&waivers, &expressions);
+    assert!(errors.is_empty(), "invalid embedded waivers: {errors:#?}");
+
+    let ids = waivers
+        .iter()
+        .map(|waiver| waiver.id.as_str())
+        .collect::<BTreeSet<_>>();
+    assert!(ids.contains("schema-package-csv-v1-cemt-helper-dsl"));
+    assert!(ids.contains("schema-package-cem-dom-projection-v1-legacy-test-syntax"));
+    assert!(ids.contains("schema-package-schema-v1-behavior-runtime"));
+    assert!(ids.contains("custom-element-material-importmap-external-resources"));
+    assert!(waivers.iter().all(|waiver| {
+        !waiver.owner.trim().is_empty()
+            && !waiver.reason.trim().is_empty()
+            && !waiver.removal_condition.trim().is_empty()
+    }));
+
+    for waiver in &waivers {
+        let matched = expressions
+            .iter()
+            .filter(|expression| waiver.matches_expression(expression))
+            .count();
+        assert!(
+            matched > 0,
+            "waiver {} must match at least one expression",
+            waiver.id
         );
     }
 }

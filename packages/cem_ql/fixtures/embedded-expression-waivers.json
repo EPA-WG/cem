@@ -1,0 +1,75 @@
+{
+  "waivers": [
+    {
+      "id": "schema-package-csv-v1-cemt-helper-dsl",
+      "owner": "schema-package:csv/v1",
+      "reason": "CSV formatter and colorizer expression nodes still use the schema-package CEMT helper DSL, including helper calls, accumulator variables, and $-prefixed host bindings that are not yet Rust-first CEM-QL runtime fixtures.",
+      "removalCondition": "Remove after csv/v1 formatter and colorizer bodies are migrated to Rust-first CEM-QL-compatible expressions or their CEMT helper runtime is exposed through the embedded functional audit.",
+      "scope": {
+        "sourcePathPrefix": "packages/cem_ml/schema-packages/csv/v1/",
+        "hostKind": "expression-node"
+      }
+    },
+    {
+      "id": "schema-package-cem-dom-projection-v1-legacy-test-syntax",
+      "owner": "schema-package:cem-dom-projection/v1",
+      "reason": "The dom-to-html converter still contains XPath-style predicate syntax such as single-equals comparison and `and`, which the Rust-first parser correctly rejects before runtime fixture evaluation.",
+      "removalCondition": "Remove after dom-to-html converter tests use Rust-first CEM-QL syntax and are covered by representative node/attribute functional fixtures.",
+      "scope": {
+        "sourcePath": "packages/cem_ml/schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt",
+        "hostKind": "test-attribute",
+        "sourceContains": " and "
+      }
+    },
+    {
+      "id": "schema-package-cem-dom-projection-v1-cemt-body-bindings",
+      "owner": "schema-package:cem-dom-projection/v1",
+      "reason": "The dom-to-html converter body expressions still contain CEMT-render host bindings and template-call data flow that need the transform-template runtime, not only standalone CEM-QL policy bindings.",
+      "removalCondition": "Remove after converter body expressions are migrated or the embedded audit can evaluate them through transform-template host fixtures.",
+      "scope": {
+        "sourcePath": "packages/cem_ml/schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt",
+        "sourceContains": "node.data"
+      }
+    },
+    {
+      "id": "schema-package-schema-v1-behavior-runtime",
+      "owner": "schema-package:schema/v1",
+      "reason": "Schema behavior examples depend on validator-owned candidate/resource/result bindings and behavior dispatch that are not yet represented as standalone embedded CEM-QL fixture data.",
+      "removalCondition": "Remove after schema/v1 behavior fixtures seed validator host bindings and assert behavior function outputs through the embedded audit.",
+      "scope": {
+        "schemaPackage": "schema/v1",
+        "artifactRole": "validator"
+      }
+    },
+    {
+      "id": "custom-element-material-importmap-external-resources",
+      "owner": "custom-element:material/importmap",
+      "reason": "The material importmap transform depends on external import graph and glob resource expansion owned by the transform pipeline rather than plain CEM-QL host bindings.",
+      "removalCondition": "Remove after transform-graph fixtures provide import source resources and assert importmap rewrite outputs through the embedded audit.",
+      "scope": {
+        "sourcePath": "packages/custom-element/material/importmap.transform.cem",
+        "artifactRole": "transform-config"
+      }
+    },
+    {
+      "id": "cem-ml-schema-scoping-current-document-selection",
+      "owner": "examples:cem-ml/schema-scoping",
+      "reason": "Schema-scoping examples use current-document selections such as `.schemas.active`; standalone embedded evaluation does not yet seed the current item and active schema frame.",
+      "removalCondition": "Remove after schema-scoping fixtures provide current document/schema-frame host state to the embedded audit.",
+      "scope": {
+        "sourcePathPrefix": "examples/cem-ml/schema-scoping/",
+        "normalizedSourceContains": ".schemas.active"
+      }
+    },
+    {
+      "id": "cem-elements-example-datadom-bindings",
+      "owner": "examples:cem-elements",
+      "reason": "CEM elements examples reference datadom attributes, slices, and payload records whose complete story-state matrix is not yet represented as embedded functional fixture data.",
+      "removalCondition": "Remove after examples/cem-elements story fixtures seed datadom records for each embedded expression and assert rendered binding behavior through the audit.",
+      "scope": {
+        "sourcePathPrefix": "examples/cem-elements/",
+        "normalizedSourceContains": "datadom"
+      }
+    }
+  ]
+}
