@@ -1,8 +1,8 @@
 {
-    "name": "cem_ml_schema_package_csv_v1",
+    "name": "cem_ml_schema_package_cem_ml_v1",
     "$schema": "../../../../../node_modules/nx/schemas/project-schema.json",
     "projectType": "library",
-    "sourceRoot": "packages/cem_ml/schema-packages/csv/v1",
+    "sourceRoot": "packages/cem_ml/schema-packages/cem-ml/v1",
     "targets": {
         "verify": {
             "cache": true,
@@ -17,8 +17,8 @@
             ],
             "options": {
                 "commands": [
-                    "mkdir -p packages/cem_ml/schema-packages/csv/v1/dist",
-                    "./dist/target/cem_ml_cli/debug/cem-ml --quiet validate --fail-level parse --format json --content-type application/vnd.cem.schema-package+cem --schema https://cem.dev/ns/schema-package/1 --report-json packages/cem_ml/schema-packages/csv/v1/dist packages/cem_ml/schema-packages/csv/v1/package.cem"
+                    "mkdir -p packages/cem_ml/schema-packages/cem-ml/v1/dist",
+                    "./dist/target/cem_ml_cli/debug/cem-ml --quiet validate --fail-level parse --format json --content-type application/vnd.cem.schema-package+cem --schema https://cem.dev/ns/schema-package/1 --report-json packages/cem_ml/schema-packages/cem-ml/v1/dist packages/cem_ml/schema-packages/cem-ml/v1/package.cem"
                 ],
                 "parallel": false,
                 "cwd": "{workspaceRoot}"

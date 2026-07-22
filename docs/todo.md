@@ -227,7 +227,7 @@ Resume after the Rust-first CEM-QL syntax/showcase slice is green.
       `cem-ml-generic.cem` and `cem-schema.cem` are intentional, or rename them
       and update their manifests/readmes to the literal `schema/{package-id}.cem`
       shape.
-- [ ] Convert `schema-packages/*/v1` folders to Nx libraries with `*.cemt`
+- [x] Convert `schema-packages/*/v1` folders to Nx libraries with `*.cemt`
       sources tracked for caching; CLI tests should depend on package targets
       and invoke them through Nx.
 - [ ] Keep converter endpoint checks as a final registry pass because current
@@ -296,10 +296,11 @@ Deferred dependency-ordered package checklist:
 
 ### Next Work Item
 
-Convert `schema-packages/*/v1` folders to Nx libraries with `*.cemt` sources
-tracked for caching. The next slice should start with the package target shape
-and keep CLI tests depending on package targets through Nx instead of treating
-schema-package files as unowned fixture inputs.
+Keep converter endpoint checks as a final registry pass. The next slice should
+document and/or enforce that cross-package converter edges are audited after the
+per-package folder checklist, so `cem-ml` projection edges, `xml` to DOM
+projection, and DOM projection back to HTML/XML do not create false per-folder
+dependency cycles.
 
 ## Current Verification Commands
 

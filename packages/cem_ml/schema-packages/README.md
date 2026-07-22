@@ -244,6 +244,7 @@ output colorizers:
 ```text
 schema-packages/{package-id}/v1/
   package.cem
+  project.json
   schema/{package-id}.cem
   examples/
     {case}.{content-extension}
@@ -311,6 +312,22 @@ profiles:
 - `md`: Markdown-safe colored output, using fenced or inline forms that preserve
   the underlying source ranges.
 
+Every package folder is also an Nx library project named
+`cem_ml_schema_package_{package-id-with-underscores}_v1`. The package-local
+`project.json` owns the package inputs for caching and exposes a cached `verify`
+target. That target runs `package.cem` through the release CLI at the parse
+failure boundary and writes the package-local report artifact; full semantic
+schema-package validation remains part of the final registry/package validation
+gate. The target must track:
+
+- `package.cem` and `README.md`;
+- `schema/**/*.cem`;
+- `formatters/**/*.cemt`, `colorizers/**/*.cemt`, and `converters/**/*.cemt`;
+- every example fixture under `examples/`.
+
+Downstream CLI tests depend on these package targets through Nx instead of
+treating schema-package files as unowned fixture inputs.
+
 ## Creating A Custom Schema Package
 
 Use this checklist when adding a project-local or future external schema
@@ -322,6 +339,7 @@ runtime catalog by Rust code after validation.
 ```text
 schema-packages/{package-id}/v1/
   package.cem
+  project.json
   schema/{package-id}.cem
   examples/
     {case}.{content-extension}

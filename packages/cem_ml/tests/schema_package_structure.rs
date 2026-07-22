@@ -9,9 +9,19 @@ use cem_ml::parser::{AstNodeId, CemAstNode};
 use cem_ml::schema::package_sources::builtin_schema_package_sources;
 use cem_ml::source::{BytesSource, SourceId};
 use cem_ml::tokenizer::cem::CemTokenizer;
+use serde_json::Value;
 
 const BASELINE_FORMATTER_PROFILES: &[&str] = &["compact", "pretty", "tabular"];
 const BASELINE_COLORIZER_PROFILES: &[&str] = &["terminal", "html", "md"];
+const SCHEMA_PACKAGE_PROJECT_INPUTS: &[&str] = &[
+    "{projectRoot}/package.cem",
+    "{projectRoot}/README.md",
+    "{projectRoot}/schema/**/*.cem",
+    "{projectRoot}/formatters/**/*.cemt",
+    "{projectRoot}/colorizers/**/*.cemt",
+    "{projectRoot}/converters/**/*.cemt",
+    "{projectRoot}/examples/**/*",
+];
 
 const SCHEMA_SOURCE_FILENAME_EXCEPTIONS: &[SchemaSourceFilenameException] = &[
     SchemaSourceFilenameException {
@@ -49,10 +59,22 @@ struct ManifestSummary {
     cemt_converter_templates: BTreeSet<String>,
 }
 
+#[derive(Debug, Clone, Default)]
+struct NxProjectSummary {
+    exists: bool,
+    name: Option<String>,
+    verify_target_exists: bool,
+    missing_verify_inputs: Vec<String>,
+}
+
 #[derive(Debug, Clone)]
 struct SchemaPackageStructureReport {
     package_id: String,
     version_dir: PathBuf,
+    project_json_exists: bool,
+    nx_project_name: Option<String>,
+    nx_verify_target_exists: bool,
+    missing_nx_verify_inputs: Vec<String>,
     manifest_exists: bool,
     readme_exists: bool,
     examples_dir_exists: bool,
@@ -222,6 +244,42 @@ fn schema_package_schema_filename_exceptions_are_documented_and_explicit() {
     }
 }
 
+#[test]
+fn schema_package_folders_are_nx_owned_libraries_with_cemt_inputs() {
+    let reports = audit_schema_package_structure();
+    for report in &reports {
+        assert!(
+            report.project_json_exists,
+            "{} must include project.json so Nx owns package inputs",
+            report.package_id
+        );
+        assert_eq!(
+            report.nx_project_name.as_deref(),
+            Some(expected_schema_package_project_name(&report.package_id).as_str()),
+            "{} must use the schema-package Nx project naming convention",
+            report.package_id
+        );
+        assert!(
+            report.nx_verify_target_exists,
+            "{} must expose a cached verify target",
+            report.package_id
+        );
+        assert!(
+            report.missing_nx_verify_inputs.is_empty(),
+            "{} verify target must track schema, example, formatter, colorizer, and converter inputs: {report:#?}",
+            report.package_id
+        );
+        assert!(
+            report
+                .hard_errors
+                .iter()
+                .all(|error| !error.contains("Nx project")),
+            "{} has incomplete Nx schema-package ownership: {report:#?}",
+            report.package_id
+        );
+    }
+}
+
 fn audit_schema_package_structure() -> Vec<SchemaPackageStructureReport> {
     let root = schema_packages_root();
     let mut reports = fs::read_dir(&root)
@@ -254,6 +312,7 @@ fn audit_package_version_dir(
     let scanned_cemt_assets = scan_cemt_assets(&version_dir);
 
     let mut hard_errors = Vec::new();
+    let nx_project = audit_schema_package_project_json(&package_id, &version_dir, &mut hard_errors);
     let manifest = if manifest_exists {
         parse_manifest(&manifest_path, &mut hard_errors)
     } else {
@@ -389,6 +448,10 @@ fn audit_package_version_dir(
     SchemaPackageStructureReport {
         package_id,
         version_dir,
+        project_json_exists: nx_project.exists,
+        nx_project_name: nx_project.name,
+        nx_verify_target_exists: nx_project.verify_target_exists,
+        missing_nx_verify_inputs: nx_project.missing_verify_inputs,
         manifest_exists,
         readme_exists,
         examples_dir_exists,
@@ -410,6 +473,173 @@ fn audit_package_version_dir(
         hard_errors,
         alignment_gaps,
     }
+}
+
+fn audit_schema_package_project_json(
+    package_id: &str,
+    version_dir: &Path,
+    hard_errors: &mut Vec<String>,
+) -> NxProjectSummary {
+    let project_json_path = version_dir.join("project.json");
+    if !project_json_path.is_file() {
+        hard_errors.push("missing Nx project.json".to_owned());
+        return NxProjectSummary::default();
+    }
+
+    let source = match fs::read_to_string(&project_json_path) {
+        Ok(source) => source,
+        Err(error) => {
+            hard_errors.push(format!("Nx project.json is not readable: {error}"));
+            return NxProjectSummary {
+                exists: true,
+                ..NxProjectSummary::default()
+            };
+        }
+    };
+    let project_json = match serde_json::from_str::<Value>(&source) {
+        Ok(project_json) => project_json,
+        Err(error) => {
+            hard_errors.push(format!("Nx project.json is not valid JSON: {error}"));
+            return NxProjectSummary {
+                exists: true,
+                ..NxProjectSummary::default()
+            };
+        }
+    };
+
+    let name = json_string(&project_json, "/name").map(str::to_owned);
+    let expected_name = expected_schema_package_project_name(package_id);
+    if name.as_deref() != Some(expected_name.as_str()) {
+        hard_errors.push(format!(
+            "Nx project name `{}` does not match expected `{expected_name}`",
+            name.as_deref().unwrap_or("<missing>")
+        ));
+    }
+
+    if json_string(&project_json, "/projectType") != Some("library") {
+        hard_errors.push("Nx projectType must be `library`".to_owned());
+    }
+
+    let expected_source_root = format!("packages/cem_ml/schema-packages/{package_id}/v1");
+    if json_string(&project_json, "/sourceRoot") != Some(expected_source_root.as_str()) {
+        hard_errors.push(format!(
+            "Nx sourceRoot `{}` does not match expected `{expected_source_root}`",
+            json_string(&project_json, "/sourceRoot").unwrap_or("<missing>")
+        ));
+    }
+
+    let verify = project_json.pointer("/targets/verify");
+    let verify_target_exists = verify.is_some();
+    let Some(verify) = verify else {
+        hard_errors.push("Nx project must expose a `verify` target".to_owned());
+        return NxProjectSummary {
+            exists: true,
+            name,
+            ..NxProjectSummary::default()
+        };
+    };
+
+    if verify.pointer("/cache").and_then(Value::as_bool) != Some(true) {
+        hard_errors.push("Nx project verify target must be cacheable".to_owned());
+    }
+    if json_string(verify, "/executor") != Some("nx:run-commands") {
+        hard_errors.push("Nx project verify target must use nx:run-commands".to_owned());
+    }
+
+    if !verify_depends_on_cli_build(verify) {
+        hard_errors.push("Nx project verify target must depend on cem_ml_cli:build".to_owned());
+    }
+    if !verify_uses_parse_fail_level(verify) {
+        hard_errors.push(
+            "Nx project verify target must run CLI validation with --fail-level parse".to_owned(),
+        );
+    }
+
+    let inputs = verify
+        .pointer("/inputs")
+        .and_then(Value::as_array)
+        .map(|inputs| {
+            inputs
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect::<BTreeSet<_>>()
+        })
+        .unwrap_or_default();
+    let missing_verify_inputs = SCHEMA_PACKAGE_PROJECT_INPUTS
+        .iter()
+        .filter(|input| !inputs.contains(**input))
+        .map(|input| (*input).to_owned())
+        .collect::<Vec<_>>();
+    if !missing_verify_inputs.is_empty() {
+        hard_errors.push(format!(
+            "Nx project verify target is missing inputs: {}",
+            missing_verify_inputs.join(", ")
+        ));
+    }
+
+    if !verify_outputs_report(verify) {
+        hard_errors.push(
+            "Nx project verify target must declare {projectRoot}/dist/cem-ml.report.json output"
+                .to_owned(),
+        );
+    }
+
+    NxProjectSummary {
+        exists: true,
+        name,
+        verify_target_exists,
+        missing_verify_inputs,
+    }
+}
+
+fn expected_schema_package_project_name(package_id: &str) -> String {
+    format!("cem_ml_schema_package_{}_v1", package_id.replace('-', "_"))
+}
+
+fn json_string<'a>(value: &'a Value, pointer: &str) -> Option<&'a str> {
+    value.pointer(pointer).and_then(Value::as_str)
+}
+
+fn verify_depends_on_cli_build(verify: &Value) -> bool {
+    verify
+        .pointer("/dependsOn")
+        .and_then(Value::as_array)
+        .is_some_and(|depends_on| {
+            depends_on.iter().any(|dependency| {
+                json_string(dependency, "/target") == Some("build")
+                    && dependency
+                        .pointer("/projects")
+                        .and_then(Value::as_array)
+                        .is_some_and(|projects| {
+                            projects
+                                .iter()
+                                .any(|project| project.as_str() == Some("cem_ml_cli"))
+                        })
+            })
+        })
+}
+
+fn verify_uses_parse_fail_level(verify: &Value) -> bool {
+    verify
+        .pointer("/options/commands")
+        .and_then(Value::as_array)
+        .is_some_and(|commands| {
+            commands.iter().filter_map(Value::as_str).any(|command| {
+                command.contains(" validate ") && command.contains(" --fail-level parse ")
+            })
+        })
+}
+
+fn verify_outputs_report(verify: &Value) -> bool {
+    verify
+        .pointer("/outputs")
+        .and_then(Value::as_array)
+        .is_some_and(|outputs| {
+            outputs
+                .iter()
+                .any(|output| output.as_str() == Some("{projectRoot}/dist/cem-ml.report.json"))
+        })
 }
 
 fn parse_manifest(manifest_path: &Path, hard_errors: &mut Vec<String>) -> ManifestSummary {
@@ -747,13 +977,17 @@ fn format_audit_report(reports: &[SchemaPackageStructureReport]) -> String {
     let mut output = String::from("Schema package structure audit:\n");
     for report in reports {
         output.push_str(&format!(
-            "- {}/v1: dir={}, roots(package={}, readme={}, examples={} files={}), schema={} exists={}, schema_exception={}, manifest_examples={}, example_sidecars={}, declared_cemt_assets={}, scanned_cemt_assets={}, formatter_profiles={}, missing_formatter={}, colorizer_profiles={}, missing_colorizer={}, cemt_converters={}, missing_cemt_converters={}, gaps={}, hard_errors={}\n",
+            "- {}/v1: dir={}, roots(project={}, package={}, readme={}, examples={} files={}), nx_name={}, nx_verify={}, missing_nx_inputs={}, schema={} exists={}, schema_exception={}, manifest_examples={}, example_sidecars={}, declared_cemt_assets={}, scanned_cemt_assets={}, formatter_profiles={}, missing_formatter={}, colorizer_profiles={}, missing_colorizer={}, cemt_converters={}, missing_cemt_converters={}, gaps={}, hard_errors={}\n",
             report.package_id,
             format_report_path(&report.version_dir),
+            report.project_json_exists,
             report.manifest_exists,
             report.readme_exists,
             report.examples_dir_exists,
             report.example_file_count,
+            report.nx_project_name.as_deref().unwrap_or("<missing>"),
+            report.nx_verify_target_exists,
+            format_list(&report.missing_nx_verify_inputs),
             report.schema_source.as_deref().unwrap_or("<missing>"),
             report.schema_source_exists,
             format_schema_source_exception(report.schema_source_exception),

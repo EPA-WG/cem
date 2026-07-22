@@ -22,7 +22,33 @@
             "cache": true,
             "executor": "@monodon/rust:test",
             "dependsOn": [
-                { "projects": ["cem_ml_schema_package_csv_v1"], "target": "verify" }
+                {
+                    "projects": [
+                        "cem_ml_schema_package_cem_ast_projection_v1",
+                        "cem_ml_schema_package_cem_dom_projection_v1",
+                        "cem_ml_schema_package_cem_events_projection_v1",
+                        "cem_ml_schema_package_cem_ml_v1",
+                        "cem_ml_schema_package_cem_native_template_v1",
+                        "cem_ml_schema_package_cem_ql_v1",
+                        "cem_ml_schema_package_cem_transform_v1",
+                        "cem_ml_schema_package_css_v1",
+                        "cem_ml_schema_package_csv_v1",
+                        "cem_ml_schema_package_html_v1",
+                        "cem_ml_schema_package_json_v1",
+                        "cem_ml_schema_package_json_schema_v1",
+                        "cem_ml_schema_package_markdown_v1",
+                        "cem_ml_schema_package_mathml_v1",
+                        "cem_ml_schema_package_relax_ng_v1",
+                        "cem_ml_schema_package_schema_v1",
+                        "cem_ml_schema_package_schema_package_v1",
+                        "cem_ml_schema_package_svg_v1",
+                        "cem_ml_schema_package_xhtml_v1",
+                        "cem_ml_schema_package_xml_v1",
+                        "cem_ml_schema_package_xslt_v1",
+                        "cem_ml_schema_package_yaml_v1"
+                    ],
+                    "target": "verify"
+                }
             ],
             "outputs": ["{options.target-dir}"],
             "options": {
@@ -98,7 +124,36 @@
         },
         "validate-converter-parity": {
             "executor": "nx:run-commands",
-            "dependsOn": ["build"],
+            "dependsOn": [
+                "build",
+                {
+                    "projects": [
+                        "cem_ml_schema_package_cem_ast_projection_v1",
+                        "cem_ml_schema_package_cem_dom_projection_v1",
+                        "cem_ml_schema_package_cem_events_projection_v1",
+                        "cem_ml_schema_package_cem_ml_v1",
+                        "cem_ml_schema_package_cem_native_template_v1",
+                        "cem_ml_schema_package_cem_ql_v1",
+                        "cem_ml_schema_package_cem_transform_v1",
+                        "cem_ml_schema_package_css_v1",
+                        "cem_ml_schema_package_csv_v1",
+                        "cem_ml_schema_package_html_v1",
+                        "cem_ml_schema_package_json_v1",
+                        "cem_ml_schema_package_json_schema_v1",
+                        "cem_ml_schema_package_markdown_v1",
+                        "cem_ml_schema_package_mathml_v1",
+                        "cem_ml_schema_package_relax_ng_v1",
+                        "cem_ml_schema_package_schema_v1",
+                        "cem_ml_schema_package_schema_package_v1",
+                        "cem_ml_schema_package_svg_v1",
+                        "cem_ml_schema_package_xhtml_v1",
+                        "cem_ml_schema_package_xml_v1",
+                        "cem_ml_schema_package_xslt_v1",
+                        "cem_ml_schema_package_yaml_v1"
+                    ],
+                    "target": "verify"
+                }
+            ],
             "options": {
                 "command": "./dist/target/cem_ml_cli/debug/cem-ml fixture parity --report-json packages/cem_ml_cli/dist --report-md packages/cem_ml_cli/dist",
                 "cwd": "{workspaceRoot}"
@@ -119,6 +174,16 @@
         },
         "validate-cemt-pipeline-fixture": {
             "executor": "nx:run-commands",
+            "dependsOn": [
+                "build",
+                {
+                    "projects": [
+                        "cem_ml_schema_package_cem_ml_v1",
+                        "cem_ml_schema_package_cem_transform_v1"
+                    ],
+                    "target": "verify"
+                }
+            ],
             "options": {
                 "commands": [
                     "mkdir -p packages/cem_ml_cli/dist",
@@ -213,7 +278,37 @@
         },
         "e2e": {
             "executor": "nx:run-commands",
-            "dependsOn": ["build", "validate-cemt-pipeline-fixture"],
+            "dependsOn": [
+                "build",
+                "validate-cemt-pipeline-fixture",
+                {
+                    "projects": [
+                        "cem_ml_schema_package_cem_ast_projection_v1",
+                        "cem_ml_schema_package_cem_dom_projection_v1",
+                        "cem_ml_schema_package_cem_events_projection_v1",
+                        "cem_ml_schema_package_cem_ml_v1",
+                        "cem_ml_schema_package_cem_native_template_v1",
+                        "cem_ml_schema_package_cem_ql_v1",
+                        "cem_ml_schema_package_cem_transform_v1",
+                        "cem_ml_schema_package_css_v1",
+                        "cem_ml_schema_package_csv_v1",
+                        "cem_ml_schema_package_html_v1",
+                        "cem_ml_schema_package_json_v1",
+                        "cem_ml_schema_package_json_schema_v1",
+                        "cem_ml_schema_package_markdown_v1",
+                        "cem_ml_schema_package_mathml_v1",
+                        "cem_ml_schema_package_relax_ng_v1",
+                        "cem_ml_schema_package_schema_v1",
+                        "cem_ml_schema_package_schema_package_v1",
+                        "cem_ml_schema_package_svg_v1",
+                        "cem_ml_schema_package_xhtml_v1",
+                        "cem_ml_schema_package_xml_v1",
+                        "cem_ml_schema_package_xslt_v1",
+                        "cem_ml_schema_package_yaml_v1"
+                    ],
+                    "target": "verify"
+                }
+            ],
             "options": {
                 "commands": [
                     "./dist/target/cem_ml_cli/debug/cem-ml fixture validate --zero-hard-violations --quiet --report-json packages/cem_ml_cli/dist --report-md packages/cem_ml_cli/dist",
