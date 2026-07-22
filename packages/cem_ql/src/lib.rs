@@ -10,6 +10,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub mod api;
 pub mod artifact;
 pub mod diagnostics;
+pub mod embedded;
 pub mod eval;
 pub mod ir;
 pub mod lexer;
@@ -40,6 +41,9 @@ mod tests {
         };
         use crate::artifact::{CompiledArtifact, QueryArtifactFormat};
         use crate::diagnostics::{DiagnosticCode, DiagnosticSpec, QueryDiagnostic};
+        use crate::embedded::{
+            EmbeddedArtifactRole, EmbeddedExpression, EmbeddedHostKind, SchemaPackageIdentity,
+        };
         use crate::eval::{
             AtomValue, BudgetAxis, EvalError, Evaluator, Item, ItemStream, QueryContextScope,
         };
@@ -76,6 +80,10 @@ mod tests {
         _accept::<DiagnosticCode>();
         _accept::<DiagnosticSpec>();
         _accept::<QueryDiagnostic>();
+        _accept::<EmbeddedExpression>();
+        _accept::<SchemaPackageIdentity>();
+        _accept::<EmbeddedArtifactRole>();
+        _accept::<EmbeddedHostKind>();
         _accept::<Evaluator>();
         _accept::<Item>();
         _accept::<AtomValue>();

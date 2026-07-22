@@ -181,7 +181,7 @@ Dependency-ordered implementation checklist:
 
 Run now that the Rust-first CEM-QL parser/runtime/docs/showcase slice is green.
 
-- [ ] Add a repository-wide extractor for CEM-QL expressions embedded in every
+- [x] Add a repository-wide extractor for CEM-QL expressions embedded in every
       checked-in `*.cem` and `*.cemt` file. It must cover host-owned template
       spans (`{...}` attributes, `select=` / `match=` / `test=`, and `{$ ...}`
       content expressions), plus CEMT expression positions in formatter,
