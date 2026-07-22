@@ -1,16 +1,33 @@
+use std::collections::BTreeMap;
+
 use cem_ml::scheduler::ScopePolicy;
 use cem_ql::api::{compile, evaluate, CompileContext, EvaluationContext};
 use cem_ql::eval::{AtomValue, BudgetAxis, EvalError, Item, QueryContextScope};
 
 fn eval(source: &str, policy: ScopePolicy) -> cem_ql::eval::ItemStream {
-    let query = compile(source, &CompileContext::default()).unwrap();
+    eval_with_bindings(source, BTreeMap::new(), policy)
+}
+
+fn eval_with_bindings(
+    source: &str,
+    policy_bindings: BTreeMap<String, cem_ql::eval::ItemStream>,
+    policy: ScopePolicy,
+) -> cem_ql::eval::ItemStream {
+    let query = compile(
+        source,
+        &CompileContext {
+            policy_bindings: policy_bindings.clone(),
+            ..CompileContext::default()
+        },
+    )
+    .unwrap();
     evaluate(
         &query,
         &EvaluationContext {
             scope: QueryContextScope(0),
             scope_policy: policy,
             diagnostics: Vec::new(),
-            policy_bindings: Default::default(),
+            policy_bindings,
         },
     )
 }
@@ -68,7 +85,7 @@ fn evaluator_materializes_intersect_difference_and_symmetric_difference() {
         ]
     );
 
-    let difference = eval("seq:difference((1, 2, 3), (2, 4))", default_policy());
+    let difference = eval("(1, 2, 3) - (2, 4)", default_policy());
     assert_eq!(
         difference.items,
         vec![
@@ -76,6 +93,9 @@ fn evaluator_materializes_intersect_difference_and_symmetric_difference() {
             Item::Atomic(AtomValue::Integer(3)),
         ]
     );
+
+    let alias = eval("seq:difference((1, 2, 3), (2, 4))", default_policy());
+    assert_eq!(alias.items, difference.items);
 
     let symmetric = eval("(1, 2, 3) ^ (2, 4)", default_policy());
     assert_eq!(
@@ -86,6 +106,66 @@ fn evaluator_materializes_intersect_difference_and_symmetric_difference() {
             Item::Atomic(AtomValue::Integer(4)),
         ]
     );
+}
+
+#[test]
+fn evaluator_runtime_dispatches_minus_for_unknown_policy_bindings() {
+    let mut bindings = BTreeMap::new();
+    bindings.insert(
+        "left".to_owned(),
+        cem_ql::eval::ItemStream::from_items(vec![
+            Item::Atomic(AtomValue::Integer(1)),
+            Item::Atomic(AtomValue::Integer(2)),
+            Item::Atomic(AtomValue::Integer(3)),
+        ]),
+    );
+    bindings.insert(
+        "right".to_owned(),
+        cem_ql::eval::ItemStream::from_items(vec![
+            Item::Atomic(AtomValue::Integer(2)),
+            Item::Atomic(AtomValue::Integer(4)),
+        ]),
+    );
+
+    let stream = eval_with_bindings("left - right", bindings, default_policy());
+
+    assert_eq!(
+        stream.items,
+        vec![
+            Item::Atomic(AtomValue::Integer(1)),
+            Item::Atomic(AtomValue::Integer(3)),
+        ]
+    );
+    assert!(stream.error.is_none(), "{:?}", stream.diagnostics);
+}
+
+#[test]
+fn evaluator_runtime_minus_rejects_numeric_stream_mixes() {
+    let mut bindings = BTreeMap::new();
+    bindings.insert(
+        "left".to_owned(),
+        cem_ql::eval::ItemStream::once(Item::Atomic(AtomValue::Integer(1))),
+    );
+    bindings.insert(
+        "right".to_owned(),
+        cem_ql::eval::ItemStream::from_items(vec![
+            Item::Atomic(AtomValue::Integer(2)),
+            Item::Atomic(AtomValue::Integer(3)),
+        ]),
+    );
+
+    let stream = eval_with_bindings("left - right", bindings, default_policy());
+
+    assert_eq!(
+        stream.error,
+        Some(EvalError::TypeError(
+            "operator `-` cannot mix numeric and stream operands"
+        ))
+    );
+    assert!(stream
+        .diagnostics
+        .iter()
+        .any(|diag| diag.code == "cem.ql.type_error"));
 }
 
 #[test]

@@ -3,6 +3,7 @@ use cem_ml::source_map::TransformKind;
 use cem_ql::api::{compile, parse, CompileContext};
 use cem_ql::ir::lower::IrLowerer;
 use cem_ql::ir::{IrNode, IrStep};
+use cem_ql::parser::SetOp;
 use cem_ql::resolve::ModuleUri;
 use cem_ql::types::{AtomType, Type};
 
@@ -96,6 +97,24 @@ fn lowerer_threads_dot_steps_through_pipeline_nodes() {
         Some(IrNode::LocalVar(_))
     ));
     assert_eq!(steps.len(), 2);
+}
+
+#[test]
+fn lowerer_rewrites_stream_minus_to_set_difference() {
+    let result = lower("(1, 2, 3) - (2, 4)");
+
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert!(matches!(
+        result.query.tree.node(result.query.tree.root),
+        Some(IrNode::SetOp {
+            op: SetOp::Difference,
+            ..
+        })
+    ));
+    assert_eq!(
+        result.query.tree.ty(result.query.tree.root),
+        Some(&Type::stream(Type::atom(AtomType::Integer)))
+    );
 }
 
 #[test]

@@ -54,15 +54,19 @@ impl Type {
         Self::Stream(Box::new(item))
     }
 
-    fn is_any(&self) -> bool {
+    pub(crate) fn is_any(&self) -> bool {
         matches!(self, Type::Any)
     }
 
-    fn is_numeric_atom(&self) -> bool {
+    pub(crate) fn is_numeric_atom(&self) -> bool {
         matches!(
             self,
             Type::Atom(AtomType::Integer | AtomType::Decimal | AtomType::Double)
         )
+    }
+
+    pub(crate) fn is_stream_like(&self) -> bool {
+        matches!(self, Type::Stream(_) | Type::Empty)
     }
 }
 
@@ -599,9 +603,10 @@ impl TypeChecker {
                 self.expect_subtype(&rhs_ty, &boolean_type(), rhs.range());
                 boolean_type()
             }
-            BinaryOp::Plus | BinaryOp::Minus | BinaryOp::Star | BinaryOp::Div | BinaryOp::Mod => {
+            BinaryOp::Plus | BinaryOp::Star | BinaryOp::Div | BinaryOp::Mod => {
                 self.infer_numeric_binary(&lhs_ty, &rhs_ty, range)
             }
+            BinaryOp::Minus => self.infer_minus(&lhs_ty, &rhs_ty, range),
             BinaryOp::Is => {
                 self.expect_subtype(&lhs_ty, &Type::Node(NodeKind::Node), lhs.range());
                 self.expect_subtype(&rhs_ty, &Type::Node(NodeKind::Node), rhs.range());
@@ -637,6 +642,42 @@ impl TypeChecker {
         self.emit(
             TYPE_ERROR,
             format!("numeric operator cannot be applied to `{lhs:?}` and `{rhs:?}`"),
+            range,
+        );
+        Type::Any
+    }
+
+    fn infer_minus(&mut self, lhs: &Type, rhs: &Type, range: ByteRange) -> Type {
+        if lhs.is_any() || rhs.is_any() {
+            return Type::Any;
+        }
+        if lhs.is_numeric_atom() && rhs.is_numeric_atom() {
+            return self
+                .common_type(lhs, rhs)
+                .unwrap_or(Type::atom(AtomType::Double));
+        }
+        if lhs.is_stream_like() && rhs.is_stream_like() {
+            let lhs_item = stream_item_type(lhs).unwrap_or(Type::Empty);
+            let rhs_item = stream_item_type(rhs).unwrap_or(Type::Empty);
+            return Type::stream(self.common_type(&lhs_item, &rhs_item).unwrap_or(Type::Any));
+        }
+        if (lhs.is_numeric_atom() && rhs.is_stream_like())
+            || (lhs.is_stream_like() && rhs.is_numeric_atom())
+        {
+            self.emit(
+                TYPE_ERROR,
+                format!(
+                    "operator `-` cannot mix numeric and stream operands: `{lhs:?}` and `{rhs:?}`"
+                ),
+                range,
+            );
+            return Type::Any;
+        }
+        self.emit(
+            TYPE_ERROR,
+            format!(
+                "operator `-` requires numeric or stream operands, got `{lhs:?}` and `{rhs:?}`"
+            ),
             range,
         );
         Type::Any
@@ -847,7 +888,7 @@ fn boolean_type() -> Type {
     Type::atom(AtomType::Boolean)
 }
 
-fn stream_item_type(ty: &Type) -> Option<Type> {
+pub(crate) fn stream_item_type(ty: &Type) -> Option<Type> {
     match ty {
         Type::Stream(item) => Some(item.as_ref().clone()),
         Type::Empty => Some(Type::Empty),

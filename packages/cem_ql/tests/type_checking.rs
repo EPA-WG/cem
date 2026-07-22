@@ -79,6 +79,34 @@ fn cross_atom_type_comparison_emits_warning_under_strict_profile() {
 }
 
 #[test]
+fn minus_infers_numeric_or_stream_difference_by_operand_shape() {
+    let mut numeric_checker = TypeChecker::new();
+    let numeric = check("5 - 2", &mut numeric_checker);
+
+    assert!(numeric.diagnostics.is_empty(), "{:?}", numeric.diagnostics);
+    assert_eq!(numeric.root_type, Some(Type::atom(AtomType::Integer)));
+
+    let mut stream_checker = TypeChecker::new();
+    let stream = check("(1, 2, 3) - (2, 4)", &mut stream_checker);
+
+    assert!(stream.diagnostics.is_empty(), "{:?}", stream.diagnostics);
+    assert_eq!(
+        stream.root_type,
+        Some(Type::stream(Type::atom(AtomType::Integer)))
+    );
+}
+
+#[test]
+fn minus_rejects_mixed_numeric_and_stream_operands() {
+    let mut checker = TypeChecker::new();
+    let report = check("1 - (2, 3)", &mut checker);
+
+    assert!(report.diagnostics.iter().any(|diag| {
+        diag.code == "cem.ql.type_error" && diag.message.contains("numeric and stream")
+    }));
+}
+
+#[test]
 fn computed_record_keys_must_type_check_as_strings() {
     let mut checker = TypeChecker::new();
     let report = check(r#"{ [42]: "Ada" }"#, &mut checker);

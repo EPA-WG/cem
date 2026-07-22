@@ -49,9 +49,6 @@ fn ac_qo_v_1_a_node_identity_dedups_under_set_operators() {
     // `cemml:parse` returns an `Item::Node(text)`. The identity scheme
     // uses the node text as the stable key, so the same source text
     // collapses on `|`, is selected by `&`, and excluded by `-`.
-    // `-` is currently a binary arithmetic minus in the parser; the
-    // AC-QO-1 difference operator is therefore exercised via the
-    // `seq:difference` stdlib helper here.
     let union = eval(
         r#"(cemml:parse("{a | first}"), cemml:parse("{b | second}"))
             | (cemml:parse("{b | second}"), cemml:parse("{c | third}"))"#,
@@ -81,10 +78,8 @@ fn ac_qo_v_1_a_node_identity_dedups_under_set_operators() {
     assert!(intersect_text.contains("second"));
 
     let difference = eval(
-        r#"seq:difference(
-              (cemml:parse("{a | first}"), cemml:parse("{b | second}")),
-              (cemml:parse("{b | second}"), cemml:parse("{c | third}"))
-           )"#,
+        r#"(cemml:parse("{a | first}"), cemml:parse("{b | second}"))
+            - (cemml:parse("{b | second}"), cemml:parse("{c | third}"))"#,
     );
     assert_eq!(difference.items.len(), 1);
     let Item::Node(difference_text) = &difference.items[0] else {

@@ -11,7 +11,7 @@ use crate::diagnostics::{
     DiagnosticCode, BUDGET_EXCEEDED, TYPE_ERROR, UNKNOWN_FUNCTION, UNKNOWN_VARIABLE,
 };
 use crate::ir::{CompiledQuery, IrId, IrNode, IrRecordKey};
-use crate::parser::{BinaryOp, QuantifierKind, UnaryOp};
+use crate::parser::{BinaryOp, QuantifierKind, SetOp, UnaryOp};
 use crate::resolve::BindingId;
 use crate::types::Type;
 
@@ -592,6 +592,9 @@ impl<'a> EvalCtx<'a> {
 
         let lhs_stream = self.eval_id(lhs);
         let rhs_stream = self.eval_id(rhs);
+        if op == BinaryOp::Minus {
+            return self.eval_runtime_minus(source, lhs_stream, rhs_stream);
+        }
         let lhs = lhs_stream.items.first();
         let rhs = rhs_stream.items.first();
         let item = match (op, lhs, rhs) {
@@ -626,6 +629,37 @@ impl<'a> EvalCtx<'a> {
         out.extend_diagnostics(lhs_stream);
         out.extend_diagnostics(rhs_stream);
         out
+    }
+
+    fn eval_runtime_minus(
+        &mut self,
+        source: IrId,
+        lhs_stream: ItemStream,
+        rhs_stream: ItemStream,
+    ) -> ItemStream {
+        match (
+            single_numeric_item(&lhs_stream.items),
+            single_numeric_item(&rhs_stream.items),
+        ) {
+            (Some(lhs), Some(rhs)) => {
+                let mut out = ItemStream::once(numeric_binary(lhs, rhs, |a, b| a - b));
+                out.extend_diagnostics(lhs_stream);
+                out.extend_diagnostics(rhs_stream);
+                out
+            }
+            (Some(_), None) | (None, Some(_)) => {
+                let mut out = self.type_error(
+                    source,
+                    "operator `-` cannot mix numeric and stream operands",
+                );
+                out.extend_diagnostics(lhs_stream);
+                out.extend_diagnostics(rhs_stream);
+                out
+            }
+            (None, None) => {
+                set_ops::apply_set_op(SetOp::Difference, lhs_stream, rhs_stream, self, source)
+            }
+        }
     }
 
     fn eval_unary(&mut self, source: IrId, op: UnaryOp, operand: IrId) -> ItemStream {
@@ -890,6 +924,15 @@ fn numeric_binary(lhs: &Item, rhs: &Item, f: impl FnOnce(f64, f64) -> f64) -> It
         Item::Atomic(AtomValue::Integer(value as i64))
     } else {
         Item::Atomic(AtomValue::Double(value))
+    }
+}
+
+fn single_numeric_item(items: &[Item]) -> Option<&Item> {
+    match items {
+        [item @ Item::Atomic(AtomValue::Integer(_))]
+        | [item @ Item::Atomic(AtomValue::Decimal(_))]
+        | [item @ Item::Atomic(AtomValue::Double(_))] => Some(item),
+        _ => None,
     }
 }
 

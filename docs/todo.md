@@ -38,10 +38,10 @@ Observed code state:
 - [x] `packages/cem_ql/src/eval.rs` already has evaluator support for boolean
   short-circuiting, numeric operators, set operations, pipelines, conditionals,
   loops, and type checks; the parser now exposes the Rust-first syntax for
-  those forms except stream difference through `-`, which remains open below.
-- [ ] `-` is the key semantic gap: it must work as numeric subtraction and stream
-  difference. Current tests route stream difference through `seq:difference`
-  because parser lowering treats `-` as arithmetic only.
+  those forms, including stream difference through canonical `-`.
+- [x] `-` now works as numeric subtraction and stream difference. Known stream
+  operands lower to `SetOp::Difference`; unknown operands use runtime dispatch
+  with a mixed numeric/stream type error.
 - [ ] `packages/cem_ql/tests/xpath_parity.rs` and
   `packages/cem_ql/tests/parser_recovery.rs` now use Rust-first syntax for
   in-subset passing cases; the CEM-QL schema-package examples still need the
@@ -104,7 +104,7 @@ Dependency-ordered implementation checklist:
       double division, `%` remainder behavior, division by zero, NaN
       normalization for set identity, signed zero, and no implicit cross-type
       promotion.
-- [ ] Wire stream difference through the canonical `-` operator and keep
+- [x] Wire stream difference through the canonical `-` operator and keep
       `seq:difference(a, b)` as a named helper alias. Remove test comments that
       describe `-` as unavailable for stream difference.
 - [ ] Replace `packages/cem_ql/tests/xpath_parity.rs` with a Rust-first

@@ -6,14 +6,16 @@ use cem_ml::diagnostics::{Diagnostic, Severity};
 use cem_ml::source::{ByteRange, SourceId};
 use cem_ml::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 
-use crate::diagnostics::{DiagnosticCode, CLOSURE_DETACHED, UNKNOWN_TYPE, UNKNOWN_VARIABLE};
+use crate::diagnostics::{
+    DiagnosticCode, CLOSURE_DETACHED, TYPE_ERROR, UNKNOWN_TYPE, UNKNOWN_VARIABLE,
+};
 use crate::ir::{CompiledQuery, IrId, IrNode, IrRecordKey, IrStep, IrTree};
 use crate::parser::{
     BinaryOp, Expression, FunctionDecl, FunctionParam, LiteralValue, PathStep, PipelineStep, QName,
-    SurfaceModule, SurfaceNode, TypeExpr, VariableDecl,
+    SetOp, SurfaceModule, SurfaceNode, TypeExpr, VariableDecl,
 };
 use crate::resolve::{Arity, BindingId, FunctionKey, ModuleUri, QNameKey};
-use crate::types::{AtomType, NodeKind, SchemaTypeRegistry, Type};
+use crate::types::{stream_item_type, AtomType, NodeKind, SchemaTypeRegistry, Type};
 
 #[derive(Debug, Clone)]
 pub struct IrLowerer {
@@ -24,6 +26,7 @@ pub struct IrLowerer {
     source_id: SourceId,
     base_source_map: SourceMapStack,
     next_binding_id: u32,
+    binding_types: HashMap<BindingId, Type>,
     lambda_frames: Vec<LambdaFrame>,
     detach_captures: bool,
     schemas: SchemaTypeRegistry,
@@ -41,6 +44,7 @@ impl Default for IrLowerer {
             source_id: SourceId(0),
             base_source_map: SourceMapStack::default(),
             next_binding_id: 0,
+            binding_types: HashMap::new(),
             lambda_frames: Vec::new(),
             detach_captures: false,
             schemas: SchemaTypeRegistry::default(),
@@ -149,6 +153,7 @@ impl IrLowerer {
             self.current_scope_mut()
                 .variables
                 .insert(QNameKey::new(None, name.clone()), id);
+            self.binding_types.insert(id, Type::Any);
             self.policy_bindings.insert(id, name);
         }
 
@@ -159,6 +164,7 @@ impl IrLowerer {
                     self.current_scope_mut()
                         .variables
                         .insert(QNameKey::from_qname(&var.name), id);
+                    self.binding_types.insert(id, Type::Any);
                 }
                 SurfaceNode::DeclareFunction(fun) => {
                     let id = self.allocate_binding_id();
@@ -177,15 +183,16 @@ impl IrLowerer {
 
     fn lower_variable_decl(&mut self, var: &VariableDecl) -> IrId {
         let value = self.lower_expr(&var.value);
-        let id = self
-            .lookup_variable_id(&var.name)
-            .unwrap_or_else(|| self.declare_variable(QNameKey::from_qname(&var.name)));
+        let ty = self.type_of(value).cloned().unwrap_or(Type::Any);
+        let id = self.lookup_variable_id(&var.name).unwrap_or_else(|| {
+            self.declare_variable_with_type(QNameKey::from_qname(&var.name), ty.clone())
+        });
+        self.binding_types.insert(id, ty.clone());
         let node = IrNode::Let {
             name: id,
             value,
             body: value,
         };
-        let ty = self.type_of(value).cloned().unwrap_or(Type::Any);
         self.push_node(node, ty, var.range, Some(id), TransformKind::Query)
     }
 
@@ -195,8 +202,10 @@ impl IrLowerer {
             .params
             .iter()
             .map(|param| {
-                let binding = self.declare_variable(QNameKey::from_qname(&param.name));
-                (binding, self.type_expr(&param.type_annotation))
+                let ty = self.type_expr(&param.type_annotation);
+                let binding =
+                    self.declare_variable_with_type(QNameKey::from_qname(&param.name), ty.clone());
+                (binding, ty)
             })
             .collect();
         let body = self.lower_expr(&fun.body);
@@ -245,9 +254,12 @@ impl IrLowerer {
                     );
                     None
                 });
+                let ty = binding
+                    .and_then(|binding| self.binding_types.get(&binding).cloned())
+                    .unwrap_or(Type::Any);
                 self.push_node(
                     IrNode::LocalVar(binding.unwrap_or(BindingId(u32::MAX))),
-                    Type::Any,
+                    ty,
                     *range,
                     binding,
                     transform,
@@ -296,6 +308,9 @@ impl IrLowerer {
             } => {
                 let lhs = self.lower_expr(lhs);
                 let rhs = self.lower_expr(rhs);
+                if *op == BinaryOp::Minus {
+                    return self.lower_minus(lhs, rhs, *range, transform);
+                }
                 let ty = if comparison_op(*op) || matches!(op, BinaryOp::And | BinaryOp::Or) {
                     Type::atom(AtomType::Boolean)
                 } else {
@@ -369,8 +384,9 @@ impl IrLowerer {
                 range,
             } => {
                 let value = self.lower_expr(value);
+                let value_ty = self.type_of(value).cloned().unwrap_or(Type::Any);
                 self.push_scope();
-                let binding = self.declare_variable(QNameKey::from_qname(name));
+                let binding = self.declare_variable_with_type(QNameKey::from_qname(name), value_ty);
                 let body = self.lower_expr(body);
                 let ty = self.type_of(body).cloned().unwrap_or(Type::Any);
                 self.pop_scope();
@@ -393,8 +409,10 @@ impl IrLowerer {
                 range,
             } => {
                 let source = self.lower_expr(source);
+                let source_ty = self.type_of(source).cloned().unwrap_or(Type::Any);
+                let item_ty = stream_item_type(&source_ty).unwrap_or(source_ty);
                 self.push_scope();
-                let binding = self.declare_variable(QNameKey::from_qname(var));
+                let binding = self.declare_variable_with_type(QNameKey::from_qname(var), item_ty);
                 let body = self.lower_expr(body);
                 let body_ty = self.type_of(body).cloned().unwrap_or(Type::Any);
                 self.pop_scope();
@@ -418,8 +436,10 @@ impl IrLowerer {
                 range,
             } => {
                 let source = self.lower_expr(source);
+                let source_ty = self.type_of(source).cloned().unwrap_or(Type::Any);
+                let item_ty = stream_item_type(&source_ty).unwrap_or(source_ty);
                 self.push_scope();
-                let binding = self.declare_variable(QNameKey::from_qname(var));
+                let binding = self.declare_variable_with_type(QNameKey::from_qname(var), item_ty);
                 let predicate = self.lower_expr(predicate);
                 self.pop_scope();
                 self.push_node(
@@ -453,14 +473,9 @@ impl IrLowerer {
                 self.push_node(IrNode::Record(entries), Type::Any, *range, None, transform)
             }
             Expression::Sequence { items, range } => {
-                let items = items.iter().map(|item| self.lower_expr(item)).collect();
-                self.push_node(
-                    IrNode::Sequence(items),
-                    Type::stream(Type::Any),
-                    *range,
-                    None,
-                    transform,
-                )
+                let items: Vec<IrId> = items.iter().map(|item| self.lower_expr(item)).collect();
+                let ty = self.sequence_type(&items);
+                self.push_node(IrNode::Sequence(items), ty, *range, None, transform)
             }
             Expression::Call {
                 callee,
@@ -654,8 +669,10 @@ impl IrLowerer {
         let param_bindings: Vec<(BindingId, Type)> = params
             .iter()
             .map(|param| {
-                let binding = self.declare_variable(QNameKey::from_qname(&param.name));
-                (binding, self.type_expr(&param.type_annotation))
+                let ty = self.type_expr(&param.type_annotation);
+                let binding =
+                    self.declare_variable_with_type(QNameKey::from_qname(&param.name), ty.clone());
+                (binding, ty)
             })
             .collect();
         let body = self.lower_expression_inner(body_expr, transform.clone());
@@ -744,6 +761,95 @@ impl IrLowerer {
         )
     }
 
+    fn lower_minus(
+        &mut self,
+        lhs: IrId,
+        rhs: IrId,
+        range: ByteRange,
+        transform: TransformKind,
+    ) -> IrId {
+        let lhs_ty = self.type_of(lhs).cloned().unwrap_or(Type::Any);
+        let rhs_ty = self.type_of(rhs).cloned().unwrap_or(Type::Any);
+        match (minus_operand_shape(&lhs_ty), minus_operand_shape(&rhs_ty)) {
+            (MinusOperandShape::Numeric, MinusOperandShape::Numeric) => self.push_node(
+                IrNode::BinaryOp {
+                    op: BinaryOp::Minus,
+                    lhs,
+                    rhs,
+                },
+                common_numeric_type(&lhs_ty, &rhs_ty).unwrap_or(Type::Any),
+                range,
+                None,
+                transform,
+            ),
+            (MinusOperandShape::Stream, MinusOperandShape::Stream) => self.push_node(
+                IrNode::SetOp {
+                    op: SetOp::Difference,
+                    lhs,
+                    rhs,
+                },
+                Type::stream(common_stream_item_type(&lhs_ty, &rhs_ty).unwrap_or(Type::Any)),
+                range,
+                None,
+                transform,
+            ),
+            (MinusOperandShape::Unknown, _) | (_, MinusOperandShape::Unknown) => self.push_node(
+                IrNode::BinaryOp {
+                    op: BinaryOp::Minus,
+                    lhs,
+                    rhs,
+                },
+                Type::Any,
+                range,
+                None,
+                transform,
+            ),
+            (MinusOperandShape::Numeric, MinusOperandShape::Stream)
+            | (MinusOperandShape::Stream, MinusOperandShape::Numeric) => {
+                self.emit(
+                    TYPE_ERROR,
+                    format!(
+                        "operator `-` cannot mix numeric and stream operands: `{lhs_ty:?}` and `{rhs_ty:?}`"
+                    ),
+                    range,
+                    Severity::Error,
+                );
+                self.push_node(
+                    IrNode::BinaryOp {
+                        op: BinaryOp::Minus,
+                        lhs,
+                        rhs,
+                    },
+                    Type::Any,
+                    range,
+                    None,
+                    transform,
+                )
+            }
+            (MinusOperandShape::Other, _) | (_, MinusOperandShape::Other) => {
+                self.emit(
+                    TYPE_ERROR,
+                    format!(
+                        "operator `-` requires numeric or stream operands, got `{lhs_ty:?}` and `{rhs_ty:?}`"
+                    ),
+                    range,
+                    Severity::Error,
+                );
+                self.push_node(
+                    IrNode::BinaryOp {
+                        op: BinaryOp::Minus,
+                        lhs,
+                        rhs,
+                    },
+                    Type::Any,
+                    range,
+                    None,
+                    transform,
+                )
+            }
+        }
+    }
+
     fn stdlib_module_for(&self, name: &QName) -> Option<ModuleUri> {
         if name.prefix.is_none() && name.local == "read" {
             return Some(ModuleUri("cem:stdlib/content-types".to_owned()));
@@ -783,9 +889,10 @@ impl IrLowerer {
             .find_map(|scope| scope.functions.get(&key).copied())
     }
 
-    fn declare_variable(&mut self, name: QNameKey) -> BindingId {
+    fn declare_variable_with_type(&mut self, name: QNameKey, ty: Type) -> BindingId {
         let id = self.allocate_binding_id();
         self.current_scope_mut().variables.insert(name, id);
+        self.binding_types.insert(id, ty);
         id
     }
 
@@ -845,6 +952,18 @@ impl IrLowerer {
 
     fn type_of(&self, id: IrId) -> Option<&Type> {
         self.tree.types.get(id.0 as usize)
+    }
+
+    fn sequence_type(&self, items: &[IrId]) -> Type {
+        if items.is_empty() {
+            return Type::Empty;
+        }
+        let mut item_ty = Type::Empty;
+        for item in items {
+            let next_ty = self.type_of(*item).cloned().unwrap_or(Type::Any);
+            item_ty = common_lowered_type(&item_ty, &next_ty);
+        }
+        Type::stream(item_ty)
     }
 
     fn type_expr(&mut self, ty: &Option<TypeExpr>) -> Type {
@@ -940,6 +1059,55 @@ struct LowerScope {
 struct LambdaFrame {
     local_scope_depth: usize,
     captures: BTreeSet<BindingId>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MinusOperandShape {
+    Numeric,
+    Stream,
+    Unknown,
+    Other,
+}
+
+fn minus_operand_shape(ty: &Type) -> MinusOperandShape {
+    if ty.is_any() {
+        MinusOperandShape::Unknown
+    } else if ty.is_numeric_atom() {
+        MinusOperandShape::Numeric
+    } else if ty.is_stream_like() {
+        MinusOperandShape::Stream
+    } else {
+        MinusOperandShape::Other
+    }
+}
+
+fn common_numeric_type(lhs: &Type, rhs: &Type) -> Option<Type> {
+    if lhs == rhs {
+        Some(lhs.clone())
+    } else if lhs.is_numeric_atom() && rhs.is_numeric_atom() {
+        Some(Type::atom(AtomType::Double))
+    } else {
+        None
+    }
+}
+
+fn common_stream_item_type(lhs: &Type, rhs: &Type) -> Option<Type> {
+    match (stream_item_type(lhs), stream_item_type(rhs)) {
+        (Some(left), Some(right)) if left == right => Some(left),
+        (Some(Type::Empty), Some(item)) | (Some(item), Some(Type::Empty)) => Some(item),
+        (Some(_), Some(_)) => Some(Type::Any),
+        _ => None,
+    }
+}
+
+fn common_lowered_type(lhs: &Type, rhs: &Type) -> Type {
+    if matches!(lhs, Type::Empty) {
+        rhs.clone()
+    } else if matches!(rhs, Type::Empty) || lhs == rhs {
+        lhs.clone()
+    } else {
+        Type::Any
+    }
 }
 
 fn args_len(args: &[IrId]) -> usize {

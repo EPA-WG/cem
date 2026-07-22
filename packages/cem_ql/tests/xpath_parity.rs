@@ -188,7 +188,7 @@ fn cases() -> Vec<Case> {
             name: "set.except",
             qt3_area: "op-except",
             query: "(1, 2, 3) - (2, 4)",
-            expected: OutOfSubset,
+            expected: Items(vec![int(1), int(3)]),
         },
         Case {
             name: "cast.integer.to.double",
