@@ -28,8 +28,8 @@ pub(crate) fn infix_operator(kind: TokenKind) -> Option<(u8, InfixOperator)> {
         TokenKind::Coalesce => (PREC_COALESCE, InfixOperator::Binary(BinaryOp::Coalesce)),
         TokenKind::PipePipe => (PREC_OR, InfixOperator::Binary(BinaryOp::Or)),
         TokenKind::AmpAmp => (PREC_AND, InfixOperator::Binary(BinaryOp::And)),
-        TokenKind::EqEq => (PREC_COMPARE, InfixOperator::Binary(BinaryOp::EqOp)),
-        TokenKind::NeqOp => (PREC_COMPARE, InfixOperator::Binary(BinaryOp::NeqOp)),
+        TokenKind::EqEq => (PREC_COMPARE, InfixOperator::Binary(BinaryOp::EqEq)),
+        TokenKind::BangEq => (PREC_COMPARE, InfixOperator::Binary(BinaryOp::BangEq)),
         TokenKind::Lt => (PREC_COMPARE, InfixOperator::Binary(BinaryOp::Lt)),
         TokenKind::Le => (PREC_COMPARE, InfixOperator::Binary(BinaryOp::Le)),
         TokenKind::Gt => (PREC_COMPARE, InfixOperator::Binary(BinaryOp::Gt)),
@@ -43,8 +43,8 @@ pub(crate) fn infix_operator(kind: TokenKind) -> Option<(u8, InfixOperator)> {
         TokenKind::Plus => (PREC_ADD, InfixOperator::Binary(BinaryOp::Plus)),
         TokenKind::Minus => (PREC_ADD, InfixOperator::Binary(BinaryOp::Minus)),
         TokenKind::Star => (PREC_MUL, InfixOperator::Binary(BinaryOp::Star)),
-        TokenKind::Slash => (PREC_MUL, InfixOperator::Binary(BinaryOp::Div)),
-        TokenKind::Percent => (PREC_MUL, InfixOperator::Binary(BinaryOp::Mod)),
+        TokenKind::Slash => (PREC_MUL, InfixOperator::Binary(BinaryOp::Slash)),
+        TokenKind::Percent => (PREC_MUL, InfixOperator::Binary(BinaryOp::Percent)),
         _ => return None,
     };
     Some(op)

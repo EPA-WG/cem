@@ -96,7 +96,7 @@ Dependency-ordered implementation checklist:
 - [x] Update module-level syntax: `declare let name = expr`,
       `declare function ns:name(param as Type) { ... }`, and imports without
       `$`-prefixed variables. Remove `declare variable` from passing fixtures.
-- [ ] Update IR, type checker, and evaluator naming where it leaks old syntax:
+- [x] Update IR, type checker, and evaluator naming where it leaks old syntax:
       comparison variants should reflect `==` / `!=`, numeric division and
       remainder should use `/` / `%`, and type diagnostics should talk about
       Rust-first forms.

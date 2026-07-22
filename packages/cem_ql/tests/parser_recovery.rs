@@ -135,7 +135,7 @@ fn lexer_tracks_byte_ranges_for_trivia_comments_and_punctuation() {
             TokenKind::DotDot,
             TokenKind::Assign,
             TokenKind::ColonColon,
-            TokenKind::NeqOp,
+            TokenKind::BangEq,
             TokenKind::Le,
             TokenKind::Gt,
             TokenKind::Semicolon,
@@ -259,7 +259,7 @@ fn parser_builds_pipeline_call_shapes() {
     assert!(matches!(
         division,
         Expression::BinaryOp {
-            op: BinaryOp::Div,
+            op: BinaryOp::Slash,
             ..
         }
     ));

@@ -601,14 +601,14 @@ impl<'a> EvalCtx<'a> {
             (BinaryOp::Plus, Some(lhs), Some(rhs)) => numeric_binary(lhs, rhs, |a, b| a + b),
             (BinaryOp::Minus, Some(lhs), Some(rhs)) => numeric_binary(lhs, rhs, |a, b| a - b),
             (BinaryOp::Star, Some(lhs), Some(rhs)) => numeric_binary(lhs, rhs, |a, b| a * b),
-            (BinaryOp::Div, Some(lhs), Some(rhs)) => numeric_binary(lhs, rhs, |a, b| a / b),
-            (BinaryOp::Mod, Some(lhs), Some(rhs)) => numeric_binary(lhs, rhs, |a, b| a % b),
-            (BinaryOp::Eq | BinaryOp::EqOp, Some(lhs), Some(rhs)) => Item::Atomic(
-                AtomValue::Boolean(atom_cmp(lhs, rhs) == Some(std::cmp::Ordering::Equal)),
-            ),
-            (BinaryOp::Ne | BinaryOp::NeqOp, Some(lhs), Some(rhs)) => Item::Atomic(
-                AtomValue::Boolean(atom_cmp(lhs, rhs) != Some(std::cmp::Ordering::Equal)),
-            ),
+            (BinaryOp::Slash, Some(lhs), Some(rhs)) => numeric_binary(lhs, rhs, |a, b| a / b),
+            (BinaryOp::Percent, Some(lhs), Some(rhs)) => numeric_binary(lhs, rhs, |a, b| a % b),
+            (BinaryOp::EqEq, Some(lhs), Some(rhs)) => Item::Atomic(AtomValue::Boolean(
+                atom_cmp(lhs, rhs) == Some(std::cmp::Ordering::Equal),
+            )),
+            (BinaryOp::BangEq, Some(lhs), Some(rhs)) => Item::Atomic(AtomValue::Boolean(
+                atom_cmp(lhs, rhs) != Some(std::cmp::Ordering::Equal),
+            )),
             (BinaryOp::Lt, Some(lhs), Some(rhs)) => Item::Atomic(AtomValue::Boolean(
                 atom_cmp(lhs, rhs) == Some(std::cmp::Ordering::Less),
             )),
@@ -623,7 +623,9 @@ impl<'a> EvalCtx<'a> {
                 atom_cmp(lhs, rhs),
                 Some(std::cmp::Ordering::Greater | std::cmp::Ordering::Equal)
             ))),
-            _ => return self.type_error(source, "binary operator operands are not supported"),
+            _ => {
+                return self.type_error(source, runtime_binary_operand_message(op));
+            }
         };
         let mut out = ItemStream::once(item);
         out.extend_diagnostics(lhs_stream);
@@ -933,6 +935,26 @@ fn single_numeric_item(items: &[Item]) -> Option<&Item> {
         | [item @ Item::Atomic(AtomValue::Decimal(_))]
         | [item @ Item::Atomic(AtomValue::Double(_))] => Some(item),
         _ => None,
+    }
+}
+
+fn runtime_binary_operand_message(op: BinaryOp) -> &'static str {
+    match op {
+        BinaryOp::EqEq => "operator `==` operands are not supported",
+        BinaryOp::BangEq => "operator `!=` operands are not supported",
+        BinaryOp::Lt => "operator `<` operands are not supported",
+        BinaryOp::Le => "operator `<=` operands are not supported",
+        BinaryOp::Gt => "operator `>` operands are not supported",
+        BinaryOp::Ge => "operator `>=` operands are not supported",
+        BinaryOp::Plus => "operator `+` requires numeric operands",
+        BinaryOp::Minus => "operator `-` requires numeric or stream operands",
+        BinaryOp::Star => "operator `*` requires numeric operands",
+        BinaryOp::Slash => "operator `/` requires numeric operands",
+        BinaryOp::Percent => "operator `%` requires numeric operands",
+        BinaryOp::And => "operator `&&` requires boolean-compatible operands",
+        BinaryOp::Or => "operator `||` requires boolean-compatible operands",
+        BinaryOp::Coalesce => "operator `??` operands are not supported",
+        BinaryOp::Is => "operator `is` requires node operands",
     }
 }
 

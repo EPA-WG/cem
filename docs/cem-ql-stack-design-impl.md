@@ -177,7 +177,7 @@ pub enum TokenKind {
     Semicolon, Pipe, Amp, Minus, Caret, Assign, Colon, ColonColon,
 
     // Comparison operators
-    EqEq, NeqOp, Lt, Le, Gt, Ge,                  // `==`, `!=`, `<`, `<=`, `>`, `>=`
+    EqEq, BangEq, Lt, Le, Gt, Ge,                 // `==`, `!=`, `<`, `<=`, `>`, `>=`
 
     // Arithmetic
     Plus, Star, Slash, Percent,                   // `+`, `*`, `/`, `%`
@@ -334,7 +334,7 @@ pub enum PipelineStep {
 }
 
 pub enum SetOp { Union, Intersect, Difference, SymmetricDifference }
-pub enum BinaryOp { EqEq, NeqOp, Lt, Le, Gt, Ge, Plus, Minus, Star, Div, Rem, And, Or }
+pub enum BinaryOp { EqEq, BangEq, Lt, Le, Gt, Ge, Plus, Minus, Star, Slash, Percent, And, Or }
 pub enum UnaryOp { Negate, Not }
 
 pub struct QName { pub prefix: Option<String>, pub local: String }

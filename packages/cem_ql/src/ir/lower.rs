@@ -1117,14 +1117,12 @@ fn args_len(args: &[IrId]) -> usize {
 fn comparison_op(op: BinaryOp) -> bool {
     matches!(
         op,
-        BinaryOp::Eq
-            | BinaryOp::Ne
+        BinaryOp::EqEq
+            | BinaryOp::BangEq
             | BinaryOp::Lt
             | BinaryOp::Le
             | BinaryOp::Gt
             | BinaryOp::Ge
-            | BinaryOp::EqOp
-            | BinaryOp::NeqOp
             | BinaryOp::Is
     )
 }

@@ -603,8 +603,8 @@ impl TypeChecker {
                 self.expect_subtype(&rhs_ty, &boolean_type(), rhs.range());
                 boolean_type()
             }
-            BinaryOp::Plus | BinaryOp::Star | BinaryOp::Div | BinaryOp::Mod => {
-                self.infer_numeric_binary(&lhs_ty, &rhs_ty, range)
+            BinaryOp::Plus | BinaryOp::Star | BinaryOp::Slash | BinaryOp::Percent => {
+                self.infer_numeric_binary(op, &lhs_ty, &rhs_ty, range)
             }
             BinaryOp::Minus => self.infer_minus(&lhs_ty, &rhs_ty, range),
             BinaryOp::Is => {
@@ -616,21 +616,25 @@ impl TypeChecker {
                 // `lhs ?? rhs` yields either operand, so the static type is their union.
                 self.common_type(&lhs_ty, &rhs_ty).unwrap_or(Type::Any)
             }
-            BinaryOp::Eq
-            | BinaryOp::Ne
+            BinaryOp::EqEq
+            | BinaryOp::BangEq
             | BinaryOp::Lt
             | BinaryOp::Le
             | BinaryOp::Gt
-            | BinaryOp::Ge
-            | BinaryOp::EqOp
-            | BinaryOp::NeqOp => {
+            | BinaryOp::Ge => {
                 self.warn_cross_type_compare(&lhs_ty, &rhs_ty, range);
                 boolean_type()
             }
         }
     }
 
-    fn infer_numeric_binary(&mut self, lhs: &Type, rhs: &Type, range: ByteRange) -> Type {
+    fn infer_numeric_binary(
+        &mut self,
+        op: BinaryOp,
+        lhs: &Type,
+        rhs: &Type,
+        range: ByteRange,
+    ) -> Type {
         if lhs.is_any() || rhs.is_any() {
             return Type::Any;
         }
@@ -641,7 +645,10 @@ impl TypeChecker {
         }
         self.emit(
             TYPE_ERROR,
-            format!("numeric operator cannot be applied to `{lhs:?}` and `{rhs:?}`"),
+            format!(
+                "operator `{}` requires numeric operands, got `{lhs:?}` and `{rhs:?}`",
+                op.symbol()
+            ),
             range,
         );
         Type::Any

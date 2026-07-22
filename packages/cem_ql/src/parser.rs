@@ -1075,25 +1075,45 @@ pub enum SetOp {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BinaryOp {
-    Eq,
-    Ne,
+    EqEq,
+    BangEq,
     Lt,
     Le,
     Gt,
     Ge,
-    EqOp,
-    NeqOp,
     Plus,
     Minus,
     Star,
-    Div,
-    Mod,
+    Slash,
+    Percent,
     And,
     Or,
     /// `??` — null/empty-sequence coalescing: the left operand unless it is empty
     /// or its first item is `null`, otherwise the right operand.
     Coalesce,
     Is,
+}
+
+impl BinaryOp {
+    pub fn symbol(self) -> &'static str {
+        match self {
+            BinaryOp::EqEq => "==",
+            BinaryOp::BangEq => "!=",
+            BinaryOp::Lt => "<",
+            BinaryOp::Le => "<=",
+            BinaryOp::Gt => ">",
+            BinaryOp::Ge => ">=",
+            BinaryOp::Plus => "+",
+            BinaryOp::Minus => "-",
+            BinaryOp::Star => "*",
+            BinaryOp::Slash => "/",
+            BinaryOp::Percent => "%",
+            BinaryOp::And => "&&",
+            BinaryOp::Or => "||",
+            BinaryOp::Coalesce => "??",
+            BinaryOp::Is => "is",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
