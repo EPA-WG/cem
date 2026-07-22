@@ -153,7 +153,7 @@ Dependency-ordered implementation checklist:
       `+`, `-` numeric subtraction, `*`, `/`, `%`, unary `-`, `&&`, `||`,
       `!`, `??`, stream `|`, stream `&`, stream `-`, stream `^`, `.` pipeline,
       leading `.`, `is`, `as`, `treat_as(...)`, and `same_node(...)`.
-- [ ] Storybook function rows must cover the parity function inventory:
+- [x] Storybook function rows must cover the parity function inventory:
       `map`, `where`, `flat_map`, `take`, `drop`, `first`, `last`, `nth`,
       `peek`, `union`, `intersect`, `difference`, `symmetric_difference`,
       `count`, `unique`, `distinct_by`, `flatten`, `zip`, `enumerate`,
@@ -162,7 +162,7 @@ Dependency-ordered implementation checklist:
       `scan`, `any`, `all`, `none`, `min`, `max`, `sum`, `avg`, plus the
       Tier A string, number, datetime, report, state, template, CEM-ML, and
       content-type helper functions exposed by `ModuleRegistry`.
-- [ ] Split unimplemented Tier B helper rows into explicit pending/unsupported
+- [x] Split unimplemented Tier B helper rows into explicit pending/unsupported
       diagnostics only if their implementation is not part of the current
       slice. The story must still list them so the parity surface remains
       visible.
@@ -296,20 +296,21 @@ Deferred dependency-ordered package checklist:
 
 ### Next Work Item
 
-Continue the Rust-first CEM-QL slice with the first implementation gate:
+Run the Rust-first CEM-QL gate end to end now that parser/runtime syntax,
+schema-package examples, formatter/colorizer assets, and the Storybook
+operator/function showcase are in place:
 
-1. Update `packages/cem_ql/src/diagnostics.rs`,
-   `packages/cem_ql/src/lexer.rs`, and `packages/cem_ql/src/parser/pratt.rs`
-   for Rust-first operators, including renaming
-   `cem.ql.use_and_or` to `cem.ql.use_rust_boolean_ops`.
-2. Convert `packages/cem_ql/tests/parser_recovery.rs` and
-   `packages/cem_ql/tests/rust_first_parity.rs` to Rust-first syntax as the first
-   executable gate before broadening evaluator/runtime changes.
-3. After the Rust tests pass, update the CEM-QL schema-package examples and add
-   the Storybook operator/function showcase.
-4. After the Rust-first gate is green, add the embedded-expression audit for
-   all checked-in `*.cem` and `*.cemt` files and functionally validate the
-   extracted CEM-QL expressions against owned fixtures.
+1. Run `yarn nx run cem_ql:test`,
+   `yarn nx run cem_ql:test:rust-first-parity`,
+   `yarn nx run cem_ql:test:set-operator-identity`,
+   `yarn nx run cem_ql:test:fixtures`, `yarn nx run cem_ql:build:wasm`, and
+   `yarn nx run cem-elements:verify`.
+2. Fix any regression at the smallest owning layer. Parser/evaluator failures
+   belong in `packages/cem_ql`; browser-only failures belong in the
+   `packages/cem-elements` WASM/runtime-support boundary or story assertions.
+3. After the full gate is green, start the embedded-expression audit for every
+   checked-in `*.cem` and `*.cemt` file so stale XPath-style expressions fail
+   with Rust-first diagnostics and source provenance.
 
 ## Current Verification Commands
 
