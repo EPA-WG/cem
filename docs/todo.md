@@ -142,7 +142,7 @@ Dependency-ordered implementation checklist:
       `packages/cem_ql/src/api/wasm.rs` for Storybook demonstrations:
       compile/evaluate query source, accept JSON bindings, return items and
       diagnostics as JSON. Keep template rendering exports unchanged.
-- [ ] Add a TypeScript runtime helper in `packages/cem-elements` for the direct
+- [x] Add a TypeScript runtime helper in `packages/cem-elements` for the direct
       CEM-QL WASM query-evaluation boundary, parallel to
       `internal/runtime-support/cem-ql-render.ts`.
 - [ ] Add `packages/cem-elements/src/lib/cem-ql-rust-first-parity.stories.ts`
