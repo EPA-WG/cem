@@ -239,7 +239,7 @@ Deferred dependency-ordered package checklist:
 
 - [x] `cem-ml/v1`
 - [x] `schema/v1`
-- [ ] `schema-package/v1`
+- [x] `schema-package/v1`
 - [ ] `cem-native-template/v1`
 - [ ] `cem-transform/v1`
 - [ ] `cem-ql/v1` after the active Rust-first syntax slice updates its
@@ -296,10 +296,10 @@ Deferred dependency-ordered package checklist:
 
 ### Next Work Item
 
-Continue dependency-ordered package alignment with `schema-package/v1`. Check
-its manifest/schema-source agreement, manifest-owned examples, README
-diagnostic expectations, formatter/colorizer gap status, converter contract
-examples, and package-local Nx verify target against
+Continue dependency-ordered package alignment with `cem-native-template/v1`.
+Check its manifest/schema-source agreement, manifest-owned examples, README
+diagnostic expectations, package-owned formatter/colorizer artifacts, runtime
+conversion contract status, and package-local Nx verify target against
 [`packages/cem_ml/schema-packages/README.md`](../packages/cem_ml/schema-packages/README.md).
 
 ## Current Verification Commands

@@ -20,6 +20,12 @@ Owned schema URI:
 https://cem.dev/ns/schema-package/1
 ```
 
+Schema source:
+
+```text
+schema/schema-package.cem
+```
+
 Primary content type:
 
 ```text
@@ -110,6 +116,39 @@ and namespace claims, descriptor origin, registry layer, match rule, and source
 ranges when available. It is admitted to a host catalog only after all required
 checks pass.
 
+## Folder Contract
+
+`package.cem` is the manifest-owned index for this folder. It declares the
+schema URI and source file, the primary content type, namespace claims, schema
+package manifest constraints, and every validation example under `examples/`.
+
+`project.json` owns the package-local Nx library
+`cem_ml_schema_package_schema_package_v1`. Its `verify` target validates
+`package.cem` through the CLI at the parse failure boundary and tracks
+`README.md`, `schema/**/*.cem`, `formatters/**/*.cemt`,
+`colorizers/**/*.cemt`, `converters/**/*.cemt`, and `examples/**/*` as package
+inputs. Full semantic schema-package validation remains in the final
+registry/package gate.
+
+Example metadata is intentionally manifest-owned. This package does not require
+checked-in `.example.cem` sidecars because `package.cem` already records the
+example path, content type, schema URI, expected pass/fail result, and expected
+diagnostic codes.
+
+## CEMT Output Status
+
+The schema-package metadata package currently declares no runtime converter
+edges in its own manifest and no package-owned formatter or colorizer CEMT
+artifacts. The schema-package structure audit therefore reports the baseline
+formatter/colorizer profiles as alignment gaps, not hard errors.
+
+CEMT files under `examples/converters/`, `examples/formatters/`, and
+`examples/transforms/` are validation fixtures, not registered package output
+assets. They exercise converter and artifact contract failures for package
+metadata validation. Until schema-package-specific formatter and colorizer
+assets are authored, schema-package examples rely on the generic CEM-ML output
+path rather than a schema-package-specific output pipeline.
+
 ## Validation Examples
 
 The schema-owned examples live in [`examples/`](examples/) and are used by the
@@ -121,12 +160,12 @@ severity, and source range data for the engine behavior contract they exercise.
 | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`basic-package.cem`](examples/basic-package.cem)                                                 | Minimal `package.cem` manifest with schema, content type, and namespace registration.                                                                           | Pass                                                                                                                                                  |
 | [`converter-package.cem`](examples/converter-package.cem)                                         | Package manifest with aliases and a CEMT converter declaration.                                                                                                 | Pass                                                                                                                                                  |
-| [`invalid-unclosed-package.cem`](examples/invalid-unclosed-package.cem)                           | Missing closing package scope syntax diagnostic.                                                                                                                | Fail with `cem.schema.unclosed_scope`                                                                                                                 |
+| [`invalid-unclosed-package.cem`](examples/invalid-unclosed-package.cem)                           | Missing closing package scope syntax diagnostic.                                                                                                                | Fail with `cem.ast.unclosed_scope`                                                                                                                    |
 | [`invalid-missing-required-attribute.cem`](examples/invalid-missing-required-attribute.cem)       | Manifest schema entry missing its required `source` attribute and package root missing its required content-type child.                                         | Fail with `cem.schema_model.missing_required_attribute`, `cem.schema_package.package_check`                                                           |
 | [`invalid-primary-content-type.cem`](examples/invalid-primary-content-type.cem)                   | Manifest declares more than one primary content type; the package-level diagnostic is produced by a schema-declared CEM-ML behavior function.                   | Fail with `cem.schema_package.content_type_conflict`                                                                                                  |
 | [`invalid-primary-content-type-missing.cem`](examples/invalid-primary-content-type-missing.cem)   | Manifest declares content types but no primary content type; the same schema-declared CEM-ML behavior function enforces exact-one primary cardinality.          | Fail with `cem.schema_package.content_type_conflict`                                                                                                  |
-| [`invalid-converter-contract.cem`](examples/invalid-converter-contract.cem)                       | Converter declaration with missing CEMT template identity, missing target endpoint, invalid cost, and incompatible endpoint schema/content type.                | Fail with `cem.schema_package.converter_check`, `cem.schema_model.invalid_attribute_datatype_param`                                                   |
-| [`invalid-converter-runtime-constraints.cem`](examples/invalid-converter-runtime-constraints.cem) | Converter declarations with unknown implementation, invalid planner metadata, missing native fallback reason, invalid output metadata, and missing Rust symbol. | Fail with `cem.schema_model.invalid_attribute_type`, `cem.schema_model.invalid_attribute_value`, `cem.schema_package.converter_check`                 |
+| [`invalid-converter-contract.cem`](examples/invalid-converter-contract.cem)                       | Converter declaration with missing CEMT template identity, missing target endpoint, invalid cost, and incompatible endpoint schema/content type.                | Fail with `cem.schema_package.converter_check`                                                                                                        |
+| [`invalid-converter-runtime-constraints.cem`](examples/invalid-converter-runtime-constraints.cem) | Converter declarations with unknown implementation, invalid planner metadata, missing native fallback reason, invalid output metadata, and missing Rust symbol. | Fail with `cem.schema_package.converter_check`                                                                                                        |
 | [`invalid-converter-template-unreadable.cem`](examples/invalid-converter-template-unreadable.cem) | CEMT converter declares formatter/coloring output profiles, but its template path does not resolve to a readable source.                                        | Fail with `cem.schema_package.converter_check`                                                                                                        |
 | [`invalid-converter-template-contract.cem`](examples/invalid-converter-template-contract.cem)     | CEMT converter declares formatter/coloring output profiles, but its template cannot compile as a formatted CEM-tree producer before writer output.              | Fail with `cem.schema_package.converter_check`                                                                                                        |
 | [`invalid-artifact-contract.cem`](examples/invalid-artifact-contract.cem)                         | Formatter artifact metadata disagrees with the referenced CEMT function declaration.                                                                            | Fail with `cem.schema_package.artifact_check`                                                                                                         |
@@ -135,7 +174,9 @@ severity, and source range data for the engine behavior contract they exercise.
 | [`invalid-artifact-source-parse.cem`](examples/invalid-artifact-source-parse.cem)                 | Formatter artifact references a CEMT source file that cannot be parsed.                                                                                         | Fail with `cem.schema_package.artifact_check`                                                                                                         |
 | [`invalid-artifact-function-missing.cem`](examples/invalid-artifact-function-missing.cem)         | Formatter artifact references a CEMT source file that does not declare the requested output function.                                                           | Fail with `cem.schema_package.artifact_check`                                                                                                         |
 | [`invalid-schema-metadata.cem`](examples/invalid-schema-metadata.cem)                             | Manifest schema metadata disagrees with the referenced schema source.                                                                                           | Fail with `cem.schema_package.schema_uri_mismatch`, `cem.schema_package.schema_content_type_mismatch`, `cem.schema_package.schema_namespace_mismatch` |
-| [`invalid-example-contract.cem`](examples/invalid-example-contract.cem)                           | Example metadata has an invalid expected result, incompatible schema/content type, and a failing example without expected diagnostics.                          | Fail with `cem.schema_model.invalid_attribute_value`, `cem.schema_package.example_check`                                                              |
+| [`invalid-schema-source-unreadable.cem`](examples/invalid-schema-source-unreadable.cem)           | Manifest schema source points at an unreadable source file.                                                                                                     | Fail with `cem.schema_package.schema_source_unreadable`                                                                                               |
+| [`invalid-schema-source-invalid.cem`](examples/invalid-schema-source-invalid.cem)                 | Manifest schema source points at a readable but invalid schema source.                                                                                          | Fail with `cem.schema_package.schema_source_invalid`                                                                                                  |
+| [`invalid-example-contract.cem`](examples/invalid-example-contract.cem)                           | Example metadata has an invalid expected result, incompatible schema/content type, and a failing example without expected diagnostics.                          | Fail with `cem.schema_package.example_check`                                                                                                          |
 | [`invalid-example-source-contract.cem`](examples/invalid-example-source-contract.cem)             | Example declarations cover unreadable source files, source validation result mismatches, and expected diagnostic mismatches.                                    | Fail with `cem.schema_package.example_check`                                                                                                          |
 
 Validate an example explicitly against this schema:
