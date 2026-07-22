@@ -311,6 +311,9 @@ impl IrLowerer {
                 if *op == BinaryOp::Minus {
                     return self.lower_minus(lhs, rhs, *range, transform);
                 }
+                if numeric_op(*op) {
+                    return self.lower_numeric_binary(*op, lhs, rhs, *range, transform);
+                }
                 let ty = if comparison_op(*op) || matches!(op, BinaryOp::And | BinaryOp::Or) {
                     Type::atom(AtomType::Boolean)
                 } else {
@@ -771,17 +774,32 @@ impl IrLowerer {
         let lhs_ty = self.type_of(lhs).cloned().unwrap_or(Type::Any);
         let rhs_ty = self.type_of(rhs).cloned().unwrap_or(Type::Any);
         match (minus_operand_shape(&lhs_ty), minus_operand_shape(&rhs_ty)) {
-            (MinusOperandShape::Numeric, MinusOperandShape::Numeric) => self.push_node(
-                IrNode::BinaryOp {
-                    op: BinaryOp::Minus,
-                    lhs,
-                    rhs,
-                },
-                common_numeric_type(&lhs_ty, &rhs_ty).unwrap_or(Type::Any),
-                range,
-                None,
-                transform,
-            ),
+            (MinusOperandShape::Numeric, MinusOperandShape::Numeric) => {
+                let ty = if lhs_ty == rhs_ty {
+                    lhs_ty.clone()
+                } else {
+                    self.emit(
+                        TYPE_ERROR,
+                        format!(
+                            "operator `-` requires matching numeric operand types, got `{lhs_ty:?}` and `{rhs_ty:?}`; use an explicit num:* conversion"
+                        ),
+                        range,
+                        Severity::Error,
+                    );
+                    Type::Any
+                };
+                self.push_node(
+                    IrNode::BinaryOp {
+                        op: BinaryOp::Minus,
+                        lhs,
+                        rhs,
+                    },
+                    ty,
+                    range,
+                    None,
+                    transform,
+                )
+            }
             (MinusOperandShape::Stream, MinusOperandShape::Stream) => self.push_node(
                 IrNode::SetOp {
                     op: SetOp::Difference,
@@ -848,6 +866,54 @@ impl IrLowerer {
                 )
             }
         }
+    }
+
+    fn lower_numeric_binary(
+        &mut self,
+        op: BinaryOp,
+        lhs: IrId,
+        rhs: IrId,
+        range: ByteRange,
+        transform: TransformKind,
+    ) -> IrId {
+        let lhs_ty = self.type_of(lhs).cloned().unwrap_or(Type::Any);
+        let rhs_ty = self.type_of(rhs).cloned().unwrap_or(Type::Any);
+        let ty = if lhs_ty.is_any() || rhs_ty.is_any() {
+            Type::Any
+        } else if lhs_ty.is_numeric_atom() && rhs_ty.is_numeric_atom() {
+            if lhs_ty == rhs_ty {
+                lhs_ty.clone()
+            } else {
+                self.emit(
+                    TYPE_ERROR,
+                    format!(
+                        "operator `{}` requires matching numeric operand types, got `{lhs_ty:?}` and `{rhs_ty:?}`; use an explicit num:* conversion",
+                        op.symbol()
+                    ),
+                    range,
+                    Severity::Error,
+                );
+                Type::Any
+            }
+        } else {
+            self.emit(
+                TYPE_ERROR,
+                format!(
+                    "operator `{}` requires numeric operands, got `{lhs_ty:?}` and `{rhs_ty:?}`",
+                    op.symbol()
+                ),
+                range,
+                Severity::Error,
+            );
+            Type::Any
+        };
+        self.push_node(
+            IrNode::BinaryOp { op, lhs, rhs },
+            ty,
+            range,
+            None,
+            transform,
+        )
     }
 
     fn stdlib_module_for(&self, name: &QName) -> Option<ModuleUri> {
@@ -1081,16 +1147,6 @@ fn minus_operand_shape(ty: &Type) -> MinusOperandShape {
     }
 }
 
-fn common_numeric_type(lhs: &Type, rhs: &Type) -> Option<Type> {
-    if lhs == rhs {
-        Some(lhs.clone())
-    } else if lhs.is_numeric_atom() && rhs.is_numeric_atom() {
-        Some(Type::atom(AtomType::Double))
-    } else {
-        None
-    }
-}
-
 fn common_stream_item_type(lhs: &Type, rhs: &Type) -> Option<Type> {
     match (stream_item_type(lhs), stream_item_type(rhs)) {
         (Some(left), Some(right)) if left == right => Some(left),
@@ -1124,6 +1180,13 @@ fn comparison_op(op: BinaryOp) -> bool {
             | BinaryOp::Gt
             | BinaryOp::Ge
             | BinaryOp::Is
+    )
+}
+
+fn numeric_op(op: BinaryOp) -> bool {
+    matches!(
+        op,
+        BinaryOp::Plus | BinaryOp::Star | BinaryOp::Slash | BinaryOp::Percent
     )
 }
 

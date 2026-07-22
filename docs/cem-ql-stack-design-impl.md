@@ -374,6 +374,16 @@ During type checking and lowering, known numeric operands remain
 and unresolved operands may lower to a typed runtime-dispatch node only if it
 preserves the same diagnostics and AC-QO-1 ordering/identity rules.
 
+Numeric operators follow AC-QX-7. Type checking and lowering reject implicit
+promotion across `integer`, `decimal`, and `double`; authors must call
+`num:integer`, `num:decimal`, or `num:double` explicitly before using
+`+`, `-`, `*`, `/`, or `%` on mixed atom types. Runtime arithmetic dispatches
+by concrete atom type: integers use checked Rust `i64` operators (`/`
+truncates toward zero and `%` keeps the dividend sign), doubles use Rust
+`f64` IEEE-754 behavior, and decimals use exact finite base-10 arithmetic with
+no hidden `f64` fallback. Decimal division that is not finite and integer
+division/remainder cases that would panic in Rust emit `cem.ql.type_error`.
+
 ### 5.3 Recovery Synchronization
 
 The parser's `synchronize()` helper consumes tokens until it finds one

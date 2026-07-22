@@ -45,6 +45,144 @@ fn evaluator_handles_literals_arithmetic_and_control_flow() {
 }
 
 #[test]
+fn compiler_rejects_implicit_numeric_promotion() {
+    let error = compile("1 + 1.0", &CompileContext::default()).unwrap_err();
+
+    assert_eq!(error.code, "cem.ql.compile_failed");
+    assert!(
+        error.message.contains("matching numeric operand types"),
+        "{}",
+        error.message
+    );
+}
+
+#[test]
+fn evaluator_uses_rust_integer_division_and_remainder() {
+    let stream = eval("(5 / 2, -5 / 2, -5 % 2)", default_policy());
+
+    assert_eq!(
+        stream.items,
+        vec![
+            Item::Atomic(AtomValue::Integer(2)),
+            Item::Atomic(AtomValue::Integer(-2)),
+            Item::Atomic(AtomValue::Integer(-1)),
+        ]
+    );
+    assert!(stream.error.is_none(), "{:?}", stream.diagnostics);
+}
+
+#[test]
+fn evaluator_rejects_integer_division_and_remainder_by_zero() {
+    let division = eval("1 / 0", default_policy());
+    assert_eq!(
+        division.error,
+        Some(EvalError::TypeError(
+            "operator `/` cannot divide integer by zero"
+        ))
+    );
+
+    let remainder = eval("1 % 0", default_policy());
+    assert_eq!(
+        remainder.error,
+        Some(EvalError::TypeError(
+            "operator `%` cannot divide integer by zero"
+        ))
+    );
+
+    let decimal_division = eval("1.0 / 0.0", default_policy());
+    assert_eq!(
+        decimal_division.error,
+        Some(EvalError::TypeError(
+            "operator `/` cannot divide decimal by zero"
+        ))
+    );
+
+    let decimal_remainder = eval("1.0 % 0.0", default_policy());
+    assert_eq!(
+        decimal_remainder.error,
+        Some(EvalError::TypeError(
+            "operator `%` cannot divide decimal by zero"
+        ))
+    );
+}
+
+#[test]
+fn evaluator_uses_exact_finite_decimal_arithmetic() {
+    let stream = eval(
+        "(1.25 + 2.50, 5.5 - 2.0, 2.5 * 4.0, 1.0 / 4.0, 5.5 % 2.0)",
+        default_policy(),
+    );
+
+    assert_eq!(
+        stream.items,
+        vec![
+            Item::Atomic(AtomValue::Decimal("3.75".to_owned())),
+            Item::Atomic(AtomValue::Decimal("3.5".to_owned())),
+            Item::Atomic(AtomValue::Decimal("10".to_owned())),
+            Item::Atomic(AtomValue::Decimal("0.25".to_owned())),
+            Item::Atomic(AtomValue::Decimal("1.5".to_owned())),
+        ]
+    );
+    assert!(stream.error.is_none(), "{:?}", stream.diagnostics);
+}
+
+#[test]
+fn evaluator_rejects_non_finite_decimal_division_without_double_conversion() {
+    let stream = eval("1.0 / 3.0", default_policy());
+
+    assert_eq!(
+        stream.error,
+        Some(EvalError::TypeError(
+            "operator `/` decimal result is not finite; use num:double(...) for IEEE division"
+        ))
+    );
+}
+
+#[test]
+fn evaluator_keeps_double_ieee_division_behavior() {
+    let infinity = eval("1.0e0 / 0.0e0", default_policy());
+    let Some(Item::Atomic(AtomValue::Double(value))) = infinity.items.first() else {
+        panic!("expected double infinity, got {:?}", infinity.items);
+    };
+    assert!(value.is_infinite() && value.is_sign_positive());
+
+    let nan = eval("0.0e0 / 0.0e0", default_policy());
+    let Some(Item::Atomic(AtomValue::Double(value))) = nan.items.first() else {
+        panic!("expected double NaN, got {:?}", nan.items);
+    };
+    assert!(value.is_nan());
+
+    let remainder = eval("-5.0e0 % 2.0e0", default_policy());
+    assert_eq!(remainder.items, vec![Item::Atomic(AtomValue::Double(-1.0))]);
+}
+
+#[test]
+fn evaluator_requires_explicit_conversion_for_dynamic_mixed_numeric_operands() {
+    let mut bindings = BTreeMap::new();
+    bindings.insert(
+        "left".to_owned(),
+        cem_ql::eval::ItemStream::once(Item::Atomic(AtomValue::Integer(1))),
+    );
+    bindings.insert(
+        "right".to_owned(),
+        cem_ql::eval::ItemStream::once(Item::Atomic(AtomValue::Double(1.0))),
+    );
+
+    let mixed = eval_with_bindings("left + right", bindings, default_policy());
+
+    assert_eq!(
+        mixed.error,
+        Some(EvalError::TypeError(
+            "operator `+` requires matching numeric operand types; use an explicit num:* conversion"
+        ))
+    );
+
+    let converted = eval("num:double(1) + 1.0e0", default_policy());
+    assert_eq!(converted.items, vec![Item::Atomic(AtomValue::Double(2.0))]);
+    assert!(converted.error.is_none(), "{:?}", converted.diagnostics);
+}
+
+#[test]
 fn evaluator_applies_pipeline_lambda_with_current_item() {
     let stream = eval("(1, 2, 3).{. + 1}", default_policy());
 

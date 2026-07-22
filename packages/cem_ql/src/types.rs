@@ -639,9 +639,18 @@ impl TypeChecker {
             return Type::Any;
         }
         if lhs.is_numeric_atom() && rhs.is_numeric_atom() {
-            return self
-                .common_type(lhs, rhs)
-                .unwrap_or(Type::atom(AtomType::Double));
+            if lhs == rhs {
+                return lhs.clone();
+            }
+            self.emit(
+                TYPE_ERROR,
+                format!(
+                    "operator `{}` requires matching numeric operand types, got `{lhs:?}` and `{rhs:?}`; use an explicit num:* conversion",
+                    op.symbol()
+                ),
+                range,
+            );
+            return Type::Any;
         }
         self.emit(
             TYPE_ERROR,
@@ -659,9 +668,17 @@ impl TypeChecker {
             return Type::Any;
         }
         if lhs.is_numeric_atom() && rhs.is_numeric_atom() {
-            return self
-                .common_type(lhs, rhs)
-                .unwrap_or(Type::atom(AtomType::Double));
+            if lhs == rhs {
+                return lhs.clone();
+            }
+            self.emit(
+                TYPE_ERROR,
+                format!(
+                    "operator `-` requires matching numeric operand types, got `{lhs:?}` and `{rhs:?}`; use an explicit num:* conversion"
+                ),
+                range,
+            );
+            return Type::Any;
         }
         if lhs.is_stream_like() && rhs.is_stream_like() {
             let lhs_item = stream_item_type(lhs).unwrap_or(Type::Empty);

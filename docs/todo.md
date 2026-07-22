@@ -100,7 +100,7 @@ Dependency-ordered implementation checklist:
       comparison variants should reflect `==` / `!=`, numeric division and
       remainder should use `/` / `%`, and type diagnostics should talk about
       Rust-first forms.
-- [ ] Define and test Rust numeric semantics explicitly: integer vs decimal vs
+- [x] Define and test Rust numeric semantics explicitly: integer vs decimal vs
       double division, `%` remainder behavior, division by zero, NaN
       normalization for set identity, signed zero, and no implicit cross-type
       promotion.

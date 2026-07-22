@@ -107,6 +107,42 @@ fn minus_rejects_mixed_numeric_and_stream_operands() {
 }
 
 #[test]
+fn numeric_operators_require_matching_numeric_types() {
+    for source in ["1 + 1.0", "1.0 * 1.0e0", "1 / 1.0e0", "1.0 % 2"] {
+        let mut checker = TypeChecker::new();
+        let report = check(source, &mut checker);
+
+        assert!(
+            report.diagnostics.iter().any(|diag| {
+                diag.code == "cem.ql.type_error"
+                    && diag.message.contains("matching numeric operand types")
+            }),
+            "{source}: {:?}",
+            report.diagnostics
+        );
+    }
+}
+
+#[test]
+fn same_type_numeric_operators_preserve_operand_type() {
+    for (source, expected) in [
+        ("5 / 2", Type::atom(AtomType::Integer)),
+        ("5.0 / 2.0", Type::atom(AtomType::Decimal)),
+        ("5.0e0 / 2.0e0", Type::atom(AtomType::Double)),
+    ] {
+        let mut checker = TypeChecker::new();
+        let report = check(source, &mut checker);
+
+        assert!(
+            report.diagnostics.is_empty(),
+            "{source}: {:?}",
+            report.diagnostics
+        );
+        assert_eq!(report.root_type, Some(expected), "{source}");
+    }
+}
+
+#[test]
 fn computed_record_keys_must_type_check_as_strings() {
     let mut checker = TypeChecker::new();
     let report = check(r#"{ [42]: "Ada" }"#, &mut checker);

@@ -434,6 +434,12 @@ field layouts) lives in
   numeric/stream operands emit `cem.ql.type_error`; unresolved operands may
   use a typed runtime-dispatch node only when it preserves the same
   diagnostics, strict typed identity, and deterministic stream order.
+- **Numeric operators** lower only for matching numeric atom types. There is
+  no implicit widening from `integer` to `decimal` or `double`; authors use
+  `num:integer`, `num:decimal`, or `num:double` explicitly before `+`, `-`,
+  `*`, `/`, or `%`. Runtime integers follow checked Rust `i64` semantics,
+  doubles follow Rust `f64` IEEE-754 semantics, and decimals stay exact
+  finite base-10 values without a hidden `f64` fallback.
 - **`let`** lowers to a `Let { name, value, body }` node. Bindings are
   immutable.
 - **Lambdas** lower to closure values carrying a captured binding

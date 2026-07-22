@@ -598,11 +598,19 @@ impl<'a> EvalCtx<'a> {
         let lhs = lhs_stream.items.first();
         let rhs = rhs_stream.items.first();
         let item = match (op, lhs, rhs) {
-            (BinaryOp::Plus, Some(lhs), Some(rhs)) => numeric_binary(lhs, rhs, |a, b| a + b),
-            (BinaryOp::Minus, Some(lhs), Some(rhs)) => numeric_binary(lhs, rhs, |a, b| a - b),
-            (BinaryOp::Star, Some(lhs), Some(rhs)) => numeric_binary(lhs, rhs, |a, b| a * b),
-            (BinaryOp::Slash, Some(lhs), Some(rhs)) => numeric_binary(lhs, rhs, |a, b| a / b),
-            (BinaryOp::Percent, Some(lhs), Some(rhs)) => numeric_binary(lhs, rhs, |a, b| a % b),
+            (
+                op @ (BinaryOp::Plus | BinaryOp::Star | BinaryOp::Slash | BinaryOp::Percent),
+                Some(lhs),
+                Some(rhs),
+            ) => match numeric_binary(op, lhs, rhs) {
+                Ok(item) => item,
+                Err(message) => {
+                    let mut out = self.type_error(source, message);
+                    out.extend_diagnostics(lhs_stream);
+                    out.extend_diagnostics(rhs_stream);
+                    return out;
+                }
+            },
             (BinaryOp::EqEq, Some(lhs), Some(rhs)) => Item::Atomic(AtomValue::Boolean(
                 atom_cmp(lhs, rhs) == Some(std::cmp::Ordering::Equal),
             )),
@@ -643,12 +651,20 @@ impl<'a> EvalCtx<'a> {
             single_numeric_item(&lhs_stream.items),
             single_numeric_item(&rhs_stream.items),
         ) {
-            (Some(lhs), Some(rhs)) => {
-                let mut out = ItemStream::once(numeric_binary(lhs, rhs, |a, b| a - b));
-                out.extend_diagnostics(lhs_stream);
-                out.extend_diagnostics(rhs_stream);
-                out
-            }
+            (Some(lhs), Some(rhs)) => match numeric_binary(BinaryOp::Minus, lhs, rhs) {
+                Ok(item) => {
+                    let mut out = ItemStream::once(item);
+                    out.extend_diagnostics(lhs_stream);
+                    out.extend_diagnostics(rhs_stream);
+                    out
+                }
+                Err(message) => {
+                    let mut out = self.type_error(source, message);
+                    out.extend_diagnostics(lhs_stream);
+                    out.extend_diagnostics(rhs_stream);
+                    out
+                }
+            },
             (Some(_), None) | (None, Some(_)) => {
                 let mut out = self.type_error(
                     source,
@@ -674,7 +690,14 @@ impl<'a> EvalCtx<'a> {
                 let Some(item) = operand_stream.items.first() else {
                     return self.type_error(source, "unary minus requires a numeric item");
                 };
-                numeric_unary(item, |value| -value)
+                match numeric_unary(item) {
+                    Ok(item) => item,
+                    Err(message) => {
+                        let mut out = self.type_error(source, message);
+                        out.extend_diagnostics(operand_stream);
+                        return out;
+                    }
+                }
             }
         };
         let mut out = ItemStream::once(item);
@@ -915,17 +938,112 @@ fn item_to_string(item: &Item) -> Option<String> {
     }
 }
 
-fn numeric_binary(lhs: &Item, rhs: &Item, f: impl FnOnce(f64, f64) -> f64) -> Item {
-    let left = item_to_f64(lhs).unwrap_or(0.0);
-    let right = item_to_f64(rhs).unwrap_or(0.0);
-    let value = f(left, right);
-    if matches!(lhs, Item::Atomic(AtomValue::Integer(_)))
-        && matches!(rhs, Item::Atomic(AtomValue::Integer(_)))
-        && value.fract() == 0.0
-    {
-        Item::Atomic(AtomValue::Integer(value as i64))
-    } else {
-        Item::Atomic(AtomValue::Double(value))
+fn numeric_binary(op: BinaryOp, lhs: &Item, rhs: &Item) -> Result<Item, &'static str> {
+    match (lhs, rhs) {
+        (Item::Atomic(AtomValue::Integer(lhs)), Item::Atomic(AtomValue::Integer(rhs))) => {
+            integer_binary(op, *lhs, *rhs).map(|value| Item::Atomic(AtomValue::Integer(value)))
+        }
+        (Item::Atomic(AtomValue::Decimal(lhs)), Item::Atomic(AtomValue::Decimal(rhs))) => {
+            decimal_binary(op, lhs, rhs).map(|value| Item::Atomic(AtomValue::Decimal(value)))
+        }
+        (Item::Atomic(AtomValue::Double(lhs)), Item::Atomic(AtomValue::Double(rhs))) => Ok(
+            Item::Atomic(AtomValue::Double(double_binary(op, *lhs, *rhs))),
+        ),
+        _ if is_numeric_item(lhs) && is_numeric_item(rhs) => Err(runtime_mixed_numeric_message(op)),
+        _ => Err(runtime_binary_operand_message(op)),
+    }
+}
+
+fn integer_binary(op: BinaryOp, lhs: i64, rhs: i64) -> Result<i64, &'static str> {
+    match op {
+        BinaryOp::Plus => lhs
+            .checked_add(rhs)
+            .ok_or("operator `+` overflowed integer"),
+        BinaryOp::Minus => lhs
+            .checked_sub(rhs)
+            .ok_or("operator `-` overflowed integer"),
+        BinaryOp::Star => lhs
+            .checked_mul(rhs)
+            .ok_or("operator `*` overflowed integer"),
+        BinaryOp::Slash if rhs == 0 => Err("operator `/` cannot divide integer by zero"),
+        BinaryOp::Slash => lhs
+            .checked_div(rhs)
+            .ok_or("operator `/` overflowed integer"),
+        BinaryOp::Percent if rhs == 0 => Err("operator `%` cannot divide integer by zero"),
+        BinaryOp::Percent => lhs
+            .checked_rem(rhs)
+            .ok_or("operator `%` overflowed integer"),
+        _ => Err(runtime_binary_operand_message(op)),
+    }
+}
+
+fn decimal_binary(op: BinaryOp, lhs: &str, rhs: &str) -> Result<String, &'static str> {
+    let lhs = DecimalParts::parse(lhs).ok_or(decimal_operand_message(op))?;
+    let rhs = DecimalParts::parse(rhs).ok_or(decimal_operand_message(op))?;
+    let value = match op {
+        BinaryOp::Plus => lhs
+            .checked_add(rhs)
+            .ok_or("operator `+` overflowed decimal")?,
+        BinaryOp::Minus => lhs
+            .checked_sub(rhs)
+            .ok_or("operator `-` overflowed decimal")?,
+        BinaryOp::Star => lhs
+            .checked_mul(rhs)
+            .ok_or("operator `*` overflowed decimal")?,
+        BinaryOp::Slash => lhs.checked_div(rhs)?,
+        BinaryOp::Percent => lhs.checked_rem(rhs)?,
+        _ => return Err(runtime_binary_operand_message(op)),
+    };
+    Ok(value.format())
+}
+
+fn double_binary(op: BinaryOp, lhs: f64, rhs: f64) -> f64 {
+    match op {
+        BinaryOp::Plus => lhs + rhs,
+        BinaryOp::Minus => lhs - rhs,
+        BinaryOp::Star => lhs * rhs,
+        BinaryOp::Slash => lhs / rhs,
+        BinaryOp::Percent => lhs % rhs,
+        _ => f64::NAN,
+    }
+}
+
+fn is_numeric_item(item: &Item) -> bool {
+    matches!(
+        item,
+        Item::Atomic(AtomValue::Integer(_) | AtomValue::Decimal(_) | AtomValue::Double(_))
+    )
+}
+
+fn runtime_mixed_numeric_message(op: BinaryOp) -> &'static str {
+    match op {
+        BinaryOp::Plus => {
+            "operator `+` requires matching numeric operand types; use an explicit num:* conversion"
+        }
+        BinaryOp::Minus => {
+            "operator `-` requires matching numeric operand types; use an explicit num:* conversion"
+        }
+        BinaryOp::Star => {
+            "operator `*` requires matching numeric operand types; use an explicit num:* conversion"
+        }
+        BinaryOp::Slash => {
+            "operator `/` requires matching numeric operand types; use an explicit num:* conversion"
+        }
+        BinaryOp::Percent => {
+            "operator `%` requires matching numeric operand types; use an explicit num:* conversion"
+        }
+        _ => runtime_binary_operand_message(op),
+    }
+}
+
+fn decimal_operand_message(op: BinaryOp) -> &'static str {
+    match op {
+        BinaryOp::Plus => "operator `+` requires finite decimal operands",
+        BinaryOp::Minus => "operator `-` requires finite decimal operands",
+        BinaryOp::Star => "operator `*` requires finite decimal operands",
+        BinaryOp::Slash => "operator `/` requires finite decimal operands",
+        BinaryOp::Percent => "operator `%` requires finite decimal operands",
+        _ => runtime_binary_operand_message(op),
     }
 }
 
@@ -958,13 +1076,235 @@ fn runtime_binary_operand_message(op: BinaryOp) -> &'static str {
     }
 }
 
-fn numeric_unary(item: &Item, f: impl FnOnce(f64) -> f64) -> Item {
-    let value = f(item_to_f64(item).unwrap_or(0.0));
-    if matches!(item, Item::Atomic(AtomValue::Integer(_))) && value.fract() == 0.0 {
-        Item::Atomic(AtomValue::Integer(value as i64))
-    } else {
-        Item::Atomic(AtomValue::Double(value))
+fn numeric_unary(item: &Item) -> Result<Item, &'static str> {
+    match item {
+        Item::Atomic(AtomValue::Integer(value)) => value
+            .checked_neg()
+            .map(|value| Item::Atomic(AtomValue::Integer(value)))
+            .ok_or("unary minus overflowed integer"),
+        Item::Atomic(AtomValue::Decimal(value)) => {
+            let decimal = DecimalParts::parse(value)
+                .ok_or("unary minus requires a finite decimal operand")?;
+            decimal
+                .checked_neg()
+                .map(|value| Item::Atomic(AtomValue::Decimal(value.format())))
+                .ok_or("unary minus overflowed decimal")
+        }
+        Item::Atomic(AtomValue::Double(value)) => Ok(Item::Atomic(AtomValue::Double(-value))),
+        _ => Err("unary minus requires a numeric item"),
     }
+}
+
+#[derive(Clone, Copy)]
+struct DecimalParts {
+    units: i128,
+    scale: u32,
+}
+
+impl DecimalParts {
+    fn parse(source: &str) -> Option<Self> {
+        let source = source.trim();
+        let (negative, source) = source
+            .strip_prefix('-')
+            .map(|source| (true, source))
+            .or_else(|| source.strip_prefix('+').map(|source| (false, source)))
+            .unwrap_or((false, source));
+        if source.is_empty() || source.contains('e') || source.contains('E') {
+            return None;
+        }
+        let (whole, fraction) = source.split_once('.').unwrap_or((source, ""));
+        if whole.is_empty() && fraction.is_empty() {
+            return None;
+        }
+        if !whole.bytes().all(|byte| byte.is_ascii_digit())
+            || !fraction.bytes().all(|byte| byte.is_ascii_digit())
+        {
+            return None;
+        }
+        let scale = u32::try_from(fraction.len()).ok()?;
+        let mut units = 0i128;
+        for byte in whole.bytes().chain(fraction.bytes()) {
+            units = units.checked_mul(10)?;
+            units = units.checked_add(i128::from(byte - b'0'))?;
+        }
+        if negative {
+            units = units.checked_neg()?;
+        }
+        Some(Self { units, scale }.normalized())
+    }
+
+    fn checked_neg(self) -> Option<Self> {
+        Some(
+            Self {
+                units: self.units.checked_neg()?,
+                scale: self.scale,
+            }
+            .normalized(),
+        )
+    }
+
+    fn checked_add(self, rhs: Self) -> Option<Self> {
+        let (lhs_units, rhs_units, scale) = align_decimal_scales(self, rhs)?;
+        Some(
+            Self {
+                units: lhs_units.checked_add(rhs_units)?,
+                scale,
+            }
+            .normalized(),
+        )
+    }
+
+    fn checked_sub(self, rhs: Self) -> Option<Self> {
+        let (lhs_units, rhs_units, scale) = align_decimal_scales(self, rhs)?;
+        Some(
+            Self {
+                units: lhs_units.checked_sub(rhs_units)?,
+                scale,
+            }
+            .normalized(),
+        )
+    }
+
+    fn checked_mul(self, rhs: Self) -> Option<Self> {
+        Some(
+            Self {
+                units: self.units.checked_mul(rhs.units)?,
+                scale: self.scale.checked_add(rhs.scale)?,
+            }
+            .normalized(),
+        )
+    }
+
+    fn checked_div(self, rhs: Self) -> Result<Self, &'static str> {
+        if rhs.units == 0 {
+            return Err("operator `/` cannot divide decimal by zero");
+        }
+        let mut numerator = self
+            .units
+            .checked_mul(pow10_i128(rhs.scale).ok_or("operator `/` overflowed decimal")?)
+            .ok_or("operator `/` overflowed decimal")?;
+        let mut denominator = rhs
+            .units
+            .checked_mul(pow10_i128(self.scale).ok_or("operator `/` overflowed decimal")?)
+            .ok_or("operator `/` overflowed decimal")?;
+        if denominator < 0 {
+            numerator = numerator
+                .checked_neg()
+                .ok_or("operator `/` overflowed decimal")?;
+            denominator = denominator
+                .checked_neg()
+                .ok_or("operator `/` overflowed decimal")?;
+        }
+        let divisor = gcd_u128(numerator.unsigned_abs(), denominator as u128) as i128;
+        numerator /= divisor;
+        denominator /= divisor;
+
+        let mut reduced_denominator = denominator;
+        let mut twos = 0u32;
+        while reduced_denominator % 2 == 0 {
+            reduced_denominator /= 2;
+            twos += 1;
+        }
+        let mut fives = 0u32;
+        while reduced_denominator % 5 == 0 {
+            reduced_denominator /= 5;
+            fives += 1;
+        }
+        if reduced_denominator != 1 {
+            return Err(
+                "operator `/` decimal result is not finite; use num:double(...) for IEEE division",
+            );
+        }
+
+        let scale = twos.max(fives);
+        let mut units = numerator;
+        for _ in 0..(scale - twos) {
+            units = units
+                .checked_mul(2)
+                .ok_or("operator `/` overflowed decimal")?;
+        }
+        for _ in 0..(scale - fives) {
+            units = units
+                .checked_mul(5)
+                .ok_or("operator `/` overflowed decimal")?;
+        }
+        Ok(Self { units, scale }.normalized())
+    }
+
+    fn checked_rem(self, rhs: Self) -> Result<Self, &'static str> {
+        let (lhs_units, rhs_units, scale) =
+            align_decimal_scales(self, rhs).ok_or("operator `%` overflowed decimal")?;
+        if rhs_units == 0 {
+            return Err("operator `%` cannot divide decimal by zero");
+        }
+        Ok(Self {
+            units: lhs_units
+                .checked_rem(rhs_units)
+                .ok_or("operator `%` overflowed decimal")?,
+            scale,
+        }
+        .normalized())
+    }
+
+    fn normalized(mut self) -> Self {
+        if self.units == 0 {
+            self.scale = 0;
+            return self;
+        }
+        while self.scale > 0 && self.units % 10 == 0 {
+            self.units /= 10;
+            self.scale -= 1;
+        }
+        self
+    }
+
+    fn format(self) -> String {
+        if self.scale == 0 {
+            return self.units.to_string();
+        }
+        let negative = self.units < 0;
+        let mut digits = self.units.unsigned_abs().to_string();
+        let scale = self.scale as usize;
+        if digits.len() <= scale {
+            let mut padded = String::with_capacity(scale + 1);
+            padded.push_str(&"0".repeat(scale + 1 - digits.len()));
+            padded.push_str(&digits);
+            digits = padded;
+        }
+        let split = digits.len() - scale;
+        let mut out = String::new();
+        if negative {
+            out.push('-');
+        }
+        out.push_str(&digits[..split]);
+        out.push('.');
+        out.push_str(&digits[split..]);
+        out
+    }
+}
+
+fn align_decimal_scales(lhs: DecimalParts, rhs: DecimalParts) -> Option<(i128, i128, u32)> {
+    let scale = lhs.scale.max(rhs.scale);
+    let lhs_units = lhs.units.checked_mul(pow10_i128(scale - lhs.scale)?)?;
+    let rhs_units = rhs.units.checked_mul(pow10_i128(scale - rhs.scale)?)?;
+    Some((lhs_units, rhs_units, scale))
+}
+
+fn pow10_i128(exp: u32) -> Option<i128> {
+    let mut value = 1i128;
+    for _ in 0..exp {
+        value = value.checked_mul(10)?;
+    }
+    Some(value)
+}
+
+fn gcd_u128(mut lhs: u128, mut rhs: u128) -> u128 {
+    while rhs != 0 {
+        let remainder = lhs % rhs;
+        lhs = rhs;
+        rhs = remainder;
+    }
+    lhs.max(1)
 }
 
 fn atom_cmp(lhs: &Item, rhs: &Item) -> Option<std::cmp::Ordering> {

@@ -310,6 +310,22 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
   `fn:document()`, or `fn:collection()` functions in their host-fetching
   form. The cem-ql analogue is `read(uri, content-type)` per AC-QA-* and is
   off by default.
+- **AC-QX-7 [A] MUST** apply Rust-first numeric operator semantics with no
+  implicit numeric promotion. The binary operators `+`, `-`, `*`, `/`, and
+  `%` require both operands to have the same numeric atom type unless one
+  operand is statically unknown. Mixed `integer` / `decimal` / `double`
+  operands emit `cem.ql.type_error`; authors use explicit `num:integer`,
+  `num:decimal`, or `num:double` conversion before the operator. Same-type
+  `integer` operands use Rust `i64` behavior for result type and signs:
+  `/` truncates toward zero, `%` has the dividend's sign, and division,
+  remainder, or overflow cases that would panic in Rust fail closed with a
+  CEM-QL type diagnostic. Same-type `double` operands use Rust `f64`
+  IEEE-754 behavior, including infinities, NaN, and signed zero; AC-QO-3
+  defines how those values participate in set identity. Same-type `decimal`
+  operands use exact finite base-10 arithmetic with no hidden `f64`
+  fallback; decimal division that cannot be represented as a finite decimal
+  emits `cem.ql.type_error` and the author must convert to `double` for IEEE
+  division.
 
 ### 4.1 Functional Parity Matrix (Informative Sketch)
 
@@ -320,7 +336,7 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
 | Name tests, kind tests                                | A           | `*`, `prefix:*`, `*:local`, `Component`, `text()`, `comment()`         |
 | Predicates                                            | A           | One predicate per step in A; positional `[1]` / `[last()]` in A        |
 | Sequence/set combination                              | A           | Rust-spelled `\|`, `&`, `-`, `^`; XPath `except` is functional parity only |
-| Arithmetic                                            | A           | Rust-spelled `+ - * / %`; explicit conversion only; no implicit numeric promotion per AC-QO-8 |
+| Arithmetic                                            | A           | Rust-spelled `+ - * / %`; explicit conversion only; no implicit numeric promotion per AC-QX-7 / AC-QO-8 |
 | Comparisons                                           | A           | Rust-spelled `== != < <= > >=`; XPath `eq ne lt gt` are not canonical syntax |
 | Conditional and local binding                         | A           | Rust-style `if { } else { }` and `{ let name = value; expr }` per AC-QS-4 |
 | Iteration / return mapping                            | A           | Rust-style `for name in stream { expr }` or helper form                |
