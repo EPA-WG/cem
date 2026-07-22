@@ -230,7 +230,7 @@ Resume after the Rust-first CEM-QL syntax/showcase slice is green.
 - [x] Convert `schema-packages/*/v1` folders to Nx libraries with `*.cemt`
       sources tracked for caching; CLI tests should depend on package targets
       and invoke them through Nx.
-- [ ] Keep converter endpoint checks as a final registry pass because current
+- [x] Keep converter endpoint checks as a final registry pass because current
       manifests contain cross-package edges (`cem-ml` to projections, `xml` to
       DOM projection, and DOM projection back to HTML/XML) that should not force
       a false per-folder dependency cycle.
@@ -296,11 +296,10 @@ Deferred dependency-ordered package checklist:
 
 ### Next Work Item
 
-Keep converter endpoint checks as a final registry pass. The next slice should
-document and/or enforce that cross-package converter edges are audited after the
-per-package folder checklist, so `cem-ml` projection edges, `xml` to DOM
-projection, and DOM projection back to HTML/XML do not create false per-folder
-dependency cycles.
+Start dependency-ordered package alignment with `cem-ml/v1`. Close the
+remaining folder-contract gaps against
+[`packages/cem_ml/schema-packages/README.md`](../packages/cem_ml/schema-packages/README.md)
+without broadening into CSV or sibling format polish.
 
 ## Current Verification Commands
 

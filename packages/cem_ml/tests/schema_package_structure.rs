@@ -38,6 +38,63 @@ const SCHEMA_SOURCE_FILENAME_EXCEPTIONS: &[SchemaSourceFilenameException] = &[
     },
 ];
 
+const DEFERRED_CROSS_PACKAGE_CONVERTER_EDGES: &[(&str, &str, &str, &str)] = &[
+    (
+        "cem-dom-projection",
+        "cem-dom-projection-to-html-cemt",
+        "cem-dom-projection",
+        "html",
+    ),
+    (
+        "cem-dom-projection",
+        "cem-dom-projection-to-html-rust",
+        "cem-dom-projection",
+        "html",
+    ),
+    (
+        "cem-dom-projection",
+        "cem-dom-projection-to-xml-cemt",
+        "cem-dom-projection",
+        "xml",
+    ),
+    (
+        "cem-dom-projection",
+        "cem-dom-projection-to-xml-rust",
+        "cem-dom-projection",
+        "xml",
+    ),
+    (
+        "cem-ml",
+        "cem-ml-to-ast-projection-rust",
+        "cem-ml",
+        "cem-ast-projection",
+    ),
+    (
+        "cem-ml",
+        "cem-ml-to-dom-projection-rust",
+        "cem-ml",
+        "cem-dom-projection",
+    ),
+    (
+        "cem-ml",
+        "cem-ml-to-events-projection-rust",
+        "cem-ml",
+        "cem-events-projection",
+    ),
+    (
+        "html",
+        "html-to-cem-dom-projection-rust",
+        "html",
+        "cem-dom-projection",
+    ),
+    (
+        "xml",
+        "xml-to-cem-dom-projection-rust",
+        "xml",
+        "cem-dom-projection",
+    ),
+];
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct SchemaSourceFilenameException {
     package_id: &'static str,
@@ -50,6 +107,8 @@ struct SchemaSourceFilenameException {
 struct ManifestSummary {
     package_id: Option<String>,
     version: Option<String>,
+    schema_uri: Option<String>,
+    content_types: BTreeSet<String>,
     schema_source: Option<String>,
     example_paths: BTreeSet<String>,
     example_reference_keys: BTreeSet<String>,
@@ -57,6 +116,18 @@ struct ManifestSummary {
     colorizer_profiles: BTreeSet<String>,
     cemt_artifact_paths: BTreeSet<String>,
     cemt_converter_templates: BTreeSet<String>,
+    converter_endpoints: Vec<ManifestConverterEndpoint>,
+}
+
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
+struct ManifestConverterEndpoint {
+    id: String,
+    implementation: Option<String>,
+    from_content_type: Option<String>,
+    from_schema: Option<String>,
+    to_content_type: Option<String>,
+    to_schema: Option<String>,
+    template: Option<String>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -81,6 +152,8 @@ struct SchemaPackageStructureReport {
     example_file_count: usize,
     manifest_example_count: usize,
     sidecar_example_reference_count: usize,
+    schema_uri: Option<String>,
+    content_types: BTreeSet<String>,
     schema_source: Option<String>,
     schema_source_exists: bool,
     schema_source_exception: Option<SchemaSourceFilenameException>,
@@ -93,6 +166,7 @@ struct SchemaPackageStructureReport {
     missing_colorizer_profiles: Vec<String>,
     cemt_converter_templates: BTreeSet<String>,
     missing_cemt_converter_templates: Vec<String>,
+    converter_endpoints: Vec<ManifestConverterEndpoint>,
     hard_errors: Vec<String>,
     alignment_gaps: Vec<String>,
 }
@@ -280,6 +354,39 @@ fn schema_package_folders_are_nx_owned_libraries_with_cemt_inputs() {
     }
 }
 
+#[test]
+fn schema_package_converter_endpoint_checks_are_final_registry_pass() {
+    let reports = audit_schema_package_structure();
+    let report_text = format_audit_report(&reports);
+
+    let deferred_edges = deferred_cross_package_converter_edges(&reports);
+    let expected_edges = DEFERRED_CROSS_PACKAGE_CONVERTER_EDGES
+        .iter()
+        .map(|(package_id, converter_id, from_owner, to_owner)| {
+            format!("{package_id}/{converter_id}: {from_owner} -> {to_owner}")
+        })
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        deferred_edges, expected_edges,
+        "cross-package converter endpoint edges must be audited as final registry-pass work, not as package-local project dependencies\n{report_text}"
+    );
+
+    for report in &reports {
+        let sibling_schema_package_dependencies =
+            schema_package_verify_schema_project_dependencies(report);
+        assert!(
+            sibling_schema_package_dependencies.is_empty(),
+            "{} verify target must not depend on sibling schema-package projects; cross-package converter endpoint checks belong to the final registry pass: {}",
+            report.package_id,
+            format_list(&sibling_schema_package_dependencies)
+        );
+    }
+
+    for target_name in ["validate-converter-parity", "e2e"] {
+        assert_cli_registry_target_depends_on_all_schema_package_verifies(target_name, &reports);
+    }
+}
+
 fn audit_schema_package_structure() -> Vec<SchemaPackageStructureReport> {
     let root = schema_packages_root();
     let mut reports = fs::read_dir(&root)
@@ -458,6 +565,8 @@ fn audit_package_version_dir(
         example_file_count,
         manifest_example_count: manifest.example_reference_keys.len(),
         sidecar_example_reference_count,
+        schema_uri: manifest.schema_uri,
+        content_types: manifest.content_types,
         schema_source: manifest.schema_source,
         schema_source_exists,
         schema_source_exception,
@@ -470,6 +579,7 @@ fn audit_package_version_dir(
         missing_colorizer_profiles,
         cemt_converter_templates: manifest.cemt_converter_templates,
         missing_cemt_converter_templates,
+        converter_endpoints: manifest.converter_endpoints,
         hard_errors,
         alignment_gaps,
     }
@@ -642,6 +752,164 @@ fn verify_outputs_report(verify: &Value) -> bool {
         })
 }
 
+fn deferred_cross_package_converter_edges(
+    reports: &[SchemaPackageStructureReport],
+) -> BTreeSet<String> {
+    let schema_owners = schema_uri_owners(reports);
+    let content_type_owners = content_type_owners(reports);
+    let mut edges = BTreeSet::new();
+
+    for report in reports {
+        for converter in &report.converter_endpoints {
+            let from_owner = endpoint_owner(
+                converter.from_schema.as_deref(),
+                converter.from_content_type.as_deref(),
+                &schema_owners,
+                &content_type_owners,
+            )
+            .unwrap_or_else(|| "<unknown>".to_owned());
+            let to_owner = endpoint_owner(
+                converter.to_schema.as_deref(),
+                converter.to_content_type.as_deref(),
+                &schema_owners,
+                &content_type_owners,
+            )
+            .unwrap_or_else(|| "<unknown>".to_owned());
+
+            if from_owner != report.package_id || to_owner != report.package_id {
+                edges.insert(format!(
+                    "{}/{}: {} -> {}",
+                    report.package_id, converter.id, from_owner, to_owner
+                ));
+            }
+        }
+    }
+
+    edges
+}
+
+fn schema_uri_owners(reports: &[SchemaPackageStructureReport]) -> BTreeMap<String, String> {
+    reports
+        .iter()
+        .filter_map(|report| {
+            report
+                .schema_uri
+                .as_ref()
+                .map(|schema_uri| (schema_uri.clone(), report.package_id.clone()))
+        })
+        .collect()
+}
+
+fn content_type_owners(reports: &[SchemaPackageStructureReport]) -> BTreeMap<String, String> {
+    let mut owners = BTreeMap::new();
+    for report in reports {
+        for content_type in &report.content_types {
+            owners.insert(content_type.clone(), report.package_id.clone());
+        }
+    }
+    owners
+}
+
+fn endpoint_owner(
+    schema: Option<&str>,
+    content_type: Option<&str>,
+    schema_owners: &BTreeMap<String, String>,
+    content_type_owners: &BTreeMap<String, String>,
+) -> Option<String> {
+    let schema_owner = schema.and_then(|schema| schema_owners.get(schema)).cloned();
+    let content_type_owner = content_type
+        .map(normalize_content_type_identity)
+        .and_then(|content_type| content_type_owners.get(&content_type).cloned());
+
+    match (schema_owner, content_type_owner) {
+        (Some(owner), _) | (None, Some(owner)) => Some(owner),
+        (None, None) => None,
+    }
+}
+
+fn schema_package_verify_schema_project_dependencies(
+    report: &SchemaPackageStructureReport,
+) -> Vec<String> {
+    let project_json = read_json_file(&report.version_dir.join("project.json"));
+    let verify = project_json
+        .pointer("/targets/verify")
+        .unwrap_or_else(|| panic!("{} verify target must exist", report.package_id));
+    target_dependency_projects(verify, Some("verify"))
+        .into_iter()
+        .filter(|project| project.starts_with("cem_ml_schema_package_"))
+        .collect()
+}
+
+fn assert_cli_registry_target_depends_on_all_schema_package_verifies(
+    target_name: &str,
+    reports: &[SchemaPackageStructureReport],
+) {
+    let project_json = read_json_file(&workspace_root().join("packages/cem_ml_cli/project.json"));
+    let target = project_json
+        .pointer(&format!("/targets/{target_name}"))
+        .unwrap_or_else(|| panic!("cem_ml_cli target `{target_name}` must exist"));
+    let actual_projects = target_dependency_projects(target, Some("verify"))
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    let expected_projects = reports
+        .iter()
+        .map(|report| expected_schema_package_project_name(&report.package_id))
+        .collect::<BTreeSet<_>>();
+
+    assert_eq!(
+        actual_projects, expected_projects,
+        "cem_ml_cli:{target_name} must be the final registry pass after every schema-package verify target"
+    );
+}
+
+fn target_dependency_projects(target: &Value, dependency_target: Option<&str>) -> Vec<String> {
+    let Some(dependencies) = target.pointer("/dependsOn").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+
+    let mut projects = Vec::new();
+    for dependency in dependencies {
+        let matches_target = match dependency_target {
+            Some(expected_target) => match dependency {
+                Value::String(text) => text == expected_target,
+                Value::Object(_) => json_string(dependency, "/target") == Some(expected_target),
+                _ => false,
+            },
+            None => true,
+        };
+        if !matches_target {
+            continue;
+        }
+
+        match dependency {
+            Value::Object(_) => {
+                if let Some(project_array) =
+                    dependency.pointer("/projects").and_then(Value::as_array)
+                {
+                    projects.extend(
+                        project_array
+                            .iter()
+                            .filter_map(Value::as_str)
+                            .map(str::to_owned),
+                    );
+                }
+            }
+            Value::String(text) if dependency_target.is_none() => projects.push(text.clone()),
+            _ => {}
+        }
+    }
+    projects.sort();
+    projects.dedup();
+    projects
+}
+
+fn read_json_file(path: &Path) -> Value {
+    let source = fs::read_to_string(path)
+        .unwrap_or_else(|error| panic!("{} is not readable: {error}", path.display()));
+    serde_json::from_str(&source)
+        .unwrap_or_else(|error| panic!("{} is not valid JSON: {error}", path.display()))
+}
+
 fn parse_manifest(manifest_path: &Path, hard_errors: &mut Vec<String>) -> ManifestSummary {
     let source = match fs::read_to_string(manifest_path) {
         Ok(source) => source,
@@ -685,8 +953,18 @@ fn parse_manifest(manifest_path: &Path, hard_errors: &mut Vec<String>) -> Manife
         let attrs = collect_attrs(&document, child_id);
         match local_name {
             "schema" => {
+                if let Some(uri) = attrs.get("uri") {
+                    summary.schema_uri = Some(uri.clone());
+                }
                 if let Some(source) = attrs.get("source") {
                     summary.schema_source = Some(normalize_manifest_path(source));
+                }
+            }
+            "content-type" => {
+                if let Some(content_type) = attrs.get("value") {
+                    summary
+                        .content_types
+                        .insert(normalize_content_type_identity(content_type));
                 }
             }
             "example" => {
@@ -770,6 +1048,8 @@ fn parse_manifest(manifest_path: &Path, hard_errors: &mut Vec<String>) -> Manife
                 }
             }
             "converter" => {
+                let converter =
+                    parse_manifest_converter(&document, child_id, child_index + 1, &attrs);
                 if attrs
                     .get("implementation")
                     .is_some_and(|implementation| implementation == "cemt")
@@ -780,12 +1060,60 @@ fn parse_manifest(manifest_path: &Path, hard_errors: &mut Vec<String>) -> Manife
                             .insert(normalize_manifest_path(template));
                     }
                 }
+                summary.converter_endpoints.push(converter);
             }
             _ => {}
         }
     }
 
     summary
+}
+
+fn parse_manifest_converter(
+    document: &CemDocument,
+    converter_id: AstNodeId,
+    converter_index: usize,
+    attrs: &BTreeMap<String, String>,
+) -> ManifestConverterEndpoint {
+    let mut converter = ManifestConverterEndpoint {
+        id: attrs
+            .get("id")
+            .cloned()
+            .unwrap_or_else(|| format!("#{converter_index}")),
+        implementation: attrs.get("implementation").cloned(),
+        template: attrs
+            .get("template")
+            .map(|path| normalize_manifest_path(path)),
+        ..ManifestConverterEndpoint::default()
+    };
+
+    for endpoint_id in element_child_ids(document, converter_id) {
+        let Some(local_name) = element_local_name(document, endpoint_id) else {
+            continue;
+        };
+        if local_name != "from" && local_name != "to" {
+            continue;
+        }
+
+        let endpoint_attrs = collect_attrs(document, endpoint_id);
+        let content_type = endpoint_attrs
+            .get("content-type")
+            .map(|content_type| normalize_content_type_identity(content_type));
+        let schema = endpoint_attrs.get("schema").cloned();
+        match local_name {
+            "from" => {
+                converter.from_content_type = content_type;
+                converter.from_schema = schema;
+            }
+            "to" => {
+                converter.to_content_type = content_type;
+                converter.to_schema = schema;
+            }
+            _ => {}
+        }
+    }
+
+    converter
 }
 
 fn parse_cem_document(source: &str) -> CemDocument {
@@ -888,12 +1216,29 @@ fn schema_packages_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("schema-packages")
 }
 
+fn workspace_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .expect("cem-ml package is under the workspace packages directory")
+        .to_path_buf()
+}
+
 fn normalize_manifest_path(path: &str) -> String {
     let mut normalized = path.trim().replace('\\', "/");
     while let Some(rest) = normalized.strip_prefix("./") {
         normalized = rest.to_owned();
     }
     normalized
+}
+
+fn normalize_content_type_identity(content_type: &str) -> String {
+    content_type
+        .split(';')
+        .next()
+        .unwrap_or(content_type)
+        .trim()
+        .to_ascii_lowercase()
 }
 
 fn missing_profiles(actual: &BTreeSet<String>, expected: &[&str]) -> Vec<String> {

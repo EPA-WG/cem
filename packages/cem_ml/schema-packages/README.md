@@ -328,6 +328,17 @@ gate. The target must track:
 Downstream CLI tests depend on these package targets through Nx instead of
 treating schema-package files as unowned fixture inputs.
 
+Converter endpoint checks are deliberately a final registry pass. Package-local
+`verify` targets may parse `package.cem`, confirm readable package-owned
+resources, and track local CEMT assets, but they must not depend on sibling
+schema-package projects just because a converter references another package's
+schema or content type. After all package-local targets are green, the CLI
+registry gates load the full built-in catalog and validate endpoint
+schema/content-type ownership, conversion graph behavior, and parity fixtures.
+The current cross-package converter edge classes are `cem-ml` to the projection
+packages, `html`/`xml` to the DOM projection, and the DOM projection back to
+HTML/XML serializer packages.
+
 ## Creating A Custom Schema Package
 
 Use this checklist when adding a project-local or future external schema
