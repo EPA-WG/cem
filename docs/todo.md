@@ -212,7 +212,7 @@ Run now that the Rust-first CEM-QL parser/runtime/docs/showcase slice is green.
 
 Resume after the Rust-first CEM-QL syntax/showcase slice is green.
 
-- [ ] Add a schema-package structure audit that walks every
+- [x] Add a schema-package structure audit that walks every
       `schema-packages/{package-id}/v1` folder and reports `package.cem`,
       `README.md`, manifest schema source, `examples/`, package-owned CEMT
       artifact paths, baseline formatter profiles
@@ -296,21 +296,12 @@ Deferred dependency-ordered package checklist:
 
 ### Next Work Item
 
-Run the Rust-first CEM-QL gate end to end now that parser/runtime syntax,
-schema-package examples, formatter/colorizer assets, and the Storybook
-operator/function showcase are in place:
-
-1. Run `yarn nx run cem_ql:test`,
-   `yarn nx run cem_ql:test:rust-first-parity`,
-   `yarn nx run cem_ql:test:set-operator-identity`,
-   `yarn nx run cem_ql:test:fixtures`, `yarn nx run cem_ql:build:wasm`, and
-   `yarn nx run cem-elements:verify`.
-2. Fix any regression at the smallest owning layer. Parser/evaluator failures
-   belong in `packages/cem_ql`; browser-only failures belong in the
-   `packages/cem-elements` WASM/runtime-support boundary or story assertions.
-3. After the full gate is green, start the embedded-expression audit for every
-   checked-in `*.cem` and `*.cemt` file so stale XPath-style expressions fail
-   with Rust-first diagnostics and source provenance.
+Decide and encode the example-reference representation for built-in schema
+packages. The structure audit now reports `examples/` and manifest example
+coverage; the next slice should choose whether package examples are represented
+by checked-in `*.example.cem` sidecars or by manifest-owned example metadata,
+then update the audit so the chosen representation is enforced before the
+dependency-ordered package checklist starts.
 
 ## Current Verification Commands
 
@@ -324,6 +315,7 @@ operator/function showcase are in place:
 
 Deferred schema-package/format gate commands:
 
+- `yarn nx run cem_ml:test:schema-package-structure`
 - `yarn nx run cem_ml:test:cli-schema-artifacts`
 - `yarn nx run cem_ml_cli:validate-cemt-pipeline-fixture`
 - `yarn nx run cem_ml_cli:validate-converter-parity`

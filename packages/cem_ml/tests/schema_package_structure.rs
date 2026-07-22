@@ -1,0 +1,571 @@
+use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use cem_ml::events::cem::CemEventNormalizer;
+use cem_ml::parser::builder::CemAstBuilder;
+use cem_ml::parser::document::CemDocument;
+use cem_ml::parser::{AstNodeId, CemAstNode};
+use cem_ml::schema::package_sources::builtin_schema_package_sources;
+use cem_ml::source::{BytesSource, SourceId};
+use cem_ml::tokenizer::cem::CemTokenizer;
+
+const BASELINE_FORMATTER_PROFILES: &[&str] = &["compact", "pretty", "tabular"];
+const BASELINE_COLORIZER_PROFILES: &[&str] = &["terminal", "html", "md"];
+
+#[derive(Debug, Clone, Default)]
+struct ManifestSummary {
+    package_id: Option<String>,
+    version: Option<String>,
+    schema_source: Option<String>,
+    example_paths: BTreeSet<String>,
+    formatter_profiles: BTreeSet<String>,
+    colorizer_profiles: BTreeSet<String>,
+    cemt_artifact_paths: BTreeSet<String>,
+    cemt_converter_templates: BTreeSet<String>,
+}
+
+#[derive(Debug, Clone)]
+struct SchemaPackageStructureReport {
+    package_id: String,
+    version_dir: PathBuf,
+    manifest_exists: bool,
+    readme_exists: bool,
+    examples_dir_exists: bool,
+    example_file_count: usize,
+    manifest_example_count: usize,
+    schema_source: Option<String>,
+    schema_source_exists: bool,
+    cemt_artifact_paths: BTreeSet<String>,
+    scanned_cemt_assets: BTreeSet<String>,
+    unregistered_cemt_assets: Vec<String>,
+    formatter_profiles: BTreeSet<String>,
+    missing_formatter_profiles: Vec<String>,
+    colorizer_profiles: BTreeSet<String>,
+    missing_colorizer_profiles: Vec<String>,
+    cemt_converter_templates: BTreeSet<String>,
+    missing_cemt_converter_templates: Vec<String>,
+    hard_errors: Vec<String>,
+    alignment_gaps: Vec<String>,
+}
+
+#[test]
+fn built_in_schema_package_structure_audit_reports_folder_contract() {
+    let reports = audit_schema_package_structure();
+    let report_text = format_audit_report(&reports);
+    println!("{report_text}");
+
+    let audited_package_ids = reports
+        .iter()
+        .map(|report| report.package_id.as_str())
+        .collect::<BTreeSet<_>>();
+    let embedded_package_ids = builtin_schema_package_sources()
+        .iter()
+        .map(|source| source.package_id)
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        audited_package_ids, embedded_package_ids,
+        "schema-package folders and embedded package source catalog must stay aligned\n{report_text}"
+    );
+
+    let hard_errors = reports
+        .iter()
+        .flat_map(|report| {
+            report
+                .hard_errors
+                .iter()
+                .map(|error| format!("{}: {error}", report.package_id))
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        hard_errors.is_empty(),
+        "schema-package structure audit found hard errors:\n{}\n\n{report_text}",
+        hard_errors.join("\n")
+    );
+}
+
+#[test]
+fn schema_package_structure_audit_covers_profiles_artifacts_and_cemt_converters() {
+    let reports = audit_schema_package_structure();
+    let by_package = reports
+        .iter()
+        .map(|report| (report.package_id.as_str(), report))
+        .collect::<BTreeMap<_, _>>();
+
+    let csv = by_package.get("csv").expect("csv package report");
+    assert!(csv.missing_formatter_profiles.is_empty(), "{csv:#?}");
+    assert!(csv.missing_colorizer_profiles.is_empty(), "{csv:#?}");
+    assert!(csv.cemt_artifact_paths.contains("formatters/compact.cemt"));
+    assert!(csv.cemt_artifact_paths.contains("formatters/pretty.cemt"));
+    assert!(csv.cemt_artifact_paths.contains("formatters/tabular.cemt"));
+    assert!(csv.cemt_artifact_paths.contains("colorizers/terminal.cemt"));
+    assert!(csv.cemt_artifact_paths.contains("colorizers/html.cemt"));
+    assert!(csv.cemt_artifact_paths.contains("colorizers/md.cemt"));
+
+    let dom_projection = by_package
+        .get("cem-dom-projection")
+        .expect("cem-dom-projection package report");
+    assert!(dom_projection
+        .cemt_converter_templates
+        .contains("converters/dom-to-html.cemt"));
+    assert!(dom_projection
+        .cemt_converter_templates
+        .contains("converters/dom-to-xml.cemt"));
+    assert!(
+        dom_projection.missing_cemt_converter_templates.is_empty(),
+        "{dom_projection:#?}"
+    );
+}
+
+fn audit_schema_package_structure() -> Vec<SchemaPackageStructureReport> {
+    let root = schema_packages_root();
+    let mut reports = fs::read_dir(&root)
+        .expect("schema-packages directory")
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_ok_and(|file_type| file_type.is_dir()))
+        .filter_map(|entry| {
+            let package_id = entry.file_name().to_string_lossy().into_owned();
+            let version_dir = entry.path().join("v1");
+            version_dir
+                .is_dir()
+                .then(|| audit_package_version_dir(package_id, version_dir))
+        })
+        .collect::<Vec<_>>();
+    reports.sort_by(|left, right| left.package_id.cmp(&right.package_id));
+    reports
+}
+
+fn audit_package_version_dir(
+    package_id: String,
+    version_dir: PathBuf,
+) -> SchemaPackageStructureReport {
+    let manifest_path = version_dir.join("package.cem");
+    let manifest_exists = manifest_path.is_file();
+    let readme_exists = version_dir.join("README.md").is_file();
+    let examples_dir = version_dir.join("examples");
+    let examples_dir_exists = examples_dir.is_dir();
+    let example_file_count = count_files_recursively(&examples_dir);
+    let scanned_cemt_assets = scan_cemt_assets(&version_dir);
+
+    let mut hard_errors = Vec::new();
+    let manifest = if manifest_exists {
+        parse_manifest(&manifest_path, &mut hard_errors)
+    } else {
+        hard_errors.push("missing package.cem".to_owned());
+        ManifestSummary::default()
+    };
+
+    if !readme_exists {
+        hard_errors.push("missing README.md".to_owned());
+    }
+    if !examples_dir_exists {
+        hard_errors.push("missing examples/ directory".to_owned());
+    }
+    if example_file_count == 0 {
+        hard_errors.push("examples/ contains no package-owned fixtures".to_owned());
+    }
+
+    if manifest
+        .package_id
+        .as_deref()
+        .is_some_and(|id| id != package_id)
+    {
+        hard_errors.push(format!(
+            "manifest package id `{}` does not match folder id `{package_id}`",
+            manifest.package_id.as_deref().unwrap_or_default()
+        ));
+    }
+    if manifest
+        .version
+        .as_deref()
+        .is_some_and(|version| version != "1.0.0")
+    {
+        hard_errors.push(format!(
+            "manifest version `{}` does not match v1 folder",
+            manifest.version.as_deref().unwrap_or_default()
+        ));
+    }
+
+    let schema_source_exists = manifest
+        .schema_source
+        .as_deref()
+        .is_some_and(|schema_source| version_dir.join(schema_source).is_file());
+    match manifest.schema_source.as_deref() {
+        Some(_) if schema_source_exists => {}
+        Some(schema_source) => hard_errors.push(format!(
+            "manifest schema source `{schema_source}` is not readable"
+        )),
+        None => hard_errors.push("manifest does not declare schema @source".to_owned()),
+    }
+
+    let mut missing_declared_cemt = Vec::new();
+    for path in manifest
+        .cemt_artifact_paths
+        .iter()
+        .chain(manifest.cemt_converter_templates.iter())
+    {
+        if !version_dir.join(path).is_file() {
+            missing_declared_cemt.push(path.clone());
+        }
+    }
+    if !missing_declared_cemt.is_empty() {
+        hard_errors.push(format!(
+            "manifest declares unreadable CEMT assets: {}",
+            missing_declared_cemt.join(", ")
+        ));
+    }
+
+    let missing_cemt_converter_templates = manifest
+        .cemt_converter_templates
+        .iter()
+        .filter(|path| !version_dir.join(path).is_file())
+        .cloned()
+        .collect::<Vec<_>>();
+
+    for example_path in &manifest.example_paths {
+        if !version_dir.join(example_path).is_file() {
+            hard_errors.push(format!("manifest example `{example_path}` is not readable"));
+        }
+    }
+
+    let declared_cemt = manifest
+        .cemt_artifact_paths
+        .iter()
+        .chain(manifest.cemt_converter_templates.iter())
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let unregistered_cemt_assets = scanned_cemt_assets
+        .difference(&declared_cemt)
+        .cloned()
+        .collect::<Vec<_>>();
+
+    let missing_formatter_profiles =
+        missing_profiles(&manifest.formatter_profiles, BASELINE_FORMATTER_PROFILES);
+    let missing_colorizer_profiles =
+        missing_profiles(&manifest.colorizer_profiles, BASELINE_COLORIZER_PROFILES);
+
+    let mut alignment_gaps = Vec::new();
+    if let Some(schema_source) = &manifest.schema_source {
+        let canonical_schema_source = format!("schema/{package_id}.cem");
+        if schema_source != &canonical_schema_source {
+            alignment_gaps.push(format!(
+                "schema source `{schema_source}` differs from canonical `{canonical_schema_source}`"
+            ));
+        }
+    }
+    if manifest.example_paths.is_empty() {
+        alignment_gaps.push("manifest declares no examples".to_owned());
+    }
+    if !missing_formatter_profiles.is_empty() {
+        alignment_gaps.push(format!(
+            "missing baseline formatter profiles: {}",
+            missing_formatter_profiles.join(", ")
+        ));
+    }
+    if !missing_colorizer_profiles.is_empty() {
+        alignment_gaps.push(format!(
+            "missing baseline colorizer profiles: {}",
+            missing_colorizer_profiles.join(", ")
+        ));
+    }
+    if !unregistered_cemt_assets.is_empty() {
+        alignment_gaps.push(format!(
+            "CEMT assets exist outside manifest artifact/converter declarations: {}",
+            unregistered_cemt_assets.join(", ")
+        ));
+    }
+
+    SchemaPackageStructureReport {
+        package_id,
+        version_dir,
+        manifest_exists,
+        readme_exists,
+        examples_dir_exists,
+        example_file_count,
+        manifest_example_count: manifest.example_paths.len(),
+        schema_source: manifest.schema_source,
+        schema_source_exists,
+        cemt_artifact_paths: manifest.cemt_artifact_paths,
+        scanned_cemt_assets,
+        unregistered_cemt_assets,
+        formatter_profiles: manifest.formatter_profiles,
+        missing_formatter_profiles,
+        colorizer_profiles: manifest.colorizer_profiles,
+        missing_colorizer_profiles,
+        cemt_converter_templates: manifest.cemt_converter_templates,
+        missing_cemt_converter_templates,
+        hard_errors,
+        alignment_gaps,
+    }
+}
+
+fn parse_manifest(manifest_path: &Path, hard_errors: &mut Vec<String>) -> ManifestSummary {
+    let source = match fs::read_to_string(manifest_path) {
+        Ok(source) => source,
+        Err(error) => {
+            hard_errors.push(format!(
+                "package.cem could not be read at `{}`: {error}",
+                manifest_path.display()
+            ));
+            return ManifestSummary::default();
+        }
+    };
+    let document = parse_cem_document(&source);
+    if !document.diagnostics.is_empty() {
+        hard_errors.extend(document.diagnostics.iter().map(|diagnostic| {
+            format!(
+                "package.cem parse diagnostic {}: {}",
+                diagnostic.code, diagnostic.message
+            )
+        }));
+    }
+
+    let Some(package_id) = first_element_by_local_name(&document, "package") else {
+        hard_errors.push("package.cem does not contain a package element".to_owned());
+        return ManifestSummary::default();
+    };
+    let package_attrs = collect_attrs(&document, package_id);
+    let mut summary = ManifestSummary {
+        package_id: package_attrs.get("id").cloned(),
+        version: package_attrs.get("version").cloned(),
+        ..ManifestSummary::default()
+    };
+
+    for child_id in element_child_ids(&document, package_id) {
+        let Some(local_name) = element_local_name(&document, child_id) else {
+            continue;
+        };
+        let attrs = collect_attrs(&document, child_id);
+        match local_name {
+            "schema" => {
+                if let Some(source) = attrs.get("source") {
+                    summary.schema_source = Some(normalize_manifest_path(source));
+                }
+            }
+            "example" => {
+                if let Some(path) = attrs.get("path") {
+                    summary.example_paths.insert(normalize_manifest_path(path));
+                }
+            }
+            "artifact" => {
+                let kind = attrs.get("kind").map(String::as_str);
+                if let Some(path) = attrs.get("path").map(|path| normalize_manifest_path(path)) {
+                    if path.ends_with(".cemt") {
+                        summary.cemt_artifact_paths.insert(path);
+                    }
+                }
+                match kind {
+                    Some("formatter") => {
+                        if let Some(profile) = attrs.get("formatter-profile") {
+                            summary.formatter_profiles.insert(profile.clone());
+                        }
+                    }
+                    Some("colorizer") => {
+                        if let Some(profile) = attrs.get("color-profile") {
+                            summary.colorizer_profiles.insert(profile.clone());
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            "converter" => {
+                if attrs
+                    .get("implementation")
+                    .is_some_and(|implementation| implementation == "cemt")
+                {
+                    if let Some(template) = attrs.get("template") {
+                        summary
+                            .cemt_converter_templates
+                            .insert(normalize_manifest_path(template));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    summary
+}
+
+fn parse_cem_document(source: &str) -> CemDocument {
+    let source = BytesSource::new(SourceId(1), source.as_bytes().to_vec());
+    let tokenizer = CemTokenizer::from_source(source);
+    let normalizer = CemEventNormalizer::new(tokenizer);
+    CemAstBuilder::new(normalizer).build()
+}
+
+fn first_element_by_local_name(document: &CemDocument, local_name: &str) -> Option<AstNodeId> {
+    document.iter().find_map(|node| match node {
+        CemAstNode::Element {
+            node_id,
+            expanded_name,
+            ..
+        } if expanded_name.local_name == local_name => Some(*node_id),
+        _ => None,
+    })
+}
+
+fn element_child_ids(document: &CemDocument, node_id: AstNodeId) -> Vec<AstNodeId> {
+    match document.get(node_id) {
+        Some(CemAstNode::Element { children, .. }) => children
+            .iter()
+            .copied()
+            .filter(|child_id| matches!(document.get(*child_id), Some(CemAstNode::Element { .. })))
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn element_local_name(document: &CemDocument, node_id: AstNodeId) -> Option<&str> {
+    match document.get(node_id) {
+        Some(CemAstNode::Element { expanded_name, .. }) => Some(expanded_name.local_name.as_str()),
+        _ => None,
+    }
+}
+
+fn collect_attrs(document: &CemDocument, node_id: AstNodeId) -> BTreeMap<String, String> {
+    let mut attrs = BTreeMap::new();
+    let Some(CemAstNode::Element { attributes, .. }) = document.get(node_id) else {
+        return attrs;
+    };
+    for attr_id in attributes {
+        let Some(CemAstNode::Attribute {
+            expanded_name,
+            value,
+            ..
+        }) = document.get(*attr_id)
+        else {
+            continue;
+        };
+        if let Some(value) = value {
+            attrs.insert(expanded_name.local_name.clone(), value.clone());
+        }
+    }
+    attrs
+}
+
+fn schema_packages_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("schema-packages")
+}
+
+fn normalize_manifest_path(path: &str) -> String {
+    let mut normalized = path.trim().replace('\\', "/");
+    while let Some(rest) = normalized.strip_prefix("./") {
+        normalized = rest.to_owned();
+    }
+    normalized
+}
+
+fn missing_profiles(actual: &BTreeSet<String>, expected: &[&str]) -> Vec<String> {
+    expected
+        .iter()
+        .filter(|profile| !actual.contains(**profile))
+        .map(|profile| (*profile).to_owned())
+        .collect()
+}
+
+fn count_files_recursively(root: &Path) -> usize {
+    if !root.is_dir() {
+        return 0;
+    }
+    let mut count = 0;
+    let Ok(entries) = fs::read_dir(root) else {
+        return 0;
+    };
+    for entry in entries.filter_map(Result::ok) {
+        let path = entry.path();
+        if path.is_dir() {
+            count += count_files_recursively(&path);
+        } else if path.is_file() {
+            count += 1;
+        }
+    }
+    count
+}
+
+fn scan_cemt_assets(version_dir: &Path) -> BTreeSet<String> {
+    let mut assets = BTreeSet::new();
+    for folder in ["formatters", "colorizers", "converters"] {
+        collect_cemt_assets(version_dir, &version_dir.join(folder), &mut assets);
+    }
+    assets
+}
+
+fn collect_cemt_assets(version_dir: &Path, dir: &Path, assets: &mut BTreeSet<String>) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.filter_map(Result::ok) {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_cemt_assets(version_dir, &path, assets);
+        } else if path.extension().and_then(|ext| ext.to_str()) == Some("cemt") {
+            let relative_path = path
+                .strip_prefix(version_dir)
+                .expect("CEMT asset is under version dir")
+                .to_string_lossy()
+                .replace('\\', "/");
+            assets.insert(relative_path);
+        }
+    }
+}
+
+fn format_audit_report(reports: &[SchemaPackageStructureReport]) -> String {
+    let mut output = String::from("Schema package structure audit:\n");
+    for report in reports {
+        output.push_str(&format!(
+            "- {}/v1: dir={}, roots(package={}, readme={}, examples={} files={}), schema={} exists={}, manifest_examples={}, declared_cemt_assets={}, scanned_cemt_assets={}, formatter_profiles={}, missing_formatter={}, colorizer_profiles={}, missing_colorizer={}, cemt_converters={}, missing_cemt_converters={}, gaps={}, hard_errors={}\n",
+            report.package_id,
+            format_report_path(&report.version_dir),
+            report.manifest_exists,
+            report.readme_exists,
+            report.examples_dir_exists,
+            report.example_file_count,
+            report.schema_source.as_deref().unwrap_or("<missing>"),
+            report.schema_source_exists,
+            report.manifest_example_count,
+            format_set(&report.cemt_artifact_paths),
+            format_set(&report.scanned_cemt_assets),
+            format_set(&report.formatter_profiles),
+            format_list(&report.missing_formatter_profiles),
+            format_set(&report.colorizer_profiles),
+            format_list(&report.missing_colorizer_profiles),
+            format_set(&report.cemt_converter_templates),
+            format_list(&report.missing_cemt_converter_templates),
+            format_list(&report.alignment_gaps),
+            format_list(&report.hard_errors),
+        ));
+        if !report.unregistered_cemt_assets.is_empty() {
+            output.push_str(&format!(
+                "  unregistered_cemt_assets={}\n",
+                format_list(&report.unregistered_cemt_assets)
+            ));
+        }
+    }
+    output
+}
+
+fn format_set(values: &BTreeSet<String>) -> String {
+    if values.is_empty() {
+        "[]".to_owned()
+    } else {
+        format!(
+            "[{}]",
+            values.iter().cloned().collect::<Vec<_>>().join(", ")
+        )
+    }
+}
+
+fn format_report_path(path: &Path) -> String {
+    path.strip_prefix(Path::new(env!("CARGO_MANIFEST_DIR")))
+        .map(|relative| relative.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_else(|_| path.to_string_lossy().replace('\\', "/"))
+}
+
+fn format_list(values: &[String]) -> String {
+    if values.is_empty() {
+        "[]".to_owned()
+    } else {
+        format!("[{}]", values.join("; "))
+    }
+}

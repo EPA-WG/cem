@@ -103,6 +103,23 @@
             ],
             "outputs": []
         },
+        "test:schema-package-structure": {
+            "cache": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "cargo test --package cem-ml --test schema_package_structure --target-dir dist/target/cem_ml -- --nocapture",
+                "cwd": "{workspaceRoot}"
+            },
+            "inputs": [
+                "{projectRoot}/tests/schema_package_structure.rs",
+                "{projectRoot}/schema-packages/**/*",
+                "{projectRoot}/src/events/**/*.rs",
+                "{projectRoot}/src/parser/**/*.rs",
+                "{projectRoot}/src/schema/package_sources.rs",
+                "{projectRoot}/Cargo.toml"
+            ],
+            "outputs": ["{workspaceRoot}/dist/target/cem_ml"]
+        },
         "lint": {
             "cache": true,
             "executor": "@monodon/rust:lint",
