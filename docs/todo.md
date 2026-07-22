@@ -110,7 +110,7 @@ Dependency-ordered implementation checklist:
 - [x] Replace `packages/cem_ql/tests/xpath_parity.rs` with a Rust-first
       functional parity table. Keep QT3/XPath category names in metadata, but
       every in-subset query must use canonical Rust-first CEM-QL syntax.
-- [ ] Update parser, IR lowering, type-checking, set-operator, evaluator,
+- [x] Update parser, IR lowering, type-checking, set-operator, evaluator,
       compiled-artifact, fixture, policy-hook, and template-render tests so no
       passing test depends on XPath operator, variable, path, or clause syntax.
 - [ ] Add negative parser tests for old XPath/Python syntax:

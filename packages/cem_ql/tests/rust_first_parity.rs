@@ -27,6 +27,12 @@ enum Expected {
     OutOfSubset,
 }
 
+impl Expected {
+    fn is_executable(&self) -> bool {
+        matches!(self, Self::Items(_))
+    }
+}
+
 #[derive(Debug, Clone)]
 struct Case {
     name: &'static str,
@@ -273,6 +279,68 @@ fn cases() -> Vec<Case> {
     ]
 }
 
+fn legacy_syntax_fragments(query: &str) -> Vec<&'static str> {
+    let mut fragments = Vec::new();
+    for phrase in [
+        "$",
+        "//",
+        ":=",
+        "declare variable",
+        "instance of",
+        "cast as",
+        "treat as",
+        "not(",
+    ] {
+        if query.contains(phrase) {
+            fragments.push(phrase);
+        }
+    }
+    for word in [
+        "eq",
+        "ne",
+        "lt",
+        "le",
+        "gt",
+        "ge",
+        "div",
+        "mod",
+        "and",
+        "or",
+        "then",
+        "return",
+        "satisfies",
+    ] {
+        if contains_word(query, word) {
+            fragments.push(word);
+        }
+    }
+    if has_xpath_path_slash(query) {
+        fragments.push("path /");
+    }
+    fragments
+}
+
+fn contains_word(source: &str, word: &str) -> bool {
+    source
+        .split(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '_'))
+        .any(|token| token == word)
+}
+
+fn has_xpath_path_slash(query: &str) -> bool {
+    let bytes = query.as_bytes();
+    bytes.iter().enumerate().any(|(index, byte)| {
+        *byte == b'/'
+            && index > 0
+            && index + 1 < bytes.len()
+            && is_path_slash_neighbor(bytes[index - 1])
+            && is_path_slash_neighbor(bytes[index + 1])
+    })
+}
+
+fn is_path_slash_neighbor(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b')' | b']')
+}
+
 #[derive(Default)]
 struct ParityReport {
     passed: usize,
@@ -313,6 +381,29 @@ fn run_case(case: &Case, report: &mut ParityReport) {
         return;
     }
     report.passed += 1;
+}
+
+#[test]
+fn executable_parity_rows_use_rust_first_syntax() {
+    let failures = cases()
+        .into_iter()
+        .filter(|case| case.expected.is_executable())
+        .filter_map(|case| {
+            let fragments = legacy_syntax_fragments(case.query);
+            (!fragments.is_empty()).then(|| {
+                format!(
+                    "{} [{}] uses legacy syntax {:?}: `{}`",
+                    case.name, case.qt3_area, fragments, case.query
+                )
+            })
+        })
+        .collect::<Vec<_>>();
+
+    assert!(
+        failures.is_empty(),
+        "executable Rust-first parity rows must not use XPath syntax:\n{}",
+        failures.join("\n")
+    );
 }
 
 #[test]

@@ -25,7 +25,7 @@ const DATA_DOCUMENT_BINDING: &str = "datadom";
 /// Stable transform primary artifact binding.
 const PRIMARY_INPUT_BINDING: &str = "input";
 /// Loop-position binding name. The legacy HTML+XSLT bridge rewrites XPath `position()` to
-/// `$position`; `cem:for-each` binds it to the 1-based iteration index.
+/// `position`; `cem:for-each` binds it to the 1-based iteration index.
 const POSITION_BINDING: &str = "position";
 const HTML_VOID_ELEMENTS: &[&str] = &[
     "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source",
@@ -90,7 +90,7 @@ pub enum TemplateNode {
         source_map: SourceMapStack,
     },
     /// `cem:for-each` — evaluates `select` to a sequence and renders `children` once per item,
-    /// binding the current item to `$as` (default `item`). Flattens like the conditionals (no
+    /// binding the current item to `as` (default `item`). Flattens like the conditionals (no
     /// wrapper element).
     ForEach {
         select: Option<CompiledTemplateExpression>,
@@ -217,9 +217,9 @@ pub fn compile_template(source: &str, options: &CompileTemplateOptions) -> Templ
     // selection (e.g. `datadom.attributes.label`), so declare it at compile time.
     declared_bindings.insert(DATA_DOCUMENT_BINDING.to_owned(), ItemStream::empty());
     declared_bindings.insert(PRIMARY_INPUT_BINDING.to_owned(), ItemStream::empty());
-    // `{attribute @name=X}` / `{slice @name=X}` declarations introduce `$X` bindings, so
-    // declare them too — the render engine owns declaration metadata, so the host runtime
-    // no longer needs to scan the template to make `{$X}` compile.
+    // `{attribute @name=X}` / `{slice @name=X}` declarations introduce named bindings, so
+    // declare them too. The render engine owns declaration metadata, so the host runtime
+    // no longer needs to scan the template to make `{$ X}` compile.
     for name in scan_declaration_names(&tokens) {
         declared_bindings
             .entry(name)
@@ -884,7 +884,7 @@ impl TemplateCompiler<'_> {
         self.index += 1;
         let (select, as_name) = self.parse_for_each_attributes(&start);
         let loop_name = as_name.unwrap_or_else(|| "item".to_owned());
-        // Declare the loop variable so descendant `{$<name>}` expressions compile; restore the
+        // Declare the loop variable so descendant `{$ <name>}` expressions compile; restore the
         // prior declaration state after the block so the binding does not leak out of scope.
         let pre_existing = self
             .compile_context
@@ -894,7 +894,7 @@ impl TemplateCompiler<'_> {
             .policy_bindings
             .entry(loop_name.clone())
             .or_insert_with(ItemStream::empty);
-        // Also declare `position` (XSLT `position()` parity) so descendant `{$position}` compiles.
+        // Also declare `position` (XSLT `position()` parity) so descendant `{$ position}` compiles.
         let position_pre_existing = self
             .compile_context
             .policy_bindings
@@ -921,8 +921,8 @@ impl TemplateCompiler<'_> {
     }
 
     /// Parse `cem:for-each` attributes: `@select` (the sequence expression, required) and `@as`
-    /// (the loop variable name, default `item`; a leading `$` is tolerated). Other attributes
-    /// are ignored.
+    /// (the loop variable name, default `item`; a legacy leading `$` is tolerated). Other
+    /// attributes are ignored.
     fn parse_for_each_attributes(
         &mut self,
         start: &SchemaToken,
@@ -1376,7 +1376,7 @@ impl PlanRenderer {
     /// Evaluate a `cem:for-each` `@select` expression to the sequence of items to iterate.
     ///
     /// A selected `Item::Array` is flattened one level into its members, so iterating a
-    /// data-document collection (e.g. `$datadom.slices.geometry` — the token rows the host
+    /// data-document collection (e.g. `datadom.slices.geometry` — the token rows the host
     /// bridge shapes from a `<table>`, delivered through the JSON boundary as a single array
     /// item) yields one iteration per row, matching legacy XSLT `for-each` node-set iteration.
     /// A bare sequence already iterates per item, so only array items are expanded.
@@ -1818,7 +1818,7 @@ fn is_named_template_declaration(node: &TemplateNode) -> bool {
 }
 
 /// Seed binding values from top-level `{attribute @name=X | default}` / `{slice @name=X | default}`
-/// declarations: the declaration's text content is the default for `$X` when the host data
+/// declarations: the declaration's text content is the default for `X` when the host data
 /// omits it (host-provided values win). Applying defaults in the render engine means the
 /// browser runtime no longer needs to scan declarations to know them.
 fn seed_declaration_defaults(nodes: &[TemplateNode], bindings: &mut BTreeMap<String, ItemStream>) {
@@ -1841,7 +1841,7 @@ fn seed_declaration_defaults(nodes: &[TemplateNode], bindings: &mut BTreeMap<Str
         if bindings.contains_key(&name) {
             continue; // a host-provided value overrides the declared default
         }
-        // Always bind a declared attribute/slice so `{$X}` / `not (X)` references resolve even when
+        // Always bind a declared attribute/slice so `{$ X}` / `!X` references resolve even when
         // the host left it unset (DCE parity: a declared attribute is always referenceable). An
         // empty declaration binds Null; a non-empty default binds its text.
         let default = declaration_default_text(children);
@@ -1855,7 +1855,7 @@ fn seed_declaration_defaults(nodes: &[TemplateNode], bindings: &mut BTreeMap<Str
 }
 
 /// Collect the `@name` of every `{attribute …}` / `{slice …}` declaration token, so their
-/// `$name` bindings can be declared at compile time (otherwise embedded `{$name}` would fail
+/// `name` bindings can be declared at compile time (otherwise embedded `{$ name}` would fail
 /// to compile with `unknown_variable`).
 fn scan_declaration_names(tokens: &[SchemaToken]) -> Vec<String> {
     let mut names = Vec::new();
@@ -2277,10 +2277,10 @@ mod tests {
         let source = r#"{module |
             {template @name="label" |
                 {param @name="node"}
-                {body | {span @data-kind="{$node.kind}" | {$node.text}}}
+                {body | {span @data-kind="{node.kind}" | {$ node.text}}}
             }
             {body |
-                {call @template="label" @with:node="{$datadom.payload.nodes}"}
+                {call @template="label" @with:node="{datadom.payload.nodes}"}
             }
         }"#;
         let mut node = BTreeMap::new();
@@ -2337,19 +2337,19 @@ mod tests {
                         {cem:when @test='node.kind == "element"' |
                             {details @open=open |
                                 {summary |
-                                    {b | {$node.tag}}
-                                    {cem:if @test="node.attributes.data-root" | {code | data-root="{$node.attributes.data-root}"}}
-                                    {cem:if @test="node.attributes.data-level" | {code | data-level="{$node.attributes.data-level}"}}
-                                    {cem:if @test="node.attributes.name" | {code | name="{$node.attributes.name}"}}
-                                    {cem:if @test="node.attributes.code" | {code | code="{$node.attributes.code}"}}
+                                    {b | {$ node.tag}}
+                                    {cem:if @test="node.attributes.data-root" | {code | data-root="{$ node.attributes.data-root}"}}
+                                    {cem:if @test="node.attributes.data-level" | {code | data-level="{$ node.attributes.data-level}"}}
+                                    {cem:if @test="node.attributes.name" | {code | name="{$ node.attributes.name}"}}
+                                    {cem:if @test="node.attributes.code" | {code | code="{$ node.attributes.code}"}}
                                 }
-                                {cem:for-each @select="$node.children" @as="child" |
-                                    {call @template="node" @with:node="{$child}"}
+                                {cem:for-each @select="node.children" @as="child" |
+                                    {call @template="node" @with:node="{child}"}
                                 }
                             }
                         }
                         {cem:when @test='node.kind == "text"' |
-                            {p | {$node.text}}
+                            {p | {$ node.text}}
                         }
                     }
                 }
@@ -2360,11 +2360,11 @@ mod tests {
                     {details @open=open |
                         {summary |
                             {b | datadom}
-                            {code | title="{$datadom.attributes.title}"}
-                            {code | data-demo="{$datadom.attributes.data-demo}"}
+                            {code | title="{$ datadom.attributes.title}"}
+                            {code | data-demo="{$ datadom.attributes.data-demo}"}
                         }
-                        {cem:for-each @select="$datadom.payload.nodes" @as="node" |
-                            {call @template="node" @with:node="{$node}"}
+                        {cem:for-each @select="datadom.payload.nodes" @as="node" |
+                            {call @template="node" @with:node="{node}"}
                         }
                     }
                 }

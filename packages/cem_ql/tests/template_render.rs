@@ -27,7 +27,7 @@ fn record(fields: impl IntoIterator<Item = (&'static str, Vec<Item>)>) -> Item {
 fn render_template_binds_content_expression_from_host_data() {
     let data = TemplateData::default().with_binding("label", string_value("Email"));
 
-    let rendered = render_template("{span | {$label}}", &data);
+    let rendered = render_template("{span | {$ label}}", &data);
 
     assert_eq!(rendered.rendered, "<span>Email</span>");
     assert!(
@@ -44,7 +44,7 @@ fn render_template_interpolates_attribute_value_templates() {
         .with_binding("disabled", bool_value(true));
 
     let rendered = render_template(
-        r#"{button @class="action {$tone}" @disabled="{$disabled}" | Save}"#,
+        r#"{button @class="action {tone}" @disabled="{disabled}" | Save}"#,
         &data,
     );
 
@@ -62,7 +62,7 @@ fn render_template_interpolates_attribute_value_templates() {
 #[test]
 fn render_template_preserves_explicit_empty_and_boolean_attributes() {
     let rendered = render_template(
-        r#"{button @type=button @alt="" @required @data-state="{$state}" | Save}"#,
+        r#"{button @type=button @alt="" @required @data-state="{state}" | Save}"#,
         &TemplateData::default().with_binding("state", string_value("")),
     );
 
@@ -81,7 +81,7 @@ fn render_template_preserves_explicit_empty_and_boolean_attributes() {
 fn render_template_escapes_expression_output() {
     let data = TemplateData::default().with_binding("label", string_value("<Email & Phone>"));
 
-    let rendered = render_template(r#"{span @title="{$label}" | {$label}}"#, &data);
+    let rendered = render_template(r#"{span @title="{label}" | {$ label}}"#, &data);
 
     assert_eq!(
         rendered.rendered,
@@ -96,7 +96,7 @@ fn render_template_escapes_expression_output() {
 
 #[test]
 fn render_template_reports_unknown_host_binding() {
-    let rendered = render_template("{span | {$missing}}", &TemplateData::default());
+    let rendered = render_template("{span | {$ missing}}", &TemplateData::default());
 
     assert_eq!(rendered.rendered, "<span></span>");
     assert!(rendered
@@ -108,7 +108,7 @@ fn render_template_reports_unknown_host_binding() {
 #[test]
 fn compiled_template_renders_multiple_snapshots_without_recompile() {
     let artifact = compile_template(
-        "{span | {$label}}",
+        "{span | {$ label}}",
         &CompileTemplateOptions {
             host_bindings: vec!["label".to_owned()],
             ..CompileTemplateOptions::default()
@@ -139,11 +139,11 @@ fn compile_template_can_skip_cemt_function_body_expressions() {
         {function @name="acme.normalize-callout" @returns="object" |
             {param @name="marker" @type="string"}
             {body |
-                {$ { kind: "callout", marker: $marker } }
+                {$ missing_binding }
             }
         }
         {template @name="main" |
-            {body | {$marker} }
+            {body | {$ marker} }
         }
     }"#;
 
@@ -172,7 +172,7 @@ fn compile_template_can_skip_cemt_function_body_expressions() {
 #[test]
 fn render_plan_preserves_structured_nodes_and_source_maps() {
     let artifact = compile_template(
-        r#"{button @class="action {$tone}" | {$label}}"#,
+        r#"{button @class="action {tone}" | {$ label}}"#,
         &CompileTemplateOptions {
             host_bindings: vec!["tone".to_owned(), "label".to_owned()],
             ..CompileTemplateOptions::default()
@@ -212,7 +212,7 @@ fn render_template_selects_from_data_document() {
 
     // Functional parity with the legacy `/datadom/attributes/label` XPath selection,
     // expressed through cem-ql record navigation.
-    let rendered = render_template("{span | {$datadom.attributes.label}}", &data);
+    let rendered = render_template("{span | {$ datadom.attributes.label}}", &data);
 
     assert_eq!(rendered.rendered, "<span>Email</span>");
     assert!(
@@ -233,7 +233,7 @@ fn render_template_selects_top_level_host_binding_from_data_document() {
     )]);
     let data = TemplateData::default().with_binding("input", ItemStream::once(input));
 
-    let rendered = render_template("{span | {$input.attributes.kind}}", &data);
+    let rendered = render_template("{span | {$ input.attributes.kind}}", &data);
 
     assert_eq!(rendered.rendered, "<span>document</span>");
     assert!(
@@ -288,7 +288,7 @@ fn render_template_uses_explicit_structured_data_document() {
     let data = TemplateData::default().with_binding("datadom", ItemStream::once(datadom));
 
     let rendered = render_template(
-        "{span | {$datadom.attributes.label}-{$datadom.dataset.variant}-{$datadom.slices.open}-{$datadom.payload.text}-{$datadom.slots.leading}}",
+        "{span | {$ datadom.attributes.label}-{$ datadom.dataset.variant}-{$ datadom.slices.open}-{$ datadom.payload.text}-{$ datadom.slots.leading}}",
         &data,
     );
 
@@ -306,7 +306,7 @@ fn render_template_uses_explicit_structured_data_document() {
 #[test]
 fn render_template_coalesces_absent_selection_to_default() {
     let rendered = render_template(
-        r#"{span | {$datadom.attributes.missing ?? "fallback"}}"#,
+        r#"{span | {$ datadom.attributes.missing ?? "fallback"}}"#,
         &TemplateData::default(),
     );
 
@@ -323,7 +323,7 @@ fn render_template_coalesce_prefers_present_selection() {
     let data = TemplateData::default().with_binding("label", string_value("Email"));
 
     let rendered = render_template(
-        r#"{span | {$datadom.attributes.label ?? "fallback"}}"#,
+        r#"{span | {$ datadom.attributes.label ?? "fallback"}}"#,
         &data,
     );
 
@@ -341,7 +341,7 @@ fn render_template_coalesces_chained_selections() {
 
     // `a ?? b ?? c`: first present wins left-to-right.
     let rendered = render_template(
-        r#"{span | {$datadom.attributes.missing ?? datadom.attributes.alt ?? "fallback"}}"#,
+        r#"{span | {$ datadom.attributes.missing ?? datadom.attributes.alt ?? "fallback"}}"#,
         &data,
     );
 
@@ -420,7 +420,7 @@ fn render_template_accepts_bare_conditional_names() {
 #[test]
 fn render_template_if_tests_data_document_selection() {
     let shown = render_template(
-        r#"{cem:if @test="datadom.attributes.label" | {span | {$datadom.attributes.label}}}"#,
+        r#"{cem:if @test="datadom.attributes.label" | {span | {$ datadom.attributes.label}}}"#,
         &TemplateData::default().with_binding("label", string_value("Email")),
     );
     assert_eq!(shown.rendered, "<span>Email</span>");
@@ -473,10 +473,10 @@ fn render_template_reports_invalid_choose_structure() {
 #[test]
 fn render_template_drops_top_level_attribute_and_slice_declarations() {
     // `<attribute>`/`<slice>` declarations configure the produced element and must not
-    // appear in render output; only the `<button>` (with its resolved `$label`) renders.
+    // appear in render output; only the `<button>` (with its resolved `label`) renders.
     let data = TemplateData::default().with_binding("label", string_value("Save"));
     let rendered = render_template(
-        r#"{attribute @name="label" | Save}{slice @name="open"}{button @type=button | {$label}}"#,
+        r#"{attribute @name="label" | Save}{slice @name="open"}{button @type=button | {$ label}}"#,
         &data,
     );
 
@@ -490,9 +490,9 @@ fn render_template_drops_top_level_attribute_and_slice_declarations() {
 
 #[test]
 fn render_template_applies_declaration_defaults() {
-    let template = r#"{attribute @name="label" | Save}{button @type=button | {$label}}"#;
+    let template = r#"{attribute @name="label" | Save}{button @type=button | {$ label}}"#;
 
-    // No host data → the declared default seeds `$label` (the render engine owns defaults).
+    // No host data -> the declared default seeds `label` (the render engine owns defaults).
     let default_render = render_template(template, &TemplateData::default());
     assert_eq!(
         default_render.rendered,
@@ -523,7 +523,7 @@ fn render_template_applies_declaration_defaults() {
 #[test]
 fn render_template_constructs_dynamic_elements_and_attributes() {
     let rendered = render_template(
-        r#"{element @name="{$tag}" |{attribute @name="data-id" @value="{$id}"}{attribute @name="{$dynamicName}" | {$dynamicValue}}{$label}}"#,
+        r#"{element @name="{tag}" |{attribute @name="data-id" @value="{id}"}{attribute @name="{dynamicName}" | {$ dynamicValue}}{$ label}}"#,
         &TemplateData::default()
             .with_binding("tag", string_value("article"))
             .with_binding("id", string_value("42"))
@@ -608,7 +608,7 @@ fn render_template_supports_nested_conditionals() {
 
 #[test]
 fn render_template_for_each_iterates_a_sequence() {
-    // A multi-item host binding; for-each binds each item to `$row` and renders its children.
+    // A multi-item host binding; for-each binds each item to `row` and renders its children.
     let data = TemplateData::default().with_binding(
         "rows",
         ItemStream::from_items(vec![
@@ -619,7 +619,7 @@ fn render_template_for_each_iterates_a_sequence() {
     );
 
     let rendered = render_template(
-        "{ul | {cem:for-each @select=\"$rows\" @as=\"row\" | {li | {$row}}}}",
+        "{ul | {cem:for-each @select=\"rows\" @as=\"row\" | {li | {$ row}}}}",
         &data,
     );
 
@@ -633,7 +633,7 @@ fn render_template_for_each_iterates_a_sequence() {
 
 #[test]
 fn render_template_for_each_binds_position() {
-    // XSLT `position()` parity: the legacy bridge rewrites `position()` to `$position`, which
+    // XSLT `position()` parity: the legacy bridge rewrites `position()` to `position`, which
     // cem:for-each binds to the 1-based iteration index.
     let data = TemplateData::default().with_binding(
         "rows",
@@ -645,7 +645,7 @@ fn render_template_for_each_binds_position() {
     );
 
     let rendered = render_template(
-        "{cem:for-each @select=\"$rows\" @as=\"row\" | {$position}:{$row};}",
+        "{cem:for-each @select=\"rows\" @as=\"row\" | {$ position}:{$ row};}",
         &data,
     );
 
@@ -685,7 +685,7 @@ fn render_template_for_each_binds_record_fields_per_item() {
     let data = TemplateData::default().with_binding("rows", rows);
 
     let rendered = render_template(
-        "{cem:for-each @select=\"$rows\" @as=\"row\" | {$row.token}={$row.value} }",
+        "{cem:for-each @select=\"rows\" @as=\"row\" | {$ row.token}={$ row.value} }",
         &data,
     );
 
@@ -728,7 +728,7 @@ fn render_template_for_each_iterates_array_item_members() {
     let data = TemplateData::default().with_binding("datadom", ItemStream::once(datadom));
 
     let rendered = render_template(
-        "{cem:for-each @select=\"$datadom.slices.geometry\" @as=\"row\" | {$row.td1}: {$row.td2};}",
+        "{cem:for-each @select=\"datadom.slices.geometry\" @as=\"row\" | {$ row.td1}: {$ row.td2};}",
         &data,
     );
 
@@ -777,7 +777,7 @@ fn render_template_rich_content_emits_literal_braces_around_for_each() {
     // Leading whitespace after `|` is trimmed (relaxed content boundary), so per-row newlines come
     // from a rich-content fence at the head of the for-each body, not bare indentation.
     let rendered = render_template(
-        "{code |```:root {```{cem:for-each @select=\"$datadom.slices.geometry\" @as=\"row\" |```\n  ```{$row.td1}: {$row.td2};}```\n}```}",
+        "{code |```:root {```{cem:for-each @select=\"datadom.slices.geometry\" @as=\"row\" |```\n  ```{$ row.td1}: {$ row.td2};}```\n}```}",
         &data,
     );
 
@@ -833,11 +833,10 @@ fn render_template_for_each_with_cem_if_tier_filter() {
     let datadom = record([("slices", vec![record([("layout", vec![rows])])])]);
     let data = TemplateData::default().with_binding("datadom", ItemStream::once(datadom));
 
-    // `@test` is whole-expression cem-ql: use BARE binding names (`row`, not `$row`) — a `$`-path
-    // parses as a primary but not as an infix operand — and a double-quoted cem-ql string literal,
-    // so the `@test` attribute is single-quoted to avoid a quote clash.
+    // `@test` is whole-expression cem-ql: use bare binding names and a double-quoted
+    // cem-ql string literal, so the `@test` attribute is single-quoted to avoid a quote clash.
     let rendered = render_template(
-        "{cem:for-each @select=\"$datadom.slices.layout\" @as=\"row\" |{cem:if @test='row.td4 != \"deprecated\"' |```\n  ```{$row.td1}: {$row.td2};}}",
+        "{cem:for-each @select=\"datadom.slices.layout\" @as=\"row\" |{cem:if @test='row.td4 != \"deprecated\"' |```\n  ```{$ row.td1}: {$ row.td2};}}",
         &data,
     );
 
@@ -885,7 +884,7 @@ fn render_template_action_cross_product_with_emotion_substitution() {
     let data = TemplateData::default().with_binding("datadom", ItemStream::once(datadom));
 
     let rendered = render_template(
-        "{cem:for-each @select=\"$datadom.slices.intents\" @as=\"intent\" |{cem:for-each @select=\"$datadom.slices.states\" @as=\"state\" |--cem-action-{$intent.td1}-{$state.td1}-background: {$str:replace(state.td2, \"[emotion]\", intent.td2)};}}",
+        "{cem:for-each @select=\"datadom.slices.intents\" @as=\"intent\" |{cem:for-each @select=\"datadom.slices.states\" @as=\"state\" |--cem-action-{$ intent.td1}-{$ state.td1}-background: {$ str:replace(state.td2, \"[emotion]\", intent.td2)};}}",
         &data,
     );
 
@@ -943,7 +942,7 @@ fn render_template_cross_table_join_resolves_palette_reference() {
     let data = TemplateData::default().with_binding("datadom", ItemStream::once(datadom));
 
     let rendered = render_template(
-        "{cem:for-each @select=\"$datadom.slices.shift\" @as=\"emo\" |{$emo.td1}: light-dark({cem:choose |{cem:when @test='datadom.slices.hue.td1 == str:concat((\"--cem-color-\", emo.td3))' |var(--cem-color-{$emo.td3})}{cem:otherwise |var(--cem-palette-{$emo.td3})}}, {cem:choose |{cem:when @test='datadom.slices.hue.td1 == str:concat((\"--cem-color-\", emo.td4))' |var(--cem-color-{$emo.td4})}{cem:otherwise |var(--cem-palette-{$emo.td4})}});}",
+        "{cem:for-each @select=\"datadom.slices.shift\" @as=\"emo\" |{$ emo.td1}: light-dark({cem:choose |{cem:when @test='datadom.slices.hue.td1 == str:concat((\"--cem-color-\", emo.td3))' |var(--cem-color-{$ emo.td3})}{cem:otherwise |var(--cem-palette-{$ emo.td3})}}, {cem:choose |{cem:when @test='datadom.slices.hue.td1 == str:concat((\"--cem-color-\", emo.td4))' |var(--cem-color-{$ emo.td4})}{cem:otherwise |var(--cem-palette-{$ emo.td4})}});}",
         &data,
     );
 
@@ -961,7 +960,7 @@ fn render_template_cross_table_join_resolves_palette_reference() {
 #[test]
 fn render_template_for_each_without_select_diagnoses() {
     let rendered = render_template(
-        "{cem:for-each @as=\"row\" | {$row}}",
+        "{cem:for-each @as=\"row\" | {$ row}}",
         &TemplateData::default(),
     );
 
