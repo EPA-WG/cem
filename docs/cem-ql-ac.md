@@ -1039,9 +1039,12 @@ A `cem-ql` Tier A release is acceptance-tested with:
    need to transform canonical `examples/cem-ml/*.cem` fixtures and
    `examples/semantic/*.html` HTML parity fixtures. Output snapshots match the host's
    existing transform snapshots.
-4. `yarn nx run cem_ql:bench` — selector benchmarks shared with the host
+4. `yarn nx run cem_ql:verify-embedded-expressions` — extracts checked-in
+   `.cem` / `.cemt` embedded CEM-QL expressions and runs the Rust-first compile
+   audit, functional fixtures, and explicit waiver validation.
+5. `yarn nx run cem_ql:bench` — selector benchmarks shared with the host
    `cem_ml_cli:bench` budget per AC-QR-5.
-5. **AC-QV-V-1** — scope-inheritance test, three cases:
+6. **AC-QV-V-1** — scope-inheritance test, three cases:
    (a) **User-name inheritance and shadowing**: a parent module
    declares `local:fmt(...)`; a child scope's query resolves it and
    the resolution-trace event (AC-QV-8) records the resolution rule.

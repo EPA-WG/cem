@@ -59,6 +59,138 @@ fn real_expression(
         .clone()
 }
 
+fn embedded_functional_fixtures(
+    expressions: &[EmbeddedExpression],
+) -> Vec<EmbeddedFunctionalFixture> {
+    let dom_projection =
+        "packages/cem_ml/schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt";
+    let data_island_story = "packages/cem-elements/demo/data-island-tree.cemt";
+
+    let attribute = record(&[
+        ("name", vec![string("class")]),
+        ("namespace", vec![string("")]),
+        ("value", vec![string("hero")]),
+    ]);
+    let child = record(&[
+        ("kind", vec![string("text")]),
+        ("data", vec![string("Hello")]),
+    ]);
+    let dom_node = record(&[
+        ("kind", vec![string("element")]),
+        ("name", vec![string("article")]),
+        ("namespace", vec![string("https://example.test/html")]),
+        ("attributes", vec![attribute.clone()]),
+        ("children", vec![child.clone()]),
+    ]);
+    let story_node = record(&[
+        ("kind", vec![string("element")]),
+        ("name", vec![string("section")]),
+        ("tag", vec![string("section")]),
+        (
+            "attributes",
+            vec![record(&[
+                ("data-root", vec![string("root")]),
+                ("data-level", vec![string("1")]),
+            ])],
+        ),
+        ("children", vec![child.clone()]),
+    ]);
+
+    vec![
+        EmbeddedFunctionalFixture::new(
+            "cem-dom-projection.node-name",
+            "schema-package:cem-dom-projection/v1",
+            real_expression(
+                expressions,
+                dom_projection,
+                EmbeddedHostKind::AttributeValueTemplate,
+                "node.name",
+            ),
+            bindings(&[("node", ItemStream::once(dom_node.clone()))]),
+            vec![string("article")],
+        ),
+        EmbeddedFunctionalFixture::new(
+            "cem-dom-projection.node-attributes",
+            "schema-package:cem-dom-projection/v1",
+            real_expression(
+                expressions,
+                dom_projection,
+                EmbeddedHostKind::SelectAttribute,
+                "node.attributes",
+            ),
+            bindings(&[("node", ItemStream::once(dom_node.clone()))]),
+            vec![attribute.clone()],
+        ),
+        EmbeddedFunctionalFixture::new(
+            "cem-dom-projection.attribute-value",
+            "schema-package:cem-dom-projection/v1",
+            real_expression(
+                expressions,
+                dom_projection,
+                EmbeddedHostKind::AttributeValueTemplate,
+                "attribute.value",
+            ),
+            bindings(&[("attribute", ItemStream::once(attribute.clone()))]),
+            vec![string("hero")],
+        ),
+        EmbeddedFunctionalFixture::new(
+            "cem-dom-projection.child-binding",
+            "schema-package:cem-dom-projection/v1",
+            real_expression(
+                expressions,
+                dom_projection,
+                EmbeddedHostKind::AttributeValueTemplate,
+                "child",
+            ),
+            bindings(&[("child", ItemStream::once(child.clone()))]),
+            vec![child.clone()],
+        ),
+        EmbeddedFunctionalFixture::new(
+            "cem-elements.data-island.element-test",
+            "story:cem-elements/data-island-tree",
+            real_expression(
+                expressions,
+                data_island_story,
+                EmbeddedHostKind::TestAttribute,
+                r#"node.kind == "element""#,
+            ),
+            bindings(&[("node", ItemStream::once(story_node.clone()))]),
+            vec![Item::Atomic(AtomValue::Boolean(true))],
+        ),
+        EmbeddedFunctionalFixture::new(
+            "cem-elements.data-island.attribute-test",
+            "story:cem-elements/data-island-tree",
+            real_expression(
+                expressions,
+                data_island_story,
+                EmbeddedHostKind::TestAttribute,
+                "node.attributes.data-root",
+            ),
+            bindings(&[("node", ItemStream::once(story_node.clone()))]),
+            vec![string("root")],
+        ),
+        EmbeddedFunctionalFixture::new(
+            "cem-elements.data-island.children-select",
+            "story:cem-elements/data-island-tree",
+            real_expression(
+                expressions,
+                data_island_story,
+                EmbeddedHostKind::SelectAttribute,
+                "node.children",
+            ),
+            bindings(&[("node", ItemStream::once(story_node))]),
+            vec![child],
+        ),
+    ]
+}
+
+fn embedded_functional_waivers() -> Vec<cem_ql::embedded::EmbeddedFunctionalWaiver> {
+    parse_embedded_functional_waivers_json(include_str!(
+        "../fixtures/embedded-expression-waivers.json"
+    ))
+    .expect("embedded functional waiver JSON parses")
+}
+
 #[test]
 fn checked_in_scan_finds_cem_and_cemt_sources() {
     let sources = checked_in_cem_sources(workspace_root()).expect("checked-in CEM sources");
@@ -310,126 +442,7 @@ fn repository_compile_audit_runs_parsable_expressions_and_flags_stale_syntax() {
 fn functional_fixtures_evaluate_checked_in_expressions_by_group() {
     let expressions =
         extract_repository_embedded_expressions(workspace_root()).expect("repository expressions");
-    let dom_projection =
-        "packages/cem_ml/schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt";
-    let data_island_story = "packages/cem-elements/demo/data-island-tree.cemt";
-
-    let attribute = record(&[
-        ("name", vec![string("class")]),
-        ("namespace", vec![string("")]),
-        ("value", vec![string("hero")]),
-    ]);
-    let child = record(&[
-        ("kind", vec![string("text")]),
-        ("data", vec![string("Hello")]),
-    ]);
-    let dom_node = record(&[
-        ("kind", vec![string("element")]),
-        ("name", vec![string("article")]),
-        ("namespace", vec![string("https://example.test/html")]),
-        ("attributes", vec![attribute.clone()]),
-        ("children", vec![child.clone()]),
-    ]);
-    let story_node = record(&[
-        ("kind", vec![string("element")]),
-        ("name", vec![string("section")]),
-        ("tag", vec![string("section")]),
-        (
-            "attributes",
-            vec![record(&[
-                ("data-root", vec![string("root")]),
-                ("data-level", vec![string("1")]),
-            ])],
-        ),
-        ("children", vec![child.clone()]),
-    ]);
-
-    let fixtures = vec![
-        EmbeddedFunctionalFixture::new(
-            "cem-dom-projection.node-name",
-            "schema-package:cem-dom-projection/v1",
-            real_expression(
-                &expressions,
-                dom_projection,
-                EmbeddedHostKind::AttributeValueTemplate,
-                "node.name",
-            ),
-            bindings(&[("node", ItemStream::once(dom_node.clone()))]),
-            vec![string("article")],
-        ),
-        EmbeddedFunctionalFixture::new(
-            "cem-dom-projection.node-attributes",
-            "schema-package:cem-dom-projection/v1",
-            real_expression(
-                &expressions,
-                dom_projection,
-                EmbeddedHostKind::SelectAttribute,
-                "node.attributes",
-            ),
-            bindings(&[("node", ItemStream::once(dom_node.clone()))]),
-            vec![attribute.clone()],
-        ),
-        EmbeddedFunctionalFixture::new(
-            "cem-dom-projection.attribute-value",
-            "schema-package:cem-dom-projection/v1",
-            real_expression(
-                &expressions,
-                dom_projection,
-                EmbeddedHostKind::AttributeValueTemplate,
-                "attribute.value",
-            ),
-            bindings(&[("attribute", ItemStream::once(attribute.clone()))]),
-            vec![string("hero")],
-        ),
-        EmbeddedFunctionalFixture::new(
-            "cem-dom-projection.child-binding",
-            "schema-package:cem-dom-projection/v1",
-            real_expression(
-                &expressions,
-                dom_projection,
-                EmbeddedHostKind::AttributeValueTemplate,
-                "child",
-            ),
-            bindings(&[("child", ItemStream::once(child.clone()))]),
-            vec![child.clone()],
-        ),
-        EmbeddedFunctionalFixture::new(
-            "cem-elements.data-island.element-test",
-            "story:cem-elements/data-island-tree",
-            real_expression(
-                &expressions,
-                data_island_story,
-                EmbeddedHostKind::TestAttribute,
-                r#"node.kind == "element""#,
-            ),
-            bindings(&[("node", ItemStream::once(story_node.clone()))]),
-            vec![Item::Atomic(AtomValue::Boolean(true))],
-        ),
-        EmbeddedFunctionalFixture::new(
-            "cem-elements.data-island.attribute-test",
-            "story:cem-elements/data-island-tree",
-            real_expression(
-                &expressions,
-                data_island_story,
-                EmbeddedHostKind::TestAttribute,
-                "node.attributes.data-root",
-            ),
-            bindings(&[("node", ItemStream::once(story_node.clone()))]),
-            vec![string("root")],
-        ),
-        EmbeddedFunctionalFixture::new(
-            "cem-elements.data-island.children-select",
-            "story:cem-elements/data-island-tree",
-            real_expression(
-                &expressions,
-                data_island_story,
-                EmbeddedHostKind::SelectAttribute,
-                "node.children",
-            ),
-            bindings(&[("node", ItemStream::once(story_node))]),
-            vec![child],
-        ),
-    ];
+    let fixtures = embedded_functional_fixtures(&expressions);
 
     let groups = fixtures
         .iter()
@@ -458,10 +471,7 @@ fn functional_fixtures_evaluate_checked_in_expressions_by_group() {
 fn explicit_functional_waivers_are_well_scoped_and_owned() {
     let expressions =
         extract_repository_embedded_expressions(workspace_root()).expect("repository expressions");
-    let waivers = parse_embedded_functional_waivers_json(include_str!(
-        "../fixtures/embedded-expression-waivers.json"
-    ))
-    .expect("embedded functional waiver JSON parses");
+    let waivers = embedded_functional_waivers();
 
     assert!(
         waivers.len() >= 6,
@@ -495,6 +505,66 @@ fn explicit_functional_waivers_are_well_scoped_and_owned() {
             waiver.id
         );
     }
+}
+
+#[test]
+fn embedded_expression_audit_gate_runs_compile_fixtures_and_waivers() {
+    let expressions =
+        extract_repository_embedded_expressions(workspace_root()).expect("repository expressions");
+    assert!(
+        expressions.len() > 100,
+        "audit gate expected repository-wide expression coverage"
+    );
+
+    let compile_reports = compile_embedded_expressions(&expressions);
+    assert_eq!(compile_reports.len(), expressions.len());
+    assert!(
+        compile_reports
+            .iter()
+            .all(|report| !report.parse_succeeded || (report.resolve_ran && report.type_check_ran)),
+        "all parsable expressions must reach resolver and type checker"
+    );
+    assert!(
+        compile_reports.iter().any(|report| {
+            report
+                .diagnostics_for_stage(EmbeddedCompileStage::Parse)
+                .any(|diagnostic| diagnostic.diagnostic.code == "cem.ql.use_rust_boolean_ops")
+        }),
+        "audit gate must retain stale XPath-style syntax failures until sources are migrated"
+    );
+
+    let fixture_reports =
+        validate_embedded_functional_fixtures(&embedded_functional_fixtures(&expressions));
+    let fixture_failures = fixture_reports
+        .iter()
+        .filter_map(|report| {
+            (!report.succeeded()).then(|| (report.id.clone(), report.failure_reason()))
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        fixture_failures.is_empty(),
+        "embedded functional fixture failures: {fixture_failures:#?}"
+    );
+
+    let waiver_errors =
+        validate_embedded_functional_waivers(&embedded_functional_waivers(), &expressions);
+    assert!(
+        waiver_errors.is_empty(),
+        "embedded waiver validation errors: {waiver_errors:#?}"
+    );
+}
+
+#[test]
+fn embedded_expression_audit_target_is_registered() {
+    let project = include_str!("../project.json");
+    assert!(
+        project.contains("\"verify-embedded-expressions\""),
+        "project.json must expose the embedded expression audit verification target"
+    );
+    assert!(
+        project.contains("--test embedded_expressions"),
+        "embedded expression audit target must run the focused Rust integration suite"
+    );
 }
 
 #[test]

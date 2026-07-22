@@ -120,7 +120,8 @@ packages/cem_ql/
 
 Project metadata (`packages/cem_ql/project.json`) defines Nx targets
 `build`, `test`, `lint`, `build:wasm`, `bench`, `test:rust-first-parity`,
-`test:fixtures` mirroring the host project layout.
+`test:fixtures`, and `verify-embedded-expressions` mirroring the host
+project layout.
 
 ### 3.1 Public API Surface (`cem_ql::api`)
 
@@ -1032,7 +1033,8 @@ Tier A:
   - Stdlib Tier A modules (§11)
   - Diagnostic codes Tier A (§8)
   - Verification: cem_ql:test, cem_ql:test:rust-first-parity,
-    cem_ql:test:fixtures, cem_ql:bench
+    cem_ql:test:fixtures, cem_ql:verify-embedded-expressions,
+    cem_ql:bench
 
 Tier B:
   - try/catch surface keyword (AC-QE-2)

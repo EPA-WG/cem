@@ -201,7 +201,7 @@ Run now that the Rust-first CEM-QL parser/runtime/docs/showcase slice is green.
       evaluated because their host bindings, external resources, or Tier B/C
       features are unavailable. Waivers must include owner, reason, and removal
       condition.
-- [ ] Wire the audit as an Nx verification target, for example
+- [x] Wire the audit as an Nx verification target, for example
       `yarn nx run cem_ql:verify-embedded-expressions`, and include it in the
       Rust-first release gate after the parser/runtime migration is complete.
 - [ ] Add regression coverage proving a stale XPath-style expression in a
@@ -318,10 +318,9 @@ operator/function showcase are in place:
 - `yarn nx run cem_ql:test:rust-first-parity`
 - `yarn nx run cem_ql:test:set-operator-identity`
 - `yarn nx run cem_ql:test:fixtures`
+- `yarn nx run cem_ql:verify-embedded-expressions`
 - `yarn nx run cem_ql:build:wasm`
 - `yarn nx run cem-elements:verify`
-- `yarn nx run cem_ql:verify-embedded-expressions` (to be added after
-  Rust-first syntax lands)
 
 Deferred schema-package/format gate commands:
 

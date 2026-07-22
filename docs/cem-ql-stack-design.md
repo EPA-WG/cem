@@ -693,6 +693,9 @@ A Tier A `cem-ql` release ships:
 - `yarn nx run cem_ql:test:fixtures` — every Tier A query the CEM
   templates need to transform canonical fixtures; output snapshots match
   the host transform snapshots (AC verification plan §13.3).
+- `yarn nx run cem_ql:verify-embedded-expressions` — extracts checked-in
+  `.cem` / `.cemt` CEM-QL expressions, runs compile diagnostics, functional
+  fixtures, and explicit waiver validation for the Rust-first audit gate.
 - `yarn nx run cem_ql:bench` — selector benchmarks sharing the host's
   `cem_ml:bench` budget per AC-QR-5. Selector + transform end-to-end
   stays under the host's 150 ms Tier A budget when run together.
