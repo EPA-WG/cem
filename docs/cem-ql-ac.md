@@ -1007,9 +1007,10 @@ A `cem-ql` Tier A release is acceptance-tested with:
 
 1. `yarn nx run cem_ql:test` — unit tests for parser, type checker,
    evaluator, and stdlib.
-2. `yarn nx run cem_ql:test:xpath-parity` — table-driven tests against the
-   XPath 3.1 conformance suite, restricted to the AC-QX-1 subset. Failures
-   on out-of-subset items are skipped, not reported as failures.
+2. `yarn nx run cem_ql:test:rust-first-parity` — table-driven tests against
+   the Rust-first functional parity suite, with QT3/XPath category names kept
+   as metadata for AC-QX-1 traceability. Failures on out-of-subset items are
+   skipped, not reported as failures.
 3. `yarn nx run cem_ql:test:fixtures` — runs every Tier A query the CEM templates
    need to transform canonical `examples/cem-ml/*.cem` fixtures and
    `examples/semantic/*.html` HTML parity fixtures. Output snapshots match the host's

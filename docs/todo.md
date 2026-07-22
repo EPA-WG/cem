@@ -42,7 +42,7 @@ Observed code state:
 - [x] `-` now works as numeric subtraction and stream difference. Known stream
   operands lower to `SetOp::Difference`; unknown operands use runtime dispatch
   with a mixed numeric/stream type error.
-- [x] `packages/cem_ql/tests/xpath_parity.rs` and
+- [x] `packages/cem_ql/tests/rust_first_parity.rs` and
   `packages/cem_ql/tests/parser_recovery.rs` now use Rust-first syntax for
   in-subset passing cases; the CEM-QL schema-package validation examples now
   use the same Rust-first module syntax.
@@ -107,7 +107,7 @@ Dependency-ordered implementation checklist:
 - [x] Wire stream difference through the canonical `-` operator and keep
       `seq:difference(a, b)` as a named helper alias. Remove test comments that
       describe `-` as unavailable for stream difference.
-- [ ] Replace `packages/cem_ql/tests/xpath_parity.rs` with a Rust-first
+- [x] Replace `packages/cem_ql/tests/xpath_parity.rs` with a Rust-first
       functional parity table. Keep QT3/XPath category names in metadata, but
       every in-subset query must use canonical Rust-first CEM-QL syntax.
 - [ ] Update parser, IR lowering, type-checking, set-operator, evaluator,
@@ -160,12 +160,12 @@ Dependency-ordered implementation checklist:
       diagnostics only if their implementation is not part of the current
       slice. The story must still list them so the parity surface remains
       visible.
-- [ ] Add or rename Nx targets as needed so the Rust-first parity suite can be
+- [x] Add or rename Nx targets as needed so the Rust-first parity suite can be
       run independently from legacy XPath parity. Keep the old target only as
       a compatibility harness if it no longer implies syntax parity.
 - [ ] Run the Rust-first gate after implementation:
       `yarn nx run cem_ql:test`,
-      `yarn nx run cem_ql:test:xpath-parity` or its renamed parity target,
+      `yarn nx run cem_ql:test:rust-first-parity`,
       `yarn nx run cem_ql:test:set-operator-identity`,
       `yarn nx run cem_ql:test:fixtures`,
       `yarn nx run cem_ql:build:wasm`, and
@@ -297,7 +297,7 @@ Continue the Rust-first CEM-QL slice with the first implementation gate:
    for Rust-first operators, including renaming
    `cem.ql.use_and_or` to `cem.ql.use_rust_boolean_ops`.
 2. Convert `packages/cem_ql/tests/parser_recovery.rs` and
-   `packages/cem_ql/tests/xpath_parity.rs` to Rust-first syntax as the first
+   `packages/cem_ql/tests/rust_first_parity.rs` to Rust-first syntax as the first
    executable gate before broadening evaluator/runtime changes.
 3. After the Rust tests pass, update the CEM-QL schema-package examples and add
    the Storybook operator/function showcase.
@@ -308,8 +308,7 @@ Continue the Rust-first CEM-QL slice with the first implementation gate:
 ## Current Verification Commands
 
 - `yarn nx run cem_ql:test`
-- `yarn nx run cem_ql:test:xpath-parity` (or the renamed Rust-first
-  functional parity target once added)
+- `yarn nx run cem_ql:test:rust-first-parity`
 - `yarn nx run cem_ql:test:set-operator-identity`
 - `yarn nx run cem_ql:test:fixtures`
 - `yarn nx run cem_ql:build:wasm`

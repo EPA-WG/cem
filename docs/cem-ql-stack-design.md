@@ -681,8 +681,8 @@ A Tier A `cem-ql` release ships:
 
 - `yarn nx run cem_ql:test` — unit tests for parser, type checker,
   evaluator, and stdlib (AC verification plan §13.1).
-- `yarn nx run cem_ql:test:xpath-parity` — XPath 3.1 functional parity
-  subset expressed through Rust-first CEM-QL syntax per AC-QX-1 / §4.1
+- `yarn nx run cem_ql:test:rust-first-parity` — Rust-first functional
+  parity subset with QT3/XPath category metadata per AC-QX-1 / §4.1
   (AC verification plan §13.2).
 - `yarn nx run cem_ql:test:fixtures` — every Tier A query the CEM
   templates need to transform canonical fixtures; output snapshots match
@@ -726,9 +726,9 @@ Release checks for cem-ql follow the host pattern
 (`cem-ml-stack-design.md §18.4`): lint, test, WASM build, bench, browser/
 Node smoke, and manifest checks. cem-ql adds:
 
-- **XPath functional parity check** (`cem_ql:test:xpath-parity`) as a
-  release gate for Tier A and later; query fixtures use Rust-first CEM-QL
-  syntax.
+- **Rust-first functional parity check** (`cem_ql:test:rust-first-parity`) as
+  a release gate for Tier A and later; query fixtures use Rust-first CEM-QL
+  syntax and retain QT3/XPath category metadata for traceability.
 - **Fixture snapshot check** (`cem_ql:test:fixtures`) as a release gate;
   snapshot drift forces an explicit AC-traceable change.
 
@@ -762,7 +762,7 @@ home in this document. AC items missing a check are not closeable
 | §1 (AC-QL-1..AC-QL-6) | Language model | §2, §10 Evaluator |
 | §2 (AC-QS-1..AC-QS-6) | Surface syntax | §5 Lexer, §6 Parser |
 | §3 (AC-QD-1..AC-QD-7) | DOM access | §10 Evaluator, §11 Stdlib (`cem:stdlib/dom`) |
-| §4 (AC-QX-0..AC-QX-6, §4.1) | Rust syntax / XPath functional parity | §16 Algorithm Selection (rows for axes, comparisons), §11 Stdlib, §17 Verification (xpath-parity script) |
+| §4 (AC-QX-0..AC-QX-6, §4.1) | Rust syntax / XPath functional parity | §16 Algorithm Selection (rows for axes, comparisons), §11 Stdlib, §17 Verification (rust-first parity script) |
 | §5 (AC-QO-1..AC-QO-8) | Stream/set operations | §9 IR (`Union`/`Intersect`/`Difference`/`SymmetricDifference`), §10 Evaluator (streaming set semantics) |
 | §6 (AC-QP-1..AC-QP-5) | Pipeline composition | §6 Parser (Pratt for `.`), §10 Evaluator (pull-based iterators, short-circuit) |
 | §7 (AC-QV-1..AC-QV-8) | Variables/functions/scope | §7 Name Resolver |

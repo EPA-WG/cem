@@ -1,21 +1,21 @@
-//! XPath 3.1 functional-parity coverage for cem-ql.
+//! Rust-first functional-parity coverage for cem-ql.
 //!
 //! Implements verification item §13.2 from `docs/cem-ql-ac.md`:
-//! "table-driven tests against the XPath 3.1 conformance suite,
-//! restricted to the AC-QX-1 subset. Failures on out-of-subset items
-//! are skipped, not reported as failures."
+//! "table-driven tests against the Rust-first functional parity suite,
+//! with QT3/XPath category names retained as source metadata."
 //!
 //! The full QT3 corpus is not vendored into this repo. The cases below
 //! mirror representative QT3 categories that fall inside the AC-QX-1
-//! evaluable surface — arithmetic, value/general comparisons, boolean
-//! ops, conditional, `for`/`let`, sequence construction, set operators,
-//! and explicit numeric casts, using Rust-first CEM-QL syntax.
-//! Each case names the QT3 area it represents so the table can grow
+//! evaluable surface while using canonical Rust-first CEM-QL syntax:
+//! arithmetic, value/general comparisons, boolean ops, conditional,
+//! `for`/`let`, sequence construction, set operators, and explicit numeric
+//! casts. Each case names the QT3 area it represents so the table can grow
 //! against a downloaded corpus without restructuring the harness.
 //!
 //! Cases tagged [`OutOfSubset`] return a result the evaluator does not
-//! yet compute (axes, predicates, FLWOR `order by`, regex, etc.). They
-//! are *skipped* (counted) rather than failing the build, per AC-QX-1.
+//! yet compute (axes, predicates, FLWOR `order by`, regex, etc.). They are
+//! *skipped* (counted) rather than failing the build, per AC-QX-1; no XPath
+//! syntax is treated as a passing query.
 
 use cem_ml::scheduler::ScopePolicy;
 use cem_ql::api::{compile, evaluate, CompileContext, EvaluationContext};
@@ -77,6 +77,18 @@ fn cases() -> Vec<Case> {
             expected: Items(vec![int(7)]),
         },
         Case {
+            name: "arithmetic.divide",
+            qt3_area: "op-numeric-divide",
+            query: "5 / 2",
+            expected: Items(vec![int(2)]),
+        },
+        Case {
+            name: "arithmetic.remainder",
+            qt3_area: "op-numeric-mod",
+            query: "5 % 2",
+            expected: Items(vec![int(1)]),
+        },
+        Case {
             name: "arithmetic.unary-minus",
             qt3_area: "op-numeric-unary-minus",
             query: "-(5)",
@@ -95,6 +107,12 @@ fn cases() -> Vec<Case> {
             expected: Items(vec![boolean(false)]),
         },
         Case {
+            name: "comparison.value-ne.true",
+            qt3_area: "op-numeric-not-equal",
+            query: "1 != 2",
+            expected: Items(vec![boolean(true)]),
+        },
+        Case {
             name: "comparison.general-eq",
             qt3_area: "op-equal",
             query: "1 == 1",
@@ -104,6 +122,24 @@ fn cases() -> Vec<Case> {
             name: "comparison.lt",
             qt3_area: "op-numeric-less-than",
             query: "1 < 2",
+            expected: Items(vec![boolean(true)]),
+        },
+        Case {
+            name: "comparison.le",
+            qt3_area: "op-numeric-less-than",
+            query: "2 <= 2",
+            expected: Items(vec![boolean(true)]),
+        },
+        Case {
+            name: "comparison.gt",
+            qt3_area: "op-numeric-greater-than",
+            query: "3 > 2",
+            expected: Items(vec![boolean(true)]),
+        },
+        Case {
+            name: "comparison.ge",
+            qt3_area: "op-numeric-greater-than",
+            query: "3 >= 3",
             expected: Items(vec![boolean(true)]),
         },
         Case {
@@ -191,6 +227,12 @@ fn cases() -> Vec<Case> {
             expected: Items(vec![int(1), int(3)]),
         },
         Case {
+            name: "set.symmetric-difference",
+            qt3_area: "op-symmetric-difference",
+            query: "(1, 2, 3) ^ (2, 4)",
+            expected: Items(vec![int(1), int(3), int(4)]),
+        },
+        Case {
             name: "cast.integer.to.double",
             qt3_area: "constructor-double",
             query: "num:double(1)",
@@ -274,7 +316,7 @@ fn run_case(case: &Case, report: &mut ParityReport) {
 }
 
 #[test]
-fn xpath_parity_table_runs_ac_qx_1_subset() {
+fn rust_first_parity_table_runs_ac_qx_1_subset() {
     let cases = cases();
     let mut report = ParityReport::default();
     for case in &cases {
@@ -283,7 +325,7 @@ fn xpath_parity_table_runs_ac_qx_1_subset() {
 
     assert!(
         report.failures.is_empty(),
-        "xpath parity failures:\n{}",
+        "rust-first functional parity failures:\n{}",
         report.failures.join("\n")
     );
     assert!(
@@ -302,6 +344,9 @@ fn xpath_parity_table_runs_ac_qx_1_subset() {
 }
 
 #[test]
-fn xpath_parity_target_is_registered() {
+fn rust_first_parity_target_is_registered() {
+    let project = include_str!("../project.json");
+    assert!(project.contains(r#""test:rust-first-parity""#), "{project}");
+    assert!(project.contains("rust_first_parity"), "{project}");
     assert_eq!(cem_ql::VERSION, env!("CARGO_PKG_VERSION"));
 }

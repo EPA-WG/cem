@@ -113,13 +113,13 @@ packages/cem_ql/
     eval_pipeline.rs
     stdlib_sequence.rs
     artifact_roundtrip.rs
-    xpath_parity.rs        — AC-QX-1 subset against XPath 3.1 conformance vectors
+    rust_first_parity.rs   — AC-QX-1 Rust-first functional parity vectors
     fixtures_snapshot.rs   — Tier A query corpus against canonical fixtures
     perf_budgets.rs        — selector benchmarks shared with cem_ml:bench
 ```
 
 Project metadata (`packages/cem_ql/project.json`) defines Nx targets
-`build`, `test`, `lint`, `build:wasm`, `bench`, `test:xpath-parity`,
+`build`, `test`, `lint`, `build:wasm`, `bench`, `test:rust-first-parity`,
 `test:fixtures` mirroring the host project layout.
 
 ### 3.1 Public API Surface (`cem_ql::api`)
@@ -995,7 +995,7 @@ Tier A:
   - Type lattice and bidirectional inference (AC-QT-1..AC-QT-4)
   - Stdlib Tier A modules (§11)
   - Diagnostic codes Tier A (§8)
-  - Verification: cem_ql:test, cem_ql:test:xpath-parity,
+  - Verification: cem_ql:test, cem_ql:test:rust-first-parity,
     cem_ql:test:fixtures, cem_ql:bench
 
 Tier B:
