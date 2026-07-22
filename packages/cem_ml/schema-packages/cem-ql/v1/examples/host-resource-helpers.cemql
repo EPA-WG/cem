@@ -1,0 +1,30 @@
+module "https://example.test/queries/rust-first/host-resource-helpers"
+
+import "cem:stdlib/state" as state
+import "cem:stdlib/template" as tpl
+import "cem:stdlib/content-types" as ct
+import "cem:stdlib/cemml" as cemml
+
+{
+    let state_helpers = (state:keys(), state:read("theme"));
+    let template_helpers = (tpl:names(), tpl:lookup("button"));
+    let content_type_helpers = (
+        ct:html(),
+        ct:xml(),
+        ct:svg(),
+        ct:mathml(),
+        ct:css(),
+        ct:scss(),
+        ct:json(),
+        ct:yaml(),
+        ct:csv(),
+        ct:js(),
+        ct:ts(),
+        ct:cemml(),
+        ct:floor(),
+        ct:default_accepts()
+    );
+    let resource_read = read("file:///tmp/cem-ql-example.json", (ct:json()));
+    let cem_model = cemml:format(cemml:parse("{p | Example}"));
+    (state_helpers, template_helpers, content_type_helpers, resource_read, cem_model)
+}

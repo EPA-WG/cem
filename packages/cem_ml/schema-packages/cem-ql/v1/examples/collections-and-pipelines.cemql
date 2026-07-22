@@ -1,0 +1,24 @@
+module "https://example.test/queries/rust-first/collections-and-pipelines"
+
+declare let rows = (
+    { name: "Ada", tier: "required", score: 3 },
+    { name: "Lin", tier: "recommended", score: 2 },
+    { name: "Max", tier: "deprecated", score: 1 }
+)
+
+{
+    let active_rows = rows.where(fn(row) => row.tier != "deprecated");
+    let labels = active_rows.name;
+    let current_projection = (1, 2, 3).{. + 1};
+    let adjusted_scores = for row in active_rows { row.score + 1 };
+    let required_present = any(active_rows, fn(row) => row.tier == "required");
+    let scores_positive = all(active_rows, fn(row) => row.score > 0);
+    {
+        labels: labels,
+        current_projection: current_projection,
+        adjusted_scores: adjusted_scores,
+        required_present: required_present,
+        scores_positive: scores_positive,
+        first_label: labels.first()
+    }
+}

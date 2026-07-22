@@ -1,0 +1,3 @@
+module "https://example.test/queries/rust-first/invalid-old-syntax"
+
+ready and enabled

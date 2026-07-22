@@ -1,0 +1,25 @@
+module "https://example.test/queries/rust-first/operators-and-control"
+
+import "cem:stdlib/sequence" as seq
+import "cem:stdlib/numbers" as num
+
+declare let lhs = 8
+declare let rhs = 3
+
+{
+    let arithmetic = (lhs + rhs, lhs - rhs, lhs * rhs, lhs / rhs, lhs % rhs, -rhs);
+    let comparisons = (lhs == rhs, lhs != rhs, lhs > rhs, lhs >= rhs, rhs < lhs, rhs <= lhs);
+    let booleans = ((lhs > rhs) && true, false || (rhs == 3), !(lhs == rhs));
+    let type_checks = (lhs is integer, num:double(lhs) as double, treat_as("https://example.test", anyURI));
+    let sets = (
+        (1, 2) | (2, 3),
+        (1, 2, 3) & (2, 4),
+        (1, 2, 3) - (2, 4),
+        (1, 2, 3) ^ (2, 4)
+    );
+    if seq:count(sets) > 0 {
+        (arithmetic, comparisons, booleans, type_checks, sets)
+    } else {
+        ()
+    }
+}

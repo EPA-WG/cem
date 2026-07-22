@@ -1,0 +1,59 @@
+module "https://example.test/queries/rust-first/stdlib-data-helpers"
+
+import "cem:stdlib/sequence" as seq
+import "cem:stdlib/strings" as str
+import "cem:stdlib/numbers" as num
+import "cem:stdlib/datetime" as dt
+import "cem:stdlib/report" as report
+
+{
+    let sequence = (
+        seq:first((1, 2, 3)),
+        seq:last((1, 2, 3)),
+        seq:nth((1, 2, 3), 1),
+        seq:take((1, 2, 3), 2),
+        seq:drop((1, 2, 3), 1),
+        seq:count(seq:map((1, 2), fn(item) => item + 1)),
+        seq:count(seq:where((1, 2, 3), fn(item) => item > 1)),
+        seq:count(seq:flat_map((1, 2), fn(item) => (item, item + 10))),
+        seq:count(seq:peek((1, 2, 3), fn(item) => report:emit("cem.ql.peek", num:string(item), "info"))),
+        seq:count(seq:union((1, 2), (2, 3))),
+        seq:count(seq:intersect((1, 2, 3), (2, 4))),
+        seq:count(seq:difference((1, 2, 3), (2, 4))),
+        seq:count(seq:symmetric_difference((1, 2, 3), (2, 4)))
+    );
+    let strings = (
+        str:length("CEM"),
+        str:codepoints("AZ"),
+        str:lower("CEM"),
+        str:upper("cem"),
+        str:slice("semantic", 2, 3),
+        str:concat(("cem", "ql"), "-"),
+        str:contains("semantic", "man"),
+        str:starts_with("semantic", "sem"),
+        str:ends_with("semantic", "tic"),
+        str:normalize_space("  rust   first  "),
+        str:replace("token-[state]", "[state]", "hover"),
+        str:translate("Cem", "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"),
+        str:substring("semantic", 3, 4),
+        str:substring_before("fa-github", "-"),
+        str:substring_after("fa-github", "-")
+    );
+    let numbers = (
+        num:double(1),
+        num:decimal(1),
+        num:integer(1.0e0),
+        num:string(12),
+        num:abs(-3),
+        num:floor(3.8),
+        num:ceil(3.2),
+        num:round(3.6),
+        num:format(12, "value={}")
+    );
+    let datetime = (
+        dt:to_utc("2026-05-23T01:02:03Z"),
+        dt:components("2026-05-23T01:02:03Z"),
+        dt:format("2026-05-23T01:02:03Z", "iso")
+    );
+    (sequence, strings, numbers, datetime, report:emit("cem.ql.example", "stdlib helpers parsed", "info"))
+}

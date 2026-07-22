@@ -1093,11 +1093,12 @@ mod tests {
     #[test]
     fn cem_ql_package_examples_are_manifest_indexed() {
         let examples =
-            manifest_indexed_package_examples("cem-ql", CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI, 4);
+            manifest_indexed_package_examples("cem-ql", CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI, 9);
 
         for (id, expected_code) in [
             ("invalid-parse", "cem.ql.parse_error"),
             ("invalid-missing-module", "cem.ql.module_uri_missing"),
+            ("invalid-old-syntax", "cem.ql.use_rust_boolean_ops"),
         ] {
             let example = examples
                 .iter()

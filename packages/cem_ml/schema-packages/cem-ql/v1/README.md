@@ -58,8 +58,19 @@ CLI validation integration tests.
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------- |
 | [`basic-query.cemql`](examples/basic-query.cemql)                       | Minimal query module with a module URI, immutable binding declaration, and expression.            | Pass                                  |
 | [`module-query.cemql`](examples/module-query.cemql)                     | Query module with import, immutable binding declaration, function declaration, and conditional expression. | Pass                                  |
+| [`operators-and-control.cemql`](examples/operators-and-control.cemql)   | Arithmetic, comparisons, boolean short-circuit operators, type tests/casts, set operators, block `let`, and `if`/`else`. | Pass                                  |
+| [`collections-and-pipelines.cemql`](examples/collections-and-pipelines.cemql) | Record streams, dot pipelines, current-item projection, `for` mapping, and `any`/`all` helpers. | Pass                                  |
+| [`stdlib-data-helpers.cemql`](examples/stdlib-data-helpers.cemql)       | Sequence helpers, string helpers, number helpers, date/time helpers, and report helper calls.     | Pass                                  |
+| [`host-resource-helpers.cemql`](examples/host-resource-helpers.cemql)   | State helpers, template helpers, CEM-ML helpers, content-type constants, `read(...)`, and JSON-array resource boundary shape. | Pass                                  |
 | [`invalid-parse.cemql`](examples/invalid-parse.cemql)                   | Incomplete expression rejected by the CEM-QL parser.                                              | Fail with `cem.ql.parse_error`        |
 | [`invalid-missing-module.cemql`](examples/invalid-missing-module.cemql) | Query source missing the required module URI declaration.                                         | Fail with `cem.ql.module_uri_missing` |
+| [`invalid-old-syntax.cemql`](examples/invalid-old-syntax.cemql)         | XPath boolean spelling rejected with a Rust-first replacement diagnostic.                         | Fail with `cem.ql.use_rust_boolean_ops` |
+
+The current parser has record literals and stream sequence literals; it does
+not define a separate `[...]` array literal. Arrays enter CEM-QL through host
+and resource boundaries such as JSON `read(...)` or WASM bindings, and are
+therefore represented in the host/resource helper example rather than as a
+new surface syntax.
 
 Validate an example explicitly against this schema:
 

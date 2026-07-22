@@ -105,6 +105,38 @@
     }
 
     {example
+        @id="operators-and-control"
+        @path="examples/operators-and-control.cemql"
+        @content-type="application/vnd.cem.query+cem-ql"
+        @schema="https://cem.dev/ns/query/cem-ql/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="collections-and-pipelines"
+        @path="examples/collections-and-pipelines.cemql"
+        @content-type="application/vnd.cem.query+cem-ql"
+        @schema="https://cem.dev/ns/query/cem-ql/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="stdlib-data-helpers"
+        @path="examples/stdlib-data-helpers.cemql"
+        @content-type="application/vnd.cem.query+cem-ql"
+        @schema="https://cem.dev/ns/query/cem-ql/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="host-resource-helpers"
+        @path="examples/host-resource-helpers.cemql"
+        @content-type="application/vnd.cem.query+cem-ql"
+        @schema="https://cem.dev/ns/query/cem-ql/1"
+        @expected-result="pass"
+    }
+
+    {example
         @id="invalid-parse"
         @path="examples/invalid-parse.cemql"
         @content-type="application/vnd.cem.query+cem-ql"
@@ -120,5 +152,14 @@
         @schema="https://cem.dev/ns/query/cem-ql/1"
         @expected-result="fail"
         @expected-diagnostics="cem.ql.module_uri_missing"
+    }
+
+    {example
+        @id="invalid-old-syntax"
+        @path="examples/invalid-old-syntax.cemql"
+        @content-type="application/vnd.cem.query+cem-ql"
+        @schema="https://cem.dev/ns/query/cem-ql/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.ql.use_rust_boolean_ops"
     }
 }

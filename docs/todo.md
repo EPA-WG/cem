@@ -127,7 +127,7 @@ Dependency-ordered implementation checklist:
 - [x] Update `packages/cem_ml/schema-packages/cem-ql/v1/README.md`,
       `schema/cem-ql.cem`, `package.cem`, and examples so package-owned
       validation fixtures use Rust-first CEM-QL source.
-- [ ] Add CEM-QL schema-package examples for each parity group:
+- [x] Add CEM-QL schema-package examples for each parity group:
       arithmetic, comparisons, boolean short-circuit, set operators,
       pipeline/current item, records/arrays/streams, blocks/let, if/else,
       for mapping, any/all, type tests/casts, stdlib sequence helpers,
