@@ -29,6 +29,102 @@ interface ParityRow {
 
 const rows: ParityRow[] = [
     {
+        id: 'comparison-eq',
+        sourceCategory: 'operator/comparison',
+        query: '1 == 1',
+        bindings: {},
+        expectedItems: [boolean(true)],
+        expectedDiagnosticCodes: [],
+    },
+    {
+        id: 'comparison-ne',
+        sourceCategory: 'operator/comparison',
+        query: '1 != 2',
+        bindings: {},
+        expectedItems: [boolean(true)],
+        expectedDiagnosticCodes: [],
+    },
+    {
+        id: 'comparison-lt',
+        sourceCategory: 'operator/comparison',
+        query: '1 < 2',
+        bindings: {},
+        expectedItems: [boolean(true)],
+        expectedDiagnosticCodes: [],
+    },
+    {
+        id: 'comparison-le',
+        sourceCategory: 'operator/comparison',
+        query: '2 <= 2',
+        bindings: {},
+        expectedItems: [boolean(true)],
+        expectedDiagnosticCodes: [],
+    },
+    {
+        id: 'comparison-gt',
+        sourceCategory: 'operator/comparison',
+        query: '3 > 2',
+        bindings: {},
+        expectedItems: [boolean(true)],
+        expectedDiagnosticCodes: [],
+    },
+    {
+        id: 'comparison-ge',
+        sourceCategory: 'operator/comparison',
+        query: '3 >= 3',
+        bindings: {},
+        expectedItems: [boolean(true)],
+        expectedDiagnosticCodes: [],
+    },
+    {
+        id: 'arithmetic-add',
+        sourceCategory: 'operator/arithmetic',
+        query: '1 + 2',
+        bindings: {},
+        expectedItems: [integer(3)],
+        expectedDiagnosticCodes: [],
+    },
+    {
+        id: 'arithmetic-subtract',
+        sourceCategory: 'operator/arithmetic',
+        query: '5 - 2',
+        bindings: {},
+        expectedItems: [integer(3)],
+        expectedDiagnosticCodes: [],
+    },
+    {
+        id: 'arithmetic-multiply',
+        sourceCategory: 'operator/arithmetic',
+        query: '2 * 3',
+        bindings: {},
+        expectedItems: [integer(6)],
+        expectedDiagnosticCodes: [],
+    },
+    {
+        id: 'arithmetic-divide',
+        sourceCategory: 'operator/arithmetic',
+        query: '5 / 2',
+        bindings: {},
+        expectedItems: [integer(2)],
+        expectedDiagnosticCodes: [],
+    },
+    {
+        id: 'arithmetic-remainder',
+        sourceCategory: 'operator/arithmetic',
+        query: '5 % 2',
+        bindings: {},
+        expectedItems: [integer(1)],
+        expectedDiagnosticCodes: [],
+    },
+    {
+        id: 'arithmetic-unary-minus',
+        sourceCategory: 'operator/arithmetic',
+        query: '-(5)',
+        bindings: {},
+        expectedItems: [integer(-5)],
+        expectedDiagnosticCodes: [],
+    },
+    {
         id: 'arithmetic-precedence',
         sourceCategory: 'operator/arithmetic',
         query: '1 + 2 * 3',
@@ -45,11 +141,57 @@ const rows: ParityRow[] = [
         expectedDiagnosticCodes: [],
     },
     {
+        id: 'boolean-and',
+        sourceCategory: 'operator/boolean',
+        query: 'true && false',
+        bindings: {},
+        expectedItems: [boolean(false)],
+        expectedDiagnosticCodes: [],
+    },
+    {
         id: 'boolean-or',
         sourceCategory: 'operator/boolean',
         query: 'false || true',
         bindings: {},
         expectedItems: [boolean(true)],
+        expectedDiagnosticCodes: [],
+    },
+    {
+        id: 'boolean-not',
+        sourceCategory: 'operator/boolean',
+        query: '!false',
+        bindings: {},
+        expectedItems: [boolean(true)],
+        expectedDiagnosticCodes: [],
+    },
+    {
+        id: 'coalesce-null',
+        sourceCategory: 'operator/coalesce',
+        query: 'null ?? "fallback"',
+        bindings: {},
+        expectedItems: [string('fallback')],
+        expectedDiagnosticCodes: [],
+    },
+    {
+        id: 'stream-union',
+        sourceCategory: 'operator/set',
+        query: 'left | right',
+        bindings: {
+            left: cemQlStream([1, 2]),
+            right: cemQlStream([2, 3]),
+        },
+        expectedItems: [integer(1), integer(2), integer(3)],
+        expectedDiagnosticCodes: [],
+    },
+    {
+        id: 'stream-intersect',
+        sourceCategory: 'operator/set',
+        query: 'left & right',
+        bindings: {
+            left: cemQlStream([1, 2, 3]),
+            right: cemQlStream([2, 3, 4]),
+        },
+        expectedItems: [integer(2), integer(3)],
         expectedDiagnosticCodes: [],
     },
     {
@@ -64,11 +206,30 @@ const rows: ParityRow[] = [
         expectedDiagnosticCodes: [],
     },
     {
-        id: 'pipeline-current-item',
+        id: 'stream-symmetric-difference',
+        sourceCategory: 'operator/set',
+        query: 'left ^ right',
+        bindings: {
+            left: cemQlStream([1, 2, 3]),
+            right: cemQlStream([2, 4]),
+        },
+        expectedItems: [integer(1), integer(3), integer(4)],
+        expectedDiagnosticCodes: [],
+    },
+    {
+        id: 'dot-pipeline-lambda',
         sourceCategory: 'operator/pipeline-current',
         query: '(1, 2, 3).{. + 1}',
         bindings: {},
         expectedItems: [integer(2), integer(3), integer(4)],
+        expectedDiagnosticCodes: [],
+    },
+    {
+        id: 'leading-dot-current-item',
+        sourceCategory: 'operator/pipeline-current',
+        query: '(41).{.}',
+        bindings: {},
+        expectedItems: [integer(41)],
         expectedDiagnosticCodes: [],
     },
     {
@@ -79,6 +240,34 @@ const rows: ParityRow[] = [
             rows: [{ name: 'Ada' }, { name: 'Lin' }],
         },
         expectedItems: [string('Ada'), string('Lin')],
+        expectedDiagnosticCodes: [],
+    },
+    {
+        id: 'type-test-is',
+        sourceCategory: 'operator/type',
+        query: 'first is node',
+        bindings: {
+            first: cemQlNode('node-1'),
+        },
+        expectedItems: [boolean(true)],
+        expectedDiagnosticCodes: [],
+    },
+    {
+        id: 'cast-as',
+        sourceCategory: 'operator/type',
+        query: '"42" as integer',
+        bindings: {},
+        expectedItems: [integer(42)],
+        expectedDiagnosticCodes: [],
+    },
+    {
+        id: 'treat-as',
+        sourceCategory: 'operator/type',
+        query: 'treat_as(first, node)',
+        bindings: {
+            first: cemQlNode('node-1'),
+        },
+        expectedItems: [node('node-1')],
         expectedDiagnosticCodes: [],
     },
     {
@@ -242,6 +431,10 @@ function boolean(value: boolean): CemQlQueryItem {
 
 function string(value: string): CemQlQueryItem {
     return { kind: 'atomic', type: 'string', value };
+}
+
+function node(id: string): CemQlQueryItem {
+    return { kind: 'node', id };
 }
 
 function pretty(value: unknown): string {

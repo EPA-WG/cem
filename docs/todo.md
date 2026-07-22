@@ -149,7 +149,7 @@ Dependency-ordered implementation checklist:
       with a table-driven showcase. Each row must show query source, input
       bindings, output items, diagnostics, and source category; the story's
       `play` function must assert every row.
-- [ ] Storybook operator rows must cover: `==`, `!=`, `<`, `<=`, `>`, `>=`,
+- [x] Storybook operator rows must cover: `==`, `!=`, `<`, `<=`, `>`, `>=`,
       `+`, `-` numeric subtraction, `*`, `/`, `%`, unary `-`, `&&`, `||`,
       `!`, `??`, stream `|`, stream `&`, stream `-`, stream `^`, `.` pipeline,
       leading `.`, `is`, `as`, `treat_as(...)`, and `same_node(...)`.
