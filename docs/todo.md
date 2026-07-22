@@ -186,7 +186,7 @@ Run now that the Rust-first CEM-QL parser/runtime/docs/showcase slice is green.
       spans (`{...}` attributes, `select=` / `match=` / `test=`, and `{$ ...}`
       content expressions), plus CEMT expression positions in formatter,
       colorizer, converter, and validation assets.
-- [ ] Preserve source provenance for every extracted expression: source file,
+- [x] Preserve source provenance for every extracted expression: source file,
       byte range, host embedding kind, CEM-QL sub-span, schema-package identity
       when applicable, and whether the expression came from a formatter,
       colorizer, converter, validator, example, or documentation fixture.

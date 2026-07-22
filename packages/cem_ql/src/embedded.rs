@@ -15,16 +15,52 @@ use cem_ml::tokenizer::{SchemaTokenKind, SchemaTokenizer};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EmbeddedExpression {
+    pub source: String,
+    pub normalized_source: String,
+    pub provenance: EmbeddedExpressionProvenance,
+}
+
+impl EmbeddedExpression {
+    pub fn source_path(&self) -> &Path {
+        &self.provenance.source_path
+    }
+
+    pub fn schema_package(&self) -> Option<&SchemaPackageIdentity> {
+        self.provenance.schema_package.as_ref()
+    }
+
+    pub fn artifact_role(&self) -> EmbeddedArtifactRole {
+        self.provenance.artifact_role
+    }
+
+    pub fn host_kind(&self) -> EmbeddedHostKind {
+        self.provenance.host.kind
+    }
+
+    pub fn host_range(&self) -> ByteRange {
+        self.provenance.host.range
+    }
+
+    pub fn expression_range(&self) -> ByteRange {
+        self.provenance.cem_ql_range
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EmbeddedExpressionProvenance {
     pub source_path: PathBuf,
     pub schema_package: Option<SchemaPackageIdentity>,
     pub artifact_role: EmbeddedArtifactRole,
-    pub host_kind: EmbeddedHostKind,
-    pub host_node: Option<String>,
+    pub host: EmbeddedHostProvenance,
+    pub cem_ql_range: ByteRange,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EmbeddedHostProvenance {
+    pub kind: EmbeddedHostKind,
+    pub node_name: Option<String>,
     pub attribute_name: Option<String>,
-    pub source: String,
-    pub normalized_source: String,
-    pub host_range: ByteRange,
-    pub expression_range: ByteRange,
+    pub range: ByteRange,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,7 +74,8 @@ pub enum EmbeddedArtifactRole {
     Formatter,
     Colorizer,
     Converter,
-    Validation,
+    Validator,
+    TransformConfig,
     Schema,
     PackageManifest,
     Example,
@@ -231,16 +268,20 @@ fn push_expression(input: EmbeddedExpressionInput<'_>) {
         .to_owned();
     let normalized_source = normalize_host_expression(&source).to_owned();
     input.expressions.push(EmbeddedExpression {
-        source_path: input.source_path.to_path_buf(),
-        schema_package: input.schema_package,
-        artifact_role: input.artifact_role,
-        host_kind: input.host_kind,
-        host_node: input.host_node,
-        attribute_name: input.attribute_name,
         source,
         normalized_source,
-        host_range: input.host_range,
-        expression_range: input.expression_range,
+        provenance: EmbeddedExpressionProvenance {
+            source_path: input.source_path.to_path_buf(),
+            schema_package: input.schema_package,
+            artifact_role: input.artifact_role,
+            host: EmbeddedHostProvenance {
+                kind: input.host_kind,
+                node_name: input.host_node,
+                attribute_name: input.attribute_name,
+                range: input.host_range,
+            },
+            cem_ql_range: input.expression_range,
+        },
     });
 }
 
@@ -331,7 +372,7 @@ fn whole_attribute_expression_kind(
 
 fn expression_role(base_role: EmbeddedArtifactRole, inside_behavior: bool) -> EmbeddedArtifactRole {
     if inside_behavior {
-        EmbeddedArtifactRole::Validation
+        EmbeddedArtifactRole::Validator
     } else {
         base_role
     }
@@ -364,7 +405,14 @@ pub fn classify_artifact_role(path: impl AsRef<Path>) -> EmbeddedArtifactRole {
             "validators" | "validations" | "validation"
         )
     }) {
-        return EmbeddedArtifactRole::Validation;
+        return EmbeddedArtifactRole::Validator;
+    }
+    if path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.ends_with(".transform.cem"))
+    {
+        return EmbeddedArtifactRole::TransformConfig;
     }
     if path.file_name().and_then(|name| name.to_str()) == Some("package.cem") {
         return EmbeddedArtifactRole::PackageManifest;
@@ -525,8 +573,8 @@ mod tests {
             .iter()
             .map(|expression| {
                 (
-                    expression.host_kind,
-                    expression.attribute_name.as_deref(),
+                    expression.provenance.host.kind,
+                    expression.provenance.host.attribute_name.as_deref(),
                     expression.source.as_str(),
                     expression.normalized_source.as_str(),
                 )
@@ -561,7 +609,10 @@ mod tests {
                 ),
             ]
         );
-        assert_eq!(expressions[0].artifact_role, EmbeddedArtifactRole::Demo);
+        assert_eq!(
+            expressions[0].provenance.artifact_role,
+            EmbeddedArtifactRole::Demo
+        );
     }
 
     #[test]
@@ -578,25 +629,30 @@ mod tests {
         assert_eq!(
             expressions
                 .iter()
-                .map(|expression| (expression.host_kind, expression.artifact_role))
+                .map(|expression| {
+                    (
+                        expression.provenance.host.kind,
+                        expression.provenance.artifact_role,
+                    )
+                })
                 .collect::<Vec<_>>(),
             vec![
                 (
                     EmbeddedHostKind::BehaviorSelectAttribute,
-                    EmbeddedArtifactRole::Validation
+                    EmbeddedArtifactRole::Validator
                 ),
                 (
                     EmbeddedHostKind::BehaviorMatchAttribute,
-                    EmbeddedArtifactRole::Validation
+                    EmbeddedArtifactRole::Validator
                 ),
                 (
                     EmbeddedHostKind::ExpressionNode,
-                    EmbeddedArtifactRole::Validation
+                    EmbeddedArtifactRole::Validator
                 )
             ]
         );
         assert_eq!(
-            expressions[0].schema_package,
+            expressions[0].provenance.schema_package,
             Some(SchemaPackageIdentity {
                 package_id: "schema".to_owned(),
                 version: "v1".to_owned()
