@@ -516,6 +516,9 @@ impl NameResolver {
             }
             Expression::Record { entries, .. } => {
                 for entry in entries {
+                    if let crate::parser::RecordKey::Computed { expr, .. } = &entry.key {
+                        self.resolve_expression(expr, sites);
+                    }
                     self.resolve_expression(&entry.value, sites);
                 }
             }
@@ -537,6 +540,15 @@ impl NameResolver {
                 for arg in args {
                     self.resolve_expression(arg, sites);
                 }
+            }
+            Expression::Lambda { params, body, .. } => {
+                let mut local = BindingSet::new(self.allocate_scope_id());
+                for param in params {
+                    self.declare_param(&mut local, param);
+                }
+                let mut body_sites = vec![local];
+                body_sites.extend_from_slice(sites);
+                self.resolve_expression(body, &body_sites);
             }
             Expression::InstanceOf { value, ty, .. }
             | Expression::CastAs { value, ty, .. }

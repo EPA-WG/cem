@@ -152,19 +152,19 @@ fn cases() -> Vec<Case> {
             name: "quantified.some",
             qt3_area: "some-expr",
             query: "any((1, 2, 3), fn(x) => x == 2)",
-            expected: OutOfSubset,
+            expected: Items(vec![boolean(true)]),
         },
         Case {
             name: "quantified.every.true",
             qt3_area: "every-expr",
             query: "all((1, 2, 3), fn(x) => x < 10)",
-            expected: OutOfSubset,
+            expected: Items(vec![boolean(true)]),
         },
         Case {
             name: "quantified.every.false",
             qt3_area: "every-expr",
             query: "all((1, 2, 3), fn(x) => x < 2)",
-            expected: OutOfSubset,
+            expected: Items(vec![boolean(false)]),
         },
         Case {
             name: "sequence.literal",

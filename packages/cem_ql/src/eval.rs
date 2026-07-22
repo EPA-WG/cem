@@ -10,7 +10,7 @@ use crate::api::EvaluationContext;
 use crate::diagnostics::{
     DiagnosticCode, BUDGET_EXCEEDED, TYPE_ERROR, UNKNOWN_FUNCTION, UNKNOWN_VARIABLE,
 };
-use crate::ir::{CompiledQuery, IrId, IrNode};
+use crate::ir::{CompiledQuery, IrId, IrNode, IrRecordKey};
 use crate::parser::{BinaryOp, QuantifierKind, UnaryOp};
 use crate::resolve::BindingId;
 use crate::types::Type;
@@ -265,6 +265,10 @@ impl<'a> EvalCtx<'a> {
             IrNode::Record(entries) => {
                 let mut record = BTreeMap::new();
                 for (key, value_id) in entries {
+                    let key = match self.eval_record_key(id, &key) {
+                        Ok(key) => key,
+                        Err(stream) => return stream,
+                    };
                     let stream = self.eval_id(value_id);
                     self.merge_stream_status(&stream);
                     record.insert(key, stream.items);
@@ -516,6 +520,27 @@ impl<'a> EvalCtx<'a> {
         let mut out = self.invoke_lambda(lambda, args);
         out.extend_diagnostics(callee_stream);
         out
+    }
+
+    fn eval_record_key(
+        &mut self,
+        record_source: IrId,
+        key: &IrRecordKey,
+    ) -> Result<String, ItemStream> {
+        match key {
+            IrRecordKey::Static(key) => Ok(key.clone()),
+            IrRecordKey::Computed(key_id) => {
+                let stream = self.eval_id(*key_id);
+                self.merge_stream_status(&stream);
+                match stream.items.as_slice() {
+                    [Item::Atomic(AtomValue::String(value))] => Ok(value.clone()),
+                    _ => Err(self.type_error(
+                        record_source,
+                        "computed record key must evaluate to exactly one string",
+                    )),
+                }
+            }
+        }
     }
 
     fn eval_binary(&mut self, source: IrId, op: BinaryOp, lhs: IrId, rhs: IrId) -> ItemStream {

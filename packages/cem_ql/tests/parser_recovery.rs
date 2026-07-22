@@ -1,6 +1,6 @@
 use cem_ql::api::parse;
 use cem_ql::lexer::{CookedTokenPayload, Lexer, TokenKind};
-use cem_ql::parser::{BinaryOp, Expression, LiteralValue, PipelineStep, SurfaceNode};
+use cem_ql::parser::{BinaryOp, Expression, LiteralValue, PipelineStep, RecordKey, SurfaceNode};
 
 fn kinds(source: &str) -> Vec<TokenKind> {
     Lexer::new(source)
@@ -32,7 +32,7 @@ fn lexer_recognises_rust_keywords_operators_and_compat_words() {
         ]
     );
     assert_eq!(
-        kinds("a && b || c !d == e / f % g = h"),
+        kinds("a && b || c !d == e / f % g = h fn(x) => x"),
         vec![
             TokenKind::Ident,
             TokenKind::AmpAmp,
@@ -48,6 +48,12 @@ fn lexer_recognises_rust_keywords_operators_and_compat_words() {
             TokenKind::Percent,
             TokenKind::Ident,
             TokenKind::Assign,
+            TokenKind::Ident,
+            TokenKind::FnKw,
+            TokenKind::LParen,
+            TokenKind::Ident,
+            TokenKind::RParen,
+            TokenKind::FatArrow,
             TokenKind::Ident,
             TokenKind::EndOfInput,
         ]
@@ -272,6 +278,16 @@ fn parser_builds_control_flow_record_sequence_and_loop_forms() {
     assert!(matches!(
         first_expr("{ name: \"x\", \"external-key\": 1 }"),
         Expression::Record { .. }
+    ));
+    let record = first_expr(r#"{ [str:concat(("na", "me"))]: "Ada" }"#);
+    let Expression::Record { entries, .. } = record else {
+        panic!("expected record with computed key");
+    };
+    assert_eq!(entries.len(), 1);
+    assert!(matches!(entries[0].key, RecordKey::Computed { .. }));
+    assert!(matches!(
+        first_expr("fn(x) => x + 1"),
+        Expression::Lambda { .. }
     ));
 }
 

@@ -44,13 +44,13 @@ mod tests {
             AtomValue, BudgetAxis, EvalError, Evaluator, Item, ItemStream, QueryContextScope,
         };
         use crate::ir::lower::{IrLowerer, LowerResult};
-        use crate::ir::{CompiledQuery, IrId, IrNode, IrStep, IrTree};
+        use crate::ir::{CompiledQuery, IrId, IrNode, IrRecordKey, IrStep, IrTree};
         use crate::lexer::{Lexer, Token, TokenKind};
         use crate::parser::{
             Axis, BinaryOp, Expression, FunctionDecl, FunctionParam, ImportDecl, LiteralValue,
             ModuleDecl, NameTest, ParseError, Parser, PathStep, PipelineStep, QName,
-            QuantifierKind, RecordEntry, SetOp, SurfaceModule, SurfaceNode, TypeExpr, UnaryOp,
-            VariableDecl,
+            QuantifierKind, RecordEntry, RecordKey, SetOp, SurfaceModule, SurfaceNode, TypeExpr,
+            UnaryOp, VariableDecl,
         };
         use crate::resolve::{
             Arity, BindingEntry, BindingId, BindingKind, BindingSet, BindingTable, FunctionKey,
@@ -86,6 +86,7 @@ mod tests {
         _accept::<CompiledQuery>();
         _accept::<IrId>();
         _accept::<IrNode>();
+        _accept::<IrRecordKey>();
         _accept::<IrTree>();
         _accept::<IrStep>();
         _accept::<IrLowerer>();
@@ -104,6 +105,7 @@ mod tests {
         _accept::<FunctionParam>();
         _accept::<Expression>();
         _accept::<RecordEntry>();
+        _accept::<RecordKey>();
         _accept::<LiteralValue>();
         _accept::<PathStep>();
         _accept::<PipelineStep>();

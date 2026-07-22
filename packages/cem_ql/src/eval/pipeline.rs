@@ -174,6 +174,8 @@ pub(crate) fn apply_stdlib_call(
         }
         ("cem:stdlib/sequence", "where") => callable_sequence(arg_streams, ctx, args, false, true),
         ("cem:stdlib/sequence", "peek") => arg_streams.into_iter().next().unwrap_or_default(),
+        ("cem:stdlib/sequence", "any") => any_all_sequence(arg_streams, ctx, args, false),
+        ("cem:stdlib/sequence", "all") => any_all_sequence(arg_streams, ctx, args, true),
         ("cem:stdlib/sequence", "count") => {
             let count = arg_streams
                 .into_iter()
@@ -758,6 +760,49 @@ fn callable_sequence(
             break;
         }
     }
+    out
+}
+
+fn any_all_sequence(
+    mut arg_streams: Vec<ItemStream>,
+    ctx: &mut EvalCtx<'_>,
+    arg_ids: &[IrId],
+    require_all: bool,
+) -> ItemStream {
+    let source = arg_streams.first().cloned().unwrap_or_default();
+    let callable = arg_streams
+        .get_mut(1)
+        .and_then(|stream| stream.items.first().cloned());
+    let Some(Item::Lambda(lambda)) = callable else {
+        return ctx.unsupported(
+            arg_ids.first().copied().unwrap_or(IrId(0)),
+            "sequence predicate function requires a lambda argument",
+        );
+    };
+
+    let mut result = require_all;
+    let mut diagnostics = Vec::new();
+    for item in source.items {
+        let stream = ctx.invoke_lambda(lambda, vec![ItemStream::once(item)]);
+        diagnostics.extend(stream.diagnostics.clone());
+        if stream.error.is_some() {
+            let mut out = stream;
+            out.items.clear();
+            return out;
+        }
+        let passed = effective_boolean(&stream.items);
+        if require_all && !passed {
+            result = false;
+            break;
+        }
+        if !require_all && passed {
+            result = true;
+            break;
+        }
+    }
+
+    let mut out = ItemStream::once(Item::Atomic(AtomValue::Boolean(result)));
+    out.diagnostics = diagnostics;
     out
 }
 

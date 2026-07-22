@@ -33,8 +33,8 @@ Observed code state:
   paths, and quoted-only record literals. The parser now rejects those
   compatibility forms and accepts Rust-style control flow, bindings,
   records with bare/quoted keys, `/` as numeric division, type postfixes,
-  `treat_as(...)`, and `same_node(...)`; computed record keys and quantified
-  helper lowering remain open below.
+  `treat_as(...)`, `same_node(...)`, computed record keys, and
+  `fn(...) =>` lambdas for quantified helpers.
 - [x] `packages/cem_ql/src/eval.rs` already has evaluator support for boolean
   short-circuiting, numeric operators, set operations, pipelines, conditionals,
   loops, and type checks; the parser now exposes the Rust-first syntax for
@@ -81,7 +81,7 @@ Dependency-ordered implementation checklist:
       Rust-first operator ordering, including `||`, `&&`, comparisons,
       set operators, `+ -`, `* / %`, unary `!` / unary `-`, type/cast
       postfixes, and dot calls/pipelines. Remove `/` as path syntax.
-- [ ] Update expression parsing in `packages/cem_ql/src/parser.rs`:
+- [x] Update expression parsing in `packages/cem_ql/src/parser.rs`:
       parse Rust-style `if` blocks, expression blocks with semicolon-separated
       `let` bindings, `for name in stream { expr }`, Rust-style records with
       bare keys / quoted keys / computed keys, prefix `!`, and `expr as Type`.
@@ -89,7 +89,7 @@ Dependency-ordered implementation checklist:
       syntax: `expr is Type`, `expr as Type`, `treat_as(expr, Type)`, and
       `same_node(a, b)`. Keep XPath spellings only as diagnostic suggestions,
       not successful parses.
-- [ ] Convert quantified expression support from `some/every ... satisfies`
+- [x] Convert quantified expression support from `some/every ... satisfies`
       syntax to helper calls: `any(stream, fn)` and `all(stream, fn)`.
       Retain `IrNode::Quantified` only if the helper lowering still benefits
       evaluation; otherwise lower helpers directly.

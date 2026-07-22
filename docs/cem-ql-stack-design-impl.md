@@ -317,6 +317,17 @@ pub struct LetBinding {
     pub range: ByteRange,
 }
 
+pub struct RecordEntry {
+    pub key: RecordKey,
+    pub value: Expression,
+    pub range: ByteRange,
+}
+
+pub enum RecordKey {
+    Static { value: String, range: ByteRange },
+    Computed { expr: Box<Expression>, range: ByteRange }, // `[expr]`, must evaluate to string
+}
+
 pub enum PipelineStep {
     Named { name: QName, args: Vec<Expression>, range: ByteRange },
     Lambda { lambda: Expression, range: ByteRange },

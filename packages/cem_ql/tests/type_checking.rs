@@ -79,6 +79,17 @@ fn cross_atom_type_comparison_emits_warning_under_strict_profile() {
 }
 
 #[test]
+fn computed_record_keys_must_type_check_as_strings() {
+    let mut checker = TypeChecker::new();
+    let report = check(r#"{ [42]: "Ada" }"#, &mut checker);
+
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|diag| diag.code == "cem.ql.type_error"));
+}
+
+#[test]
 fn unknown_type_uses_the_configured_static_resolution_severity() {
     let mut checker = TypeChecker::with_config(TyConfig::dev_profile());
     let report = check("treat_as(value, MissingType)", &mut checker);

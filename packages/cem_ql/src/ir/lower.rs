@@ -7,10 +7,10 @@ use cem_ml::source::{ByteRange, SourceId};
 use cem_ml::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 
 use crate::diagnostics::{DiagnosticCode, CLOSURE_DETACHED, UNKNOWN_TYPE, UNKNOWN_VARIABLE};
-use crate::ir::{CompiledQuery, IrId, IrNode, IrStep, IrTree};
+use crate::ir::{CompiledQuery, IrId, IrNode, IrRecordKey, IrStep, IrTree};
 use crate::parser::{
-    BinaryOp, Expression, FunctionDecl, LiteralValue, PathStep, PipelineStep, QName, SurfaceModule,
-    SurfaceNode, TypeExpr, VariableDecl,
+    BinaryOp, Expression, FunctionDecl, FunctionParam, LiteralValue, PathStep, PipelineStep, QName,
+    SurfaceModule, SurfaceNode, TypeExpr, VariableDecl,
 };
 use crate::resolve::{Arity, BindingId, FunctionKey, ModuleUri, QNameKey};
 use crate::types::{AtomType, NodeKind, SchemaTypeRegistry, Type};
@@ -438,7 +438,17 @@ impl IrLowerer {
             Expression::Record { entries, range } => {
                 let entries = entries
                     .iter()
-                    .map(|entry| (entry.key.clone(), self.lower_expr(&entry.value)))
+                    .map(|entry| {
+                        let key = match &entry.key {
+                            crate::parser::RecordKey::Static { value, .. } => {
+                                IrRecordKey::Static(value.clone())
+                            }
+                            crate::parser::RecordKey::Computed { expr, .. } => {
+                                IrRecordKey::Computed(self.lower_expr(expr))
+                            }
+                        };
+                        (key, self.lower_expr(&entry.value))
+                    })
                     .collect();
                 self.push_node(IrNode::Record(entries), Type::Any, *range, None, transform)
             }
@@ -457,6 +467,11 @@ impl IrLowerer {
                 args,
                 range,
             } => self.lower_call(callee, args, *range, transform),
+            Expression::Lambda {
+                params,
+                body,
+                range,
+            } => self.lower_lambda(params, body, *range, transform),
             Expression::InstanceOf { value, ty, range } => {
                 let value = self.lower_expr(value);
                 let ty = self.type_expr(&Some(ty.clone()));
@@ -614,18 +629,36 @@ impl IrLowerer {
                     }
                 }
             }
-            PipelineStep::Lambda { lambda, .. } => IrStep::Lambda(self.lower_lambda(lambda)),
+            PipelineStep::Lambda { lambda, .. } => IrStep::Lambda(self.lower_lambda(
+                &[],
+                lambda,
+                lambda.range(),
+                TransformKind::QueryStep,
+            )),
         }
     }
 
-    fn lower_lambda(&mut self, expr: &Expression) -> IrId {
+    fn lower_lambda(
+        &mut self,
+        params: &[FunctionParam],
+        body_expr: &Expression,
+        range: ByteRange,
+        transform: TransformKind,
+    ) -> IrId {
         self.push_scope();
         let frame_index = self.lambda_frames.len();
         self.lambda_frames.push(LambdaFrame {
             local_scope_depth: self.scopes.len(),
             captures: BTreeSet::new(),
         });
-        let body = self.lower_expression_inner(expr, TransformKind::QueryStep);
+        let param_bindings: Vec<(BindingId, Type)> = params
+            .iter()
+            .map(|param| {
+                let binding = self.declare_variable(QNameKey::from_qname(&param.name));
+                (binding, self.type_expr(&param.type_annotation))
+            })
+            .collect();
+        let body = self.lower_expression_inner(body_expr, transform.clone());
         let frame = self.lambda_frames.remove(frame_index);
         self.pop_scope();
 
@@ -634,24 +667,24 @@ impl IrLowerer {
             self.emit(
                 CLOSURE_DETACHED,
                 "closure capture detached from host scope",
-                expr.range(),
+                range,
                 Severity::Info,
             );
         }
         let ret = self.type_of(body).cloned().unwrap_or(Type::Any);
         self.push_node(
             IrNode::Lambda {
-                params: Vec::new(),
+                params: param_bindings.clone(),
                 body,
                 captures,
             },
             Type::Lambda {
-                params: Vec::new(),
+                params: param_bindings.into_iter().map(|(_, ty)| ty).collect(),
                 ret: Box::new(ret),
             },
-            expr.range(),
+            range,
             None,
-            TransformKind::QueryStep,
+            transform,
         )
     }
 
@@ -714,6 +747,9 @@ impl IrLowerer {
     fn stdlib_module_for(&self, name: &QName) -> Option<ModuleUri> {
         if name.prefix.is_none() && name.local == "read" {
             return Some(ModuleUri("cem:stdlib/content-types".to_owned()));
+        }
+        if name.prefix.is_none() && matches!(name.local.as_str(), "any" | "all") {
+            return Some(ModuleUri("cem:stdlib/sequence".to_owned()));
         }
         name.prefix
             .as_ref()

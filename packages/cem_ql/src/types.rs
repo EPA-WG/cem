@@ -447,15 +447,35 @@ impl TypeChecker {
                 self.pop_scope();
                 boolean_type()
             }
-            Expression::Record { entries, .. } => Type::Record(
-                entries
-                    .iter()
-                    .map(|entry| RecordField {
-                        name: entry.key.clone(),
-                        ty: self.infer_expression(&entry.value),
-                    })
-                    .collect(),
-            ),
+            Expression::Record { entries, .. } => {
+                let mut fields = Vec::new();
+                let mut dynamic_shape = false;
+                for entry in entries {
+                    match &entry.key {
+                        crate::parser::RecordKey::Static { value, .. } => {
+                            fields.push(RecordField {
+                                name: value.clone(),
+                                ty: self.infer_expression(&entry.value),
+                            });
+                        }
+                        crate::parser::RecordKey::Computed { expr, .. } => {
+                            dynamic_shape = true;
+                            let key_ty = self.infer_expression(expr);
+                            self.expect_subtype(
+                                &key_ty,
+                                &Type::atom(AtomType::String),
+                                expr.range(),
+                            );
+                            self.infer_expression(&entry.value);
+                        }
+                    }
+                }
+                if dynamic_shape {
+                    Type::Any
+                } else {
+                    Type::Record(fields)
+                }
+            }
             Expression::Sequence { items, .. } if items.is_empty() => Type::Empty,
             Expression::Sequence { items, .. } => {
                 let mut item_ty = Type::Empty;
@@ -474,6 +494,7 @@ impl TypeChecker {
                 args,
                 range,
             } => self.infer_call(callee, args, *range),
+            Expression::Lambda { params, body, .. } => self.infer_lambda(params, body),
             Expression::InstanceOf { value, ty, .. } => {
                 self.infer_expression(value);
                 self.resolve_type_expr(ty);
@@ -543,6 +564,24 @@ impl TypeChecker {
             };
         }
         current
+    }
+
+    fn infer_lambda(&mut self, params: &[FunctionParam], body: &Expression) -> Type {
+        self.push_scope();
+        let param_types: Vec<Type> = params
+            .iter()
+            .map(|param| {
+                let ty = self.param_type(param);
+                self.declare_variable(QNameKey::from_qname(&param.name), ty.clone());
+                ty
+            })
+            .collect();
+        let ret = self.infer_expression(body);
+        self.pop_scope();
+        Type::Lambda {
+            params: param_types,
+            ret: Box::new(ret),
+        }
     }
 
     fn infer_binary(

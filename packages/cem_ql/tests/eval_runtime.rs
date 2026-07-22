@@ -89,6 +89,20 @@ fn evaluator_materializes_intersect_difference_and_symmetric_difference() {
 }
 
 #[test]
+fn evaluator_materializes_computed_record_keys() {
+    let stream = eval(r#"{ [str:concat(("na", "me"))]: "Ada" }"#, default_policy());
+
+    let Some(Item::Record(record)) = stream.items.first() else {
+        panic!("expected record, got {:?}", stream.items);
+    };
+    assert_eq!(
+        record.get("name").and_then(|items| items.first()),
+        Some(&Item::Atomic(AtomValue::String("Ada".to_owned())))
+    );
+    assert!(stream.error.is_none(), "{:?}", stream.diagnostics);
+}
+
+#[test]
 fn evaluator_emits_budget_exceeded_when_stage_materialization_crosses_scope_policy() {
     let stream = eval(
         "(1, 2, 3) | ()",

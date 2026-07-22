@@ -251,6 +251,7 @@ impl<'src> Parser<'src> {
             TokenKind::If => self.parse_if(token),
             TokenKind::Let => self.parse_let(token),
             TokenKind::For => self.parse_for(token),
+            TokenKind::FnKw => self.parse_lambda(token),
             TokenKind::Bang => {
                 let operand = self.parse_expression(PREC_UNARY)?;
                 let range = join_ranges(token.range, operand.range());
@@ -322,6 +323,20 @@ impl<'src> Parser<'src> {
         Some(Expression::For {
             var,
             source: Box::new(source),
+            body: Box::new(body),
+            range,
+        })
+    }
+
+    fn parse_lambda(&mut self, start: Token) -> Option<Expression> {
+        self.expect(TokenKind::LParen, "`(` after `fn`")?;
+        let params = self.parse_function_params()?;
+        self.expect(TokenKind::RParen, "`)` after lambda parameters")?;
+        self.expect(TokenKind::FatArrow, "`=>` after lambda parameters")?;
+        let body = self.parse_expression(0)?;
+        let range = join_ranges(start.range, body.range());
+        Some(Expression::Lambda {
+            params,
             body: Box::new(body),
             range,
         })
@@ -404,12 +419,8 @@ impl<'src> Parser<'src> {
             let key = self.parse_record_key()?;
             self.expect(TokenKind::Colon, "`:` after record key")?;
             let value = self.parse_expression(0)?;
-            let range = join_ranges(key.1, value.range());
-            entries.push(RecordEntry {
-                key: key.0,
-                value,
-                range,
-            });
+            let range = join_ranges(key.range(), value.range());
+            entries.push(RecordEntry { key, value, range });
             if self.match_kind(TokenKind::Comma).is_none() {
                 break;
             }
@@ -421,7 +432,7 @@ impl<'src> Parser<'src> {
         })
     }
 
-    fn parse_record_key(&mut self) -> Option<(String, ByteRange)> {
+    fn parse_record_key(&mut self) -> Option<RecordKey> {
         let token = self.bump();
         match token.kind {
             TokenKind::Ident | TokenKind::PrefixedName => {
@@ -431,13 +442,27 @@ impl<'src> Parser<'src> {
                 } else {
                     name.local
                 };
-                Some((key, token.range))
+                Some(RecordKey::Static {
+                    value: key,
+                    range: token.range,
+                })
             }
-            TokenKind::StringLit => Some((string_value(&token), token.range)),
+            TokenKind::StringLit => Some(RecordKey::Static {
+                value: string_value(&token),
+                range: token.range,
+            }),
+            TokenKind::LBracket => {
+                let expr = self.parse_expression(0)?;
+                let close = self.expect(TokenKind::RBracket, "`]` after computed record key")?;
+                Some(RecordKey::Computed {
+                    range: join_ranges(token.range, close.range),
+                    expr: Box::new(expr),
+                })
+            }
             _ => {
                 self.error_at(
                     PARSE_ERROR,
-                    "expected bare identifier or quoted string record key",
+                    "expected bare identifier, quoted string, or `[expr]` record key",
                     token.range,
                 );
                 None
@@ -899,6 +924,11 @@ pub enum Expression {
         args: Vec<Expression>,
         range: ByteRange,
     },
+    Lambda {
+        params: Vec<FunctionParam>,
+        body: Box<Expression>,
+        range: ByteRange,
+    },
     InstanceOf {
         value: Box<Expression>,
         ty: TypeExpr,
@@ -934,6 +964,7 @@ impl Expression {
             | Expression::Record { range, .. }
             | Expression::Sequence { range, .. }
             | Expression::Call { range, .. }
+            | Expression::Lambda { range, .. }
             | Expression::InstanceOf { range, .. }
             | Expression::CastAs { range, .. }
             | Expression::TreatAs { range, .. } => *range,
@@ -943,9 +974,36 @@ impl Expression {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RecordEntry {
-    pub key: String,
+    pub key: RecordKey,
     pub value: Expression,
     pub range: ByteRange,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum RecordKey {
+    Static {
+        value: String,
+        range: ByteRange,
+    },
+    Computed {
+        expr: Box<Expression>,
+        range: ByteRange,
+    },
+}
+
+impl RecordKey {
+    pub fn range(&self) -> ByteRange {
+        match self {
+            RecordKey::Static { range, .. } | RecordKey::Computed { range, .. } => *range,
+        }
+    }
+
+    pub fn static_value(&self) -> Option<&str> {
+        match self {
+            RecordKey::Static { value, .. } => Some(value),
+            RecordKey::Computed { .. } => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

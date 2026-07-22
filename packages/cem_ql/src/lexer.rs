@@ -25,6 +25,7 @@ pub enum TokenKind {
     Minus,
     Caret,
     Assign,
+    FatArrow,
     Colon,
     ColonColon,
     EqEq,
@@ -157,6 +158,9 @@ impl<'src> Lexer<'src> {
             }
             ':' => self.token(TokenKind::Colon, start, self.cursor, None),
             '=' if self.consume_if('=') => self.token(TokenKind::EqEq, start, self.cursor, None),
+            '=' if self.consume_if('>') => {
+                self.token(TokenKind::FatArrow, start, self.cursor, None)
+            }
             '=' => self.token(TokenKind::Assign, start, self.cursor, None),
             '!' if self.consume_if('=') => self.token(TokenKind::NeqOp, start, self.cursor, None),
             '!' => self.token(TokenKind::Bang, start, self.cursor, None),

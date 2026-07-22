@@ -21,8 +21,10 @@ fn eval(source: &str) -> cem_ql::eval::ItemStream {
 fn tier_a_registry_lists_every_documented_module_function() {
     let registry = ModuleRegistry::tier_a();
 
-    assert_eq!(registry.functions.len(), 55);
+    assert_eq!(registry.functions.len(), 57);
     assert!(registry.resolve("cem:stdlib/sequence", "map", 2).is_some());
+    assert!(registry.resolve("cem:stdlib/sequence", "any", 2).is_some());
+    assert!(registry.resolve("cem:stdlib/sequence", "all", 2).is_some());
     assert!(registry.resolve("cem:stdlib/strings", "slice", 3).is_some());
     assert!(registry
         .resolve("cem:stdlib/strings", "replace", 3)
@@ -144,6 +146,21 @@ fn sequence_count_returns_item_count() {
 
     let empty = eval(r#"seq:count(())"#);
     assert_eq!(empty.items, vec![Item::Atomic(AtomValue::Integer(0))]);
+}
+
+#[test]
+fn sequence_any_all_evaluate_parameterized_lambdas() {
+    let any = eval("any((1, 2, 3), fn(x) => x == 2)");
+    assert_eq!(any.items, vec![Item::Atomic(AtomValue::Boolean(true))]);
+
+    let all = eval("all((1, 2, 3), fn(x) => x < 10)");
+    assert_eq!(all.items, vec![Item::Atomic(AtomValue::Boolean(true))]);
+
+    let all_false = eval("all((1, 2, 3), fn(x) => x < 2)");
+    assert_eq!(
+        all_false.items,
+        vec![Item::Atomic(AtomValue::Boolean(false))]
+    );
 }
 
 #[test]

@@ -47,7 +47,7 @@ pub enum IrNode {
     SchemaType(SchemaTypeId),
     TemplateRef(TemplateRefId),
     StateSlot(StateSlotId),
-    Record(Vec<(String, IrId)>),
+    Record(Vec<(IrRecordKey, IrId)>),
     Array(Vec<IrId>),
     Sequence(Vec<IrId>),
     Lambda {
@@ -128,6 +128,12 @@ pub enum IrNode {
         lhs: IrId,
         rhs: IrId,
     },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum IrRecordKey {
+    Static(String),
+    Computed(IrId),
 }
 
 #[derive(Debug, Clone, PartialEq)]
