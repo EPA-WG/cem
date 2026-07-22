@@ -219,7 +219,7 @@ Resume after the Rust-first CEM-QL syntax/showcase slice is green.
       `compact`/`pretty`/`tabular`, baseline colorizer profiles
       `terminal`/`html`/`md`, and converter template paths only when the
       manifest declares CEMT converters.
-- [ ] Decide and encode the example-reference representation: generate
+- [x] Decide and encode the example-reference representation: generate
       checked-in `examples/*.example.cem` sidecars from current manifest example
       entries, or update the audit to explicitly accept manifest-owned example
       entries as the equivalent reference document described by the README.
@@ -296,12 +296,12 @@ Deferred dependency-ordered package checklist:
 
 ### Next Work Item
 
-Decide and encode the example-reference representation for built-in schema
-packages. The structure audit now reports `examples/` and manifest example
-coverage; the next slice should choose whether package examples are represented
-by checked-in `*.example.cem` sidecars or by manifest-owned example metadata,
-then update the audit so the chosen representation is enforced before the
-dependency-ordered package checklist starts.
+Add focused checks for the two schema-source filename exceptions:
+`cem-ml/v1/schema/cem-ml-generic.cem` and
+`schema/v1/schema/cem-schema.cem`. The next slice should either document them
+as intentional compatibility exceptions in the package README/manifest audit,
+or rename them to the literal `schema/{package-id}.cem` shape and update all
+manifest/source registrations.
 
 ## Current Verification Commands
 

@@ -247,7 +247,6 @@ schema-packages/{package-id}/v1/
   schema/{package-id}.cem
   examples/
     {case}.{content-extension}
-    {case}.example.cem
   formatters/
     compact.cemt
     pretty.cemt
@@ -268,13 +267,14 @@ Schemas are always authored in `.cem` format under `schema/`. The schema source
 declares the schema URI, version, owned content types, namespaces, content model,
 constraints, diagnostics, and explicit `{uses}` dependencies.
 
-Examples are not only naked source files. Each example set includes the source
-file in the matching content type and a CEM-format example reference, either as
-package manifest metadata or as a package-relative `.example.cem` sidecar. That
-reference must name the source path, content type, schema URI, expected
-pass/fail result, and expected diagnostic codes for invalid cases. When an
-example is loaded, the loader resolves the declared content type and schema URI
-and validates the source bytes against that schema; it must not rely on filename
+Examples are not only naked source files. `package.cem` is the canonical example
+reference index: every `{example}` declaration must name the source path,
+content type, schema URI, expected pass/fail result, and expected diagnostic
+codes for invalid cases. Package-relative `.example.cem` sidecars are optional
+generated projections of the same manifest metadata; they are not required
+distribution sources and must not override the manifest record. When an example
+is loaded, the loader resolves the declared content type and schema URI and
+validates the source bytes against that schema; it must not rely on filename
 extension inference alone.
 
 Formatter assets live under `formatters/` and are CEMT (`.cemt`) transforms so
@@ -313,7 +313,6 @@ schema-packages/{package-id}/v1/
   schema/{package-id}.cem
   examples/
     {case}.{content-extension}
-    {case}.example.cem
   converters/
   formatters/
   colorizers/
@@ -367,10 +366,11 @@ schema-packages/{package-id}/v1/
    `terminal`, `html`, and `md`.
 
 7. Add examples that cover the smallest valid instance, the common production
-   shape, and at least one invalid contract. Pair every source example with a
-   CEM-format example reference that names the content type and schema URI, link
-   those examples from the package README, and keep expected diagnostics
-   explicit.
+   shape, and at least one invalid contract. Declare every source example in
+   `package.cem` with content type, schema URI, expected result, and explicit
+   expected diagnostics for invalid cases. Link those examples from the package
+   README. Generate `.example.cem` sidecars only when a downstream package
+   consumer needs a CEM-format projection of the manifest metadata.
 
 8. Validate the manifest directly:
 

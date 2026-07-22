@@ -19,6 +19,7 @@ struct ManifestSummary {
     version: Option<String>,
     schema_source: Option<String>,
     example_paths: BTreeSet<String>,
+    example_reference_keys: BTreeSet<String>,
     formatter_profiles: BTreeSet<String>,
     colorizer_profiles: BTreeSet<String>,
     cemt_artifact_paths: BTreeSet<String>,
@@ -34,6 +35,7 @@ struct SchemaPackageStructureReport {
     examples_dir_exists: bool,
     example_file_count: usize,
     manifest_example_count: usize,
+    sidecar_example_reference_count: usize,
     schema_source: Option<String>,
     schema_source_exists: bool,
     cemt_artifact_paths: BTreeSet<String>,
@@ -117,6 +119,32 @@ fn schema_package_structure_audit_covers_profiles_artifacts_and_cemt_converters(
     );
 }
 
+#[test]
+fn schema_package_examples_use_manifest_owned_reference_records() {
+    let reports = audit_schema_package_structure();
+    for report in &reports {
+        assert!(
+            report.manifest_example_count > 0,
+            "{} must declare package-owned example references in package.cem",
+            report.package_id
+        );
+        assert!(
+            report.hard_errors.iter().all(|error| {
+                !error.contains("manifest example")
+                    && !error.contains("manifest declares no examples")
+            }),
+            "{} has incomplete manifest-owned example references: {report:#?}",
+            report.package_id
+        );
+    }
+
+    let csv = reports
+        .iter()
+        .find(|report| report.package_id == "csv")
+        .expect("csv package report");
+    assert_eq!(csv.manifest_example_count, 8);
+}
+
 fn audit_schema_package_structure() -> Vec<SchemaPackageStructureReport> {
     let root = schema_packages_root();
     let mut reports = fs::read_dir(&root)
@@ -145,6 +173,7 @@ fn audit_package_version_dir(
     let examples_dir = version_dir.join("examples");
     let examples_dir_exists = examples_dir.is_dir();
     let example_file_count = count_files_recursively(&examples_dir);
+    let sidecar_example_reference_count = count_example_reference_sidecars(&examples_dir);
     let scanned_cemt_assets = scan_cemt_assets(&version_dir);
 
     let mut hard_errors = Vec::new();
@@ -282,7 +311,8 @@ fn audit_package_version_dir(
         readme_exists,
         examples_dir_exists,
         example_file_count,
-        manifest_example_count: manifest.example_paths.len(),
+        manifest_example_count: manifest.example_reference_keys.len(),
+        sidecar_example_reference_count,
         schema_source: manifest.schema_source,
         schema_source_exists,
         cemt_artifact_paths: manifest.cemt_artifact_paths,
@@ -330,8 +360,12 @@ fn parse_manifest(manifest_path: &Path, hard_errors: &mut Vec<String>) -> Manife
         version: package_attrs.get("version").cloned(),
         ..ManifestSummary::default()
     };
+    let mut example_ids = BTreeSet::new();
 
-    for child_id in element_child_ids(&document, package_id) {
+    for (child_index, child_id) in element_child_ids(&document, package_id)
+        .into_iter()
+        .enumerate()
+    {
         let Some(local_name) = element_local_name(&document, child_id) else {
             continue;
         };
@@ -343,8 +377,62 @@ fn parse_manifest(manifest_path: &Path, hard_errors: &mut Vec<String>) -> Manife
                 }
             }
             "example" => {
-                if let Some(path) = attrs.get("path") {
-                    summary.example_paths.insert(normalize_manifest_path(path));
+                let example_index = child_index + 1;
+                let label = manifest_example_label(&attrs, example_index);
+                let id = required_manifest_example_attr(&attrs, "id", &label, hard_errors);
+                let path = required_manifest_example_attr(&attrs, "path", &label, hard_errors)
+                    .map(|path| normalize_manifest_path(&path));
+                let content_type =
+                    required_manifest_example_attr(&attrs, "content-type", &label, hard_errors);
+                let schema = required_manifest_example_attr(&attrs, "schema", &label, hard_errors);
+                let expected_result =
+                    required_manifest_example_attr(&attrs, "expected-result", &label, hard_errors);
+                let expected_diagnostics = attrs
+                    .get("expected-diagnostics")
+                    .map(|value| {
+                        value
+                            .split_whitespace()
+                            .filter(|code| !code.trim().is_empty())
+                            .map(str::to_owned)
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default();
+
+                if let Some(id) = &id {
+                    if !example_ids.insert(id.clone()) {
+                        hard_errors
+                            .push(format!("manifest example `{label}` duplicates id `{id}`"));
+                    }
+                }
+                if let Some(path) = &path {
+                    if !summary.example_paths.insert(path.clone()) {
+                        hard_errors.push(format!(
+                            "manifest example `{label}` duplicates path `{path}`"
+                        ));
+                    }
+                }
+                match expected_result.as_deref() {
+                    Some("pass") => {}
+                    Some("fail") => {
+                        if expected_diagnostics.is_empty() {
+                            hard_errors.push(format!(
+                                "manifest example `{label}` expects failure without expected-diagnostics"
+                            ));
+                        }
+                    }
+                    Some(result) => hard_errors.push(format!(
+                        "manifest example `{label}` has invalid expected-result `{result}`"
+                    )),
+                    None => {}
+                }
+
+                if let (Some(id), Some(path), Some(content_type), Some(schema), Some(result)) =
+                    (id, path, content_type, schema, expected_result)
+                {
+                    summary.example_reference_keys.insert(format!(
+                        "{id}|{path}|{content_type}|{schema}|{result}|{}",
+                        expected_diagnostics.join(" ")
+                    ));
                 }
             }
             "artifact" => {
@@ -444,6 +532,35 @@ fn collect_attrs(document: &CemDocument, node_id: AstNodeId) -> BTreeMap<String,
     attrs
 }
 
+fn manifest_example_label(attrs: &BTreeMap<String, String>, index: usize) -> String {
+    attrs
+        .get("id")
+        .or_else(|| attrs.get("path"))
+        .cloned()
+        .unwrap_or_else(|| format!("#{index}"))
+}
+
+fn required_manifest_example_attr(
+    attrs: &BTreeMap<String, String>,
+    name: &str,
+    label: &str,
+    hard_errors: &mut Vec<String>,
+) -> Option<String> {
+    let Some(value) = attrs.get(name) else {
+        hard_errors.push(format!(
+            "manifest example `{label}` is missing required @{name}"
+        ));
+        return None;
+    };
+    if value.trim().is_empty() {
+        hard_errors.push(format!(
+            "manifest example `{label}` has empty required @{name}"
+        ));
+        return None;
+    }
+    Some(value.clone())
+}
+
 fn schema_packages_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("schema-packages")
 }
@@ -483,6 +600,29 @@ fn count_files_recursively(root: &Path) -> usize {
     count
 }
 
+fn count_example_reference_sidecars(root: &Path) -> usize {
+    if !root.is_dir() {
+        return 0;
+    }
+    let mut count = 0;
+    let Ok(entries) = fs::read_dir(root) else {
+        return 0;
+    };
+    for entry in entries.filter_map(Result::ok) {
+        let path = entry.path();
+        if path.is_dir() {
+            count += count_example_reference_sidecars(&path);
+        } else if path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.ends_with(".example.cem"))
+        {
+            count += 1;
+        }
+    }
+    count
+}
+
 fn scan_cemt_assets(version_dir: &Path) -> BTreeSet<String> {
     let mut assets = BTreeSet::new();
     for folder in ["formatters", "colorizers", "converters"] {
@@ -514,7 +654,7 @@ fn format_audit_report(reports: &[SchemaPackageStructureReport]) -> String {
     let mut output = String::from("Schema package structure audit:\n");
     for report in reports {
         output.push_str(&format!(
-            "- {}/v1: dir={}, roots(package={}, readme={}, examples={} files={}), schema={} exists={}, manifest_examples={}, declared_cemt_assets={}, scanned_cemt_assets={}, formatter_profiles={}, missing_formatter={}, colorizer_profiles={}, missing_colorizer={}, cemt_converters={}, missing_cemt_converters={}, gaps={}, hard_errors={}\n",
+            "- {}/v1: dir={}, roots(package={}, readme={}, examples={} files={}), schema={} exists={}, manifest_examples={}, example_sidecars={}, declared_cemt_assets={}, scanned_cemt_assets={}, formatter_profiles={}, missing_formatter={}, colorizer_profiles={}, missing_colorizer={}, cemt_converters={}, missing_cemt_converters={}, gaps={}, hard_errors={}\n",
             report.package_id,
             format_report_path(&report.version_dir),
             report.manifest_exists,
@@ -524,6 +664,7 @@ fn format_audit_report(reports: &[SchemaPackageStructureReport]) -> String {
             report.schema_source.as_deref().unwrap_or("<missing>"),
             report.schema_source_exists,
             report.manifest_example_count,
+            report.sidecar_example_reference_count,
             format_set(&report.cemt_artifact_paths),
             format_set(&report.scanned_cemt_assets),
             format_set(&report.formatter_profiles),
