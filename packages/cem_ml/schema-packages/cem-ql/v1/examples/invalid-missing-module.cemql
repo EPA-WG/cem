@@ -1,3 +1,3 @@
-declare variable greeting := "Hello"
+declare let greeting = "Hello"
 
 greeting

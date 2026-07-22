@@ -59,6 +59,10 @@ fn lexer_recognises_rust_keywords_operators_and_compat_words() {
         ]
     );
     assert_eq!(
+        kinds("$name"),
+        vec![TokenKind::Dollar, TokenKind::Ident, TokenKind::EndOfInput]
+    );
+    assert_eq!(
         kinds("eq ne lt le gt ge div mod and or not then return some every satisfies variable instance of cast treat"),
         vec![
             TokenKind::XPathCompatWord,
@@ -317,4 +321,37 @@ fn parser_reports_legacy_xpath_boolean_operators() {
         .filter(|diag| diag.code == "cem.ql.use_rust_boolean_ops")
         .count();
     assert_eq!(use_rust_boolean_ops, 3, "{:?}", result.diagnostics);
+}
+
+#[test]
+fn parser_rejects_legacy_module_variable_syntax() {
+    let result = parse(r#"declare variable greeting := "Hello""#);
+
+    assert!(
+        result.diagnostics.iter().any(|diag| {
+            diag.code == "cem.ql.parse_error" && diag.message.contains("declare let")
+        }),
+        "{:?}",
+        result.diagnostics
+    );
+    assert!(result.module.nodes.is_empty(), "{:?}", result.module.nodes);
+}
+
+#[test]
+fn parser_rejects_xpath_dollar_prefixed_names() {
+    for source in [
+        r#"declare let $greeting = "Hello""#,
+        r#"declare function local:greet($who) { who }"#,
+        r#"import "cem:stdlib/strings" as $str"#,
+        "$greeting",
+    ] {
+        let result = parse(source);
+        assert!(
+            result.diagnostics.iter().any(|diag| {
+                diag.code == "cem.ql.parse_error" && diag.message.contains("without the XPath `$`")
+            }),
+            "{source}: {:?}",
+            result.diagnostics
+        );
+    }
 }

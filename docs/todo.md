@@ -42,10 +42,10 @@ Observed code state:
 - [x] `-` now works as numeric subtraction and stream difference. Known stream
   operands lower to `SetOp::Difference`; unknown operands use runtime dispatch
   with a mixed numeric/stream type error.
-- [ ] `packages/cem_ql/tests/xpath_parity.rs` and
+- [x] `packages/cem_ql/tests/xpath_parity.rs` and
   `packages/cem_ql/tests/parser_recovery.rs` now use Rust-first syntax for
-  in-subset passing cases; the CEM-QL schema-package examples still need the
-  same migration.
+  in-subset passing cases; the CEM-QL schema-package validation examples now
+  use the same Rust-first module syntax.
 - [ ] `packages/cem-elements` has CEM-QL render-loop stories, but no dedicated
   operator/function parity showcase and no direct WASM query-evaluation
   boundary for Storybook tables.
@@ -93,7 +93,7 @@ Dependency-ordered implementation checklist:
       syntax to helper calls: `any(stream, fn)` and `all(stream, fn)`.
       Retain `IrNode::Quantified` only if the helper lowering still benefits
       evaluation; otherwise lower helpers directly.
-- [ ] Update module-level syntax: `declare let name = expr`,
+- [x] Update module-level syntax: `declare let name = expr`,
       `declare function ns:name(param as Type) { ... }`, and imports without
       `$`-prefixed variables. Remove `declare variable` from passing fixtures.
 - [ ] Update IR, type checker, and evaluator naming where it leaks old syntax:
@@ -118,7 +118,7 @@ Dependency-ordered implementation checklist:
       `if ... then ... else ...`, `let ... := ... in ...`, `for ... return`,
       `some/every ... satisfies`, `a/b`, `instance of`, `cast as`, and
       `treat as`. Each diagnostic should point to the Rust-first replacement.
-- [ ] Update `packages/cem_ml/schema-packages/cem-ql/v1/README.md`,
+- [x] Update `packages/cem_ml/schema-packages/cem-ql/v1/README.md`,
       `schema/cem-ql.cem`, `package.cem`, and examples so package-owned
       validation fixtures use Rust-first CEM-QL source.
 - [ ] Add CEM-QL schema-package examples for each parity group:

@@ -2,10 +2,10 @@ module "https://example.test/queries/catalog"
 
 import "https://example.test/queries/shared" as shared
 
-declare variable limit := 10
+declare let limit = 10
 
-declare function label(title as string) {
+declare function local:label(title as string) {
     title
 }
 
-if true then "ready" else "empty"
+if true { local:label("ready") } else { "empty" }

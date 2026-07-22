@@ -270,6 +270,10 @@ impl<'src> Parser<'src> {
                     range,
                 })
             }
+            TokenKind::Dollar => {
+                self.error_at(PARSE_ERROR, dollar_name_message(), token.range);
+                None
+            }
             TokenKind::XPathCompatWord => {
                 self.error_at(
                     self.compat_code(&token),
@@ -611,6 +615,18 @@ impl<'src> Parser<'src> {
         let token = self.bump();
         match token.kind {
             TokenKind::Ident | TokenKind::PrefixedName => qname_from_token(&token),
+            TokenKind::Dollar => {
+                let range = if matches!(
+                    self.current().kind,
+                    TokenKind::Ident | TokenKind::PrefixedName
+                ) {
+                    join_ranges(token.range, self.bump().range)
+                } else {
+                    token.range
+                };
+                self.error_at(PARSE_ERROR, dollar_name_message(), range);
+                None
+            }
             _ => {
                 self.error_at(PARSE_ERROR, "expected name", token.range);
                 None
@@ -1128,6 +1144,10 @@ pub struct TypeExpr {
 #[derive(Debug, Clone)]
 pub struct ParseError {
     pub diagnostic: Diagnostic,
+}
+
+fn dollar_name_message() -> &'static str {
+    "use bare CEM-QL names without the XPath `$` variable prefix"
 }
 
 fn qname_from_token(token: &Token) -> Option<QName> {

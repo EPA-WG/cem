@@ -15677,7 +15677,7 @@ mod tests {
             "validate-cem-ql-source.cemql",
             r#"module "https://example.test/queries/main"
 
-declare variable count := 2
+declare let count = 2
 
 count + 1"#,
         );
@@ -15713,7 +15713,7 @@ count + 1"#,
             "validate-cem-ql-source-invalid.cemql",
             r#"module "https://example.test/queries/broken"
 
-declare variable broken := 1 +"#,
+declare let broken = 1 +"#,
         );
         let (outcome, stdout, stderr) = run(
             &RealCemMlEngine::new(),

@@ -1,3 +1,3 @@
 module "https://example.test/queries/broken"
 
-declare variable broken := 1 +
+declare let broken = 1 +

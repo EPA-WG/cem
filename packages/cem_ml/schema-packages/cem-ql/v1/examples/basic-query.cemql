@@ -1,5 +1,5 @@
 module "https://example.test/queries/basic"
 
-declare variable greeting := "Hello"
+declare let greeting = "Hello"
 
 greeting
