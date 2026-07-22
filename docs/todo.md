@@ -8,16 +8,16 @@ history.
 ## Immediate Goal
 
 Phase 2 exit criteria from [`../roadmap.md`](../roadmap.md) are closed. The
-active Phase 3 slice now shifts from schema-package format alignment to the
-Rust-first `cem-ql` syntax decision recorded in
-[`cem-ql-ac.md`](cem-ql-ac.md). CSV and sibling format work is deferred below
-until the CEM-QL parser/runtime/docs/showcase gates are green.
+Rust-first `cem-ql` parser/runtime/docs/showcase gate is green, so the active
+Phase 3 slice now shifts to the embedded CEM-QL expression audit. CSV and
+sibling format work is deferred below until checked-in `.cem` and `.cemt`
+expressions are extracted, parsed, and functionally validated through the
+Rust-first CEM-QL contracts.
 
-Current active slice: make `packages/cem_ql` implement Rust-style expression
-syntax and semantics as the canonical surface, while keeping XPath/XQuery and
-Python strictly as functional parity references. Prove every operator and
-function family from the parity list with Rust tests, schema-package examples,
-documentation, and a Storybook showcase.
+Current active slice: audit every checked-in `.cem` and `.cemt` expression
+site that embeds CEM-QL, preserve source provenance, compile it through the
+Rust-first parser/type-checker, add runtime fixtures where bindings are needed,
+and wire the audit into the release gate.
 
 ### Immediate Execution Phase: Rust-First CEM-QL Syntax And Parity Showcase
 
@@ -169,7 +169,7 @@ Dependency-ordered implementation checklist:
 - [x] Add or rename Nx targets as needed so the Rust-first parity suite can be
       run independently from legacy XPath parity. Keep the old target only as
       a compatibility harness if it no longer implies syntax parity.
-- [ ] Run the Rust-first gate after implementation:
+- [x] Run the Rust-first gate after implementation:
       `yarn nx run cem_ql:test`,
       `yarn nx run cem_ql:test:rust-first-parity`,
       `yarn nx run cem_ql:test:set-operator-identity`,
@@ -179,7 +179,7 @@ Dependency-ordered implementation checklist:
 
 ### Follow-On Execution Phase: Embedded CEM-QL Expression Audit
 
-Run after the Rust-first CEM-QL parser/runtime/docs/showcase slice is green.
+Run now that the Rust-first CEM-QL parser/runtime/docs/showcase slice is green.
 
 - [ ] Add a repository-wide extractor for CEM-QL expressions embedded in every
       checked-in `*.cem` and `*.cemt` file. It must cover host-owned template

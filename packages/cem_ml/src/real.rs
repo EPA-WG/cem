@@ -10983,7 +10983,7 @@ mod tests {
         assert_eq!(resp.primary["kind"], "cem");
         assert_eq!(
             resp.primary["content"].as_str().unwrap(),
-            "{cem:if @test=\"not (disabled)\" |\n  {button | Go}\n}\n"
+            "{cem:if @test=\"!(disabled)\" |\n  {button | Go}\n}\n"
         );
         assert!(
             resp.diagnostics

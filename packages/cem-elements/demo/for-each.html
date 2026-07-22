@@ -52,7 +52,7 @@
             }
             {div |
                 BEFORE
-                {cem:if @test="datadom.slices.show-items = true" |
+                {cem:if @test="datadom.slices.show-items == true" |
                     {cem:for-each @select='("First", "Second", "Third")' @as=item |
                         {span @style="margin: 0 0.25rem; padding: 0.25rem; background: #e0e0ff;" |
                             {$position}:{$item}
@@ -102,7 +102,7 @@
                     {tr | {th | #}{th | Product}{th | Price}}
                 }
                 {tbody |
-                    {cem:if @test="datadom.slices.show-products = true" |
+                    {cem:if @test="datadom.slices.show-products == true" |
                         {cem:for-each @select='({"name":"Widget", "price":"10"}, {"name":"Gadget", "price":"25"}, {"name":"Gizmo", "price":"15"})' @as=product |
                             {tr |
                                 {td | {$position}}
@@ -136,7 +136,7 @@
             {h2 | 9. for-each over HTTP JSON/XML data}
             {p | Local JSON and XML fixtures feed record sequences into the same loop syntax.}
             {p | json state: {output @data-role=json-state | {$datadom.slices.loop-json.state}}}
-            {cem:if @test='datadom.slices.loop-json.state = "complete"' |
+            {cem:if @test='datadom.slices.loop-json.state == "complete"' |
                 {ul @class=http-json-feed |
                     {cem:for-each @select="datadom.slices.loop-json.data.results" @as=item |
                         {li | {$item.name}: {$item.status}}
@@ -144,7 +144,7 @@
                 }
             }
             {p | xml state: {output @data-role=xml-state | {$datadom.slices.loop-xml.state}}}
-            {cem:if @test='datadom.slices.loop-xml.state = "complete"' |
+            {cem:if @test='datadom.slices.loop-xml.state == "complete"' |
                 {ul @class=http-xml-feed |
                     {cem:for-each @select="datadom.slices.loop-xml.data.children" @as=item |
                         {li | {$item.attributes.name}: {$item.attributes.status}}

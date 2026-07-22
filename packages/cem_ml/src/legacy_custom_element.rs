@@ -3211,6 +3211,9 @@ impl XPathRewriter<'_, '_> {
                 (None, _) => ". ".to_owned(),
             };
         }
+        if value == "=" {
+            return "== ".to_owned();
+        }
         format!("{value} ")
     }
 
@@ -3218,10 +3221,14 @@ impl XPathRewriter<'_, '_> {
         if matches!(self.peek(), Some(XToken::Punct(punct)) if punct == "(") {
             return self.rewrite_call(value);
         }
-        if matches!(value, "and" | "or" | "div" | "mod" | "true" | "false") {
-            return format!("{value} ");
-        }
-        format!("{value} ")
+        return match value {
+            "and" => "&& ".to_owned(),
+            "or" => "|| ".to_owned(),
+            "div" => "/ ".to_owned(),
+            "mod" => "% ".to_owned(),
+            "true" | "false" => format!("{value} "),
+            _ => format!("{value} "),
+        };
     }
 
     fn rewrite_call(&mut self, name: &str) -> String {
@@ -3274,7 +3281,7 @@ impl XPathRewriter<'_, '_> {
                     .unwrap_or_else(|| "text() ".to_owned())
             }
             LegacyFunctionDisposition::Special if name == "not" => {
-                format!("not ({}) ", args.join(", "))
+                format!("!({}) ", args.join(", "))
             }
             LegacyFunctionDisposition::Special if name == "concat" => {
                 format!("str:concat(({})) ", args.join(", "))
@@ -3293,7 +3300,7 @@ impl XPathRewriter<'_, '_> {
                     raw
                 };
                 format!(
-                    r#"not ({attr} = "false") and ({attr} = "" or {attr} = "{attr}" or {attr} = "true") "#
+                    r#"!({attr} == "false") && ({attr} == "" || {attr} == "{attr}" || {attr} == "true") "#
                 )
             }
             LegacyFunctionDisposition::CemQl(mapped) => {
@@ -3622,7 +3629,7 @@ mod tests {
         );
         assert_eq!(
             result.source,
-            r#"{cem:if @test='(datadom.slices.show-items ?? datadom.dataset.show-items ?? datadom.attributes.show-items) = "yes"' | {span | First}}{cem:if @test='(datadom.slices.show-items ?? datadom.dataset.show-items ?? datadom.attributes.show-items) = "yes"' | {span | Second}}"#
+            r#"{cem:if @test='(datadom.slices.show-items ?? datadom.dataset.show-items ?? datadom.attributes.show-items) == "yes"' | {span | First}}{cem:if @test='(datadom.slices.show-items ?? datadom.dataset.show-items ?? datadom.attributes.show-items) == "yes"' | {span | Second}}"#
         );
     }
 
@@ -3633,7 +3640,7 @@ mod tests {
         );
         assert_eq!(
             result.source,
-            r#"{cem:if @test='(datadom.slices.visible ?? datadom.dataset.visible ?? datadom.attributes.visible) = "yes"' | {a @href="a" | 1:First}}{cem:if @test='(datadom.slices.visible ?? datadom.dataset.visible ?? datadom.attributes.visible) = "yes"' | {a @href="b" | 2:Second}}"#
+            r#"{cem:if @test='(datadom.slices.visible ?? datadom.dataset.visible ?? datadom.attributes.visible) == "yes"' | {a @href="a" | 1:First}}{cem:if @test='(datadom.slices.visible ?? datadom.dataset.visible ?? datadom.attributes.visible) == "yes"' | {a @href="b" | 2:Second}}"#
         );
         assert!(result.diagnostics.is_empty());
     }
@@ -4171,12 +4178,12 @@ mod tests {
         assert!(result.diagnostics.is_empty());
         assert_eq!(
             result.source,
-            "{cem:if @test='not (disabled = \"false\") and (disabled = \"\" or disabled = \"disabled\" or disabled = \"true\")' | {attribute @name=\"disabled\" | {$disabled}}}"
+            "{cem:if @test='!(disabled == \"false\") && (disabled == \"\" || disabled == \"disabled\" || disabled == \"true\")' | {attribute @name=\"disabled\" | {$disabled}}}"
         );
         // String-literal form (strips surrounding CEM-QL quotes).
         let result2 = convert(r#"<if test="hasBoolAttribute('required')"><span>yes</span></if>"#);
         assert!(result2.diagnostics.is_empty());
-        assert!(result2.source.contains(r#"required = "required""#));
+        assert!(result2.source.contains(r#"required == "required""#));
     }
 
     #[test]

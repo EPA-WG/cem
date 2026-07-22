@@ -3,7 +3,7 @@
         {param @name="node"}
         {body |
             {cem:choose |
-                {cem:when @test='node.kind = "element"' |
+                {cem:when @test='node.kind == "element"' |
                     {details @style="padding:0 1rem" @open=open |
                         {summary |
                             {b @style="color:green" | {$node.tag}}
@@ -17,7 +17,7 @@
                         }
                     }
                 }
-                {cem:when @test='node.kind = "text"' |
+                {cem:when @test='node.kind == "text"' |
                     {p | {$node.text}}
                 }
             }

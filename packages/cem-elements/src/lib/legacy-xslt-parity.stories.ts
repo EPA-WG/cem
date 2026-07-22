@@ -84,7 +84,7 @@ export const LegacyIfNotXsltParity: Story = {
             makeRuntime('cem-field'),
             'cem-field',
             '{attribute @name=disabled}' +
-                '{label | {$label}{cem:if @test="not (disabled)" | {input @type="text"}}}'
+                '{label | {$label}{cem:if @test="!disabled" | {input @type="text"}}}'
         );
         root.append(
             instance('legacy-field', { label: 'Name' }, ''),
@@ -244,8 +244,8 @@ export const LegacySliceIfOrderingParity: Story = {
             '{slice @name=show-a | false}' +
                 '{div @class=whole |' +
                 ' {label | {input @type=checkbox @value=AA @slice=show-a @slice-event=change @slice-value="{$target.value}"} A}' +
-                '▶{cem:if @test=\'datadom.slices.show-a = "AA"\' | !A}◀}' +
-                '{cem:if @test=\'datadom.slices.show-a = "AA"\' | {div @class=t1 | T1}}'
+                '▶{cem:if @test=\'datadom.slices.show-a == "AA"\' | !A}◀}' +
+                '{cem:if @test=\'datadom.slices.show-a == "AA"\' | {div @class=t1 | T1}}'
         );
         root.append(instance('legacy-toggle', {}, ''), instance('cem-toggle', {}, ''));
         return root;

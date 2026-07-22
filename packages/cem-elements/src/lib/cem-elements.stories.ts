@@ -1006,7 +1006,7 @@ export const DataIslandRecursiveTemplateCallsRenderLoop: Story = {
                     {param @name="node"}
                     {body |
                         {cem:choose |
-                            {cem:when @test='node.kind = "element"' |
+                            {cem:when @test='node.kind == "element"' |
                                 {details @open=open |
                                     {summary |
                                         {b | {$node.tag}}
@@ -1020,7 +1020,7 @@ export const DataIslandRecursiveTemplateCallsRenderLoop: Story = {
                                     }
                                 }
                             }
-                            {cem:when @test='node.kind = "text"' | {p | {$node.text}}}
+                            {cem:when @test='node.kind == "text"' | {p | {$node.text}}}
                         }
                     }
                 }
@@ -1725,7 +1725,7 @@ export const HttpRequestResourceLifecycle: Story = {
                 '{article |',
                 '  {p @class=state | {$datadom.slices.page.state}}',
                 '  {p @class=revision | {$datadom.slices.page.resourceRevision}}',
-                '  {cem:if @test=\'datadom.slices.page.state = "complete"\' |',
+                '  {cem:if @test=\'datadom.slices.page.state == "complete"\' |',
                 '    {output @class=name | {$datadom.slices.page.data.name}}',
                 '  }',
                 '}',
