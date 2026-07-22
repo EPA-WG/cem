@@ -134,7 +134,7 @@ Dependency-ordered implementation checklist:
       string helpers, number helpers, date/time helpers, report helpers,
       state/template helpers, read/content-type helpers, and old-syntax
       diagnostics.
-- [ ] Update `packages/cem_ml/schema-packages/cem-ql/v1/formatters/` and
+- [x] Update `packages/cem_ml/schema-packages/cem-ql/v1/formatters/` and
       `colorizers/` so formatter/colorizer examples and token roles know the
       Rust-first operators and highlight deprecated XPath/Python forms as
       diagnostics, not canonical syntax.

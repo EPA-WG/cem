@@ -1116,6 +1116,62 @@ mod tests {
     }
 
     #[test]
+    fn cem_ql_formatter_and_colorizer_track_rust_first_operator_roles() {
+        let formatter = builtin_schema_package_artifact_source(
+            "cem-ql",
+            "schema-packages/cem-ql/v1/formatters/cem-ql-format-tree.cemt",
+        )
+        .expect("CEM-QL formatter artifact source")
+        .source;
+        for needle in [
+            r#"@name="cem-ql.format-tree.operator-role""#,
+            r#""&&": "cem-ql.operator.boolean""#,
+            r#""/": "cem-ql.operator.arithmetic-or-child""#,
+            r#""is": "cem-ql.operator.type-test""#,
+            r#""same_node": "cem-ql.operator.node-identity""#,
+            r#""div": "/""#,
+            r#""lambda": "fn(...) => expression""#,
+            r#""and": "cem.ql.use_rust_boolean_ops""#,
+            r#"@name="cem-ql.format-tree.legacy-diagnostic""#,
+        ] {
+            assert!(
+                formatter.contains(needle),
+                "CEM-QL formatter missing Rust-first role contract `{needle}`"
+            );
+        }
+
+        let colorizer = builtin_schema_package_artifact_source(
+            "cem-ql",
+            "schema-packages/cem-ql/v1/colorizers/cem-ql-color-tree.cemt",
+        )
+        .expect("CEM-QL colorizer artifact source")
+        .source;
+        for needle in [
+            r#"@name="cem-ql.color-tree.token-role""#,
+            r#""==": "cem-ql.operator.comparison""#,
+            r#""%": "cem-ql.operator.arithmetic""#,
+            r#""|": "cem-ql.operator.set""#,
+            r#""cem-ql.operator.boolean": "syntax.operator.boolean""#,
+            r#""cem-ql.legacy.syntax": "diagnostic.error""#,
+            r#""True": "diagnostic.error""#,
+            r#""lambda": "diagnostic.error""#,
+        ] {
+            assert!(
+                colorizer.contains(needle),
+                "CEM-QL colorizer missing Rust-first role contract `{needle}`"
+            );
+        }
+
+        let schema = builtin_schema_package_source("cem-ql")
+            .expect("CEM-QL package source")
+            .schema_source;
+        assert!(
+            schema.contains(r#"@code="cem.ql.use_rust_boolean_ops""#),
+            "CEM-QL schema must declare the legacy boolean syntax diagnostic"
+        );
+    }
+
+    #[test]
     fn json_package_examples_are_manifest_indexed() {
         let examples =
             manifest_indexed_package_examples("json", JSON_CONTENT_TYPE, JSON_VALUE_SCHEMA_URI, 3);

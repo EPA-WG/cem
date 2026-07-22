@@ -70,6 +70,7 @@
         {diagnostic @code="cem.ql.unresolved_import" @severity="error"}
         {diagnostic @code="cem.ql.declaration_duplicate" @severity="error"}
         {diagnostic @code="cem.ql.parse_error" @severity="error"}
+        {diagnostic @code="cem.ql.use_rust_boolean_ops" @severity="error"}
         {diagnostic @code="cem.ql.type_error" @severity="error"}
         {diagnostic @code="cem.ql.artifact_hash_mismatch" @severity="error"}
         {diagnostic @code="cem.cc.policy_mismatch" @severity="error"}

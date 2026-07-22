@@ -38,6 +38,14 @@ The package declares CEMT formatter and colorizer artifacts in `package.cem`.
 The public formatter profile names are `compact`, `pretty`, and `tabular`.
 The public colorizer profile names are `terminal`, `html`, and `md`.
 
+The CEM-QL formatter/colorizer artifacts keep their public entrypoints as
+`cem-ql.format-tree` and `cem-ql.color-tree`, then delegate to package-owned
+private helpers for Rust-first token metadata. Canonical operators are grouped
+under `cem-ql.operator.*` roles before color roles are applied. Deprecated
+XPath/XQuery/Python spellings such as `div`, `mod`, `and`, `or`, `not`,
+`then`, `return`, `some`, `every`, `True`, `False`, `None`, and `lambda` are
+modeled as diagnostics, not alternate canonical syntax.
+
 ## Resource Model
 
 The schema describes the query resource model used by loaders and caches:

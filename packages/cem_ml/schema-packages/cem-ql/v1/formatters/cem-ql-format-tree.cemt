@@ -15,7 +15,123 @@
         @streamable=true |
         {param @name="subject" @type="json" @required=true}
         {body |
+            {$ call("cem-ql.format-tree.apply-stage", { subject: $subject }) }
+        }
+    }
+
+    {function
+        @name="cem-ql.format-tree.apply-stage"
+        @visibility="private"
+        @returns="json"
+        @deterministic=true |
+        {param @name="subject" @type="json" @required=true}
+        {body |
             {$ call("cem.format-tree.apply-stage", { subject: $subject }) }
+        }
+    }
+
+    {function
+        @name="cem-ql.format-tree.operator-role"
+        @visibility="private"
+        @returns="string"
+        @deterministic=true |
+        {param @name="operator" @type="string" @required=true}
+        {body |
+            {$ match($operator, {
+                "==": "cem-ql.operator.comparison",
+                "!=": "cem-ql.operator.comparison",
+                "<": "cem-ql.operator.comparison",
+                "<=": "cem-ql.operator.comparison",
+                ">": "cem-ql.operator.comparison",
+                ">=": "cem-ql.operator.comparison",
+                "+": "cem-ql.operator.arithmetic",
+                "-": "cem-ql.operator.arithmetic-or-set",
+                "*": "cem-ql.operator.arithmetic",
+                "/": "cem-ql.operator.arithmetic-or-child",
+                "%": "cem-ql.operator.arithmetic",
+                "&&": "cem-ql.operator.boolean",
+                "||": "cem-ql.operator.boolean",
+                "!": "cem-ql.operator.boolean",
+                "??": "cem-ql.operator.coalesce",
+                "|": "cem-ql.operator.set",
+                "&": "cem-ql.operator.set",
+                "^": "cem-ql.operator.set",
+                ".": "cem-ql.operator.pipeline",
+                "is": "cem-ql.operator.type-test",
+                "as": "cem-ql.operator.cast",
+                "treat_as": "cem-ql.operator.type-guard",
+                "same_node": "cem-ql.operator.node-identity",
+                default: "syntax.token"
+            }) }
+        }
+    }
+
+    {function
+        @name="cem-ql.format-tree.legacy-replacement"
+        @visibility="private"
+        @returns="string"
+        @deterministic=true |
+        {param @name="token" @type="string" @required=true}
+        {body |
+            {$ match($token, {
+                "eq": "==",
+                "ne": "!=",
+                "lt": "<",
+                "le": "<=",
+                "gt": ">",
+                "ge": ">=",
+                "div": "/",
+                "mod": "%",
+                "and": "&&",
+                "or": "||",
+                "not": "!",
+                "then": "if condition { then_expr } else { else_expr }",
+                "return": "for name in stream { expr }",
+                "some": "any(stream, fn)",
+                "every": "all(stream, fn)",
+                "satisfies": "any(stream, fn) or all(stream, fn)",
+                "instance": "expr is Type",
+                "cast": "expr as Type",
+                "treat": "treat_as(expr, Type)",
+                "True": "true",
+                "False": "false",
+                "None": "null",
+                "lambda": "fn(...) => expression",
+                default: ""
+            }) }
+        }
+    }
+
+    {function
+        @name="cem-ql.format-tree.legacy-diagnostic-code"
+        @visibility="private"
+        @returns="string"
+        @deterministic=true |
+        {param @name="token" @type="string" @required=true}
+        {body |
+            {$ match($token, {
+                "and": "cem.ql.use_rust_boolean_ops",
+                "or": "cem.ql.use_rust_boolean_ops",
+                "not": "cem.ql.use_rust_boolean_ops",
+                default: "cem.ql.parse_error"
+            }) }
+        }
+    }
+
+    {function
+        @name="cem-ql.format-tree.legacy-diagnostic"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true |
+        {param @name="token" @type="string" @required=true}
+        {body |
+            {$ {
+                code: call("cem-ql.format-tree.legacy-diagnostic-code", { token: $token }),
+                severity: "error",
+                role: "diagnostic.error",
+                canonical: false,
+                replacement: call("cem-ql.format-tree.legacy-replacement", { token: $token })
+            } }
         }
     }
 }

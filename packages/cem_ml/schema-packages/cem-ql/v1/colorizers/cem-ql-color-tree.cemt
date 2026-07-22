@@ -15,7 +15,155 @@
         @streamable=true |
         {param @name="subject" @type="object" @required=true}
         {body |
+            {$ call("cem-ql.color-tree.apply-stage", { subject: $subject }) }
+        }
+    }
+
+    {function
+        @name="cem-ql.color-tree.apply-stage"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true |
+        {param @name="subject" @type="object" @required=true}
+        {body |
             {$ call("cem.color-tree.apply-stage", { subject: $subject }) }
+        }
+    }
+
+    {function
+        @name="cem-ql.color-tree.token-role"
+        @visibility="private"
+        @returns="string"
+        @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {body |
+            {$ match(exists($token.diagnostic), {
+                true: "diagnostic.error",
+                false: match(exists($token.legacy), {
+                    true: call("cem-ql.color-tree.legacy-role", { token: $token.legacy }),
+                    false: match(exists($token.operator), {
+                        true: call("cem-ql.color-tree.operator-role", { operator: $token.operator }),
+                        false: match(exists($token.role), {
+                            true: call("cem-ql.color-tree.role", { role: $token.role }),
+                            false: match(exists($token.lexeme), {
+                                true: call("cem-ql.color-tree.legacy-role", { token: $token.lexeme }),
+                                false: "syntax.token"
+                            })
+                        })
+                    })
+                })
+            }) }
+        }
+    }
+
+    {function
+        @name="cem-ql.color-tree.operator-role"
+        @visibility="private"
+        @returns="string"
+        @deterministic=true |
+        {param @name="operator" @type="string" @required=true}
+        {body |
+            {$ call("cem-ql.color-tree.role", {
+                role: call("cem-ql.color-tree.operator-cem-role", { operator: $operator })
+            }) }
+        }
+    }
+
+    {function
+        @name="cem-ql.color-tree.operator-cem-role"
+        @visibility="private"
+        @returns="string"
+        @deterministic=true |
+        {param @name="operator" @type="string" @required=true}
+        {body |
+            {$ match($operator, {
+                "==": "cem-ql.operator.comparison",
+                "!=": "cem-ql.operator.comparison",
+                "<": "cem-ql.operator.comparison",
+                "<=": "cem-ql.operator.comparison",
+                ">": "cem-ql.operator.comparison",
+                ">=": "cem-ql.operator.comparison",
+                "+": "cem-ql.operator.arithmetic",
+                "-": "cem-ql.operator.arithmetic-or-set",
+                "*": "cem-ql.operator.arithmetic",
+                "/": "cem-ql.operator.arithmetic-or-child",
+                "%": "cem-ql.operator.arithmetic",
+                "&&": "cem-ql.operator.boolean",
+                "||": "cem-ql.operator.boolean",
+                "!": "cem-ql.operator.boolean",
+                "??": "cem-ql.operator.coalesce",
+                "|": "cem-ql.operator.set",
+                "&": "cem-ql.operator.set",
+                "^": "cem-ql.operator.set",
+                ".": "cem-ql.operator.pipeline",
+                "is": "cem-ql.operator.type-test",
+                "as": "cem-ql.operator.cast",
+                "treat_as": "cem-ql.operator.type-guard",
+                "same_node": "cem-ql.operator.node-identity",
+                default: "syntax.token"
+            }) }
+        }
+    }
+
+    {function
+        @name="cem-ql.color-tree.legacy-role"
+        @visibility="private"
+        @returns="string"
+        @deterministic=true |
+        {param @name="token" @type="string" @required=true}
+        {body |
+            {$ match($token, {
+                "eq": "diagnostic.error",
+                "ne": "diagnostic.error",
+                "lt": "diagnostic.error",
+                "le": "diagnostic.error",
+                "gt": "diagnostic.error",
+                "ge": "diagnostic.error",
+                "div": "diagnostic.error",
+                "mod": "diagnostic.error",
+                "and": "diagnostic.error",
+                "or": "diagnostic.error",
+                "not": "diagnostic.error",
+                "then": "diagnostic.error",
+                "return": "diagnostic.error",
+                "some": "diagnostic.error",
+                "every": "diagnostic.error",
+                "satisfies": "diagnostic.error",
+                "instance": "diagnostic.error",
+                "cast": "diagnostic.error",
+                "treat": "diagnostic.error",
+                "True": "diagnostic.error",
+                "False": "diagnostic.error",
+                "None": "diagnostic.error",
+                "lambda": "diagnostic.error",
+                default: "syntax.token"
+            }) }
+        }
+    }
+
+    {function
+        @name="cem-ql.color-tree.role"
+        @visibility="private"
+        @returns="string"
+        @deterministic=true |
+        {param @name="role" @type="string" @required=true}
+        {body |
+            {$ match($role, {
+                "cem-ql.operator.comparison": "syntax.operator.comparison",
+                "cem-ql.operator.arithmetic": "syntax.operator.arithmetic",
+                "cem-ql.operator.arithmetic-or-set": "syntax.operator.arithmetic",
+                "cem-ql.operator.arithmetic-or-child": "syntax.operator.arithmetic",
+                "cem-ql.operator.boolean": "syntax.operator.boolean",
+                "cem-ql.operator.coalesce": "syntax.operator.coalesce",
+                "cem-ql.operator.set": "syntax.operator.set",
+                "cem-ql.operator.pipeline": "syntax.operator.pipeline",
+                "cem-ql.operator.type-test": "syntax.operator.type",
+                "cem-ql.operator.cast": "syntax.operator.type",
+                "cem-ql.operator.type-guard": "syntax.operator.type",
+                "cem-ql.operator.node-identity": "syntax.operator.type",
+                "cem-ql.legacy.syntax": "diagnostic.error",
+                default: $role
+            }) }
         }
     }
 }
