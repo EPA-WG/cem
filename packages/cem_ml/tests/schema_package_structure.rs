@@ -123,6 +123,7 @@ struct ManifestSummary {
 struct ManifestConverterEndpoint {
     id: String,
     implementation: Option<String>,
+    rust_symbol: Option<String>,
     from_content_type: Option<String>,
     from_schema: Option<String>,
     to_content_type: Option<String>,
@@ -384,6 +385,71 @@ fn schema_package_converter_endpoint_checks_are_final_registry_pass() {
 
     for target_name in ["validate-converter-parity", "e2e"] {
         assert_cli_registry_target_depends_on_all_schema_package_verifies(target_name, &reports);
+    }
+}
+
+#[test]
+fn cem_ml_package_readme_tracks_manifest_contract() {
+    let version_dir = schema_packages_root().join("cem-ml/v1");
+    let readme_path = version_dir.join("README.md");
+    let readme = fs::read_to_string(&readme_path)
+        .unwrap_or_else(|error| panic!("{} is not readable: {error}", readme_path.display()));
+    let mut hard_errors = Vec::new();
+    let manifest = parse_manifest(&version_dir.join("package.cem"), &mut hard_errors);
+    assert!(
+        hard_errors.is_empty(),
+        "cem-ml package manifest must parse before README contract checks: {hard_errors:?}"
+    );
+
+    assert_eq!(manifest.package_id.as_deref(), Some("cem-ml"));
+    assert_eq!(
+        manifest.schema_uri.as_deref(),
+        Some("https://cem.dev/ns/cem-ml/1")
+    );
+    assert_eq!(
+        manifest.schema_source.as_deref(),
+        Some("schema/cem-ml-generic.cem")
+    );
+    assert_readme_mentions(&readme, "schema/cem-ml-generic.cem", "schema source");
+    assert_readme_mentions(&readme, "bootstrap exception", "schema source exception");
+
+    for content_type in &manifest.content_types {
+        assert_readme_mentions(&readme, content_type, "content type");
+    }
+
+    for converter in &manifest.converter_endpoints {
+        assert_readme_mentions(&readme, &converter.id, "converter id");
+        for value in [
+            converter.rust_symbol.as_deref(),
+            converter.from_content_type.as_deref(),
+            converter.from_schema.as_deref(),
+            converter.to_content_type.as_deref(),
+            converter.to_schema.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            assert_readme_mentions(&readme, value, &format!("converter `{}`", converter.id));
+        }
+    }
+
+    for path in &manifest.cemt_artifact_paths {
+        assert_readme_mentions(&readme, path, "CEMT artifact path");
+    }
+
+    for reference_key in &manifest.example_reference_keys {
+        let parts = reference_key.split('|').collect::<Vec<_>>();
+        assert_eq!(
+            parts.len(),
+            6,
+            "example reference keys must keep id|path|content-type|schema|result|diagnostics shape"
+        );
+        let path = parts[1];
+        let diagnostics = parts[5];
+        assert_readme_mentions(&readme, path, "example path");
+        for code in diagnostics.split_whitespace() {
+            assert_readme_mentions(&readme, code, &format!("example `{path}` diagnostic"));
+        }
     }
 }
 
@@ -1081,6 +1147,7 @@ fn parse_manifest_converter(
             .cloned()
             .unwrap_or_else(|| format!("#{converter_index}")),
         implementation: attrs.get("implementation").cloned(),
+        rust_symbol: attrs.get("rust-symbol").cloned(),
         template: attrs
             .get("template")
             .map(|path| normalize_manifest_path(path)),
@@ -1114,6 +1181,13 @@ fn parse_manifest_converter(
     }
 
     converter
+}
+
+fn assert_readme_mentions(readme: &str, value: &str, context: &str) {
+    assert!(
+        readme.contains(value),
+        "README must mention {context} `{value}`"
+    );
 }
 
 fn parse_cem_document(source: &str) -> CemDocument {

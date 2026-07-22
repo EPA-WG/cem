@@ -13,6 +13,17 @@ Owned schema URI:
 https://cem.dev/ns/cem-ml/1
 ```
 
+Schema source:
+
+```text
+schema/cem-ml-generic.cem
+```
+
+This filename is the documented v1 bootstrap exception to the default
+`schema/cem-ml.cem` shape. It preserves the generic CEM-ML schema identity
+embedded by the runtime catalog while the package still follows the rest of the
+versioned folder contract.
+
 Primary content type:
 
 ```text
@@ -28,6 +39,39 @@ types:
 
 The semantic CEM annotation vocabulary remains in `packages/cem_ml/schema/cem-core.md`
 under `https://cem.dev/ns/core/1`.
+
+## Folder Contract
+
+`package.cem` is the manifest-owned index for this folder. It declares the
+schema URI and source file, the primary and alias content types, namespace
+claims, Rust-backed projection converter metadata, formatter/colorizer CEMT
+artifacts, helper artifacts, and every validation example under `examples/`.
+
+`project.json` owns the package-local Nx library
+`cem_ml_schema_package_cem_ml_v1`. Its `verify` target validates `package.cem`
+through the CLI at the parse failure boundary and tracks `README.md`,
+`schema/**/*.cem`, `formatters/**/*.cemt`, `colorizers/**/*.cemt`,
+`converters/**/*.cemt`, and `examples/**/*` as package inputs. Full
+schema/content-type endpoint compatibility for converters remains a final
+registry pass after every package-local verify target is green.
+
+Example metadata is intentionally manifest-owned. This package does not require
+checked-in `.example.cem` sidecars because `package.cem` already records the
+example path, content type, schema URI, expected pass/fail result, and expected
+diagnostic codes.
+
+## Converter Edges
+
+The generic CEM-ML package owns the source side of the bootstrap projection
+converters. They are declared as Rust hooks for current runtime availability,
+while endpoint schema/content-type ownership is validated in the final registry
+gate with the projection packages loaded.
+
+| Converter | From | To | Implementation |
+| --- | --- | --- | --- |
+| `cem-ml-to-dom-projection-rust` | `application/cem`, `https://cem.dev/ns/cem-ml/1` | `application/vnd.cem.dom+cem-bin`, `https://cem.dev/ns/projection/dom/1` | `CemMlDomProjectionConverter` |
+| `cem-ml-to-ast-projection-rust` | `application/cem`, `https://cem.dev/ns/cem-ml/1` | `application/vnd.cem.ast+cem-bin`, `https://cem.dev/ns/projection/ast/1` | `CemMlAstProjectionConverter` |
+| `cem-ml-to-events-projection-rust` | `application/cem`, `https://cem.dev/ns/cem-ml/1` | `application/vnd.cem.events+cem-bin`, `https://cem.dev/ns/projection/events/1` | `CemMlEventsProjectionConverter` |
 
 ## CEMT Output Assets
 
@@ -129,9 +173,9 @@ CLI validation integration tests.
 | --- | --- | --- |
 | [`basic.cem`](examples/basic.cem) | Minimal persisted CEM-ML document. | Pass |
 | [`nested-handoff.cem`](examples/nested-handoff.cem) | Namespaced content with a `text/html` handoff boundary. | Pass |
-| [`embedded-handoffs.cem`](examples/embedded-handoffs.cem) | Scoped style/script, XML CDATA, and JSON string handoff payloads with bounded deferred-parser diagnostics. | Pass |
+| [`embedded-handoffs.cem`](examples/embedded-handoffs.cem) | Scoped style/script, XML CDATA, and JSON string handoff payloads with bounded deferred-parser diagnostics. | Pass with `cem.handoff.child_parser_deferred` |
 | [`formatter-coloring-pipeline.package-artifacts.fixture.cem`](examples/formatter-coloring-pipeline.package-artifacts.fixture.cem) | Checked stage fixture generated through manifest-declared formatter/colorizer artifacts selected by explicit CEMT aliases. | Pass |
-| [`invalid-unclosed-scope.cem`](examples/invalid-unclosed-scope.cem) | Missing closing scope syntax diagnostic. | Fail with `cem.schema.unclosed_scope` |
+| [`invalid-unclosed-scope.cem`](examples/invalid-unclosed-scope.cem) | Missing closing scope syntax diagnostic. | Fail with `cem.ast.unclosed_scope` |
 | [`invalid-unsupported-handoffs.cem`](examples/invalid-unsupported-handoffs.cem) | CSF-like and future vendor JSON handoff content types. | Fail with `cem.handoff.unsupported_content_type` |
 
 Validate an example explicitly against this schema:
