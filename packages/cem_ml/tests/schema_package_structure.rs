@@ -13,6 +13,29 @@ use cem_ml::tokenizer::cem::CemTokenizer;
 const BASELINE_FORMATTER_PROFILES: &[&str] = &["compact", "pretty", "tabular"];
 const BASELINE_COLORIZER_PROFILES: &[&str] = &["terminal", "html", "md"];
 
+const SCHEMA_SOURCE_FILENAME_EXCEPTIONS: &[SchemaSourceFilenameException] = &[
+    SchemaSourceFilenameException {
+        package_id: "cem-ml",
+        source: "schema/cem-ml-generic.cem",
+        canonical_source: "schema/cem-ml.cem",
+        reason: "bootstrap generic CEM-ML schema identity is embedded by the runtime catalog",
+    },
+    SchemaSourceFilenameException {
+        package_id: "schema",
+        source: "schema/cem-schema.cem",
+        canonical_source: "schema/schema.cem",
+        reason: "bootstrap schema-definition identity is embedded by the runtime catalog",
+    },
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SchemaSourceFilenameException {
+    package_id: &'static str,
+    source: &'static str,
+    canonical_source: &'static str,
+    reason: &'static str,
+}
+
 #[derive(Debug, Clone, Default)]
 struct ManifestSummary {
     package_id: Option<String>,
@@ -38,6 +61,7 @@ struct SchemaPackageStructureReport {
     sidecar_example_reference_count: usize,
     schema_source: Option<String>,
     schema_source_exists: bool,
+    schema_source_exception: Option<SchemaSourceFilenameException>,
     cemt_artifact_paths: BTreeSet<String>,
     scanned_cemt_assets: BTreeSet<String>,
     unregistered_cemt_assets: Vec<String>,
@@ -143,6 +167,59 @@ fn schema_package_examples_use_manifest_owned_reference_records() {
         .find(|report| report.package_id == "csv")
         .expect("csv package report");
     assert_eq!(csv.manifest_example_count, 8);
+}
+
+#[test]
+fn schema_package_schema_filename_exceptions_are_documented_and_explicit() {
+    let reports = audit_schema_package_structure();
+    let package_contract_readme = fs::read_to_string(schema_packages_root().join("README.md"))
+        .expect("schema-package README");
+    let exception_sources = reports
+        .iter()
+        .filter_map(|report| {
+            report
+                .schema_source_exception
+                .map(|exception| (report.package_id.as_str(), exception.source))
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        exception_sources,
+        vec![
+            ("cem-ml", "schema/cem-ml-generic.cem"),
+            ("schema", "schema/cem-schema.cem"),
+        ]
+    );
+
+    for exception in SCHEMA_SOURCE_FILENAME_EXCEPTIONS {
+        assert!(
+            !exception.reason.trim().is_empty(),
+            "{exception:?} must document why it is not renamed to {}",
+            exception.canonical_source
+        );
+        assert!(
+            package_contract_readme.contains(exception.source),
+            "{exception:?} must be named in the schema-package README"
+        );
+
+        let report = reports
+            .iter()
+            .find(|report| report.package_id == exception.package_id)
+            .expect("schema source exception package is audited");
+        assert_eq!(report.schema_source.as_deref(), Some(exception.source));
+        assert!(report.schema_source_exists, "{report:#?}");
+    }
+
+    for report in &reports {
+        assert!(
+            report
+                .hard_errors
+                .iter()
+                .all(|error| !error.contains("not a documented schema-source filename exception")),
+            "{} has an undocumented schema-source filename drift: {report:#?}",
+            report.package_id
+        );
+    }
 }
 
 fn audit_schema_package_structure() -> Vec<SchemaPackageStructureReport> {
@@ -273,12 +350,17 @@ fn audit_package_version_dir(
     let missing_colorizer_profiles =
         missing_profiles(&manifest.colorizer_profiles, BASELINE_COLORIZER_PROFILES);
 
+    let schema_source_exception = manifest
+        .schema_source
+        .as_deref()
+        .and_then(|schema_source| schema_source_filename_exception(&package_id, schema_source));
+
     let mut alignment_gaps = Vec::new();
     if let Some(schema_source) = &manifest.schema_source {
         let canonical_schema_source = format!("schema/{package_id}.cem");
-        if schema_source != &canonical_schema_source {
-            alignment_gaps.push(format!(
-                "schema source `{schema_source}` differs from canonical `{canonical_schema_source}`"
+        if schema_source != &canonical_schema_source && schema_source_exception.is_none() {
+            hard_errors.push(format!(
+                "manifest schema source `{schema_source}` differs from canonical `{canonical_schema_source}` and is not a documented schema-source filename exception"
             ));
         }
     }
@@ -315,6 +397,7 @@ fn audit_package_version_dir(
         sidecar_example_reference_count,
         schema_source: manifest.schema_source,
         schema_source_exists,
+        schema_source_exception,
         cemt_artifact_paths: manifest.cemt_artifact_paths,
         scanned_cemt_assets,
         unregistered_cemt_assets,
@@ -561,6 +644,16 @@ fn required_manifest_example_attr(
     Some(value.clone())
 }
 
+fn schema_source_filename_exception(
+    package_id: &str,
+    schema_source: &str,
+) -> Option<SchemaSourceFilenameException> {
+    SCHEMA_SOURCE_FILENAME_EXCEPTIONS
+        .iter()
+        .copied()
+        .find(|exception| exception.package_id == package_id && exception.source == schema_source)
+}
+
 fn schema_packages_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("schema-packages")
 }
@@ -654,7 +747,7 @@ fn format_audit_report(reports: &[SchemaPackageStructureReport]) -> String {
     let mut output = String::from("Schema package structure audit:\n");
     for report in reports {
         output.push_str(&format!(
-            "- {}/v1: dir={}, roots(package={}, readme={}, examples={} files={}), schema={} exists={}, manifest_examples={}, example_sidecars={}, declared_cemt_assets={}, scanned_cemt_assets={}, formatter_profiles={}, missing_formatter={}, colorizer_profiles={}, missing_colorizer={}, cemt_converters={}, missing_cemt_converters={}, gaps={}, hard_errors={}\n",
+            "- {}/v1: dir={}, roots(package={}, readme={}, examples={} files={}), schema={} exists={}, schema_exception={}, manifest_examples={}, example_sidecars={}, declared_cemt_assets={}, scanned_cemt_assets={}, formatter_profiles={}, missing_formatter={}, colorizer_profiles={}, missing_colorizer={}, cemt_converters={}, missing_cemt_converters={}, gaps={}, hard_errors={}\n",
             report.package_id,
             format_report_path(&report.version_dir),
             report.manifest_exists,
@@ -663,6 +756,7 @@ fn format_audit_report(reports: &[SchemaPackageStructureReport]) -> String {
             report.example_file_count,
             report.schema_source.as_deref().unwrap_or("<missing>"),
             report.schema_source_exists,
+            format_schema_source_exception(report.schema_source_exception),
             report.manifest_example_count,
             report.sidecar_example_reference_count,
             format_set(&report.cemt_artifact_paths),
@@ -684,6 +778,17 @@ fn format_audit_report(reports: &[SchemaPackageStructureReport]) -> String {
         }
     }
     output
+}
+
+fn format_schema_source_exception(exception: Option<SchemaSourceFilenameException>) -> String {
+    exception
+        .map(|exception| {
+            format!(
+                "{} instead of {} ({})",
+                exception.source, exception.canonical_source, exception.reason
+            )
+        })
+        .unwrap_or_else(|| "none".to_owned())
 }
 
 fn format_set(values: &BTreeSet<String>) -> String {

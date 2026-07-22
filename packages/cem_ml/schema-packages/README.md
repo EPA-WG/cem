@@ -263,9 +263,21 @@ entries declare the owned primary and alias content types, formatter/colorizer
 artifacts point at `.cemt` output-stage transforms, and example declarations
 identify the package-owned fixtures that should be validated.
 
-Schemas are always authored in `.cem` format under `schema/`. The schema source
-declares the schema URI, version, owned content types, namespaces, content model,
-constraints, diagnostics, and explicit `{uses}` dependencies.
+Schemas are always authored in `.cem` format under `schema/`. The default source
+path is `schema/{package-id}.cem`. The schema source declares the schema URI,
+version, owned content types, namespaces, content model, constraints,
+diagnostics, and explicit `{uses}` dependencies.
+
+Two v1 bootstrap packages intentionally keep compatibility filenames instead of
+the default `schema/{package-id}.cem` shape:
+
+- `cem-ml/v1/schema/cem-ml-generic.cem` preserves the bootstrap generic CEM-ML
+  schema identity embedded by the runtime catalog.
+- `schema/v1/schema/cem-schema.cem` preserves the bootstrap schema-definition
+  identity embedded by the runtime catalog.
+
+Any additional nondefault schema filename must be documented here and encoded in
+the schema-package structure audit before it is accepted.
 
 Examples are not only naked source files. `package.cem` is the canonical example
 reference index: every `{example}` declaration must name the source path,
@@ -318,10 +330,12 @@ schema-packages/{package-id}/v1/
   colorizers/
 ```
 
-2. Author `schema/{package-id}.cem` as a schema-definition document. It should
-   declare the schema URI, version, owned namespaces, content model,
-   constraints, diagnostics, and any `{uses}` dependencies on other schemas.
-   Schema dependencies must be referenced by schema URI, not by filesystem path.
+2. Author `schema/{package-id}.cem` as a schema-definition document. Built-in
+   bootstrap compatibility filenames must be documented in the exception list
+   above and encoded in the structure audit. The schema source should declare
+   the schema URI, version, owned namespaces, content model, constraints,
+   diagnostics, and any `{uses}` dependencies on other schemas. Schema
+   dependencies must be referenced by schema URI, not by filesystem path.
 
 3. Author `package.cem` against
    `https://cem.dev/ns/schema-package/1`. The manifest must declare the package

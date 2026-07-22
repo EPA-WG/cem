@@ -223,7 +223,7 @@ Resume after the Rust-first CEM-QL syntax/showcase slice is green.
       checked-in `examples/*.example.cem` sidecars from current manifest example
       entries, or update the audit to explicitly accept manifest-owned example
       entries as the equivalent reference document described by the README.
-- [ ] Add focused checks for the two schema-source filename exceptions so
+- [x] Add focused checks for the two schema-source filename exceptions so
       `cem-ml-generic.cem` and `cem-schema.cem` are intentional, or rename them
       and update their manifests/readmes to the literal `schema/{package-id}.cem`
       shape.
@@ -296,12 +296,10 @@ Deferred dependency-ordered package checklist:
 
 ### Next Work Item
 
-Add focused checks for the two schema-source filename exceptions:
-`cem-ml/v1/schema/cem-ml-generic.cem` and
-`schema/v1/schema/cem-schema.cem`. The next slice should either document them
-as intentional compatibility exceptions in the package README/manifest audit,
-or rename them to the literal `schema/{package-id}.cem` shape and update all
-manifest/source registrations.
+Convert `schema-packages/*/v1` folders to Nx libraries with `*.cemt` sources
+tracked for caching. The next slice should start with the package target shape
+and keep CLI tests depending on package targets through Nx instead of treating
+schema-package files as unowned fixture inputs.
 
 ## Current Verification Commands
 
