@@ -237,8 +237,8 @@ class:
   `DecimalLit`, and `DoubleLit` by character class (`.` switches to
   decimal; `e`/`E` switches to double).
 - Punctuation and operators per `TokenKind` table above. `&&`, `||`, and
-  prefix `!` are normal boolean operators; `/` is numeric division, not a
-  path separator.
+  prefix `!` are normal boolean operators; `/` is one infix token whose typed
+  lowering chooses numeric division or node child-selection per AC-QX-8.
 - XPath/Python compatibility words such as `eq`, `ne`, `div`, `mod`, `and`,
   `or`, `not`, `then`, `return`, `instance`, `cast`, and `treat` produce
   compatibility-error tokens so the parser can emit Rust-syntax guidance
@@ -360,6 +360,10 @@ From lowest to highest:
 | 10    | `as` cast / type-postfix forms | left |
 | 11    | `.` (pipeline / step) | left |
 | 12    | call `(...)`, index `[...]`, member access | left |
+
+The parser emits `BinaryOp::Slash` for both `a / b` and `a/b`. It must not use
+whitespace to distinguish numeric division from child traversal; the type and
+lowering layers own that overload.
 
 XPath boolean and comparison spellings (`and`, `or`, `not(...)`, `eq`, `ne`,
 `lt`, `le`, `gt`, `ge`, `div`, `mod`) emit `cem.ql.use_rust_boolean_ops` or
@@ -534,9 +538,34 @@ operand types triggers AC-QO-8:
 - One side is `Stream` / `Array` / `Record` and the other is a
   scalar atom → same warning.
 
-The warning is silenced under the dev/debug CLI profile (§7.4).
+The warning is silenced under the dev/debug CLI profile (§7.5).
 
-### 7.4 Strict-Default Failure Profile
+### 7.4 Slash Operand Dispatch
+
+`Expression::BinaryOp { op: Slash, ... }` is type-dispatched after ordinary
+name resolution but before final IR lowering:
+
+- numeric lhs + numeric rhs -> numeric division. Both operands must have the
+  same numeric atom type; mixed numeric types emit `cem.ql.type_error` and
+  require an explicit `num:*` conversion, matching AC-QX-7.
+- node or `stream<node>` lhs + selector-shaped rhs -> child selection. A
+  selector-shaped rhs is currently a bare or prefixed `QName` parsed as
+  `Expression::Name`; the slash branch reinterprets that syntax as a
+  `NameTest` instead of a variable read. Wildcard name tests can extend the
+  same branch later without changing `/` precedence.
+- `Any` lhs with selector-shaped rhs -> runtime slash dispatch. The lowered IR
+  retains both the rhs expression for numeric division and the rhs `NameTest`
+  for child selection. At runtime, node streams select children and single
+  numeric atom pairs divide; mixed numeric/node materialization emits
+  `cem.ql.type_error`.
+- node lhs + non-selector rhs -> `cem.ql.type_error` suggesting
+  `dom:children(lhs)` / dot-pipeline traversal. numeric lhs + nonnumeric rhs
+  remains the numeric type error.
+
+This preserves XPath `a/b` child-selection meaning without adding XPath
+absolute paths, `//`, `@`, axis `::`, predicates, or `$` variable syntax.
+
+### 7.5 Strict-Default Failure Profile
 
 The default `TyConfig` stamps the following codes at `error` severity:
 
@@ -633,6 +662,7 @@ pub enum IrNode {
 
     // Operators
     BinaryOp { op: BinaryOp, lhs: IrId, rhs: IrId },
+    SlashDispatch { lhs: IrId, rhs: IrId, name_test: NameTest },
     UnaryOp { op: UnaryOp, operand: IrId },
     SetOp { op: SetOp, lhs: IrId, rhs: IrId },
 
@@ -658,10 +688,10 @@ pub enum IrStep {
 
 ### 9.2 Lowering Rules
 
-- `Expression::AxisCall { ... }` and named DOM step helpers lower to
-  `AxisStep` nodes threaded through `Pipeline { source, steps }`.
-  XPath `/` path syntax is not a CEM-QL surface; `/` remains numeric
-  division.
+- `Expression::AxisCall { ... }`, slash child-selection branches, and named
+  DOM step helpers lower to `AxisStep` nodes threaded through
+  `Pipeline { source, steps }`. `/` child selection is limited to the typed
+  overload from AC-QX-8; full XPath path syntax is not added.
 - `Expression::Pipeline { source, steps }` lowers source to an IR
   expression and each step to an `IrStep`. Named steps whose resolution
   points to a stdlib function become `NamedStdlib`; user-defined steps
@@ -672,8 +702,14 @@ pub enum IrStep {
 - `Expression::BinaryOp { op: Minus, ... }` is resolved after type checking:
   numeric operands remain numeric subtraction, stream or collection operands
   lower to `SetOp { op: Difference, ... }`, and mixed numeric/stream operands
-  fail with `cem.ql.type_error`. This is the only overload in the Tier A
-  operator table.
+  fail with `cem.ql.type_error`. This is one of the typed overloads in the
+  Tier A operator table.
+- `Expression::BinaryOp { op: Slash, ... }` is resolved after type checking:
+  same-type numeric operands remain `BinaryOp { op: Slash, ... }`; node or
+  `stream<node>` lhs plus selector-shaped rhs lowers to a child `AxisStep`
+  pipeline; statically unknown operands lower to a runtime slash-dispatch IR
+  node that chooses between those two branches from materialized operand
+  shapes. Unsupported or mixed shapes emit `cem.ql.type_error`.
 - `Expression::Lambda` lowers the body in a child binding scope and
   captures the lexical environment. AC-QV-6 closure-detachment runs at
   lowering: any captured `BindingId` whose binding holds a host AST

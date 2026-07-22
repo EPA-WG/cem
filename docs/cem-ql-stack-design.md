@@ -249,6 +249,12 @@ sub-grammar.
   operator at arithmetic precedence. It does not decide whether the operation
   is numeric subtraction or stream difference; the typed lowering pass resolves
   the operand shape per AC-QO-1.
+- **Shared `/` token.** The parser recognizes `/` as one left-associative infix
+  operator at multiplicative precedence. It does not decide whether the
+  operation is numeric division or node child-selection; the type checker and
+  lowering pass resolve numeric operands per AC-QX-7 and node / `stream<node>`
+  operands per AC-QX-8. Parsing is not whitespace-sensitive: `a/b` and
+  `a / b` have the same surface AST.
 - **No parser generator.** cem-ql grammar is small and Pratt + recursive
   descent is the lowest-overhead choice. A future Tier C grammar extension
   (broader XQuery functional parity) MAY adopt LALR if the manual grammar

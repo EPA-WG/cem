@@ -265,8 +265,9 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
   **functional, not syntactic**: cem-ql is expected to compute equivalent
   results over equivalent inputs for the subset listed in AC-QX-1 and the
   §4.1 matrix, but it does not mirror XPath/XQuery clause syntax, XPath path
-  syntax, XPath operator keywords, Python comprehension syntax, or Python
-  dunder semantics. Where a stdlib helper drawn from the Rust iterator /
+  syntax beyond AC-QX-8's typed child-selection slash, XPath operator
+  keywords, Python comprehension syntax, or Python dunder semantics. Where a
+  stdlib helper drawn from the Rust iterator /
   `itertools` ecosystem covers the same functional surface, the helper form
   is canonical and the XPath/Python syntactic form is not added. Concrete
   instances: grouping uses `group_by()` (AC-QX-4, AC-QO-6) rather than a
@@ -326,6 +327,27 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
   fallback; decimal division that cannot be represented as a finite decimal
   emits `cem.ql.type_error` and the author must convert to `double` for IEEE
   division.
+- **AC-QX-8 [A] MUST** preserve XPath `a/b` child-selection semantics through
+  a typed `/` overload without importing the rest of XPath path syntax.
+  The parser treats `/` as one left-associative infix operator at
+  multiplicative precedence; type checking and lowering decide the branch:
+  - numeric lhs + numeric rhs -> numeric division per AC-QX-7;
+  - node or `stream<node>` lhs + selector-shaped rhs (`QName` name test;
+    wildcard/name-test expansion is future-compatible) -> child-axis selection
+    equivalent to `lhs.dom:children().where(name_test)`, preserving document
+    order and returning `stream<node>`;
+  - statically unknown lhs with a selector-shaped rhs -> a runtime slash
+    dispatch node that selects the child branch when the lhs materializes to
+    nodes and the numeric branch when both sides materialize to single numeric
+    atoms;
+  - mixed numeric/node operands, non-selector rhs for a node lhs, or any other
+    unsupported operand shape -> `cem.ql.type_error` suggesting either explicit
+    `num:*` conversion for division or `dom:children(...)` / dot-pipeline
+    traversal for node selection.
+
+  This overload preserves the functional meaning of XPath `a/b` ("`b` child
+  nodes of `a`") but does not add XPath absolute paths, `//`, `@` shorthand,
+  axis `::` syntax, XPath predicates, `$` variables, or XPath operator words.
 
 ### 4.1 Functional Parity Matrix (Informative Sketch)
 
@@ -342,7 +364,7 @@ Each AC below is tagged `[A]`, `[B]`, or `[C]`.
 | Iteration / return mapping                            | A           | Rust-style `for name in stream { expr }` or helper form                |
 | Quantified predicates                                 | A           | `any(stream, fn)` / `all(stream, fn)` helpers                           |
 | FLWOR behavior with filtering/sorting                 | B           | No XPath clause syntax; no `group by` clause at any tier; grouping via `group_by()` per AC-QO-6 |
-| Path traversal                                        | A           | Dot chains and named axis helpers are canonical; `/` is numeric division |
+| Path traversal                                        | A           | `/` preserves child-selection for node operands; dot chains and named axis helpers remain canonical for other axes; numeric `/` remains Rust division for numeric operands |
 | Type tests and explicit casts                         | A           | Rust-style `is`, `as`, `treat_as(...)`; driven by schema-derived types |
 | Higher-order functions                                | A           | Lambdas; `function-call` first-class                                   |
 | Maps and arrays                                       | A/B         | Records in A; XPath 3.1 array semantics in B                           |
@@ -536,9 +558,11 @@ function inventory that makes those obligations executable.
 ## 6. Pipeline Composition
 
 - **AC-QP-1 [A] MUST** make `.` the canonical pipeline operator. `a.b` reads
-  as "evaluate `a`, pass each item to `b`, concatenate." XPath path
-  expressions such as `a/b` are functional parity only and are not cem-ql
-  syntax; `/` is numeric division.
+  as "evaluate `a`, pass each item to `b`, concatenate." The `/` operator is
+  the only XPath path surface preserved in Tier A, and only for child
+  selection by typed overload per AC-QX-8: `a/b` over node operands means
+  "select `b` children of `a`"; `/` over numeric operands remains Rust-style
+  division. Other path axes use dot pipelines and named helpers.
 - **AC-QP-2 [A] MUST** allow lambdas as pipeline steps:
   `descendants(Button) .map(fn(b) => b.text)`. The `.map`, `.where`,
   `.flat_map`, `.take`, `.drop`, `.first`, `.last`, `.nth(n)`, `.peek(fn)`

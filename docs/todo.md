@@ -32,9 +32,9 @@ Observed code state:
   `some/every ... satisfies ...`, `instance of`, `cast as`, `treat as`, `/`
   paths, and quoted-only record literals. The parser now rejects those
   compatibility forms and accepts Rust-style control flow, bindings,
-  records with bare/quoted keys, `/` as numeric division, type postfixes,
-  `treat_as(...)`, `same_node(...)`, computed record keys, and
-  `fn(...) =>` lambdas for quantified helpers.
+  records with bare/quoted keys, `/` as a typed numeric-or-child-selection
+  operator per AC-QX-8, type postfixes, `treat_as(...)`, `same_node(...)`,
+  computed record keys, and `fn(...) =>` lambdas for quantified helpers.
 - [x] `packages/cem_ql/src/eval.rs` already has evaluator support for boolean
   short-circuiting, numeric operators, set operations, pipelines, conditionals,
   loops, and type checks; the parser now exposes the Rust-first syntax for
@@ -80,7 +80,8 @@ Dependency-ordered implementation checklist:
 - [x] Update Pratt precedence in `packages/cem_ql/src/parser/pratt.rs` to
       Rust-first operator ordering, including `||`, `&&`, comparisons,
       set operators, `+ -`, `* / %`, unary `!` / unary `-`, type/cast
-      postfixes, and dot calls/pipelines. Remove `/` as path syntax.
+      postfixes, and dot calls/pipelines. Keep `/` as one infix token whose
+      typed lowering resolves numeric division vs child selection.
 - [x] Update expression parsing in `packages/cem_ql/src/parser.rs`:
       parse Rust-style `if` blocks, expression blocks with semicolon-separated
       `let` bindings, `for name in stream { expr }`, Rust-style records with
@@ -118,7 +119,7 @@ Dependency-ordered implementation checklist:
       `if ... then ... else ...`, `let ... := ... in ...`, `for ... return`,
       `some/every ... satisfies`, `instance of`, `cast as`, and `treat as`.
       Each diagnostic should point to the Rust-first replacement.
-- [ ] Research `/` overload semantics for node and node-collection operands so
+- [x] Research `/` overload semantics for node and node-collection operands so
       XPath `a/b` child-selection meaning is preserved while Rust-style numeric
       division remains canonical for numeric operands. Decide parser/type-checker
       dispatch rules, diagnostics for ambiguous operands, and evaluator lowering
