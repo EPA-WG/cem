@@ -904,7 +904,7 @@ fn render_template_action_cross_product_with_emotion_substitution() {
 fn render_template_cross_table_join_resolves_palette_reference() {
     // cem-colors emotion-shift: choose `--cem-color-<name>` when that token exists in the
     // hue-variant table, else fall back to `--cem-palette-<name>`. The existence check projects a
-    // field across an array slice (`datadom.slices.hue.td1`, flattened) and tests existential `=`
+    // field across an array slice (`datadom.slices.hue.td1`, flattened) and tests existential `==`
     // against a `str:concat((…))`-built target.
     let hue = Item::Array(vec![
         record([(
@@ -943,7 +943,7 @@ fn render_template_cross_table_join_resolves_palette_reference() {
     let data = TemplateData::default().with_binding("datadom", ItemStream::once(datadom));
 
     let rendered = render_template(
-        "{cem:for-each @select=\"$datadom.slices.shift\" @as=\"emo\" |{$emo.td1}: light-dark({cem:choose |{cem:when @test='datadom.slices.hue.td1 = str:concat((\"--cem-color-\", emo.td3))' |var(--cem-color-{$emo.td3})}{cem:otherwise |var(--cem-palette-{$emo.td3})}}, {cem:choose |{cem:when @test='datadom.slices.hue.td1 = str:concat((\"--cem-color-\", emo.td4))' |var(--cem-color-{$emo.td4})}{cem:otherwise |var(--cem-palette-{$emo.td4})}});}",
+        "{cem:for-each @select=\"$datadom.slices.shift\" @as=\"emo\" |{$emo.td1}: light-dark({cem:choose |{cem:when @test='datadom.slices.hue.td1 == str:concat((\"--cem-color-\", emo.td3))' |var(--cem-color-{$emo.td3})}{cem:otherwise |var(--cem-palette-{$emo.td3})}}, {cem:choose |{cem:when @test='datadom.slices.hue.td1 == str:concat((\"--cem-color-\", emo.td4))' |var(--cem-color-{$emo.td4})}{cem:otherwise |var(--cem-palette-{$emo.td4})}});}",
         &data,
     );
 

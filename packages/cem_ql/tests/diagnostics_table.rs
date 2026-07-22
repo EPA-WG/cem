@@ -8,14 +8,14 @@ use cem_ql::diagnostics::{
     self, ABORTED, BUDGET_EXCEEDED, CLOSURE_DETACHED, CROSS_TYPE_COMPARE, IMPORT_DENIED,
     IMPORT_UNRESOLVED, PARSE_ERROR, POLICY_ACCESSOR_FAILED, READ_DENIED, READ_DYNAMIC_ACCEPTS,
     READ_UNSATISFIABLE, RESERVED_SCHEME, SCOPE_VIOLATION, TYPE_ERROR, UNKNOWN_FUNCTION,
-    UNKNOWN_TYPE, UNKNOWN_VARIABLE, UNRESOLVED_REFERENCE, USE_AND_OR,
+    UNKNOWN_TYPE, UNKNOWN_VARIABLE, UNRESOLVED_REFERENCE, USE_RUST_BOOLEAN_OPS,
 };
 
 #[test]
 fn tier_a_diagnostic_table_matches_impl_section_8_codes() {
     let expected = [
         (PARSE_ERROR, Severity::Error),
-        (USE_AND_OR, Severity::Error),
+        (USE_RUST_BOOLEAN_OPS, Severity::Error),
         (TYPE_ERROR, Severity::Error),
         (UNKNOWN_TYPE, Severity::Error),
         (UNKNOWN_FUNCTION, Severity::Error),

@@ -129,7 +129,7 @@ fn ac_qv_v_1_covers_scope_inheritance_overlay_and_trace_cases() {
 fn resolver_walks_module_bindings_function_params_and_calls() {
     let parsed = parse(
         r#"import "cem:stdlib/strings" as str
-           declare variable source := 42
+           declare let source = 42
            declare function local:echo(item) { item }
            local:echo(source)"#,
     );

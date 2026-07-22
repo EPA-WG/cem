@@ -19,6 +19,7 @@ pub enum TokenKind {
     RBracket,
     LBrace,
     RBrace,
+    Semicolon,
     Pipe,
     Amp,
     Minus,
@@ -26,48 +27,34 @@ pub enum TokenKind {
     Assign,
     Colon,
     ColonColon,
-    Eq,
-    Ne,
+    EqEq,
+    NeqOp,
     Lt,
     Le,
     Gt,
     Ge,
-    EqOp,
-    NeqOp,
     Plus,
     Star,
-    DivKw,
-    ModKw,
-    AndKw,
-    OrKw,
-    NotKw,
-    AmpAmpReserved,
-    PipePipeReserved,
-    Coalesce,
     Slash,
+    Percent,
+    AmpAmp,
+    PipePipe,
+    Bang,
+    Coalesce,
     DotDot,
     Let,
     In,
     If,
-    Then,
     Else,
     For,
-    ReturnKw,
-    Some,
-    Every,
-    Satisfies,
     Import,
     As,
     Declare,
-    Variable,
     Function,
     Module,
-    InstanceKw,
-    OfKw,
-    CastKw,
-    TreatKw,
     IsKw,
     FnKw,
+    XPathCompatWord,
     Ident,
     PrefixedName,
     StringLit,
@@ -126,10 +113,10 @@ impl<'src> Lexer<'src> {
         if is_whitespace(ch) {
             return self.scan_whitespace(start);
         }
-        if self.starts_with(";;") {
+        if self.starts_with("//") {
             return self.scan_line_comment(start);
         }
-        if self.starts_with("(*") {
+        if self.starts_with("/*") {
             return self.scan_block_comment(start);
         }
         if ch == '"' {
@@ -153,26 +140,26 @@ impl<'src> Lexer<'src> {
             ']' => self.token(TokenKind::RBracket, start, self.cursor, None),
             '{' => self.token(TokenKind::LBrace, start, self.cursor, None),
             '}' => self.token(TokenKind::RBrace, start, self.cursor, None),
+            ';' => self.token(TokenKind::Semicolon, start, self.cursor, None),
             '|' if self.consume_if('|') => {
-                self.token(TokenKind::PipePipeReserved, start, self.cursor, None)
+                self.token(TokenKind::PipePipe, start, self.cursor, None)
             }
             '|' => self.token(TokenKind::Pipe, start, self.cursor, None),
-            '&' if self.consume_if('&') => {
-                self.token(TokenKind::AmpAmpReserved, start, self.cursor, None)
-            }
+            '&' if self.consume_if('&') => self.token(TokenKind::AmpAmp, start, self.cursor, None),
             '&' => self.token(TokenKind::Amp, start, self.cursor, None),
             '?' if self.consume_if('?') => {
                 self.token(TokenKind::Coalesce, start, self.cursor, None)
             }
             '-' => self.token(TokenKind::Minus, start, self.cursor, None),
             '^' => self.token(TokenKind::Caret, start, self.cursor, None),
-            ':' if self.consume_if('=') => self.token(TokenKind::Assign, start, self.cursor, None),
             ':' if self.consume_if(':') => {
                 self.token(TokenKind::ColonColon, start, self.cursor, None)
             }
             ':' => self.token(TokenKind::Colon, start, self.cursor, None),
-            '=' => self.token(TokenKind::EqOp, start, self.cursor, None),
+            '=' if self.consume_if('=') => self.token(TokenKind::EqEq, start, self.cursor, None),
+            '=' => self.token(TokenKind::Assign, start, self.cursor, None),
             '!' if self.consume_if('=') => self.token(TokenKind::NeqOp, start, self.cursor, None),
+            '!' => self.token(TokenKind::Bang, start, self.cursor, None),
             '<' if self.consume_if('=') => self.token(TokenKind::Le, start, self.cursor, None),
             '<' => self.token(TokenKind::Lt, start, self.cursor, None),
             '>' if self.consume_if('=') => self.token(TokenKind::Ge, start, self.cursor, None),
@@ -180,6 +167,7 @@ impl<'src> Lexer<'src> {
             '+' => self.token(TokenKind::Plus, start, self.cursor, None),
             '*' => self.token(TokenKind::Star, start, self.cursor, None),
             '/' => self.token(TokenKind::Slash, start, self.cursor, None),
+            '%' => self.token(TokenKind::Percent, start, self.cursor, None),
             _ => self.token(TokenKind::Invalid, start, self.cursor, None),
         }
     }
@@ -192,7 +180,7 @@ impl<'src> Lexer<'src> {
     }
 
     fn scan_line_comment(&mut self, start: usize) -> Token {
-        self.cursor += ";;".len();
+        self.cursor += "//".len();
         while let Some(ch) = self.peek_char() {
             if ch == '\n' || ch == '\r' {
                 break;
@@ -203,10 +191,10 @@ impl<'src> Lexer<'src> {
     }
 
     fn scan_block_comment(&mut self, start: usize) -> Token {
-        self.cursor += "(*".len();
+        self.cursor += "/*".len();
         while self.cursor < self.source.len() {
-            if self.starts_with("*)") {
-                self.cursor += "*)".len();
+            if self.starts_with("*/") {
+                self.cursor += "*/".len();
                 return self.token(TokenKind::BlockComment, start, self.cursor, None);
             }
             self.advance_char();
@@ -403,37 +391,16 @@ impl<'src> Lexer<'src> {
 
 fn keyword_kind(raw: &str) -> Option<(TokenKind, Option<CookedTokenPayload>)> {
     let kind = match raw {
-        "eq" => TokenKind::Eq,
-        "ne" => TokenKind::Ne,
-        "lt" => TokenKind::Lt,
-        "le" => TokenKind::Le,
-        "gt" => TokenKind::Gt,
-        "ge" => TokenKind::Ge,
-        "div" => TokenKind::DivKw,
-        "mod" => TokenKind::ModKw,
-        "and" => TokenKind::AndKw,
-        "or" => TokenKind::OrKw,
-        "not" => TokenKind::NotKw,
         "let" => TokenKind::Let,
         "in" => TokenKind::In,
         "if" => TokenKind::If,
-        "then" => TokenKind::Then,
         "else" => TokenKind::Else,
         "for" => TokenKind::For,
-        "return" => TokenKind::ReturnKw,
-        "some" => TokenKind::Some,
-        "every" => TokenKind::Every,
-        "satisfies" => TokenKind::Satisfies,
         "import" => TokenKind::Import,
         "as" => TokenKind::As,
         "declare" => TokenKind::Declare,
-        "variable" => TokenKind::Variable,
         "function" => TokenKind::Function,
         "module" => TokenKind::Module,
-        "instance" => TokenKind::InstanceKw,
-        "of" => TokenKind::OfKw,
-        "cast" => TokenKind::CastKw,
-        "treat" => TokenKind::TreatKw,
         "is" => TokenKind::IsKw,
         "fn" => TokenKind::FnKw,
         "null" => TokenKind::NullLit,
@@ -447,6 +414,14 @@ fn keyword_kind(raw: &str) -> Option<(TokenKind, Option<CookedTokenPayload>)> {
             return Some((
                 TokenKind::BoolLit,
                 Some(CookedTokenPayload::BoolValue(false)),
+            ))
+        }
+        "eq" | "ne" | "lt" | "le" | "gt" | "ge" | "div" | "mod" | "and" | "or" | "not" | "then"
+        | "return" | "some" | "every" | "satisfies" | "variable" | "instance" | "of" | "cast"
+        | "treat" => {
+            return Some((
+                TokenKind::XPathCompatWord,
+                Some(CookedTokenPayload::Name(raw.to_owned())),
             ))
         }
         _ => return None,

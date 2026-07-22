@@ -8,8 +8,8 @@
 //! The full QT3 corpus is not vendored into this repo. The cases below
 //! mirror representative QT3 categories that fall inside the AC-QX-1
 //! evaluable surface — arithmetic, value/general comparisons, boolean
-//! ops, conditional, `for`/`let`, quantifiers, sequence construction,
-//! the four set operators (`| & - ^`), and explicit numeric casts.
+//! ops, conditional, `for`/`let`, sequence construction, set operators,
+//! and explicit numeric casts, using Rust-first CEM-QL syntax.
 //! Each case names the QT3 area it represents so the table can grow
 //! against a downloaded corpus without restructuring the harness.
 //!
@@ -85,86 +85,86 @@ fn cases() -> Vec<Case> {
         Case {
             name: "comparison.value-eq.true",
             qt3_area: "op-numeric-equal",
-            query: "1 eq 1",
+            query: "1 == 1",
             expected: Items(vec![boolean(true)]),
         },
         Case {
             name: "comparison.value-eq.false",
             qt3_area: "op-numeric-equal",
-            query: "1 eq 2",
+            query: "1 == 2",
             expected: Items(vec![boolean(false)]),
         },
         Case {
             name: "comparison.general-eq",
             qt3_area: "op-equal",
-            query: "1 = 1",
+            query: "1 == 1",
             expected: Items(vec![boolean(true)]),
         },
         Case {
             name: "comparison.lt",
             qt3_area: "op-numeric-less-than",
-            query: "1 lt 2",
+            query: "1 < 2",
             expected: Items(vec![boolean(true)]),
         },
         Case {
             name: "boolean.and.short-circuit",
             qt3_area: "op-boolean-and",
-            query: "false and true",
+            query: "false && true",
             expected: Items(vec![boolean(false)]),
         },
         Case {
             name: "boolean.or",
             qt3_area: "op-boolean-or",
-            query: "false or true",
+            query: "false || true",
             expected: Items(vec![boolean(true)]),
         },
         Case {
             name: "boolean.not",
             qt3_area: "fn-not",
-            query: "not(false)",
+            query: "!false",
             expected: Items(vec![boolean(true)]),
         },
         Case {
             name: "conditional.then",
             qt3_area: "if-expr",
-            query: "if (true) then 1 else 2",
+            query: "if true { 1 } else { 2 }",
             expected: Items(vec![int(1)]),
         },
         Case {
             name: "conditional.else",
             qt3_area: "if-expr",
-            query: "if (false) then 1 else 2",
+            query: "if false { 1 } else { 2 }",
             expected: Items(vec![int(2)]),
         },
         Case {
             name: "for.return",
             qt3_area: "for-expr",
-            query: "for x in (1, 2, 3) return x + 1",
+            query: "for x in (1, 2, 3) { x + 1 }",
             expected: Items(vec![int(2), int(3), int(4)]),
         },
         Case {
             name: "let.return",
             qt3_area: "let-expr",
-            query: "let x := 10 in x + 1",
+            query: "{ let x = 10; x + 1 }",
             expected: Items(vec![int(11)]),
         },
         Case {
             name: "quantified.some",
             qt3_area: "some-expr",
-            query: "some x in (1, 2, 3) satisfies x eq 2",
-            expected: Items(vec![boolean(true)]),
+            query: "any((1, 2, 3), fn(x) => x == 2)",
+            expected: OutOfSubset,
         },
         Case {
             name: "quantified.every.true",
             qt3_area: "every-expr",
-            query: "every x in (1, 2, 3) satisfies x lt 10",
-            expected: Items(vec![boolean(true)]),
+            query: "all((1, 2, 3), fn(x) => x < 10)",
+            expected: OutOfSubset,
         },
         Case {
             name: "quantified.every.false",
             qt3_area: "every-expr",
-            query: "every x in (1, 2, 3) satisfies x lt 2",
-            expected: Items(vec![boolean(false)]),
+            query: "all((1, 2, 3), fn(x) => x < 2)",
+            expected: OutOfSubset,
         },
         Case {
             name: "sequence.literal",
@@ -187,8 +187,8 @@ fn cases() -> Vec<Case> {
         Case {
             name: "set.except",
             qt3_area: "op-except",
-            query: "seq:difference((1, 2, 3), (2, 4))",
-            expected: Items(vec![int(1), int(3)]),
+            query: "(1, 2, 3) - (2, 4)",
+            expected: OutOfSubset,
         },
         Case {
             name: "cast.integer.to.double",

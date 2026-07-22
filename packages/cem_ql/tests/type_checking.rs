@@ -25,7 +25,7 @@ fn checker_infers_literals_declarations_params_and_registered_calls() {
     let mut checker = TypeChecker::new();
     checker.register_function(string_length_signature());
     let report = check(
-        r#"declare variable label := "submit"
+        r#"declare let label = "submit"
            declare function local:echo(item as string) { item }
            str:length(local:echo(label))"#,
         &mut checker,
@@ -55,7 +55,7 @@ fn strict_profile_reports_static_type_errors_as_errors() {
 fn dev_profile_relaxes_static_failures_and_silences_cross_type_compare() {
     let mut checker = TypeChecker::with_config(TyConfig::dev_profile());
     checker.register_function(string_length_signature());
-    let report = check("str:length(42) 1 = 1.0", &mut checker);
+    let report = check("str:length(42) 1 == 1.0", &mut checker);
 
     assert!(report
         .diagnostics
@@ -70,7 +70,7 @@ fn dev_profile_relaxes_static_failures_and_silences_cross_type_compare() {
 #[test]
 fn cross_atom_type_comparison_emits_warning_under_strict_profile() {
     let mut checker = TypeChecker::new();
-    let report = check("1 = 1.0", &mut checker);
+    let report = check("1 == 1.0", &mut checker);
 
     assert!(report.diagnostics.iter().any(|diag| {
         diag.code == "cem.ql.cross_type_compare" && diag.severity == Severity::Warning
@@ -81,7 +81,7 @@ fn cross_atom_type_comparison_emits_warning_under_strict_profile() {
 #[test]
 fn unknown_type_uses_the_configured_static_resolution_severity() {
     let mut checker = TypeChecker::with_config(TyConfig::dev_profile());
-    let report = check("value treat as MissingType", &mut checker);
+    let report = check("treat_as(value, MissingType)", &mut checker);
 
     assert!(report
         .diagnostics
@@ -111,7 +111,7 @@ fn schema_element_types_are_scope_relative_and_walk_structural_supertypes() {
     });
     checker.declare_variable(QNameKey::new(None, "button"), Type::SchemaElement(button));
 
-    let report = check("button treat as Control", &mut checker);
+    let report = check("treat_as(button, Control)", &mut checker);
 
     assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
     assert_eq!(report.root_type, Some(Type::SchemaElement(control)));

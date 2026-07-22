@@ -7,11 +7,11 @@ use cem_ml::diagnostics::{Diagnostic, Severity};
 use cem_ml::source::ByteRange;
 
 use crate::api::ParseResult;
-use crate::diagnostics::{self as ql_diagnostics, DiagnosticCode, PARSE_ERROR, USE_AND_OR};
-use crate::lexer::{CookedTokenPayload, Lexer, Token, TokenKind};
-use pratt::{
-    infix_operator, InfixOperator, PREC_CALL, PREC_DOT, PREC_PATH, PREC_TYPE, PREC_UNARY_MINUS,
+use crate::diagnostics::{
+    self as ql_diagnostics, DiagnosticCode, PARSE_ERROR, USE_RUST_BOOLEAN_OPS,
 };
+use crate::lexer::{CookedTokenPayload, Lexer, Token, TokenKind};
+use pratt::{infix_operator, InfixOperator, PREC_CALL, PREC_DOT, PREC_TYPE, PREC_UNARY};
 
 #[derive(Debug, Clone)]
 pub struct Parser<'src> {
@@ -100,9 +100,9 @@ impl<'src> Parser<'src> {
 
     fn parse_declare(&mut self) -> Option<SurfaceNode> {
         let start = self.expect(TokenKind::Declare, "`declare`")?;
-        if self.match_kind(TokenKind::Variable).is_some() {
+        if self.match_kind(TokenKind::Let).is_some() {
             let name = self.parse_qname()?;
-            self.expect(TokenKind::Assign, "`:=` after variable name")?;
+            self.expect(TokenKind::Assign, "`=` after binding name")?;
             let value = self.parse_expression(0)?;
             let range = join_ranges(start.range, value.range());
             return Some(SurfaceNode::DeclareVariable(VariableDecl {
@@ -131,7 +131,18 @@ impl<'src> Parser<'src> {
                 range,
             }));
         }
-        self.error_current("expected `variable` or `function` after `declare`");
+        if self.current().kind == TokenKind::XPathCompatWord
+            && self.compat_word(self.current()) == Some("variable")
+        {
+            let token = self.bump();
+            self.error_at(
+                PARSE_ERROR,
+                "use `declare let name = expression` instead of `declare variable name := expression`",
+                token.range,
+            );
+            return None;
+        }
+        self.error_current("expected `let` or `function` after `declare`");
         None
     }
 
@@ -163,7 +174,7 @@ impl<'src> Parser<'src> {
             if self.is_expression_boundary() {
                 break;
             }
-            if self.consume_reserved_boolean() {
+            if self.consume_compat_word() {
                 continue;
             }
             if self.at(TokenKind::LParen) {
@@ -173,13 +184,6 @@ impl<'src> Parser<'src> {
                 lhs = self.parse_call(lhs)?;
                 continue;
             }
-            if self.at(TokenKind::Slash) {
-                if PREC_PATH < min_prec {
-                    break;
-                }
-                lhs = self.parse_path_infix(lhs)?;
-                continue;
-            }
             if self.at(TokenKind::Dot) {
                 if PREC_DOT < min_prec {
                     break;
@@ -187,10 +191,7 @@ impl<'src> Parser<'src> {
                 lhs = self.parse_pipeline(lhs)?;
                 continue;
             }
-            if matches!(
-                self.current().kind,
-                TokenKind::InstanceKw | TokenKind::CastKw | TokenKind::TreatKw
-            ) {
+            if matches!(self.current().kind, TokenKind::As | TokenKind::IsKw) {
                 if PREC_TYPE < min_prec {
                     break;
                 }
@@ -237,16 +238,21 @@ impl<'src> Parser<'src> {
                 Some(Expression::Name(qname_from_token(&token)?, token.range))
             }
             TokenKind::Dot => Some(Expression::LeadingDot(token.range)),
-            TokenKind::Slash => self.parse_path_prefix(token),
+            TokenKind::Slash => {
+                self.error_at(
+                    PARSE_ERROR,
+                    "XPath path syntax is not CEM-QL syntax; use dot pipelines or named axis helpers",
+                    token.range,
+                );
+                None
+            }
             TokenKind::LParen => self.parse_group_or_sequence(token),
-            TokenKind::LBrace => self.parse_record(token),
+            TokenKind::LBrace => self.parse_block_or_record(token),
             TokenKind::If => self.parse_if(token),
             TokenKind::Let => self.parse_let(token),
             TokenKind::For => self.parse_for(token),
-            TokenKind::Some => self.parse_quantified(token, QuantifierKind::Some),
-            TokenKind::Every => self.parse_quantified(token, QuantifierKind::Every),
-            TokenKind::NotKw => {
-                let operand = self.parse_expression(pratt::PREC_NOT)?;
+            TokenKind::Bang => {
+                let operand = self.parse_expression(PREC_UNARY)?;
                 let range = join_ranges(token.range, operand.range());
                 Some(Expression::UnaryOp {
                     op: UnaryOp::Not,
@@ -255,7 +261,7 @@ impl<'src> Parser<'src> {
                 })
             }
             TokenKind::Minus => {
-                let operand = self.parse_expression(PREC_UNARY_MINUS)?;
+                let operand = self.parse_expression(PREC_UNARY)?;
                 let range = join_ranges(token.range, operand.range());
                 Some(Expression::UnaryOp {
                     op: UnaryOp::Negate,
@@ -263,13 +269,13 @@ impl<'src> Parser<'src> {
                     range,
                 })
             }
-            TokenKind::AmpAmpReserved | TokenKind::PipePipeReserved => {
+            TokenKind::XPathCompatWord => {
                 self.error_at(
-                    USE_AND_OR,
-                    "use `and` / `or` instead of `&&` / `||`",
+                    self.compat_code(&token),
+                    self.compat_message(&token),
                     token.range,
                 );
-                self.parse_expression(pratt::PREC_AND + 1)
+                None
             }
             _ => {
                 self.error_at(PARSE_ERROR, "expected expression", token.range);
@@ -280,10 +286,9 @@ impl<'src> Parser<'src> {
 
     fn parse_if(&mut self, start: Token) -> Option<Expression> {
         let cond = self.parse_expression(0)?;
-        self.expect(TokenKind::Then, "`then` after if condition")?;
-        let then_branch = self.parse_expression(0)?;
+        let then_branch = self.parse_braced_expression("if branch")?;
         self.expect(TokenKind::Else, "`else` after then branch")?;
-        let else_branch = self.parse_expression(0)?;
+        let else_branch = self.parse_braced_expression("else branch")?;
         let range = join_ranges(start.range, else_branch.range());
         Some(Expression::If {
             cond: Box::new(cond),
@@ -295,9 +300,9 @@ impl<'src> Parser<'src> {
 
     fn parse_let(&mut self, start: Token) -> Option<Expression> {
         let name = self.parse_qname()?;
-        self.expect(TokenKind::Assign, "`:=` after let binding")?;
+        self.expect(TokenKind::Assign, "`=` after let binding")?;
         let value = self.parse_expression(0)?;
-        self.expect(TokenKind::In, "`in` after let binding value")?;
+        self.expect(TokenKind::Semicolon, "`;` after let binding value")?;
         let body = self.parse_expression(0)?;
         let range = join_ranges(start.range, body.range());
         Some(Expression::Let {
@@ -312,29 +317,12 @@ impl<'src> Parser<'src> {
         let var = self.parse_qname()?;
         self.expect(TokenKind::In, "`in` after for variable")?;
         let source = self.parse_expression(0)?;
-        self.expect(TokenKind::ReturnKw, "`return` after for source")?;
-        let body = self.parse_expression(0)?;
+        let body = self.parse_braced_expression("for body")?;
         let range = join_ranges(start.range, body.range());
         Some(Expression::For {
             var,
             source: Box::new(source),
             body: Box::new(body),
-            range,
-        })
-    }
-
-    fn parse_quantified(&mut self, start: Token, kind: QuantifierKind) -> Option<Expression> {
-        let var = self.parse_qname()?;
-        self.expect(TokenKind::In, "`in` after quantified variable")?;
-        let source = self.parse_expression(0)?;
-        self.expect(TokenKind::Satisfies, "`satisfies` after quantified source")?;
-        let predicate = self.parse_expression(0)?;
-        let range = join_ranges(start.range, predicate.range());
-        Some(Expression::Quantified {
-            kind,
-            var,
-            source: Box::new(source),
-            predicate: Box::new(predicate),
             range,
         })
     }
@@ -365,6 +353,45 @@ impl<'src> Parser<'src> {
         })
     }
 
+    fn parse_braced_expression(&mut self, label: &'static str) -> Option<Expression> {
+        self.expect(TokenKind::LBrace, "`{` before expression block")?;
+        let expr = self.parse_expression(0)?;
+        self.expect(TokenKind::RBrace, "`}` after expression block")?;
+        if expr.range().len == 0 {
+            self.error_current(format!("expected {label}"));
+        }
+        Some(expr)
+    }
+
+    fn parse_block_or_record(&mut self, start: Token) -> Option<Expression> {
+        if self.at(TokenKind::Let) {
+            return self.parse_block(start);
+        }
+        self.parse_record(start)
+    }
+
+    fn parse_block(&mut self, start: Token) -> Option<Expression> {
+        let mut bindings = Vec::new();
+        while self.match_kind(TokenKind::Let).is_some() {
+            let name = self.parse_qname()?;
+            self.expect(TokenKind::Assign, "`=` after let binding")?;
+            let value = self.parse_expression(0)?;
+            self.expect(TokenKind::Semicolon, "`;` after let binding value")?;
+            bindings.push((name, value));
+        }
+        let mut body = self.parse_expression(0)?;
+        let end = self.expect(TokenKind::RBrace, "`}` after block expression")?;
+        while let Some((name, value)) = bindings.pop() {
+            body = Expression::Let {
+                range: join_ranges(start.range, end.range),
+                name,
+                value: Box::new(value),
+                body: Box::new(body),
+            };
+        }
+        Some(body)
+    }
+
     fn parse_record(&mut self, start: Token) -> Option<Expression> {
         let mut entries = Vec::new();
         if let Some(end) = self.match_kind(TokenKind::RBrace) {
@@ -374,12 +401,12 @@ impl<'src> Parser<'src> {
             });
         }
         while !self.at(TokenKind::RBrace) && !self.at(TokenKind::EndOfInput) {
-            let key = self.expect_string("quoted record key")?;
+            let key = self.parse_record_key()?;
             self.expect(TokenKind::Colon, "`:` after record key")?;
             let value = self.parse_expression(0)?;
-            let range = join_ranges(key.range, value.range());
+            let range = join_ranges(key.1, value.range());
             entries.push(RecordEntry {
-                key: string_value(&key),
+                key: key.0,
                 value,
                 range,
             });
@@ -394,12 +421,79 @@ impl<'src> Parser<'src> {
         })
     }
 
+    fn parse_record_key(&mut self) -> Option<(String, ByteRange)> {
+        let token = self.bump();
+        match token.kind {
+            TokenKind::Ident | TokenKind::PrefixedName => {
+                let name = qname_from_token(&token)?;
+                let key = if let Some(prefix) = name.prefix {
+                    format!("{prefix}:{}", name.local)
+                } else {
+                    name.local
+                };
+                Some((key, token.range))
+            }
+            TokenKind::StringLit => Some((string_value(&token), token.range)),
+            _ => {
+                self.error_at(
+                    PARSE_ERROR,
+                    "expected bare identifier or quoted string record key",
+                    token.range,
+                );
+                None
+            }
+        }
+    }
+
     fn parse_call(&mut self, callee: Expression) -> Option<Expression> {
         self.expect(TokenKind::LParen, "`(` after callee")?;
         let args = self.parse_arguments(TokenKind::RParen)?;
         let close = self.expect(TokenKind::RParen, "`)` after call arguments")?;
+        let range = join_ranges(callee.range(), close.range);
+        if let Expression::Name(name, _) = &callee {
+            if name.prefix.is_none() && name.local == "treat_as" {
+                if args.len() == 2 {
+                    if let Expression::Name(type_name, type_range) = &args[1] {
+                        return Some(Expression::TreatAs {
+                            range,
+                            value: Box::new(args[0].clone()),
+                            ty: TypeExpr {
+                                name: type_name.clone(),
+                                range: *type_range,
+                            },
+                        });
+                    }
+                    self.error_at(
+                        PARSE_ERROR,
+                        "expected type name as second `treat_as` argument",
+                        args[1].range(),
+                    );
+                } else {
+                    self.error_at(
+                        PARSE_ERROR,
+                        "`treat_as` expects exactly two arguments: `treat_as(expr, Type)`",
+                        range,
+                    );
+                }
+            }
+            if name.prefix.is_none() && name.local == "same_node" {
+                if args.len() == 2 {
+                    return Some(Expression::BinaryOp {
+                        op: BinaryOp::Is,
+                        lhs: Box::new(args[0].clone()),
+                        rhs: Box::new(args[1].clone()),
+                        range,
+                    });
+                }
+                self.error_at(
+                    PARSE_ERROR,
+                    "`same_node` expects exactly two arguments: `same_node(a, b)`",
+                    range,
+                );
+            }
+        }
         Some(Expression::Call {
-            range: join_ranges(callee.range(), close.range),
+            range,
             callee: Box::new(callee),
             args,
         })
@@ -466,8 +560,7 @@ impl<'src> Parser<'src> {
     fn parse_type_postfix(&mut self, value: Expression) -> Option<Expression> {
         let token = self.bump();
         match token.kind {
-            TokenKind::InstanceKw => {
-                self.expect(TokenKind::OfKw, "`of` after `instance`")?;
+            TokenKind::IsKw => {
                 let ty = self.parse_type_expr()?;
                 let range = join_ranges(value.range(), ty.range);
                 Some(Expression::InstanceOf {
@@ -476,8 +569,7 @@ impl<'src> Parser<'src> {
                     range,
                 })
             }
-            TokenKind::CastKw => {
-                self.expect(TokenKind::As, "`as` after `cast`")?;
+            TokenKind::As => {
                 let ty = self.parse_type_expr()?;
                 let range = join_ranges(value.range(), ty.range);
                 Some(Expression::CastAs {
@@ -486,143 +578,7 @@ impl<'src> Parser<'src> {
                     range,
                 })
             }
-            TokenKind::TreatKw => {
-                self.expect(TokenKind::As, "`as` after `treat`")?;
-                let ty = self.parse_type_expr()?;
-                let range = join_ranges(value.range(), ty.range);
-                Some(Expression::TreatAs {
-                    value: Box::new(value),
-                    ty,
-                    range,
-                })
-            }
             _ => None,
-        }
-    }
-
-    fn parse_path_prefix(&mut self, slash: Token) -> Option<Expression> {
-        let mut steps = Vec::new();
-        if !self.is_expression_boundary() {
-            steps.push(self.parse_path_step()?);
-            while self.match_kind(TokenKind::Slash).is_some() {
-                steps.push(self.parse_path_step()?);
-            }
-        }
-        let range = steps
-            .last()
-            .map(|step| join_ranges(slash.range, step.range()))
-            .unwrap_or(slash.range);
-        Some(Expression::Path { steps, range })
-    }
-
-    fn parse_path_infix(&mut self, lhs: Expression) -> Option<Expression> {
-        self.expect(TokenKind::Slash, "`/` in path")?;
-        let step = self.parse_path_step()?;
-        match lhs {
-            Expression::Path { mut steps, range } => {
-                steps.push(step);
-                let range = join_ranges(range, steps.last().map(PathStep::range).unwrap_or(range));
-                Some(Expression::Path { steps, range })
-            }
-            other => {
-                let first = self.expression_as_path_step(&other)?;
-                let range = join_ranges(other.range(), step.range());
-                Some(Expression::Path {
-                    steps: vec![first, step],
-                    range,
-                })
-            }
-        }
-    }
-
-    fn parse_path_step(&mut self) -> Option<PathStep> {
-        let token = self.bump();
-        let mut step = match token.kind {
-            TokenKind::DotDot => PathStep::Parent(token.range),
-            TokenKind::Dot => PathStep::Self_(token.range),
-            TokenKind::Star => PathStep::Axis {
-                axis: Axis::Child,
-                name_test: if self.match_kind(TokenKind::Colon).is_some() {
-                    let local = self.parse_qname()?;
-                    NameTest {
-                        prefix: None,
-                        local: Some(local.local),
-                    }
-                } else {
-                    NameTest {
-                        prefix: None,
-                        local: None,
-                    }
-                },
-                predicates: Vec::new(),
-                range: token.range,
-            },
-            TokenKind::Ident => {
-                let name = qname_from_token(&token)?;
-                if self.match_kind(TokenKind::Colon).is_some() {
-                    self.expect(TokenKind::Star, "`*` after path prefix colon")?;
-                    PathStep::Axis {
-                        axis: Axis::Child,
-                        name_test: NameTest {
-                            prefix: Some(name.local),
-                            local: None,
-                        },
-                        predicates: Vec::new(),
-                        range: token.range,
-                    }
-                } else {
-                    PathStep::Axis {
-                        axis: Axis::Child,
-                        name_test: NameTest {
-                            prefix: None,
-                            local: Some(name.local),
-                        },
-                        predicates: Vec::new(),
-                        range: token.range,
-                    }
-                }
-            }
-            TokenKind::PrefixedName => {
-                let name = qname_from_token(&token)?;
-                PathStep::Axis {
-                    axis: Axis::Child,
-                    name_test: NameTest {
-                        prefix: name.prefix,
-                        local: Some(name.local),
-                    },
-                    predicates: Vec::new(),
-                    range: token.range,
-                }
-            }
-            _ => {
-                self.error_at(PARSE_ERROR, "expected path step", token.range);
-                return None;
-            }
-        };
-        while self.match_kind(TokenKind::LBracket).is_some() {
-            let predicate = self.parse_expression(0)?;
-            let close = self.expect(TokenKind::RBracket, "`]` after path predicate")?;
-            step.push_predicate(predicate, close.range);
-        }
-        Some(step)
-    }
-
-    fn expression_as_path_step(&mut self, expr: &Expression) -> Option<PathStep> {
-        match expr {
-            Expression::Name(name, range) => Some(PathStep::Axis {
-                axis: Axis::Child,
-                name_test: NameTest {
-                    prefix: name.prefix.clone(),
-                    local: Some(name.local.clone()),
-                },
-                predicates: Vec::new(),
-                range: *range,
-            }),
-            Expression::LeadingDot(range) => Some(PathStep::Self_(*range)),
-            _ => {
-                self.error_at(PARSE_ERROR, "left side cannot start a path", expr.range());
-                None
-            }
         }
     }
 
@@ -645,23 +601,62 @@ impl<'src> Parser<'src> {
         })
     }
 
-    fn consume_reserved_boolean(&mut self) -> bool {
-        if !matches!(
-            self.current().kind,
-            TokenKind::AmpAmpReserved | TokenKind::PipePipeReserved
-        ) {
+    fn consume_compat_word(&mut self) -> bool {
+        if self.current().kind != TokenKind::XPathCompatWord {
             return false;
         }
         let token = self.bump();
         self.error_at(
-            USE_AND_OR,
-            "use `and` / `or` instead of `&&` / `||`",
+            self.compat_code(&token),
+            self.compat_message(&token),
             token.range,
         );
         if !self.is_expression_boundary() {
             let _ = self.parse_expression(pratt::PREC_AND + 1);
         }
         true
+    }
+
+    fn compat_word<'tok>(&self, token: &'tok Token) -> Option<&'tok str> {
+        match &token.cooked {
+            Some(CookedTokenPayload::Name(word)) => Some(word.as_str()),
+            _ => None,
+        }
+    }
+
+    fn compat_code(&self, token: &Token) -> DiagnosticCode {
+        match self.compat_word(token) {
+            Some("and" | "or" | "not") => USE_RUST_BOOLEAN_OPS,
+            _ => PARSE_ERROR,
+        }
+    }
+
+    fn compat_message(&self, token: &Token) -> String {
+        match self.compat_word(token) {
+            Some("and") => "use `&&` instead of XPath `and`".to_owned(),
+            Some("or") => "use `||` instead of XPath `or`".to_owned(),
+            Some("not") => "use prefix `!` instead of XPath `not(...)`".to_owned(),
+            Some("eq") => "use `==` instead of XPath `eq`".to_owned(),
+            Some("ne") => "use `!=` instead of XPath `ne`".to_owned(),
+            Some("lt") => "use `<` instead of XPath `lt`".to_owned(),
+            Some("le") => "use `<=` instead of XPath `le`".to_owned(),
+            Some("gt") => "use `>` instead of XPath `gt`".to_owned(),
+            Some("ge") => "use `>=` instead of XPath `ge`".to_owned(),
+            Some("div") => "use `/` instead of XPath `div`".to_owned(),
+            Some("mod") => "use `%` instead of XPath `mod`".to_owned(),
+            Some("then") => "use `if condition { then_expr } else { else_expr }`".to_owned(),
+            Some("return") => "use `for name in stream { expr }`".to_owned(),
+            Some("some") => "use `any(stream, fn)` instead of `some ... satisfies`".to_owned(),
+            Some("every") => "use `all(stream, fn)` instead of `every ... satisfies`".to_owned(),
+            Some("satisfies") => "use `any(stream, fn)` or `all(stream, fn)`".to_owned(),
+            Some("variable") => "use `declare let name = expression`".to_owned(),
+            Some("instance") => "use `expr is Type` instead of `instance of`".to_owned(),
+            Some("of") => "use `expr is Type` instead of `instance of`".to_owned(),
+            Some("cast") => "use `expr as Type` instead of `cast as`".to_owned(),
+            Some("treat") => "use `treat_as(expr, Type)` instead of `treat as`".to_owned(),
+            Some(word) => format!("`{word}` is not canonical CEM-QL syntax"),
+            None => "non-canonical CEM-QL syntax".to_owned(),
+        }
     }
 
     fn synchronize(&mut self, before: usize) {
@@ -703,18 +698,25 @@ impl<'src> Parser<'src> {
     }
 
     fn is_expression_boundary(&self) -> bool {
+        if self.current().kind == TokenKind::XPathCompatWord
+            && matches!(
+                self.compat_word(self.current()),
+                Some("then" | "return" | "satisfies")
+            )
+        {
+            return true;
+        }
         matches!(
             self.current().kind,
             TokenKind::EndOfInput
                 | TokenKind::RParen
                 | TokenKind::RBracket
                 | TokenKind::RBrace
+                | TokenKind::LBrace
                 | TokenKind::Comma
-                | TokenKind::Then
+                | TokenKind::Semicolon
                 | TokenKind::Else
                 | TokenKind::In
-                | TokenKind::ReturnKw
-                | TokenKind::Satisfies
                 | TokenKind::Module
                 | TokenKind::Import
                 | TokenKind::Declare
@@ -966,26 +968,6 @@ pub enum PathStep {
     },
     Parent(ByteRange),
     Self_(ByteRange),
-}
-
-impl PathStep {
-    fn range(&self) -> ByteRange {
-        match self {
-            PathStep::Axis { range, .. } | PathStep::Parent(range) | PathStep::Self_(range) => {
-                *range
-            }
-        }
-    }
-
-    fn push_predicate(&mut self, predicate: Expression, close: ByteRange) {
-        if let PathStep::Axis {
-            predicates, range, ..
-        } = self
-        {
-            *range = join_ranges(*range, close);
-            predicates.push(predicate);
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

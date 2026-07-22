@@ -346,9 +346,10 @@ function inventory that makes those obligations executable.
   `cem-ql-stack-design-impl.md §11` and marking their tier here.
 - **Tier A sequence and pipeline helpers:** `map`, `where`, `flat_map`,
   `take`, `drop`, `first`, `last`, `nth`, `peek`, `union`, `intersect`,
-  `difference`, `symmetric_difference`, and `count`. The four named set
-  helpers are aliases for the Rust-spelled infix operators `|`, `&`, `-`,
-  and `^`; the operators remain canonical in authored examples.
+  `difference`, `symmetric_difference`, `count`, `any`, and `all`. The four
+  named set helpers are aliases for the Rust-spelled infix operators `|`,
+  `&`, `-`, and `^`; the operators remain canonical in authored examples.
+  `any` and `all` are the canonical quantified-predicate helpers.
 - **Tier A string helpers:** `str:length`, `str:codepoints`, `str:lower`,
   `str:upper`, `str:slice`, `str:concat`, `str:contains`,
   `str:starts_with`, `str:ends_with`, `str:normalize_space`,
@@ -366,7 +367,7 @@ function inventory that makes those obligations executable.
 - **Tier B sequence helpers:** `unique`, `distinct_by`, `flatten`, `zip`,
   `enumerate`, `chunked`, `windowed`, `sliding`, `group_by`, `count_by`,
   `partition`, `take_while`, `drop_while`, `sorted`, `reversed`, `reduce`,
-  `fold`, `scan`, `any`, `all`, `none`, `min`, `max`, `sum`, and `avg`.
+  `fold`, `scan`, `none`, `min`, `max`, `sum`, and `avg`.
 - **Tier B string and content-type helpers:** `str:nfc`, `str:nfd`,
   `str:matches`, `str:split`, `ct:read`, `ct:html`, `ct:xml`, `ct:svg`,
   `ct:mathml`, `ct:css`, `ct:scss`, `ct:json`, `ct:yaml`, `ct:csv`,

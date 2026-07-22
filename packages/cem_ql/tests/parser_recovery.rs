@@ -1,8 +1,6 @@
 use cem_ql::api::parse;
 use cem_ql::lexer::{CookedTokenPayload, Lexer, TokenKind};
-use cem_ql::parser::{
-    BinaryOp, Expression, LiteralValue, PipelineStep, QuantifierKind, SurfaceNode,
-};
+use cem_ql::parser::{BinaryOp, Expression, LiteralValue, PipelineStep, SurfaceNode};
 
 fn kinds(source: &str) -> Vec<TokenKind> {
     Lexer::new(source)
@@ -14,47 +12,70 @@ fn kinds(source: &str) -> Vec<TokenKind> {
 }
 
 #[test]
-fn lexer_recognises_tier_a_keywords_and_reserved_boolean_forms() {
+fn lexer_recognises_rust_keywords_operators_and_compat_words() {
     assert_eq!(
-        kinds("let if then else for return some every satisfies import as declare variable function module instance of cast treat is fn"),
+        kinds("let if else for in import as declare function module is fn"),
         vec![
             TokenKind::Let,
             TokenKind::If,
-            TokenKind::Then,
             TokenKind::Else,
             TokenKind::For,
-            TokenKind::ReturnKw,
-            TokenKind::Some,
-            TokenKind::Every,
-            TokenKind::Satisfies,
+            TokenKind::In,
             TokenKind::Import,
             TokenKind::As,
             TokenKind::Declare,
-            TokenKind::Variable,
             TokenKind::Function,
             TokenKind::Module,
-            TokenKind::InstanceKw,
-            TokenKind::OfKw,
-            TokenKind::CastKw,
-            TokenKind::TreatKw,
             TokenKind::IsKw,
             TokenKind::FnKw,
             TokenKind::EndOfInput,
         ]
     );
     assert_eq!(
-        kinds("a && b || c and d or not e"),
+        kinds("a && b || c !d == e / f % g = h"),
         vec![
             TokenKind::Ident,
-            TokenKind::AmpAmpReserved,
+            TokenKind::AmpAmp,
             TokenKind::Ident,
-            TokenKind::PipePipeReserved,
+            TokenKind::PipePipe,
             TokenKind::Ident,
-            TokenKind::AndKw,
+            TokenKind::Bang,
             TokenKind::Ident,
-            TokenKind::OrKw,
-            TokenKind::NotKw,
+            TokenKind::EqEq,
             TokenKind::Ident,
+            TokenKind::Slash,
+            TokenKind::Ident,
+            TokenKind::Percent,
+            TokenKind::Ident,
+            TokenKind::Assign,
+            TokenKind::Ident,
+            TokenKind::EndOfInput,
+        ]
+    );
+    assert_eq!(
+        kinds("eq ne lt le gt ge div mod and or not then return some every satisfies variable instance of cast treat"),
+        vec![
+            TokenKind::XPathCompatWord,
+            TokenKind::XPathCompatWord,
+            TokenKind::XPathCompatWord,
+            TokenKind::XPathCompatWord,
+            TokenKind::XPathCompatWord,
+            TokenKind::XPathCompatWord,
+            TokenKind::XPathCompatWord,
+            TokenKind::XPathCompatWord,
+            TokenKind::XPathCompatWord,
+            TokenKind::XPathCompatWord,
+            TokenKind::XPathCompatWord,
+            TokenKind::XPathCompatWord,
+            TokenKind::XPathCompatWord,
+            TokenKind::XPathCompatWord,
+            TokenKind::XPathCompatWord,
+            TokenKind::XPathCompatWord,
+            TokenKind::XPathCompatWord,
+            TokenKind::XPathCompatWord,
+            TokenKind::XPathCompatWord,
+            TokenKind::XPathCompatWord,
+            TokenKind::XPathCompatWord,
             TokenKind::EndOfInput,
         ]
     );
@@ -91,7 +112,7 @@ fn lexer_cooks_names_literals_and_numbers() {
 
 #[test]
 fn lexer_tracks_byte_ranges_for_trivia_comments_and_punctuation() {
-    let tokens = Lexer::new("a;; comment\n(* block *) .. := :: != <= >").scan_all();
+    let tokens = Lexer::new("a// comment\n/* block */ .. = :: != <= > ;").scan_all();
     assert_eq!(tokens[0].range.start, 0);
     assert_eq!(tokens[0].range.len, 1);
     assert_eq!(tokens[1].kind, TokenKind::LineComment);
@@ -99,7 +120,7 @@ fn lexer_tracks_byte_ranges_for_trivia_comments_and_punctuation() {
     assert_eq!(tokens[1].range.len, 10);
     assert_eq!(tokens[3].kind, TokenKind::BlockComment);
     assert_eq!(
-        kinds(".. := :: != <= >"),
+        kinds(".. = :: != <= > ;"),
         vec![
             TokenKind::DotDot,
             TokenKind::Assign,
@@ -107,6 +128,7 @@ fn lexer_tracks_byte_ranges_for_trivia_comments_and_punctuation() {
             TokenKind::NeqOp,
             TokenKind::Le,
             TokenKind::Gt,
+            TokenKind::Semicolon,
             TokenKind::EndOfInput,
         ]
     );
@@ -123,7 +145,7 @@ fn lexer_returns_invalid_tokens_for_unclosed_or_malformed_spans() {
         vec![TokenKind::Invalid, TokenKind::EndOfInput]
     );
     assert_eq!(
-        kinds("(* unterminated"),
+        kinds("/* unterminated"),
         vec![TokenKind::Invalid, TokenKind::EndOfInput]
     );
 }
@@ -142,7 +164,7 @@ fn parser_recognises_module_import_and_declarations() {
     let result = parse(
         r#"module "urn:demo"
            import "cem:stdlib/strings" as str
-           declare variable answer := 42
+           declare let answer = 42
            declare function local:greet(name as string) { str:concat("hi", name) }"#,
     );
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
@@ -172,7 +194,7 @@ fn parser_recognises_module_import_and_declarations() {
 
 #[test]
 fn parser_applies_pratt_precedence_for_boolean_and_arithmetic_ops() {
-    let expr = first_expr("a or b and c + d * e");
+    let expr = first_expr("a || b && c + d * e");
     let Expression::BinaryOp {
         op: BinaryOp::Or,
         rhs,
@@ -207,7 +229,7 @@ fn parser_applies_pratt_precedence_for_boolean_and_arithmetic_ops() {
 }
 
 #[test]
-fn parser_builds_pipeline_call_and_path_shapes() {
+fn parser_builds_pipeline_call_shapes() {
     let expr = first_expr(r#"items.filter(true).map("x")"#);
     let Expression::Pipeline { source, steps, .. } = expr else {
         panic!("expected pipeline");
@@ -223,36 +245,39 @@ fn parser_builds_pipeline_call_and_path_shapes() {
         PipelineStep::Named { name, args, .. } if name.local == "map" && args.len() == 1
     ));
 
-    let path = first_expr("root/child[true]/..");
-    assert!(matches!(path, Expression::Path { ref steps, .. } if steps.len() == 3));
-}
-
-#[test]
-fn parser_builds_control_flow_record_sequence_and_quantified_forms() {
+    let division = first_expr("root / child");
     assert!(matches!(
-        first_expr(r#"if ok then {"name": "x"} else (1, 2)"#),
-        Expression::If { .. }
-    ));
-    assert!(matches!(
-        first_expr("let item := source in item"),
-        Expression::Let { .. }
-    ));
-    assert!(matches!(
-        first_expr("for item in source return item"),
-        Expression::For { .. }
-    ));
-    assert!(matches!(
-        first_expr("some item in source satisfies true"),
-        Expression::Quantified {
-            kind: QuantifierKind::Some,
+        division,
+        Expression::BinaryOp {
+            op: BinaryOp::Div,
             ..
         }
     ));
 }
 
 #[test]
+fn parser_builds_control_flow_record_sequence_and_loop_forms() {
+    assert!(matches!(
+        first_expr(r#"if ok { { name: "x" } } else { (1, 2) }"#),
+        Expression::If { .. }
+    ));
+    assert!(matches!(
+        first_expr("{ let item = source; item }"),
+        Expression::Let { .. }
+    ));
+    assert!(matches!(
+        first_expr("for item in source { item }"),
+        Expression::For { .. }
+    ));
+    assert!(matches!(
+        first_expr("{ name: \"x\", \"external-key\": 1 }"),
+        Expression::Record { .. }
+    ));
+}
+
+#[test]
 fn parser_recovers_to_top_level_anchors_after_errors() {
-    let result = parse(r#"declare variable := 1 import "cem:stdlib/strings" as str"#);
+    let result = parse(r#"declare let = 1 import "cem:stdlib/strings" as str"#);
     assert!(
         result
             .diagnostics
@@ -268,12 +293,12 @@ fn parser_recovers_to_top_level_anchors_after_errors() {
 }
 
 #[test]
-fn parser_reports_reserved_c_family_boolean_operators() {
-    let result = parse("a && b || c");
-    let use_and_or = result
+fn parser_reports_legacy_xpath_boolean_operators() {
+    let result = parse("a and b or not(c)");
+    let use_rust_boolean_ops = result
         .diagnostics
         .iter()
-        .filter(|diag| diag.code == "cem.ql.use_and_or")
+        .filter(|diag| diag.code == "cem.ql.use_rust_boolean_ops")
         .count();
-    assert_eq!(use_and_or, 2, "{:?}", result.diagnostics);
+    assert_eq!(use_rust_boolean_ops, 3, "{:?}", result.diagnostics);
 }

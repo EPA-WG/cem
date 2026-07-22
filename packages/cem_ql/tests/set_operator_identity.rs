@@ -155,7 +155,7 @@ fn ac_qo_v_1_b_double_nan_collapses_under_union() {
     // Per AC-QO-3 NaN values normalize to a single canonical NaN, so
     // two NaNs collapse to one item under `|`. Build NaNs via `0/0`
     // so the queries stay inside the parser's literal grammar.
-    let union = eval("(0.0e0 div 0.0e0) | (0.0e0 div 0.0e0)");
+    let union = eval("(0.0e0 / 0.0e0) | (0.0e0 / 0.0e0)");
     assert_eq!(
         union.items.len(),
         1,
@@ -254,9 +254,9 @@ fn ac_qo_v_1_c_explicit_to_utc_collapses_datetime_offsets() {
 fn ac_qo_v_1_d_cross_atom_type_eq_emits_cross_type_compare_warning() {
     // Per AC-QO-8 the static checker emits `cem.ql.cross_type_compare`
     // at warning severity when atoms of different XPath types are
-    // compared via `eq` / `=`. The runtime answer is "false" per the
+    // compared via `==`. The runtime answer is "false" per the
     // strict-typed identity rule; no numeric promotion is applied.
-    let parsed = parse("1 eq 1.0e0");
+    let parsed = parse("1 == 1.0e0");
     assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
     let mut checker = TypeChecker::new();
     let report = checker.check_surface_module(&parsed.module);
@@ -270,9 +270,9 @@ fn ac_qo_v_1_d_cross_atom_type_eq_emits_cross_type_compare_warning() {
         report.diagnostics
     );
 
-    let eq = eval("1 eq 1.0e0");
+    let eq = eval("1 == 1.0e0");
     assert_eq!(eq.items, vec![Item::Atomic(AtomValue::Boolean(false))]);
 
-    let ne = eval("1 ne 1.0e0");
+    let ne = eval("1 != 1.0e0");
     assert_eq!(ne.items, vec![Item::Atomic(AtomValue::Boolean(true))]);
 }

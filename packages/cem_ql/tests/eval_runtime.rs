@@ -21,7 +21,7 @@ fn default_policy() -> ScopePolicy {
 
 #[test]
 fn evaluator_handles_literals_arithmetic_and_control_flow() {
-    let stream = eval("if true then 1 + 2 * 3 else 0", default_policy());
+    let stream = eval("if true { 1 + 2 * 3 } else { 0 }", default_policy());
 
     assert_eq!(stream.items, vec![Item::Atomic(AtomValue::Integer(7))]);
     assert!(stream.error.is_none(), "{:?}", stream.diagnostics);

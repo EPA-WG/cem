@@ -23,22 +23,29 @@ documentation, and a Storybook showcase.
 
 Observed code state:
 
-- [ ] `packages/cem_ql/src/lexer.rs` still tokenizes XPath operator keywords
-  (`eq`, `ne`, `lt`, `div`, `mod`, `and`, `or`, `not`) and treats `&&` / `||`
-  as reserved errors.
-- [ ] `packages/cem_ql/src/parser.rs` still parses XPath/XQuery forms:
+- [x] `packages/cem_ql/src/lexer.rs` tokenized XPath operator keywords
+  (`eq`, `ne`, `lt`, `div`, `mod`, `and`, `or`, `not`) and treated `&&` / `||`
+  as reserved errors; it now recognizes Rust-first operators and classifies
+  XPath-only words as compatibility tokens.
+- [x] `packages/cem_ql/src/parser.rs` still parses XPath/XQuery forms:
   `if ... then ... else ...`, `let name := ... in ...`, `for ... return ...`,
   `some/every ... satisfies ...`, `instance of`, `cast as`, `treat as`, `/`
-  paths, and quoted-only record literals.
-- [ ] `packages/cem_ql/src/eval.rs` already has evaluator support for boolean
+  paths, and quoted-only record literals. The parser now rejects those
+  compatibility forms and accepts Rust-style control flow, bindings,
+  records with bare/quoted keys, `/` as numeric division, type postfixes,
+  `treat_as(...)`, and `same_node(...)`; computed record keys and quantified
+  helper lowering remain open below.
+- [x] `packages/cem_ql/src/eval.rs` already has evaluator support for boolean
   short-circuiting, numeric operators, set operations, pipelines, conditionals,
-  loops, and type checks, but the parser does not expose the Rust-first syntax.
+  loops, and type checks; the parser now exposes the Rust-first syntax for
+  those forms except stream difference through `-`, which remains open below.
 - [ ] `-` is the key semantic gap: it must work as numeric subtraction and stream
   difference. Current tests route stream difference through `seq:difference`
   because parser lowering treats `-` as arithmetic only.
-- [ ] `packages/cem_ql/tests/xpath_parity.rs`,
-  `packages/cem_ql/tests/parser_recovery.rs`, and the CEM-QL schema-package
-  examples still use the old XPath-oriented surface.
+- [ ] `packages/cem_ql/tests/xpath_parity.rs` and
+  `packages/cem_ql/tests/parser_recovery.rs` now use Rust-first syntax for
+  in-subset passing cases; the CEM-QL schema-package examples still need the
+  same migration.
 - [ ] `packages/cem-elements` has CEM-QL render-loop stories, but no dedicated
   operator/function parity showcase and no direct WASM query-evaluation
   boundary for Storybook tables.
@@ -60,17 +67,17 @@ Dependency-ordered implementation checklist:
       difference, or introduce a typed operator node that the evaluator
       dispatches by operand shape. The accepted design must preserve strict
       typed identity and deterministic stream order.
-- [ ] Rename the diagnostic contract from `cem.ql.use_and_or` /
+- [x] Rename the diagnostic contract from `cem.ql.use_and_or` /
       `USE_AND_OR` to `cem.ql.use_rust_boolean_ops`; update
       `packages/cem_ql/src/diagnostics.rs`, tests, and docs to report XPath
       boolean spellings as compatibility errors that suggest `&&`, `||`, and
       `!`.
-- [ ] Update the lexer:
+- [x] Update the lexer:
       recognize `==`, `&&`, `||`, `!`, `%`, and single `=` for Rust-style
       binding syntax; stop treating `&&` / `||` as reserved; classify
       XPath-only operator words as compatibility-error tokens or ordinary
       identifiers with targeted parser diagnostics.
-- [ ] Update Pratt precedence in `packages/cem_ql/src/parser/pratt.rs` to
+- [x] Update Pratt precedence in `packages/cem_ql/src/parser/pratt.rs` to
       Rust-first operator ordering, including `||`, `&&`, comparisons,
       set operators, `+ -`, `* / %`, unary `!` / unary `-`, type/cast
       postfixes, and dot calls/pipelines. Remove `/` as path syntax.
@@ -78,7 +85,7 @@ Dependency-ordered implementation checklist:
       parse Rust-style `if` blocks, expression blocks with semicolon-separated
       `let` bindings, `for name in stream { expr }`, Rust-style records with
       bare keys / quoted keys / computed keys, prefix `!`, and `expr as Type`.
-- [ ] Replace XPath type syntax in parser/lowering with canonical CEM-QL
+- [x] Replace XPath type syntax in parser/lowering with canonical CEM-QL
       syntax: `expr is Type`, `expr as Type`, `treat_as(expr, Type)`, and
       `same_node(a, b)`. Keep XPath spellings only as diagnostic suggestions,
       not successful parses.

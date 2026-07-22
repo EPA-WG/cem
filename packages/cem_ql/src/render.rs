@@ -2334,7 +2334,7 @@ mod tests {
                 {param @name="node"}
                 {body |
                     {cem:choose |
-                        {cem:when @test='node.kind = "element"' |
+                        {cem:when @test='node.kind == "element"' |
                             {details @open=open |
                                 {summary |
                                     {b | {$node.tag}}
@@ -2348,7 +2348,7 @@ mod tests {
                                 }
                             }
                         }
-                        {cem:when @test='node.kind = "text"' |
+                        {cem:when @test='node.kind == "text"' |
                             {p | {$node.text}}
                         }
                     }

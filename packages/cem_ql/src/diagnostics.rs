@@ -40,7 +40,7 @@ pub struct QueryDiagnostic {
 }
 
 pub const PARSE_ERROR: DiagnosticCode = DiagnosticCode("cem.ql.parse_error");
-pub const USE_AND_OR: DiagnosticCode = DiagnosticCode("cem.ql.use_and_or");
+pub const USE_RUST_BOOLEAN_OPS: DiagnosticCode = DiagnosticCode("cem.ql.use_rust_boolean_ops");
 pub const TYPE_ERROR: DiagnosticCode = DiagnosticCode("cem.ql.type_error");
 pub const UNKNOWN_TYPE: DiagnosticCode = DiagnosticCode("cem.ql.unknown_type");
 pub const UNKNOWN_FUNCTION: DiagnosticCode = DiagnosticCode("cem.ql.unknown_function");
@@ -67,10 +67,10 @@ pub const TIER_A_DIAGNOSTICS: &[DiagnosticSpec] = &[
         description: "Lexer or parser failed; range = offending tokens.",
     },
     DiagnosticSpec {
-        code: USE_AND_OR,
+        code: USE_RUST_BOOLEAN_OPS,
         default_severity: Severity::Error,
-        layer: "L1",
-        description: "`&&` / `||` reserved; suggest `and`/`or`.",
+        layer: "L1 / L2",
+        description: "XPath boolean spellings used in CEM-QL; suggest `&&`, `||`, or `!`.",
     },
     DiagnosticSpec {
         code: TYPE_ERROR,

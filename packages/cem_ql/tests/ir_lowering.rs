@@ -14,7 +14,7 @@ fn lower(source: &str) -> cem_ql::ir::lower::LowerResult {
 
 #[test]
 fn lowerer_builds_typed_control_flow_tree_with_query_source_maps() {
-    let result = lower("if true then 1 else 2");
+    let result = lower("if true { 1 } else { 2 }");
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     let tree = result.query.tree;
 
@@ -30,7 +30,7 @@ fn lowerer_builds_typed_control_flow_tree_with_query_source_maps() {
 
 #[test]
 fn public_compile_entrypoint_returns_lowered_ir() {
-    let query = compile("if true then 1 else 2", &CompileContext::default()).unwrap();
+    let query = compile("if true { 1 } else { 2 }", &CompileContext::default()).unwrap();
 
     assert!(matches!(
         query.tree.node(query.tree.root),
@@ -80,20 +80,20 @@ fn lowerer_uses_function_refs_for_user_declared_calls() {
 }
 
 #[test]
-fn lowerer_threads_path_steps_through_pipeline_nodes() {
-    let result = lower("root/child[true]/..");
+fn lowerer_threads_dot_steps_through_pipeline_nodes() {
+    let result = lower("declare let root = () root.child(true).parent");
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
 
     let Some(IrNode::Pipeline { source, steps }) = result.query.tree.node(result.query.tree.root)
     else {
         panic!(
-            "expected lowered path pipeline, got {:?}",
+            "expected lowered dot pipeline, got {:?}",
             result.query.tree.node(result.query.tree.root)
         );
     };
     assert!(matches!(
         result.query.tree.node(*source),
-        Some(IrNode::AxisStep { .. })
+        Some(IrNode::LocalVar(_))
     ));
     assert_eq!(steps.len(), 2);
 }
@@ -101,8 +101,8 @@ fn lowerer_threads_path_steps_through_pipeline_nodes() {
 #[test]
 fn pipeline_lambda_records_captures_and_closure_detachment_diagnostic() {
     let parsed = parse(
-        r#"declare variable items := ()
-           declare variable host := "snapshot"
+        r#"declare let items = ()
+           declare let host = "snapshot"
            items.{host}"#,
     );
     assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);

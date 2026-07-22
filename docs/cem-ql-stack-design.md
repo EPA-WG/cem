@@ -510,7 +510,7 @@ changing which module body the URI loads (AC-QV-3, AC-QV-7).
 
 | URI | Tier A scope |
 |-----|--------------|
-| `cem:stdlib/sequence` | Pipeline step helpers (`map`, `where`, `flat_map`, `take`, `drop`, `first`, `last`, `nth`, `peek`, `count`) plus function aliases for the four set operators (`union`, `intersect`, `difference`, `symmetric_difference`). |
+| `cem:stdlib/sequence` | Pipeline step helpers (`map`, `where`, `flat_map`, `take`, `drop`, `first`, `last`, `nth`, `peek`, `count`, `any`, `all`) plus function aliases for the four set operators (`union`, `intersect`, `difference`, `symmetric_difference`). |
 | `cem:stdlib/strings` | Codepoint iteration, length, slicing, casing, formatting, containment, prefix/suffix checks, whitespace normalization, replacement, translation, and substring helpers. |
 | `cem:stdlib/numbers` | Math, formatting, conversion (`double`, `decimal`, `integer`, `string`). |
 | `cem:stdlib/datetime` | `xs:date`/`xs:dateTime` helpers, `to_utc`. |
@@ -524,7 +524,7 @@ changing which module body the URI loads (AC-QV-3, AC-QV-7).
 
 | URI | Tier B scope |
 |-----|--------------|
-| `cem:stdlib/sequence` | Full AC-QO-6 helper family (`group_by`, `count_by`, `partition`, `zip`, `chunked`, `windowed`, `sliding`, `take_while`, `drop_while`, `sorted`, `reversed`, `reduce`, `fold`, `scan`, `any`, `all`, `none`, `min`, `max`, `sum`, `avg`). |
+| `cem:stdlib/sequence` | Full AC-QO-6 helper family (`group_by`, `count_by`, `partition`, `zip`, `chunked`, `windowed`, `sliding`, `take_while`, `drop_while`, `sorted`, `reversed`, `reduce`, `fold`, `scan`, `none`, `min`, `max`, `sum`, `avg`). |
 | `cem:stdlib/strings` | Regex (`matches`, `split`), Unicode normalization (`nfc`, `nfd`). |
 | `cem:stdlib/content-types` | Canonical media-type identifiers and the default `read()` preference list per AC-QA-1.1. |
 

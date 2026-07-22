@@ -86,7 +86,7 @@ fn ac_qv_v_2_user_resource_accessor_checks_role() {
 
 #[test]
 fn ac_qv_v_2_inherited_resource_identity_is_stable() {
-    let stream = eval("scope.user is scope.user");
+    let stream = eval("same_node(scope.user, scope.user)");
 
     assert_eq!(stream.items, vec![Item::Atomic(AtomValue::Boolean(true))]);
     assert!(stream.error.is_none(), "{:?}", stream.diagnostics);

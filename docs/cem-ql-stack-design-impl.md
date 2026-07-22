@@ -819,11 +819,13 @@ public-API floor):
 | `seq:nth`         | `(stream<T>, integer) -> stream<T>` | A |
 | `seq:peek`        | `(stream<T>, fn(T) -> ()) -> stream<T>` | A |
 | `seq:count`       | `(stream<T>) -> integer` | A |
+| `seq:any`         | `(stream<T>, fn(T) -> boolean) -> boolean` | A |
+| `seq:all`         | `(stream<T>, fn(T) -> boolean) -> boolean` | A |
 | `seq:union`       | `(stream<T>, stream<T>) -> stream<T>` | A — function alias for `|` |
 | `seq:intersect`   | `(stream<T>, stream<T>) -> stream<T>` | A — alias for `&` |
 | `seq:difference`  | `(stream<T>, stream<T>) -> stream<T>` | A — alias for `-` |
 | `seq:symmetric_difference` | `(stream<T>, stream<T>) -> stream<T>` | A — alias for `^` |
-| AC-QO-6 family    | `group_by`, `count_by`, `partition`, `zip`, `chunked`, `windowed`, `sliding`, `take_while`, `drop_while`, `sorted`, `reversed`, `reduce`, `fold`, `scan`, `any`, `all`, `none`, `min`, `max`, `sum`, `avg` | B |
+| AC-QO-6 family    | `group_by`, `count_by`, `partition`, `zip`, `chunked`, `windowed`, `sliding`, `take_while`, `drop_while`, `sorted`, `reversed`, `reduce`, `fold`, `scan`, `none`, `min`, `max`, `sum`, `avg` | B |
 
 ### 11.2 `cem:stdlib/strings`
 
