@@ -453,6 +453,67 @@ fn cem_ml_package_readme_tracks_manifest_contract() {
     }
 }
 
+#[test]
+fn schema_definition_package_readme_tracks_manifest_contract() {
+    let version_dir = schema_packages_root().join("schema/v1");
+    let readme_path = version_dir.join("README.md");
+    let readme = fs::read_to_string(&readme_path)
+        .unwrap_or_else(|error| panic!("{} is not readable: {error}", readme_path.display()));
+    let mut hard_errors = Vec::new();
+    let manifest = parse_manifest(&version_dir.join("package.cem"), &mut hard_errors);
+    assert!(
+        hard_errors.is_empty(),
+        "schema package manifest must parse before README contract checks: {hard_errors:?}"
+    );
+
+    assert_eq!(manifest.package_id.as_deref(), Some("schema"));
+    assert_eq!(
+        manifest.schema_uri.as_deref(),
+        Some("https://cem.dev/ns/schema/1")
+    );
+    assert_eq!(
+        manifest.schema_source.as_deref(),
+        Some("schema/cem-schema.cem")
+    );
+    assert_readme_mentions(&readme, "schema/cem-schema.cem", "schema source");
+    assert_readme_mentions(&readme, "bootstrap exception", "schema source exception");
+
+    for content_type in &manifest.content_types {
+        assert_readme_mentions(&readme, content_type, "content type");
+    }
+
+    assert!(
+        manifest.converter_endpoints.is_empty(),
+        "schema/v1 must not declare converter edges until the package owns an executable conversion contract"
+    );
+    assert_readme_mentions(&readme, "no converter edges", "converter edge status");
+
+    assert!(
+        manifest.cemt_artifact_paths.is_empty(),
+        "schema/v1 must not declare formatter/colorizer artifacts until package-owned CEMT assets exist"
+    );
+    assert_readme_mentions(
+        &readme,
+        "package-owned formatter or colorizer CEMT artifacts",
+        "CEMT output gap status",
+    );
+
+    for reference_key in &manifest.example_reference_keys {
+        let parts = reference_key.split('|').collect::<Vec<_>>();
+        assert_eq!(
+            parts.len(),
+            6,
+            "example reference keys must keep id|path|content-type|schema|result|diagnostics shape"
+        );
+        let path = parts[1];
+        let diagnostics = parts[5];
+        assert_readme_mentions(&readme, path, "example path");
+        for code in diagnostics.split_whitespace() {
+            assert_readme_mentions(&readme, code, &format!("example `{path}` diagnostic"));
+        }
+    }
+}
+
 fn audit_schema_package_structure() -> Vec<SchemaPackageStructureReport> {
     let root = schema_packages_root();
     let mut reports = fs::read_dir(&root)

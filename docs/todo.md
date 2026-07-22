@@ -238,7 +238,7 @@ Resume after the Rust-first CEM-QL syntax/showcase slice is green.
 Deferred dependency-ordered package checklist:
 
 - [x] `cem-ml/v1`
-- [ ] `schema/v1`
+- [x] `schema/v1`
 - [ ] `schema-package/v1`
 - [ ] `cem-native-template/v1`
 - [ ] `cem-transform/v1`
@@ -296,10 +296,10 @@ Deferred dependency-ordered package checklist:
 
 ### Next Work Item
 
-Continue dependency-ordered package alignment with `schema/v1`. Check the
-bootstrap schema-source filename exception, manifest-owned examples, README
-diagnostic expectations, formatter/colorizer gap status, and package-local Nx
-verify target against
+Continue dependency-ordered package alignment with `schema-package/v1`. Check
+its manifest/schema-source agreement, manifest-owned examples, README
+diagnostic expectations, formatter/colorizer gap status, converter contract
+examples, and package-local Nx verify target against
 [`packages/cem_ml/schema-packages/README.md`](../packages/cem_ml/schema-packages/README.md).
 
 ## Current Verification Commands

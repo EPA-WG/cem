@@ -17,6 +17,17 @@ Owned schema URI:
 https://cem.dev/ns/schema/1
 ```
 
+Schema source:
+
+```text
+schema/cem-schema.cem
+```
+
+This filename is the documented v1 bootstrap exception to the default
+`schema/schema.cem` shape. It preserves the schema-definition identity embedded
+by the runtime catalog while the package still follows the rest of the
+versioned folder contract.
+
 Primary content type:
 
 ```text
@@ -43,6 +54,33 @@ claims, namespace claims, and source ranges when available. Current validators
 may still emit compatibility diagnostics keyed to the shipped schema/package
 fields, but target reference checks consume explicit schema URI declarations,
 complete schema identity records, and namespace claims as separate domains.
+
+## Folder Contract
+
+`package.cem` is the manifest-owned index for this folder. It declares the
+schema URI and source file, primary content type, namespace claim, and every
+validation example under `examples/`.
+
+`project.json` owns the package-local Nx library
+`cem_ml_schema_package_schema_v1`. Its `verify` target validates `package.cem`
+through the CLI at the parse failure boundary and tracks `README.md`,
+`schema/**/*.cem`, `formatters/**/*.cemt`, `colorizers/**/*.cemt`,
+`converters/**/*.cemt`, and `examples/**/*` as package inputs. Full semantic
+schema-package validation remains in the final registry/package gate.
+
+Example metadata is intentionally manifest-owned. This package does not require
+checked-in `.example.cem` sidecars because `package.cem` already records the
+example path, content type, schema URI, expected pass/fail result, and expected
+diagnostic codes.
+
+## CEMT Output Status
+
+The schema definition package currently declares no converter edges and no
+package-owned formatter or colorizer CEMT artifacts. The schema-package
+structure audit therefore reports the baseline formatter/colorizer profiles as
+alignment gaps, not hard errors. Until schema-specific CEMT formatters and
+colorizers are authored, schema source examples rely on the generic CEM-ML
+output path rather than a schema-definition-specific output pipeline.
 
 ## Field Contract Requirement
 
@@ -287,7 +325,7 @@ structured `{detail}` entries and source-range propagation policy:
     @execution="ast-validation"
     @function="resource-label-result"
     @select="resource"
-    @match='kind = "page" and label = null' |
+    @match='kind == "page" && label == null' |
     {inputs |
         {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true}
     }
@@ -301,7 +339,7 @@ structured `{detail}` entries and source-range propagation policy:
     {function @name="resource-label-result" @returns="object" @deterministic=true |
         {param @name="candidate" @type="object" @required=true}
         {param @name="expected" @type="string" @required=true}
-        {body | {$ { message: "Page resource needs a label", details: { checkKind: "resource-label", expected: $expected, element: $candidate.name } } }}
+        {body | {$ { message: "Page resource needs a label", details: { checkKind: "resource-label", expected: expected, element: candidate.name } } }}
     }
 }
 
