@@ -291,6 +291,13 @@ impl<'src> Parser<'src> {
 
     fn parse_if(&mut self, start: Token) -> Option<Expression> {
         let cond = self.parse_expression(0)?;
+        if self.current().kind == TokenKind::XPathCompatWord
+            && self.compat_word(self.current()) == Some("then")
+        {
+            let token = self.bump();
+            self.error_at(PARSE_ERROR, self.compat_message(&token), token.range);
+            return None;
+        }
         let then_branch = self.parse_braced_expression("if branch")?;
         self.expect(TokenKind::Else, "`else` after then branch")?;
         let else_branch = self.parse_braced_expression("else branch")?;
@@ -305,8 +312,32 @@ impl<'src> Parser<'src> {
 
     fn parse_let(&mut self, start: Token) -> Option<Expression> {
         let name = self.parse_qname()?;
+        if self.current().kind == TokenKind::Colon
+            && self
+                .tokens
+                .get(self.cursor + 1)
+                .is_some_and(|token| token.kind == TokenKind::Assign)
+        {
+            let colon = self.bump();
+            let assign = self.bump();
+            self.error_at(
+                PARSE_ERROR,
+                "use `{ let name = value; body }` instead of `let name := value in body`",
+                join_ranges(colon.range, assign.range),
+            );
+            return None;
+        }
         self.expect(TokenKind::Assign, "`=` after let binding")?;
         let value = self.parse_expression(0)?;
+        if self.at(TokenKind::In) {
+            let token = self.bump();
+            self.error_at(
+                PARSE_ERROR,
+                "use `;` before the body in `{ let name = value; body }`",
+                token.range,
+            );
+            return None;
+        }
         self.expect(TokenKind::Semicolon, "`;` after let binding value")?;
         let body = self.parse_expression(0)?;
         let range = join_ranges(start.range, body.range());
@@ -322,6 +353,13 @@ impl<'src> Parser<'src> {
         let var = self.parse_qname()?;
         self.expect(TokenKind::In, "`in` after for variable")?;
         let source = self.parse_expression(0)?;
+        if self.current().kind == TokenKind::XPathCompatWord
+            && self.compat_word(self.current()) == Some("return")
+        {
+            let token = self.bump();
+            self.error_at(PARSE_ERROR, self.compat_message(&token), token.range);
+            return None;
+        }
         let body = self.parse_braced_expression("for body")?;
         let range = join_ranges(start.range, body.range());
         Some(Expression::For {

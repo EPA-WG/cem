@@ -169,6 +169,27 @@ fn first_expr(source: &str) -> Expression {
     }
 }
 
+struct LegacySyntaxCase {
+    source: &'static str,
+    code: &'static str,
+    replacement: &'static str,
+}
+
+fn assert_legacy_syntax_diagnostic(case: LegacySyntaxCase) {
+    let result = parse(case.source);
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|diag| { diag.code == case.code && diag.message.contains(case.replacement) }),
+        "{}: expected `{}` diagnostic containing `{}`; got {:?}",
+        case.source,
+        case.code,
+        case.replacement,
+        result.diagnostics
+    );
+}
+
 #[test]
 fn parser_recognises_module_import_and_declarations() {
     let result = parse(
@@ -313,28 +334,111 @@ fn parser_recovers_to_top_level_anchors_after_errors() {
 }
 
 #[test]
-fn parser_reports_legacy_xpath_boolean_operators() {
-    let result = parse("a and b or not(c)");
-    let use_rust_boolean_ops = result
-        .diagnostics
-        .iter()
-        .filter(|diag| diag.code == "cem.ql.use_rust_boolean_ops")
-        .count();
-    assert_eq!(use_rust_boolean_ops, 3, "{:?}", result.diagnostics);
-}
-
-#[test]
-fn parser_rejects_legacy_module_variable_syntax() {
-    let result = parse(r#"declare variable greeting := "Hello""#);
-
-    assert!(
-        result.diagnostics.iter().any(|diag| {
-            diag.code == "cem.ql.parse_error" && diag.message.contains("declare let")
-        }),
-        "{:?}",
-        result.diagnostics
-    );
-    assert!(result.module.nodes.is_empty(), "{:?}", result.module.nodes);
+fn parser_reports_rust_first_replacements_for_legacy_syntax() {
+    for case in [
+        LegacySyntaxCase {
+            source: "a eq b",
+            code: "cem.ql.parse_error",
+            replacement: "use `==`",
+        },
+        LegacySyntaxCase {
+            source: "a ne b",
+            code: "cem.ql.parse_error",
+            replacement: "use `!=`",
+        },
+        LegacySyntaxCase {
+            source: "a lt b",
+            code: "cem.ql.parse_error",
+            replacement: "use `<`",
+        },
+        LegacySyntaxCase {
+            source: "a le b",
+            code: "cem.ql.parse_error",
+            replacement: "use `<=`",
+        },
+        LegacySyntaxCase {
+            source: "a gt b",
+            code: "cem.ql.parse_error",
+            replacement: "use `>`",
+        },
+        LegacySyntaxCase {
+            source: "a ge b",
+            code: "cem.ql.parse_error",
+            replacement: "use `>=`",
+        },
+        LegacySyntaxCase {
+            source: "a div b",
+            code: "cem.ql.parse_error",
+            replacement: "use `/`",
+        },
+        LegacySyntaxCase {
+            source: "a mod b",
+            code: "cem.ql.parse_error",
+            replacement: "use `%`",
+        },
+        LegacySyntaxCase {
+            source: "a and b",
+            code: "cem.ql.use_rust_boolean_ops",
+            replacement: "use `&&`",
+        },
+        LegacySyntaxCase {
+            source: "a or b",
+            code: "cem.ql.use_rust_boolean_ops",
+            replacement: "use `||`",
+        },
+        LegacySyntaxCase {
+            source: "not(a)",
+            code: "cem.ql.use_rust_boolean_ops",
+            replacement: "use prefix `!`",
+        },
+        LegacySyntaxCase {
+            source: "if a then b else c",
+            code: "cem.ql.parse_error",
+            replacement: "if condition { then_expr } else { else_expr }",
+        },
+        LegacySyntaxCase {
+            source: "let name := value in name",
+            code: "cem.ql.parse_error",
+            replacement: "let name = value; body",
+        },
+        LegacySyntaxCase {
+            source: "for name in values return name",
+            code: "cem.ql.parse_error",
+            replacement: "for name in stream { expr }",
+        },
+        LegacySyntaxCase {
+            source: "some item in items satisfies item",
+            code: "cem.ql.parse_error",
+            replacement: "any(stream, fn)",
+        },
+        LegacySyntaxCase {
+            source: "every item in items satisfies item",
+            code: "cem.ql.parse_error",
+            replacement: "all(stream, fn)",
+        },
+        LegacySyntaxCase {
+            source: "item instance of Component",
+            code: "cem.ql.parse_error",
+            replacement: "expr is Type",
+        },
+        LegacySyntaxCase {
+            source: "item cast as Component",
+            code: "cem.ql.parse_error",
+            replacement: "expr as Type",
+        },
+        LegacySyntaxCase {
+            source: "item treat as Component",
+            code: "cem.ql.parse_error",
+            replacement: "treat_as(expr, Type)",
+        },
+        LegacySyntaxCase {
+            source: r#"declare variable greeting := "Hello""#,
+            code: "cem.ql.parse_error",
+            replacement: "declare let",
+        },
+    ] {
+        assert_legacy_syntax_diagnostic(case);
+    }
 }
 
 #[test]

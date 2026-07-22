@@ -113,11 +113,16 @@ Dependency-ordered implementation checklist:
 - [x] Update parser, IR lowering, type-checking, set-operator, evaluator,
       compiled-artifact, fixture, policy-hook, and template-render tests so no
       passing test depends on XPath operator, variable, path, or clause syntax.
-- [ ] Add negative parser tests for old XPath/Python syntax:
+- [x] Add negative parser tests for old XPath/Python syntax:
       `eq/ne/lt/le/gt/ge`, `div`, `mod`, `and`, `or`, `not(...)`,
       `if ... then ... else ...`, `let ... := ... in ...`, `for ... return`,
-      `some/every ... satisfies`, `a/b`, `instance of`, `cast as`, and
-      `treat as`. Each diagnostic should point to the Rust-first replacement.
+      `some/every ... satisfies`, `instance of`, `cast as`, and `treat as`.
+      Each diagnostic should point to the Rust-first replacement.
+- [ ] Research `/` overload semantics for node and node-collection operands so
+      XPath `a/b` child-selection meaning is preserved while Rust-style numeric
+      division remains canonical for numeric operands. Decide parser/type-checker
+      dispatch rules, diagnostics for ambiguous operands, and evaluator lowering
+      before changing slash behavior.
 - [x] Update `packages/cem_ml/schema-packages/cem-ql/v1/README.md`,
       `schema/cem-ql.cem`, `package.cem`, and examples so package-owned
       validation fixtures use Rust-first CEM-QL source.
