@@ -1,17 +1,31 @@
-//! Embedded CEM-QL expression extraction from checked-in CEM/CEMT assets.
+//! Embedded CEM-QL expression extraction and compile auditing for checked-in
+//! CEM/CEMT assets.
 //!
-//! This layer intentionally extracts only. Parsing, type checking, runtime bindings,
-//! and waivers are added by later audit phases so stale host syntax can be reported
-//! with the original file/range instead of being hidden by a lossy pre-pass.
+//! Runtime fixture validation and waivers live in later audit phases. This layer
+//! preserves source provenance while compiling extracted expressions through the
+//! Rust-first parser, resolver, and type checker so stale host syntax fails with
+//! canonical CEM-QL diagnostics.
 
+use std::collections::BTreeSet;
 use std::path::{Component, Path, PathBuf};
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::{fs, io, process::Command};
 
+use cem_ml::diagnostics::Diagnostic;
 use cem_ml::source::{ByteRange, BytesSource, SourceId};
 use cem_ml::tokenizer::cem::CemTokenizer;
 use cem_ml::tokenizer::{SchemaTokenKind, SchemaTokenizer};
+
+use crate::api;
+use crate::parser::{
+    Expression, FunctionParam, PathStep, PipelineStep, RecordKey, SurfaceModule, SurfaceNode,
+    TypeExpr,
+};
+use crate::resolve::{
+    Arity, BindingKind, BindingSet, ImportPolicy, NameResolver, QNameKey, SchemaTypeId,
+};
+use crate::types::{FunctionSignature, SchemaTypeInfo, TyConfig, Type, TypeChecker};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EmbeddedExpression {
@@ -93,6 +107,63 @@ pub enum EmbeddedHostKind {
     BehaviorSelectAttribute,
     BehaviorMatchAttribute,
     ExpressionNode,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EmbeddedCompileStage {
+    Parse,
+    Resolve,
+    TypeCheck,
+}
+
+#[derive(Debug, Clone)]
+pub struct EmbeddedCompileDiagnostic {
+    pub stage: EmbeddedCompileStage,
+    pub diagnostic: Diagnostic,
+    pub local_byte_offset: Option<u64>,
+    pub source_byte_offset: Option<u64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct EmbeddedExpressionCompileReport {
+    pub expression: EmbeddedExpression,
+    pub parse_succeeded: bool,
+    pub resolve_ran: bool,
+    pub resolve_succeeded: bool,
+    pub type_check_ran: bool,
+    pub type_check_succeeded: bool,
+    pub root_type: Option<Type>,
+    pub diagnostics: Vec<EmbeddedCompileDiagnostic>,
+}
+
+impl EmbeddedExpressionCompileReport {
+    pub fn has_hard_diagnostics(&self) -> bool {
+        self.diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.diagnostic.severity.is_hard_violation())
+    }
+
+    pub fn hard_diagnostics(&self) -> impl Iterator<Item = &EmbeddedCompileDiagnostic> {
+        self.diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.diagnostic.severity.is_hard_violation())
+    }
+
+    pub fn diagnostics_for_stage(
+        &self,
+        stage: EmbeddedCompileStage,
+    ) -> impl Iterator<Item = &EmbeddedCompileDiagnostic> {
+        self.diagnostics
+            .iter()
+            .filter(move |diagnostic| diagnostic.stage == stage)
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+struct EmbeddedHostCompileSupport {
+    variables: BTreeSet<QNameKey>,
+    functions: BTreeSet<(QNameKey, Arity)>,
+    types: BTreeSet<QNameKey>,
 }
 
 #[derive(Debug, Clone)]
@@ -214,6 +285,91 @@ pub fn extract_repository_embedded_expressions(
     Ok(expressions)
 }
 
+/// Compile one extracted embedded expression through parser, resolver, and type checker.
+pub fn compile_embedded_expression(
+    expression: &EmbeddedExpression,
+) -> EmbeddedExpressionCompileReport {
+    let mut diagnostics = Vec::new();
+    let parsed = api::parse(&expression.normalized_source);
+    diagnostics.extend(map_compile_diagnostics(
+        EmbeddedCompileStage::Parse,
+        expression,
+        &parsed.diagnostics,
+    ));
+    let parse_succeeded = !parsed
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation());
+
+    let mut report = EmbeddedExpressionCompileReport {
+        expression: expression.clone(),
+        parse_succeeded,
+        resolve_ran: false,
+        resolve_succeeded: false,
+        type_check_ran: false,
+        type_check_succeeded: false,
+        root_type: None,
+        diagnostics,
+    };
+
+    if !parse_succeeded {
+        return report;
+    }
+
+    let support = EmbeddedHostCompileSupport::from_module(&parsed.module);
+
+    let mut resolver = NameResolver::new();
+    let host_site = support.resolver_binding_set(&mut resolver);
+    resolver.push_site(host_site);
+    let resolution_report = resolver.resolve_surface_module(&parsed.module, &ImportPolicy::new());
+    report.resolve_ran = true;
+    report.resolve_succeeded = !resolution_report
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation());
+    report.diagnostics.extend(map_compile_diagnostics(
+        EmbeddedCompileStage::Resolve,
+        expression,
+        &resolution_report.diagnostics,
+    ));
+
+    let mut type_checker = TypeChecker::with_config(TyConfig::dev_profile());
+    support.seed_type_checker(&mut type_checker);
+    let type_report = type_checker.check_surface_module(&parsed.module);
+    report.type_check_ran = true;
+    report.type_check_succeeded = !type_report
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation());
+    report.root_type = type_report.root_type;
+    report.diagnostics.extend(map_compile_diagnostics(
+        EmbeddedCompileStage::TypeCheck,
+        expression,
+        &type_report.diagnostics,
+    ));
+
+    report
+}
+
+/// Compile a batch of extracted embedded expressions.
+pub fn compile_embedded_expressions(
+    expressions: &[EmbeddedExpression],
+) -> Vec<EmbeddedExpressionCompileReport> {
+    expressions
+        .iter()
+        .map(compile_embedded_expression)
+        .collect()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+/// Extract and compile every checked-in embedded expression.
+pub fn compile_repository_embedded_expressions(
+    workspace_root: impl AsRef<Path>,
+) -> io::Result<Vec<EmbeddedExpressionCompileReport>> {
+    let expressions = extract_repository_embedded_expressions(workspace_root)?;
+    Ok(compile_embedded_expressions(&expressions))
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 /// Return checked-in CEM/CEMT files. Falls back to a conservative walk outside git.
 pub fn checked_in_cem_sources(workspace_root: impl AsRef<Path>) -> io::Result<Vec<PathBuf>> {
@@ -244,6 +400,225 @@ pub fn checked_in_cem_sources(workspace_root: impl AsRef<Path>) -> io::Result<Ve
     walk_cem_sources(workspace_root, workspace_root, &mut paths)?;
     paths.sort();
     Ok(paths)
+}
+
+impl EmbeddedHostCompileSupport {
+    fn from_module(module: &SurfaceModule) -> Self {
+        let mut support = Self::default();
+        for node in &module.nodes {
+            support.collect_surface_node(node);
+        }
+        support
+    }
+
+    fn resolver_binding_set(&self, resolver: &mut NameResolver) -> BindingSet {
+        let mut site = BindingSet::new(10_000);
+        for name in &self.variables {
+            resolver.declare_binding(&mut site, BindingKind::Variable, name.clone(), None, None);
+        }
+        for (name, arity) in &self.functions {
+            resolver.declare_binding(
+                &mut site,
+                BindingKind::Function,
+                name.clone(),
+                Some(*arity),
+                None,
+            );
+        }
+        for name in &self.types {
+            resolver.declare_binding(&mut site, BindingKind::SchemaType, name.clone(), None, None);
+        }
+        site
+    }
+
+    fn seed_type_checker(&self, type_checker: &mut TypeChecker) {
+        for name in &self.variables {
+            type_checker.declare_variable(name.clone(), Type::Any);
+        }
+        for (name, arity) in &self.functions {
+            let Ok(param_count) = usize::try_from(arity.0) else {
+                continue;
+            };
+            type_checker.register_function(FunctionSignature {
+                name: name.clone(),
+                params: vec![Type::Any; param_count],
+                ret: Type::Any,
+            });
+        }
+        for (index, name) in self.types.iter().enumerate() {
+            type_checker.register_schema_type(SchemaTypeInfo {
+                id: SchemaTypeId(index.try_into().unwrap_or(u32::MAX)),
+                name: name.clone(),
+                element_name: name.clone(),
+                structural_supertypes: Vec::new(),
+            });
+        }
+    }
+
+    fn collect_surface_node(&mut self, node: &SurfaceNode) {
+        match node {
+            SurfaceNode::DeclareVariable(variable) => {
+                self.collect_expression(&variable.value);
+            }
+            SurfaceNode::DeclareFunction(function) => {
+                for param in &function.params {
+                    self.collect_function_param(param);
+                }
+                self.collect_expression(&function.body);
+            }
+            SurfaceNode::Expression(expression) => {
+                self.collect_expression(expression);
+            }
+            SurfaceNode::Module(_) | SurfaceNode::Import(_) => {}
+        }
+    }
+
+    fn collect_expression(&mut self, expression: &Expression) {
+        match expression {
+            Expression::Literal(_, _) | Expression::LeadingDot(_) => {}
+            Expression::Name(name, _) => {
+                self.variables.insert(QNameKey::from_qname(name));
+            }
+            Expression::Path { steps, .. } => {
+                for step in steps {
+                    if let PathStep::Axis { predicates, .. } = step {
+                        for predicate in predicates {
+                            self.collect_expression(predicate);
+                        }
+                    }
+                }
+            }
+            Expression::Pipeline { source, steps, .. } => {
+                self.collect_expression(source);
+                for step in steps {
+                    match step {
+                        PipelineStep::Named { name, args, .. } => {
+                            let plain_arity = Arity(args.len().try_into().unwrap_or(u32::MAX));
+                            let piped_arity =
+                                Arity((args.len() + 1).try_into().unwrap_or(u32::MAX));
+                            self.functions
+                                .insert((QNameKey::from_qname(name), plain_arity));
+                            self.functions
+                                .insert((QNameKey::from_qname(name), piped_arity));
+                            for arg in args {
+                                self.collect_expression(arg);
+                            }
+                        }
+                        PipelineStep::Lambda { lambda, .. } => {
+                            self.collect_expression(lambda);
+                        }
+                    }
+                }
+            }
+            Expression::BinaryOp { lhs, rhs, .. } | Expression::SetOp { lhs, rhs, .. } => {
+                self.collect_expression(lhs);
+                self.collect_expression(rhs);
+            }
+            Expression::UnaryOp { operand, .. } => {
+                self.collect_expression(operand);
+            }
+            Expression::If {
+                cond,
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                self.collect_expression(cond);
+                self.collect_expression(then_branch);
+                self.collect_expression(else_branch);
+            }
+            Expression::Let { value, body, .. } => {
+                self.collect_expression(value);
+                self.collect_expression(body);
+            }
+            Expression::For { source, body, .. } => {
+                self.collect_expression(source);
+                self.collect_expression(body);
+            }
+            Expression::Quantified {
+                source, predicate, ..
+            } => {
+                self.collect_expression(source);
+                self.collect_expression(predicate);
+            }
+            Expression::Record { entries, .. } => {
+                for entry in entries {
+                    if let RecordKey::Computed { expr, .. } = &entry.key {
+                        self.collect_expression(expr);
+                    }
+                    self.collect_expression(&entry.value);
+                }
+            }
+            Expression::Sequence { items, .. } => {
+                for item in items {
+                    self.collect_expression(item);
+                }
+            }
+            Expression::Call { callee, args, .. } => {
+                if let Expression::Name(name, _) = callee.as_ref() {
+                    self.functions.insert((
+                        QNameKey::from_qname(name),
+                        Arity(args.len().try_into().unwrap_or(u32::MAX)),
+                    ));
+                } else {
+                    self.collect_expression(callee);
+                }
+                for arg in args {
+                    self.collect_expression(arg);
+                }
+            }
+            Expression::Lambda { params, body, .. } => {
+                for param in params {
+                    self.collect_function_param(param);
+                }
+                self.collect_expression(body);
+            }
+            Expression::InstanceOf { value, ty, .. }
+            | Expression::CastAs { value, ty, .. }
+            | Expression::TreatAs { value, ty, .. } => {
+                self.collect_expression(value);
+                self.collect_type(ty);
+            }
+        }
+    }
+
+    fn collect_function_param(&mut self, param: &FunctionParam) {
+        if let Some(ty) = &param.type_annotation {
+            self.collect_type(ty);
+        }
+    }
+
+    fn collect_type(&mut self, ty: &TypeExpr) {
+        self.types.insert(QNameKey::from_qname(&ty.name));
+    }
+}
+
+fn map_compile_diagnostics(
+    stage: EmbeddedCompileStage,
+    expression: &EmbeddedExpression,
+    diagnostics: &[Diagnostic],
+) -> Vec<EmbeddedCompileDiagnostic> {
+    diagnostics
+        .iter()
+        .map(|diagnostic| {
+            let local_byte_offset = diagnostic.byte_offset;
+            let source_byte_offset =
+                local_byte_offset.map(|offset| expression.expression_range().start + offset);
+            let mut mapped = diagnostic.clone();
+            mapped
+                .uri
+                .get_or_insert_with(|| expression.source_path().to_string_lossy().into_owned());
+            if let Some(source_byte_offset) = source_byte_offset {
+                mapped.byte_offset = Some(source_byte_offset);
+            }
+            EmbeddedCompileDiagnostic {
+                stage,
+                diagnostic: mapped,
+                local_byte_offset,
+                source_byte_offset,
+            }
+        })
+        .collect()
 }
 
 struct EmbeddedExpressionInput<'a> {

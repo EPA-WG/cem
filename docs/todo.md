@@ -190,7 +190,7 @@ Run now that the Rust-first CEM-QL parser/runtime/docs/showcase slice is green.
       byte range, host embedding kind, CEM-QL sub-span, schema-package identity
       when applicable, and whether the expression came from a formatter,
       colorizer, converter, validator, example, or documentation fixture.
-- [ ] Compile every extracted expression through the Rust-first CEM-QL parser,
+- [x] Compile every extracted expression through the Rust-first CEM-QL parser,
       resolver, and type checker. Old XPath/Python syntax must fail with the
       Rust-first diagnostics defined by the rustification slice, not pass as a
       compatibility form.

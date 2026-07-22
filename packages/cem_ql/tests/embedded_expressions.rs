@@ -1,8 +1,10 @@
 use std::path::Path;
 
 use cem_ql::embedded::{
-    checked_in_cem_sources, extract_embedded_expressions_from_source,
-    extract_repository_embedded_expressions, EmbeddedArtifactRole, EmbeddedHostKind,
+    checked_in_cem_sources, compile_embedded_expression, compile_embedded_expressions,
+    compile_repository_embedded_expressions, extract_embedded_expressions_from_source,
+    extract_repository_embedded_expressions, EmbeddedArtifactRole, EmbeddedCompileStage,
+    EmbeddedHostKind,
 };
 
 fn workspace_root() -> &'static Path {
@@ -147,6 +149,116 @@ fn repository_extractor_preserves_complete_source_provenance() {
             }
         }
     }
+}
+
+#[test]
+fn compiler_audit_runs_rust_first_expressions_through_all_stages() {
+    let source = r#"{root @title="field {node.name}" |
+  {cem:if @test='node.kind == "element" && visible' |
+    {$ format(node.name) }
+  }
+}"#;
+    let expressions = extract_embedded_expressions_from_source(
+        "packages/cem-elements/demo/rust-first.cemt",
+        source,
+    );
+    let reports = compile_embedded_expressions(&expressions);
+
+    assert!(
+        reports.len() >= 3,
+        "expected AVT, test attribute, and expression-node reports, got {reports:#?}"
+    );
+    for report in reports {
+        assert!(
+            report.parse_succeeded,
+            "Rust-first embedded expression should parse: {report:#?}"
+        );
+        assert!(report.resolve_ran, "resolver did not run: {report:#?}");
+        assert!(
+            report.resolve_succeeded,
+            "host-tolerant resolver should accept inferred bindings: {report:#?}"
+        );
+        assert!(
+            report.type_check_ran,
+            "type checker did not run: {report:#?}"
+        );
+        assert!(
+            report.type_check_succeeded,
+            "dev-profile type checker should not raise hard diagnostics: {report:#?}"
+        );
+        assert!(
+            !report.has_hard_diagnostics(),
+            "Rust-first expression emitted hard diagnostics: {report:#?}"
+        );
+    }
+}
+
+#[test]
+fn compiler_audit_rejects_old_xpath_boolean_syntax_with_source_provenance() {
+    let source = r#"{cem:if @test='node.kind = "element" and visible' | ok}"#;
+    let expressions = extract_embedded_expressions_from_source(
+        "packages/cem_ml/schema-packages/demo/v1/formatters/legacy.cemt",
+        source,
+    );
+    let expression = expressions
+        .iter()
+        .find(|expression| expression.host_kind() == EmbeddedHostKind::TestAttribute)
+        .expect("test attribute expression");
+    let report = compile_embedded_expression(expression);
+
+    assert!(!report.parse_succeeded, "{report:#?}");
+    assert!(!report.resolve_ran, "{report:#?}");
+    assert!(!report.type_check_ran, "{report:#?}");
+    let diagnostic = report
+        .diagnostics_for_stage(EmbeddedCompileStage::Parse)
+        .find(|diagnostic| diagnostic.diagnostic.code == "cem.ql.use_rust_boolean_ops")
+        .expect("XPath `and` should report the Rust-first boolean diagnostic");
+    assert_eq!(
+        diagnostic.diagnostic.uri.as_deref(),
+        Some("packages/cem_ml/schema-packages/demo/v1/formatters/legacy.cemt")
+    );
+    let source_offset = diagnostic
+        .source_byte_offset
+        .expect("mapped source byte offset");
+    assert!(source_offset >= expression.expression_range().start);
+    assert!(source_offset < expression.expression_range().end());
+}
+
+#[test]
+fn repository_compile_audit_runs_parsable_expressions_and_flags_stale_syntax() {
+    let reports = compile_repository_embedded_expressions(workspace_root())
+        .expect("repository compile audit reports");
+    assert!(
+        reports.len() > 100,
+        "expected repository-wide compile audit coverage, got {}",
+        reports.len()
+    );
+    assert!(reports.iter().all(|report| {
+        !report.parse_succeeded || (report.resolve_ran && report.type_check_ran)
+    }));
+
+    let stale_report = reports
+        .iter()
+        .find(|report| {
+            report.expression.source_path().ends_with(
+                "packages/cem_ml/schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt",
+            ) && report.expression.source.contains(" and ")
+        })
+        .expect("dom-to-html fixture should still expose stale XPath boolean syntax");
+    assert!(
+        stale_report
+            .diagnostics_for_stage(EmbeddedCompileStage::Parse)
+            .any(|diagnostic| diagnostic.diagnostic.code == "cem.ql.use_rust_boolean_ops"),
+        "{stale_report:#?}"
+    );
+    assert!(stale_report.hard_diagnostics().all(|diagnostic| {
+        diagnostic.source_byte_offset.is_some()
+            && diagnostic.diagnostic.uri.as_deref().is_some_and(|uri| {
+                uri.ends_with(
+                    "packages/cem_ml/schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt",
+                )
+            })
+    }));
 }
 
 #[test]

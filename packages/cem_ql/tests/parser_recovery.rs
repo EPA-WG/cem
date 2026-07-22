@@ -342,6 +342,11 @@ fn parser_reports_rust_first_replacements_for_legacy_syntax() {
             replacement: "use `==`",
         },
         LegacySyntaxCase {
+            source: "a = b",
+            code: "cem.ql.parse_error",
+            replacement: "use `==`",
+        },
+        LegacySyntaxCase {
             source: "a ne b",
             code: "cem.ql.parse_error",
             replacement: "use `!=`",

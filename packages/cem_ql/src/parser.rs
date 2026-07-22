@@ -274,6 +274,10 @@ impl<'src> Parser<'src> {
                 self.error_at(PARSE_ERROR, dollar_name_message(), token.range);
                 None
             }
+            TokenKind::Assign => {
+                self.error_at(PARSE_ERROR, equality_assign_message(), token.range);
+                None
+            }
             TokenKind::XPathCompatWord => {
                 self.error_at(
                     self.compat_code(&token),
@@ -748,6 +752,16 @@ impl<'src> Parser<'src> {
             )
             && !self.pipeline_boundary()
         {
+            if self.current().kind == TokenKind::Assign {
+                self.error_at(PARSE_ERROR, equality_assign_message(), self.current().range);
+            } else if self.current().kind == TokenKind::XPathCompatWord {
+                let token = self.current().clone();
+                self.error_at(
+                    self.compat_code(&token),
+                    self.compat_message(&token),
+                    token.range,
+                );
+            }
             self.bump();
         }
         if self.cursor == before && !self.at(TokenKind::EndOfInput) {
@@ -1206,6 +1220,10 @@ pub struct ParseError {
 
 fn dollar_name_message() -> &'static str {
     "use bare CEM-QL names without the XPath `$` variable prefix"
+}
+
+fn equality_assign_message() -> &'static str {
+    "use `==` for equality comparison; `=` is only allowed in declarations and `let` bindings"
 }
 
 fn qname_from_token(token: &Token) -> Option<QName> {
