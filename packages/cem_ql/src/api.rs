@@ -15,6 +15,9 @@ use crate::ir::CompiledQuery;
 use crate::parser::{Parser, SurfaceModule};
 use crate::resolve::overlay::OverlayMap;
 
+#[cfg(any(target_arch = "wasm32", test))]
+mod json_boundary;
+
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;
 

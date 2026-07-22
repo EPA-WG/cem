@@ -138,7 +138,7 @@ Dependency-ordered implementation checklist:
       `colorizers/` so formatter/colorizer examples and token roles know the
       Rust-first operators and highlight deprecated XPath/Python forms as
       diagnostics, not canonical syntax.
-- [ ] Add a direct WASM query-evaluation export in
+- [x] Add a direct WASM query-evaluation export in
       `packages/cem_ql/src/api/wasm.rs` for Storybook demonstrations:
       compile/evaluate query source, accept JSON bindings, return items and
       diagnostics as JSON. Keep template rendering exports unchanged.

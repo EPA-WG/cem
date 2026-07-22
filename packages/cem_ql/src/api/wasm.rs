@@ -9,7 +9,7 @@ use std::cell::RefCell;
 use serde_json::{json, Value};
 use wasm_bindgen::prelude::*;
 
-use crate::eval::{AtomValue, Item, ItemStream};
+use super::json_boundary::{diagnostics_json, evaluate_query_source_json, json_value_to_stream};
 use crate::render::{
     compile_template, render_compiled_template, CompileTemplateOptions, RenderPlan, RenderPlanNode,
     TemplateArtifact, TemplateData,
@@ -92,6 +92,11 @@ pub fn wasm_render_template_source(source: &str, data_json: &str) -> String {
     plan_json(&render_compiled_template(&artifact, &data)).to_string()
 }
 
+#[wasm_bindgen(js_name = "evaluateQuerySource")]
+pub fn wasm_evaluate_query_source(source: &str, bindings_json: &str) -> String {
+    evaluate_query_source_json(source, bindings_json)
+}
+
 #[wasm_bindgen(js_name = "disposeTemplate")]
 pub fn wasm_dispose_template(artifact_id: u32) -> bool {
     ARTIFACTS.with(|cell| {
@@ -136,34 +141,9 @@ fn parse_template_data(input: &str) -> Result<TemplateData, String> {
     };
     let mut data = TemplateData::default();
     for (name, value) in map {
-        data.bindings.insert(name, value_to_stream(value));
+        data.bindings.insert(name, json_value_to_stream(value)?);
     }
     Ok(data)
-}
-
-fn value_to_stream(value: Value) -> ItemStream {
-    ItemStream::once(value_to_item(value))
-}
-
-fn value_to_item(value: Value) -> Item {
-    match value {
-        Value::Null => Item::Atomic(AtomValue::Null),
-        Value::Bool(value) => Item::Atomic(AtomValue::Boolean(value)),
-        Value::Number(value) => {
-            if let Some(integer) = value.as_i64() {
-                Item::Atomic(AtomValue::Integer(integer))
-            } else {
-                Item::Atomic(AtomValue::Double(value.as_f64().unwrap_or_default()))
-            }
-        }
-        Value::String(value) => Item::Atomic(AtomValue::String(value)),
-        Value::Array(items) => Item::Array(items.into_iter().map(value_to_item).collect()),
-        Value::Object(map) => Item::Record(
-            map.into_iter()
-                .map(|(key, value)| (key, vec![value_to_item(value)]))
-                .collect(),
-        ),
-    }
 }
 
 fn plan_json(plan: &RenderPlan) -> Value {
@@ -236,10 +216,6 @@ fn source_map_offset(source_map: &cem_ml::source_map::SourceMapStack) -> Option<
         FrameSpan::Single(range) => range.start,
         FrameSpan::Multi(ranges) => ranges.first().map(|range| range.start).unwrap_or(0),
     })
-}
-
-fn diagnostics_json(diagnostics: &[cem_ml::diagnostics::Diagnostic]) -> Value {
-    serde_json::to_value(diagnostics).unwrap_or_else(|_| Value::Array(Vec::new()))
 }
 
 fn source_map_json(source_map: &cem_ml::source_map::SourceMapStack) -> Value {
