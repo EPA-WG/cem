@@ -439,6 +439,73 @@ fn repository_compile_audit_runs_parsable_expressions_and_flags_stale_syntax() {
 }
 
 #[test]
+fn checked_in_stale_xpath_expression_reports_exact_source_file_and_byte_range() {
+    let source_path = Path::new(
+        "packages/cem_ml/schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt",
+    );
+    let stale_source = r#"node.kind = "element" and str:starts_with(node.name, "@")"#;
+    let host_source = format!("'{stale_source}'");
+    let checked_in_source = std::fs::read_to_string(workspace_root().join(source_path))
+        .expect("checked-in dom-to-html CEMT fixture");
+    let expected_host_start = checked_in_source
+        .find(&host_source)
+        .expect("checked-in fixture keeps the stale XPath-style @test expression")
+        as u64;
+    let expected_expression_start = expected_host_start + 1;
+    let expected_boolean_operator_offset = stale_source
+        .find("and")
+        .expect("stale expression contains XPath `and` operator")
+        as u64;
+    let expected_source_diagnostic_offset =
+        expected_expression_start + expected_boolean_operator_offset;
+
+    let reports = compile_repository_embedded_expressions(workspace_root())
+        .expect("repository compile audit reports");
+    let report = reports
+        .iter()
+        .find(|report| {
+            report.expression.source_path() == source_path
+                && report.expression.host_kind() == EmbeddedHostKind::TestAttribute
+                && report.expression.source == stale_source
+        })
+        .expect("repository audit report for checked-in stale XPath-style expression");
+
+    assert_eq!(report.expression.source_path(), source_path);
+    assert_eq!(report.expression.host_range().start, expected_host_start);
+    assert_eq!(report.expression.host_range().len, host_source.len() as u32);
+    assert_eq!(
+        report.expression.expression_range().start,
+        expected_expression_start
+    );
+    assert_eq!(
+        report.expression.expression_range().len,
+        stale_source.len() as u32
+    );
+    assert!(!report.parse_succeeded, "{report:#?}");
+
+    let diagnostic = report
+        .diagnostics_for_stage(EmbeddedCompileStage::Parse)
+        .find(|diagnostic| diagnostic.diagnostic.code == "cem.ql.use_rust_boolean_ops")
+        .expect("XPath `and` must map to the Rust-first boolean diagnostic");
+    assert_eq!(
+        diagnostic.local_byte_offset,
+        Some(expected_boolean_operator_offset)
+    );
+    assert_eq!(
+        diagnostic.source_byte_offset,
+        Some(expected_source_diagnostic_offset)
+    );
+    assert_eq!(
+        diagnostic.diagnostic.byte_offset,
+        Some(expected_source_diagnostic_offset)
+    );
+    assert_eq!(
+        diagnostic.diagnostic.uri.as_deref(),
+        Some(source_path.to_string_lossy().as_ref())
+    );
+}
+
+#[test]
 fn functional_fixtures_evaluate_checked_in_expressions_by_group() {
     let expressions =
         extract_repository_embedded_expressions(workspace_root()).expect("repository expressions");

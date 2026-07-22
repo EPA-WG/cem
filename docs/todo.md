@@ -204,7 +204,7 @@ Run now that the Rust-first CEM-QL parser/runtime/docs/showcase slice is green.
 - [x] Wire the audit as an Nx verification target, for example
       `yarn nx run cem_ql:verify-embedded-expressions`, and include it in the
       Rust-first release gate after the parser/runtime migration is complete.
-- [ ] Add regression coverage proving a stale XPath-style expression in a
+- [x] Add regression coverage proving a stale XPath-style expression in a
       `.cem` or `.cemt` asset fails the audit with the exact source file and
       byte range.
 
