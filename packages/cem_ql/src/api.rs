@@ -14,6 +14,7 @@ use crate::ir::lower::IrLowerer;
 use crate::ir::CompiledQuery;
 use crate::parser::{Parser, SurfaceModule};
 use crate::resolve::overlay::OverlayMap;
+use crate::semantic::validate_module_shape;
 
 #[cfg(any(target_arch = "wasm32", test))]
 mod json_boundary;
@@ -62,7 +63,11 @@ pub fn reload_artifact(artifact: &CompiledArtifact) -> Result<CompiledQuery, Loa
 
 /// Parse-only entry point for tooling.
 pub fn parse(source: &str) -> ParseResult {
-    Parser::new(source).parse_module()
+    let mut parsed = Parser::new(source).parse_module();
+    parsed
+        .diagnostics
+        .extend(validate_module_shape(&parsed.module));
+    parsed
 }
 
 /// Load a compiled binary artifact by content hash.

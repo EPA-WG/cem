@@ -7874,6 +7874,64 @@ greeting
     }
 
     #[test]
+    fn real_engine_convert_uses_registered_cem_ql_source_output_handler_for_duplicate_shape_diagnostics(
+    ) {
+        let source = r#"module "https://example.test/queries/duplicate-shape"
+
+import "https://example.test/modules/a" as ui
+import "https://example.test/modules/b" as ui
+
+declare let value = "first"
+declare function value() { "second" }
+
+value
+"#;
+        let response = RealCemMlEngine::new()
+            .convert(ConvertRequest {
+                input: EngineInput {
+                    uri: "duplicate-shape.cemql".to_owned(),
+                    bytes: source.as_bytes().to_vec(),
+                    from_format: None,
+                    identity: Some(FormatIdentity {
+                        content_type: Some(CEM_QL_CONTENT_TYPE.to_owned()),
+                        schema: Some(CEM_QL_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                    root_scope: ScopeConfig::default(),
+                },
+                to_format: LayerFormat::Cem,
+                preserve_source_offsets: false,
+                context: engine_context_with_cem_ql_template_adapter(),
+                target: Some(FormatIdentity {
+                    content_type: Some(CEM_QL_CONTENT_TYPE.to_owned()),
+                    schema: Some(CEM_QL_SCHEMA_URI.to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                target_scope: ScopeConfig {
+                    cemt_formatter: Some("cem-ql.format-tree".to_owned()),
+                    cemt_colorizer: Some("cem-ql.color-tree".to_owned()),
+                    ..ScopeConfig::default()
+                },
+                scheduler_scope_id: 0,
+            })
+            .expect("duplicate CEM-QL shape convert should return diagnostics");
+
+        assert!(response.primary_bytes.is_none());
+        assert!(response
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "cem.ql.import_alias_duplicate"));
+        assert!(response
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "cem.ql.declaration_duplicate"));
+        assert!(!response
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "cem.lifecycle.adapter_unsupported"));
+    }
+
+    #[test]
     fn real_engine_convert_uses_registered_cem_ql_source_output_handler_preserves_token_ranges() {
         let source = "module \"https://example.test/queries/source-token-ranges\"\n\n// comment\ndeclare let label = \"héllo\"\n\nlabel\n";
         let tree = cem_ql_source_token_tree("source-token-ranges.cemql", source);

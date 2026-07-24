@@ -41,6 +41,8 @@ pub struct QueryDiagnostic {
 
 pub const PARSE_ERROR: DiagnosticCode = DiagnosticCode("cem.ql.parse_error");
 pub const USE_RUST_BOOLEAN_OPS: DiagnosticCode = DiagnosticCode("cem.ql.use_rust_boolean_ops");
+pub const IMPORT_ALIAS_DUPLICATE: DiagnosticCode = DiagnosticCode("cem.ql.import_alias_duplicate");
+pub const DECLARATION_DUPLICATE: DiagnosticCode = DiagnosticCode("cem.ql.declaration_duplicate");
 pub const TYPE_ERROR: DiagnosticCode = DiagnosticCode("cem.ql.type_error");
 pub const UNKNOWN_TYPE: DiagnosticCode = DiagnosticCode("cem.ql.unknown_type");
 pub const UNKNOWN_FUNCTION: DiagnosticCode = DiagnosticCode("cem.ql.unknown_function");
@@ -71,6 +73,18 @@ pub const TIER_A_DIAGNOSTICS: &[DiagnosticSpec] = &[
         default_severity: Severity::Error,
         layer: "L1 / L2",
         description: "XPath boolean spellings used in CEM-QL; suggest `&&`, `||`, or `!`.",
+    },
+    DiagnosticSpec {
+        code: IMPORT_ALIAS_DUPLICATE,
+        default_severity: Severity::Error,
+        layer: "L2 / L3",
+        description: "Two imports in the same module declare the same explicit alias.",
+    },
+    DiagnosticSpec {
+        code: DECLARATION_DUPLICATE,
+        default_severity: Severity::Error,
+        layer: "L2 / L3",
+        description: "Two declarations in the same lexical scope declare the same name.",
     },
     DiagnosticSpec {
         code: TYPE_ERROR,

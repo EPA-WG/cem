@@ -1,0 +1,6 @@
+module "https://example.test/queries/invalid-duplicate-declaration"
+
+declare let value = "first"
+declare function value() { "second" }
+
+value

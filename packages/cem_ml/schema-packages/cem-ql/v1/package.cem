@@ -223,4 +223,22 @@
         @expected-result="fail"
         @expected-diagnostics="cem.ql.invalid_utf8"
     }
+
+    {example
+        @id="invalid-duplicate-import-alias"
+        @path="examples/invalid-duplicate-import-alias.cemql"
+        @content-type="application/vnd.cem.query+cem-ql"
+        @schema="https://cem.dev/ns/query/cem-ql/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.ql.import_alias_duplicate"
+    }
+
+    {example
+        @id="invalid-duplicate-declaration"
+        @path="examples/invalid-duplicate-declaration.cemql"
+        @content-type="application/vnd.cem.query+cem-ql"
+        @schema="https://cem.dev/ns/query/cem-ql/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.ql.declaration_duplicate"
+    }
 }

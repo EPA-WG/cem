@@ -133,10 +133,11 @@ Tracked but not complete:
   streams;
 - schema-owned diagnostic policy execution from parse facts rather than bridge
   logic selecting some `cem.ql.*` codes directly;
-- examples for duplicate import/declaration, unresolved import, type errors,
-  and compiled artifact/cache validation. Alias content type, line-ending
-  policy, comments/whitespace, invalid UTF-8, and token byte-range preservation
-  now have package examples and focused conversion coverage.
+- examples for unresolved import, type errors, and compiled artifact/cache
+  validation. Alias content type, line-ending policy, comments/whitespace,
+  invalid UTF-8, token byte-range preservation, duplicate import aliases, and
+  duplicate declarations now have package examples and focused conversion
+  coverage.
 
 ## Resource Model
 

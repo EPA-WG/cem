@@ -1,0 +1,6 @@
+module "https://example.test/queries/invalid-duplicate-import-alias"
+
+import "https://example.test/modules/ui-a" as ui
+import "https://example.test/modules/ui-b" as ui
+
+ui

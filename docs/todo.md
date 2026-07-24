@@ -134,9 +134,13 @@ then decide whether the remaining `cem-ql/v1` package checklist item can close.
       coverage cases: alias content type (`text/cem-ql`), LF/CRLF source
       fixtures, comments/whitespace, source token byte-range preservation, and
       invalid UTF-8 handling.
+- [x] Decide and implement CEM-QL duplicate import/declaration semantic
+      fixtures. Duplicate explicit import aliases and same-scope declarations
+      now report hard schema-owned diagnostics before resolver/type/artifact
+      stages.
 - [ ] Decide and implement the remaining CEM-QL semantic fixtures:
-      duplicate import/declaration diagnostics, unresolved import/type-error
-      placeholders, and compiled artifact/cache identity.
+      unresolved import/type-error placeholders and compiled artifact/cache
+      identity.
 - [x] Extend package-local verify coverage so CEM-QL fails on direct engine
       conversion regressions, README/SVG drift, formatter profile drift, HTML
       wrapper/span-role drift, and manifest/example coverage gaps.
@@ -201,9 +205,9 @@ Remaining dependency-ordered package checklist:
 ### Next Work Item
 
 Resolve the remaining CEM-QL example coverage decision point: choose concrete
-source/diagnostic/cache semantics for duplicate declarations/imports,
-unresolved imports, type errors, and compiled artifact/cache identity. Then add
-the examples and manifest declarations, update package verification, and re-run
+source/diagnostic/cache semantics for unresolved imports, type errors, and
+compiled artifact/cache identity. Then add the examples and manifest
+declarations, update package verification, and re-run
 `cem_ml_schema_package_cem_ql_v1:verify`.
 
 ## Current Verification Commands

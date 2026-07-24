@@ -1207,6 +1207,18 @@ mod tests {
                 SchemaPackageExampleExpectedResult::Fail,
                 Some("cem.ql.invalid_utf8"),
             ),
+            (
+                "invalid-duplicate-import-alias",
+                CEM_QL_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.ql.import_alias_duplicate"),
+            ),
+            (
+                "invalid-duplicate-declaration",
+                CEM_QL_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.ql.declaration_duplicate"),
+            ),
         ];
         let actual_ids = examples
             .iter()

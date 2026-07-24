@@ -17,6 +17,7 @@ pub mod lexer;
 pub mod parser;
 pub mod render;
 pub mod resolve;
+pub mod semantic;
 pub mod stdlib;
 pub mod template;
 pub mod transport;
@@ -65,6 +66,7 @@ mod tests {
             OverlayFingerprint, OverlayKey, OverlayMap, QNameKey, Resolution, ResolutionReport,
             ResolutionTraceEvent, SchemaTypeId, StateSlotId, StdlibOverlay, TemplateRefId,
         };
+        use crate::semantic::validate_module_shape;
         use crate::stdlib::{ModuleRegistry, StdlibFunction, StdlibImplKind, Tier};
         use crate::types::{
             AtomType, ContentType, FunctionSignature, FunctionSignatureKey, NodeKind, RecordField,
@@ -179,6 +181,8 @@ mod tests {
         let _compile: fn(&str, &CompileContext) -> Result<CompiledQuery, CompileError> = compile;
         let _evaluate: fn(&CompiledQuery, &EvaluationContext) -> ItemStream = evaluate;
         let _parse: fn(&str) -> ParseResult = parse;
+        let _validate_module_shape: fn(&SurfaceModule) -> Vec<cem_ml::diagnostics::Diagnostic> =
+            validate_module_shape;
         let _load: fn(
             cem_ml::content_cache::ContentHash,
             &LoadContext,
