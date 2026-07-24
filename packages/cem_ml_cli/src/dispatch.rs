@@ -4226,6 +4226,14 @@ fn collect_cem_ql_source_diagnostics(
         }) {
             diagnostics.push(cem_ql_module_uri_missing_diagnostic(input));
         }
+        diagnostics.extend(
+            cem_ql::api::resolve_imports(&parsed.module, &cem_ql::resolve::ImportPolicy::new())
+                .into_iter()
+                .map(|mut diagnostic| {
+                    diagnostic.uri = Some(input.uri.clone());
+                    diagnostic
+                }),
+        );
         diagnostics.extend(parsed.diagnostics.into_iter().map(|mut diagnostic| {
             diagnostic.uri = Some(input.uri.clone());
             diagnostic
@@ -15741,6 +15749,41 @@ declare let broken = 1 +"#,
         assert!(diagnostics
             .iter()
             .any(|diag| diag["code"] == "cem.ql.parse_error"));
+    }
+
+    #[test]
+    fn validate_cem_ql_source_reports_unresolved_imports() {
+        let p = write_fixture(
+            "validate-cem-ql-source-unresolved-import.cemql",
+            r#"module "https://example.test/queries/unresolved-import"
+
+import "urn:cem:acme/missing" as missing
+
+"ok""#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/vnd.cem.query+cem-ql",
+                "--schema",
+                cem_ml::schema::registry::CEM_QL_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diag| diag["code"] == "cem.ql.import_unresolved")
+            .unwrap_or_else(|| panic!("unresolved import diagnostic in {stdout}"));
+        assert_eq!(diagnostic["details"]["factKind"], "unresolved-import");
+        assert_eq!(diagnostic["details"]["reason"], "registry-miss");
     }
 
     #[test]

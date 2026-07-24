@@ -5,6 +5,7 @@ use std::collections::{BTreeSet, HashMap};
 use cem_ml::diagnostics::{Diagnostic, Severity};
 use cem_ml::schema::ScopeId;
 use cem_ml::source::ByteRange;
+use serde_json::json;
 
 use crate::diagnostics::{
     self as ql_diagnostics, DiagnosticCode, IMPORT_DENIED, IMPORT_UNRESOLVED, RESERVED_SCHEME,
@@ -349,6 +350,26 @@ impl NameResolver {
         }
     }
 
+    pub fn resolve_module_imports(
+        &mut self,
+        module: &SurfaceModule,
+        import_policy: &ImportPolicy,
+    ) -> ResolutionReport {
+        let diagnostics_start = self.diagnostics.len();
+        let trace_start = self.trace.len();
+        for node in &module.nodes {
+            if let SurfaceNode::Import(import) = node {
+                if let Err(diagnostic) = import_policy.resolve_import(import) {
+                    self.diagnostics.push(*diagnostic);
+                }
+            }
+        }
+        ResolutionReport {
+            diagnostics: self.diagnostics[diagnostics_start..].to_vec(),
+            trace: self.trace[trace_start..].to_vec(),
+        }
+    }
+
     pub fn resolve_import(
         &mut self,
         import: &ImportDecl,
@@ -673,10 +694,17 @@ impl ImportPolicy {
 
     pub fn resolve_import(&self, import: &ImportDecl) -> Result<ImportResolution, Box<Diagnostic>> {
         if import.uri.starts_with("cem:") {
-            return Ok(ImportResolution {
-                uri: import.uri.clone(),
-                kind: ImportKind::PlatformStdlib,
-            });
+            if platform_stdlib_module_exists(&import.uri) {
+                return Ok(ImportResolution {
+                    uri: import.uri.clone(),
+                    kind: ImportKind::PlatformStdlib,
+                });
+            }
+            return Err(Box::new(import_unresolved_diagnostic(
+                import,
+                SchemeTier::PlatformStdlib,
+                "unknown-platform-module",
+            )));
         }
         if import.uri.starts_with("urn:cem:") {
             if self.registered_urn_cem.contains(&import.uri) {
@@ -685,19 +713,17 @@ impl ImportPolicy {
                     kind: ImportKind::PluginRegistry,
                 });
             }
-            return Err(Box::new(diagnostic(
-                IMPORT_UNRESOLVED,
-                format!("import `{}` is not registered", import.uri),
-                import.range,
-                Severity::Error,
+            return Err(Box::new(import_unresolved_diagnostic(
+                import,
+                SchemeTier::PluginRegistry,
+                "registry-miss",
             )));
         }
         let Some(scheme) = scheme_of(&import.uri) else {
-            return Err(Box::new(diagnostic(
-                IMPORT_DENIED,
-                format!("import `{}` has no URI scheme grant", import.uri),
-                import.range,
-                Severity::Warning,
+            return Err(Box::new(import_denied_diagnostic(
+                import,
+                None,
+                "missing-uri-scheme-grant",
             )));
         };
         if self.allowed_schemes.contains(scheme) {
@@ -706,11 +732,10 @@ impl ImportPolicy {
                 kind: ImportKind::External,
             })
         } else {
-            Err(Box::new(diagnostic(
-                IMPORT_DENIED,
-                format!("import `{}` denied by scope policy", import.uri),
-                import.range,
-                Severity::Warning,
+            Err(Box::new(import_denied_diagnostic(
+                import,
+                Some(scheme),
+                "scope-policy-denied",
             )))
         }
     }
@@ -737,13 +762,107 @@ fn is_reserved_grant(scheme: &str) -> bool {
     scheme == "cem" || scheme == "cem:" || scheme == "urn:cem" || scheme.starts_with("urn:cem:")
 }
 
+fn platform_stdlib_module_exists(uri: &str) -> bool {
+    crate::stdlib::ModuleRegistry::with_all_known()
+        .modules
+        .iter()
+        .any(|module| *module == uri)
+}
+
 fn reserved_scheme_diagnostic(scheme: &str, range: ByteRange) -> Diagnostic {
-    diagnostic(
+    let mut diagnostic = diagnostic(
         RESERVED_SCHEME,
         format!("scope policy cannot grant reserved scheme `{scheme}`"),
         range,
         Severity::Error,
-    )
+    );
+    diagnostic.details = Some(json!({
+        "behavior": "cem-ql-resolution-fact",
+        "factKind": "reserved-scheme",
+        "contract": "reserved-import-scheme-not-policy-grantable",
+        "recoverable": true,
+        "fatal": false,
+        "scheme": scheme,
+        "range": range,
+    }));
+    diagnostic
+}
+
+#[derive(Debug, Clone, Copy)]
+enum SchemeTier {
+    PlatformStdlib,
+    PluginRegistry,
+    External,
+}
+
+impl SchemeTier {
+    fn as_str(self) -> &'static str {
+        match self {
+            SchemeTier::PlatformStdlib => "platform-stdlib",
+            SchemeTier::PluginRegistry => "plugin-registry",
+            SchemeTier::External => "external-resource",
+        }
+    }
+}
+
+fn import_unresolved_diagnostic(
+    import: &ImportDecl,
+    scheme_tier: SchemeTier,
+    reason: &'static str,
+) -> Diagnostic {
+    let mut diagnostic = diagnostic(
+        IMPORT_UNRESOLVED,
+        format!("import `{}` could not be resolved", import.uri),
+        import.range,
+        Severity::Error,
+    );
+    diagnostic.details = Some(json!({
+        "behavior": "cem-ql-resolution-fact",
+        "factKind": "unresolved-import",
+        "contract": "import-target-must-resolve",
+        "disposition": "artifact-blocking",
+        "recoverable": true,
+        "fatal": false,
+        "uri": import.uri.as_str(),
+        "normalizedUri": import.uri.as_str(),
+        "alias": import.alias.as_deref(),
+        "schemeTier": scheme_tier.as_str(),
+        "reason": reason,
+        "range": import.range,
+    }));
+    diagnostic
+}
+
+fn import_denied_diagnostic(
+    import: &ImportDecl,
+    scheme: Option<&str>,
+    reason: &'static str,
+) -> Diagnostic {
+    let mut diagnostic = diagnostic(
+        IMPORT_DENIED,
+        match scheme {
+            Some(_) => format!("import `{}` denied by scope policy", import.uri),
+            None => format!("import `{}` has no URI scheme grant", import.uri),
+        },
+        import.range,
+        Severity::Warning,
+    );
+    diagnostic.details = Some(json!({
+        "behavior": "cem-ql-resolution-fact",
+        "factKind": "denied-import",
+        "contract": "network-imports-require-policy-grant",
+        "disposition": "policy-controlled",
+        "recoverable": true,
+        "fatal": false,
+        "uri": import.uri.as_str(),
+        "normalizedUri": import.uri.as_str(),
+        "alias": import.alias.as_deref(),
+        "scheme": scheme,
+        "schemeTier": SchemeTier::External.as_str(),
+        "reason": reason,
+        "range": import.range,
+    }));
+    diagnostic
 }
 
 fn diagnostic(

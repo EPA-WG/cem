@@ -113,6 +113,30 @@ host state must run under explicit resolver policy and host capability
 controls. Formatting and preview generation must remain safe for untrusted
 query text and must not treat source text as executable HTML.
 
+## Import Resolution Policy
+
+CEM-ML owns the generic resolver policy for CEM-QL imports. CEM-QL source
+declares import URIs and aliases; validation/compile receives either resolved
+module identities from the active CEM-ML resolver policy or diagnostics from
+that policy boundary.
+
+The default behavior is strict and deterministic:
+
+- no implicit fallback or best-effort replacement is attempted;
+- `cem:` platform stdlib imports must name a shipped platform module;
+- `urn:cem:` imports must be registered by host trust setup;
+- network and local resource schemes such as `https:`, `http:`, and `file:`
+  require an explicit scope-policy grant before any load attempt;
+- denied imports emit `cem.ql.import_denied` with policy-controlled severity;
+- allowed or registry-owned imports that cannot produce a module identity emit
+  `cem.ql.import_unresolved` and block compiled artifact emission.
+
+Policy-owned substitution is allowed only when CEM-ML resolver policy explicitly
+declares it before module resolution. Reports must preserve the requested URI,
+the substituted URI, the import declaration source range, and the resolver
+policy stamp used for compiled artifact identity. If a substitution target is
+missing, the result is still `cem.ql.import_unresolved`.
+
 ## Formatter And Preview SDLC
 
 CEM-QL formatter/colorizer changes follow the same lifecycle as CSV and other
@@ -133,9 +157,9 @@ Tracked but not complete:
   streams;
 - schema-owned diagnostic policy execution from parse facts rather than bridge
   logic selecting some `cem.ql.*` codes directly;
-- examples for unresolved import, type errors, and compiled artifact/cache
-  validation. Alias content type, line-ending policy, comments/whitespace,
-  invalid UTF-8, token byte-range preservation, duplicate import aliases, and
+- examples for type errors and compiled artifact/cache validation. Alias
+  content type, line-ending policy, comments/whitespace, invalid UTF-8, token
+  byte-range preservation, duplicate import aliases, unresolved imports, and
   duplicate declarations now have package examples and focused conversion
   coverage.
 
@@ -249,6 +273,7 @@ unchanged, state that explicitly in the change notes.
 | [`invalid-parse.cemql`](examples/invalid-parse.cemql)                   | Incomplete expression rejected by the CEM-QL parser.                                              | Fail with `cem.ql.parse_error`        |
 | [`invalid-missing-module.cemql`](examples/invalid-missing-module.cemql) | Query source missing the required module URI declaration.                                         | Fail with `cem.ql.module_uri_missing` |
 | [`invalid-old-syntax.cemql`](examples/invalid-old-syntax.cemql)         | XPath boolean spelling rejected with a Rust-first replacement diagnostic.                         | Fail with `cem.ql.use_rust_boolean_ops` |
+| [`invalid-unresolved-import.cemql`](examples/invalid-unresolved-import.cemql) | Unregistered `urn:cem:` module import rejected by import resolution policy.                       | Fail with `cem.ql.import_unresolved` |
 
 The current parser has record literals and stream sequence literals; it does
 not define a separate `[...]` array literal. Arrays enter CEM-QL through host

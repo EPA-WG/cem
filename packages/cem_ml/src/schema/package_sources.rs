@@ -1214,6 +1214,12 @@ mod tests {
                 Some("cem.ql.import_alias_duplicate"),
             ),
             (
+                "invalid-unresolved-import",
+                CEM_QL_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.ql.import_unresolved"),
+            ),
+            (
                 "invalid-duplicate-declaration",
                 CEM_QL_CONTENT_TYPE,
                 SchemaPackageExampleExpectedResult::Fail,

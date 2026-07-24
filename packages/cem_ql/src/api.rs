@@ -14,6 +14,7 @@ use crate::ir::lower::IrLowerer;
 use crate::ir::CompiledQuery;
 use crate::parser::{Parser, SurfaceModule};
 use crate::resolve::overlay::OverlayMap;
+use crate::resolve::{ImportPolicy, NameResolver};
 use crate::semantic::validate_module_shape;
 
 #[cfg(any(target_arch = "wasm32", test))]
@@ -27,6 +28,13 @@ pub fn compile(source: &str, context: &CompileContext) -> Result<CompiledQuery, 
     let parsed = parse(source);
     if let Some(diagnostic) = parsed
         .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return Err(CompileError::diagnostic(diagnostic));
+    }
+    let import_report = resolve_imports(&parsed.module, &context.import_policy);
+    if let Some(diagnostic) = import_report
         .iter()
         .find(|diagnostic| diagnostic.severity.is_hard_violation())
     {
@@ -70,6 +78,13 @@ pub fn parse(source: &str) -> ParseResult {
     parsed
 }
 
+/// Resolve module import declarations without running full name binding.
+pub fn resolve_imports(module: &SurfaceModule, import_policy: &ImportPolicy) -> Vec<Diagnostic> {
+    NameResolver::new()
+        .resolve_module_imports(module, import_policy)
+        .diagnostics
+}
+
 /// Load a compiled binary artifact by content hash.
 pub fn load(_hash: ContentHash, _ctx: &LoadContext) -> Result<CompiledQuery, LoadError> {
     Err(LoadError::unsupported(
@@ -81,6 +96,7 @@ pub fn load(_hash: ContentHash, _ctx: &LoadContext) -> Result<CompiledQuery, Loa
 pub struct CompileContext {
     pub schema_frame: Option<SchemaFrame>,
     pub overlay: OverlayMap,
+    pub import_policy: ImportPolicy,
     pub diagnostics: Vec<Diagnostic>,
     pub source_map_base: SourceMapStack,
     pub policy_bindings: BTreeMap<String, ItemStream>,

@@ -99,7 +99,7 @@
         {constraint @kind="legacy-syntax-policy" @target="token" @diagnostic="cem.ql.use_rust_boolean_ops" @behavior="cem-ql-parse-report-fact" @fact-kind="legacy-syntax" @policy="XPath XQuery and Python compatibility spellings are diagnostics with Rust-first replacements"}
         {constraint @kind="unique-import-alias" @target="module" @diagnostic="cem.ql.import_alias_duplicate" @behavior="cem-ql-parse-report-fact" @fact-kind="import-alias-duplicate" @policy="required"}
         {constraint @kind="unique-declaration-name-per-scope" @target="module" @diagnostic="cem.ql.declaration_duplicate" @behavior="cem-ql-parse-report-fact" @fact-kind="declaration-duplicate" @policy="required"}
-        {constraint @kind="unresolved-import-policy" @target="import" @diagnostic="cem.ql.unresolved_import" @behavior="cem-ql-parse-report-fact" @fact-kind="unresolved-import" @policy="imports must resolve through the active module resolver"}
+        {constraint @kind="unresolved-import-policy" @target="import" @diagnostic="cem.ql.import_unresolved" @behavior="cem-ql-resolution-fact" @fact-kind="unresolved-import" @policy="imports must resolve through the active module resolver"}
         {constraint @kind="type-check-policy" @target="expression" @diagnostic="cem.ql.type_error" @behavior="cem-ql-parse-report-fact" @fact-kind="type-error" @policy="typed evaluator IR rejects incompatible operands and declarations"}
         {constraint @kind="artifact-hash-required" @target="artifact" @diagnostic="cem.ql.artifact_hash_mismatch" @behavior="cem-ql-parse-report-fact" @fact-kind="artifact-hash-mismatch" @policy="required"}
         {constraint @kind="artifact-policy-stamps-validated" @target="artifact" @diagnostic="cem.cc.policy_mismatch" @behavior="cem-ql-parse-report-fact" @fact-kind="policy-mismatch" @policy="required on load"}
@@ -111,7 +111,9 @@
         {diagnostic @code="cem.ql.invalid_utf8" @severity="error"}
         {diagnostic @code="cem.ql.module_uri_missing" @severity="error"}
         {diagnostic @code="cem.ql.import_alias_duplicate" @severity="error"}
-        {diagnostic @code="cem.ql.unresolved_import" @severity="error"}
+        {diagnostic @code="cem.ql.import_unresolved" @severity="error"}
+        {diagnostic @code="cem.ql.import_denied" @severity="warning"}
+        {diagnostic @code="cem.ql.reserved_scheme" @severity="error"}
         {diagnostic @code="cem.ql.declaration_duplicate" @severity="error"}
         {diagnostic @code="cem.ql.parse_error" @severity="error"}
         {diagnostic @code="cem.ql.use_rust_boolean_ops" @severity="error"}

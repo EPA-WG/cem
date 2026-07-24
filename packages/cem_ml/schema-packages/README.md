@@ -141,26 +141,33 @@ checks a CLI demo. Review findings should explicitly cover these layers:
    and where the schema owns diagnostic codes, severities, policies, and
    structured details. Any remaining Rust-owned diagnostic policy must be
    documented as current boundary work with a target migration path.
-3. **Package folder completeness.** `package.cem`, `schema/*.cem`, examples,
+3. **Resolver policy boundaries.** Imports, external resources, includes,
+   schema dependencies, and package/module-map references must resolve through
+   CEM-ML resolver policy. Packages may declare requested references, but they
+   must not invent implicit fallback behavior. Denied references and unresolved
+   references must have distinct diagnostics, and any explicit policy-owned
+   substitution must preserve requested identity, substituted identity, source
+   range, and artifact/cache stamp inputs.
+4. **Package folder completeness.** `package.cem`, `schema/*.cem`, examples,
    formatter/colorizer artifacts, README sections, scripts, previews, and
    package-local `project.json` verify targets must agree. Every checked-in
    example must be manifest-declared with content type, schema, expected result,
    and expected diagnostics when applicable.
-4. **Output pipeline shape.** Formatter/colorizer assets should declare
+5. **Output pipeline shape.** Formatter/colorizer assets should declare
    `@produces="cem-tree"` and produce/consume formatted or colored CEM trees.
    Token arrays, HTML spans, ANSI codes, and other byte-oriented structures are
    writer-boundary implementation details unless the package explicitly owns a
    lower-level binary or token format.
-5. **Profile semantics.** `compact`, `pretty`, `tabular`, `terminal`, `html`,
+6. **Profile semantics.** `compact`, `pretty`, `tabular`, `terminal`, `html`,
    and `md` profiles must either have distinct documented behavior or be
    explicitly documented and tested as intentional aliases until real behavior is
    implemented. Generic formatter options such as `lineEnding` must be reviewed
    across all profiles.
-6. **README AC coverage.** The README must include standards/registry mapping,
+7. **README AC coverage.** The README must include standards/registry mapping,
    source identity, parser facts, formatter/colorizer profiles, command demos
    with adjacent SVG previews, safety/security notes, verification gates,
    release behavior, and tracked incomplete work.
-7. **Verification and drift gates.** Package-local `verify` must fail when
+8. **Verification and drift gates.** Package-local `verify` must fail when
    manifest validation, schema-owned example validation, formatter/colorizer
    output, HTML/terminal presentation, README previews, or generated artifacts
    drift. The target inputs must include package files and shared Rust/CLI code

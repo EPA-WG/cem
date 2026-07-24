@@ -14,6 +14,17 @@ in [`todo.md`](todo.md).
 - [ ] **`*.cemt.md` authored transform-doc format with HTML output.** Add a Markdown-adjacent CEMT documentation format
       that can embed CEMT modules/examples and transform them into HTML documentation or previews through the CEM-ML
       pipeline.
+- [ ] **Advanced import fallback and substitution policies.** Extend the resolver policy model beyond explicit
+      one-step substitution to cover ordered fallback lists, offline mirrors, semver/range module replacement,
+      dev/prod import maps, stale-cache use when remote imports are unavailable, and trust-tier downgrade/upgrade
+      diagnostics. These policies must preserve requested and resolved identity in reports and artifact/cache stamps.
+
+## CEM-QL Language
+
+- [ ] **User-defined overloads.** Allow user-authored declarations such as functions with the same exported name only
+      after CEM-QL has a typed signature model that can distinguish arity and parameter/return types deterministically.
+      The design must define overload-set encoding in package artifacts, import/export collision rules, ambiguous-call
+      diagnostics, and formatter/HTML/example coverage before relaxing duplicate-declaration errors.
 
 ## CEM Elements Runtime
 

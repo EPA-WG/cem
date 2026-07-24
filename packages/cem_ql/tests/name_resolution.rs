@@ -1,6 +1,6 @@
 use cem_ml::diagnostics::Severity;
 use cem_ml::source::ByteRange;
-use cem_ql::api::parse;
+use cem_ql::api::{compile, parse, CompileContext};
 use cem_ql::parser::{ImportDecl, QName};
 use cem_ql::resolve::{
     Arity, BindingKind, BindingSet, ImportKind, ImportPolicy, NameResolver, QNameKey, Resolution,
@@ -196,6 +196,31 @@ fn import_policy_resolves_platform_stdlib_and_external_grants() {
         .unwrap_err();
     assert_eq!(denied.code, "cem.ql.import_denied");
     assert_eq!(denied.severity, Severity::Warning);
+    assert_eq!(
+        denied
+            .details
+            .as_ref()
+            .and_then(|details| details.get("factKind"))
+            .and_then(serde_json::Value::as_str),
+        Some("denied-import")
+    );
+}
+
+#[test]
+fn import_policy_rejects_unknown_platform_stdlib_modules() {
+    let unresolved = ImportPolicy::new()
+        .resolve_import(&import("cem:stdlib/missing"))
+        .unwrap_err();
+    assert_eq!(unresolved.code, "cem.ql.import_unresolved");
+    assert_eq!(unresolved.severity, Severity::Error);
+    assert_eq!(
+        unresolved
+            .details
+            .as_ref()
+            .and_then(|details| details.get("reason"))
+            .and_then(serde_json::Value::as_str),
+        Some("unknown-platform-module")
+    );
 }
 
 #[test]
@@ -211,6 +236,14 @@ fn import_policy_handles_reserved_and_plugin_schemes() {
         .resolve_import(&import("urn:cem:plugin:query"))
         .unwrap_err();
     assert_eq!(unresolved.code, "cem.ql.import_unresolved");
+    assert_eq!(
+        unresolved
+            .details
+            .as_ref()
+            .and_then(|details| details.get("reason"))
+            .and_then(serde_json::Value::as_str),
+        Some("registry-miss")
+    );
 
     let plugin = ImportPolicy::new().register_urn_cem("urn:cem:plugin:query");
     assert_eq!(
@@ -219,6 +252,26 @@ fn import_policy_handles_reserved_and_plugin_schemes() {
             .unwrap()
             .kind,
         ImportKind::PluginRegistry
+    );
+}
+
+#[test]
+fn compile_fails_on_unresolved_imports_before_artifact_lowering() {
+    let error = compile(
+        r#"module "https://example.test/queries/unresolved"
+
+import "urn:cem:acme/missing" as missing
+
+"ok"
+"#,
+        &CompileContext::default(),
+    )
+    .unwrap_err();
+    assert_eq!(error.code, "cem.ql.compile_failed");
+    assert!(
+        error.message.contains("cem.ql.import_unresolved"),
+        "{}",
+        error
     );
 }
 

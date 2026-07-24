@@ -913,6 +913,14 @@ default preference list as `ct:floor`, so authors can write
   imports denied by the active scope policy emit `cem.ql.import_denied`
   and severity propagates per `cem-ml-ac.md §3.1`.
 
+  Import fallback is never implicit. CEM-QL passes the requested import URI and
+  alias to the CEM-ML resolver policy; CEM-ML may explicitly substitute a URI
+  before module resolution, but the report and compiled artifact stamp MUST
+  preserve both the requested URI and the substituted URI. If no substitution is
+  declared, a denied import remains `cem.ql.import_denied`; an allowed,
+  registered, or substituted import that cannot produce a module identity emits
+  `cem.ql.import_unresolved` and blocks compiled artifact emission.
+
 - **AC-QI-3 [A] MUST** ship a **cem-ml standard library** as the only
   out-of-the-box import set. Stdlib modules use the platform
   scheme `cem:stdlib/<topic>` per AC-QI-2 and resolve from the host

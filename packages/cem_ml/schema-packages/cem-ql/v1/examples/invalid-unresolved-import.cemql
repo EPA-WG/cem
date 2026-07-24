@@ -1,0 +1,5 @@
+module "https://example.test/queries/invalid-unresolved-import"
+
+import "urn:cem:acme/missing" as missing
+
+"unreachable"
