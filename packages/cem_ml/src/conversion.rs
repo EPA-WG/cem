@@ -13306,8 +13306,33 @@ mod tests {
             "rows": [
                 {
                     "index": 0,
+                    "fieldCount": 4,
+                    "byteOffset": 0,
+                    "byteLength": 21,
+                    "sourceRange": {
+                        "byteOffset": 0,
+                        "byteLength": 21,
+                        "line": 1,
+                        "column": 1,
+                        "endLine": 2,
+                        "endColumn": 1
+                    },
                     "fields": [
-                        {"index": 0, "value": "id"},
+                        {
+                            "index": 0,
+                            "value": "id",
+                            "quoted": false,
+                            "byteOffset": 0,
+                            "byteLength": 2,
+                            "sourceRange": {
+                                "byteOffset": 0,
+                                "byteLength": 2,
+                                "line": 1,
+                                "column": 1,
+                                "endLine": 1,
+                                "endColumn": 3
+                            }
+                        },
                         {"index": 1, "value": "name"},
                         {"index": 2, "value": "score"},
                         {"index": 3, "value": "amount"}
@@ -13606,6 +13631,26 @@ mod tests {
             );
             assert_eq!(
                 formatted["nodes"][0]["writerKind"], "token",
+                "{profile}"
+            );
+            assert_eq!(
+                formatted["nodes"][2]["value"]["quoted"], false,
+                "{profile}"
+            );
+            assert_eq!(
+                formatted["nodes"][2]["value"]["sourceRange"]["byteOffset"], 0,
+                "{profile}"
+            );
+            assert_eq!(
+                formatted["nodes"][2]["value"]["sourceRange"]["byteLength"], 2,
+                "{profile}"
+            );
+            assert_eq!(
+                formatted["nodes"][9]["value"]["rowSourceRange"]["byteOffset"], 0,
+                "{profile}"
+            );
+            assert_eq!(
+                formatted["nodes"][9]["value"]["fieldCount"], 4,
                 "{profile}"
             );
             assert_eq!(writer_node_text(&formatted), expected_output, "{profile}");

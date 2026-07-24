@@ -23,21 +23,22 @@
 
     {elements |
         {element @name="table" @required-attributes="encoding delimiter" @optional-attributes="header line-ending" @children="source? encoding-report? dialect? metadata? parse-facts? header? row*"}
-        {element @name="source" @optional-attributes="uri content-type byte-length"}
+        {element @name="source" @optional-attributes="uri content-type media-type byte-length"}
         {element @name="encoding-report" @optional-attributes="declared-charset normalized-charset decoder-status invalid-byte-offset"}
         {element @name="dialect" @optional-attributes="delimiter quote escape header line-ending"}
         {element @name="metadata" @children="column*"}
         {element @name="column" @required-attributes="index" @optional-attributes="name"}
         {element @name="parse-facts" @children="parse-fact*"}
-        {element @name="parse-fact" @required-attributes="kind" @optional-attributes="contract behavior parameter actual expected row-index field-index expected-count actual-count line column byte-offset byte-length"}
+        {element @name="parse-fact" @required-attributes="kind" @optional-attributes="contract behavior diagnostic-code diagnostic-severity recoverable fatal parameter actual expected row-index field-index expected-count actual-count line column byte-offset byte-length message"}
         {element @name="header" @children="field*"}
-        {element @name="row" @required-attributes="index" @children="field*"}
-        {element @name="field" @required-attributes="index" @optional-attributes="name value quoted source-id byte-offset byte-length"}
+        {element @name="row" @required-attributes="index" @optional-attributes="field-count source-id byte-offset byte-length line column end-line end-column" @children="field*"}
+        {element @name="field" @required-attributes="index" @optional-attributes="name value quoted source-id byte-offset byte-length line column end-line end-column"}
     }
 
     {attributes |
         {attribute @name="uri" @type="schema:string"}
         {attribute @name="content-type" @type="schema:string"}
+        {attribute @name="media-type" @type="schema:string"}
         {attribute @name="encoding" @type="schema:identifier" @values="utf-8 us-ascii other"}
         {attribute @name="declared-charset" @type="schema:string"}
         {attribute @name="normalized-charset" @type="schema:identifier" @values="utf-8 us-ascii other"}
@@ -51,6 +52,10 @@
         {attribute @name="kind" @type="schema:identifier" @values="parse-error unsupported-charset unsupported-encoding declared-us-ascii-non-ascii-byte invalid-header-parameter invalid-quote-escape unclosed-quote ragged-row"}
         {attribute @name="contract" @type="schema:identifier"}
         {attribute @name="behavior" @type="schema:identifier"}
+        {attribute @name="diagnostic-code" @type="schema:identifier"}
+        {attribute @name="diagnostic-severity" @type="schema:identifier" @values="info warning error fatal"}
+        {attribute @name="recoverable" @type="schema:boolean"}
+        {attribute @name="fatal" @type="schema:boolean"}
         {attribute @name="parameter" @type="schema:identifier"}
         {attribute @name="actual" @type="schema:string"}
         {attribute @name="expected" @type="schema:string"}
@@ -60,13 +65,17 @@
         {attribute @name="actual-count" @type="cemml:integer"}
         {attribute @name="line" @type="cemml:integer"}
         {attribute @name="column" @type="cemml:integer"}
+        {attribute @name="end-line" @type="cemml:integer"}
+        {attribute @name="end-column" @type="cemml:integer"}
         {attribute @name="index" @type="cemml:integer"}
+        {attribute @name="field-count" @type="cemml:integer"}
         {attribute @name="name" @type="schema:string"}
         {attribute @name="value" @type="schema:string"}
         {attribute @name="quoted" @type="schema:boolean"}
         {attribute @name="source-id" @type="schema:identifier"}
         {attribute @name="byte-offset" @type="cemml:integer"}
         {attribute @name="byte-length" @type="cemml:integer"}
+        {attribute @name="message" @type="schema:string"}
     }
 
     {constraints |

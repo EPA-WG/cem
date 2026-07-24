@@ -3,6 +3,7 @@ use crate::events::cem::CemEventNormalizer;
 use crate::parser::builder::CemAstBuilder;
 use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
+use crate::schema::registry::CSV_CONTENT_TYPE;
 use crate::source::{BytesSource, SourceId};
 use crate::tokenizer::cem::CemTokenizer;
 use serde_json::json;
@@ -191,80 +192,37 @@ pub fn validate_csv_source_bytes(request: CsvSourceValidationRequest<'_>) -> Vec
 pub fn csv_table_value_from_source_bytes(
     request: CsvSourceValidationRequest<'_>,
 ) -> (Option<serde_json::Value>, Vec<Diagnostic>) {
-    let diagnostics = validate_csv_source_bytes(request);
-    if diagnostics
-        .iter()
-        .any(|diagnostic| diagnostic.severity.is_hard_violation())
-    {
-        return (None, diagnostics);
-    }
-
-    let source = match std::str::from_utf8(request.bytes) {
-        Ok(source) => source,
-        Err(error) => {
-            let mut diagnostics = diagnostics;
-            diagnostics.push(Diagnostic {
-                uri: Some(request.source_uri.to_owned()),
-                code: UNSUPPORTED_ENCODING_DIAGNOSTIC.to_owned(),
-                severity: Severity::Error,
-                message: format!("CSV source must be valid UTF-8: {error}"),
-                byte_offset: u64::try_from(error.valid_up_to()).ok(),
-                ..Diagnostic::default()
-            });
-            return (None, diagnostics);
-        }
-    };
-
-    let mut reader = csv::ReaderBuilder::new()
-        .has_headers(false)
-        .flexible(true)
-        .from_reader(source.as_bytes());
-    let mut rows = Vec::new();
-    for (row_index, result) in reader.records().enumerate() {
-        let record = match result {
-            Ok(record) => record,
-            Err(error) => {
-                let mut diagnostics = diagnostics;
-                diagnostics.push(csv_fact_diagnostic(
-                    &CsvParseReport {
-                        source_uri: request.source_uri.to_owned(),
-                        content_type: request.content_type.map(str::to_owned),
-                        byte_len: request.bytes.len() as u64,
-                        facts: Vec::new(),
-                    },
-                    &{
-                        let mut fact = csv_fact(csv_parse_error_fact_kind(&error), None, None, &[]);
-                        fact.line = csv_position_line(error.position());
-                        fact.byte_offset = csv_position_byte_offset(error.position());
-                        fact.message = Some(format!("CSV parse error: {error}"));
-                        fact
-                    },
-                    &CsvSchemaContractCatalog::from_builtin().parse_error,
-                    format!("CSV parse error: {error}"),
-                ));
-                return (None, diagnostics);
-            }
-        };
-        let fields = record
-            .iter()
-            .enumerate()
-            .map(|(field_index, value)| {
-                json!({
-                    "index": field_index,
-                    "value": value,
-                })
-            })
-            .collect::<Vec<_>>();
-        rows.push(json!({
-            "index": row_index,
-            "fields": fields,
-        }));
-    }
+    let report = extract_csv_parse_report(request);
+    let contracts = CsvSchemaContractCatalog::from_builtin();
+    let diagnostics = validate_csv_parse_report(&report, &contracts);
+    let source = std::str::from_utf8(request.bytes).ok();
+    let line_ending = source.and_then(csv_detect_line_ending_style);
+    let header = csv_header_disposition(request.content_type);
+    let rows = source
+        .filter(|_| !csv_parse_report_has_encoding_blocker(&report))
+        .map(csv_project_rows)
+        .unwrap_or_default();
 
     let mut table = serde_json::Map::new();
     table.insert("kind".to_owned(), json!("csv-table"));
+    table.insert(
+        "source".to_owned(),
+        csv_source_value(request, content_type_parameters(request.content_type)),
+    );
+    table.insert("encoding".to_owned(), json!(csv_table_encoding(&report)));
+    table.insert(
+        "encodingReport".to_owned(),
+        csv_encoding_report_value(&report),
+    );
+    table.insert("delimiter".to_owned(), json!(","));
+    table.insert("header".to_owned(), json!(header));
+    table.insert("dialect".to_owned(), csv_dialect_value(header, line_ending));
+    table.insert(
+        "parseFacts".to_owned(),
+        json!(csv_parse_fact_values(&report, &contracts)),
+    );
     table.insert("rows".to_owned(), json!(rows));
-    if let Some(line_ending) = csv_detect_line_ending_style(source) {
+    if let Some(line_ending) = line_ending {
         table.insert("lineEnding".to_owned(), json!(line_ending));
     }
 
@@ -678,6 +636,407 @@ fn csv_line_ending_style_from_flags(
     }
 }
 
+fn csv_project_rows(source: &str) -> Vec<serde_json::Value> {
+    let records = csv_scan_projected_records(source);
+    records
+        .into_iter()
+        .map(|record| {
+            let fields = record
+                .fields
+                .into_iter()
+                .enumerate()
+                .map(|(field_index, field)| {
+                    json!({
+                        "index": field_index,
+                        "value": field.value,
+                        "quoted": field.quoted,
+                        "byteOffset": field.range.start.byte_offset,
+                        "byteLength": csv_range_byte_length(field.range),
+                        "sourceRange": csv_source_range_value(field.range),
+                    })
+                })
+                .collect::<Vec<_>>();
+            json!({
+                "index": record.index,
+                "fieldCount": fields.len(),
+                "byteOffset": record.range.start.byte_offset,
+                "byteLength": csv_range_byte_length(record.range),
+                "sourceRange": csv_source_range_value(record.range),
+                "fields": fields,
+            })
+        })
+        .collect()
+}
+
+#[derive(Debug, Clone)]
+struct CsvProjectedRecord {
+    index: usize,
+    range: CsvSourceRange,
+    fields: Vec<CsvProjectedField>,
+}
+
+#[derive(Debug, Clone)]
+struct CsvProjectedField {
+    value: String,
+    quoted: bool,
+    range: CsvSourceRange,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CsvSourceRange {
+    start: CsvSourcePosition,
+    end: CsvSourcePosition,
+}
+
+fn csv_scan_projected_records(source: &str) -> Vec<CsvProjectedRecord> {
+    let bytes = source.as_bytes();
+    if bytes.is_empty() {
+        return Vec::new();
+    }
+
+    let mut records = Vec::new();
+    let mut fields = Vec::new();
+    let mut byte = 0usize;
+    let mut line = 1u32;
+    let mut column = 1u32;
+    let mut row_index = 0usize;
+    let mut row_start = csv_current_position(byte, line, column);
+
+    loop {
+        let field = csv_scan_projected_field(source, &mut byte, &mut line, &mut column);
+        fields.push(field);
+
+        if byte < bytes.len() && bytes[byte] == b',' {
+            advance_csv_projection_cursor(source, &mut byte, &mut line, &mut column);
+            continue;
+        }
+
+        let mut row_end = csv_current_position(byte, line, column);
+        if byte < bytes.len() && matches!(bytes[byte], b'\r' | b'\n') {
+            advance_csv_projection_cursor(source, &mut byte, &mut line, &mut column);
+            row_end = csv_current_position(byte, line, column);
+        }
+
+        records.push(CsvProjectedRecord {
+            index: row_index,
+            range: CsvSourceRange {
+                start: row_start,
+                end: row_end,
+            },
+            fields,
+        });
+
+        if byte >= bytes.len() {
+            break;
+        }
+
+        row_index += 1;
+        row_start = csv_current_position(byte, line, column);
+        fields = Vec::new();
+    }
+
+    records
+}
+
+fn csv_scan_projected_field(
+    source: &str,
+    byte: &mut usize,
+    line: &mut u32,
+    column: &mut u32,
+) -> CsvProjectedField {
+    let bytes = source.as_bytes();
+    let start = csv_current_position(*byte, *line, *column);
+    let mut value = String::new();
+    let mut quoted = false;
+
+    if *byte < bytes.len() && bytes[*byte] == b'"' {
+        quoted = true;
+        advance_csv_projection_cursor(source, byte, line, column);
+        while *byte < bytes.len() {
+            if bytes[*byte] == b'"' {
+                if bytes.get(*byte + 1) == Some(&b'"') {
+                    value.push('"');
+                    advance_csv_projection_cursor(source, byte, line, column);
+                    advance_csv_projection_cursor(source, byte, line, column);
+                    continue;
+                }
+                advance_csv_projection_cursor(source, byte, line, column);
+                break;
+            }
+
+            let Some(ch) = source.get(*byte..).and_then(|tail| tail.chars().next()) else {
+                break;
+            };
+            value.push(ch);
+            advance_csv_projection_cursor(source, byte, line, column);
+        }
+
+        while *byte < bytes.len() && !matches!(bytes[*byte], b',' | b'\r' | b'\n') {
+            advance_csv_projection_cursor(source, byte, line, column);
+        }
+    } else {
+        while *byte < bytes.len() && !matches!(bytes[*byte], b',' | b'\r' | b'\n') {
+            let Some(ch) = source.get(*byte..).and_then(|tail| tail.chars().next()) else {
+                break;
+            };
+            value.push(ch);
+            advance_csv_projection_cursor(source, byte, line, column);
+        }
+    }
+
+    CsvProjectedField {
+        value,
+        quoted,
+        range: CsvSourceRange {
+            start,
+            end: csv_current_position(*byte, *line, *column),
+        },
+    }
+}
+
+fn advance_csv_projection_cursor(source: &str, byte: &mut usize, line: &mut u32, column: &mut u32) {
+    let bytes = source.as_bytes();
+    match bytes.get(*byte).copied() {
+        Some(b'\r') => {
+            if bytes.get(*byte + 1) == Some(&b'\n') {
+                *byte += 2;
+            } else {
+                *byte += 1;
+            }
+            *line = line.saturating_add(1);
+            *column = 1;
+        }
+        Some(b'\n') => {
+            *byte += 1;
+            *line = line.saturating_add(1);
+            *column = 1;
+        }
+        Some(_) => {
+            let width = source
+                .get(*byte..)
+                .and_then(|tail| tail.chars().next())
+                .map(char::len_utf8)
+                .unwrap_or(1);
+            *byte += width;
+            *column = column.saturating_add(1);
+        }
+        None => {}
+    }
+}
+
+fn csv_current_position(byte: usize, line: u32, column: u32) -> CsvSourcePosition {
+    CsvSourcePosition {
+        line,
+        column,
+        byte_offset: byte as u64,
+    }
+}
+
+fn csv_source_range_value(range: CsvSourceRange) -> serde_json::Value {
+    json!({
+        "byteOffset": range.start.byte_offset,
+        "byteLength": csv_range_byte_length(range),
+        "line": range.start.line,
+        "column": range.start.column,
+        "endLine": range.end.line,
+        "endColumn": range.end.column,
+    })
+}
+
+fn csv_range_byte_length(range: CsvSourceRange) -> u64 {
+    range
+        .end
+        .byte_offset
+        .saturating_sub(range.start.byte_offset)
+}
+
+fn csv_source_value(
+    request: CsvSourceValidationRequest<'_>,
+    parameters: BTreeMap<String, String>,
+) -> serde_json::Value {
+    json!({
+        "uri": request.source_uri,
+        "contentType": request.content_type.unwrap_or(CSV_CONTENT_TYPE),
+        "mediaType": request
+            .content_type
+            .map(csv_content_type_essence)
+            .unwrap_or(CSV_CONTENT_TYPE.to_owned()),
+        "parameters": parameters,
+        "byteLength": request.bytes.len(),
+    })
+}
+
+fn csv_encoding_report_value(report: &CsvParseReport) -> serde_json::Value {
+    let declared_charset = report
+        .content_type
+        .as_deref()
+        .and_then(|content_type| content_type_parameter(content_type, "charset"));
+    let invalid_byte_offset = report.facts.iter().find_map(|fact| match fact.kind {
+        CsvParseFactKind::UnsupportedEncoding | CsvParseFactKind::DeclaredUsAsciiNonAsciiByte => {
+            fact.byte_offset
+        }
+        _ => None,
+    });
+
+    let mut value = serde_json::Map::new();
+    if let Some(charset) = declared_charset.as_deref() {
+        value.insert("declaredCharset".to_owned(), json!(charset));
+    }
+    value.insert(
+        "normalizedCharset".to_owned(),
+        json!(csv_normalized_charset_for_report(report)),
+    );
+    value.insert(
+        "decoderStatus".to_owned(),
+        json!(csv_decoder_status_for_report(report)),
+    );
+    if let Some(byte_offset) = invalid_byte_offset {
+        value.insert("invalidByteOffset".to_owned(), json!(byte_offset));
+    }
+    serde_json::Value::Object(value)
+}
+
+fn csv_dialect_value(header: &'static str, line_ending: Option<&'static str>) -> serde_json::Value {
+    let mut value = serde_json::Map::new();
+    value.insert("delimiter".to_owned(), json!(","));
+    value.insert("quote".to_owned(), json!("\""));
+    value.insert("escape".to_owned(), json!("double-quote"));
+    value.insert("header".to_owned(), json!(header));
+    if let Some(line_ending) = line_ending {
+        value.insert("lineEnding".to_owned(), json!(line_ending));
+    }
+    serde_json::Value::Object(value)
+}
+
+fn csv_parse_fact_values(
+    report: &CsvParseReport,
+    contracts: &CsvSchemaContractCatalog,
+) -> Vec<serde_json::Value> {
+    report
+        .facts
+        .iter()
+        .map(|fact| {
+            let binding = contracts.binding_for_fact(fact.kind);
+            json!({
+                "kind": fact.kind.as_str(),
+                "contract": binding.contract,
+                "behavior": binding.behavior,
+                "diagnosticCode": binding.diagnostic_code,
+                "diagnosticSeverity": csv_severity_name(binding.severity),
+                "recoverable": !binding.severity.is_hard_violation(),
+                "fatal": binding.severity.is_hard_violation(),
+                "parameter": fact.parameter,
+                "actual": fact.actual,
+                "expected": fact.expected,
+                "rowIndex": fact.row_index,
+                "fieldIndex": fact.field_index,
+                "expectedCount": fact.expected_count,
+                "actualCount": fact.actual_count,
+                "line": fact.line,
+                "column": fact.column,
+                "byteOffset": fact.byte_offset,
+                "message": csv_fact_message(fact),
+                "sourceRange": {
+                    "byteOffset": fact.byte_offset,
+                    "line": fact.line,
+                    "column": fact.column,
+                },
+            })
+        })
+        .collect()
+}
+
+fn csv_parse_report_has_encoding_blocker(report: &CsvParseReport) -> bool {
+    report.facts.iter().any(|fact| {
+        matches!(
+            fact.kind,
+            CsvParseFactKind::UnsupportedCharset
+                | CsvParseFactKind::UnsupportedEncoding
+                | CsvParseFactKind::DeclaredUsAsciiNonAsciiByte
+        )
+    })
+}
+
+fn csv_table_encoding(report: &CsvParseReport) -> &'static str {
+    csv_normalized_charset_for_report(report)
+}
+
+fn csv_normalized_charset_for_report(report: &CsvParseReport) -> &'static str {
+    let charset = report
+        .content_type
+        .as_deref()
+        .and_then(|content_type| content_type_parameter(content_type, "charset"));
+    match charset.as_deref().map(csv_normalized_parameter).as_deref() {
+        Some("us-ascii" | "ascii") => "us-ascii",
+        Some("utf-8" | "utf8") | None => "utf-8",
+        Some(_) => "other",
+    }
+}
+
+fn csv_decoder_status_for_report(report: &CsvParseReport) -> &'static str {
+    if report
+        .facts
+        .iter()
+        .any(|fact| fact.kind == CsvParseFactKind::UnsupportedCharset)
+    {
+        "unsupported"
+    } else if report.facts.iter().any(|fact| {
+        matches!(
+            fact.kind,
+            CsvParseFactKind::UnsupportedEncoding | CsvParseFactKind::DeclaredUsAsciiNonAsciiByte
+        )
+    }) {
+        "invalid"
+    } else {
+        "decoded"
+    }
+}
+
+fn csv_header_disposition(content_type: Option<&str>) -> &'static str {
+    content_type
+        .and_then(|content_type| content_type_parameter(content_type, "header"))
+        .as_deref()
+        .map(csv_normalized_parameter)
+        .and_then(|value| match value.as_str() {
+            "present" => Some("present"),
+            "absent" => Some("absent"),
+            _ => None,
+        })
+        .unwrap_or("unknown")
+}
+
+fn csv_content_type_essence(content_type: &str) -> String {
+    content_type
+        .split(';')
+        .next()
+        .unwrap_or(content_type)
+        .trim()
+        .to_ascii_lowercase()
+}
+
+fn content_type_parameters(content_type: Option<&str>) -> BTreeMap<String, String> {
+    content_type
+        .into_iter()
+        .flat_map(|content_type| content_type.split(';').skip(1))
+        .filter_map(|part| {
+            let (key, value) = part.split_once('=')?;
+            Some((
+                key.trim().to_ascii_lowercase(),
+                value.trim().trim_matches('"').to_owned(),
+            ))
+        })
+        .collect()
+}
+
+fn csv_severity_name(severity: Severity) -> &'static str {
+    match severity {
+        Severity::Info => "info",
+        Severity::Warning => "warning",
+        Severity::Error => "error",
+        Severity::Fatal => "fatal",
+    }
+}
+
 fn csv_fact(
     kind: CsvParseFactKind,
     parameter: Option<&str>,
@@ -1001,6 +1360,144 @@ mod tests {
                 "{name}"
             );
         }
+    }
+
+    #[test]
+    fn csv_table_projection_exposes_schema_facing_parser_data() {
+        let bytes = b"id,note\r\n1,\"Ada, Lovelace\"\r\n2,Lin\r\n";
+        let (table, diagnostics) = csv_table_value_from_source_bytes(CsvSourceValidationRequest {
+            bytes,
+            source_uri: "memory://table.csv",
+            content_type: Some("text/csv; charset=utf-8; header=present"),
+        });
+
+        assert!(
+            diagnostics.is_empty(),
+            "valid projection should not produce diagnostics: {diagnostics:#?}"
+        );
+        let table = table.expect("valid CSV projects to a schema-facing table");
+        assert_eq!(table["kind"], "csv-table");
+        assert_eq!(table["encoding"], "utf-8");
+        assert_eq!(table["delimiter"], ",");
+        assert_eq!(table["header"], "present");
+        assert_eq!(table["lineEnding"], "crlf");
+        assert_eq!(table["source"]["uri"], "memory://table.csv");
+        assert_eq!(
+            table["source"]["contentType"],
+            "text/csv; charset=utf-8; header=present"
+        );
+        assert_eq!(table["source"]["byteLength"], bytes.len());
+        assert_eq!(table["encodingReport"]["declaredCharset"], "utf-8");
+        assert_eq!(table["encodingReport"]["normalizedCharset"], "utf-8");
+        assert_eq!(table["encodingReport"]["decoderStatus"], "decoded");
+        assert_eq!(table["dialect"]["delimiter"], ",");
+        assert_eq!(table["dialect"]["quote"], "\"");
+        assert_eq!(table["dialect"]["escape"], "double-quote");
+        assert_eq!(table["dialect"]["header"], "present");
+        assert_eq!(table["dialect"]["lineEnding"], "crlf");
+        assert_eq!(table["parseFacts"].as_array().unwrap().len(), 0);
+
+        let rows = table["rows"].as_array().expect("rows array");
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[0]["index"], 0);
+        assert_eq!(rows[0]["fieldCount"], 2);
+        assert_eq!(rows[0]["byteOffset"], 0);
+        assert_eq!(rows[0]["byteLength"], 9);
+        assert_eq!(rows[0]["sourceRange"]["line"], 1);
+        assert_eq!(rows[0]["sourceRange"]["endLine"], 2);
+
+        assert_eq!(rows[0]["fields"][0]["value"], "id");
+        assert_eq!(rows[0]["fields"][0]["quoted"], false);
+        assert_eq!(rows[0]["fields"][0]["byteOffset"], 0);
+        assert_eq!(rows[0]["fields"][0]["byteLength"], 2);
+        assert_eq!(rows[0]["fields"][1]["value"], "note");
+        assert_eq!(rows[0]["fields"][1]["quoted"], false);
+        assert_eq!(rows[0]["fields"][1]["byteOffset"], 3);
+        assert_eq!(rows[0]["fields"][1]["byteLength"], 4);
+
+        assert_eq!(rows[1]["index"], 1);
+        assert_eq!(rows[1]["byteOffset"], 9);
+        assert_eq!(rows[1]["byteLength"], 19);
+        assert_eq!(rows[1]["fields"][1]["value"], "Ada, Lovelace");
+        assert_eq!(rows[1]["fields"][1]["quoted"], true);
+        assert_eq!(rows[1]["fields"][1]["byteOffset"], 11);
+        assert_eq!(rows[1]["fields"][1]["byteLength"], 15);
+    }
+
+    #[test]
+    fn csv_table_projection_carries_recoverable_parse_facts() {
+        let bytes = b"id,name\n1,Ada\n2\n";
+        let (table, diagnostics) = csv_table_value_from_source_bytes(CsvSourceValidationRequest {
+            bytes,
+            source_uri: "memory://table.csv",
+            content_type: Some("text/csv; header=maybe"),
+        });
+
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == INVALID_HEADER_PARAMETER_DIAGNOSTIC),
+            "invalid header warning should still be emitted: {diagnostics:#?}"
+        );
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == INCONSISTENT_FIELD_COUNT_DIAGNOSTIC),
+            "ragged row warning should still be emitted: {diagnostics:#?}"
+        );
+        let table = table.expect("warning-only CSV still projects table data");
+        assert_eq!(table["header"], "unknown");
+        assert_eq!(table["dialect"]["header"], "unknown");
+
+        let facts = table["parseFacts"].as_array().expect("parse facts array");
+        assert_eq!(facts.len(), 2);
+        assert_eq!(facts[0]["kind"], "invalid-header-parameter");
+        assert_eq!(facts[0]["contract"], HEADER_PARAMETER_VALUES_CONTRACT);
+        assert_eq!(
+            facts[0]["diagnosticCode"],
+            INVALID_HEADER_PARAMETER_DIAGNOSTIC
+        );
+        assert_eq!(facts[0]["diagnosticSeverity"], "warning");
+        assert_eq!(facts[0]["recoverable"], true);
+        assert_eq!(facts[0]["fatal"], false);
+        assert_eq!(facts[0]["parameter"], "header");
+        assert_eq!(facts[0]["actual"], "maybe");
+        assert_eq!(facts[1]["kind"], "ragged-row");
+        assert_eq!(facts[1]["contract"], FIELD_COUNT_POLICY_CONTRACT);
+        assert_eq!(facts[1]["rowIndex"], 3);
+        assert_eq!(facts[1]["expectedCount"], 2);
+        assert_eq!(facts[1]["actualCount"], 1);
+        assert_eq!(facts[1]["recoverable"], true);
+    }
+
+    #[test]
+    fn csv_table_projection_carries_fatal_parse_facts() {
+        let bytes = b"id,name\n1,\"Ada\n";
+        let (table, diagnostics) = csv_table_value_from_source_bytes(CsvSourceValidationRequest {
+            bytes,
+            source_uri: "memory://table.csv",
+            content_type: Some("text/csv"),
+        });
+
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == UNCLOSED_QUOTE_DIAGNOSTIC),
+            "unclosed quote error should still be emitted: {diagnostics:#?}"
+        );
+        let table = table.expect("fatal parser facts still project neutral table data");
+        let facts = table["parseFacts"].as_array().expect("parse facts array");
+        let unclosed_quote = facts
+            .iter()
+            .find(|fact| fact["kind"] == "unclosed-quote")
+            .expect("unclosed quote fact");
+
+        assert_eq!(unclosed_quote["diagnosticSeverity"], "error");
+        assert_eq!(unclosed_quote["recoverable"], false);
+        assert_eq!(unclosed_quote["fatal"], true);
+        assert_eq!(unclosed_quote["byteOffset"], 10);
+        assert_eq!(unclosed_quote["sourceRange"]["line"], 2);
+        assert_eq!(unclosed_quote["sourceRange"]["column"], 3);
     }
 
     #[test]

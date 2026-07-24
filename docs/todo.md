@@ -55,7 +55,7 @@ then resume dependency-ordered schema-package folder alignment.
       run documented README commands, compare stable stdout/rendered SVG output
       against `examples/previews/`, and fail the CSV package verify target on
       drift.
-- [ ] Follow through on parser data gaps after the example harness is green:
+- [x] Follow through on parser data gaps after the example harness is green:
       expose row/field source ranges, quoting state, encoding/dialect facts, and
       recoverable/fatal parser facts in the schema-facing CSV table data consumed
       by formatter/colorizer stages.
@@ -116,10 +116,10 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Follow through on CSV parser data gaps: expose row/field source ranges, quoting
-state, encoding/dialect facts, and recoverable/fatal parser facts in the
-schema-facing CSV table data consumed by formatter/colorizer stages. After that
-parser-data follow-up is green, resume dependency-ordered package alignment with
+Resume dependency-ordered schema-package folder alignment with `cem-ql/v1`.
+Review it against the common schema-package AC, align package metadata,
+schema/assets/examples/docs/tests as needed, and run the smallest package-level
+verification gate. After `cem-ql/v1` is green, continue with
 `cem-native-template/v1`.
 
 ## Current Verification Commands

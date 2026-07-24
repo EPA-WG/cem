@@ -167,9 +167,8 @@ schema-package output support:
    output-stage metadata.
 4. Update README command examples and their SVG previews in
    `examples/previews/` when visible output changes.
-5. Keep a follow-up automation task for generated previews: run each documented
-   command, capture stable stdout without local build noise, render the SVG,
-   and fail CI when checked-in previews drift.
+5. Run the CSV package verify target, which validates the package and checks
+   README SVG preview drift from the documented command output.
 
 Tracked but not complete:
 
@@ -208,12 +207,19 @@ CSV-specific policy and diagnostics. Rust supplies generic, deterministic facts
 about the byte stream; `schema/csv.cem` owns which facts are valid, which facts
 are warnings or errors, and which diagnostic codes are emitted.
 
-### Current Boundary To Remove
+### Remaining Boundary To Remove
 
-The current CLI path has CSV-specific validation logic in Rust. It interprets
+The current CLI path still has CSV-specific validation logic in Rust. It interprets
 the `text/csv` parameters, checks UTF-8 and US-ASCII byte compatibility,
 parses records, detects inconsistent field counts, maps parser errors to
 `cem.csv.*` diagnostics, and decides warning versus error severity.
+
+The source projection now carries the schema-facing parser facts used by
+formatter/colorizer stages: source identity, encoding report, dialect facts,
+row and field source ranges, field quoted state, and recoverable/fatal
+`parseFacts`. The remaining ownership work is moving diagnostic policy
+selection behind generic schema-package behavior dispatch instead of the
+CSV-specific Rust validation branch.
 
 That makes the CSV package partly declarative and partly Rust-owned. The
 schema declares `cem.csv.unclosed_quote`, `cem.csv.inconsistent_field_count`,
@@ -247,24 +253,24 @@ rules.
 
 ### Schema-Facing Parse Report
 
-The parser primitive should project a stable report shape that the schema can
-query:
+The parser primitive projects a stable report shape that the schema can query
+and formatter/colorizer stages can preserve:
 
 - `source`: URI, content type, media-type parameters, byte length, and charset
   declaration;
-- `encoding`: decoded charset, decoder status, first invalid byte when present,
-  and whether transcoding was required;
+- `encodingReport`: decoded charset, decoder status, and first invalid byte
+  when present;
 - `dialect`: delimiter, quote character, escape style, header parameter value,
   and line-ending style;
-- `records`: ordered rows with record index, field count, byte range, and line
+- `rows`: ordered rows with record index, field count, byte range, and line
   range;
-- `fields`: ordered fields with row index, field index, raw span, decoded value,
-  quoted state, and escape events;
+- row `fields`: ordered fields with field index, raw span, decoded value,
+  quoted state, and source range;
 - `parseFacts`: non-diagnostic facts such as `unclosed-quote`,
   `invalid-quote-escape`, `ragged-row`, `unsupported-charset`,
-  `declared-us-ascii-non-ascii-byte`, and `invalid-header-parameter`;
-- `sourceMap`: a byte-offset map for rows, fields, quote tokens, separators,
-  and line endings when available.
+  `declared-us-ascii-non-ascii-byte`, and `invalid-header-parameter`, annotated
+  with schema-bound diagnostic code, severity, and recoverable/fatal
+  disposition.
 
 The schema owns the mapping from those facts to diagnostics. For example,
 `parseFacts.kind = "unclosed-quote"` maps to `cem.csv.unclosed_quote` as an

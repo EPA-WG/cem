@@ -96,6 +96,22 @@
                     role: "syntax.punctuation",
                     value: {
                         rowIndex: $index,
+                        rowSourceRange: match(exists($item.sourceRange), {
+                            true: $item.sourceRange,
+                            false: null
+                        }),
+                        rowByteOffset: match(exists($item.byteOffset), {
+                            true: $item.byteOffset,
+                            false: null
+                        }),
+                        rowByteLength: match(exists($item.byteLength), {
+                            true: $item.byteLength,
+                            false: null
+                        }),
+                        fieldCount: match(exists($item.fieldCount), {
+                            true: $item.fieldCount,
+                            false: length($item.fields)
+                        }),
                         formatterProfile: $profile
                     }
                 }]
@@ -161,6 +177,22 @@
                     raw: match(exists($field.value), {
                         true: $field.value,
                         false: ""
+                    }),
+                    quoted: match(exists($field.quoted), {
+                        true: $field.quoted,
+                        false: false
+                    }),
+                    sourceRange: match(exists($field.sourceRange), {
+                        true: $field.sourceRange,
+                        false: null
+                    }),
+                    byteOffset: match(exists($field.byteOffset), {
+                        true: $field.byteOffset,
+                        false: null
+                    }),
+                    byteLength: match(exists($field.byteLength), {
+                        true: $field.byteLength,
+                        false: null
                     }),
                     formatterProfile: $profile
                 }
