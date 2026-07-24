@@ -8,7 +8,7 @@
         @visibility="public"
         @category="csv-document"
         @subject="json"
-        @produces="tokens"
+        @produces="cem-tree"
         @content-type="text/csv"
         @schema="https://cem.dev/ns/data/csv/1"
         @profile="tabular"
@@ -18,28 +18,57 @@
         {param @name="subject" @type="json" @required=true}
         {body |
             {$ {
-                kind: "token-stream",
-                formatterProfile: "tabular",
-                tokens: extend(
+	                kind: "cem-tree",
+	                contentType: "text/csv",
+	                schema: "https://cem.dev/ns/data/csv/1",
+	                category: "csv-document",
+	                formatterProfile: "tabular",
+	                formatNodes: [
+	                    {
+	                        kind: "format-marker",
+	                        name: "csv.format-document",
+	                        formatterRole: "formatter.boundary",
+	                        formatterProfile: "tabular"
+	                    },
+	                    {
+	                        kind: "format-decision",
+	                        name: "csv.layout",
+	                        formatterRole: "formatter.layout",
+	                        formatterProfile: "tabular",
+	                        value: {
+	                            layout: "tabular-records",
+	                            delimiter: ",",
+	                            lineEnding: $lineEnding,
+	                            presentationOnly: true,
+	                            strictCsv: false,
+	                            dataPreserving: false
+	                        }
+	                    }
+	                ],
+	                nodes: extend(
                     [
-                        {
-                            kind: "csv.format-marker",
-                            text: "",
+	                        {
+	                            kind: "csv.format-marker",
+	                            writerKind: "token",
+	                            text: "",
                             role: "formatter.boundary",
                             value: {
                                 name: "csv.format-document",
                                 formatterProfile: "tabular"
                             }
                         },
-                        {
-                            kind: "csv.format-decision",
-                            text: "",
+	                        {
+	                            kind: "csv.format-decision",
+	                            writerKind: "token",
+	                            text: "",
                             role: "formatter.layout",
                             value: {
                                 layout: "tabular-records",
                                 delimiter: ",",
                                 lineEnding: $lineEnding,
-                                dataPreserving: true
+                                presentationOnly: true,
+                                strictCsv: false,
+                                dataPreserving: false
                             }
                         }
                     ],
@@ -67,8 +96,9 @@
                     profile: $profile
                 })),
                 [{
-                    kind: "csv.record-ending",
-                    text: match($lineEnding, { crlf: "\r\n", default: "\n" }),
+	                    kind: "csv.record-ending",
+	                    writerKind: "token",
+	                    text: match($lineEnding, { crlf: "\r\n", default: "\n" }),
                     role: "syntax.punctuation",
                     value: {
                         rowIndex: $index,
@@ -94,8 +124,9 @@
                     match($index, {
                         0: [],
                         default: [{
-                            kind: "csv.delimiter",
-                            text: ",",
+	                            kind: "csv.delimiter",
+	                            writerKind: "token",
+	                            text: ",",
                             role: "syntax.punctuation",
                             value: {
                                 rowIndex: $rowIndex,
@@ -126,8 +157,9 @@
         {param @name="profile" @type="string" @required=true}
         {body |
             {$ {
-                kind: "csv.field",
-                text: call("csv.format-document.field-text", { field: $field }),
+	                kind: "csv.field",
+	                writerKind: "token",
+	                text: call("csv.format-document.field-text", { field: $field }),
                 role: "syntax.string",
                 style: {
                     tabular: true
@@ -152,10 +184,13 @@
         @deterministic=true |
         {param @name="field" @type="object" @required=true}
         {body |
-            {$ call("csv.format-document.quote-field", {
-                value: match(exists($field.value), {
-                    true: $field.value,
-                    false: ""
+            {$ match(exists($field.displayText), {
+                true: $field.displayText,
+                false: call("csv.format-document.quote-field", {
+                    value: match(exists($field.value), {
+                        true: $field.value,
+                        false: ""
+                    })
                 })
             }) }
         }

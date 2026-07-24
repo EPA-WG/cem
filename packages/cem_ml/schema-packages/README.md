@@ -64,8 +64,60 @@ external syntax such as JSON, HTML, or XML:
    formatted CEM tree, coloring enriches that tree, and only then does the
    writer emit target-native bytes. The writer does not recreate either chain
    in Rust.
+6. **Command examples carry SVG previews.** Package README command-line
+   examples that demonstrate visible output should be followed immediately by a
+   package-relative SVG preview of the resulting terminal report, formatted
+   bytes, rendered document, or other user-visible artifact. Store these
+   previews under `examples/previews/` with names tied to the fixture and
+   command/profile, for example `basic-table-pretty-terminal.svg`. When a
+   command example, fixture, formatter, colorizer, converter, CLI report shape,
+   or presentation output changes, AI-assisted edits must update the affected
+   SVG preview in the same change or explicitly state that the preview remains
+   unchanged because the visible output did not change.
 
 These principles are the base contract for each package described below.
+
+## Format Support Definition Of Done
+
+When adding or expanding support for a source or output format, the package is
+not complete until the full lifecycle is represented in the package folder and
+tests:
+
+- formatter line endings: default output is LF (`\n`, Linux style) unless a
+  package explicitly documents a different default. `lineEnding` is a generic
+  formatter option, not a package-specific option; package-specific options use
+  a namespace only when they express package-specific semantics. If an external
+  standard requires or strongly expects another record separator, package docs
+  must warn about the default conflict and document the strict interchange
+  option, for example `lineEnding=crlf`;
+- standards and registry mapping: cite the primary specification, registered
+  content types, content-type parameters, fragment identifiers, and known
+  interoperability notes;
+- source identity: declare primary and alias content types in `package.cem`,
+  normalize parameters generically, and keep package-specific policy in the
+  schema or CEMT assets;
+- parser facts: expose deterministic syntax facts, source ranges, encoding
+  state, dialect state, and recoverable/fatal parser facts as data rather than
+  package-specific Rust diagnostics;
+- schema-owned diagnostics: bind those facts to declared constraints,
+  severities, diagnostic codes, and structured details in `.cem` schema source;
+- examples and manifests: cover the smallest valid fixture, representative
+  production shape, edge cases, invalid contract cases, and security-relevant
+  cases through manifest-declared examples;
+- formatter profiles: provide `compact`, `pretty`, and `tabular` behavior when
+  meaningful, with explicit import-safe versus review/presentation boundaries;
+- colorizer profiles: provide `terminal`, `html`, and `md` output when useful,
+  preserving source-map ranges and writer-boundary metadata;
+- command demos: include README command examples with adjacent SVG previews for
+  stable visible output and keep previews refreshed with the commands and
+  source assets;
+- safety notes: document active-content, formula-injection, external-resource,
+  entity-expansion, script execution, privacy, integrity, or spoofing concerns
+  that apply to the format;
+- verification: add focused Rust tests, CLI integration tests, package-local Nx
+  `verify` inputs/outputs, and drift checks for generated artifacts;
+- release behavior: state compatibility defaults, lossy options, unsupported
+  dialects/features, and migration/versioning expectations.
 
 ## Bootstrap Relationship
 
@@ -248,6 +300,8 @@ schema-packages/{package-id}/v1/
   schema/{package-id}.cem
   examples/
     {case}.{content-extension}
+    previews/
+      {case}-{command-or-profile}.svg
   formatters/
     compact.cemt
     pretty.cemt
@@ -290,6 +344,15 @@ is loaded, the loader resolves the declared content type and schema URI and
 validates the source bytes against that schema; it must not rely on filename
 extension inference alone.
 
+Package README command examples are demo contracts. When they show meaningful
+stdout, report JSON, formatted text, or rendered output, place a matching SVG
+preview directly after the fenced command block and store the asset in
+`examples/previews/`. The preview should represent the command's stable
+user-facing result rather than local build noise such as Cargo compilation
+lines. The preview must be refreshed when relevant source fixtures, CEMT
+formatters/colorizers/converters, CLI report fields, color palettes, spacing,
+or presentation rules change.
+
 Formatter assets live under `formatters/` and are CEMT (`.cemt`) transforms so
 they participate in the normal output pipeline and preserve source-map ranges.
 Every package should expose at least these formatter profiles:
@@ -323,7 +386,7 @@ gate. The target must track:
 - `package.cem` and `README.md`;
 - `schema/**/*.cem`;
 - `formatters/**/*.cemt`, `colorizers/**/*.cemt`, and `converters/**/*.cemt`;
-- every example fixture under `examples/`.
+- every example fixture and SVG command preview under `examples/`.
 
 Downstream CLI tests depend on these package targets through Nx instead of
 treating schema-package files as unowned fixture inputs.
@@ -412,8 +475,12 @@ schema-packages/{package-id}/v1/
    shape, and at least one invalid contract. Declare every source example in
    `package.cem` with content type, schema URI, expected result, and explicit
    expected diagnostics for invalid cases. Link those examples from the package
-   README. Generate `.example.cem` sidecars only when a downstream package
-   consumer needs a CEM-format projection of the manifest metadata.
+   README. When the README includes command-line examples with visible output,
+   add an SVG preview under `examples/previews/` immediately after each command
+   block and update it whenever the command, fixture, formatter/colorizer,
+   converter, CLI report shape, or presentation output changes. Generate
+   `.example.cem` sidecars only when a downstream package consumer needs a
+   CEM-format projection of the manifest metadata.
 
 8. Validate the manifest directly:
 
@@ -487,6 +554,14 @@ writer-owned classes; those decisions must already exist on the colored CEM
 tree. When a decision is between JSON and CEM-native representation for these
 stage fixtures, keep the CEM-native representation and prompt only when the
 target format itself requires another syntax.
+
+Package formatter and colorizer output functions should declare
+`@produces="cem-tree"` for this staged path. Lower-level writer streams such as
+token arrays remain writer-boundary implementation details, not the public
+formatter/colorizer artifact contract. When a target format is naturally emitted
+as ordered tokens, represent those tokens as nodes inside the formatted or
+colored CEM tree with explicit writer-boundary metadata, then let the generic
+writer perform the final token-to-text or token-to-byte emission.
 
 CLI output follows the same target-identity rule. `cem-ml convert` writes
 stdout or `--out` in the requested target format: HTML as HTML, CEM-ML as CEM

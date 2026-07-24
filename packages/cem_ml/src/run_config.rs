@@ -75,6 +75,8 @@ pub struct ScopeConfig {
     pub cemt_formatter: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cemt_formatter_profile: Option<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub cemt_formatter_options: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cemt_colorizer: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -511,6 +513,8 @@ pub struct NormalizedOutputPipeline {
     pub cemt_formatter: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cemt_formatter_profile: Option<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub cemt_formatter_options: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cemt_colorizer: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1282,12 +1286,14 @@ fn normalized_output_pipeline(scope: &ScopeConfig) -> Option<NormalizedOutputPip
         output_color_type: scope.output_color_type.clone(),
         cemt_formatter: scope.cemt_formatter.clone(),
         cemt_formatter_profile: scope.cemt_formatter_profile.clone(),
+        cemt_formatter_options: scope.cemt_formatter_options.clone(),
         cemt_colorizer: scope.cemt_colorizer.clone(),
         cemt_color_profile: scope.cemt_color_profile.clone(),
     };
     (pipeline.output_color_type.is_some()
         || pipeline.cemt_formatter.is_some()
         || pipeline.cemt_formatter_profile.is_some()
+        || !pipeline.cemt_formatter_options.is_empty()
         || pipeline.cemt_colorizer.is_some()
         || pipeline.cemt_color_profile.is_some())
     .then_some(pipeline)
@@ -1687,6 +1693,9 @@ fn apply_scope_field(
         "schema" => scope.schema = Some(value),
         "cemtformatter" | "formatter" => scope.cemt_formatter = Some(value),
         "cemtformatterprofile" | "formatterprofile" => scope.cemt_formatter_profile = Some(value),
+        "cemtformatteroptions" | "formatteroptions" => {
+            scope.cemt_formatter_options = parse_map_field("cemtFormatterOptions", &value)?
+        }
         "cemtcolorizer" | "colorizer" => scope.cemt_colorizer = Some(value),
         "cemtcolorprofile" | "colorprofile" => scope.cemt_color_profile = Some(value),
         "defaultnamespace" | "defaultns" => scope.default_namespace = Some(value),
@@ -2167,6 +2176,9 @@ fn merge_scope_defaults(scope: &mut ScopeConfig, defaults: &ScopeConfig) {
     if scope.cemt_formatter_profile.is_none() {
         scope.cemt_formatter_profile = defaults.cemt_formatter_profile.clone();
     }
+    let mut cemt_formatter_options = defaults.cemt_formatter_options.clone();
+    cemt_formatter_options.extend(scope.cemt_formatter_options.clone());
+    scope.cemt_formatter_options = cemt_formatter_options;
     if scope.cemt_colorizer.is_none() {
         scope.cemt_colorizer = defaults.cemt_colorizer.clone();
     }
@@ -2359,7 +2371,7 @@ mod tests {
     #[test]
     fn output_spec_record_maps_target_scope() {
         let spec = parse_output_spec_record(
-            "input=src/a.cem,dest=dist/a.cem,contentType=application/cem+xml,schema=core,cemtFormatter=acme.showcase.format-tree,cemtFormatterProfile=acme.showcase.format-tree,cemtColorizer=acme.showcase.color-tree,cemtColorProfile=classes,defaultNs=https://cem.dev/ns/core/1,namespaces=html:http://www.w3.org/1999/xhtml",
+            "input=src/a.cem,dest=dist/a.cem,contentType=application/cem+xml,schema=core,cemtFormatter=acme.showcase.format-tree,cemtFormatterProfile=acme.showcase.format-tree,cemtFormatterOptions=csv.maxFieldWidth:24|csv.stringTrim:middle,cemtColorizer=acme.showcase.color-tree,cemtColorProfile=classes,defaultNs=https://cem.dev/ns/core/1,namespaces=html:http://www.w3.org/1999/xhtml",
         )
         .unwrap();
 
@@ -2381,6 +2393,20 @@ mod tests {
         assert_eq!(
             spec.root_scope.cemt_formatter_profile.as_deref(),
             Some("acme.showcase.format-tree")
+        );
+        assert_eq!(
+            spec.root_scope
+                .cemt_formatter_options
+                .get("csv.maxFieldWidth")
+                .map(String::as_str),
+            Some("24")
+        );
+        assert_eq!(
+            spec.root_scope
+                .cemt_formatter_options
+                .get("csv.stringTrim")
+                .map(String::as_str),
+            Some("middle")
         );
         assert_eq!(
             spec.root_scope.cemt_colorizer.as_deref(),
@@ -3299,6 +3325,10 @@ mod tests {
                     output_color_type: Some("html".to_owned()),
                     cemt_formatter: Some("acme.format-tree".to_owned()),
                     cemt_formatter_profile: Some("acme.format-tree".to_owned()),
+                    cemt_formatter_options: BTreeMap::from([
+                        ("csv.maxFieldWidth".to_owned(), "24".to_owned()),
+                        ("csv.stringTrim".to_owned(), "right".to_owned()),
+                    ]),
                     cemt_colorizer: Some("acme.color-tree".to_owned()),
                     cemt_color_profile: Some("classes".to_owned()),
                     ..ScopeConfig::default()
@@ -3319,6 +3349,20 @@ mod tests {
         assert_eq!(
             scope.cemt_formatter_profile.as_deref(),
             Some("acme.format-tree")
+        );
+        assert_eq!(
+            scope
+                .cemt_formatter_options
+                .get("csv.maxFieldWidth")
+                .map(String::as_str),
+            Some("24")
+        );
+        assert_eq!(
+            scope
+                .cemt_formatter_options
+                .get("csv.stringTrim")
+                .map(String::as_str),
+            Some("right")
         );
         assert_eq!(scope.cemt_colorizer.as_deref(), Some("acme.color-tree"));
         assert_eq!(scope.cemt_color_profile.as_deref(), Some("classes"));

@@ -718,7 +718,6 @@ mod tests {
         package_id: &str,
         content_type: &str,
         schema_uri: &str,
-        expected_count: usize,
     ) -> Vec<crate::schema::registry::SchemaPackageExampleDescriptor> {
         let package = builtin_schema_package_source(package_id).expect("package source");
         let examples =
@@ -727,13 +726,12 @@ mod tests {
             .iter()
             .map(|example| example.path.clone())
             .collect::<BTreeSet<_>>();
+        let expected_paths = top_level_example_paths(package_id);
 
         assert_eq!(
-            declared_paths,
-            top_level_example_paths(package_id),
+            declared_paths, expected_paths,
             "{package_id} top-level examples must be discoverable from package.cem"
         );
-        assert_eq!(examples.len(), expected_count);
         let expected_content_type = crate::schema::registry::content_type_essence(content_type);
         assert!(examples.iter().all(|example| {
             crate::schema::registry::content_type_essence(&example.content_type)
@@ -746,7 +744,7 @@ mod tests {
     #[test]
     fn cem_ml_package_examples_are_manifest_indexed() {
         let examples =
-            manifest_indexed_package_examples("cem-ml", CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, 6);
+            manifest_indexed_package_examples("cem-ml", CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI);
         let embedded = examples
             .iter()
             .find(|example| example.id == "embedded-handoffs")
@@ -771,6 +769,18 @@ mod tests {
             invalid.expected_diagnostic_codes,
             vec!["cem.ast.unclosed_scope".to_owned()]
         );
+        let pipeline_fixture = examples
+            .iter()
+            .find(|example| example.id == "formatter-coloring-pipeline-package-artifacts")
+            .expect("formatter/coloring pipeline package artifact fixture example");
+        assert_eq!(
+            pipeline_fixture.expected_result,
+            SchemaPackageExampleExpectedResult::Fail
+        );
+        assert_eq!(
+            pipeline_fixture.expected_diagnostic_codes,
+            vec!["cem.schema.unresolved_namespace".to_owned()]
+        );
         let unsupported = examples
             .iter()
             .find(|example| example.id == "invalid-unsupported-handoffs")
@@ -787,12 +797,8 @@ mod tests {
 
     #[test]
     fn schema_package_examples_are_manifest_indexed() {
-        let examples = manifest_indexed_package_examples(
-            "schema",
-            CEM_SCHEMA_CONTENT_TYPE,
-            CEM_SCHEMA_URI,
-            23,
-        );
+        let examples =
+            manifest_indexed_package_examples("schema", CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_URI);
         for id in ["custom-behavior-schema", "custom-behavior-schema-strict"] {
             let example = examples
                 .iter()
@@ -915,7 +921,6 @@ mod tests {
             "schema-package",
             CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
             CEM_SCHEMA_PACKAGE_URI,
-            20,
         );
         for (id, expected_code) in [
             (
@@ -1018,7 +1023,6 @@ mod tests {
             "cem-native-template",
             CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
             CEM_NATIVE_TEMPLATE_SCHEMA_URI,
-            3,
         );
         let missing_required = examples
             .iter()
@@ -1059,7 +1063,11 @@ mod tests {
         assert_eq!(fixture.schema, CEM_ML_SCHEMA_URI);
         assert_eq!(
             fixture.expected_result,
-            SchemaPackageExampleExpectedResult::Pass
+            SchemaPackageExampleExpectedResult::Fail
+        );
+        assert_eq!(
+            fixture.expected_diagnostic_codes,
+            vec!["cem.schema.unresolved_namespace".to_owned()]
         );
 
         for example in examples
@@ -1093,7 +1101,7 @@ mod tests {
     #[test]
     fn cem_ql_package_examples_are_manifest_indexed() {
         let examples =
-            manifest_indexed_package_examples("cem-ql", CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI, 9);
+            manifest_indexed_package_examples("cem-ql", CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI);
 
         for (id, expected_code) in [
             ("invalid-parse", "cem.ql.parse_error"),
@@ -1174,7 +1182,7 @@ mod tests {
     #[test]
     fn json_package_examples_are_manifest_indexed() {
         let examples =
-            manifest_indexed_package_examples("json", JSON_CONTENT_TYPE, JSON_VALUE_SCHEMA_URI, 3);
+            manifest_indexed_package_examples("json", JSON_CONTENT_TYPE, JSON_VALUE_SCHEMA_URI);
         let invalid = examples
             .iter()
             .find(|example| example.id == "invalid-trailing-comma")
@@ -1195,7 +1203,6 @@ mod tests {
             "json-schema",
             JSON_SCHEMA_CONTENT_TYPE,
             JSON_SCHEMA_SCHEMA_URI,
-            4,
         );
 
         for (id, expected_code) in [
@@ -1281,10 +1288,9 @@ mod tests {
 
     #[test]
     fn csv_package_examples_are_manifest_indexed() {
-        let examples =
-            manifest_indexed_package_examples("csv", CSV_CONTENT_TYPE, CSV_SCHEMA_URI, 8);
+        let examples = manifest_indexed_package_examples("csv", CSV_CONTENT_TYPE, CSV_SCHEMA_URI);
 
-        for (id, content_type, expected_result, expected_code) in [
+        let expected = [
             (
                 "basic-table",
                 CSV_CONTENT_TYPE,
@@ -1294,6 +1300,54 @@ mod tests {
             (
                 "quoted-fields",
                 CSV_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "header-absent",
+                "text/csv; header=absent",
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "line-ending-lf",
+                CSV_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "line-ending-crlf",
+                CSV_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "utf8-bom",
+                "text/csv; charset=utf-8",
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "spaced-fields",
+                CSV_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "tabs-and-empty-fields",
+                CSV_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "formula-looking-values",
+                CSV_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "wide-unicode",
+                "text/csv; charset=utf-8",
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
@@ -1333,7 +1387,21 @@ mod tests {
                 SchemaPackageExampleExpectedResult::Pass,
                 Some("cem.csv.invalid_header_parameter"),
             ),
-        ] {
+        ];
+        let actual_ids = examples
+            .iter()
+            .map(|example| example.id.as_str())
+            .collect::<BTreeSet<_>>();
+        let expected_ids = expected
+            .iter()
+            .map(|(id, _, _, _)| *id)
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            actual_ids, expected_ids,
+            "checked CSV example expectations must cover every manifest example"
+        );
+
+        for (id, content_type, expected_result, expected_code) in expected {
             let example = examples
                 .iter()
                 .find(|example| example.id == id)
@@ -1492,8 +1560,7 @@ mod tests {
 
     #[test]
     fn css_package_examples_are_manifest_indexed() {
-        let examples =
-            manifest_indexed_package_examples("css", CSS_CONTENT_TYPE, CSS_SCHEMA_URI, 8);
+        let examples = manifest_indexed_package_examples("css", CSS_CONTENT_TYPE, CSS_SCHEMA_URI);
 
         for (id, expected_result, expected_code) in [
             (
@@ -1552,7 +1619,7 @@ mod tests {
     #[test]
     fn html_package_examples_are_manifest_indexed() {
         let examples =
-            manifest_indexed_package_examples("html", HTML_CONTENT_TYPE, HTML_SCHEMA_URI, 7);
+            manifest_indexed_package_examples("html", HTML_CONTENT_TYPE, HTML_SCHEMA_URI);
 
         for (id, expected_result, expected_code) in [
             (
@@ -1738,7 +1805,7 @@ mod tests {
     #[test]
     fn xhtml_package_examples_are_manifest_indexed() {
         let examples =
-            manifest_indexed_package_examples("xhtml", XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, 5);
+            manifest_indexed_package_examples("xhtml", XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI);
 
         for (id, expected_result, expected_code) in [
             (
@@ -1777,8 +1844,7 @@ mod tests {
 
     #[test]
     fn svg_package_examples_are_manifest_indexed() {
-        let examples =
-            manifest_indexed_package_examples("svg", SVG_CONTENT_TYPE, SVG_SCHEMA_URI, 6);
+        let examples = manifest_indexed_package_examples("svg", SVG_CONTENT_TYPE, SVG_SCHEMA_URI);
 
         for (id, expected_result, expected_code) in [
             ("basic-icon", SchemaPackageExampleExpectedResult::Pass, None),
@@ -2513,11 +2579,11 @@ mod tests {
             .contains(r#"{template @name="emit-node""#));
         assert!(dom_html_converter
             .source
-            .contains(r#"node.kind = "raw-text""#));
+            .contains(r#"node.kind == "raw-text""#));
         assert!(dom_xml_converter
             .source
             .contains(r#"{template @name="emit-node""#));
-        assert!(dom_xml_converter.source.contains(r#"node.kind = "cdata""#));
+        assert!(dom_xml_converter.source.contains(r#"node.kind == "cdata""#));
         assert!(canonical_formatter_helpers
             .source
             .contains(r#"@name="cem.format-tree.apply-stage""#));

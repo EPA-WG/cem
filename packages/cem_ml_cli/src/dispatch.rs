@@ -1039,6 +1039,7 @@ fn input_scope_defaults(c: &cli::ContextOptions) -> ScopeConfig {
         output_color_type: None,
         cemt_formatter: None,
         cemt_formatter_profile: None,
+        cemt_formatter_options: BTreeMap::new(),
         cemt_colorizer: None,
         cemt_color_profile: None,
         version_pins: context_key_values(&c.version_pins),
@@ -1058,6 +1059,7 @@ fn output_scope_defaults(args: &cli::ConvertArgs) -> ScopeConfig {
         output_color_type: None,
         cemt_formatter: args.cemt_formatter.clone(),
         cemt_formatter_profile: args.cemt_formatter_profile.clone(),
+        cemt_formatter_options: context_key_values(&args.cemt_formatter_options),
         cemt_colorizer: args.cemt_colorizer.clone(),
         cemt_color_profile: args.cemt_color_profile.clone(),
         version_pins: context_key_values(&args.context.version_pins),
@@ -23482,6 +23484,8 @@ start =
                 "acme.showcase.color-tree",
                 "--cemt-color-profile",
                 "classes",
+                "--cemt-formatter-option",
+                "lineEnding=crlf",
                 p.to_str().unwrap(),
             ],
         );
@@ -23501,6 +23505,10 @@ start =
             "acme.showcase.color-tree"
         );
         assert_eq!(v["targetScope"]["cemtColorProfile"], "classes");
+        assert_eq!(
+            v["targetScope"]["cemtFormatterOptions"]["lineEnding"],
+            "crlf"
+        );
     }
 
     #[test]
@@ -24539,6 +24547,97 @@ start =
     }
 
     #[test]
+    fn convert_csv_input_spec_runs_cemt_formatter_and_colorizer_without_lifecycle_warnings() {
+        let p = write_fixture(
+            "convert-csv-quoted-fields.csv",
+            "id,name,notes\n1,Ada,\"line one\nline two\"\n2,Lin,\"quoted \"\"value\"\"\"\n",
+        );
+        let input_spec = format!(
+            "uri={},contentType=text/csv,schema={}",
+            p.display(),
+            cem_ml::schema::registry::CSV_SCHEMA_URI
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--input-spec",
+                &input_spec,
+                "--to-content-type",
+                "text/csv",
+                "--to-schema",
+                cem_ml::schema::registry::CSV_SCHEMA_URI,
+                "--cemt-formatter",
+                "csv.format-document",
+                "--cemt-formatter-profile",
+                "compact",
+                "--cemt-colorizer",
+                "csv.color-document",
+                "--cemt-color-profile",
+                "terminal",
+                "--output-color-type",
+                "terminal",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert!(
+            !stderr.contains("cem.lifecycle.adapter_unsupported"),
+            "{stderr}"
+        );
+        assert!(
+            !stderr.contains("cem.lifecycle.target_adapter_unsupported"),
+            "{stderr}"
+        );
+        assert!(stdout.contains("\x1b["), "{stdout:?}");
+        assert_eq!(
+            strip_ansi_codes(&stdout),
+            "id,name,notes\n1,Ada,\"line one\nline two\"\n2,Lin,\"quoted \"\"value\"\"\"\n"
+        );
+    }
+
+    #[test]
+    fn convert_csv_input_spec_applies_tabular_formatter_options() {
+        let p = write_fixture(
+            "convert-csv-tabular-options.csv",
+            "id,name,total\n123456789,Alexandria,123.4567\n42,Bo,9.5\n",
+        );
+        let input_spec = format!(
+            "uri={},contentType=text/csv,schema={}",
+            p.display(),
+            cem_ml::schema::registry::CSV_SCHEMA_URI
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--input-spec",
+                &input_spec,
+                "--to-content-type",
+                "text/csv",
+                "--to-schema",
+                cem_ml::schema::registry::CSV_SCHEMA_URI,
+                "--cemt-formatter-profile",
+                "tabular",
+                "--cemt-formatter-option",
+                "csv.maxFieldWidth=6",
+                "--cemt-formatter-option",
+                "csv.stringTrim=middle",
+                "--cemt-formatter-option",
+                "lineEnding=crlf",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert_eq!(
+            stdout,
+            "id    ,name  ,total \r\n...789,Al...a,123.45\r\n    42,Bo    ,  9.5 \r\n"
+        );
+    }
+
+    #[test]
     fn convert_to_content_type_svg_selects_xml_export_adapter() {
         let p = write_fixture("convert-target-svg.cem", "{svg | {title | Hi}}");
         let (outcome, stdout, stderr) = run(
@@ -24959,7 +25058,7 @@ start =
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert_eq!(
             stdout,
-            "{cem:if @test=\"not (disabled)\" |\n  {button | Go}\n}\n"
+            "{cem:if @test=\"!(disabled)\" |\n  {button | Go}\n}\n"
         );
     }
 

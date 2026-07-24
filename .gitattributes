@@ -19,6 +19,9 @@
 *.scss text working-tree-encoding=UTF-8
 *.svg text working-tree-encoding=UTF-8
 
+# Preserve intentional byte-level line-ending fixtures.
+packages/cem_ml/schema-packages/csv/v1/examples/line-ending-crlf.csv -text -diff
+
 # Binary files
 *.png binary
 *.jpg binary

@@ -188,6 +188,89 @@ pub fn validate_csv_source_bytes(request: CsvSourceValidationRequest<'_>) -> Vec
     validate_csv_parse_report(&report, &contracts)
 }
 
+pub fn csv_table_value_from_source_bytes(
+    request: CsvSourceValidationRequest<'_>,
+) -> (Option<serde_json::Value>, Vec<Diagnostic>) {
+    let diagnostics = validate_csv_source_bytes(request);
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return (None, diagnostics);
+    }
+
+    let source = match std::str::from_utf8(request.bytes) {
+        Ok(source) => source,
+        Err(error) => {
+            let mut diagnostics = diagnostics;
+            diagnostics.push(Diagnostic {
+                uri: Some(request.source_uri.to_owned()),
+                code: UNSUPPORTED_ENCODING_DIAGNOSTIC.to_owned(),
+                severity: Severity::Error,
+                message: format!("CSV source must be valid UTF-8: {error}"),
+                byte_offset: u64::try_from(error.valid_up_to()).ok(),
+                ..Diagnostic::default()
+            });
+            return (None, diagnostics);
+        }
+    };
+
+    let mut reader = csv::ReaderBuilder::new()
+        .has_headers(false)
+        .flexible(true)
+        .from_reader(source.as_bytes());
+    let mut rows = Vec::new();
+    for (row_index, result) in reader.records().enumerate() {
+        let record = match result {
+            Ok(record) => record,
+            Err(error) => {
+                let mut diagnostics = diagnostics;
+                diagnostics.push(csv_fact_diagnostic(
+                    &CsvParseReport {
+                        source_uri: request.source_uri.to_owned(),
+                        content_type: request.content_type.map(str::to_owned),
+                        byte_len: request.bytes.len() as u64,
+                        facts: Vec::new(),
+                    },
+                    &{
+                        let mut fact = csv_fact(csv_parse_error_fact_kind(&error), None, None, &[]);
+                        fact.line = csv_position_line(error.position());
+                        fact.byte_offset = csv_position_byte_offset(error.position());
+                        fact.message = Some(format!("CSV parse error: {error}"));
+                        fact
+                    },
+                    &CsvSchemaContractCatalog::from_builtin().parse_error,
+                    format!("CSV parse error: {error}"),
+                ));
+                return (None, diagnostics);
+            }
+        };
+        let fields = record
+            .iter()
+            .enumerate()
+            .map(|(field_index, value)| {
+                json!({
+                    "index": field_index,
+                    "value": value,
+                })
+            })
+            .collect::<Vec<_>>();
+        rows.push(json!({
+            "index": row_index,
+            "fields": fields,
+        }));
+    }
+
+    let mut table = serde_json::Map::new();
+    table.insert("kind".to_owned(), json!("csv-table"));
+    table.insert("rows".to_owned(), json!(rows));
+    if let Some(line_ending) = csv_detect_line_ending_style(source) {
+        table.insert("lineEnding".to_owned(), json!(line_ending));
+    }
+
+    (Some(serde_json::Value::Object(table)), diagnostics)
+}
+
 pub fn extract_csv_parse_report(request: CsvSourceValidationRequest<'_>) -> CsvParseReport {
     let mut report = CsvParseReport {
         source_uri: request.source_uri.to_owned(),
@@ -451,6 +534,147 @@ fn advance_csv_cursor(bytes: &[u8], byte: &mut usize, line: &mut u32, column: &m
             *column = column.saturating_add(1);
         }
         None => {}
+    }
+}
+
+fn csv_detect_line_ending_style(source: &str) -> Option<&'static str> {
+    let bytes = source.as_bytes();
+    let mut byte = 0usize;
+    let mut saw_crlf = false;
+    let mut saw_lf = false;
+    let mut saw_cr = false;
+    let mut state = CsvQuoteState::StartField;
+    while byte < bytes.len() {
+        match state {
+            CsvQuoteState::StartField => match bytes[byte] {
+                b'"' => {
+                    state = CsvQuoteState::InQuoted {
+                        open: CsvSourcePosition {
+                            line: 0,
+                            column: 0,
+                            byte_offset: byte as u64,
+                        },
+                    };
+                    byte += 1;
+                }
+                b',' => {
+                    byte += 1;
+                }
+                b'\r' | b'\n' => {
+                    csv_note_record_line_ending(
+                        bytes,
+                        &mut byte,
+                        &mut saw_crlf,
+                        &mut saw_lf,
+                        &mut saw_cr,
+                    );
+                    state = CsvQuoteState::StartField;
+                }
+                _ => {
+                    state = CsvQuoteState::InUnquoted;
+                    byte += 1;
+                }
+            },
+            CsvQuoteState::InUnquoted => match bytes[byte] {
+                b',' => {
+                    state = CsvQuoteState::StartField;
+                    byte += 1;
+                }
+                b'\r' | b'\n' => {
+                    csv_note_record_line_ending(
+                        bytes,
+                        &mut byte,
+                        &mut saw_crlf,
+                        &mut saw_lf,
+                        &mut saw_cr,
+                    );
+                    state = CsvQuoteState::StartField;
+                }
+                _ => {
+                    byte += 1;
+                }
+            },
+            CsvQuoteState::InQuoted { .. } => {
+                if bytes[byte] == b'"' {
+                    if bytes.get(byte + 1) == Some(&b'"') {
+                        byte += 2;
+                    } else {
+                        state = CsvQuoteState::AfterQuote;
+                        byte += 1;
+                    }
+                } else {
+                    byte += 1;
+                }
+            }
+            CsvQuoteState::AfterQuote => match bytes[byte] {
+                b',' => {
+                    state = CsvQuoteState::StartField;
+                    byte += 1;
+                }
+                b'\r' | b'\n' => {
+                    csv_note_record_line_ending(
+                        bytes,
+                        &mut byte,
+                        &mut saw_crlf,
+                        &mut saw_lf,
+                        &mut saw_cr,
+                    );
+                    state = CsvQuoteState::StartField;
+                }
+                _ => {
+                    state = CsvQuoteState::InUnquoted;
+                    byte += 1;
+                }
+            },
+        }
+    }
+
+    csv_line_ending_style_from_flags(saw_crlf, saw_lf, saw_cr)
+}
+
+fn csv_note_record_line_ending(
+    bytes: &[u8],
+    byte: &mut usize,
+    saw_crlf: &mut bool,
+    saw_lf: &mut bool,
+    saw_cr: &mut bool,
+) {
+    match bytes.get(*byte).copied() {
+        Some(b'\r') if bytes.get(*byte + 1) == Some(&b'\n') => {
+            *saw_crlf = true;
+            *byte += 2;
+        }
+        Some(b'\r') => {
+            *saw_cr = true;
+            *byte += 1;
+        }
+        Some(b'\n') => {
+            *saw_lf = true;
+            *byte += 1;
+        }
+        Some(_) => {
+            *byte += 1;
+        }
+        None => {}
+    }
+}
+
+fn csv_line_ending_style_from_flags(
+    saw_crlf: bool,
+    saw_lf: bool,
+    saw_cr: bool,
+) -> Option<&'static str> {
+    match (
+        usize::from(saw_crlf) + usize::from(saw_lf) + usize::from(saw_cr),
+        saw_crlf,
+        saw_lf,
+        saw_cr,
+    ) {
+        (0, _, _, _) => None,
+        (1, true, false, false) => Some("crlf"),
+        (1, false, true, false) => Some("lf"),
+        (1, false, false, true) => Some("cr"),
+        _ => Some("mixed"),
     }
 }
 
@@ -737,6 +961,46 @@ mod tests {
         assert_eq!(fact.kind, CsvParseFactKind::InvalidHeaderParameter);
         assert_eq!(fact.kind.as_str(), "invalid-header-parameter");
         assert_eq!(fact.actual.as_deref(), Some("maybe"));
+    }
+
+    #[test]
+    fn csv_table_projection_records_source_line_ending_style() {
+        for (name, bytes, expected) in [
+            ("lf", b"id,name\n1,Ada\n".as_slice(), Some("lf")),
+            ("crlf", b"id,name\r\n1,Ada\r\n".as_slice(), Some("crlf")),
+            (
+                "quoted embedded lf with crlf records",
+                b"id,note\r\n1,\"line one\nline two\"\r\n".as_slice(),
+                Some("crlf"),
+            ),
+            ("cr", b"id,name\r1,Ada\r".as_slice(), Some("cr")),
+            (
+                "mixed",
+                b"id,name\r\n1,Ada\n2,Lin\r".as_slice(),
+                Some("mixed"),
+            ),
+            ("none", b"id,name".as_slice(), None),
+        ] {
+            let (table, diagnostics) =
+                csv_table_value_from_source_bytes(CsvSourceValidationRequest {
+                    bytes,
+                    source_uri: "memory://table.csv",
+                    content_type: Some("text/csv"),
+                });
+
+            assert!(
+                diagnostics.is_empty(),
+                "{name} should not produce diagnostics: {diagnostics:#?}"
+            );
+            assert_eq!(
+                table
+                    .as_ref()
+                    .and_then(|table| table.get("lineEnding"))
+                    .and_then(serde_json::Value::as_str),
+                expected,
+                "{name}"
+            );
+        }
     }
 
     #[test]

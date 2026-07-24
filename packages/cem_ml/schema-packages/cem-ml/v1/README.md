@@ -174,7 +174,7 @@ CLI validation integration tests.
 | [`basic.cem`](examples/basic.cem) | Minimal persisted CEM-ML document. | Pass |
 | [`nested-handoff.cem`](examples/nested-handoff.cem) | Namespaced content with a `text/html` handoff boundary. | Pass |
 | [`embedded-handoffs.cem`](examples/embedded-handoffs.cem) | Scoped style/script, XML CDATA, and JSON string handoff payloads with bounded deferred-parser diagnostics. | Pass with `cem.handoff.child_parser_deferred` |
-| [`formatter-coloring-pipeline.package-artifacts.fixture.cem`](examples/formatter-coloring-pipeline.package-artifacts.fixture.cem) | Checked stage fixture generated through manifest-declared formatter/colorizer artifacts selected by explicit CEMT aliases. | Pass |
+| [`formatter-coloring-pipeline.package-artifacts.fixture.cem`](examples/formatter-coloring-pipeline.package-artifacts.fixture.cem) | Checked stage fixture generated through manifest-declared formatter/colorizer artifacts selected by explicit CEMT aliases. | Fail with `cem.schema.unresolved_namespace` under direct CEM-ML schema validation |
 | [`invalid-unclosed-scope.cem`](examples/invalid-unclosed-scope.cem) | Missing closing scope syntax diagnostic. | Fail with `cem.ast.unclosed_scope` |
 | [`invalid-unsupported-handoffs.cem`](examples/invalid-unsupported-handoffs.cem) | CSF-like and future vendor JSON handoff content types. | Fail with `cem.handoff.unsupported_content_type` |
 

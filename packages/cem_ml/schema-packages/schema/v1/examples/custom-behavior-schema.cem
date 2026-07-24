@@ -27,7 +27,7 @@
             @execution="ast-validation"
             @function="page-label-result"
             @select="resource"
-            @match='kind = "page" and label = null' |
+            @match='kind == "page" && label == null' |
             {inputs |
                 {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
             }

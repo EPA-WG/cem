@@ -7,8 +7,8 @@
         @name="csv.color-document"
         @visibility="public"
         @category="csv-document"
-        @subject="tokens"
-        @produces="tokens"
+        @subject="cem-tree"
+        @produces="cem-tree"
         @content-type="text/csv"
         @schema="https://cem.dev/ns/data/csv/1"
         @profile="md"
@@ -18,19 +18,42 @@
         {param @name="subject" @type="object" @required=true}
         {body |
             {$ {
-                kind: "token-stream",
-                formatterProfile: match(exists($subject.formatterProfile), {
-                    true: $subject.formatterProfile,
-                    false: "unknown"
-                }),
-                colorProfile: "md",
-                colorOutput: "md",
-                colored: true,
-                tokens: map(
-                    match(exists($subject.tokens), {
-                        true: $subject.tokens,
-                        false: []
-                    }),
+	                kind: "cem-tree",
+	                contentType: "text/csv",
+	                schema: "https://cem.dev/ns/data/csv/1",
+	                category: "csv-document",
+	                formatterProfile: match(exists($subject.formatterProfile), {
+	                    true: $subject.formatterProfile,
+	                    false: "unknown"
+	                }),
+	                formatNodes: match(exists($subject.formatNodes), {
+	                    true: $subject.formatNodes,
+	                    false: []
+	                }),
+	                colorProfile: "md",
+	                colorOutput: "md",
+	                colored: true,
+	                colorNodes: [
+	                    {
+	                        kind: "color-marker",
+	                        name: "csv.color-document",
+	                        colorizerRole: "colorizer.boundary",
+	                        colorProfile: "md",
+	                        colorOutput: "md"
+	                    },
+	                    {
+	                        kind: "color-decision",
+	                        name: "csv.role-spans",
+	                        colorizerRole: "colorizer.role",
+	                        colorProfile: "md",
+	                        colorOutput: "md"
+	                    }
+	                ],
+	                nodes: map(
+	                    match(exists($subject.nodes), {
+	                        true: $subject.nodes,
+	                        false: []
+	                    }),
                     call("csv.color-document.token", {
                         token: $item,
                         profile: "md"

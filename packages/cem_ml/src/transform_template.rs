@@ -2182,6 +2182,8 @@ pub struct TransformTemplateEncodeOptions {
     pub ordering: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wrap_column: Option<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub formatter_options: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub indent: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2481,10 +2483,19 @@ pub const TRANSFORM_TEMPLATE_COLOR_ROLES: &[&str] = &[
     "syntax.keyword",
     "syntax.name",
     "syntax.attribute",
+    "syntax.punctuation",
     "syntax.string",
     "syntax.number",
     "syntax.comment",
     "syntax.raw",
+    "data.field.1",
+    "data.field.2",
+    "data.field.3",
+    "data.field.4",
+    "data.field.5",
+    "data.field.6",
+    "data.field.7",
+    "data.field.8",
     "diff.added",
     "diff.add",
     "diff.removed",
@@ -4414,10 +4425,19 @@ fn transform_template_terminal_sgr_for_role(
             "source.highlight" | "source.secondary-highlight" => Some("7"),
             "syntax.keyword" => Some("1;35"),
             "syntax.name" | "syntax.attribute" => Some("36"),
+            "syntax.punctuation" => Some("2;37"),
             "syntax.string" | "status.success" | "diff.added" => Some("32"),
             "syntax.number" => Some("33"),
             "syntax.comment" => Some("2;32"),
             "syntax.raw" => Some("37"),
+            "data.field.1" => Some("36"),
+            "data.field.2" => Some("32"),
+            "data.field.3" => Some("33"),
+            "data.field.4" => Some("35"),
+            "data.field.5" => Some("34"),
+            "data.field.6" => Some("31"),
+            "data.field.7" => Some("1;36"),
+            "data.field.8" => Some("1;35"),
             _ => None,
         },
         TransformTemplateTerminalColorCapability::Ansi256
@@ -4430,10 +4450,19 @@ fn transform_template_terminal_sgr_for_role(
             "source.highlight" | "source.secondary-highlight" => Some("7;38;5;33"),
             "syntax.keyword" => Some("1;38;5;141"),
             "syntax.name" | "syntax.attribute" => Some("38;5;81"),
+            "syntax.punctuation" => Some("2;38;5;244"),
             "syntax.string" | "status.success" | "diff.added" => Some("38;5;76"),
             "syntax.number" => Some("38;5;220"),
             "syntax.comment" => Some("2;38;5;108"),
             "syntax.raw" => Some("38;5;250"),
+            "data.field.1" => Some("38;5;75"),
+            "data.field.2" => Some("38;5;76"),
+            "data.field.3" => Some("38;5;208"),
+            "data.field.4" => Some("38;5;141"),
+            "data.field.5" => Some("38;5;39"),
+            "data.field.6" => Some("38;5;203"),
+            "data.field.7" => Some("38;5;220"),
+            "data.field.8" => Some("38;5;111"),
             _ => None,
         },
         TransformTemplateTerminalColorCapability::Truecolor => match role {
@@ -4445,10 +4474,19 @@ fn transform_template_terminal_sgr_for_role(
             "source.highlight" | "source.secondary-highlight" => Some("7;38;2;30;90;180"),
             "syntax.keyword" => Some("1;38;2;128;88;190"),
             "syntax.name" | "syntax.attribute" => Some("38;2;0;130;145"),
+            "syntax.punctuation" => Some("2;38;2;96;105;120"),
             "syntax.string" | "status.success" | "diff.added" => Some("38;2;0;130;80"),
             "syntax.number" => Some("38;2;154;103;0"),
             "syntax.comment" => Some("2;38;2;84;130;84"),
             "syntax.raw" => Some("38;2;92;100;112"),
+            "data.field.1" => Some("38;2;42;117;221"),
+            "data.field.2" => Some("38;2;0;130;80"),
+            "data.field.3" => Some("38;2;196;92;0"),
+            "data.field.4" => Some("38;2;128;88;190"),
+            "data.field.5" => Some("38;2;0;126;170"),
+            "data.field.6" => Some("38;2;200;58;78"),
+            "data.field.7" => Some("38;2;154;103;0"),
+            "data.field.8" => Some("38;2;72;111;186"),
             _ => None,
         },
     }
@@ -4550,10 +4588,19 @@ fn transform_template_html_color_for_role(role: &str) -> &'static str {
         "source.highlight" | "source.secondary-highlight" => "#1e3a8a",
         "syntax.keyword" => "#7a4cc2",
         "syntax.name" | "syntax.attribute" => "#087990",
+        "syntax.punctuation" => "#667085",
         "syntax.string" | "status.success" | "diff.added" => "#067647",
         "syntax.number" => "#8a5a00",
         "syntax.comment" => "#4e7f4e",
         "syntax.raw" => "#475467",
+        "data.field.1" => "#2a75dd",
+        "data.field.2" => "#067647",
+        "data.field.3" => "#c45c00",
+        "data.field.4" => "#8058be",
+        "data.field.5" => "#007eaa",
+        "data.field.6" => "#c83a4e",
+        "data.field.7" => "#8a5a00",
+        "data.field.8" => "#486fba",
         _ => "#344054",
     }
 }
@@ -5631,11 +5678,13 @@ fn transform_template_cem_tree_format_source_map_value(
 fn transform_template_cem_tree_formatter_line_ending(
     options: &TransformTemplateEncodeOptions,
 ) -> String {
-    options
-        .line_ending
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
+    transform_template_encode_options_line_ending(options)
+}
+
+pub(crate) fn transform_template_encode_options_line_ending(
+    options: &TransformTemplateEncodeOptions,
+) -> String {
+    transform_template_encode_options_line_ending_option(options)
         .unwrap_or("lf")
         .to_owned()
 }
@@ -5643,15 +5692,39 @@ fn transform_template_cem_tree_formatter_line_ending(
 fn transform_template_cem_tree_formatter_line_ending_data(
     options: &TransformTemplateEncodeOptions,
 ) -> String {
-    match options
-        .line_ending
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    {
+    transform_template_encode_options_line_ending_data(options)
+}
+
+pub(crate) fn transform_template_encode_options_line_ending_data(
+    options: &TransformTemplateEncodeOptions,
+) -> String {
+    transform_template_line_ending_data_from_selector(
+        transform_template_encode_options_line_ending_option(options),
+    )
+}
+
+fn transform_template_line_ending_data_from_selector(value: Option<&str>) -> String {
+    match transform_template_non_empty_formatter_option(value) {
         Some("crlf") | Some("\\r\\n") => "\r\n".to_owned(),
         _ => "\n".to_owned(),
     }
+}
+
+fn transform_template_encode_options_line_ending_option(
+    options: &TransformTemplateEncodeOptions,
+) -> Option<&str> {
+    transform_template_non_empty_formatter_option(options.line_ending.as_deref()).or_else(|| {
+        transform_template_non_empty_formatter_option(
+            options
+                .formatter_options
+                .get("lineEnding")
+                .map(String::as_str),
+        )
+    })
+}
+
+fn transform_template_non_empty_formatter_option(value: Option<&str>) -> Option<&str> {
+    value.map(str::trim).filter(|value| !value.is_empty())
 }
 
 fn transform_template_cem_tree_formatter_indent(
@@ -7118,7 +7191,7 @@ pub fn transform_template_format_cem_source_text(
     )?;
     transform_template_apply_source_text_line_ending(
         value.to_owned(),
-        options.line_ending.as_deref(),
+        transform_template_encode_options_line_ending_option(options),
         "CEM",
     )
 }
@@ -7136,7 +7209,7 @@ pub fn transform_template_format_cemt_source_text(
     )?;
     transform_template_apply_source_text_line_ending(
         value.to_owned(),
-        options.line_ending.as_deref(),
+        transform_template_encode_options_line_ending_option(options),
         "CEMT",
     )
 }
@@ -7154,7 +7227,7 @@ pub fn transform_template_format_cem_ql_source_text(
     )?;
     transform_template_apply_source_text_line_ending(
         value.to_owned(),
-        options.line_ending.as_deref(),
+        transform_template_encode_options_line_ending_option(options),
         "CEM-QL",
     )
 }
@@ -7172,7 +7245,7 @@ pub fn transform_template_format_rnc_source_text(
     )?;
     transform_template_apply_source_text_line_ending(
         value.to_owned(),
-        options.line_ending.as_deref(),
+        transform_template_encode_options_line_ending_option(options),
         "RNC",
     )
 }
@@ -7509,7 +7582,10 @@ pub fn transform_template_format_markdown_text(
     } else {
         output
     };
-    transform_template_apply_markdown_line_ending(output, options.line_ending.as_deref())
+    transform_template_apply_markdown_line_ending(
+        output,
+        transform_template_encode_options_line_ending_option(options),
+    )
 }
 
 fn transform_template_markdown_wrap_column(
@@ -7768,7 +7844,10 @@ pub fn transform_template_format_yaml_scalar(
             transform_template_encode_yaml_plain_scalar(value)?
         }
     };
-    transform_template_apply_yaml_line_ending(output, options.line_ending.as_deref())
+    transform_template_apply_yaml_line_ending(
+        output,
+        transform_template_encode_options_line_ending_option(options),
+    )
 }
 
 pub fn transform_template_format_yaml_value(
@@ -7798,7 +7877,10 @@ pub fn transform_template_format_yaml_value(
         }
         Value::Array(_) | Value::Object(_) => transform_template_encode_json_value(value)?,
     };
-    transform_template_apply_yaml_line_ending(output, options.line_ending.as_deref())
+    transform_template_apply_yaml_line_ending(
+        output,
+        transform_template_encode_options_line_ending_option(options),
+    )
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -8028,7 +8110,10 @@ pub fn transform_template_format_json_value(
     } else {
         transform_template_encode_json_value(value)?
     };
-    transform_template_apply_json_line_ending(output, options.line_ending.as_deref())
+    transform_template_apply_json_line_ending(
+        output,
+        transform_template_encode_options_line_ending_option(options),
+    )
 }
 
 fn transform_template_json_formatter_mode(
@@ -8185,7 +8270,10 @@ pub fn transform_template_format_xml_text(
     formatter_profile: Option<&str>,
 ) -> Result<String, String> {
     transform_template_validate_xml_formatter_options(options, formatter_profile)?;
-    transform_template_apply_xml_line_ending(output, options.line_ending.as_deref())
+    transform_template_apply_xml_line_ending(
+        output,
+        transform_template_encode_options_line_ending_option(options),
+    )
 }
 
 fn transform_template_validate_xml_formatter_options(
@@ -8685,6 +8773,8 @@ fn transform_template_writer_token_artifact_to_text(
     let token_stream: TransformTemplateWriterTokenStream =
         serde_json::from_value(artifact.value.clone())
             .map_err(|error| format!("token stream envelope is invalid: {error}"))?;
+    let terminal_color_profile =
+        transform_template_writer_token_terminal_color_profile(&artifact.value, &artifact.identity);
     let mut text = String::new();
     let mut token_output_spans = Vec::new();
     let mut has_token_output_spans = false;
@@ -8694,14 +8784,19 @@ fn transform_template_writer_token_artifact_to_text(
                 "`tokens[{index}]` has no text for the default token-to-text writer adapter"
             ));
         };
+        let rendered_token_text = transform_template_writer_token_rendered_text(
+            token_text,
+            token,
+            terminal_color_profile.as_ref(),
+        );
         if let Some(output_span) = &token.output_span {
             has_token_output_spans = true;
             let mut generated_span = output_span.clone();
             generated_span.output_range =
-                ByteRange::new(text.len() as u64, token_text.len() as u32);
+                ByteRange::new(text.len() as u64, rendered_token_text.len() as u32);
             token_output_spans.push(generated_span);
         }
-        text.push_str(token_text);
+        text.push_str(&rendered_token_text);
     }
 
     let mut identity = artifact.identity.clone();
@@ -8726,6 +8821,63 @@ fn transform_template_writer_token_artifact_to_text(
         output_spans,
         encoded: true,
     })
+}
+
+fn transform_template_writer_token_terminal_color_profile(
+    value: &Value,
+    identity: &TransformTemplateEncodedArtifactIdentity,
+) -> Option<TransformTemplateColorOutputProfile> {
+    if trimmed_value_string_field(value, "colorOutput").is_some_and(|output| output != "terminal") {
+        return None;
+    }
+    let selector = trimmed_optional_str(identity.color_capability.as_deref())
+        .or_else(|| trimmed_value_string_field(value, "colorCapability"))
+        .or_else(|| trimmed_optional_str(identity.color_profile.as_deref()))
+        .or_else(|| trimmed_value_string_field(value, "colorProfile"))?;
+    let profile = TransformTemplateColorOutputProfile::terminal_from_selector(selector).ok()?;
+    (!profile.no_color
+        && profile.output == TransformTemplateColorOutputKind::Terminal
+        && profile.terminal_capability != TransformTemplateTerminalColorCapability::None)
+        .then_some(profile)
+}
+
+fn transform_template_writer_token_rendered_text(
+    text: &str,
+    token: &TransformTemplateWriterToken,
+    terminal_color_profile: Option<&TransformTemplateColorOutputProfile>,
+) -> String {
+    let Some(profile) = terminal_color_profile else {
+        return text.to_owned();
+    };
+    let Some(role) = transform_template_writer_token_color_role(token) else {
+        return text.to_owned();
+    };
+    if !profile.supports_role(role) {
+        return text.to_owned();
+    }
+    let Some(sgr) = transform_template_terminal_sgr_for_role(role, profile.terminal_capability)
+    else {
+        return text.to_owned();
+    };
+    format!("\u{1b}[{sgr}m{text}\u{1b}[0m")
+}
+
+fn transform_template_writer_token_color_role(
+    token: &TransformTemplateWriterToken,
+) -> Option<&str> {
+    token
+        .style
+        .get("colorRole")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|role| !role.is_empty())
+        .or_else(|| {
+            token
+                .role
+                .as_deref()
+                .map(str::trim)
+                .filter(|role| !role.is_empty())
+        })
 }
 
 fn transform_template_writer_chunk_artifact_to_text(
@@ -8840,18 +8992,26 @@ fn validate_cem_tree_writer_boundary(
     }
     validate_cem_tree_formatter_metadata(&artifact.value, formatter_profile)?;
 
-    if artifact.value.get("colored").and_then(Value::as_bool) != Some(true) {
+    let identity_color_profile = trimmed_optional_str(artifact.identity.color_profile.as_deref());
+    let value_color_profile = trimmed_value_string_field(&artifact.value, "colorProfile");
+    let colored = artifact.value.get("colored").and_then(Value::as_bool) == Some(true);
+    let color_requested = colored
+        || identity_color_profile.is_some()
+        || value_color_profile.is_some()
+        || trimmed_optional_str(writer_boundary_context.color_profile.as_deref()).is_some();
+    if !color_requested {
+        return Ok(());
+    }
+    if !colored {
         return Err(
-            "CEM tree writer requires a colored CEM tree with `colored: true`; run `cem.color-tree` before the writer"
+            "CEM tree writer requires a colored CEM tree with `colored: true` when a color profile is requested; run the package colorizer before the writer"
                 .to_owned(),
         );
     }
-    let identity_color_profile = trimmed_optional_str(artifact.identity.color_profile.as_deref());
-    let value_color_profile = trimmed_value_string_field(&artifact.value, "colorProfile");
     let color_profile = identity_color_profile
         .or(value_color_profile)
         .ok_or_else(|| {
-            "CEM tree writer requires a colored CEM tree with `colorProfile`; run `cem.color-tree` before the writer"
+            "CEM tree writer requires a colored CEM tree with `colorProfile` when a color profile is requested; run the package colorizer before the writer"
                 .to_owned()
         })?;
     if let (Some(identity), Some(value)) = (identity_color_profile, value_color_profile) {
@@ -8897,11 +9057,15 @@ fn validate_cem_tree_formatter_metadata(
         })?;
     let has_marker = format_nodes.iter().any(|node| {
         node.get("kind").and_then(Value::as_str) == Some("format-marker")
-            && node.get("name").and_then(Value::as_str) == Some("cem.format-tree")
+            && node
+                .get("name")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .is_some_and(|name| !name.is_empty())
     });
     if !has_marker {
         return Err(
-            "CEM tree writer requires a `cem.format-tree` formatter marker in `formatNodes`"
+            "CEM tree writer requires a package formatter marker in `formatNodes`, for example `cem.format-tree`"
                 .to_owned(),
         );
     }
@@ -8940,11 +9104,15 @@ fn validate_cem_tree_color_metadata(value: &Value, color_profile: &str) -> Resul
         })?;
     let has_marker = color_nodes.iter().any(|node| {
         node.get("kind").and_then(Value::as_str) == Some("color-marker")
-            && node.get("name").and_then(Value::as_str) == Some("cem.color-tree")
+            && node
+                .get("name")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .is_some_and(|name| !name.is_empty())
     });
     if !has_marker {
         return Err(
-            "CEM tree writer requires a `cem.color-tree` colorizer marker in `colorNodes`"
+            "CEM tree writer requires a package colorizer marker in `colorNodes`, for example `cem.color-tree`"
                 .to_owned(),
         );
     }
@@ -8969,7 +9137,9 @@ fn validate_cem_tree_color_metadata(value: &Value, color_profile: &str) -> Resul
             "CEM tree color metadata profile mismatch: tree `{color_profile}`, colorNodes `{conflicting_profile}`"
         ));
     }
-    if TransformTemplateColorOutputProfile::html_from_selector(color_profile).is_ok() {
+    if TransformTemplateColorOutputProfile::html_from_selector(color_profile).is_ok()
+        && !cem_tree_contains_writer_token_nodes(value)
+    {
         validate_cem_tree_materialized_html_color_metadata(value, color_profile)?;
     }
     Ok(())
@@ -9248,6 +9418,30 @@ fn trimmed_value_string_field<'a>(value: &'a Value, field: &str) -> Option<&'a s
         .filter(|value| !value.is_empty())
 }
 
+fn transform_template_cem_tree_writer_line_ending(value: &Value) -> String {
+    transform_template_line_ending_data_from_selector(
+        transform_template_cem_tree_writer_format_decision_value(value, "line-ending"),
+    )
+}
+
+fn transform_template_cem_tree_writer_format_decision_value<'a>(
+    value: &'a Value,
+    name: &str,
+) -> Option<&'a str> {
+    value
+        .get("formatNodes")
+        .and_then(Value::as_array)
+        .and_then(|nodes| {
+            nodes.iter().find_map(|node| {
+                let fields = node.as_object()?;
+                (fields.get("kind").and_then(Value::as_str) == Some("format-decision")
+                    && fields.get("name").and_then(Value::as_str) == Some(name))
+                .then(|| fields.get("value").and_then(Value::as_str))
+                .flatten()
+            })
+        })
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TransformTemplateCemTreeWriterSyntax {
     Cem,
@@ -9270,6 +9464,7 @@ impl TransformTemplateCemTreeWriterSyntax {
 struct TransformTemplateCemTreeRenderedText {
     text: String,
     output_spans: Vec<OutputSpan>,
+    line_ending: String,
     terminal_color_profile: Option<TransformTemplateColorOutputProfile>,
     markdown_color_profile: Option<TransformTemplateColorOutputProfile>,
 }
@@ -9288,6 +9483,10 @@ impl TransformTemplateCemTreeRenderedText {
 
     fn push_unmapped(&mut self, text: &str) {
         self.text.push_str(text);
+    }
+
+    fn push_line_ending(&mut self) {
+        self.text.push_str(&self.line_ending);
     }
 
     fn push_colored_mapped(
@@ -9384,6 +9583,7 @@ fn transform_template_cem_tree_value_to_rendered_text(
         writer_boundary_context,
         syntax,
     );
+    let line_ending = transform_template_cem_tree_writer_line_ending(value);
     let object = value
         .as_object()
         .ok_or_else(|| "CEM tree writer expected object value".to_owned())?;
@@ -9391,6 +9591,7 @@ fn transform_template_cem_tree_value_to_rendered_text(
         terminal_color_profile,
         markdown_color_profile,
     );
+    rendered.line_ending = line_ending;
     if let Some(nodes) = object.get("nodes").and_then(Value::as_array) {
         transform_template_render_cem_tree_nodes(nodes, syntax, &mut rendered)?;
         rendered.finish_terminal_color_boundary();
@@ -9431,10 +9632,12 @@ fn transform_template_render_cem_tree_nodes(
         if index > 0
             && !transform_template_cem_tree_value_is_whitespace(&nodes[index - 1])
             && !transform_template_cem_tree_value_is_whitespace(node)
+            && !transform_template_cem_tree_value_is_writer_token(&nodes[index - 1])
+            && !transform_template_cem_tree_value_is_writer_token(node)
         {
             match syntax {
                 TransformTemplateCemTreeWriterSyntax::Cem
-                | TransformTemplateCemTreeWriterSyntax::Markdown => rendered.push_unmapped("\n"),
+                | TransformTemplateCemTreeWriterSyntax::Markdown => rendered.push_line_ending(),
                 TransformTemplateCemTreeWriterSyntax::Html
                 | TransformTemplateCemTreeWriterSyntax::Xml => {}
             }
@@ -9485,6 +9688,9 @@ fn transform_template_render_cem_tree_object_node(
         .and_then(Value::as_str)
         .map(str::trim)
         .unwrap_or("element");
+    if transform_template_cem_tree_fields_are_writer_token(fields) {
+        return transform_template_render_cem_tree_writer_token_node(fields, rendered);
+    }
     if syntax.is_markup() {
         return transform_template_render_cem_tree_markup_node(fields, syntax, rendered);
     }
@@ -9544,6 +9750,67 @@ fn transform_template_render_cem_tree_object_node(
         }
         _ => transform_template_render_cem_tree_element(fields, syntax, rendered),
     }
+}
+
+fn transform_template_cem_tree_value_is_writer_token(value: &Value) -> bool {
+    value
+        .as_object()
+        .is_some_and(transform_template_cem_tree_fields_are_writer_token)
+}
+
+fn transform_template_cem_tree_fields_are_writer_token(
+    fields: &serde_json::Map<String, Value>,
+) -> bool {
+    fields
+        .get("writerKind")
+        .or_else(|| fields.get("writerNode"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .is_some_and(|value| value == "token")
+        || fields.get("kind").and_then(Value::as_str) == Some("writer-token")
+}
+
+fn transform_template_render_cem_tree_writer_token_node(
+    fields: &serde_json::Map<String, Value>,
+    rendered: &mut TransformTemplateCemTreeRenderedText,
+) -> Result<(), String> {
+    let mut token_fields = fields.clone();
+    if token_fields.get("kind").and_then(Value::as_str) == Some("writer-token") {
+        let token_kind = token_fields
+            .get("tokenKind")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| "CEM tree writer-token node missing `tokenKind`".to_owned())?;
+        token_fields.insert("kind".to_owned(), Value::String(token_kind.to_owned()));
+    }
+    token_fields.remove("writerKind");
+    token_fields.remove("writerNode");
+    token_fields.remove("tokenKind");
+    let token: TransformTemplateWriterToken =
+        serde_json::from_value(Value::Object(token_fields))
+            .map_err(|error| format!("CEM tree writer-token node is invalid: {error}"))?;
+    let Some(token_text) = token.text.as_deref() else {
+        return Err("CEM tree writer-token node has no text".to_owned());
+    };
+    if token_text.is_empty() {
+        return Ok(());
+    }
+    let rendered_token_text = transform_template_writer_token_rendered_text(
+        token_text,
+        &token,
+        rendered.terminal_color_profile.as_ref(),
+    );
+    if let Some(output_span) = &token.output_span {
+        let mut generated_span = output_span.clone();
+        generated_span.output_range =
+            ByteRange::new(rendered.text.len() as u64, rendered_token_text.len() as u32);
+        rendered.output_spans.push(generated_span);
+        rendered.push_unmapped(&rendered_token_text);
+        return Ok(());
+    }
+    rendered.push_unmapped(&rendered_token_text);
+    Ok(())
 }
 
 fn transform_template_render_cem_tree_markup_node(
@@ -10831,6 +11098,13 @@ fn cemt_runtime_bind_output_contract_metadata(
                 &binding.options,
             ))
         });
+    if !binding.options.formatter_options.is_empty() {
+        scoped_bindings
+            .entry("formatterOptions".to_owned())
+            .or_insert_with(|| {
+                cemt_nested_string_options_value(&binding.options.formatter_options)
+            });
+    }
     if let Some(function_profile) = binding.function.profile.as_deref() {
         scoped_bindings
             .entry("functionProfile".to_owned())
@@ -10851,6 +11125,33 @@ fn cemt_runtime_bind_output_contract_metadata(
             .entry("colorCapability".to_owned())
             .or_insert_with(|| Value::String(color_capability.to_owned()));
     }
+}
+
+fn cemt_nested_string_options_value(options: &BTreeMap<String, String>) -> Value {
+    let mut root = serde_json::Map::new();
+    for (key, value) in options {
+        let mut segments = key
+            .split('.')
+            .map(str::trim)
+            .filter(|segment| !segment.is_empty());
+        let Some(first) = segments.next() else {
+            continue;
+        };
+        let mut cursor = &mut root;
+        let mut current = first.to_owned();
+        for segment in segments {
+            let entry = cursor
+                .entry(current)
+                .or_insert_with(|| Value::Object(serde_json::Map::new()));
+            if !entry.is_object() {
+                *entry = Value::Object(serde_json::Map::new());
+            }
+            cursor = entry.as_object_mut().expect("entry is object");
+            current = segment.to_owned();
+        }
+        cursor.insert(current, Value::String(value.clone()));
+    }
+    Value::Object(root)
 }
 
 fn resolve_encode_request_runtime_values(
@@ -12021,6 +12322,15 @@ fn resolve_encode_subject_expression_at_depth(
         return Ok(Some(value));
     }
     if let Some(value) = resolve_cemt_add_expression(
+        expression,
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )? {
+        return Ok(Some(value));
+    }
+    if let Some(value) = resolve_cemt_mod_expression(
         expression,
         value_bindings,
         runtime_functions,
@@ -13990,6 +14300,61 @@ fn resolve_cemt_concat_expression(
     Ok(Some(Value::String(output)))
 }
 
+fn resolve_cemt_mod_expression(
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    let Some(args) =
+        parse_cemt_function_call_args(expression, "mod").map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    if args.len() != 2 {
+        return Ok(None);
+    }
+    let Some(left) = resolve_encode_subject_expression_at_depth(
+        &args[0],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some(right) = resolve_encode_subject_expression_at_depth(
+        &args[1],
+        value_bindings,
+        runtime_functions,
+        binding,
+        call_depth,
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some(left) = cemt_i64_number(&left) else {
+        return Err(format!(
+            "CEMT mod expected integer left operand, got {}",
+            json_value_type_name(&left)
+        ));
+    };
+    let Some(right) = cemt_i64_number(&right) else {
+        return Err(format!(
+            "CEMT mod expected integer right operand, got {}",
+            json_value_type_name(&right)
+        ));
+    };
+    if right == 0 {
+        return Err("CEMT mod expected non-zero right operand".to_owned());
+    }
+    Ok(Some(Value::Number(serde_json::Number::from(
+        left.rem_euclid(right),
+    ))))
+}
+
 fn resolve_cemt_contains_expression(
     expression: &str,
     value_bindings: &BTreeMap<String, Value>,
@@ -15332,6 +15697,7 @@ fn cemt_runtime_expression_is_dynamic(value: &str) -> bool {
         || cemt_expression_starts_with_call(value, "last")
         || cemt_expression_starts_with_call(value, "typeOf")
         || cemt_expression_starts_with_call(value, "add")
+        || cemt_expression_starts_with_call(value, "mod")
         || cemt_expression_starts_with_call(value, "concat")
         || cemt_expression_starts_with_call(value, "contains")
         || cemt_expression_starts_with_call(value, "replace")
@@ -16425,7 +16791,9 @@ fn validate_cem_tree_value(value: &Value) -> Result<(), String> {
     }
     validate_cem_tree_pipeline_metadata(value, object)?;
     if let Some(nodes) = object.get("nodes") {
-        if !nodes.is_array() {
+        if let Some(nodes) = nodes.as_array() {
+            validate_cem_tree_writer_token_nodes(nodes, "nodes")?;
+        } else {
             return Err(format!("`nodes` {}", json_value_type_name(nodes)));
         }
         return Ok(());
@@ -16443,6 +16811,54 @@ fn validate_cem_tree_value(value: &Value) -> Result<(), String> {
         return Err(format!("`root` {}", json_value_type_name(root)));
     }
     Err("missing `nodes`, `node`, or `root`".to_owned())
+}
+
+fn validate_cem_tree_writer_token_nodes(nodes: &[Value], field: &str) -> Result<(), String> {
+    for (index, node) in nodes.iter().enumerate() {
+        let Some(object) = node.as_object() else {
+            continue;
+        };
+        if !transform_template_cem_tree_fields_are_writer_token(object) {
+            continue;
+        }
+        let mut token = object.clone();
+        if token.get("kind").and_then(Value::as_str) == Some("writer-token") {
+            let token_kind = token
+                .get("tokenKind")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    format!("`{field}[{index}]` writer-token node missing `tokenKind`")
+                })?;
+            token.insert("kind".to_owned(), Value::String(token_kind.to_owned()));
+        }
+        token.remove("writerKind");
+        token.remove("writerNode");
+        token.remove("tokenKind");
+        let stream = serde_json::json!({ "tokens": [Value::Object(token)] });
+        validate_writer_token_stream_value(&stream)
+            .map_err(|message| format!("`{field}[{index}]` writer token is invalid: {message}"))?;
+    }
+    Ok(())
+}
+
+fn cem_tree_contains_writer_token_nodes(value: &Value) -> bool {
+    fn contains(value: &Value) -> bool {
+        match value {
+            Value::Array(items) => items.iter().any(contains),
+            Value::Object(fields) => {
+                transform_template_cem_tree_fields_are_writer_token(fields)
+                    || fields.values().any(contains)
+            }
+            _ => false,
+        }
+    }
+
+    ["nodes", "node", "root"]
+        .iter()
+        .filter_map(|field| value.get(*field))
+        .any(contains)
 }
 
 fn validate_cem_tree_pipeline_metadata(
@@ -21534,6 +21950,14 @@ mod tests {
             Some(json!(3))
         );
         assert_eq!(
+            resolve_encode_subject_expression(r#"mod(10, 8)"#, &values),
+            Some(json!(2))
+        );
+        assert_eq!(
+            resolve_encode_subject_expression(r#"mod(-1, 8)"#, &values),
+            Some(json!(7))
+        );
+        assert_eq!(
             resolve_encode_subject_expression(r#"repeat("  ", $node.depth)"#, &values),
             Some(json!("    "))
         );
@@ -21624,6 +22048,16 @@ mod tests {
         assert!(error.contains("CEMT add expected numeric right operand"));
 
         let error = resolve_encode_subject_expression_at_depth(
+            r#"mod($node.depth, 0)"#,
+            &values,
+            &BTreeMap::new(),
+            None,
+            0,
+        )
+        .expect_err("mod rejects zero divisor");
+        assert!(error.contains("CEMT mod expected non-zero right operand"));
+
+        let error = resolve_encode_subject_expression_at_depth(
             r#"last($node.label)"#,
             &values,
             &BTreeMap::new(),
@@ -21657,6 +22091,7 @@ mod tests {
                 indent: $indent,
                 ordering: $ordering,
                 wrapColumn: $wrapColumn,
+                formatterOptions: $formatterOptions,
                 colorProfile: $colorProfile
             }"#
             .to_owned(),
@@ -21688,6 +22123,7 @@ mod tests {
         .with_options(TransformTemplateEncodeOptions {
             colorizer: Some("cem.color-tree".to_owned()),
             color_profile: Some("classes".to_owned()),
+            formatter_options: BTreeMap::from([("lineEnding".to_owned(), "crlf".to_owned())]),
             ..TransformTemplateEncodeOptions::default()
         });
         let binding = registry
@@ -21716,11 +22152,12 @@ mod tests {
         assert_eq!(value["functionName"], "cem.color-tree");
         assert_eq!(value["functionProfile"], "classes");
         assert_eq!(value["mode"], "document");
-        assert_eq!(value["lineEnding"], "lf");
+        assert_eq!(value["lineEnding"], "crlf");
         assert_eq!(value["indent"], "  ");
         assert_eq!(value["ordering"], "source");
         assert_eq!(value["wrapColumn"], "none");
         assert_eq!(value["colorProfile"], "classes");
+        assert_eq!(value["formatterOptions"]["lineEnding"], "crlf");
     }
 
     #[test]
@@ -24729,7 +25166,7 @@ mod tests {
             pretty: true,
             formatter_profile: Some("json.pretty".to_owned()),
             indent: Some("\t".to_owned()),
-            line_ending: Some("crlf".to_owned()),
+            formatter_options: BTreeMap::from([("lineEnding".to_owned(), "crlf".to_owned())]),
             ..TransformTemplateEncodeOptions::default()
         };
         let binding = TransformTemplateEncodeBinding {
@@ -30522,6 +30959,7 @@ mod tests {
                 &evaluated.artifact.identity,
             );
         context.produces = Some(TransformTemplateOutputProducedKind::Text);
+        context.color_profile = Some("css-custom-properties".to_owned());
 
         let response = compose_transform_template_encoded_text_artifacts(
             &[evaluated],
@@ -30534,7 +30972,7 @@ mod tests {
             diagnostic.code == TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_WRITER_ADAPTER_FAILED_CODE
                 && diagnostic.node.as_deref() == Some("body")
                 && diagnostic.message.contains("colored CEM tree")
-                && diagnostic.message.contains("cem.color-tree")
+                && diagnostic.message.contains("color profile")
         }));
     }
 

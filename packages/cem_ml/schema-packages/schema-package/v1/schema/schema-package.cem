@@ -75,7 +75,7 @@
             @implementation="function"
             @execution="ast-validation"
             @function="single-primary-content-type-result"
-            @select='if seq:count(content-type.attributes.primary.where(. = "true" or . = "")) = 1 then () else package'
+            @select='if seq:count(content-type.attributes.primary.where(. == "true" || . == "")) == 1 { () } else { package }'
             @match="true" |
             {inputs |
                 {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}

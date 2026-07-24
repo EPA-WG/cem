@@ -606,6 +606,14 @@ pub struct ConvertArgs {
     pub cemt_formatter_profile: Option<String>,
 
     #[arg(
+        long = "cemt-formatter-option",
+        value_name = "NAME=VALUE",
+        action = clap::ArgAction::Append,
+        help = "CEMT formatter option; repeatable. Generic options are unprefixed"
+    )]
+    pub cemt_formatter_options: Vec<ScopeKeyValue>,
+
+    #[arg(
         long = "cemt-colorizer",
         value_name = "NAME",
         help = "Explicit CEMT colorizer function for colored CEM tree output; resolves package profile ambiguity"
@@ -1144,6 +1152,12 @@ mod tests {
             "acme.showcase.format-tree",
             "--cemt-formatter-profile",
             "acme.showcase.format-tree",
+            "--cemt-formatter-option",
+            "csv.maxFieldWidth=24",
+            "--cemt-formatter-option",
+            "csv.stringTrim=middle",
+            "--cemt-formatter-option",
+            "lineEnding=crlf",
             "--cemt-colorizer",
             "acme.showcase.color-tree",
             "--cemt-color-profile",
@@ -1163,6 +1177,13 @@ mod tests {
             args.cemt_formatter_profile.as_deref(),
             Some("acme.showcase.format-tree")
         );
+        assert_eq!(args.cemt_formatter_options.len(), 3);
+        assert_eq!(args.cemt_formatter_options[0].key, "csv.maxFieldWidth");
+        assert_eq!(args.cemt_formatter_options[0].value, "24");
+        assert_eq!(args.cemt_formatter_options[1].key, "csv.stringTrim");
+        assert_eq!(args.cemt_formatter_options[1].value, "middle");
+        assert_eq!(args.cemt_formatter_options[2].key, "lineEnding");
+        assert_eq!(args.cemt_formatter_options[2].value, "crlf");
         assert_eq!(
             args.cemt_colorizer.as_deref(),
             Some("acme.showcase.color-tree")

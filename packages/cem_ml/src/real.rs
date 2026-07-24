@@ -12,7 +12,8 @@ use crate::conversion::{
     direct_cem_output_pipeline, direct_html_output_pipeline, direct_xml_output_pipeline,
     execute_conversion_output_pipeline,
     execute_conversion_output_pipeline_from_formatted_cem_tree_with_environment,
-    execute_conversion_output_pipeline_with_environment, ConversionExecution,
+    execute_conversion_output_pipeline_with_environment,
+    execute_csv_document_output_pipeline_with_environment, ConversionExecution,
     ConversionOutputPipeline, ConversionOutputPipelineEnvironment,
     ConversionPackageArtifactDescriptor, ConversionPackageArtifactRead,
     ConversionRustFallbackDescriptor, GenericDataTextConversionOutcome, GenericDataTextDocument,
@@ -45,8 +46,9 @@ use crate::schema::registry::{
     schema_source_path_from_manifest_source, SchemaDescriptor,
     CEM_DOM_JSON_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_CONTENT_TYPE,
     CEM_DOM_PROJECTION_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
-    CEM_SCHEMA_PACKAGE_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
-    XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
+    CEM_SCHEMA_PACKAGE_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI,
+    HTML_CONTENT_TYPE, HTML_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
+    XML_SCHEMA_URI,
 };
 use crate::schema::vocab::CompiledSchema;
 use crate::source::line_index::LineIndex;
@@ -61,7 +63,8 @@ use crate::transform_config::{
 };
 use crate::transform_template::{
     evaluate_transform_template_encode_expressions, parse_cem_native_template_module_options,
-    transform_template_call_argument_is_dynamic, try_apply_transform_template_let_bindings,
+    transform_template_call_argument_is_dynamic,
+    transform_template_encode_options_line_ending_data, try_apply_transform_template_let_bindings,
     TransformTemplateAdapter, TransformTemplateAdapterLookup, TransformTemplateCompileRequest,
     TransformTemplateCompiledArtifact, TransformTemplateDataArtifact,
     TransformTemplateEncodeEvaluationContext, TransformTemplateEncodedArtifactInsertionContext,
@@ -150,6 +153,10 @@ fn apply_cemt_output_scope_overrides(
         pipeline.cemt_insertion_context.formatter_profile = Some(formatter_profile.clone());
         pipeline.writer_insertion_context.formatter_profile = Some(formatter_profile);
     }
+    pipeline
+        .cemt_options
+        .formatter_options
+        .extend(target_scope.cemt_formatter_options.clone());
     if let Some(colorizer) = trimmed_scope_value(target_scope.cemt_colorizer.as_ref()) {
         pipeline.cemt_options.colorizer = Some(colorizer.to_owned());
     }
@@ -1205,7 +1212,9 @@ fn convert_primary_to_cem_with_cemt_pipeline(
     };
     let mut content = output.to_owned();
     if !content.is_empty() && !content.ends_with('\n') {
-        content.push('\n');
+        content.push_str(&transform_template_encode_options_line_ending_data(
+            &pipeline.cemt_options,
+        ));
     }
     let source_map = pipeline_execution
         .source_map
@@ -4360,6 +4369,221 @@ fn maybe_convert_generic_data_text(
     }
 }
 
+fn maybe_convert_csv_text(
+    request: &ConvertRequest,
+    started_at: Instant,
+) -> Option<ConvertResponse> {
+    let source = request
+        .input
+        .identity
+        .clone()
+        .unwrap_or_else(|| request.input.root_scope.format_identity());
+    let target = request
+        .target
+        .clone()
+        .or_else(|| request.target_scope.format_identity_option())?;
+    if !format_identity_matches_csv(&request.context, &source)
+        || !format_identity_matches_csv(&request.context, &target)
+    {
+        return None;
+    }
+
+    let mut diagnostics = Vec::new();
+    diagnostics.extend(root_scope_metadata_diagnostics(
+        &request.input.uri,
+        &request.input.root_scope,
+        "input",
+    ));
+    diagnostics.extend(root_scope_metadata_diagnostics(
+        &request.input.uri,
+        &request.target_scope,
+        "output",
+    ));
+
+    let content_type = source
+        .content_type
+        .as_deref()
+        .or(request.input.root_scope.default_content_type.as_deref())
+        .unwrap_or(CSV_CONTENT_TYPE);
+    let (table_value, mut csv_diagnostics) =
+        crate::validation::csv::csv_table_value_from_source_bytes(
+            crate::validation::csv::CsvSourceValidationRequest {
+                bytes: &request.input.bytes,
+                source_uri: &request.input.uri,
+                content_type: Some(content_type),
+            },
+        );
+    diagnostics.append(&mut csv_diagnostics);
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        append_convert_time_budget_diagnostics(&mut diagnostics, request, started_at);
+        return Some(ConvertResponse {
+            primary: Value::Null,
+            primary_bytes: None,
+            conversion: Some(convert_metadata_for_csv_direct_output(
+                &request.target_scope,
+            )),
+            diagnostics,
+            scheduler_trace: crate::report::SchedulerTraceReport::default(),
+        });
+    }
+
+    let table_value = table_value?;
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &request.context.schema_registry,
+        conversion_registry: &request.context.converter_registry,
+        package_artifact_reader: None,
+        artifact_cache: None,
+    };
+    let execution = execute_csv_document_output_pipeline_with_environment(
+        &environment,
+        table_value,
+        &request.target_scope,
+        Some(&request.input.uri),
+    );
+    diagnostics.extend(execution.diagnostics.clone());
+    append_convert_time_budget_diagnostics(&mut diagnostics, request, started_at);
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return Some(ConvertResponse {
+            primary: Value::Null,
+            primary_bytes: None,
+            conversion: Some(convert_metadata_for_csv_direct_output(
+                &request.target_scope,
+            )),
+            diagnostics,
+            scheduler_trace: crate::report::SchedulerTraceReport::default(),
+        });
+    }
+
+    let content = execution
+        .output
+        .as_ref()
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
+    let content_type = target
+        .content_type
+        .clone()
+        .unwrap_or_else(|| CSV_CONTENT_TYPE.to_owned());
+    let schema = target
+        .schema
+        .clone()
+        .unwrap_or_else(|| CSV_SCHEMA_URI.to_owned());
+    let bytes = content.into_bytes();
+    let primary_bytes = PrimaryBytes {
+        content_type,
+        schema: Some(schema.clone()),
+        format_version: "csv/1".to_owned(),
+        hash_scheme: "cem-text/1+blake3".to_owned(),
+        hash: text_content_hash(&bytes),
+        bytes,
+    };
+    let hash = primary_bytes.hash.clone();
+    Some(ConvertResponse {
+        primary: json!({
+            "kind": "document",
+            "contentType": primary_bytes.content_type,
+            "schema": schema,
+            "hash": hash,
+        }),
+        primary_bytes: Some(primary_bytes),
+        conversion: Some(convert_metadata_for_csv_direct_output(
+            &request.target_scope,
+        )),
+        diagnostics,
+        scheduler_trace: crate::report::SchedulerTraceReport::default(),
+    })
+}
+
+fn format_identity_matches_csv(context: &EngineContext, identity: &FormatIdentity) -> bool {
+    let explicit_schema_matches = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == CSV_SCHEMA_URI);
+    if let Some(content_type) = identity.content_type.as_deref() {
+        let essence = content_type_essence(content_type);
+        if essence == CSV_CONTENT_TYPE {
+            return identity.schema.is_none() || explicit_schema_matches;
+        }
+        if let Ok(descriptor) = context.schema_registry.resolve_content_type(content_type) {
+            return descriptor.schema_uri == CSV_SCHEMA_URI
+                && (identity.schema.is_none() || explicit_schema_matches);
+        }
+    }
+    explicit_schema_matches
+}
+
+fn convert_metadata_for_csv_direct_output(target_scope: &ScopeConfig) -> ConvertExecutionMetadata {
+    let formatter_profile = target_scope
+        .cemt_formatter_profile
+        .clone()
+        .unwrap_or_else(|| "compact".to_owned());
+    let color_profile = target_scope.cemt_color_profile.clone();
+    ConvertExecutionMetadata {
+        converter_id: Some("csv-direct-output".to_owned()),
+        implementation: Some("direct-cemt-output-pipeline".to_owned()),
+        rust_fallback: None,
+        output_pipeline: Some(ConvertOutputPipelineMetadata {
+            stages: vec![
+                ConvertOutputPipelineStageMetadata {
+                    stage: "formatter".to_owned(),
+                    function: Some(
+                        target_scope
+                            .cemt_formatter
+                            .clone()
+                            .unwrap_or_else(|| "csv.format-document".to_owned()),
+                    ),
+                    profile: Some(formatter_profile),
+                    content_type: Some(CSV_CONTENT_TYPE.to_owned()),
+                    schema: Some(CSV_SCHEMA_URI.to_owned()),
+                    category: Some("csv-document".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::Tokens
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+                ConvertOutputPipelineStageMetadata {
+                    stage: "colorizer".to_owned(),
+                    function: target_scope.cemt_colorizer.clone().or_else(|| {
+                        color_profile
+                            .as_ref()
+                            .map(|_| "csv.color-document".to_owned())
+                    }),
+                    profile: color_profile,
+                    content_type: Some(CSV_CONTENT_TYPE.to_owned()),
+                    schema: Some(CSV_SCHEMA_URI.to_owned()),
+                    category: Some("csv-document".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::Tokens
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+                ConvertOutputPipelineStageMetadata {
+                    stage: "writer".to_owned(),
+                    function: None,
+                    profile: target_scope.cemt_color_profile.clone(),
+                    content_type: Some(CSV_CONTENT_TYPE.to_owned()),
+                    schema: Some(CSV_SCHEMA_URI.to_owned()),
+                    category: Some("csv-document".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::Text
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+            ],
+        }),
+    }
+}
+
 fn append_convert_time_budget_diagnostics(
     diagnostics: &mut Vec<Diagnostic>,
     request: &ConvertRequest,
@@ -5320,13 +5544,22 @@ impl CemMlEngine for RealCemMlEngine {
         })
     }
 
-    fn convert(&self, request: ConvertRequest) -> EngineResult<ConvertResponse> {
+    fn convert(&self, mut request: ConvertRequest) -> EngineResult<ConvertResponse> {
         let started_at = Instant::now();
         if let Some(response) = maybe_convert_generic_data_text(&request, started_at) {
             return Ok(response);
         }
         let (context, mut package_diagnostics) =
             context_with_loaded_schema_package_manifests(&request.context)?;
+        request.context = context.clone();
+        if let Some(mut response) = maybe_convert_csv_text(&request, started_at) {
+            if !package_diagnostics.is_empty() {
+                let mut diagnostics = package_diagnostics;
+                diagnostics.append(&mut response.diagnostics);
+                response.diagnostics = diagnostics;
+            }
+            return Ok(response);
+        }
         let trace = crate::scheduler::SchedulerTrace::new();
         let (policy, mut diagnostics) = scheduler_policy_for_convert(&request);
         diagnostics.append(&mut package_diagnostics);
@@ -11016,6 +11249,36 @@ mod tests {
             !resp.primary["outputSpans"].as_array().unwrap().is_empty(),
             "CEM output must pass through the CEMT writer pipeline, not the byte-preserving short-circuit"
         );
+        assert!(
+            resp.diagnostics.is_empty(),
+            "unexpected diagnostics: {:?}",
+            resp.diagnostics
+        );
+    }
+
+    #[test]
+    fn convert_target_cem_applies_generic_line_ending_formatter_option() {
+        let req = ConvertRequest {
+            input: input(b"@doc cem-ml 1\n{p | Hi}", "in.cem"),
+            to_format: LayerFormat::DomJson,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: Some(FormatIdentity {
+                content_type: Some("application/cem+xml".to_owned()),
+                ..FormatIdentity::default()
+            }),
+            target_scope: ScopeConfig {
+                cemt_formatter_options: BTreeMap::from([(
+                    "lineEnding".to_owned(),
+                    "crlf".to_owned(),
+                )]),
+                ..ScopeConfig::default()
+            },
+            scheduler_scope_id: 0,
+        };
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+        assert_eq!(resp.primary["kind"], "cem");
+        assert_eq!(resp.primary["content"], "@doc cem-ml 1\r\n{p | Hi}\r\n");
         assert!(
             resp.diagnostics.is_empty(),
             "unexpected diagnostics: {:?}",

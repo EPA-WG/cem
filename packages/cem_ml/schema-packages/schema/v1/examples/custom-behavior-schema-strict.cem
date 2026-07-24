@@ -28,7 +28,7 @@
             @execution="ast-validation"
             @function="published-page-title-result"
             @select="resource"
-            @match='kind = "page" and status = "published" and title = null' |
+            @match='kind == "page" && status == "published" && title == null' |
             {inputs |
                 {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
             }

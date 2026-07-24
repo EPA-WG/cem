@@ -23,9 +23,9 @@ use crate::schema::registry::{
     content_type_essence, SchemaContentTypeRole, SchemaDescriptor, SchemaRegistry,
     CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
     CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI,
-    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSV_SCHEMA_URI, HTML_CONTENT_TYPE,
-    HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_VALUE_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
-    YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
+    CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI,
+    HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_VALUE_SCHEMA_URI, XML_CONTENT_TYPE,
+    XML_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
 use crate::source::{BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
@@ -790,9 +790,13 @@ impl TransformTemplateAdapter for DomProjectionParityCemtAdapter {
                 "template is not a supported DOM projection converter",
             ));
         }
-        let output = if template.contains(r#"node.kind = "cdata""#) {
+        let output = if template.contains(r#"node.kind == "cdata""#)
+            || template.contains(r#"node.kind = "cdata""#)
+        {
             "xml"
-        } else if template.contains(r#"node.kind = "raw-text""#) {
+        } else if template.contains(r#"node.kind == "raw-text""#)
+            || template.contains(r#"node.kind = "raw-text""#)
+        {
             "html"
         } else {
             return Err(TransformTemplateAdapterError::failed(
@@ -2664,6 +2668,8 @@ pub struct ConversionOutputPipelineExecution {
 
 const CEM_TREE_FORMAT_CEMT_ADAPTER_ID: &str = "cem-tree-format-cemt";
 const CEM_TREE_COLOR_CEMT_ADAPTER_ID: &str = "cem-tree-color-cemt";
+const CSV_FORMAT_CEMT_ADAPTER_ID: &str = "csv-format-cemt";
+const CSV_COLOR_CEMT_ADAPTER_ID: &str = "csv-color-cemt";
 const CEMT_FORMATTER_COLORING_PIPELINE_PACKAGE_SOURCE_URI: &str =
     "schema-packages/cem-ml/v1/package.cem";
 const CEM_TREE_FORMATTER_ARTIFACT_KIND: &str = "formatter";
@@ -2719,6 +2725,24 @@ const CEM_TREE_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOu
     declaration_element: "{color-function",
     function_kind: TransformTemplateOutputFunctionKind::Color,
     function_name: "cem.color-tree",
+    role: "colorizer",
+};
+
+const CSV_FORMAT_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
+    adapter_id: CSV_FORMAT_CEMT_ADAPTER_ID,
+    artifact_kind: CEM_TREE_FORMATTER_ARTIFACT_KIND,
+    declaration_element: "{format-function",
+    function_kind: TransformTemplateOutputFunctionKind::Format,
+    function_name: "csv.format-document",
+    role: "formatter",
+};
+
+const CSV_COLOR_CEMT_STAGE_SPEC: CemTreeCemtOutputStageSpec = CemTreeCemtOutputStageSpec {
+    adapter_id: CSV_COLOR_CEMT_ADAPTER_ID,
+    artifact_kind: CEM_TREE_COLORIZER_ARTIFACT_KIND,
+    declaration_element: "{color-function",
+    function_kind: TransformTemplateOutputFunctionKind::Color,
+    function_name: "csv.color-document",
     role: "colorizer",
 };
 
@@ -3842,6 +3866,989 @@ pub fn execute_conversion_output_pipeline_from_formatted_cem_tree_with_environme
     )
 }
 
+pub fn execute_csv_document_output_pipeline_with_environment(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    table_value: Value,
+    target_scope: &ScopeConfig,
+    diagnostic_uri: Option<&str>,
+) -> ConversionOutputPipelineExecution {
+    let local_artifact_cache = ConversionOutputPipelineArtifactCache::default();
+    let cached_environment = if environment.artifact_cache.is_some() {
+        *environment
+    } else {
+        ConversionOutputPipelineEnvironment {
+            schema_registry: environment.schema_registry,
+            conversion_registry: environment.conversion_registry,
+            package_artifact_reader: environment.package_artifact_reader,
+            artifact_cache: Some(&local_artifact_cache),
+        }
+    };
+    let environment = &cached_environment;
+    let target =
+        TransformTemplateEncodingTarget::new(CSV_CONTENT_TYPE, CSV_SCHEMA_URI, "csv-document");
+    let formatter_name = target_scope
+        .cemt_formatter
+        .as_deref()
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .unwrap_or(CSV_FORMAT_CEMT_STAGE_SPEC.function_name);
+    let formatter_profile = target_scope
+        .cemt_formatter_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty())
+        .unwrap_or("compact");
+    let presentation_options =
+        match CsvFormatterPresentationOptions::from_options(&target_scope.cemt_formatter_options) {
+            Ok(options) => options,
+            Err(message) => return csv_output_pipeline_failed(diagnostic_uri, message),
+        };
+    let line_ending = csv_formatter_line_ending(&table_value, presentation_options);
+    let table_value = match csv_table_value_with_formatter_presentation(
+        table_value,
+        formatter_profile,
+        &target_scope.cemt_formatter_options,
+    ) {
+        Ok(table_value) => table_value,
+        Err(message) => return csv_output_pipeline_failed(diagnostic_uri, message),
+    };
+    let format_options = TransformTemplateEncodeOptions {
+        formatter: Some(formatter_name.to_owned()),
+        formatter_profile: Some(formatter_profile.to_owned()),
+        formatter_options: target_scope.cemt_formatter_options.clone(),
+        line_ending: line_ending.clone(),
+        mode: TransformTemplateEncodedArtifactMode::Document,
+        canonical: formatter_profile == "compact",
+        source_map_policy: TransformTemplateSourceMapPolicy::Generated,
+        ..TransformTemplateEncodeOptions::default()
+    };
+    let (format_stage, format_binding) = match resolve_csv_cemt_stage_binding(
+        environment,
+        CSV_FORMAT_CEMT_STAGE_SPEC,
+        &target,
+        Some(formatter_profile),
+        Some(formatter_name),
+        &table_value,
+        "json",
+        format_options,
+    ) {
+        Ok(resolved) => resolved,
+        Err(message) => {
+            return csv_output_pipeline_failed(diagnostic_uri, message);
+        }
+    };
+    let (formatted_output, format_execution) = match execute_conversion_cem_tree_output_stage(
+        environment,
+        format_stage,
+        &format_binding,
+        &table_value,
+    ) {
+        Ok(output) => output,
+        Err(message) => {
+            return csv_output_pipeline_failed(
+                diagnostic_uri,
+                format!(
+                    "CEMT formatter `{}` failed: {message}",
+                    format_binding.function.name
+                ),
+            );
+        }
+    };
+    let format_execution = Some(format_execution);
+    let formatted_artifact = format_binding.artifact_from_value(formatted_output);
+    let mut formatted_context =
+        TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+            &target,
+            Some(TransformTemplateOutputProducedKind::CemTree),
+        );
+    formatted_context.formatter_profile = Some(formatter_profile.to_owned());
+    formatted_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+    formatted_context.canonical = Some(formatter_profile == "compact");
+    formatted_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+    if let Err(error) = formatted_artifact.validate_insertion(&formatted_context) {
+        return csv_output_pipeline_failed(
+            diagnostic_uri,
+            error.diagnostic(diagnostic_uri).message,
+        );
+    }
+
+    let wants_color = target_scope
+        .cemt_colorizer
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|name| !name.is_empty())
+        || target_scope
+            .cemt_color_profile
+            .as_deref()
+            .map(str::trim)
+            .is_some_and(|profile| !profile.is_empty());
+    let (writer_artifact, color_execution, colored_cem_tree) = if wants_color {
+        let colorizer_name = target_scope
+            .cemt_colorizer
+            .as_deref()
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .unwrap_or(CSV_COLOR_CEMT_STAGE_SPEC.function_name);
+        let color_profile = target_scope
+            .cemt_color_profile
+            .as_deref()
+            .map(str::trim)
+            .filter(|profile| !profile.is_empty())
+            .unwrap_or("terminal");
+        let color_options = TransformTemplateEncodeOptions {
+            formatter_options: target_scope.cemt_formatter_options.clone(),
+            formatter_profile: Some(formatter_profile.to_owned()),
+            colorizer: Some(colorizer_name.to_owned()),
+            color_profile: Some(color_profile.to_owned()),
+            line_ending: line_ending.clone(),
+            mode: TransformTemplateEncodedArtifactMode::Document,
+            canonical: false,
+            source_map_policy: TransformTemplateSourceMapPolicy::Generated,
+            ..TransformTemplateEncodeOptions::default()
+        };
+        let (color_stage, color_binding) = match resolve_csv_cemt_stage_binding(
+            environment,
+            CSV_COLOR_CEMT_STAGE_SPEC,
+            &target,
+            Some(color_profile),
+            Some(colorizer_name),
+            &formatted_artifact.value,
+            "cem-tree",
+            color_options,
+        ) {
+            Ok(resolved) => resolved,
+            Err(message) => {
+                return csv_output_pipeline_failed(diagnostic_uri, message);
+            }
+        };
+        let (colored_output, color_execution) = match execute_conversion_cem_tree_output_stage(
+            environment,
+            color_stage,
+            &color_binding,
+            &formatted_artifact.value,
+        ) {
+            Ok(output) => output,
+            Err(message) => {
+                return csv_output_pipeline_failed(
+                    diagnostic_uri,
+                    format!(
+                        "CEMT colorizer `{}` failed: {message}",
+                        color_binding.function.name
+                    ),
+                );
+            }
+        };
+        let colored_artifact = color_binding.artifact_from_value(colored_output);
+        let mut colored_context =
+            TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+                &target,
+                Some(TransformTemplateOutputProducedKind::CemTree),
+            );
+        colored_context.formatter_profile = Some(formatter_profile.to_owned());
+        colored_context.color_profile = Some(color_profile.to_owned());
+        colored_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+        colored_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+        if let Err(error) = colored_artifact.validate_insertion(&colored_context) {
+            return csv_output_pipeline_failed(
+                diagnostic_uri,
+                error.diagnostic(diagnostic_uri).message,
+            );
+        }
+        (
+            colored_artifact.clone(),
+            Some(color_execution),
+            Some(colored_artifact),
+        )
+    } else {
+        (formatted_artifact.clone(), None, None)
+    };
+
+    let mut writer_context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+        &target,
+        Some(TransformTemplateOutputProducedKind::Text),
+    );
+    writer_context.formatter_profile = Some(formatter_profile.to_owned());
+    writer_context.color_profile = writer_artifact.identity.color_profile.clone();
+    writer_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+    writer_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+    let evaluated = TransformTemplateEvaluatedEncodeExpression {
+        expression: TransformTemplateEncodeExpression {
+            owner: Some("csv-direct-output".to_owned()),
+            expression: "csv-direct-output writer".to_owned(),
+            subject: "csv-document".to_owned(),
+            subject_type: Some("cem-tree".to_owned()),
+            target,
+            options: TransformTemplateEncodeOptions::default(),
+        },
+        subject: writer_artifact.value.clone(),
+        binding: TransformTemplateEncodeBinding {
+            function: if wants_color {
+                csv_output_function_descriptor(
+                    CSV_COLOR_CEMT_STAGE_SPEC.function_name,
+                    "csv-document",
+                    "cem-tree",
+                    TransformTemplateOutputFunctionKind::Color,
+                    TransformTemplateOutputProducedKind::CemTree,
+                    writer_artifact.identity.color_profile.clone(),
+                )
+            } else {
+                csv_output_function_descriptor(
+                    CSV_FORMAT_CEMT_STAGE_SPEC.function_name,
+                    "csv-document",
+                    "json",
+                    TransformTemplateOutputFunctionKind::Format,
+                    TransformTemplateOutputProducedKind::CemTree,
+                    Some(formatter_profile.to_owned()),
+                )
+            },
+            subject_type: "cem-tree".to_owned(),
+            identity: writer_artifact.identity.clone(),
+            options: TransformTemplateEncodeOptions::default(),
+        },
+        artifact: writer_artifact,
+    };
+    let mut composition = compose_transform_template_encoded_text_artifacts(
+        &[evaluated],
+        &writer_context,
+        diagnostic_uri,
+    );
+    if !composition.diagnostics.is_empty() {
+        return ConversionOutputPipelineExecution {
+            output: None,
+            diagnostics: std::mem::take(&mut composition.diagnostics),
+            format_execution,
+            color_execution,
+            formatted_cem_tree: Some(formatted_artifact),
+            colored_cem_tree,
+            ..ConversionOutputPipelineExecution::default()
+        };
+    }
+    match composition.artifact {
+        Some(artifact) => ConversionOutputPipelineExecution {
+            output: Some(artifact.value),
+            source_map: artifact.source_map,
+            output_spans: artifact.output_spans,
+            format_execution,
+            color_execution,
+            formatted_cem_tree: Some(formatted_artifact),
+            colored_cem_tree,
+            diagnostics: Vec::new(),
+        },
+        None => ConversionOutputPipelineExecution {
+            output: None,
+            format_execution,
+            color_execution,
+            formatted_cem_tree: Some(formatted_artifact),
+            colored_cem_tree,
+            ..ConversionOutputPipelineExecution::default()
+        },
+    }
+}
+
+fn resolve_csv_cemt_stage_binding(
+    environment: &ConversionOutputPipelineEnvironment<'_>,
+    spec: CemTreeCemtOutputStageSpec,
+    target: &TransformTemplateEncodingTarget,
+    stage_profile: Option<&str>,
+    requested_function_name: Option<&str>,
+    subject: &Value,
+    subject_type: &str,
+    options: TransformTemplateEncodeOptions,
+) -> Result<(CemTreeCemtOutputStage, TransformTemplateEncodeBinding), String> {
+    let stage = cem_tree_cemt_output_stage(
+        environment,
+        spec,
+        target,
+        stage_profile,
+        requested_function_name,
+    )?;
+    let parse_response =
+        parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+            template: TemplateInput {
+                uri: stage.template_uri.clone(),
+                bytes: stage.template_bytes.clone(),
+                identity: Some(FormatIdentity {
+                    content_type: Some(CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
+                    schema: Some(CEM_TRANSFORM_SCHEMA_URI.to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                root_scope: ScopeConfig::default(),
+            },
+        });
+    if !parse_response.diagnostics.is_empty() {
+        return Err(parse_response
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>()
+            .join("; "));
+    }
+    let function = parse_response
+        .module_options
+        .output_functions
+        .iter()
+        .find(|function| {
+            function.kind == spec.function_kind
+                && function.name.as_str() == stage.function_name.as_str()
+        })
+        .cloned()
+        .ok_or_else(|| {
+            format!(
+                "CSV `{}` artifact did not declare `{}`",
+                spec.role, stage.function_name
+            )
+        })?;
+    let mut registry = TransformTemplateOutputFunctionRegistry::new();
+    registry.register(function);
+    let request = TransformTemplateEncodeBindingRequest::new(subject.clone(), target.clone())
+        .with_subject_type(subject_type)
+        .with_options(options);
+    let host_capabilities = BTreeSet::new();
+    let binding = match spec.function_kind {
+        TransformTemplateOutputFunctionKind::Format => registry
+            .resolve_format_binding(&request, &host_capabilities)
+            .map_err(|error| error.diagnostic(None).message)?,
+        TransformTemplateOutputFunctionKind::Color => registry
+            .resolve_color_binding(&request, &host_capabilities)
+            .map_err(|error| error.diagnostic(None).message)?
+            .into_encode_binding(),
+        TransformTemplateOutputFunctionKind::Encoding => registry
+            .resolve_encode_binding(&request, &host_capabilities)
+            .map_err(|error| error.diagnostic(None).message)?,
+    };
+    Ok((stage, binding))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CsvPresentationProfile {
+    Compact,
+    Pretty,
+    Tabular,
+    Other,
+}
+
+impl CsvPresentationProfile {
+    fn from_formatter_profile(formatter_profile: &str) -> Self {
+        match formatter_profile.trim() {
+            "compact" => Self::Compact,
+            "pretty" => Self::Pretty,
+            "tabular" => Self::Tabular,
+            _ => Self::Other,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CsvStringTrimMode {
+    Right,
+    Middle,
+    Left,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FormatterLineEndingMode {
+    Lf,
+    Crlf,
+    Preserve,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CsvFormatterPresentationOptions {
+    max_field_width: Option<usize>,
+    string_trim: CsvStringTrimMode,
+    line_ending: Option<FormatterLineEndingMode>,
+}
+
+impl CsvFormatterPresentationOptions {
+    fn from_options(options: &BTreeMap<String, String>) -> Result<Self, String> {
+        let mut parsed = Self {
+            max_field_width: None,
+            string_trim: CsvStringTrimMode::Right,
+            line_ending: None,
+        };
+        for (key, value) in options {
+            match key.as_str() {
+                "csv.maxFieldWidth" => {
+                    let width = value.parse::<usize>().map_err(|_| {
+                        format!("CSV formatter option `{key}` must be a positive integer")
+                    })?;
+                    if width == 0 {
+                        return Err(format!(
+                            "CSV formatter option `{key}` must be greater than zero"
+                        ));
+                    }
+                    parsed.max_field_width = Some(width);
+                }
+                "csv.stringTrim" => {
+                    parsed.string_trim = match value.as_str() {
+                        "right" => CsvStringTrimMode::Right,
+                        "middle" => CsvStringTrimMode::Middle,
+                        "left" => CsvStringTrimMode::Left,
+                        _ => {
+                            return Err(format!(
+                                "CSV formatter option `{key}` must be `right`, `middle`, or `left`"
+                            ))
+                        }
+                    };
+                }
+                "lineEnding" => {
+                    parsed.line_ending = Some(match value.as_str() {
+                        "lf" => FormatterLineEndingMode::Lf,
+                        "crlf" => FormatterLineEndingMode::Crlf,
+                        "preserve" => FormatterLineEndingMode::Preserve,
+                        _ => {
+                            return Err(format!(
+                                "Formatter option `{key}` must be `lf`, `crlf`, or `preserve`"
+                            ))
+                        }
+                    });
+                }
+                _ if key.starts_with("csv.") => {
+                    return Err(format!("unsupported CSV formatter option `{key}`"));
+                }
+                _ => {}
+            }
+        }
+        Ok(parsed)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CsvColumnType {
+    String,
+    Integer,
+    Decimal,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CsvPresentationCell {
+    text: String,
+    align_type: CsvColumnType,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CsvDecimalColumnWidth {
+    left: usize,
+    right: usize,
+    total: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CsvColumnWidth {
+    Plain(usize),
+    Decimal(CsvDecimalColumnWidth),
+}
+
+fn csv_table_value_with_formatter_presentation(
+    table_value: Value,
+    formatter_profile: &str,
+    options: &BTreeMap<String, String>,
+) -> Result<Value, String> {
+    let profile = CsvPresentationProfile::from_formatter_profile(formatter_profile);
+    let options = CsvFormatterPresentationOptions::from_options(options)?;
+    if profile == CsvPresentationProfile::Compact || profile == CsvPresentationProfile::Other {
+        return Ok(table_value);
+    }
+    let rows = csv_table_rows(&table_value);
+    if rows.is_empty() {
+        return Ok(table_value);
+    }
+    let header_row = csv_likely_header_row(&rows);
+    let column_count = rows.iter().map(Vec::len).max().unwrap_or(0);
+    let column_types = (0..column_count)
+        .map(|column| csv_infer_column_type(&rows, column, header_row))
+        .collect::<Vec<_>>();
+    let mut cells = csv_presentation_cells(&rows, &column_types, header_row, profile, options);
+    let widths = csv_column_widths(&cells, &column_types);
+    for row in &mut cells {
+        for (field_index, cell) in row.iter_mut().enumerate() {
+            let column_type = cell.align_type;
+            let width = widths
+                .get(field_index)
+                .copied()
+                .unwrap_or(CsvColumnWidth::Plain(csv_display_width(&cell.text)));
+            cell.text = csv_align_cell_text(&cell.text, column_type, width);
+            if profile == CsvPresentationProfile::Pretty && field_index + 1 < column_count {
+                cell.text
+                    .push_str(&csv_pretty_tab_padding(csv_display_width(&cell.text)));
+            }
+        }
+    }
+    Ok(csv_table_value_with_display_text(table_value, &cells))
+}
+
+fn csv_table_rows(table_value: &Value) -> Vec<Vec<String>> {
+    table_value
+        .get("rows")
+        .and_then(Value::as_array)
+        .map(|rows| {
+            rows.iter()
+                .map(|row| {
+                    row.get("fields")
+                        .and_then(Value::as_array)
+                        .map(|fields| {
+                            fields
+                                .iter()
+                                .map(|field| {
+                                    field
+                                        .get("value")
+                                        .and_then(Value::as_str)
+                                        .unwrap_or("")
+                                        .to_owned()
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                        .unwrap_or_default()
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn csv_likely_header_row(rows: &[Vec<String>]) -> bool {
+    if rows.len() < 2 {
+        return false;
+    }
+    let first_row_is_labels = rows[0].iter().all(|value| {
+        let trimmed = value.trim();
+        !trimmed.is_empty() && csv_scalar_type(trimmed) == CsvColumnType::String
+    });
+    let later_rows_have_typed_columns =
+        (0..rows.iter().map(Vec::len).max().unwrap_or(0)).any(|column| {
+            rows.iter().skip(1).any(|row| {
+                row.get(column)
+                    .map(|value| {
+                        let trimmed = value.trim();
+                        !trimmed.is_empty() && csv_scalar_type(trimmed) != CsvColumnType::String
+                    })
+                    .unwrap_or(false)
+            })
+        });
+    first_row_is_labels && later_rows_have_typed_columns
+}
+
+fn csv_infer_column_type(rows: &[Vec<String>], column: usize, header_row: bool) -> CsvColumnType {
+    let mut saw_value = false;
+    let mut all_integer = true;
+    let mut all_numeric = true;
+    let mut saw_decimal = false;
+    for row in rows.iter().skip(usize::from(header_row)) {
+        let value = row.get(column).map(String::as_str).unwrap_or("").trim();
+        if value.is_empty() {
+            continue;
+        }
+        saw_value = true;
+        match csv_scalar_type(value) {
+            CsvColumnType::Integer => {}
+            CsvColumnType::Decimal => {
+                all_integer = false;
+                saw_decimal = true;
+            }
+            CsvColumnType::String => {
+                all_integer = false;
+                all_numeric = false;
+                break;
+            }
+        }
+    }
+    if !saw_value {
+        CsvColumnType::String
+    } else if all_integer {
+        CsvColumnType::Integer
+    } else if all_numeric && saw_decimal {
+        CsvColumnType::Decimal
+    } else {
+        CsvColumnType::String
+    }
+}
+
+fn csv_scalar_type(value: &str) -> CsvColumnType {
+    if csv_is_integer(value) {
+        CsvColumnType::Integer
+    } else if csv_is_decimal(value) {
+        CsvColumnType::Decimal
+    } else {
+        CsvColumnType::String
+    }
+}
+
+fn csv_is_integer(value: &str) -> bool {
+    let value = value
+        .strip_prefix('+')
+        .or_else(|| value.strip_prefix('-'))
+        .unwrap_or(value);
+    !value.is_empty() && value.chars().all(|ch| ch.is_ascii_digit())
+}
+
+fn csv_is_decimal(value: &str) -> bool {
+    let value = value
+        .strip_prefix('+')
+        .or_else(|| value.strip_prefix('-'))
+        .unwrap_or(value);
+    let Some((left, right)) = value.split_once('.') else {
+        return false;
+    };
+    let has_digit =
+        left.chars().any(|ch| ch.is_ascii_digit()) || right.chars().any(|ch| ch.is_ascii_digit());
+    has_digit
+        && left.chars().all(|ch| ch.is_ascii_digit())
+        && right.chars().all(|ch| ch.is_ascii_digit())
+}
+
+fn csv_presentation_cells(
+    rows: &[Vec<String>],
+    column_types: &[CsvColumnType],
+    header_row: bool,
+    profile: CsvPresentationProfile,
+    options: CsvFormatterPresentationOptions,
+) -> Vec<Vec<CsvPresentationCell>> {
+    rows.iter()
+        .enumerate()
+        .map(|(row_index, row)| {
+            row.iter()
+                .enumerate()
+                .map(|(field_index, raw)| {
+                    let column_type = column_types
+                        .get(field_index)
+                        .copied()
+                        .unwrap_or(CsvColumnType::String);
+                    let scalar_type = csv_scalar_type(raw.trim());
+                    let align_type = if header_row && row_index == 0 {
+                        CsvColumnType::String
+                    } else if column_type == CsvColumnType::Decimal
+                        && matches!(scalar_type, CsvColumnType::Decimal | CsvColumnType::Integer)
+                    {
+                        CsvColumnType::Decimal
+                    } else if column_type == scalar_type {
+                        column_type
+                    } else {
+                        scalar_type
+                    };
+                    let trimmed = if profile == CsvPresentationProfile::Tabular {
+                        csv_trim_field_for_width(raw, align_type, options)
+                    } else {
+                        raw.clone()
+                    };
+                    CsvPresentationCell {
+                        text: csv_quote_display_field(&trimmed),
+                        align_type,
+                    }
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+fn csv_column_widths(
+    cells: &[Vec<CsvPresentationCell>],
+    column_types: &[CsvColumnType],
+) -> Vec<CsvColumnWidth> {
+    column_types
+        .iter()
+        .enumerate()
+        .map(|(column, column_type)| {
+            if *column_type == CsvColumnType::Decimal {
+                let mut left = 0usize;
+                let mut right = 0usize;
+                let mut total = 0usize;
+                for row in cells {
+                    let Some(cell) = row.get(column) else {
+                        continue;
+                    };
+                    let text = cell.text.as_str();
+                    total = total.max(csv_display_width(text));
+                    if cell.align_type != CsvColumnType::Decimal {
+                        continue;
+                    }
+                    if let Some(dot) = text.find('.') {
+                        left = left.max(csv_display_width(&text[..dot]));
+                        right = right.max(csv_display_width(&text[dot + 1..]));
+                    } else {
+                        left = left.max(csv_display_width(text));
+                    }
+                }
+                total = total.max(left + usize::from(right > 0) + right);
+                CsvColumnWidth::Decimal(CsvDecimalColumnWidth { left, right, total })
+            } else {
+                CsvColumnWidth::Plain(
+                    cells
+                        .iter()
+                        .map(|row| {
+                            row.get(column)
+                                .map(|cell| csv_display_width(&cell.text))
+                                .unwrap_or(0)
+                        })
+                        .max()
+                        .unwrap_or(0),
+                )
+            }
+        })
+        .collect()
+}
+
+fn csv_align_cell_text(text: &str, column_type: CsvColumnType, width: CsvColumnWidth) -> String {
+    match (column_type, width) {
+        (CsvColumnType::Integer, CsvColumnWidth::Plain(width)) => {
+            csv_pad_left(text, width.saturating_sub(csv_display_width(text)))
+        }
+        (CsvColumnType::Decimal, CsvColumnWidth::Decimal(width)) => {
+            let (left_width, right_width) = if let Some(dot) = text.find('.') {
+                (
+                    csv_display_width(&text[..dot]),
+                    csv_display_width(&text[dot + 1..]),
+                )
+            } else {
+                (csv_display_width(text), 0)
+            };
+            let mut out = String::new();
+            out.push_str(&" ".repeat(width.left.saturating_sub(left_width)));
+            out.push_str(text);
+            let trailing = width
+                .total
+                .saturating_sub(csv_display_width(&out))
+                .saturating_sub(right_width.saturating_sub(width.right));
+            out.push_str(&" ".repeat(trailing));
+            out
+        }
+        (_, CsvColumnWidth::Plain(width)) => {
+            csv_pad_right(text, width.saturating_sub(csv_display_width(text)))
+        }
+        (_, CsvColumnWidth::Decimal(width)) => {
+            csv_pad_right(text, width.total.saturating_sub(csv_display_width(text)))
+        }
+    }
+}
+
+fn csv_pad_left(text: &str, count: usize) -> String {
+    format!("{}{}", " ".repeat(count), text)
+}
+
+fn csv_pad_right(text: &str, count: usize) -> String {
+    format!("{}{}", text, " ".repeat(count))
+}
+
+fn csv_pretty_tab_padding(width: usize) -> String {
+    let next_tab_stop = ((width / 8) + 1) * 8;
+    "\t".repeat(((next_tab_stop - width).max(1) + 7) / 8)
+}
+
+fn csv_trim_field_for_width(
+    raw: &str,
+    column_type: CsvColumnType,
+    options: CsvFormatterPresentationOptions,
+) -> String {
+    let Some(width) = options.max_field_width else {
+        return raw.to_owned();
+    };
+    if csv_display_width(raw) <= width {
+        return raw.to_owned();
+    }
+    match column_type {
+        CsvColumnType::String => csv_trim_string(raw, width, options.string_trim),
+        CsvColumnType::Integer => csv_trim_left(raw, width),
+        CsvColumnType::Decimal => csv_trim_decimal(raw, width),
+    }
+}
+
+fn csv_trim_decimal(raw: &str, width: usize) -> String {
+    if csv_display_width(raw) <= width {
+        return raw.to_owned();
+    }
+    let Some(dot) = raw.find('.') else {
+        return csv_trim_left(raw, width);
+    };
+    let base_len = csv_display_width(&raw[..=dot]);
+    if base_len <= width {
+        let keep_fraction = width - base_len;
+        let fraction = raw[dot + 1..]
+            .chars()
+            .take(keep_fraction)
+            .collect::<String>();
+        return format!("{}{}", &raw[..=dot], fraction);
+    }
+    csv_trim_left(raw, width)
+}
+
+fn csv_trim_string(raw: &str, width: usize, mode: CsvStringTrimMode) -> String {
+    if csv_display_width(raw) <= width {
+        return raw.to_owned();
+    }
+    if width <= 3 {
+        return "...".chars().take(width).collect();
+    }
+    let available = width - 3;
+    match mode {
+        CsvStringTrimMode::Right => {
+            format!("{}...", raw.chars().take(available).collect::<String>())
+        }
+        CsvStringTrimMode::Left => {
+            let suffix = raw
+                .chars()
+                .rev()
+                .take(available)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect::<String>();
+            format!("...{suffix}")
+        }
+        CsvStringTrimMode::Middle => {
+            let left = (available + 1) / 2;
+            let right = available - left;
+            let prefix = raw.chars().take(left).collect::<String>();
+            let suffix = raw
+                .chars()
+                .rev()
+                .take(right)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect::<String>();
+            format!("{prefix}...{suffix}")
+        }
+    }
+}
+
+fn csv_trim_left(raw: &str, width: usize) -> String {
+    if csv_display_width(raw) <= width {
+        return raw.to_owned();
+    }
+    if width <= 3 {
+        return "...".chars().take(width).collect();
+    }
+    let suffix = raw
+        .chars()
+        .rev()
+        .take(width - 3)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect::<String>();
+    format!("...{suffix}")
+}
+
+fn csv_quote_display_field(value: &str) -> String {
+    if csv_field_needs_quotes(value) {
+        format!("\"{}\"", value.replace('"', "\"\""))
+    } else {
+        value.to_owned()
+    }
+}
+
+fn csv_field_needs_quotes(value: &str) -> bool {
+    value.contains(',')
+        || value.contains('"')
+        || value.contains('\n')
+        || value.contains('\r')
+        || value.starts_with(' ')
+        || value.ends_with(' ')
+}
+
+fn csv_display_width(value: &str) -> usize {
+    value.chars().count()
+}
+
+fn csv_table_value_with_display_text(
+    mut table_value: Value,
+    cells: &[Vec<CsvPresentationCell>],
+) -> Value {
+    let Some(rows) = table_value.get_mut("rows").and_then(Value::as_array_mut) else {
+        return table_value;
+    };
+    for (row_index, row) in rows.iter_mut().enumerate() {
+        let Some(fields) = row.get_mut("fields").and_then(Value::as_array_mut) else {
+            continue;
+        };
+        for (field_index, field) in fields.iter_mut().enumerate() {
+            let Some(text) = cells
+                .get(row_index)
+                .and_then(|row| row.get(field_index))
+                .map(|cell| cell.text.clone())
+            else {
+                continue;
+            };
+            if let Some(object) = field.as_object_mut() {
+                object.insert("displayText".to_owned(), Value::String(text));
+            }
+        }
+    }
+    table_value
+}
+
+fn csv_formatter_line_ending(
+    table_value: &Value,
+    options: CsvFormatterPresentationOptions,
+) -> Option<String> {
+    match options.line_ending {
+        Some(FormatterLineEndingMode::Lf) => Some("lf".to_owned()),
+        Some(FormatterLineEndingMode::Crlf) => Some("crlf".to_owned()),
+        Some(FormatterLineEndingMode::Preserve) => {
+            let source_line_ending = table_value
+                .get("lineEnding")
+                .and_then(Value::as_str)
+                .unwrap_or("lf");
+            Some(
+                match source_line_ending {
+                    "crlf" => "crlf",
+                    _ => "lf",
+                }
+                .to_owned(),
+            )
+        }
+        None => None,
+    }
+}
+
+fn csv_output_function_descriptor(
+    name: &str,
+    category: &str,
+    subject: &str,
+    kind: TransformTemplateOutputFunctionKind,
+    produces: TransformTemplateOutputProducedKind,
+    profile: Option<String>,
+) -> TransformTemplateOutputFunctionDescriptor {
+    TransformTemplateOutputFunctionDescriptor {
+        kind,
+        owner: Some("csv".to_owned()),
+        name: name.to_owned(),
+        category: category.to_owned(),
+        subject: subject.to_owned(),
+        produces,
+        content_type: CSV_CONTENT_TYPE.to_owned(),
+        schema: CSV_SCHEMA_URI.to_owned(),
+        canonical: false,
+        streamable: true,
+        visibility: TransformTemplateModuleVisibility::Public,
+        implementation: TransformTemplateOutputFunctionImplementation::Cemt,
+        profile,
+        extends: None,
+        capability: None,
+        deterministic: true,
+        trusted: false,
+        lossy: false,
+        fallback: None,
+        params: Vec::new(),
+        body_declared: false,
+        body_expression: None,
+    }
+}
+
+fn csv_output_pipeline_failed(
+    diagnostic_uri: Option<&str>,
+    message: String,
+) -> ConversionOutputPipelineExecution {
+    ConversionOutputPipelineExecution {
+        output: None,
+        diagnostics: vec![conversion_output_pipeline_diagnostic(
+            "csv-direct-output",
+            Some("csv"),
+            diagnostic_uri,
+            message,
+        )],
+        ..ConversionOutputPipelineExecution::default()
+    }
+}
+
 fn conversion_output_pipeline_formatted_cem_tree_artifact(
     pipeline: &ConversionOutputPipeline,
     value: Value,
@@ -4093,7 +5100,9 @@ fn execute_conversion_output_pipeline_from_formatted_artifact(
         formatted_artifact.value.clone(),
         pipeline.cemt_target.clone(),
     )
-    .with_subject_type("cem-tree")
+    .with_subject_type(conversion_output_pipeline_color_subject_type(
+        formatted_artifact.identity.produces,
+    ))
     .with_options(pipeline.cemt_options.clone());
     let color_binding = match functions
         .resolve_color_binding(&color_request, implementations.host_capabilities())
@@ -4205,13 +5214,26 @@ fn conversion_cem_tree_format_insertion_context(
 ) -> TransformTemplateEncodedArtifactInsertionContext {
     let mut context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
         &pipeline.cemt_target,
-        Some(TransformTemplateOutputProducedKind::CemTree),
+        Some(pipeline.cemt_produces),
     );
     context.formatter_profile = pipeline.cemt_options.formatter_profile.clone();
     context.mode = Some(pipeline.cemt_options.mode);
     context.canonical = Some(pipeline.cemt_options.canonical);
     context.source_map_policy = Some(pipeline.cemt_options.source_map_policy);
     context
+}
+
+fn conversion_output_pipeline_color_subject_type(
+    produces: TransformTemplateOutputProducedKind,
+) -> &'static str {
+    match produces {
+        TransformTemplateOutputProducedKind::Tokens => "tokens",
+        TransformTemplateOutputProducedKind::CemTree => "cem-tree",
+        TransformTemplateOutputProducedKind::Text => "string",
+        TransformTemplateOutputProducedKind::Bytes => "bytes",
+        TransformTemplateOutputProducedKind::Chunks => "chunks",
+        TransformTemplateOutputProducedKind::Diagnostics => "diagnostics",
+    }
 }
 
 fn conversion_cem_tree_output_function_registry(
@@ -12724,8 +13746,9 @@ mod tests {
         ));
     }
 
-    fn execute_builtin_csv_formatter_profile(
+    fn execute_builtin_csv_formatter_profile_with_options(
         profile: &str,
+        options: BTreeMap<String, String>,
     ) -> Result<(Value, ConversionOutputPipelineStageExecution), String> {
         let schema_registry = SchemaRegistry::with_builtin_schemas();
         let conversion_registry = ConversionRegistry::with_builtin_converters();
@@ -12794,7 +13817,8 @@ mod tests {
                     "fields": [
                         {"index": 0, "value": "id"},
                         {"index": 1, "value": "name"},
-                        {"index": 2, "value": "note"}
+                        {"index": 2, "value": "score"},
+                        {"index": 3, "value": "amount"}
                     ]
                 },
                 {
@@ -12802,24 +13826,28 @@ mod tests {
                     "fields": [
                         {"index": 0, "value": "1"},
                         {"index": 1, "value": "Ada"},
-                        {"index": 2, "value": "Hello, \"CEM\""}
+                        {"index": 2, "value": "7"},
+                        {"index": 3, "value": "12.30"}
                     ]
                 },
                 {
                     "index": 2,
                     "fields": [
-                        {"index": 0, "value": "2"},
-                        {"index": 1, "value": "Grace"},
-                        {"index": 2, "value": "line\nbreak"}
+                        {"index": 0, "value": "20"},
+                        {"index": 1, "value": "Lin"},
+                        {"index": 2, "value": "120"},
+                        {"index": 3, "value": "3.5"}
                     ]
                 }
             ]
         });
+        let subject = csv_table_value_with_formatter_presentation(subject, profile, &options)?;
         let request = TransformTemplateEncodeBindingRequest::new(subject.clone(), target)
             .with_subject_type("json")
             .with_options(TransformTemplateEncodeOptions {
                 formatter: Some("csv.format-document".to_owned()),
                 formatter_profile: Some(profile.to_owned()),
+                formatter_options: options,
                 canonical: profile == "compact",
                 line_ending: Some("lf".to_owned()),
                 ..TransformTemplateEncodeOptions::default()
@@ -12829,6 +13857,12 @@ mod tests {
             .map_err(|error| error.diagnostic(None).message)?;
 
         execute_conversion_cem_tree_output_stage(&environment, stage, &binding, &subject)
+    }
+
+    fn execute_builtin_csv_formatter_profile(
+        profile: &str,
+    ) -> Result<(Value, ConversionOutputPipelineStageExecution), String> {
+        execute_builtin_csv_formatter_profile_with_options(profile, BTreeMap::new())
     }
 
     fn csv_test_output_span(start: u64, len: u32) -> Value {
@@ -12924,11 +13958,34 @@ mod tests {
         let mut function_registry = TransformTemplateOutputFunctionRegistry::new();
         function_registry.register(colorizer);
         let subject = serde_json::json!({
-            "kind": "token-stream",
+            "kind": "cem-tree",
+            "contentType": CSV_CONTENT_TYPE,
+            "schema": CSV_SCHEMA_URI,
+            "category": "csv-document",
             "formatterProfile": "compact",
-            "tokens": [
+            "formatNodes": [
+                {
+                    "kind": "format-marker",
+                    "name": "csv.format-document",
+                    "formatterRole": "formatter.boundary",
+                    "formatterProfile": "compact"
+                },
+                {
+                    "kind": "format-decision",
+                    "name": "csv.layout",
+                    "formatterRole": "formatter.layout",
+                    "formatterProfile": "compact",
+                    "value": {
+                        "layout": "compact-records",
+                        "delimiter": ",",
+                        "lineEnding": "lf"
+                    }
+                }
+            ],
+            "nodes": [
                 {
                     "kind": "csv.field",
+                    "writerKind": "token",
                     "text": "id",
                     "role": "syntax.string",
                     "value": {
@@ -12940,6 +13997,7 @@ mod tests {
                 },
                 {
                     "kind": "csv.delimiter",
+                    "writerKind": "token",
                     "text": ",",
                     "role": "syntax.punctuation",
                     "value": {
@@ -12951,6 +14009,7 @@ mod tests {
                 },
                 {
                     "kind": "csv.field",
+                    "writerKind": "token",
                     "text": "name",
                     "role": "syntax.string",
                     "value": {
@@ -12962,6 +14021,7 @@ mod tests {
                 },
                 {
                     "kind": "csv.record-ending",
+                    "writerKind": "token",
                     "text": "\n",
                     "role": "syntax.punctuation",
                     "value": {
@@ -12973,7 +14033,7 @@ mod tests {
             ]
         });
         let request = TransformTemplateEncodeBindingRequest::new(subject.clone(), target)
-            .with_subject_type("tokens")
+            .with_subject_type("cem-tree")
             .with_options(TransformTemplateEncodeOptions {
                 colorizer: Some("csv.color-document".to_owned()),
                 color_profile: Some(profile.to_owned()),
@@ -12991,33 +14051,36 @@ mod tests {
         Ok((colored, execution, binding))
     }
 
-    fn writer_token_text(value: &Value) -> String {
+    fn writer_node_text(value: &Value) -> String {
         value
-            .get("tokens")
+            .get("nodes")
             .and_then(Value::as_array)
-            .expect("writer token stream")
+            .expect("writer node tree")
             .iter()
-            .map(|token| token.get("text").and_then(Value::as_str).unwrap_or(""))
+            .map(|node| node.get("text").and_then(Value::as_str).unwrap_or(""))
             .collect::<String>()
     }
 
     #[test]
     fn builtin_csv_formatter_profiles_execute_package_cemt_assets() {
-        for (profile, expected_path, expected_layout) in [
+        for (profile, expected_path, expected_layout, expected_output) in [
             (
                 "compact",
                 "schema-packages/csv/v1/formatters/compact.cemt",
                 "compact-records",
+                "id,name,score,amount\n1,Ada,7,12.30\n20,Lin,120,3.5\n",
             ),
             (
                 "pretty",
                 "schema-packages/csv/v1/formatters/pretty.cemt",
                 "pretty-records",
+                "id\t,name\t,score\t,amount\n 1\t,Ada \t,    7\t,12.30 \n20\t,Lin \t,  120\t, 3.5  \n",
             ),
             (
                 "tabular",
                 "schema-packages/csv/v1/formatters/tabular.cemt",
                 "tabular-records",
+                "id,name,score,amount\n 1,Ada ,    7,12.30 \n20,Lin ,  120, 3.5  \n",
             ),
         ] {
             let (formatted, execution) = execute_builtin_csv_formatter_profile(profile)
@@ -13033,21 +14096,28 @@ mod tests {
                 },
                 "{profile}"
             );
-            assert_eq!(formatted["kind"], "token-stream", "{profile}");
+            assert_eq!(formatted["kind"], "cem-tree", "{profile}");
+            assert_eq!(formatted["contentType"], CSV_CONTENT_TYPE, "{profile}");
+            assert_eq!(formatted["schema"], CSV_SCHEMA_URI, "{profile}");
+            assert_eq!(formatted["category"], "csv-document", "{profile}");
             assert_eq!(formatted["formatterProfile"], profile, "{profile}");
             assert_eq!(
-                formatted["tokens"][0]["value"]["formatterProfile"], profile,
+                formatted["formatNodes"][0]["name"], "csv.format-document",
                 "{profile}"
             );
             assert_eq!(
-                formatted["tokens"][1]["value"]["layout"], expected_layout,
+                formatted["formatNodes"][1]["value"]["layout"], expected_layout,
                 "{profile}"
             );
             assert_eq!(
-                writer_token_text(&formatted),
-                "id,name,note\n1,Ada,\"Hello, \"\"CEM\"\"\"\n2,Grace,\"line\nbreak\"\n",
+                formatted["nodes"][0]["value"]["formatterProfile"], profile,
                 "{profile}"
             );
+            assert_eq!(
+                formatted["nodes"][0]["writerKind"], "token",
+                "{profile}"
+            );
+            assert_eq!(writer_node_text(&formatted), expected_output, "{profile}");
             let target = TransformTemplateEncodingTarget::new(
                 CSV_CONTENT_TYPE,
                 CSV_SCHEMA_URI,
@@ -13056,14 +14126,14 @@ mod tests {
             let mut context =
                 TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
                     &target,
-                    Some(TransformTemplateOutputProducedKind::Tokens),
+                    Some(TransformTemplateOutputProducedKind::CemTree),
                 );
             context.formatter_profile = Some(profile.to_owned());
             context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
             context.canonical = Some(profile == "compact");
             context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
             let mut identity = TransformTemplateEncodedArtifactIdentity::new(
-                TransformTemplateOutputProducedKind::Tokens,
+                TransformTemplateOutputProducedKind::CemTree,
                 target,
             );
             identity.formatter_profile = Some(profile.to_owned());
@@ -13072,11 +14142,161 @@ mod tests {
             identity.source_map_policy = TransformTemplateSourceMapPolicy::Generated;
             TransformTemplateEncodedArtifact::new(identity, formatted)
                 .validate_insertion(&context)
-                .unwrap_or_else(|error| panic!("{profile} CSV formatter token stream: {error:?}"));
+                .unwrap_or_else(|error| panic!("{profile} CSV formatter CEM tree: {error:?}"));
             assert!(
                 builtin_schema_package_artifact_source("csv", expected_path)
                     .is_some_and(|source| source.source.contains("{body |")),
                 "{profile} formatter asset must be embedded with an executable body"
+            );
+        }
+    }
+
+    #[test]
+    fn builtin_csv_tabular_formatter_applies_max_field_width_options() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let table = serde_json::json!({
+            "kind": "csv-table",
+            "rows": [
+                {
+                    "index": 0,
+                    "fields": [
+                        {"index": 0, "value": "id"},
+                        {"index": 1, "value": "name"},
+                        {"index": 2, "value": "total"}
+                    ]
+                },
+                {
+                    "index": 1,
+                    "fields": [
+                        {"index": 0, "value": "123456789"},
+                        {"index": 1, "value": "Alexandria"},
+                        {"index": 2, "value": "123.4567"}
+                    ]
+                },
+                {
+                    "index": 2,
+                    "fields": [
+                        {"index": 0, "value": "42"},
+                        {"index": 1, "value": "Bo"},
+                        {"index": 2, "value": "9.5"}
+                    ]
+                }
+            ]
+        });
+        let target_scope = ScopeConfig {
+            cemt_formatter_profile: Some("tabular".to_owned()),
+            cemt_formatter_options: BTreeMap::from([
+                ("csv.maxFieldWidth".to_owned(), "6".to_owned()),
+                ("csv.stringTrim".to_owned(), "middle".to_owned()),
+            ]),
+            ..ScopeConfig::default()
+        };
+
+        let execution = execute_csv_document_output_pipeline_with_environment(
+            &environment,
+            table,
+            &target_scope,
+            Some("builtin:csv-tabular-options"),
+        );
+
+        assert!(
+            execution.diagnostics.is_empty(),
+            "{:?}",
+            execution.diagnostics
+        );
+        assert_eq!(
+            execution.output.as_ref().and_then(Value::as_str),
+            Some("id    ,name  ,total \n...789,Al...a,123.45\n    42,Bo    ,  9.5 \n")
+        );
+    }
+
+    #[test]
+    fn builtin_csv_formatter_applies_line_ending_options() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let base_table = serde_json::json!({
+            "kind": "csv-table",
+            "rows": [
+                {
+                    "index": 0,
+                    "fields": [
+                        {"index": 0, "value": "id"},
+                        {"index": 1, "value": "name"}
+                    ]
+                },
+                {
+                    "index": 1,
+                    "fields": [
+                        {"index": 0, "value": "1"},
+                        {"index": 1, "value": "Ada"}
+                    ]
+                }
+            ]
+        });
+
+        for (name, table, option, expected) in [
+            (
+                "explicit crlf",
+                base_table.clone(),
+                "crlf",
+                "id,name\r\n1,Ada\r\n",
+            ),
+            ("explicit lf", base_table.clone(), "lf", "id,name\n1,Ada\n"),
+            (
+                "preserve crlf",
+                serde_json::json!({
+                    "kind": "csv-table",
+                    "lineEnding": "crlf",
+                    "rows": base_table["rows"].clone()
+                }),
+                "preserve",
+                "id,name\r\n1,Ada\r\n",
+            ),
+            (
+                "preserve fallback",
+                base_table.clone(),
+                "preserve",
+                "id,name\n1,Ada\n",
+            ),
+        ] {
+            let target_scope = ScopeConfig {
+                cemt_formatter_profile: Some("compact".to_owned()),
+                cemt_formatter_options: BTreeMap::from([(
+                    "lineEnding".to_owned(),
+                    option.to_owned(),
+                )]),
+                ..ScopeConfig::default()
+            };
+
+            let execution = execute_csv_document_output_pipeline_with_environment(
+                &environment,
+                table,
+                &target_scope,
+                Some("builtin:csv-line-ending-options"),
+            );
+
+            assert!(
+                execution.diagnostics.is_empty(),
+                "{name}: {:?}",
+                execution.diagnostics
+            );
+            assert_eq!(
+                execution.output.as_ref().and_then(Value::as_str),
+                Some(expected),
+                "{name}"
             );
         }
     }
@@ -13129,36 +14349,51 @@ mod tests {
                 Some(profile),
                 "{profile}"
             );
-            assert_eq!(colored["kind"], "token-stream", "{profile}");
+            assert_eq!(colored["kind"], "cem-tree", "{profile}");
             assert_eq!(colored["formatterProfile"], "compact", "{profile}");
             assert_eq!(colored["colorProfile"], profile, "{profile}");
             assert_eq!(colored["colorOutput"], expected_output, "{profile}");
             assert_eq!(colored["colored"], true, "{profile}");
-            assert_eq!(writer_token_text(&colored), "id,name\n", "{profile}");
+            assert_eq!(writer_node_text(&colored), "id,name\n", "{profile}");
             assert_eq!(
-                colored["tokens"][0]["outputSpan"],
+                colored["colorNodes"][0]["name"], "csv.color-document",
+                "{profile}"
+            );
+            assert_eq!(
+                colored["nodes"][0]["outputSpan"],
                 csv_test_output_span(0, 2),
                 "{profile}"
             );
-            assert_eq!(colored["tokens"][0]["value"]["rowIndex"], 0, "{profile}");
+            assert_eq!(colored["nodes"][0]["value"]["rowIndex"], 0, "{profile}");
             assert_eq!(
-                colored["tokens"][0]["value"]["formatterProfile"], "compact",
+                colored["nodes"][0]["value"]["formatterProfile"], "compact",
                 "{profile}"
             );
             assert_eq!(
-                colored["tokens"][0]["value"]["colorProfile"], profile,
+                colored["nodes"][0]["value"]["colorProfile"], profile,
+                "{profile}"
+            );
+            let expected_first_field_role = if profile == "terminal" {
+                "data.field.1"
+            } else {
+                "syntax.string"
+            };
+            assert_eq!(
+                colored["nodes"][0]["value"]["colorRole"], expected_first_field_role,
+                "{profile}"
+            );
+            if profile == "terminal" {
+                assert_eq!(
+                    colored["nodes"][2]["style"]["colorRole"], "data.field.2",
+                    "{profile}"
+                );
+            }
+            assert_eq!(
+                colored["nodes"][1]["style"]["colorRole"], "syntax.punctuation",
                 "{profile}"
             );
             assert_eq!(
-                colored["tokens"][0]["value"]["colorRole"], "syntax.string",
-                "{profile}"
-            );
-            assert_eq!(
-                colored["tokens"][1]["style"]["colorRole"], "syntax.punctuation",
-                "{profile}"
-            );
-            assert_eq!(
-                colored["tokens"][1]["style"][expected_style_key], expected_style_value,
+                colored["nodes"][1]["style"][expected_style_key], expected_style_value,
                 "{profile}"
             );
             let target = TransformTemplateEncodingTarget::new(
@@ -13169,7 +14404,7 @@ mod tests {
             let mut context =
                 TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
                     &target,
-                    Some(TransformTemplateOutputProducedKind::Tokens),
+                    Some(TransformTemplateOutputProducedKind::CemTree),
                 );
             context.formatter_profile = Some("compact".to_owned());
             context.color_profile = Some(profile.to_owned());
@@ -13178,7 +14413,7 @@ mod tests {
             binding
                 .artifact_from_value(colored)
                 .validate_insertion(&context)
-                .unwrap_or_else(|error| panic!("{profile} CSV colorized token stream: {error:?}"));
+                .unwrap_or_else(|error| panic!("{profile} CSV colorized CEM tree: {error:?}"));
             assert!(
                 builtin_schema_package_artifact_source("csv", expected_path)
                     .is_some_and(|source| source.source.contains("{body |")),

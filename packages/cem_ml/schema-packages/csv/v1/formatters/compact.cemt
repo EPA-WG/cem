@@ -8,7 +8,7 @@
         @visibility="public"
         @category="csv-document"
         @subject="json"
-        @produces="tokens"
+        @produces="cem-tree"
         @content-type="text/csv"
         @schema="https://cem.dev/ns/data/csv/1"
         @profile="compact"
@@ -18,22 +18,46 @@
         {param @name="subject" @type="json" @required=true}
         {body |
             {$ {
-                kind: "token-stream",
-                formatterProfile: "compact",
-                tokens: extend(
+	                kind: "cem-tree",
+	                contentType: "text/csv",
+	                schema: "https://cem.dev/ns/data/csv/1",
+	                category: "csv-document",
+	                formatterProfile: "compact",
+	                formatNodes: [
+	                    {
+	                        kind: "format-marker",
+	                        name: "csv.format-document",
+	                        formatterRole: "formatter.boundary",
+	                        formatterProfile: "compact"
+	                    },
+	                    {
+	                        kind: "format-decision",
+	                        name: "csv.layout",
+	                        formatterRole: "formatter.layout",
+	                        formatterProfile: "compact",
+	                        value: {
+	                            layout: "compact-records",
+	                            delimiter: ",",
+	                            lineEnding: $lineEnding
+	                        }
+	                    }
+	                ],
+	                nodes: extend(
                     [
-                        {
-                            kind: "csv.format-marker",
-                            text: "",
-                            role: "formatter.boundary",
+	                        {
+	                            kind: "csv.format-marker",
+	                            writerKind: "token",
+	                            text: "",
+	                            role: "formatter.boundary",
                             value: {
                                 name: "csv.format-document",
                                 formatterProfile: "compact"
                             }
                         },
-                        {
-                            kind: "csv.format-decision",
-                            text: "",
+	                        {
+	                            kind: "csv.format-decision",
+	                            writerKind: "token",
+	                            text: "",
                             role: "formatter.layout",
                             value: {
                                 layout: "compact-records",
@@ -66,8 +90,9 @@
                     profile: $profile
                 })),
                 [{
-                    kind: "csv.record-ending",
-                    text: match($lineEnding, { crlf: "\r\n", default: "\n" }),
+	                    kind: "csv.record-ending",
+	                    writerKind: "token",
+	                    text: match($lineEnding, { crlf: "\r\n", default: "\n" }),
                     role: "syntax.punctuation",
                     value: {
                         rowIndex: $index,
@@ -93,8 +118,9 @@
                     match($index, {
                         0: [],
                         default: [{
-                            kind: "csv.delimiter",
-                            text: ",",
+	                            kind: "csv.delimiter",
+	                            writerKind: "token",
+	                            text: ",",
                             role: "syntax.punctuation",
                             value: {
                                 rowIndex: $rowIndex,
@@ -125,8 +151,9 @@
         {param @name="profile" @type="string" @required=true}
         {body |
             {$ {
-                kind: "csv.field",
-                text: call("csv.format-document.field-text", { field: $field }),
+	                kind: "csv.field",
+	                writerKind: "token",
+	                text: call("csv.format-document.field-text", { field: $field }),
                 role: "syntax.string",
                 value: {
                     rowIndex: $rowIndex,

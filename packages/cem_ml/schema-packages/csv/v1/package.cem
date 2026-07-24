@@ -107,6 +107,70 @@
     }
 
     {example
+        @id="header-absent"
+        @path="examples/header-absent.csv"
+        @content-type="text/csv; header=absent"
+        @schema="https://cem.dev/ns/data/csv/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="line-ending-lf"
+        @path="examples/line-ending-lf.csv"
+        @content-type="text/csv"
+        @schema="https://cem.dev/ns/data/csv/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="line-ending-crlf"
+        @path="examples/line-ending-crlf.csv"
+        @content-type="text/csv"
+        @schema="https://cem.dev/ns/data/csv/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="utf8-bom"
+        @path="examples/utf8-bom.csv"
+        @content-type="text/csv; charset=utf-8"
+        @schema="https://cem.dev/ns/data/csv/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="spaced-fields"
+        @path="examples/spaced-fields.csv"
+        @content-type="text/csv"
+        @schema="https://cem.dev/ns/data/csv/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="tabs-and-empty-fields"
+        @path="examples/tabs-and-empty-fields.csv"
+        @content-type="text/csv"
+        @schema="https://cem.dev/ns/data/csv/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="formula-looking-values"
+        @path="examples/formula-looking-values.csv"
+        @content-type="text/csv"
+        @schema="https://cem.dev/ns/data/csv/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="wide-unicode"
+        @path="examples/wide-unicode.csv"
+        @content-type="text/csv; charset=utf-8"
+        @schema="https://cem.dev/ns/data/csv/1"
+        @expected-result="pass"
+    }
+
+    {example
         @id="invalid-unclosed-quote"
         @path="examples/invalid-unclosed-quote.csv"
         @content-type="text/csv"

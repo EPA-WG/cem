@@ -105,7 +105,7 @@
             "executor": "nx:run-commands",
             "dependsOn": ["build"],
             "options": {
-                "command": "./dist/target/cem_ml_cli/debug/cem-ml fixture validate --zero-hard-violations --report-json packages/cem_ml_cli/dist --report-md packages/cem_ml_cli/dist",
+                "command": "./dist/target/cem_ml_cli/debug/cem-ml fixture validate --zero-hard-violations --quiet --report packages/cem_ml_cli/dist --report-md packages/cem_ml_cli/dist",
                 "cwd": "{workspaceRoot}"
             },
             "inputs": [
@@ -118,7 +118,7 @@
                 "{workspaceRoot}/examples/semantic/**/*.html"
             ],
             "outputs": [
-                "{projectRoot}/dist/cem-ml.report.json",
+                "{projectRoot}/dist/cem-ml.report.cem",
                 "{projectRoot}/dist/cem-ml.report.md"
             ]
         },
