@@ -20,7 +20,9 @@ use cem_ml::transform_config::{
     self, TransformGraphConfig, TransformGraphEdgeRole, TransformGraphJoinMode, TransformGraphNode,
     TransformGraphNodeKind,
 };
-use cem_ml_transform_cem_ql::engine_context_with_cem_ql_template_adapter;
+use cem_ml_transform_cem_ql::{
+    engine_context_with_cem_ql_template_adapter, register_cem_ql_source_output_converter,
+};
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsStr;
 use std::fs;
@@ -898,7 +900,9 @@ fn context_with_template_adapters(
     let mut context = if register_runtime_template_adapters {
         engine_context_with_cem_ql_template_adapter()
     } else {
-        eng::EngineContext::default()
+        let mut context = eng::EngineContext::default();
+        register_cem_ql_source_output_converter(&mut context);
+        context
     };
     context.schema = c.schema.clone();
     context.content_type = c.content_type.clone();
@@ -1056,7 +1060,7 @@ fn output_scope_defaults(args: &cli::ConvertArgs) -> ScopeConfig {
         module_map: args.context.module_map.clone(),
         base_uri: args.context.base_uri.clone(),
         policy: args.context.scope_policy.clone(),
-        output_color_type: None,
+        output_color_type: args.output_color_type.clone(),
         cemt_formatter: args.cemt_formatter.clone(),
         cemt_formatter_profile: args.cemt_formatter_profile.clone(),
         cemt_formatter_options: context_key_values(&args.cemt_formatter_options),
@@ -24594,6 +24598,107 @@ start =
         assert_eq!(
             strip_ansi_codes(&stdout),
             "id,name,notes\n1,Ada,\"line one\nline two\"\n2,Lin,\"quoted \"\"value\"\"\"\n"
+        );
+    }
+
+    #[test]
+    fn convert_cem_ql_source_renders_html_via_package_formatter_and_colorizer() {
+        let p = write_fixture(
+            "convert-cem-ql-html.cemql",
+            r#"module "https://example.test/queries/main"
+
+declare let greeting = "hello"
+
+if greeting == "hello" {
+  greeting
+} else {
+  "fallback"
+}
+"#,
+        );
+        let input_spec = format!(
+            "uri={},contentType=application/vnd.cem.query+cem-ql,schema={}",
+            p.display(),
+            cem_ml::schema::registry::CEM_QL_SCHEMA_URI
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--input-spec",
+                &input_spec,
+                "--to-content-type",
+                "text/html",
+                "--to-schema",
+                cem_ml::schema::registry::HTML_SCHEMA_URI,
+                "--cemt-formatter",
+                "cem-ql.format-tree",
+                "--cemt-formatter-profile",
+                "tabular",
+                "--cemt-colorizer",
+                "cem-ql.color-tree",
+                "--output-color-type",
+                "html-css-vars",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert!(
+            !stderr.contains("cem.lifecycle.adapter_unsupported"),
+            "{stderr}"
+        );
+        assert!(
+            stdout.starts_with(
+                r#"<pre class="cem-output cem-output-cem-ql" style="white-space: pre; tab-size: 8">"#
+            ),
+            "{stdout}"
+        );
+        assert!(stdout.ends_with("</pre>"), "{stdout}");
+        assert!(stdout.contains(r#"data-role="syntax.keyword""#), "{stdout}");
+        assert!(stdout.contains(r#"data-role="syntax.string""#), "{stdout}");
+        assert!(
+            stdout.contains(r#"data-role="syntax.punctuation""#),
+            "{stdout}"
+        );
+        assert!(stdout.contains(r#">"hello"</span>"#), "{stdout}");
+    }
+
+    #[test]
+    fn convert_cem_ql_source_reports_parser_diagnostics_without_lifecycle_warning() {
+        let p = write_fixture(
+            "convert-cem-ql-invalid.cemql",
+            r#"module "https://example.test/queries/broken"
+
+declare let broken = 1 +
+"#,
+        );
+        let input_spec = format!(
+            "uri={},contentType=application/vnd.cem.query+cem-ql,schema={}",
+            p.display(),
+            cem_ml::schema::registry::CEM_QL_SCHEMA_URI
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--input-spec",
+                &input_spec,
+                "--to-content-type",
+                "application/vnd.cem.query+cem-ql",
+                "--to-schema",
+                cem_ml::schema::registry::CEM_QL_SCHEMA_URI,
+                "--cemt-formatter-profile",
+                "compact",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stdout}");
+        assert!(stdout.trim().is_empty(), "{stdout}");
+        assert!(stderr.contains("cem.ql.parse_error"), "{stderr}");
+        assert!(
+            !stderr.contains("cem.lifecycle.adapter_unsupported"),
+            "{stderr}"
         );
     }
 

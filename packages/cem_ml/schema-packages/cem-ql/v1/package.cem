@@ -88,6 +88,18 @@
         @color-profile="md"
     }
 
+    {artifact
+        @kind="colorizer"
+        @path="colorizers/cem-ql-color-tree.cemt"
+        @content-type="application/vnd.cem.transform+cem"
+        @schema="https://cem.dev/ns/transform/cem/1"
+        @target-content-type="application/vnd.cem.query+cem-ql"
+        @target-schema="https://cem.dev/ns/query/cem-ql/1"
+        @target-category="cem-tree"
+        @function-name="cem-ql.color-tree"
+        @color-profile="none"
+    }
+
     {example
         @id="basic-query"
         @path="examples/basic-query.cemql"

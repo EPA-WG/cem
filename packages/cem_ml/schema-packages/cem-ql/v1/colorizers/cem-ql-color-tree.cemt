@@ -5,28 +5,176 @@
 {module @version="1.0.0" |
     {color-function
         @name="cem-ql.color-tree"
+        @visibility="public"
         @category="cem-tree"
         @subject="cem-tree"
         @produces="cem-tree"
         @content-type="application/vnd.cem.query+cem-ql"
         @schema="https://cem.dev/ns/query/cem-ql/1"
+        @extends="cem.color-tree"
         @canonical=false
         @deterministic=true
         @streamable=true |
         {param @name="subject" @type="object" @required=true}
         {body |
-            {$ call("cem-ql.color-tree.apply-stage", { subject: $subject }) }
+            {$ {
+                kind: "cem-tree",
+                contentType: "application/vnd.cem.query+cem-ql",
+                schema: "https://cem.dev/ns/query/cem-ql/1",
+                category: "cem-tree",
+                formatterProfile: match(exists($subject.formatterProfile), {
+                    true: $subject.formatterProfile,
+                    false: "unknown"
+                }),
+                formatNodes: match(exists($subject.formatNodes), {
+                    true: $subject.formatNodes,
+                    false: []
+                }),
+                colorProfile: call("cem-ql.color-tree.profile", {}),
+                colorOutput: call("cem-ql.color-tree.output", {
+                    profile: call("cem-ql.color-tree.profile", {})
+                }),
+                colored: true,
+                colorNodes: [
+                    {
+                        kind: "color-marker",
+                        name: "cem-ql.color-tree",
+                        colorizerRole: "colorizer.boundary",
+                        colorProfile: call("cem-ql.color-tree.profile", {}),
+                        colorOutput: call("cem-ql.color-tree.output", {
+                            profile: call("cem-ql.color-tree.profile", {})
+                        })
+                    },
+                    {
+                        kind: "color-decision",
+                        name: "cem-ql.role-map",
+                        colorizerRole: "colorizer.role",
+                        colorProfile: call("cem-ql.color-tree.profile", {}),
+                        colorOutput: call("cem-ql.color-tree.output", {
+                            profile: call("cem-ql.color-tree.profile", {})
+                        })
+                    }
+                ],
+                nodes: map(
+                    match(exists($subject.nodes), {
+                        true: $subject.nodes,
+                        false: []
+                    }),
+                    call("cem-ql.color-tree.token", {
+                        token: $item,
+                        profile: call("cem-ql.color-tree.profile", {})
+                    })
+                )
+            } }
         }
     }
 
     {function
-        @name="cem-ql.color-tree.apply-stage"
+        @name="cem-ql.color-tree.profile"
+        @visibility="private"
+        @returns="string"
+        @deterministic=true |
+        {body |
+            {$ match(exists($colorProfile), {
+                true: $colorProfile,
+                false: match(exists($functionProfile), {
+                    true: $functionProfile,
+                    false: "none"
+                })
+            }) }
+        }
+    }
+
+    {function
+        @name="cem-ql.color-tree.output"
+        @visibility="private"
+        @returns="string"
+        @deterministic=true |
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ match($profile, {
+                html: "html",
+                md: "md",
+                none: "none",
+                default: "terminal"
+            }) }
+        }
+    }
+
+    {function
+        @name="cem-ql.color-tree.token"
         @visibility="private"
         @returns="object"
         @deterministic=true |
-        {param @name="subject" @type="object" @required=true}
+        {param @name="token" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
         {body |
-            {$ call("cem.color-tree.apply-stage", { subject: $subject }) }
+            {$ match(call("cem-ql.color-tree.should-style", {
+                token: $token,
+                profile: $profile,
+                role: call("cem-ql.color-tree.token-role", { token: $token })
+            }), {
+                true: merge(
+                    set($token, "value", call("cem-ql.color-tree.token-value", {
+                        token: $token,
+                        profile: $profile,
+                        role: call("cem-ql.color-tree.token-role", { token: $token })
+                    })),
+                    {
+                        style: call("cem-ql.color-tree.style", {
+                            profile: $profile,
+                            role: call("cem-ql.color-tree.token-role", { token: $token })
+                        })
+                    }
+                ),
+                false: set($token, "value", call("cem-ql.color-tree.token-value", {
+                    token: $token,
+                    profile: $profile,
+                    role: call("cem-ql.color-tree.token-role", { token: $token })
+                }))
+            }) }
+        }
+    }
+
+    {function
+        @name="cem-ql.color-tree.token-value"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {body |
+            {$ merge(
+                match(exists($token.value), {
+                    true: $token.value,
+                    false: {}
+                }),
+                {
+                    colorProfile: $profile,
+                    colorRole: $role,
+                    colorOutput: call("cem-ql.color-tree.output", { profile: $profile })
+                }
+            ) }
+        }
+    }
+
+    {function
+        @name="cem-ql.color-tree.should-style"
+        @visibility="private"
+        @returns="boolean"
+        @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {body |
+            {$ match($profile, {
+                none: false,
+                default: match($role, {
+                    "source.whitespace": false,
+                    default: true
+                })
+            }) }
         }
     }
 
@@ -37,16 +185,16 @@
         @deterministic=true |
         {param @name="token" @type="object" @required=true}
         {body |
-            {$ match(exists($token.diagnostic), {
+            {$ match(exists($token.value.diagnostic), {
                 true: "diagnostic.error",
-                false: match(exists($token.legacy), {
-                    true: call("cem-ql.color-tree.legacy-role", { token: $token.legacy }),
-                    false: match(exists($token.operator), {
-                        true: call("cem-ql.color-tree.operator-role", { operator: $token.operator }),
-                        false: match(exists($token.role), {
-                            true: call("cem-ql.color-tree.role", { role: $token.role }),
-                            false: match(exists($token.lexeme), {
-                                true: call("cem-ql.color-tree.legacy-role", { token: $token.lexeme }),
+                false: match(exists($token.value.legacy), {
+                    true: call("cem-ql.color-tree.legacy-role", { token: $token.value.legacy }),
+                    false: match(exists($token.value.cemQlRole), {
+                        true: call("cem-ql.color-tree.role", { role: $token.value.cemQlRole }),
+                        false: match(exists($token.value.operator), {
+                            true: call("cem-ql.color-tree.operator-role", { operator: $token.value.operator }),
+                            false: match(exists($token.role), {
+                                true: call("cem-ql.color-tree.role", { role: $token.role }),
                                 false: "syntax.token"
                             })
                         })
@@ -100,7 +248,7 @@
                 "as": "cem-ql.operator.cast",
                 "treat_as": "cem-ql.operator.type-guard",
                 "same_node": "cem-ql.operator.node-identity",
-                default: "syntax.token"
+                default: "syntax.punctuation"
             }) }
         }
     }
@@ -136,7 +284,7 @@
                 "False": "diagnostic.error",
                 "None": "diagnostic.error",
                 "lambda": "diagnostic.error",
-                default: "syntax.token"
+                default: "diagnostic.error"
             }) }
         }
     }
@@ -149,21 +297,37 @@
         {param @name="role" @type="string" @required=true}
         {body |
             {$ match($role, {
-                "cem-ql.operator.comparison": "syntax.operator.comparison",
-                "cem-ql.operator.arithmetic": "syntax.operator.arithmetic",
-                "cem-ql.operator.arithmetic-or-set": "syntax.operator.arithmetic",
-                "cem-ql.operator.arithmetic-or-child": "syntax.operator.arithmetic",
-                "cem-ql.operator.boolean": "syntax.operator.boolean",
-                "cem-ql.operator.coalesce": "syntax.operator.coalesce",
-                "cem-ql.operator.set": "syntax.operator.set",
-                "cem-ql.operator.pipeline": "syntax.operator.pipeline",
-                "cem-ql.operator.type-test": "syntax.operator.type",
-                "cem-ql.operator.cast": "syntax.operator.type",
-                "cem-ql.operator.type-guard": "syntax.operator.type",
-                "cem-ql.operator.node-identity": "syntax.operator.type",
+                "cem-ql.operator.comparison": "syntax.punctuation",
+                "cem-ql.operator.arithmetic": "syntax.punctuation",
+                "cem-ql.operator.arithmetic-or-set": "syntax.punctuation",
+                "cem-ql.operator.arithmetic-or-child": "syntax.punctuation",
+                "cem-ql.operator.boolean": "syntax.punctuation",
+                "cem-ql.operator.coalesce": "syntax.punctuation",
+                "cem-ql.operator.set": "syntax.punctuation",
+                "cem-ql.operator.pipeline": "syntax.punctuation",
+                "cem-ql.operator.type-test": "syntax.keyword",
+                "cem-ql.operator.cast": "syntax.keyword",
+                "cem-ql.operator.type-guard": "syntax.keyword",
+                "cem-ql.operator.node-identity": "syntax.keyword",
                 "cem-ql.legacy.syntax": "diagnostic.error",
                 default: $role
             }) }
+        }
+    }
+
+    {function
+        @name="cem-ql.color-tree.style"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true |
+        {param @name="profile" @type="string" @required=true}
+        {param @name="role" @type="string" @required=true}
+        {body |
+            {$ {
+                colorRole: $role,
+                colorProfile: $profile,
+                colorOutput: call("cem-ql.color-tree.output", { profile: $profile })
+            } }
         }
     }
 }

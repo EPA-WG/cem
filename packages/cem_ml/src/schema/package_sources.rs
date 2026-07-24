@@ -1103,23 +1103,86 @@ mod tests {
         let examples =
             manifest_indexed_package_examples("cem-ql", CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI);
 
-        for (id, expected_code) in [
-            ("invalid-parse", "cem.ql.parse_error"),
-            ("invalid-missing-module", "cem.ql.module_uri_missing"),
-            ("invalid-old-syntax", "cem.ql.use_rust_boolean_ops"),
-        ] {
+        let expected = [
+            (
+                "basic-query",
+                CEM_QL_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "module-query",
+                CEM_QL_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "operators-and-control",
+                CEM_QL_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "collections-and-pipelines",
+                CEM_QL_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "stdlib-data-helpers",
+                CEM_QL_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "host-resource-helpers",
+                CEM_QL_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "invalid-parse",
+                CEM_QL_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.ql.parse_error"),
+            ),
+            (
+                "invalid-missing-module",
+                CEM_QL_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.ql.module_uri_missing"),
+            ),
+            (
+                "invalid-old-syntax",
+                CEM_QL_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.ql.use_rust_boolean_ops"),
+            ),
+        ];
+        let actual_ids = examples
+            .iter()
+            .map(|example| example.id.as_str())
+            .collect::<BTreeSet<_>>();
+        let expected_ids = expected
+            .iter()
+            .map(|(id, _, _, _)| *id)
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            actual_ids, expected_ids,
+            "checked CEM-QL example expectations must cover every manifest example"
+        );
+
+        for (id, content_type, expected_result, expected_code) in expected {
             let example = examples
                 .iter()
                 .find(|example| example.id == id)
-                .unwrap_or_else(|| panic!("invalid CEM-QL example `{id}`"));
-            assert_eq!(
-                example.expected_result,
-                SchemaPackageExampleExpectedResult::Fail
-            );
-            assert_eq!(
-                example.expected_diagnostic_codes,
-                vec![expected_code.to_owned()]
-            );
+                .unwrap_or_else(|| panic!("CEM-QL example `{id}`"));
+            assert_eq!(example.content_type, content_type);
+            assert_eq!(example.expected_result, expected_result);
+            let expected_codes = expected_code
+                .map(|code| vec![code.to_owned()])
+                .unwrap_or_default();
+            assert_eq!(example.expected_diagnostic_codes, expected_codes);
         }
     }
 
@@ -1159,7 +1222,7 @@ mod tests {
             r#""==": "cem-ql.operator.comparison""#,
             r#""%": "cem-ql.operator.arithmetic""#,
             r#""|": "cem-ql.operator.set""#,
-            r#""cem-ql.operator.boolean": "syntax.operator.boolean""#,
+            r#""cem-ql.operator.boolean": "syntax.punctuation""#,
             r#""cem-ql.legacy.syntax": "diagnostic.error""#,
             r#""True": "diagnostic.error""#,
             r#""lambda": "diagnostic.error""#,

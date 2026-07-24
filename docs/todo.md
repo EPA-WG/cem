@@ -7,9 +7,9 @@ history.
 
 ## Immediate Goal
 
-Current active slice: remediate CSV format-support review findings against
+Current active slice: remediate CEM-QL CSV-parity review findings against
 [`packages/cem_ml/schema-packages/README.md`](../packages/cem_ml/schema-packages/README.md),
-then resume dependency-ordered schema-package folder alignment.
+then decide whether the remaining `cem-ql/v1` package checklist item can close.
 
 ### Completed Immediate Phase: CSV Formatter Review Findings
 
@@ -78,10 +78,77 @@ then resume dependency-ordered schema-package folder alignment.
       terminal/display-width policy or narrow the `wide-unicode.csv` claim until
       executable coverage proves the intended behavior.
 
+### Immediate: CEM-QL Format/HTML AC Remediation
+
+- [x] Add CEM-QL lifecycle conversion coverage proving `convert` with
+      `application/vnd.cem.query+cem-ql` enters the CEM-QL parser/AST path and
+      does not emit `cem.lifecycle.adapter_unsupported`.
+- [x] Wire CEM-QL formatter/colorizer package stages so operator, keyword,
+      string, identifier, diagnostic, and legacy-token roles are applied instead
+      of falling back to one raw `syntax.string` span.
+- [x] Make `compact`, `pretty`, and `tabular` CEM-QL formatter profiles produce
+      deterministic formatted CEM-tree output before the generic writer emits
+      terminal or HTML bytes.
+- [x] Add README command examples with adjacent SVG previews for CEM-QL terminal
+      and HTML formatted output, and teach `verify-previews.mjs` to drift-check
+      those outputs.
+- [x] Extend `cem_ml_schema_package_cem_ql_v1:verify` so it fails when
+      formatter/colorizer/HTML output regresses, not only when validation JSON
+      changes.
+- [x] Re-run focused gates:
+      `cargo test -p cem-ml-cli schema_owned_cem_ql_examples_validate_through_cli`,
+      CEM-QL formatter/colorizer conversion tests, and
+      `yarn nx run cem_ml_schema_package_cem_ql_v1:verify`.
+
+### Immediate: CEM-QL CSV-Parity Review Remediation
+
+- [x] Move CEM-QL direct source-output conversion out of the CLI-only wrapper
+      and into the engine/conversion layer or an explicit context extension so
+      direct `RealCemMlEngine::convert` API users get the same parser,
+      formatter/colorizer, HTML, diagnostics, metadata, and no
+      `cem.lifecycle.adapter_unsupported` behavior as CLI users.
+- [x] Add engine-level regression coverage proving direct
+      `RealCemMlEngine::convert` handles CEM-QL source to native CEM-QL text and
+      HTML with the package formatter/colorizer pipeline, not only through
+      `cem_ml_cli::dispatch`.
+- [x] Define the CEM-QL schema-facing parser/token fact report in
+      `cem-ql/v1/README.md` and `schema/cem-ql.cem`, including source identity,
+      UTF-8 status, token ranges, module URI facts, parser diagnostics, legacy
+      syntax facts, recoverable/fatal disposition, and source-map preservation.
+- [x] Move CEM-QL diagnostic policy toward schema-owned fact interpretation:
+      keep Rust responsible for byte-accurate parsing/lexing, but make
+      `cem.ql.*` code/severity ownership inspectable through schema-declared
+      constraints/diagnostics rather than ad hoc bridge logic.
+- [x] Expand CEM-QL README to match CSV's implemented package AC sections:
+      standards/registry policy, generic `lineEnding` default and options,
+      formatter profile semantics, colorizer behavior, safety/security boundary,
+      formatter-and-preview SDLC, current/target parser boundary, release
+      behavior, and tracked incomplete work.
+- [x] Decide whether CEM-QL `compact`, `pretty`, and `tabular` should become
+      distinct AST-aware layout profiles now or be documented/tested as
+      intentional source-preserving aliases until layout rules exist.
+- [x] Strengthen CEM-QL manifest/index tests to enumerate all expected examples,
+      content types, expected results, and diagnostics like CSV does, not only
+      invalid cases.
+- [ ] Add missing CEM-QL examples and manifest declarations for alias content
+      type (`text/cem-ql`), LF/CRLF `lineEnding` behavior, comments/whitespace,
+      source token range preservation, duplicate import/declaration diagnostics,
+      unresolved import/type-error placeholders, invalid UTF-8 handling, and
+      compiled artifact/cache identity.
+- [x] Extend package-local verify coverage so CEM-QL fails on direct engine
+      conversion regressions, README/SVG drift, formatter profile drift, HTML
+      wrapper/span-role drift, and manifest/example coverage gaps.
+- [x] Re-run focused gates:
+      CEM-QL direct engine conversion tests, CLI conversion tests,
+      `cargo test -p cem-ml cem_ql_output_templates_are_schema_package_assets`,
+      `cargo test -p cem-ml cem_ql_package_examples_are_manifest_indexed`,
+      `cargo test -p cem-ml-cli schema_owned_cem_ql_examples_validate_through_cli`,
+      and `yarn nx run cem_ml_schema_package_cem_ql_v1:verify`.
+
 ### Schema Package Folder Alignment
 
 Remaining dependency-ordered package checklist:
-- [x] `cem-ql/v1`
+- [ ] `cem-ql/v1`
 - [ ] `cem-native-template/v1`
 - [ ] `cem-transform/v1`
 - [ ] `cem-ast-projection/v1`
@@ -131,11 +198,12 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Resume dependency-ordered schema-package folder alignment with `cem-ql/v1`.
-Review it against the common schema-package AC, align package metadata,
-schema/assets/examples/docs/tests as needed, and run the smallest package-level
-verification gate. After `cem-ql/v1` is green, continue with
-`cem-native-template/v1`.
+Resolve the remaining CEM-QL example coverage decision point: choose concrete
+source/diagnostic/cache semantics for alias content type, line endings,
+comments/whitespace, token ranges, duplicate declarations/imports, unresolved
+imports, type errors, invalid UTF-8, and compiled artifact/cache identity. Then
+add the examples and manifest declarations, update package verification, and
+re-run `cem_ml_schema_package_cem_ql_v1:verify`.
 
 ## Current Verification Commands
 

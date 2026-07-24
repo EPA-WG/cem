@@ -5,28 +5,194 @@
 {module @version="1.0.0" |
     {format-function
         @name="cem-ql.format-tree"
+        @visibility="public"
         @category="cem-tree"
         @subject="cem-ast-node"
         @produces="cem-tree"
         @content-type="application/vnd.cem.query+cem-ql"
         @schema="https://cem.dev/ns/query/cem-ql/1"
-        @canonical=true
+        @extends="cem.format-tree"
+        @canonical=false
         @deterministic=true
         @streamable=true |
         {param @name="subject" @type="json" @required=true}
         {body |
-            {$ call("cem-ql.format-tree.apply-stage", { subject: $subject }) }
+            {$ {
+                kind: "cem-tree",
+                contentType: "application/vnd.cem.query+cem-ql",
+                schema: "https://cem.dev/ns/query/cem-ql/1",
+                category: "cem-tree",
+                formatterProfile: call("cem-ql.format-tree.profile", {}),
+                formatNodes: [
+                    {
+                        kind: "format-marker",
+                        name: "cem-ql.format-tree",
+                        formatterRole: "formatter.boundary",
+                        formatterProfile: call("cem-ql.format-tree.profile", {})
+                    },
+                    {
+                        kind: "format-decision",
+                        name: "cem-ql.layout",
+                        formatterRole: "formatter.layout",
+                        formatterProfile: call("cem-ql.format-tree.profile", {}),
+                        value: {
+                            layout: concat(call("cem-ql.format-tree.profile", {}), "-token-stream"),
+                            lineEnding: $lineEnding,
+                            sourcePreserving: true
+                        }
+                    }
+                ],
+                nodes: extend(
+                    [
+                        {
+                            kind: "cem-ql.format-marker",
+                            writerKind: "token",
+                            text: "",
+                            role: "formatter.boundary",
+                            value: {
+                                name: "cem-ql.format-tree",
+                                formatterProfile: call("cem-ql.format-tree.profile", {})
+                            }
+                        },
+                        {
+                            kind: "cem-ql.format-decision",
+                            writerKind: "token",
+                            text: "",
+                            role: "formatter.layout",
+                            value: {
+                                layout: concat(call("cem-ql.format-tree.profile", {}), "-token-stream"),
+                                lineEnding: $lineEnding,
+                                sourcePreserving: true
+                            }
+                        }
+                    ],
+                    call("cem-ql.format-tree.tokens", {
+                        tokens: match(exists($subject.tokens), {
+                            true: $subject.tokens,
+                            false: []
+                        }),
+                        profile: call("cem-ql.format-tree.profile", {})
+                    })
+                )
+            } }
         }
     }
 
     {function
-        @name="cem-ql.format-tree.apply-stage"
+        @name="cem-ql.format-tree.profile"
         @visibility="private"
-        @returns="json"
+        @returns="string"
         @deterministic=true |
-        {param @name="subject" @type="json" @required=true}
         {body |
-            {$ call("cem.format-tree.apply-stage", { subject: $subject }) }
+            {$ match(exists($formatterProfile), {
+                true: $formatterProfile,
+                false: match(exists($functionProfile), {
+                    true: $functionProfile,
+                    false: "compact"
+                })
+            }) }
+        }
+    }
+
+    {function
+        @name="cem-ql.format-tree.tokens"
+        @visibility="private"
+        @returns="array"
+        @deterministic=true |
+        {param @name="tokens" @type="array" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ map($tokens, call("cem-ql.format-tree.token-node", {
+                token: $item,
+                profile: $profile
+            })) }
+        }
+    }
+
+    {function
+        @name="cem-ql.format-tree.token-node"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ merge(
+                {
+                    kind: match(exists($token.kind), {
+                        true: $token.kind,
+                        false: "cem-ql.token"
+                    }),
+                    writerKind: "token",
+                    text: call("cem-ql.format-tree.token-text", { token: $token }),
+                    role: match(exists($token.role), {
+                        true: $token.role,
+                        false: "syntax.token"
+                    }),
+                    outputSpan: match(exists($token.outputSpan), {
+                        true: $token.outputSpan,
+                        false: null
+                    }),
+                    value: merge(
+                        match(exists($token.value), {
+                            true: $token.value,
+                            false: {}
+                        }),
+                        {
+                            formatterProfile: $profile
+                        }
+                    )
+                },
+                match(exists($token.sourceMap), {
+                    true: { sourceMap: $token.sourceMap },
+                    false: {}
+                })
+            ) }
+        }
+    }
+
+    {function
+        @name="cem-ql.format-tree.token-text"
+        @visibility="private"
+        @returns="string"
+        @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {body |
+            {$ match(exists($token.text), {
+                true: match($token.kind, {
+                    "cem-ql.whitespace": call("cem-ql.format-tree.whitespace-text", {
+                        value: $token.text
+                    }),
+                    default: $token.text
+                }),
+                false: ""
+            }) }
+        }
+    }
+
+    {function
+        @name="cem-ql.format-tree.whitespace-text"
+        @visibility="private"
+        @returns="string"
+        @deterministic=true |
+        {param @name="value" @type="string" @required=true}
+        {body |
+            {$ match($lineEnding, {
+                preserve: $value,
+                crlf: replace(call("cem-ql.format-tree.whitespace-lf", { value: $value }), "\n", "\r\n"),
+                default: call("cem-ql.format-tree.whitespace-lf", { value: $value })
+            }) }
+        }
+    }
+
+    {function
+        @name="cem-ql.format-tree.whitespace-lf"
+        @visibility="private"
+        @returns="string"
+        @deterministic=true |
+        {param @name="value" @type="string" @required=true}
+        {body |
+            {$ replace(replace($value, "\r\n", "\n"), "\r", "\n") }
         }
     }
 
@@ -61,7 +227,7 @@
                 "as": "cem-ql.operator.cast",
                 "treat_as": "cem-ql.operator.type-guard",
                 "same_node": "cem-ql.operator.node-identity",
-                default: "syntax.token"
+                default: "syntax.punctuation"
             }) }
         }
     }

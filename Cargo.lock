@@ -151,6 +151,7 @@ dependencies = [
 name = "cem-ml-transform-cem-ql"
 version = "0.1.0"
 dependencies = [
+ "blake3",
  "cem-ml",
  "cem-ql",
  "serde_json",

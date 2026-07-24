@@ -63,7 +63,7 @@ use crate::transform_config::{
 };
 use crate::transform_template::{
     evaluate_transform_template_encode_expressions, parse_cem_native_template_module_options,
-    transform_template_call_argument_is_dynamic,
+    parse_transform_template_output_color_type, transform_template_call_argument_is_dynamic,
     transform_template_encode_options_line_ending_data, try_apply_transform_template_let_bindings,
     TransformTemplateAdapter, TransformTemplateAdapterLookup, TransformTemplateCompileRequest,
     TransformTemplateCompiledArtifact, TransformTemplateDataArtifact,
@@ -73,14 +73,14 @@ use crate::transform_template::{
     TransformTemplateModuleParamDeclaration, TransformTemplateModuleParamType,
     TransformTemplateModuleParseRequest, TransformTemplateModulePreflight,
     TransformTemplateModuleVisibility, TransformTemplateOutputArtifact,
-    TransformTemplateOutputFunctionRegistry, TransformTemplateOutputProducedKind,
-    TransformTemplateRenderRequest, TransformTemplateResolvedModule,
-    TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE, TRANSFORM_TEMPLATE_ENTRYPOINT_NOT_PUBLIC_CODE,
-    TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE, TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE,
-    TRANSFORM_TEMPLATE_IMPORT_DEPTH_CODE, TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE,
-    TRANSFORM_TEMPLATE_LET_EXPR_INVALID_CODE, TRANSFORM_TEMPLATE_PARAM_DUPLICATE_ALIAS_CODE,
-    TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE, TRANSFORM_TEMPLATE_PARAM_TYPE_CODE,
-    TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE,
+    TransformTemplateOutputColorSelection, TransformTemplateOutputFunctionRegistry,
+    TransformTemplateOutputProducedKind, TransformTemplateRenderRequest,
+    TransformTemplateResolvedModule, TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE,
+    TRANSFORM_TEMPLATE_ENTRYPOINT_NOT_PUBLIC_CODE, TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE,
+    TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE, TRANSFORM_TEMPLATE_IMPORT_DEPTH_CODE,
+    TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE, TRANSFORM_TEMPLATE_LET_EXPR_INVALID_CODE,
+    TRANSFORM_TEMPLATE_PARAM_DUPLICATE_ALIAS_CODE, TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE,
+    TRANSFORM_TEMPLATE_PARAM_TYPE_CODE, TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE,
 };
 use crate::validation::{RuleContext, RuleRegistry, RuleResourceRead, RuleResourceReader};
 use serde_json::{json, Value};
@@ -4466,19 +4466,13 @@ fn maybe_convert_csv_text(
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_owned();
-    let content_type = target
-        .content_type
-        .clone()
-        .unwrap_or_else(|| CSV_CONTENT_TYPE.to_owned());
-    let schema = target
-        .schema
-        .clone()
-        .unwrap_or_else(|| CSV_SCHEMA_URI.to_owned());
+    let (content_type, schema, format_version) =
+        csv_direct_output_primary_identity(&target, &request.target_scope);
     let bytes = content.into_bytes();
     let primary_bytes = PrimaryBytes {
         content_type,
         schema: Some(schema.clone()),
-        format_version: "csv/1".to_owned(),
+        format_version,
         hash_scheme: "cem-text/1+blake3".to_owned(),
         hash: text_content_hash(&bytes),
         bytes,
@@ -4519,12 +4513,88 @@ fn format_identity_matches_csv(context: &EngineContext, identity: &FormatIdentit
     explicit_schema_matches
 }
 
+fn csv_direct_output_primary_identity(
+    target: &FormatIdentity,
+    target_scope: &ScopeConfig,
+) -> (String, String, String) {
+    if csv_direct_output_color_selection(target_scope)
+        .as_ref()
+        .is_some_and(csv_direct_output_color_selection_is_html)
+    {
+        return (
+            HTML_CONTENT_TYPE.to_owned(),
+            HTML_SCHEMA_URI.to_owned(),
+            "csv-html/1".to_owned(),
+        );
+    }
+    (
+        target
+            .content_type
+            .clone()
+            .unwrap_or_else(|| CSV_CONTENT_TYPE.to_owned()),
+        target
+            .schema
+            .clone()
+            .unwrap_or_else(|| CSV_SCHEMA_URI.to_owned()),
+        "csv/1".to_owned(),
+    )
+}
+
+fn csv_direct_output_color_selection(
+    target_scope: &ScopeConfig,
+) -> Option<TransformTemplateOutputColorSelection> {
+    parse_transform_template_output_color_type(target_scope.output_color_type.as_deref()?).ok()
+}
+
+fn csv_direct_output_color_selection_requests_color(
+    selection: &TransformTemplateOutputColorSelection,
+) -> bool {
+    selection.output_color_type != "none"
+}
+
+fn csv_direct_output_color_selection_is_html(
+    selection: &TransformTemplateOutputColorSelection,
+) -> bool {
+    selection.target.category == "html-color"
+        && csv_direct_output_color_selection_requests_color(selection)
+}
+
+fn csv_direct_output_inferred_color_profile(target_scope: &ScopeConfig) -> Option<String> {
+    target_scope.cemt_color_profile.clone().or_else(|| {
+        csv_direct_output_color_selection(target_scope)
+            .filter(csv_direct_output_color_selection_requests_color)
+            .and_then(|selection| match selection.target.category.as_str() {
+                "html-color" => Some("html".to_owned()),
+                "terminal-color" => Some("terminal".to_owned()),
+                _ => None,
+            })
+    })
+}
+
+fn csv_direct_output_writer_stage_identity(
+    target_scope: &ScopeConfig,
+) -> (&'static str, &'static str, &'static str) {
+    if csv_direct_output_color_selection(target_scope)
+        .as_ref()
+        .is_some_and(csv_direct_output_color_selection_is_html)
+    {
+        (HTML_CONTENT_TYPE, HTML_SCHEMA_URI, "html-document")
+    } else {
+        (CSV_CONTENT_TYPE, CSV_SCHEMA_URI, "csv-document")
+    }
+}
+
 fn convert_metadata_for_csv_direct_output(target_scope: &ScopeConfig) -> ConvertExecutionMetadata {
     let formatter_profile = target_scope
         .cemt_formatter_profile
         .clone()
         .unwrap_or_else(|| "compact".to_owned());
-    let color_profile = target_scope.cemt_color_profile.clone();
+    let color_profile = csv_direct_output_inferred_color_profile(target_scope);
+    let writer_profile = csv_direct_output_color_selection(target_scope)
+        .map(|selection| selection.output_color_type)
+        .or_else(|| color_profile.clone());
+    let (writer_content_type, writer_schema, writer_category) =
+        csv_direct_output_writer_stage_identity(target_scope);
     ConvertExecutionMetadata {
         converter_id: Some("csv-direct-output".to_owned()),
         implementation: Some("direct-cemt-output-pipeline".to_owned()),
@@ -4544,7 +4614,7 @@ fn convert_metadata_for_csv_direct_output(target_scope: &ScopeConfig) -> Convert
                     schema: Some(CSV_SCHEMA_URI.to_owned()),
                     category: Some("csv-document".to_owned()),
                     produces: Some(
-                        TransformTemplateOutputProducedKind::Tokens
+                        TransformTemplateOutputProducedKind::CemTree
                             .as_str()
                             .to_owned(),
                     ),
@@ -4561,7 +4631,7 @@ fn convert_metadata_for_csv_direct_output(target_scope: &ScopeConfig) -> Convert
                     schema: Some(CSV_SCHEMA_URI.to_owned()),
                     category: Some("csv-document".to_owned()),
                     produces: Some(
-                        TransformTemplateOutputProducedKind::Tokens
+                        TransformTemplateOutputProducedKind::CemTree
                             .as_str()
                             .to_owned(),
                     ),
@@ -4569,10 +4639,10 @@ fn convert_metadata_for_csv_direct_output(target_scope: &ScopeConfig) -> Convert
                 ConvertOutputPipelineStageMetadata {
                     stage: "writer".to_owned(),
                     function: None,
-                    profile: target_scope.cemt_color_profile.clone(),
-                    content_type: Some(CSV_CONTENT_TYPE.to_owned()),
-                    schema: Some(CSV_SCHEMA_URI.to_owned()),
-                    category: Some("csv-document".to_owned()),
+                    profile: writer_profile,
+                    content_type: Some(writer_content_type.to_owned()),
+                    schema: Some(writer_schema.to_owned()),
+                    category: Some(writer_category.to_owned()),
                     produces: Some(
                         TransformTemplateOutputProducedKind::Text
                             .as_str()
@@ -5552,6 +5622,19 @@ impl CemMlEngine for RealCemMlEngine {
         let (context, mut package_diagnostics) =
             context_with_loaded_schema_package_manifests(&request.context)?;
         request.context = context.clone();
+        if let Some(mut response) = request
+            .context
+            .convert_request_handlers
+            .iter()
+            .find_map(|handler| handler.maybe_convert(&request))
+        {
+            if !package_diagnostics.is_empty() {
+                let mut diagnostics = package_diagnostics;
+                diagnostics.append(&mut response.diagnostics);
+                response.diagnostics = diagnostics;
+            }
+            return Ok(response);
+        }
         if let Some(mut response) = maybe_convert_csv_text(&request, started_at) {
             if !package_diagnostics.is_empty() {
                 let mut diagnostics = package_diagnostics;

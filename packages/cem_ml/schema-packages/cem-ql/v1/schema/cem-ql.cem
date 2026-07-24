@@ -1,5 +1,6 @@
 @doc cem-ml 1
 @ns schema = "https://cem.dev/ns/schema/1"
+@ns cemml = "https://cem.dev/ns/cem-ml/1"
 @default schema
 
 {schema @name="cem-ql" @namespace="https://cem.dev/ns/query/cem-ql/1" @version="1.0.0" |
@@ -9,6 +10,7 @@
 
     {uses |
         {use @schema="https://cem.dev/ns/schema/1" @as="schema"}
+        {use @schema="https://cem.dev/ns/cem-ml/1" @as="cemml"}
     }
 
     {content-types |
@@ -24,7 +26,13 @@
     }
 
     {elements |
-        {element @name="module" @required-attributes="uri" @children="import declare expression"}
+        {element @name="module" @required-attributes="uri" @children="source? encoding-report? token-stream? parse-facts? import declare expression"}
+        {element @name="source" @optional-attributes="uri content-type media-type byte-length line-ending"}
+        {element @name="encoding-report" @optional-attributes="declared-charset normalized-charset decoder-status invalid-byte-offset"}
+        {element @name="token-stream" @children="token*"}
+        {element @name="token" @required-attributes="index token-kind role" @optional-attributes="lexeme cooked operator legacy replacement source-id byte-offset byte-length line column end-line end-column"}
+        {element @name="parse-facts" @children="parse-fact*"}
+        {element @name="parse-fact" @required-attributes="kind" @optional-attributes="contract behavior diagnostic-code diagnostic-severity recoverable fatal token-index byte-offset byte-length line column message replacement"}
         {element @name="import" @required-attributes="src as" @optional-attributes="scheme policy"}
         {element @name="declare" @required-attributes="kind name" @optional-attributes="type visibility" @children="param body"}
         {element @name="param" @required-attributes="name" @optional-attributes="type"}
@@ -35,11 +43,19 @@
 
     {attributes |
         {attribute @name="uri" @type="schema:uri"}
+        {attribute @name="content-type" @type="schema:string"}
+        {attribute @name="media-type" @type="schema:string"}
+        {attribute @name="byte-length" @type="cemml:integer"}
+        {attribute @name="line-ending" @type="schema:identifier" @values="crlf lf cr mixed"}
+        {attribute @name="declared-charset" @type="schema:string"}
+        {attribute @name="normalized-charset" @type="schema:identifier" @values="utf-8 other"}
+        {attribute @name="decoder-status" @type="schema:identifier" @values="decoded unsupported invalid"}
+        {attribute @name="invalid-byte-offset" @type="cemml:integer"}
         {attribute @name="src" @type="schema:uri"}
         {attribute @name="as" @type="schema:identifier"}
         {attribute @name="scheme" @type="schema:identifier" @values="platform network package local"}
         {attribute @name="policy" @type="schema:identifier"}
-        {attribute @name="kind" @type="schema:identifier" @values="variable function expression module artifact"}
+        {attribute @name="kind" @type="schema:identifier" @values="variable function expression module artifact parse-error invalid-utf8 module-uri-missing legacy-syntax import-alias-duplicate declaration-duplicate unresolved-import type-error artifact-hash-mismatch policy-mismatch source-map-unavailable"}
         {attribute @name="name" @type="schema:identifier"}
         {attribute @name="type" @type="schema:string"}
         {attribute @name="visibility" @type="schema:identifier" @values="private public"}
@@ -47,6 +63,28 @@
         {attribute @name="format" @type="schema:identifier" @values="cem-ql-ir-v1 cem-bin"}
         {attribute @name="hash" @type="schema:string"}
         {attribute @name="mode" @type="schema:identifier" @values="dev prod"}
+        {attribute @name="index" @type="cemml:integer"}
+        {attribute @name="token-index" @type="cemml:integer"}
+        {attribute @name="token-kind" @type="schema:identifier"}
+        {attribute @name="role" @type="schema:string"}
+        {attribute @name="lexeme" @type="schema:string"}
+        {attribute @name="cooked" @type="schema:string"}
+        {attribute @name="operator" @type="schema:string"}
+        {attribute @name="legacy" @type="schema:string"}
+        {attribute @name="replacement" @type="schema:string"}
+        {attribute @name="contract" @type="schema:identifier"}
+        {attribute @name="behavior" @type="schema:identifier"}
+        {attribute @name="diagnostic-code" @type="schema:identifier"}
+        {attribute @name="diagnostic-severity" @type="schema:identifier" @values="info warning error fatal"}
+        {attribute @name="recoverable" @type="schema:boolean"}
+        {attribute @name="fatal" @type="schema:boolean"}
+        {attribute @name="source-id" @type="schema:identifier"}
+        {attribute @name="byte-offset" @type="cemml:integer"}
+        {attribute @name="line" @type="cemml:integer"}
+        {attribute @name="column" @type="cemml:integer"}
+        {attribute @name="end-line" @type="cemml:integer"}
+        {attribute @name="end-column" @type="cemml:integer"}
+        {attribute @name="message" @type="schema:string"}
         {attribute @name="source-uri" @type="schema:uri"}
         {attribute @name="module-uri" @type="schema:uri"}
         {attribute @name="policy-stamp" @type="schema:string"}
@@ -55,16 +93,22 @@
     }
 
     {constraints |
-        {constraint @kind="module-uri-required" @target="module" @policy="required"}
-        {constraint @kind="unique-import-alias" @target="module" @policy="required"}
-        {constraint @kind="unique-declaration-name-per-scope" @target="module" @policy="required"}
-        {constraint @kind="query-source-parser" @target="module" @policy="delegate-to-cem-ql-crate"}
-        {constraint @kind="artifact-hash-required" @target="artifact" @policy="required"}
-        {constraint @kind="artifact-policy-stamps-validated" @target="artifact" @policy="required on load"}
+        {constraint @kind="query-source-parser" @target="module" @diagnostic="cem.ql.parse_error" @behavior="cem-ql-parse-report-fact" @fact-kind="parse-error" @policy="delegate-to-cem-ql-crate"}
+        {constraint @kind="utf-8-decode" @target="module" @diagnostic="cem.ql.invalid_utf8" @behavior="cem-ql-parse-report-fact" @fact-kind="invalid-utf8" @policy="CEM-QL source bytes must be valid UTF-8 before parsing"}
+        {constraint @kind="module-uri-required" @target="module" @diagnostic="cem.ql.module_uri_missing" @behavior="cem-ql-parse-report-fact" @fact-kind="module-uri-missing" @policy="module URI declaration is required"}
+        {constraint @kind="legacy-syntax-policy" @target="token" @diagnostic="cem.ql.use_rust_boolean_ops" @behavior="cem-ql-parse-report-fact" @fact-kind="legacy-syntax" @policy="XPath XQuery and Python compatibility spellings are diagnostics with Rust-first replacements"}
+        {constraint @kind="unique-import-alias" @target="module" @diagnostic="cem.ql.import_alias_duplicate" @behavior="cem-ql-parse-report-fact" @fact-kind="import-alias-duplicate" @policy="required"}
+        {constraint @kind="unique-declaration-name-per-scope" @target="module" @diagnostic="cem.ql.declaration_duplicate" @behavior="cem-ql-parse-report-fact" @fact-kind="declaration-duplicate" @policy="required"}
+        {constraint @kind="unresolved-import-policy" @target="import" @diagnostic="cem.ql.unresolved_import" @behavior="cem-ql-parse-report-fact" @fact-kind="unresolved-import" @policy="imports must resolve through the active module resolver"}
+        {constraint @kind="type-check-policy" @target="expression" @diagnostic="cem.ql.type_error" @behavior="cem-ql-parse-report-fact" @fact-kind="type-error" @policy="typed evaluator IR rejects incompatible operands and declarations"}
+        {constraint @kind="artifact-hash-required" @target="artifact" @diagnostic="cem.ql.artifact_hash_mismatch" @behavior="cem-ql-parse-report-fact" @fact-kind="artifact-hash-mismatch" @policy="required"}
+        {constraint @kind="artifact-policy-stamps-validated" @target="artifact" @diagnostic="cem.cc.policy_mismatch" @behavior="cem-ql-parse-report-fact" @fact-kind="policy-mismatch" @policy="required on load"}
         {constraint @kind="artifact-source-map-dev-only" @target="artifact" @policy="dev mode only"}
+        {constraint @kind="source-map-preferred" @target="token" @diagnostic="cem.ql.source_map_unavailable" @behavior="cem-ql-parse-report-fact" @fact-kind="source-map-unavailable" @policy="required when parser exposes source ranges"}
     }
 
     {diagnostics |
+        {diagnostic @code="cem.ql.invalid_utf8" @severity="error"}
         {diagnostic @code="cem.ql.module_uri_missing" @severity="error"}
         {diagnostic @code="cem.ql.import_alias_duplicate" @severity="error"}
         {diagnostic @code="cem.ql.unresolved_import" @severity="error"}
@@ -73,6 +117,7 @@
         {diagnostic @code="cem.ql.use_rust_boolean_ops" @severity="error"}
         {diagnostic @code="cem.ql.type_error" @severity="error"}
         {diagnostic @code="cem.ql.artifact_hash_mismatch" @severity="error"}
+        {diagnostic @code="cem.ql.source_map_unavailable" @severity="info"}
         {diagnostic @code="cem.cc.policy_mismatch" @severity="error"}
     }
 

@@ -101,18 +101,77 @@
         @deterministic=true |
         {param @name="token" @type="object" @required=true}
         {body |
-            {$ match(exists($token.role), {
-                true: $token.role,
-                false: match(contains($token.kind, "field"), {
-                    true: "syntax.string",
-                    false: match(contains($token.kind, "delimiter"), {
-                        true: "syntax.punctuation",
-                        false: match(contains($token.kind, "record-ending"), {
-                            true: "syntax.punctuation",
-                            false: "source.gutter"
-                        })
+            {$ match(contains($token.kind, "field"), {
+                true: call("csv.color-document.field-role", { token: $token }),
+                false: call("csv.color-document.syntax-role", { token: $token })
+            }) }
+        }
+    }
+
+    {function
+        @name="csv.color-document.syntax-role"
+        @visibility="private"
+        @returns="string"
+        @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {body |
+            {$ match(contains($token.kind, "record-ending"), {
+                true: "formatter.boundary",
+                false: match(contains($token.kind, "delimiter"), {
+                    true: "syntax.punctuation",
+                    false: match(exists($token.role), {
+                        true: $token.role,
+                        false: "source.gutter"
                     })
                 })
+            }) }
+        }
+    }
+
+    {function
+        @name="csv.color-document.field-role"
+        @visibility="private"
+        @returns="string"
+        @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {body |
+            {$ call("csv.color-document.field-palette-role", {
+                paletteIndex: mod(call("csv.color-document.field-index", { token: $token }), 8)
+            }) }
+        }
+    }
+
+    {function
+        @name="csv.color-document.field-index"
+        @visibility="private"
+        @returns="integer"
+        @deterministic=true |
+        {param @name="token" @type="object" @required=true}
+        {body |
+            {$ match(exists($token.value.fieldIndex), {
+                true: $token.value.fieldIndex,
+                false: 0
+            }) }
+        }
+    }
+
+    {function
+        @name="csv.color-document.field-palette-role"
+        @visibility="private"
+        @returns="string"
+        @deterministic=true |
+        {param @name="paletteIndex" @type="integer" @required=true}
+        {body |
+            {$ match($paletteIndex, {
+                0: "data.field.1",
+                1: "data.field.2",
+                2: "data.field.3",
+                3: "data.field.4",
+                4: "data.field.5",
+                5: "data.field.6",
+                6: "data.field.7",
+                7: "data.field.8",
+                default: "syntax.string"
             }) }
         }
     }

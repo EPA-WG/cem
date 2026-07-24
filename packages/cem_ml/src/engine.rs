@@ -21,6 +21,16 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 
+pub trait ConvertRequestHandler: Send + Sync {
+    fn maybe_convert(&self, request: &ConvertRequest) -> Option<ConvertResponse>;
+}
+
+impl std::fmt::Debug for dyn ConvertRequestHandler {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("ConvertRequestHandler")
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum FailLevel {
@@ -120,6 +130,7 @@ pub struct EngineContext {
     pub template_adapter_registry: TransformTemplateAdapterRegistry,
     pub transform_template_encode_registry: TransformTemplateEncodeImplementationRegistry,
     pub schema_behavior_evaluator: Option<Arc<dyn SchemaBehaviorEvaluator>>,
+    pub convert_request_handlers: Vec<Arc<dyn ConvertRequestHandler>>,
 }
 
 impl Default for EngineContext {
@@ -142,6 +153,7 @@ impl Default for EngineContext {
             transform_template_encode_registry:
                 TransformTemplateEncodeImplementationRegistry::with_builtin_encoders(),
             schema_behavior_evaluator: None,
+            convert_request_handlers: Vec::new(),
         }
     }
 }

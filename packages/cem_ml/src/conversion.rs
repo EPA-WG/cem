@@ -22,7 +22,7 @@ use crate::schema::package_sources::{
 use crate::schema::registry::{
     content_type_essence, SchemaContentTypeRole, SchemaDescriptor, SchemaRegistry,
     CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
-    CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI,
+    CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_QL_SCHEMA_URI,
     CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI,
     HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_VALUE_SCHEMA_URI, XML_CONTENT_TYPE,
     XML_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
@@ -36,7 +36,7 @@ use crate::tokenizer::{SchemaTokenKind, SchemaTokenizer};
 use crate::transform_template::{
     compose_transform_template_encoded_text_artifacts,
     evaluate_transform_template_encode_expressions, execute_transform_template_encode_binding,
-    parse_cem_native_template_module_options,
+    parse_cem_native_template_module_options, parse_transform_template_output_color_type,
     validate_transform_template_artifact_function_contract, TransformTemplateAdapter,
     TransformTemplateAdapterCapability, TransformTemplateAdapterError,
     TransformTemplateAdapterExecutionPhase, TransformTemplateAdapterLookup,
@@ -53,12 +53,12 @@ use crate::transform_template::{
     TransformTemplateHtmlColorMode, TransformTemplateModuleOptions,
     TransformTemplateModuleParseRequest, TransformTemplateModulePreflight,
     TransformTemplateModuleVisibility, TransformTemplateOutputArtifact,
-    TransformTemplateOutputFunctionDescriptor, TransformTemplateOutputFunctionImplementation,
-    TransformTemplateOutputFunctionKind, TransformTemplateOutputFunctionRegistry,
-    TransformTemplateOutputProducedKind, TransformTemplateRenderRequest,
-    TransformTemplateRenderResponse, TransformTemplateSourceMapPolicy,
-    TransformTemplateTargetSyntaxKind, TransformTemplateTargetSyntaxRules,
-    TransformTemplateTerminalColorCapability,
+    TransformTemplateOutputColorSelection, TransformTemplateOutputFunctionDescriptor,
+    TransformTemplateOutputFunctionImplementation, TransformTemplateOutputFunctionKind,
+    TransformTemplateOutputFunctionRegistry, TransformTemplateOutputProducedKind,
+    TransformTemplateRenderRequest, TransformTemplateRenderResponse,
+    TransformTemplateSourceMapPolicy, TransformTemplateTargetSyntaxKind,
+    TransformTemplateTargetSyntaxRules, TransformTemplateTerminalColorCapability,
 };
 use serde_json::Value;
 use std::cell::RefCell;
@@ -3872,6 +3872,11 @@ pub fn execute_csv_document_output_pipeline_with_environment(
     target_scope: &ScopeConfig,
     diagnostic_uri: Option<&str>,
 ) -> ConversionOutputPipelineExecution {
+    let output_color_selection =
+        match csv_output_color_selection(target_scope.output_color_type.as_deref()) {
+            Ok(selection) => selection,
+            Err(message) => return csv_output_pipeline_failed(diagnostic_uri, message),
+        };
     let local_artifact_cache = ConversionOutputPipelineArtifactCache::default();
     let cached_environment = if environment.artifact_cache.is_some() {
         *environment
@@ -3964,16 +3969,20 @@ pub fn execute_csv_document_output_pipeline_with_environment(
         );
     }
 
+    let cemt_color_profile =
+        match csv_cemt_color_profile_for_output(target_scope, output_color_selection.as_ref()) {
+            Ok(profile) => profile,
+            Err(message) => return csv_output_pipeline_failed(diagnostic_uri, message),
+        };
     let wants_color = target_scope
         .cemt_colorizer
         .as_deref()
         .map(str::trim)
         .is_some_and(|name| !name.is_empty())
-        || target_scope
-            .cemt_color_profile
-            .as_deref()
-            .map(str::trim)
-            .is_some_and(|profile| !profile.is_empty());
+        || cemt_color_profile.is_some()
+        || output_color_selection
+            .as_ref()
+            .is_some_and(csv_output_color_selection_requests_color);
     let (writer_artifact, color_execution, colored_cem_tree) = if wants_color {
         let colorizer_name = target_scope
             .cemt_colorizer
@@ -3981,12 +3990,7 @@ pub fn execute_csv_document_output_pipeline_with_environment(
             .map(str::trim)
             .filter(|name| !name.is_empty())
             .unwrap_or(CSV_COLOR_CEMT_STAGE_SPEC.function_name);
-        let color_profile = target_scope
-            .cemt_color_profile
-            .as_deref()
-            .map(str::trim)
-            .filter(|profile| !profile.is_empty())
-            .unwrap_or("terminal");
+        let color_profile = cemt_color_profile.as_deref().unwrap_or("terminal");
         let color_options = TransformTemplateEncodeOptions {
             formatter_options: target_scope.cemt_formatter_options.clone(),
             formatter_profile: Some(formatter_profile.to_owned()),
@@ -4061,6 +4065,17 @@ pub fn execute_csv_document_output_pipeline_with_environment(
     );
     writer_context.formatter_profile = Some(formatter_profile.to_owned());
     writer_context.color_profile = writer_artifact.identity.color_profile.clone();
+    writer_context.output_color_type = output_color_selection
+        .as_ref()
+        .map(|selection| selection.output_color_type.clone());
+    if output_color_selection
+        .as_ref()
+        .is_some_and(csv_output_color_selection_is_terminal)
+    {
+        writer_context.color_capability = output_color_selection
+            .as_ref()
+            .map(|selection| selection.output_color_type.clone());
+    }
     writer_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
     writer_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
     let evaluated = TransformTemplateEvaluatedEncodeExpression {
@@ -4116,16 +4131,24 @@ pub fn execute_csv_document_output_pipeline_with_environment(
         };
     }
     match composition.artifact {
-        Some(artifact) => ConversionOutputPipelineExecution {
-            output: Some(artifact.value),
-            source_map: artifact.source_map,
-            output_spans: artifact.output_spans,
-            format_execution,
-            color_execution,
-            formatted_cem_tree: Some(formatted_artifact),
-            colored_cem_tree,
-            diagnostics: Vec::new(),
-        },
+        Some(mut artifact) => {
+            if output_color_selection
+                .as_ref()
+                .is_some_and(csv_output_color_selection_is_html)
+            {
+                csv_wrap_html_preview_artifact(&mut artifact);
+            }
+            ConversionOutputPipelineExecution {
+                output: Some(artifact.value),
+                source_map: artifact.source_map,
+                output_spans: artifact.output_spans,
+                format_execution,
+                color_execution,
+                formatted_cem_tree: Some(formatted_artifact),
+                colored_cem_tree,
+                diagnostics: Vec::new(),
+            }
+        }
         None => ConversionOutputPipelineExecution {
             output: None,
             format_execution,
@@ -4209,6 +4232,88 @@ fn resolve_csv_cemt_stage_binding(
             .map_err(|error| error.diagnostic(None).message)?,
     };
     Ok((stage, binding))
+}
+
+fn csv_output_color_selection(
+    output_color_type: Option<&str>,
+) -> Result<Option<TransformTemplateOutputColorSelection>, String> {
+    let Some(output_color_type) = output_color_type
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Ok(None);
+    };
+    parse_transform_template_output_color_type(output_color_type)
+        .map(Some)
+        .map_err(|message| {
+            format!("invalid CSV output color type `{output_color_type}`: {message}")
+        })
+}
+
+fn csv_output_color_selection_requests_color(
+    selection: &TransformTemplateOutputColorSelection,
+) -> bool {
+    selection.output_color_type != "none"
+}
+
+fn csv_output_color_selection_is_html(selection: &TransformTemplateOutputColorSelection) -> bool {
+    selection.target.category == "html-color"
+        && csv_output_color_selection_requests_color(selection)
+}
+
+fn csv_output_color_selection_is_terminal(
+    selection: &TransformTemplateOutputColorSelection,
+) -> bool {
+    selection.target.category == "terminal-color"
+        && csv_output_color_selection_requests_color(selection)
+}
+
+fn csv_cemt_color_profile_for_output(
+    target_scope: &ScopeConfig,
+    output_color_selection: Option<&TransformTemplateOutputColorSelection>,
+) -> Result<Option<String>, String> {
+    let explicit = target_scope
+        .cemt_color_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty());
+    let inferred = output_color_selection
+        .filter(|selection| csv_output_color_selection_requests_color(selection))
+        .and_then(|selection| match selection.target.category.as_str() {
+            "html-color" => Some("html"),
+            "terminal-color" => Some("terminal"),
+            _ => None,
+        });
+    if let (Some(explicit), Some(inferred)) = (explicit, inferred) {
+        if explicit != inferred {
+            return Err(format!(
+                "CSV color profile `{explicit}` conflicts with output color type `{}`; use `{inferred}` or omit `--cemt-color-profile`",
+                output_color_selection
+                    .map(|selection| selection.output_color_type.as_str())
+                    .unwrap_or_default()
+            ));
+        }
+    }
+    Ok(explicit
+        .map(str::to_owned)
+        .or_else(|| inferred.map(str::to_owned)))
+}
+
+const CSV_HTML_PREVIEW_PREFIX: &str =
+    r#"<pre class="cem-output cem-output-csv" style="white-space: pre; tab-size: 8">"#;
+const CSV_HTML_PREVIEW_SUFFIX: &str = "</pre>";
+
+fn csv_wrap_html_preview_artifact(artifact: &mut TransformTemplateEncodedArtifact) {
+    let Some(text) = artifact.value.as_str() else {
+        return;
+    };
+    let prefix_len = CSV_HTML_PREVIEW_PREFIX.len() as u64;
+    for span in &mut artifact.output_spans {
+        span.output_range.start = span.output_range.start.saturating_add(prefix_len);
+    }
+    artifact.value = Value::String(format!(
+        "{CSV_HTML_PREVIEW_PREFIX}{text}{CSV_HTML_PREVIEW_SUFFIX}"
+    ));
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -4832,19 +4937,69 @@ fn register_package_cem_tree_output_functions(
         let Some(function) = module_options
             .output_functions
             .iter()
-            .find(|function| function.kind == expected_kind && function.name == function_name)
+            .find(|function| {
+                package_artifact_output_function_matches_profile(
+                    function,
+                    artifact,
+                    expected_kind,
+                    function_name,
+                )
+            })
+            .or_else(|| {
+                module_options.output_functions.iter().find(|function| {
+                    function.kind == expected_kind
+                        && function.name == function_name
+                        && function.profile.is_none()
+                })
+            })
         else {
             continue;
         };
+        let function = package_artifact_profiled_output_function(function, artifact);
         let key = (
             function.kind,
             function.name.clone(),
             function.profile.clone(),
         );
         if registered.insert(key) {
-            registry.register(function.clone());
+            registry.register(function);
         }
     }
+}
+
+fn package_artifact_output_function_matches_profile(
+    function: &TransformTemplateOutputFunctionDescriptor,
+    artifact: &ConversionPackageArtifactDescriptor,
+    expected_kind: TransformTemplateOutputFunctionKind,
+    function_name: &str,
+) -> bool {
+    function.kind == expected_kind
+        && function.name == function_name
+        && package_artifact_function_profile(artifact)
+            .is_none_or(|profile| function.profile.as_deref() == Some(profile))
+}
+
+fn package_artifact_profiled_output_function(
+    function: &TransformTemplateOutputFunctionDescriptor,
+    artifact: &ConversionPackageArtifactDescriptor,
+) -> TransformTemplateOutputFunctionDescriptor {
+    let mut function = function.clone();
+    if function.profile.is_none() {
+        function.profile = package_artifact_function_profile(artifact).map(str::to_owned);
+    }
+    function
+}
+
+fn package_artifact_function_profile(
+    artifact: &ConversionPackageArtifactDescriptor,
+) -> Option<&str> {
+    artifact
+        .function_profile
+        .as_deref()
+        .or_else(|| artifact.formatter_profile.as_deref())
+        .or_else(|| artifact.color_profile.as_deref())
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty())
 }
 
 fn conversion_cem_tree_format_function_descriptor(
@@ -8171,6 +8326,7 @@ fn builtin_converter_package_schema_uris() -> &'static [&'static str] {
         CEM_DOM_PROJECTION_SCHEMA_URI,
         CEM_AST_PROJECTION_SCHEMA_URI,
         CEM_EVENTS_PROJECTION_SCHEMA_URI,
+        CEM_QL_SCHEMA_URI,
         CSV_SCHEMA_URI,
     ]
 }
@@ -12167,6 +12323,240 @@ mod tests {
     }
 
     #[test]
+    fn cem_ql_output_templates_are_schema_package_assets() {
+        let target = TransformTemplateEncodingTarget::new(
+            CEM_QL_CONTENT_TYPE,
+            CEM_QL_SCHEMA_URI,
+            "cem-tree",
+        );
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let package_id = conversion_package_id_for_encoding_target(&schema_registry, &target)
+            .expect("CEM-QL CEM tree target package");
+        assert_eq!(package_id, "cem-ql");
+
+        for profile in ["compact", "pretty", "tabular"] {
+            let artifact = conversion_registry
+                .select_package_artifact_for_output_stage(
+                    &package_id,
+                    "formatter",
+                    Some(CEM_TRANSFORM_CONTENT_TYPE),
+                    Some(CEM_TRANSFORM_SCHEMA_URI),
+                    &target,
+                    Some("cem-ql.format-tree"),
+                    "cem.format-tree",
+                    Some(profile),
+                    None,
+                )
+                .expect("CEM-QL formatter selector")
+                .unwrap_or_else(|| panic!("CEM-QL formatter profile `{profile}` resolves"));
+            assert_eq!(
+                artifact.path,
+                "schema-packages/cem-ql/v1/formatters/cem-ql-format-tree.cemt"
+            );
+        }
+        for profile in ["terminal", "html", "md", "none"] {
+            let artifact = conversion_registry
+                .select_package_artifact_for_output_stage(
+                    &package_id,
+                    "colorizer",
+                    Some(CEM_TRANSFORM_CONTENT_TYPE),
+                    Some(CEM_TRANSFORM_SCHEMA_URI),
+                    &target,
+                    Some("cem-ql.color-tree"),
+                    "cem.color-tree",
+                    None,
+                    Some(profile),
+                )
+                .expect("CEM-QL colorizer selector")
+                .unwrap_or_else(|| panic!("CEM-QL colorizer profile `{profile}` resolves"));
+            assert_eq!(
+                artifact.path,
+                "schema-packages/cem-ql/v1/colorizers/cem-ql-color-tree.cemt"
+            );
+        }
+
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let cemt_options = TransformTemplateEncodeOptions {
+            formatter: Some("cem-ql.format-tree".to_owned()),
+            formatter_profile: Some("tabular".to_owned()),
+            colorizer: Some("cem-ql.color-tree".to_owned()),
+            color_profile: Some("html".to_owned()),
+            mode: TransformTemplateEncodedArtifactMode::Document,
+            source_map_policy: TransformTemplateSourceMapPolicy::Generated,
+            ..TransformTemplateEncodeOptions::default()
+        };
+        let mut cemt_context =
+            TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+                &target,
+                Some(TransformTemplateOutputProducedKind::CemTree),
+            );
+        cemt_context.formatter_profile = Some("tabular".to_owned());
+        cemt_context.color_profile = Some("html".to_owned());
+        let writer_context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+            &target,
+            Some(TransformTemplateOutputProducedKind::Text),
+        );
+        let pipeline = ConversionOutputPipeline {
+            stages: vec![
+                ConversionOutputPipelineStage::Transform,
+                ConversionOutputPipelineStage::Format,
+                ConversionOutputPipelineStage::Color,
+                ConversionOutputPipelineStage::Writer,
+            ],
+            cemt_target: target.clone(),
+            cemt_options: cemt_options.clone(),
+            cemt_insertion_context: cemt_context,
+            cemt_produces: TransformTemplateOutputProducedKind::CemTree,
+            writer_insertion_context: writer_context,
+            writer_produces: TransformTemplateOutputProducedKind::Text,
+        };
+        let functions = conversion_cem_tree_output_function_registry(&environment, &pipeline);
+        assert!(
+            functions.functions().iter().any(|function| {
+                function.kind == TransformTemplateOutputFunctionKind::Format
+                    && function.name == "cem-ql.format-tree"
+                    && function.profile.as_deref() == Some("tabular")
+                    && function.subject == "cem-ast-node"
+                    && content_type_essence(&function.content_type) == CEM_QL_CONTENT_TYPE
+                    && function.schema == CEM_QL_SCHEMA_URI
+                    && function.category == "cem-tree"
+            }),
+            "registered functions: {:?}",
+            functions
+                .functions()
+                .iter()
+                .map(|function| (
+                    function.kind,
+                    function.name.as_str(),
+                    function.profile.as_deref(),
+                    function.subject.as_str(),
+                    function.content_type.as_str(),
+                    function.schema.as_str(),
+                    function.category.as_str()
+                ))
+                .collect::<Vec<_>>()
+        );
+        let request = TransformTemplateEncodeBindingRequest::new(
+            serde_json::json!({"kind": "cem-ql-source", "tokens": []}),
+            target.clone(),
+        )
+        .with_subject_type("cem-ast-node")
+        .with_options(cemt_options);
+        let binding = functions
+            .resolve_format_binding(&request, &BTreeSet::new())
+            .expect("CEM-QL package formatter binding resolves");
+        assert_eq!(binding.function.name, "cem-ql.format-tree");
+        assert_eq!(binding.function.profile.as_deref(), Some("tabular"));
+
+        let subject = serde_json::json!({
+            "kind": "cem-ql-source",
+            "tokens": [
+                {
+                    "kind": "cem-ql.keyword",
+                    "text": "module",
+                    "role": "syntax.keyword",
+                    "value": { "tokenKind": "Module" }
+                },
+                {
+                    "kind": "cem-ql.whitespace",
+                    "text": " ",
+                    "role": "source.whitespace",
+                    "value": { "tokenKind": "Whitespace" }
+                },
+                {
+                    "kind": "cem-ql.string",
+                    "text": "\"https://example.test/q\"",
+                    "role": "syntax.string",
+                    "value": { "tokenKind": "StringLit" }
+                }
+            ]
+        });
+        for profile in ["compact", "pretty", "tabular"] {
+            let cemt_options = TransformTemplateEncodeOptions {
+                formatter: Some("cem-ql.format-tree".to_owned()),
+                formatter_profile: Some(profile.to_owned()),
+                colorizer: Some("cem-ql.color-tree".to_owned()),
+                color_profile: Some("none".to_owned()),
+                mode: TransformTemplateEncodedArtifactMode::Document,
+                source_map_policy: TransformTemplateSourceMapPolicy::Generated,
+                ..TransformTemplateEncodeOptions::default()
+            };
+            let mut cemt_context =
+                TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+                    &target,
+                    Some(TransformTemplateOutputProducedKind::CemTree),
+                );
+            cemt_context.formatter_profile = Some(profile.to_owned());
+            cemt_context.color_profile = Some("none".to_owned());
+            cemt_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+            cemt_context.canonical = Some(false);
+            cemt_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+            let mut writer_context =
+                TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+                    &target,
+                    Some(TransformTemplateOutputProducedKind::Text),
+                );
+            writer_context.formatter_profile = Some(profile.to_owned());
+            writer_context.color_profile = Some("none".to_owned());
+            writer_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+            writer_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+            let pipeline = ConversionOutputPipeline {
+                stages: vec![
+                    ConversionOutputPipelineStage::Transform,
+                    ConversionOutputPipelineStage::Format,
+                    ConversionOutputPipelineStage::Color,
+                    ConversionOutputPipelineStage::Writer,
+                ],
+                cemt_target: target.clone(),
+                cemt_options,
+                cemt_insertion_context: cemt_context,
+                cemt_produces: TransformTemplateOutputProducedKind::CemTree,
+                writer_insertion_context: writer_context,
+                writer_produces: TransformTemplateOutputProducedKind::Text,
+            };
+            let execution = execute_conversion_output_pipeline_with_environment(
+                &environment,
+                &pipeline,
+                subject.clone(),
+                None,
+                Vec::new(),
+                "cem-ql-test-output",
+                Some("cem-ql"),
+                None,
+            );
+            assert!(
+                execution.diagnostics.is_empty(),
+                "{:?}",
+                execution.diagnostics
+            );
+            assert_eq!(
+                execution
+                    .formatted_cem_tree
+                    .as_ref()
+                    .map(|artifact| &artifact.value["formatterProfile"]),
+                Some(&Value::String(profile.to_owned()))
+            );
+            assert_eq!(
+                execution
+                    .colored_cem_tree
+                    .as_ref()
+                    .map(|artifact| &artifact.value["colorProfile"]),
+                Some(&Value::String("none".to_owned()))
+            );
+            assert_eq!(
+                execution.output.as_ref().and_then(Value::as_str),
+                Some("module \"https://example.test/q\"")
+            );
+        }
+    }
+
+    #[test]
     fn cemt_output_stage_profile_default_reports_ambiguous_package_artifacts() {
         let target = TransformTemplateEncodingTarget::new(
             CEM_ML_CONTENT_TYPE,
@@ -13588,6 +13978,40 @@ mod tests {
             .collect::<String>()
     }
 
+    fn strip_ansi_codes(input: &str) -> String {
+        let mut output = String::new();
+        let mut chars = input.chars().peekable();
+        while let Some(ch) = chars.next() {
+            if ch == '\u{1b}' && chars.peek() == Some(&'[') {
+                chars.next();
+                for code_ch in chars.by_ref() {
+                    if code_ch.is_ascii_alphabetic() {
+                        break;
+                    }
+                }
+                continue;
+            }
+            output.push(ch);
+        }
+        output
+    }
+
+    fn html_text_content(input: &str) -> String {
+        let mut text = String::new();
+        let mut in_tag = false;
+        for ch in input.chars() {
+            match ch {
+                '<' => in_tag = true,
+                '>' if in_tag => in_tag = false,
+                _ if !in_tag => text.push(ch),
+                _ => {}
+            }
+        }
+        text.replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&amp;", "&")
+    }
+
     #[test]
     fn builtin_csv_formatter_profiles_execute_package_cemt_assets() {
         for (profile, expected_path, expected_layout, expected_output) in [
@@ -13869,6 +14293,109 @@ mod tests {
     }
 
     #[test]
+    fn builtin_csv_output_pipeline_renders_html_color_backend_with_terminal_text_parity() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let table = serde_json::json!({
+            "kind": "csv-table",
+            "rows": [
+                {
+                    "index": 0,
+                    "fields": [
+                        {"index": 0, "value": "id"},
+                        {"index": 1, "value": "name"},
+                        {"index": 2, "value": "active"}
+                    ]
+                },
+                {
+                    "index": 1,
+                    "fields": [
+                        {"index": 0, "value": "1"},
+                        {"index": 1, "value": "Ada"},
+                        {"index": 2, "value": "true"}
+                    ]
+                },
+                {
+                    "index": 2,
+                    "fields": [
+                        {"index": 0, "value": "2"},
+                        {"index": 1, "value": "Lin"},
+                        {"index": 2, "value": "false"}
+                    ]
+                }
+            ]
+        });
+        let terminal_scope = ScopeConfig {
+            cemt_formatter_profile: Some("tabular".to_owned()),
+            output_color_type: Some("ansi-256".to_owned()),
+            ..ScopeConfig::default()
+        };
+        let html_scope = ScopeConfig {
+            cemt_formatter_profile: Some("tabular".to_owned()),
+            output_color_type: Some("html-css-vars".to_owned()),
+            ..ScopeConfig::default()
+        };
+        let plain_scope = ScopeConfig {
+            cemt_formatter_profile: Some("tabular".to_owned()),
+            cemt_color_profile: Some("terminal".to_owned()),
+            output_color_type: Some("none".to_owned()),
+            ..ScopeConfig::default()
+        };
+
+        let terminal = execute_csv_document_output_pipeline_with_environment(
+            &environment,
+            table.clone(),
+            &terminal_scope,
+            Some("builtin:csv-terminal-output"),
+        );
+        let html = execute_csv_document_output_pipeline_with_environment(
+            &environment,
+            table.clone(),
+            &html_scope,
+            Some("builtin:csv-html-output"),
+        );
+        let plain = execute_csv_document_output_pipeline_with_environment(
+            &environment,
+            table,
+            &plain_scope,
+            Some("builtin:csv-plain-output"),
+        );
+
+        assert!(
+            terminal.diagnostics.is_empty(),
+            "{:?}",
+            terminal.diagnostics
+        );
+        assert!(html.diagnostics.is_empty(), "{:?}", html.diagnostics);
+        assert!(plain.diagnostics.is_empty(), "{:?}", plain.diagnostics);
+        let terminal_text =
+            strip_ansi_codes(terminal.output.as_ref().and_then(Value::as_str).unwrap());
+        let html_output = html.output.as_ref().and_then(Value::as_str).unwrap();
+        let plain_output = plain.output.as_ref().and_then(Value::as_str).unwrap();
+        assert!(
+            html_output.starts_with(CSV_HTML_PREVIEW_PREFIX),
+            "{html_output}"
+        );
+        assert!(
+            html_output.contains(r#"data-role="data.field.1""#),
+            "{html_output}"
+        );
+        assert!(
+            html_output.contains(r#"style="color: var(--cem-color-data-field-1, "#),
+            "{html_output}"
+        );
+        assert_eq!(html_text_content(html_output), terminal_text);
+        assert!(!plain_output.contains('\u{1b}'), "{plain_output}");
+        assert_eq!(plain_output, terminal_text);
+    }
+
+    #[test]
     fn builtin_csv_output_pipeline_generates_output_spans_from_formatter_tokens() {
         let schema_registry = SchemaRegistry::with_builtin_schemas();
         let conversion_registry = ConversionRegistry::with_builtin_converters();
@@ -14022,16 +14549,16 @@ mod tests {
                 colored["nodes"][0]["value"]["colorProfile"], profile,
                 "{profile}"
             );
-            let expected_first_field_role = if profile == "terminal" {
-                "data.field.1"
-            } else {
+            let expected_first_field_role = if profile == "md" {
                 "syntax.string"
+            } else {
+                "data.field.1"
             };
             assert_eq!(
                 colored["nodes"][0]["value"]["colorRole"], expected_first_field_role,
                 "{profile}"
             );
-            if profile == "terminal" {
+            if profile == "terminal" || profile == "html" {
                 assert_eq!(
                     colored["nodes"][2]["style"]["colorRole"], "data.field.2",
                     "{profile}"

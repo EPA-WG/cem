@@ -8,11 +8,18 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
+use cem_ml::conversion::{
+    execute_conversion_output_pipeline_with_environment, ConversionOutputPipeline,
+    ConversionOutputPipelineEnvironment, ConversionOutputPipelineStage,
+};
 use cem_ml::diagnostics::{Diagnostic, Severity};
 use cem_ml::engine::{
-    EngineContext, FormatIdentity, TemplateInput, TransformTemplateEntrypoint,
-    TransformTemplateKind, TRANSFORM_TEMPLATE_UNSUPPORTED_CODE,
+    ConvertExecutionMetadata, ConvertOutputPipelineMetadata, ConvertOutputPipelineStageMetadata,
+    ConvertRequest, ConvertRequestHandler, ConvertResponse, EngineContext, FormatIdentity,
+    LayerFormat, PrimaryBytes, TemplateInput, TransformTemplateEntrypoint, TransformTemplateKind,
+    TRANSFORM_TEMPLATE_UNSUPPORTED_CODE,
 };
+use cem_ml::interpreter::OutputSpan;
 use cem_ml::legacy_custom_element::{
     convert_template_source, LegacyConversionDiagnostic, TEMPLATE_CONTENT_TYPES,
     UNSUPPORTED_CONSTRUCT_CODE, UNSUPPORTED_FUNCTION_CODE,
@@ -27,25 +34,34 @@ use cem_ml::schema::document_model::{
     SCHEMA_BEHAVIOR_FUNCTION_FAILED_CODE, SCHEMA_BEHAVIOR_QUERY_FAILED_CODE,
     SCHEMA_BEHAVIOR_QUERY_INVALID_CODE, SCHEMA_BEHAVIOR_RESULT_INVALID_CODE,
 };
-use cem_ml::schema::registry::{CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI};
-use cem_ml::source_map::{FrameSpan, SourceMapStack};
+use cem_ml::schema::registry::{
+    CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI,
+    HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
+};
+use cem_ml::source::{ByteRange, SourceId};
+use cem_ml::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 use cem_ml::transform_template::{
-    parse_cem_native_template_module_options, TransformTemplateAdapter,
-    TransformTemplateAdapterCapability, TransformTemplateAdapterError,
+    parse_cem_native_template_module_options, parse_transform_template_output_color_type,
+    TransformTemplateAdapter, TransformTemplateAdapterCapability, TransformTemplateAdapterError,
     TransformTemplateAdapterExecutionPhase, TransformTemplateAdapterRegistry,
     TransformTemplateAdapterResult, TransformTemplateCompileRequest,
     TransformTemplateCompileResponse, TransformTemplateCompiledArtifact,
-    TransformTemplateDataArtifact, TransformTemplateModuleOptions,
+    TransformTemplateDataArtifact, TransformTemplateEncodeOptions,
+    TransformTemplateEncodedArtifactInsertionContext, TransformTemplateEncodedArtifactMode,
+    TransformTemplateEncodingTarget, TransformTemplateModuleOptions,
     TransformTemplateModuleParamDeclaration, TransformTemplateModuleParseRequest,
     TransformTemplateModulePreflight, TransformTemplateOutputArtifact,
+    TransformTemplateOutputColorSelection, TransformTemplateOutputProducedKind,
     TransformTemplateRenderRequest, TransformTemplateRenderResponse,
-    CEM_NATIVE_TEMPLATE_SCHEMA_URI, TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE,
-    TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE, TRANSFORM_TEMPLATE_PARAM_TYPE_CODE,
-    TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE,
+    TransformTemplateSourceMapPolicy, CEM_NATIVE_TEMPLATE_SCHEMA_URI,
+    TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE, TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE,
+    TRANSFORM_TEMPLATE_PARAM_TYPE_CODE, TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE,
 };
-use cem_ql::api::{compile, evaluate, CompileContext, EvaluationContext};
+use cem_ql::api::{compile, evaluate, CompileContext, EvaluationContext, ParseResult};
 use cem_ql::eval::QueryContextScope;
 use cem_ql::eval::{AtomValue, Item, ItemStream};
+use cem_ql::lexer::{CookedTokenPayload, Lexer, Token, TokenKind};
+use cem_ql::parser::SurfaceNode;
 use cem_ql::render::{
     compile_template, render_compiled_template, render_plan_to_html_with_source_map,
     render_plan_to_xml_with_source_map, CompileTemplateOptions, RenderPlan, RenderPlanAttribute,
@@ -1759,9 +1775,16 @@ pub fn register_cem_ql_schema_behavior_evaluator(context: &mut EngineContext) {
     context.schema_behavior_evaluator = Some(Arc::new(CemQlSchemaBehaviorEvaluator));
 }
 
+pub fn register_cem_ql_source_output_converter(context: &mut EngineContext) {
+    context
+        .convert_request_handlers
+        .push(Arc::new(CemQlSourceOutputConvertHandler));
+}
+
 pub fn register_cem_ql_runtime_adapters(context: &mut EngineContext) {
     register_cem_ql_template_adapter(&mut context.template_adapter_registry);
     register_cem_ql_schema_behavior_evaluator(context);
+    register_cem_ql_source_output_converter(context);
 }
 
 pub fn engine_context_with_cem_ql_template_adapter() -> EngineContext {
@@ -1769,6 +1792,930 @@ pub fn engine_context_with_cem_ql_template_adapter() -> EngineContext {
     context.template_adapter_registry = TransformTemplateAdapterRegistry::with_builtin_adapters();
     register_cem_ql_runtime_adapters(&mut context);
     context
+}
+
+const CEM_QL_DIRECT_OUTPUT_CONVERTER_ID: &str = "cem-ql-direct-output";
+const CEM_QL_DIRECT_FORMATTER: &str = "cem-ql.format-tree";
+const CEM_QL_DIRECT_COLORIZER: &str = "cem-ql.color-tree";
+const CEM_QL_HTML_PREVIEW_PREFIX: &str =
+    r#"<pre class="cem-output cem-output-cem-ql" style="white-space: pre; tab-size: 8">"#;
+const CEM_QL_HTML_PREVIEW_SUFFIX: &str = "</pre>";
+
+#[derive(Debug)]
+struct CemQlSourceOutputConvertHandler;
+
+impl ConvertRequestHandler for CemQlSourceOutputConvertHandler {
+    fn maybe_convert(&self, request: &ConvertRequest) -> Option<ConvertResponse> {
+        maybe_convert_cem_ql_source_output(request)
+    }
+}
+
+/// Converts CEM-QL source through the schema-package formatter/colorizer stack.
+///
+/// This lives in the bridge crate because `cem_ml` owns the generic output
+/// writer and `cem_ql` owns the parser/lexer. Keeping the direct source bridge
+/// here avoids a dependency cycle from `cem_ml` back into `cem_ql`.
+pub fn maybe_convert_cem_ql_source_output(request: &ConvertRequest) -> Option<ConvertResponse> {
+    let source = request
+        .input
+        .identity
+        .clone()
+        .unwrap_or_else(|| request.input.root_scope.format_identity());
+    if !format_identity_matches_cem_ql(&request.context, &source) {
+        return None;
+    }
+
+    let target = request
+        .target
+        .clone()
+        .or_else(|| request.target_scope.format_identity_option())
+        .or_else(|| cem_ql_direct_target_for_layer_format(request.to_format));
+    if !cem_ql_direct_target_supported(
+        &request.context,
+        target.as_ref(),
+        &request.target_scope,
+        request.to_format,
+    ) {
+        return None;
+    }
+
+    Some(convert_cem_ql_source_output(request, target.as_ref()))
+}
+
+fn convert_cem_ql_source_output(
+    request: &ConvertRequest,
+    target: Option<&FormatIdentity>,
+) -> ConvertResponse {
+    let mut diagnostics = Vec::new();
+    let source = match std::str::from_utf8(&request.input.bytes) {
+        Ok(source) => source,
+        Err(_) => {
+            diagnostics.push(cem_ql_invalid_utf8_diagnostic(&request.input.uri));
+            return cem_ql_failed_convert_response(&request.target_scope, &diagnostics);
+        }
+    };
+
+    let parsed = cem_ql::api::parse(source);
+    diagnostics.extend(cem_ql_parse_diagnostics(&request.input.uri, &parsed));
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return cem_ql_failed_convert_response(&request.target_scope, &diagnostics);
+    }
+
+    let token_tree = cem_ql_source_token_tree(&request.input.uri, source);
+    let output_color_selection = match cem_ql_output_color_selection(
+        &request.context,
+        &request.target_scope,
+        target,
+        request.to_format,
+    ) {
+        Ok(selection) => selection,
+        Err(message) => {
+            diagnostics.push(cem_ql_output_pipeline_diagnostic(
+                Some(&request.input.uri),
+                message,
+            ));
+            return cem_ql_failed_convert_response(&request.target_scope, &diagnostics);
+        }
+    };
+    let color_profile = match cem_ql_cemt_color_profile_for_output(
+        &request.target_scope,
+        output_color_selection.as_ref(),
+    ) {
+        Ok(profile) => profile,
+        Err(message) => {
+            diagnostics.push(cem_ql_output_pipeline_diagnostic(
+                Some(&request.input.uri),
+                message,
+            ));
+            return cem_ql_failed_convert_response(&request.target_scope, &diagnostics);
+        }
+    };
+    let formatter_profile = cem_ql_formatter_profile(&request.target_scope);
+    let pipeline = cem_ql_output_pipeline(
+        &request.target_scope,
+        &formatter_profile,
+        &color_profile,
+        output_color_selection.as_ref(),
+    );
+    let environment = ConversionOutputPipelineEnvironment {
+        schema_registry: &request.context.schema_registry,
+        conversion_registry: &request.context.converter_registry,
+        package_artifact_reader: None,
+        artifact_cache: None,
+    };
+    let execution = execute_conversion_output_pipeline_with_environment(
+        &environment,
+        &pipeline,
+        token_tree,
+        Some(cem_ql_source_map(ByteRange::new(
+            0,
+            checked_byte_len(request.input.bytes.len()),
+        ))),
+        Vec::new(),
+        CEM_QL_DIRECT_OUTPUT_CONVERTER_ID,
+        Some("cem-ql"),
+        Some(&request.input.uri),
+    );
+    diagnostics.extend(execution.diagnostics);
+    if diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return cem_ql_failed_convert_response(&request.target_scope, &diagnostics);
+    }
+
+    let mut content = execution
+        .output
+        .as_ref()
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
+    let html_output = cem_ql_direct_output_is_html(
+        &request.context,
+        target,
+        &request.target_scope,
+        request.to_format,
+        output_color_selection.as_ref(),
+    );
+    if html_output {
+        content = format!("{CEM_QL_HTML_PREVIEW_PREFIX}{content}{CEM_QL_HTML_PREVIEW_SUFFIX}");
+    }
+
+    let (content_type, schema, format_version) =
+        cem_ql_direct_output_primary_identity(target, html_output);
+    let bytes = content.into_bytes();
+    let primary_bytes = PrimaryBytes {
+        content_type,
+        schema: Some(schema.clone()),
+        format_version,
+        hash_scheme: "cem-text/1+blake3".to_owned(),
+        hash: cem_ql_text_content_hash(&bytes),
+        bytes,
+    };
+    let hash = primary_bytes.hash.clone();
+    ConvertResponse {
+        primary: json!({
+            "kind": "document",
+            "contentType": primary_bytes.content_type,
+            "schema": schema,
+            "hash": hash,
+        }),
+        primary_bytes: Some(primary_bytes),
+        conversion: Some(cem_ql_convert_metadata(
+            &request.target_scope,
+            &color_profile,
+            output_color_selection.as_ref(),
+            html_output,
+        )),
+        diagnostics,
+        scheduler_trace: cem_ml::report::SchedulerTraceReport::default(),
+    }
+}
+
+fn cem_ql_output_pipeline(
+    target_scope: &ScopeConfig,
+    formatter_profile: &str,
+    color_profile: &str,
+    output_color_selection: Option<&TransformTemplateOutputColorSelection>,
+) -> ConversionOutputPipeline {
+    let cemt_target =
+        TransformTemplateEncodingTarget::new(CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI, "cem-tree");
+    let line_ending = target_scope
+        .cemt_formatter_options
+        .get("lineEnding")
+        .cloned();
+    let options = TransformTemplateEncodeOptions {
+        formatter: Some(
+            target_scope
+                .cemt_formatter
+                .clone()
+                .unwrap_or_else(|| CEM_QL_DIRECT_FORMATTER.to_owned()),
+        ),
+        colorizer: Some(
+            target_scope
+                .cemt_colorizer
+                .clone()
+                .unwrap_or_else(|| CEM_QL_DIRECT_COLORIZER.to_owned()),
+        ),
+        formatter_profile: Some(formatter_profile.to_owned()),
+        color_profile: Some(color_profile.to_owned()),
+        formatter_options: target_scope.cemt_formatter_options.clone(),
+        line_ending,
+        mode: TransformTemplateEncodedArtifactMode::Document,
+        canonical: false,
+        source_map_policy: TransformTemplateSourceMapPolicy::Generated,
+        ..TransformTemplateEncodeOptions::default()
+    };
+
+    let mut cemt_context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+        &cemt_target,
+        Some(TransformTemplateOutputProducedKind::CemTree),
+    );
+    cemt_context.formatter_profile = Some(formatter_profile.to_owned());
+    cemt_context.color_profile = Some(color_profile.to_owned());
+    cemt_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+    cemt_context.canonical = Some(false);
+    cemt_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+
+    let mut writer_context = TransformTemplateEncodedArtifactInsertionContext::from_encoding_target(
+        &cemt_target,
+        Some(TransformTemplateOutputProducedKind::Text),
+    );
+    writer_context.formatter_profile = Some(formatter_profile.to_owned());
+    writer_context.color_profile = Some(color_profile.to_owned());
+    writer_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
+    writer_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
+    if let Some(selection) = output_color_selection {
+        writer_context.output_color_type = Some(selection.output_color_type.clone());
+        if cem_ql_output_color_selection_is_terminal(selection) {
+            writer_context.color_capability = Some(selection.output_color_type.clone());
+        }
+    }
+
+    ConversionOutputPipeline {
+        stages: vec![
+            ConversionOutputPipelineStage::Transform,
+            ConversionOutputPipelineStage::Format,
+            ConversionOutputPipelineStage::Color,
+            ConversionOutputPipelineStage::Writer,
+        ],
+        cemt_target,
+        cemt_options: options,
+        cemt_insertion_context: cemt_context,
+        cemt_produces: TransformTemplateOutputProducedKind::CemTree,
+        writer_insertion_context: writer_context,
+        writer_produces: TransformTemplateOutputProducedKind::Text,
+    }
+}
+
+fn cem_ql_source_token_tree(input_uri: &str, source: &str) -> Value {
+    let tokens = Lexer::new(source)
+        .scan_all()
+        .into_iter()
+        .filter(|token| token.kind != TokenKind::EndOfInput)
+        .enumerate()
+        .map(|(index, token)| cem_ql_source_token_node(input_uri, source, index, &token))
+        .collect::<Vec<_>>();
+    json!({
+        "kind": "cem-ql-source",
+        "contentType": CEM_QL_CONTENT_TYPE,
+        "schema": CEM_QL_SCHEMA_URI,
+        "sourceUri": input_uri,
+        "tokens": tokens,
+    })
+}
+
+fn cem_ql_source_token_node(input_uri: &str, source: &str, index: usize, token: &Token) -> Value {
+    let lexeme = cem_ql_token_lexeme(source, token);
+    let role = cem_ql_token_role(token.kind);
+    let source_map = cem_ql_source_map(token.range);
+    let output_span = OutputSpan {
+        output_range: ByteRange::new(0, token.range.len),
+        origin: source_map.clone(),
+    };
+    let mut value = Map::new();
+    value.insert(
+        "tokenKind".to_owned(),
+        Value::String(cem_ql_token_kind_name(token.kind).to_owned()),
+    );
+    value.insert("lexeme".to_owned(), Value::String(lexeme.to_owned()));
+    value.insert(
+        "byteOffset".to_owned(),
+        Value::Number(Number::from(token.range.start)),
+    );
+    value.insert(
+        "byteLength".to_owned(),
+        Value::Number(Number::from(token.range.len)),
+    );
+    value.insert("index".to_owned(), Value::Number(Number::from(index)));
+    value.insert("role".to_owned(), Value::String(role.to_owned()));
+    if let Some(operator) = cem_ql_token_operator(token.kind, lexeme) {
+        value.insert("operator".to_owned(), Value::String(operator.to_owned()));
+        value.insert(
+            "cemQlRole".to_owned(),
+            Value::String(cem_ql_operator_role(operator).to_owned()),
+        );
+    }
+    if token.kind == TokenKind::XPathCompatWord {
+        value.insert("legacy".to_owned(), Value::String(lexeme.to_owned()));
+        value.insert(
+            "diagnostic".to_owned(),
+            Value::String(cem_ql_legacy_diagnostic_code(lexeme).to_owned()),
+        );
+        value.insert(
+            "replacement".to_owned(),
+            Value::String(cem_ql_legacy_replacement(lexeme).to_owned()),
+        );
+    }
+    if let Some(cooked) = token.cooked.as_ref() {
+        value.insert("cooked".to_owned(), cem_ql_cooked_token_value(cooked));
+    }
+
+    json!({
+        "kind": cem_ql_token_node_kind(token.kind),
+        "tokenKind": cem_ql_token_kind_name(token.kind),
+        "text": lexeme,
+        "lexeme": lexeme,
+        "role": role,
+        "sourceUri": input_uri,
+        "sourceMap": source_map,
+        "outputSpan": output_span,
+        "value": value,
+    })
+}
+
+fn cem_ql_token_lexeme<'a>(source: &'a str, token: &Token) -> &'a str {
+    let start = token.range.start as usize;
+    let end = token.range.end() as usize;
+    source.get(start..end).unwrap_or_default()
+}
+
+fn cem_ql_source_map(range: ByteRange) -> SourceMapStack {
+    SourceMapStack {
+        frames: vec![SourceMapFrame {
+            source_id: SourceId(0),
+            span: FrameSpan::Single(range),
+            transform: TransformKind::ContentTypeTransform {
+                content_type: CEM_QL_CONTENT_TYPE.to_owned(),
+            },
+        }],
+    }
+}
+
+fn cem_ql_cooked_token_value(cooked: &CookedTokenPayload) -> Value {
+    match cooked {
+        CookedTokenPayload::Name(name) => json!({ "kind": "name", "value": name }),
+        CookedTokenPayload::PrefixedName { prefix, local } => {
+            json!({ "kind": "prefixed-name", "prefix": prefix, "local": local })
+        }
+        CookedTokenPayload::StringValue(value) => json!({ "kind": "string", "value": value }),
+        CookedTokenPayload::IntValue(value) => json!({ "kind": "integer", "value": value }),
+        CookedTokenPayload::DecimalValue(value) => json!({ "kind": "decimal", "value": value }),
+        CookedTokenPayload::DoubleValue(value) => json!({ "kind": "double", "value": value }),
+        CookedTokenPayload::BoolValue(value) => json!({ "kind": "boolean", "value": value }),
+    }
+}
+
+fn cem_ql_token_kind_name(kind: TokenKind) -> &'static str {
+    match kind {
+        TokenKind::Dot => "Dot",
+        TokenKind::Comma => "Comma",
+        TokenKind::LParen => "LParen",
+        TokenKind::RParen => "RParen",
+        TokenKind::LBracket => "LBracket",
+        TokenKind::RBracket => "RBracket",
+        TokenKind::LBrace => "LBrace",
+        TokenKind::RBrace => "RBrace",
+        TokenKind::Semicolon => "Semicolon",
+        TokenKind::Pipe => "Pipe",
+        TokenKind::Amp => "Amp",
+        TokenKind::Minus => "Minus",
+        TokenKind::Caret => "Caret",
+        TokenKind::Assign => "Assign",
+        TokenKind::FatArrow => "FatArrow",
+        TokenKind::Colon => "Colon",
+        TokenKind::ColonColon => "ColonColon",
+        TokenKind::EqEq => "EqEq",
+        TokenKind::BangEq => "BangEq",
+        TokenKind::Lt => "Lt",
+        TokenKind::Le => "Le",
+        TokenKind::Gt => "Gt",
+        TokenKind::Ge => "Ge",
+        TokenKind::Plus => "Plus",
+        TokenKind::Star => "Star",
+        TokenKind::Slash => "Slash",
+        TokenKind::Percent => "Percent",
+        TokenKind::AmpAmp => "AmpAmp",
+        TokenKind::PipePipe => "PipePipe",
+        TokenKind::Bang => "Bang",
+        TokenKind::Dollar => "Dollar",
+        TokenKind::Coalesce => "Coalesce",
+        TokenKind::DotDot => "DotDot",
+        TokenKind::Let => "Let",
+        TokenKind::In => "In",
+        TokenKind::If => "If",
+        TokenKind::Else => "Else",
+        TokenKind::For => "For",
+        TokenKind::Import => "Import",
+        TokenKind::As => "As",
+        TokenKind::Declare => "Declare",
+        TokenKind::Function => "Function",
+        TokenKind::Module => "Module",
+        TokenKind::IsKw => "IsKw",
+        TokenKind::FnKw => "FnKw",
+        TokenKind::XPathCompatWord => "XPathCompatWord",
+        TokenKind::Ident => "Ident",
+        TokenKind::PrefixedName => "PrefixedName",
+        TokenKind::StringLit => "StringLit",
+        TokenKind::IntLit => "IntLit",
+        TokenKind::DecimalLit => "DecimalLit",
+        TokenKind::DoubleLit => "DoubleLit",
+        TokenKind::BoolLit => "BoolLit",
+        TokenKind::NullLit => "NullLit",
+        TokenKind::Whitespace => "Whitespace",
+        TokenKind::LineComment => "LineComment",
+        TokenKind::BlockComment => "BlockComment",
+        TokenKind::Invalid => "Invalid",
+        TokenKind::EndOfInput => "EndOfInput",
+    }
+}
+
+fn cem_ql_token_node_kind(kind: TokenKind) -> &'static str {
+    match kind {
+        TokenKind::Whitespace => "cem-ql.whitespace",
+        TokenKind::LineComment | TokenKind::BlockComment => "cem-ql.comment",
+        TokenKind::Let
+        | TokenKind::In
+        | TokenKind::If
+        | TokenKind::Else
+        | TokenKind::For
+        | TokenKind::Import
+        | TokenKind::As
+        | TokenKind::Declare
+        | TokenKind::Function
+        | TokenKind::Module
+        | TokenKind::IsKw
+        | TokenKind::FnKw
+        | TokenKind::BoolLit
+        | TokenKind::NullLit => "cem-ql.keyword",
+        TokenKind::Ident | TokenKind::PrefixedName => "cem-ql.name",
+        TokenKind::StringLit => "cem-ql.string",
+        TokenKind::IntLit | TokenKind::DecimalLit | TokenKind::DoubleLit => "cem-ql.number",
+        TokenKind::XPathCompatWord => "cem-ql.legacy-token",
+        TokenKind::Invalid => "cem-ql.diagnostic-token",
+        _ if cem_ql_token_operator(kind, "").is_some() => "cem-ql.operator",
+        _ => "cem-ql.punctuation",
+    }
+}
+
+fn cem_ql_token_role(kind: TokenKind) -> &'static str {
+    match kind {
+        TokenKind::Whitespace => "source.whitespace",
+        TokenKind::LineComment | TokenKind::BlockComment => "syntax.comment",
+        TokenKind::Let
+        | TokenKind::In
+        | TokenKind::If
+        | TokenKind::Else
+        | TokenKind::For
+        | TokenKind::Import
+        | TokenKind::As
+        | TokenKind::Declare
+        | TokenKind::Function
+        | TokenKind::Module
+        | TokenKind::IsKw
+        | TokenKind::FnKw
+        | TokenKind::BoolLit
+        | TokenKind::NullLit => "syntax.keyword",
+        TokenKind::Ident | TokenKind::PrefixedName => "syntax.name",
+        TokenKind::StringLit => "syntax.string",
+        TokenKind::IntLit | TokenKind::DecimalLit | TokenKind::DoubleLit => "syntax.number",
+        TokenKind::XPathCompatWord | TokenKind::Invalid => "diagnostic.error",
+        _ => "syntax.punctuation",
+    }
+}
+
+fn cem_ql_token_operator(kind: TokenKind, lexeme: &str) -> Option<&str> {
+    match kind {
+        TokenKind::Pipe => Some("|"),
+        TokenKind::Amp => Some("&"),
+        TokenKind::Minus => Some("-"),
+        TokenKind::Caret => Some("^"),
+        TokenKind::EqEq => Some("=="),
+        TokenKind::BangEq => Some("!="),
+        TokenKind::Lt => Some("<"),
+        TokenKind::Le => Some("<="),
+        TokenKind::Gt => Some(">"),
+        TokenKind::Ge => Some(">="),
+        TokenKind::Plus => Some("+"),
+        TokenKind::Star => Some("*"),
+        TokenKind::Slash => Some("/"),
+        TokenKind::Percent => Some("%"),
+        TokenKind::AmpAmp => Some("&&"),
+        TokenKind::PipePipe => Some("||"),
+        TokenKind::Bang => Some("!"),
+        TokenKind::Coalesce => Some("??"),
+        TokenKind::Dot => Some("."),
+        TokenKind::IsKw => Some("is"),
+        TokenKind::As => Some("as"),
+        TokenKind::XPathCompatWord => match lexeme {
+            "eq" => Some("=="),
+            "ne" => Some("!="),
+            "lt" => Some("<"),
+            "le" => Some("<="),
+            "gt" => Some(">"),
+            "ge" => Some(">="),
+            "div" => Some("/"),
+            "mod" => Some("%"),
+            "and" => Some("&&"),
+            "or" => Some("||"),
+            "not" => Some("!"),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn cem_ql_operator_role(operator: &str) -> &'static str {
+    match operator {
+        "==" | "!=" | "<" | "<=" | ">" | ">=" => "cem-ql.operator.comparison",
+        "+" | "*" | "%" => "cem-ql.operator.arithmetic",
+        "-" => "cem-ql.operator.arithmetic-or-set",
+        "/" => "cem-ql.operator.arithmetic-or-child",
+        "&&" | "||" | "!" => "cem-ql.operator.boolean",
+        "??" => "cem-ql.operator.coalesce",
+        "|" | "&" | "^" => "cem-ql.operator.set",
+        "." => "cem-ql.operator.pipeline",
+        "is" => "cem-ql.operator.type-test",
+        "as" => "cem-ql.operator.cast",
+        _ => "syntax.punctuation",
+    }
+}
+
+fn cem_ql_legacy_diagnostic_code(token: &str) -> &'static str {
+    match token {
+        "and" | "or" | "not" => "cem.ql.use_rust_boolean_ops",
+        _ => "cem.ql.parse_error",
+    }
+}
+
+fn cem_ql_legacy_replacement(token: &str) -> &'static str {
+    match token {
+        "eq" => "==",
+        "ne" => "!=",
+        "lt" => "<",
+        "le" => "<=",
+        "gt" => ">",
+        "ge" => ">=",
+        "div" => "/",
+        "mod" => "%",
+        "and" => "&&",
+        "or" => "||",
+        "not" => "!",
+        "then" => "if condition { then_expr } else { else_expr }",
+        "return" => "for name in stream { expr }",
+        "some" => "any(stream, fn)",
+        "every" => "all(stream, fn)",
+        "satisfies" => "any(stream, fn) or all(stream, fn)",
+        "instance" => "expr is Type",
+        "cast" => "expr as Type",
+        "treat" => "treat_as(expr, Type)",
+        "True" => "true",
+        "False" => "false",
+        "None" => "null",
+        "lambda" => "fn(...) => expression",
+        _ => "",
+    }
+}
+
+fn cem_ql_parse_diagnostics(input_uri: &str, parsed: &ParseResult) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    if !parsed.module.nodes.iter().any(|node| {
+        matches!(
+            node,
+            SurfaceNode::Module(module) if !module.uri.trim().is_empty()
+        )
+    }) {
+        diagnostics.push(cem_ql_module_uri_missing_diagnostic(input_uri));
+    }
+    diagnostics.extend(parsed.diagnostics.iter().cloned().map(|mut diagnostic| {
+        diagnostic.uri = Some(input_uri.to_owned());
+        diagnostic
+    }));
+    diagnostics
+}
+
+fn cem_ql_invalid_utf8_diagnostic(input_uri: &str) -> Diagnostic {
+    Diagnostic {
+        uri: Some(input_uri.to_owned()),
+        code: "cem.ql.invalid_utf8".to_owned(),
+        severity: Severity::Error,
+        message: "CEM-QL source must be valid UTF-8".to_owned(),
+        ..Diagnostic::default()
+    }
+}
+
+fn cem_ql_module_uri_missing_diagnostic(input_uri: &str) -> Diagnostic {
+    Diagnostic {
+        uri: Some(input_uri.to_owned()),
+        code: "cem.ql.module_uri_missing".to_owned(),
+        severity: Severity::Error,
+        message: "CEM-QL module source requires a `module \"...\"` URI declaration".to_owned(),
+        ..Diagnostic::default()
+    }
+}
+
+fn cem_ql_output_pipeline_diagnostic(uri: Option<&str>, message: String) -> Diagnostic {
+    Diagnostic {
+        uri: uri.map(str::to_owned),
+        code: "cem.converter.output_pipeline_execution".to_owned(),
+        severity: Severity::Error,
+        message,
+        node: Some("cem-ql".to_owned()),
+        ..Diagnostic::default()
+    }
+}
+
+fn cem_ql_failed_convert_response(
+    target_scope: &ScopeConfig,
+    diagnostics: &[Diagnostic],
+) -> ConvertResponse {
+    ConvertResponse {
+        primary: Value::Null,
+        primary_bytes: None,
+        conversion: Some(cem_ql_convert_metadata(target_scope, "none", None, false)),
+        diagnostics: diagnostics.to_vec(),
+        scheduler_trace: cem_ml::report::SchedulerTraceReport::default(),
+    }
+}
+
+fn cem_ql_formatter_profile(target_scope: &ScopeConfig) -> String {
+    target_scope
+        .cemt_formatter_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty())
+        .unwrap_or("compact")
+        .to_owned()
+}
+
+fn cem_ql_output_color_selection(
+    context: &EngineContext,
+    target_scope: &ScopeConfig,
+    target: Option<&FormatIdentity>,
+    to_format: LayerFormat,
+) -> Result<Option<TransformTemplateOutputColorSelection>, String> {
+    if let Some(output_color_type) = target_scope
+        .output_color_type
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        let selection =
+            parse_transform_template_output_color_type(output_color_type).map_err(|message| {
+                format!("invalid CEM-QL output color type `{output_color_type}`: {message}")
+            })?;
+        if cem_ql_target_identity_is_html(context, target) || to_format == LayerFormat::Html {
+            if selection.target.category != "html-color" {
+                return Err(format!(
+                    "CEM-QL HTML output requires an HTML output color type; got `{output_color_type}`"
+                ));
+            }
+        }
+        return Ok(Some(selection));
+    }
+
+    if cem_ql_target_identity_is_html(context, target) || to_format == LayerFormat::Html {
+        return parse_transform_template_output_color_type("html-css-vars")
+            .map(Some)
+            .map_err(|message| {
+                format!("failed to select default CEM-QL HTML output color type: {message}")
+            });
+    }
+
+    Ok(None)
+}
+
+fn cem_ql_cemt_color_profile_for_output(
+    target_scope: &ScopeConfig,
+    output_color_selection: Option<&TransformTemplateOutputColorSelection>,
+) -> Result<String, String> {
+    let explicit = target_scope
+        .cemt_color_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|profile| !profile.is_empty());
+    let inferred =
+        output_color_selection.and_then(|selection| match selection.target.category.as_str() {
+            "html-color" => Some("html"),
+            "terminal-color" if selection.output_color_type == "none" => Some("none"),
+            "terminal-color" => Some("terminal"),
+            _ => None,
+        });
+    if let (Some(explicit), Some(inferred)) = (explicit, inferred) {
+        if explicit != inferred {
+            return Err(format!(
+                "CEM-QL color profile `{explicit}` conflicts with output color type `{}`; use `{inferred}` or omit `--cemt-color-profile`",
+                output_color_selection
+                    .map(|selection| selection.output_color_type.as_str())
+                    .unwrap_or_default()
+            ));
+        }
+    }
+    Ok(explicit
+        .map(str::to_owned)
+        .or_else(|| inferred.map(str::to_owned))
+        .unwrap_or_else(|| "none".to_owned()))
+}
+
+fn cem_ql_output_color_selection_is_terminal(
+    selection: &TransformTemplateOutputColorSelection,
+) -> bool {
+    selection.target.category == "terminal-color" && selection.output_color_type != "none"
+}
+
+fn cem_ql_direct_target_for_layer_format(to_format: LayerFormat) -> Option<FormatIdentity> {
+    match to_format {
+        LayerFormat::Html => Some(FormatIdentity {
+            content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+            schema: Some(HTML_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        }),
+        _ => None,
+    }
+}
+
+fn cem_ql_direct_target_supported(
+    context: &EngineContext,
+    target: Option<&FormatIdentity>,
+    target_scope: &ScopeConfig,
+    to_format: LayerFormat,
+) -> bool {
+    if target_scope
+        .output_color_type
+        .as_deref()
+        .is_some_and(|value| parse_transform_template_output_color_type(value).is_ok())
+        && target.is_none_or(|identity| {
+            format_identity_matches_cem_ql(context, identity)
+                || format_identity_matches_html(context, identity)
+        })
+    {
+        return true;
+    }
+    target
+        .map(|identity| {
+            format_identity_matches_cem_ql(context, identity)
+                || format_identity_matches_html(context, identity)
+        })
+        .unwrap_or(matches!(to_format, LayerFormat::Cem | LayerFormat::Html))
+}
+
+fn cem_ql_direct_output_is_html(
+    context: &EngineContext,
+    target: Option<&FormatIdentity>,
+    target_scope: &ScopeConfig,
+    to_format: LayerFormat,
+    output_color_selection: Option<&TransformTemplateOutputColorSelection>,
+) -> bool {
+    output_color_selection.is_some_and(|selection| selection.target.category == "html-color")
+        || target_scope
+            .cemt_color_profile
+            .as_deref()
+            .is_some_and(|profile| profile.trim() == "html")
+        || cem_ql_target_identity_is_html(context, target)
+        || to_format == LayerFormat::Html
+}
+
+fn cem_ql_target_identity_is_html(
+    context: &EngineContext,
+    target: Option<&FormatIdentity>,
+) -> bool {
+    target.is_some_and(|identity| format_identity_matches_html(context, identity))
+}
+
+fn format_identity_matches_cem_ql(context: &EngineContext, identity: &FormatIdentity) -> bool {
+    let explicit_schema_matches = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == CEM_QL_SCHEMA_URI);
+    if let Some(content_type) = identity.content_type.as_deref() {
+        let essence = content_type_essence(content_type);
+        if essence == CEM_QL_CONTENT_TYPE || essence == "text/cem-ql" {
+            return identity.schema.is_none() || explicit_schema_matches;
+        }
+        if let Ok(descriptor) = context.schema_registry.resolve_content_type(content_type) {
+            return descriptor.schema_uri == CEM_QL_SCHEMA_URI
+                && (identity.schema.is_none() || explicit_schema_matches);
+        }
+    }
+    explicit_schema_matches
+}
+
+fn format_identity_matches_html(context: &EngineContext, identity: &FormatIdentity) -> bool {
+    let explicit_schema_matches = identity
+        .schema
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|schema| schema == HTML_SCHEMA_URI);
+    if let Some(content_type) = identity.content_type.as_deref() {
+        let essence = content_type_essence(content_type);
+        if essence == HTML_CONTENT_TYPE {
+            return identity.schema.is_none() || explicit_schema_matches;
+        }
+        if let Ok(descriptor) = context.schema_registry.resolve_content_type(content_type) {
+            return descriptor.schema_uri == HTML_SCHEMA_URI
+                && (identity.schema.is_none() || explicit_schema_matches);
+        }
+    }
+    explicit_schema_matches
+}
+
+fn cem_ql_direct_output_primary_identity(
+    target: Option<&FormatIdentity>,
+    html_output: bool,
+) -> (String, String, String) {
+    if html_output {
+        return (
+            HTML_CONTENT_TYPE.to_owned(),
+            HTML_SCHEMA_URI.to_owned(),
+            "cem-ql-html/1".to_owned(),
+        );
+    }
+    (
+        target
+            .and_then(|identity| identity.content_type.clone())
+            .unwrap_or_else(|| CEM_QL_CONTENT_TYPE.to_owned()),
+        target
+            .and_then(|identity| identity.schema.clone())
+            .unwrap_or_else(|| CEM_QL_SCHEMA_URI.to_owned()),
+        "cem-ql/1".to_owned(),
+    )
+}
+
+fn cem_ql_convert_metadata(
+    target_scope: &ScopeConfig,
+    color_profile: &str,
+    output_color_selection: Option<&TransformTemplateOutputColorSelection>,
+    html_output: bool,
+) -> ConvertExecutionMetadata {
+    let formatter_profile = cem_ql_formatter_profile(target_scope);
+    let writer_profile = output_color_selection
+        .map(|selection| selection.output_color_type.clone())
+        .or_else(|| Some(color_profile.to_owned()));
+    let (writer_content_type, writer_schema, writer_category) = if html_output {
+        (HTML_CONTENT_TYPE, HTML_SCHEMA_URI, "html-document")
+    } else {
+        (CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI, "cem-tree")
+    };
+    ConvertExecutionMetadata {
+        converter_id: Some(CEM_QL_DIRECT_OUTPUT_CONVERTER_ID.to_owned()),
+        implementation: Some("direct-cemt-output-pipeline".to_owned()),
+        rust_fallback: None,
+        output_pipeline: Some(ConvertOutputPipelineMetadata {
+            stages: vec![
+                ConvertOutputPipelineStageMetadata {
+                    stage: "formatter".to_owned(),
+                    function: Some(
+                        target_scope
+                            .cemt_formatter
+                            .clone()
+                            .unwrap_or_else(|| CEM_QL_DIRECT_FORMATTER.to_owned()),
+                    ),
+                    profile: Some(formatter_profile),
+                    content_type: Some(CEM_QL_CONTENT_TYPE.to_owned()),
+                    schema: Some(CEM_QL_SCHEMA_URI.to_owned()),
+                    category: Some("cem-tree".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::CemTree
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+                ConvertOutputPipelineStageMetadata {
+                    stage: "colorizer".to_owned(),
+                    function: Some(
+                        target_scope
+                            .cemt_colorizer
+                            .clone()
+                            .unwrap_or_else(|| CEM_QL_DIRECT_COLORIZER.to_owned()),
+                    ),
+                    profile: Some(color_profile.to_owned()),
+                    content_type: Some(CEM_QL_CONTENT_TYPE.to_owned()),
+                    schema: Some(CEM_QL_SCHEMA_URI.to_owned()),
+                    category: Some("cem-tree".to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::CemTree
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+                ConvertOutputPipelineStageMetadata {
+                    stage: "writer".to_owned(),
+                    function: None,
+                    profile: writer_profile,
+                    content_type: Some(writer_content_type.to_owned()),
+                    schema: Some(writer_schema.to_owned()),
+                    category: Some(writer_category.to_owned()),
+                    produces: Some(
+                        TransformTemplateOutputProducedKind::Text
+                            .as_str()
+                            .to_owned(),
+                    ),
+                },
+            ],
+        }),
+    }
+}
+
+fn cem_ql_text_content_hash(bytes: &[u8]) -> String {
+    format!("cem-text/1+blake3:{}", blake3::hash(bytes).to_hex())
+}
+
+fn checked_byte_len(len: usize) -> u32 {
+    u32::try_from(len).unwrap_or(u32::MAX)
 }
 
 fn matches_cem_native_identity(identity: &FormatIdentity) -> bool {
@@ -2849,7 +3796,8 @@ mod tests {
     use cem_ml::run_config::ScopeConfig;
     use cem_ml::schema::package_sources::builtin_schema_package_artifact_sources;
     use cem_ml::schema::registry::{
-        CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CEM_TRANSFORM_CONTENT_TYPE,
+        CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI, CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+        CEM_SCHEMA_PACKAGE_URI, CEM_TRANSFORM_CONTENT_TYPE, HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
     };
     use cem_ml::source::{BytesSource, SourceId};
     use cem_ml::tokenizer::{cem::CemTokenizer, xml::XmlTokenizer};
@@ -6698,6 +7646,147 @@ mod tests {
                 response.diagnostics
             );
         }
+    }
+
+    #[test]
+    fn real_engine_convert_uses_registered_cem_ql_source_output_handler_for_native_text() {
+        let source = r#"module "https://example.test/queries/direct"
+
+declare let greeting = "Hello"
+
+greeting
+"#;
+        let response = RealCemMlEngine::new()
+            .convert(ConvertRequest {
+                input: EngineInput {
+                    uri: "direct.cemql".to_owned(),
+                    bytes: source.as_bytes().to_vec(),
+                    from_format: None,
+                    identity: Some(FormatIdentity {
+                        content_type: Some(CEM_QL_CONTENT_TYPE.to_owned()),
+                        schema: Some(CEM_QL_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                    root_scope: ScopeConfig::default(),
+                },
+                to_format: LayerFormat::Cem,
+                preserve_source_offsets: false,
+                context: engine_context_with_cem_ql_template_adapter(),
+                target: Some(FormatIdentity {
+                    content_type: Some(CEM_QL_CONTENT_TYPE.to_owned()),
+                    schema: Some(CEM_QL_SCHEMA_URI.to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                target_scope: ScopeConfig {
+                    cemt_formatter: Some("cem-ql.format-tree".to_owned()),
+                    cemt_formatter_profile: Some("tabular".to_owned()),
+                    cemt_colorizer: Some("cem-ql.color-tree".to_owned()),
+                    cemt_color_profile: Some("none".to_owned()),
+                    ..ScopeConfig::default()
+                },
+                scheduler_scope_id: 0,
+            })
+            .expect("direct CEM-QL convert should use registered handler");
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        assert!(
+            !response
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "cem.lifecycle.adapter_unsupported"),
+            "{:?}",
+            response.diagnostics
+        );
+        let primary = response.primary_bytes.expect("primary bytes");
+        assert_eq!(primary.content_type, CEM_QL_CONTENT_TYPE);
+        assert_eq!(primary.schema.as_deref(), Some(CEM_QL_SCHEMA_URI));
+        assert_eq!(
+            String::from_utf8(primary.bytes).expect("CEM-QL output is UTF-8"),
+            source
+        );
+        let stages = response
+            .conversion
+            .and_then(|metadata| metadata.output_pipeline)
+            .expect("output pipeline metadata")
+            .stages;
+        assert_eq!(stages[0].function.as_deref(), Some("cem-ql.format-tree"));
+        assert_eq!(stages[0].profile.as_deref(), Some("tabular"));
+        assert_eq!(stages[1].function.as_deref(), Some("cem-ql.color-tree"));
+        assert_eq!(stages[1].profile.as_deref(), Some("none"));
+    }
+
+    #[test]
+    fn real_engine_convert_uses_registered_cem_ql_source_output_handler_for_html() {
+        let source = r#"module "https://example.test/queries/direct-html"
+
+declare let greeting = "Hello"
+
+if greeting == "Hello" {
+  greeting
+} else {
+  "fallback"
+}
+"#;
+        let response = RealCemMlEngine::new()
+            .convert(ConvertRequest {
+                input: EngineInput {
+                    uri: "direct-html.cemql".to_owned(),
+                    bytes: source.as_bytes().to_vec(),
+                    from_format: None,
+                    identity: Some(FormatIdentity {
+                        content_type: Some(CEM_QL_CONTENT_TYPE.to_owned()),
+                        schema: Some(CEM_QL_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                    root_scope: ScopeConfig::default(),
+                },
+                to_format: LayerFormat::Html,
+                preserve_source_offsets: false,
+                context: engine_context_with_cem_ql_template_adapter(),
+                target: Some(FormatIdentity {
+                    content_type: Some(HTML_CONTENT_TYPE.to_owned()),
+                    schema: Some(HTML_SCHEMA_URI.to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                target_scope: ScopeConfig {
+                    cemt_formatter: Some("cem-ql.format-tree".to_owned()),
+                    cemt_formatter_profile: Some("tabular".to_owned()),
+                    cemt_colorizer: Some("cem-ql.color-tree".to_owned()),
+                    output_color_type: Some("html-css-vars".to_owned()),
+                    ..ScopeConfig::default()
+                },
+                scheduler_scope_id: 0,
+            })
+            .expect("direct CEM-QL HTML convert should use registered handler");
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        let primary = response.primary_bytes.expect("primary bytes");
+        assert_eq!(primary.content_type, HTML_CONTENT_TYPE);
+        assert_eq!(primary.schema.as_deref(), Some(HTML_SCHEMA_URI));
+        let html = String::from_utf8(primary.bytes).expect("HTML output is UTF-8");
+        assert!(html.starts_with(CEM_QL_HTML_PREVIEW_PREFIX), "{html}");
+        assert!(html.ends_with(CEM_QL_HTML_PREVIEW_SUFFIX), "{html}");
+        assert!(html.contains(r#"data-role="syntax.keyword""#), "{html}");
+        assert!(html.contains(r#"data-role="syntax.string""#), "{html}");
+        assert!(html.contains(r#"data-role="syntax.punctuation""#), "{html}");
+        let stages = response
+            .conversion
+            .and_then(|metadata| metadata.output_pipeline)
+            .expect("output pipeline metadata")
+            .stages;
+        assert_eq!(stages[0].function.as_deref(), Some("cem-ql.format-tree"));
+        assert_eq!(stages[0].profile.as_deref(), Some("tabular"));
+        assert_eq!(stages[1].function.as_deref(), Some("cem-ql.color-tree"));
+        assert_eq!(stages[1].profile.as_deref(), Some("html"));
+        assert_eq!(stages[2].content_type.as_deref(), Some(HTML_CONTENT_TYPE));
     }
 
     #[test]

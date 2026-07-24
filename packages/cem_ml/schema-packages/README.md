@@ -122,6 +122,55 @@ tests:
 - release behavior: state compatibility defaults, lossy options, unsupported
   dialects/features, and migration/versioning expectations.
 
+## Package Review Protocol
+
+Reviews of any schema package must audit the package against the shared
+principles and format-support definition of done above. A review is incomplete
+if it only checks that examples validate, only checks README prose, or only
+checks a CLI demo. Review findings should explicitly cover these layers:
+
+1. **Engine and CLI parity.** Package-owned behavior must be reachable through
+   the core engine API and the CLI. A CLI wrapper can adapt flags and streams,
+   but it must not be the only place where a source format enters its parser,
+   formatter/colorizer, writer, diagnostics, or conversion metadata path. Direct
+   engine tests are required when the package adds convert, parse, validate, or
+   output support.
+2. **Schema-owned facts and diagnostics.** Native code may extract byte-accurate
+   parser facts, token streams, source ranges, encoding reports, or performance
+   fallbacks. The package review must identify which facts are exposed as data
+   and where the schema owns diagnostic codes, severities, policies, and
+   structured details. Any remaining Rust-owned diagnostic policy must be
+   documented as current boundary work with a target migration path.
+3. **Package folder completeness.** `package.cem`, `schema/*.cem`, examples,
+   formatter/colorizer artifacts, README sections, scripts, previews, and
+   package-local `project.json` verify targets must agree. Every checked-in
+   example must be manifest-declared with content type, schema, expected result,
+   and expected diagnostics when applicable.
+4. **Output pipeline shape.** Formatter/colorizer assets should declare
+   `@produces="cem-tree"` and produce/consume formatted or colored CEM trees.
+   Token arrays, HTML spans, ANSI codes, and other byte-oriented structures are
+   writer-boundary implementation details unless the package explicitly owns a
+   lower-level binary or token format.
+5. **Profile semantics.** `compact`, `pretty`, `tabular`, `terminal`, `html`,
+   and `md` profiles must either have distinct documented behavior or be
+   explicitly documented and tested as intentional aliases until real behavior is
+   implemented. Generic formatter options such as `lineEnding` must be reviewed
+   across all profiles.
+6. **README AC coverage.** The README must include standards/registry mapping,
+   source identity, parser facts, formatter/colorizer profiles, command demos
+   with adjacent SVG previews, safety/security notes, verification gates,
+   release behavior, and tracked incomplete work.
+7. **Verification and drift gates.** Package-local `verify` must fail when
+   manifest validation, schema-owned example validation, formatter/colorizer
+   output, HTML/terminal presentation, README previews, or generated artifacts
+   drift. The target inputs must include package files and shared Rust/CLI code
+   that can change package behavior.
+
+When a review finds gaps, immediately convert the findings into executable
+todo checkitems in `docs/todo.md` before implementation continues. Keep those
+items specific enough that each can be closed by a code/doc change plus a named
+verification command.
+
 ## Bootstrap Relationship
 
 `cem-ml/v1` defines the generic CEM-ML syntax and document model. It owns the

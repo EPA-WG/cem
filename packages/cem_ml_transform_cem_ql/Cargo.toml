@@ -12,6 +12,7 @@ name = "cem_ml_transform_cem_ql"
 crate-type = ["rlib"]
 
 [dependencies]
+blake3 = "1"
 cem-ml = { path = "../cem_ml" }
 cem-ql = { path = "../cem_ql" }
 serde_json = "1"

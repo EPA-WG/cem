@@ -19,6 +19,9 @@
                 "commands": [
                     "mkdir -p packages/cem_ml/schema-packages/cem-ql/v1/dist",
                     "./dist/target/cem_ml_cli/debug/cem-ml --quiet validate --fail-level parse --format json --content-type application/vnd.cem.schema-package+cem --schema https://cem.dev/ns/schema-package/1 --report-json packages/cem_ml/schema-packages/cem-ql/v1/dist packages/cem_ml/schema-packages/cem-ql/v1/package.cem",
+                    "cargo test -p cem-ml-transform-cem-ql real_engine_convert_uses_registered_cem_ql_source_output_handler --target-dir dist/target/cem_ml_cli",
+                    "cargo test -p cem-ml cem_ql_output_templates_are_schema_package_assets --target-dir dist/target/cem_ml_cli",
+                    "cargo test -p cem-ml cem_ql_package_examples_are_manifest_indexed --target-dir dist/target/cem_ml_cli",
                     "cargo test -p cem-ml-cli schema_owned_cem_ql_examples_validate_through_cli --target-dir dist/target/cem_ml_cli",
                     "node packages/cem_ml/schema-packages/cem-ql/v1/scripts/verify-previews.mjs"
                 ],
