@@ -207,24 +207,25 @@ CSV-specific policy and diagnostics. Rust supplies generic, deterministic facts
 about the byte stream; `schema/csv.cem` owns which facts are valid, which facts
 are warnings or errors, and which diagnostic codes are emitted.
 
-### Remaining Boundary To Remove
+### Current Boundary
 
-The current CLI path still has CSV-specific validation logic in Rust. It interprets
-the `text/csv` parameters, checks UTF-8 and US-ASCII byte compatibility,
-parses records, detects inconsistent field counts, maps parser errors to
-`cem.csv.*` diagnostics, and decides warning versus error severity.
+The current CLI path still has CSV-specific fact extraction in Rust. It
+interprets the `text/csv` parameters, checks UTF-8 and US-ASCII byte
+compatibility, parses records, and detects parser facts such as inconsistent
+field counts, invalid quote escapes, and unclosed quotes.
 
 The source projection now carries the schema-facing parser facts used by
 formatter/colorizer stages: source identity, encoding report, dialect facts,
 row and field source ranges, field quoted state, and recoverable/fatal
-`parseFacts`. The remaining ownership work is moving diagnostic policy
-selection behind generic schema-package behavior dispatch instead of the
-CSV-specific Rust validation branch.
+`parseFacts`. Diagnostic policy selection is schema-owned: `schema/csv.cem`
+declares each `@fact-kind` binding on the constraint that interprets that
+parser fact, and the runtime reads diagnostic code and severity from the
+schema's declared diagnostics.
 
-That makes the CSV package partly declarative and partly Rust-owned. The
-schema declares `cem.csv.unclosed_quote`, `cem.csv.inconsistent_field_count`,
-and related diagnostics, but the Rust validator still owns the conditions that
-produce them.
+That keeps the CSV package partly native and partly declarative at the correct
+boundary. Rust still owns byte-accurate parse fact extraction. The schema owns
+whether `unclosed-quote`, `ragged-row`, `unsupported-encoding`, and related
+facts produce `cem.csv.*` diagnostics, including their severity.
 
 ### Target Boundary
 
@@ -270,7 +271,8 @@ and formatter/colorizer stages can preserve:
   `invalid-quote-escape`, `ragged-row`, `unsupported-charset`,
   `declared-us-ascii-non-ascii-byte`, and `invalid-header-parameter`, annotated
   with schema-bound diagnostic code, severity, and recoverable/fatal
-  disposition.
+  disposition when the schema binds that fact through a constraint
+  `@fact-kind`.
 
 The schema owns the mapping from those facts to diagnostics. For example,
 `parseFacts.kind = "unclosed-quote"` maps to `cem.csv.unclosed_quote` as an
@@ -282,6 +284,10 @@ explicitly permits ragged rows.
 
 `schema/csv.cem` should become the single place that declares these package
 policies:
+
+Diagnostic-producing parse-fact constraints declare `@fact-kind` alongside
+`@diagnostic` and `@behavior`, so changing the schema source changes which
+parser facts emit diagnostics.
 
 - `csv-source-parser`: binds the generic resource behavior that produces the
   parse report and declares the expected report shape;
@@ -325,24 +331,22 @@ returns a diagnostic payload with stable structured details:
 This keeps compatibility with existing CLI diagnostic codes while making the
 diagnostic provenance schema-owned and inspectable.
 
-### Migration Plan
+### Remaining Migration Plan
 
-1. Add the parse-report model to `schema/csv.cem` as schema-declared nodes,
-   attributes, constraints, and behavior names.
-2. Add a generic host behavior for CSV parse fact extraction. The behavior name
+1. Add a generic host behavior for CSV parse fact extraction. The behavior name
    should be referenced from `csv-source-parser` instead of being called
    directly by CLI CSV special cases.
-3. Change CLI validation to route `text/csv` through the generic
+2. Change CLI validation to route `text/csv` through the generic
    schema-package validation path. The CLI should provide bytes, content type,
    schema URI, and resolver context, then consume schema-produced diagnostics.
-4. Move existing CSV diagnostic mapping out of
-   `packages/cem_ml_cli/src/dispatch.rs`. Keep only generic source loading,
-   media-type parsing, schema selection, and report projection there.
-5. Expand package examples so every current Rust-owned condition has a
+3. Keep CSV diagnostic mapping out of CLI dispatch. CLI code should retain only
+   generic source loading, media-type parsing, schema selection, and report
+   projection there.
+4. Expand package examples so every current Rust-owned condition has a
    schema-owned fixture: valid table, quoted fields, unclosed quote, invalid
    quote escape, ragged row, unsupported charset, US-ASCII byte mismatch, and
    invalid `header` parameter.
-6. Add contract tests that mutate `schema/csv.cem` behavior bindings and prove
+5. Add contract tests that mutate `schema/csv.cem` behavior bindings and prove
    CSV diagnostics change because the schema changed, not because a Rust CSV
    branch changed.
 

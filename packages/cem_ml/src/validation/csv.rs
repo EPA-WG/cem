@@ -1,33 +1,12 @@
 use crate::diagnostics::{Diagnostic, Severity};
-use crate::events::cem::CemEventNormalizer;
-use crate::parser::builder::CemAstBuilder;
-use crate::parser::document::CemDocument;
-use crate::parser::{AstNodeId, CemAstNode};
-use crate::schema::registry::CSV_CONTENT_TYPE;
+use crate::schema::document_model::compile_schema_document_model;
+use crate::schema::registry::{CSV_CONTENT_TYPE, CSV_SCHEMA_URI};
 use crate::source::decode::Utf8Decoder;
 use crate::source::{BytesSource, EncodingDecoder, SourceId};
-use crate::tokenizer::cem::CemTokenizer;
 use serde_json::json;
 use std::collections::BTreeMap;
 
 const CSV_PACKAGE_ID: &str = "csv";
-const CSV_PARSE_REPORT_BEHAVIOR: &str = "csv-parse-report-fact";
-
-const CSV_SOURCE_PARSER_CONTRACT: &str = "csv-source-parser";
-const CHARSET_PARAMETER_SUPPORTED_CONTRACT: &str = "charset-parameter-supported";
-const UTF8_DECODE_CONTRACT: &str = "utf-8-decode";
-const US_ASCII_BYTE_COMPATIBILITY_CONTRACT: &str = "us-ascii-byte-compatibility";
-const HEADER_PARAMETER_VALUES_CONTRACT: &str = "header-parameter-values";
-const FIELD_COUNT_POLICY_CONTRACT: &str = "field-count-policy";
-const QUOTE_ESCAPE_POLICY_CONTRACT: &str = "quote-escape-policy";
-const QUOTE_CLOSURE_POLICY_CONTRACT: &str = "quote-closure-policy";
-
-const PARSE_ERROR_DIAGNOSTIC: &str = "cem.csv.parse_error";
-const UNSUPPORTED_ENCODING_DIAGNOSTIC: &str = "cem.csv.unsupported_encoding";
-const INCONSISTENT_FIELD_COUNT_DIAGNOSTIC: &str = "cem.csv.inconsistent_field_count";
-const UNCLOSED_QUOTE_DIAGNOSTIC: &str = "cem.csv.unclosed_quote";
-const INVALID_QUOTE_ESCAPE_DIAGNOSTIC: &str = "cem.csv.invalid_quote_escape";
-const INVALID_HEADER_PARAMETER_DIAGNOSTIC: &str = "cem.csv.invalid_header_parameter";
 
 #[derive(Debug, Clone, Copy)]
 pub struct CsvSourceValidationRequest<'a> {
@@ -95,18 +74,12 @@ impl CsvParseFactKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CsvSchemaContractCatalog {
-    pub parse_error: CsvDiagnosticBinding,
-    pub unsupported_charset: CsvDiagnosticBinding,
-    pub unsupported_encoding: CsvDiagnosticBinding,
-    pub us_ascii_byte_compatibility: CsvDiagnosticBinding,
-    pub header_parameter_values: CsvDiagnosticBinding,
-    pub field_count_policy: CsvDiagnosticBinding,
-    pub quote_escape_policy: CsvDiagnosticBinding,
-    pub quote_closure_policy: CsvDiagnosticBinding,
+    pub fact_bindings: BTreeMap<String, CsvDiagnosticBinding>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CsvDiagnosticBinding {
+    pub fact_kind: String,
     pub contract: String,
     pub behavior: Option<String>,
     pub diagnostic_code: String,
@@ -122,71 +95,39 @@ impl CsvSchemaContractCatalog {
     }
 
     pub fn from_schema_source(schema_source: &str) -> Self {
-        let document = parse_cem_document(schema_source);
+        let model = compile_schema_document_model(CSV_SCHEMA_URI, schema_source);
+        let fact_bindings = model
+            .constraints
+            .values()
+            .filter_map(|constraint| {
+                let fact_kind = constraint.fact_kind.as_deref()?.trim();
+                if fact_kind.is_empty() {
+                    return None;
+                }
+                let diagnostic_code = constraint.diagnostic.as_deref()?.trim();
+                if diagnostic_code.is_empty() {
+                    return None;
+                }
+                let diagnostic = model.diagnostics.get(diagnostic_code)?;
+                Some((
+                    fact_kind.to_owned(),
+                    CsvDiagnosticBinding {
+                        fact_kind: fact_kind.to_owned(),
+                        contract: constraint.kind.clone(),
+                        behavior: constraint.behavior.clone(),
+                        diagnostic_code: diagnostic.code.clone(),
+                        severity: diagnostic.severity,
+                        policy: constraint.policy.clone(),
+                    },
+                ))
+            })
+            .collect();
 
-        Self {
-            parse_error: diagnostic_binding_for_constraint(
-                &document,
-                CSV_SOURCE_PARSER_CONTRACT,
-                PARSE_ERROR_DIAGNOSTIC,
-                Severity::Error,
-            ),
-            unsupported_charset: diagnostic_binding_for_constraint(
-                &document,
-                CHARSET_PARAMETER_SUPPORTED_CONTRACT,
-                UNSUPPORTED_ENCODING_DIAGNOSTIC,
-                Severity::Error,
-            ),
-            unsupported_encoding: diagnostic_binding_for_constraint(
-                &document,
-                UTF8_DECODE_CONTRACT,
-                UNSUPPORTED_ENCODING_DIAGNOSTIC,
-                Severity::Error,
-            ),
-            us_ascii_byte_compatibility: diagnostic_binding_for_constraint(
-                &document,
-                US_ASCII_BYTE_COMPATIBILITY_CONTRACT,
-                UNSUPPORTED_ENCODING_DIAGNOSTIC,
-                Severity::Error,
-            ),
-            header_parameter_values: diagnostic_binding_for_constraint(
-                &document,
-                HEADER_PARAMETER_VALUES_CONTRACT,
-                INVALID_HEADER_PARAMETER_DIAGNOSTIC,
-                Severity::Warning,
-            ),
-            field_count_policy: diagnostic_binding_for_constraint(
-                &document,
-                FIELD_COUNT_POLICY_CONTRACT,
-                INCONSISTENT_FIELD_COUNT_DIAGNOSTIC,
-                Severity::Warning,
-            ),
-            quote_escape_policy: diagnostic_binding_for_constraint(
-                &document,
-                QUOTE_ESCAPE_POLICY_CONTRACT,
-                INVALID_QUOTE_ESCAPE_DIAGNOSTIC,
-                Severity::Error,
-            ),
-            quote_closure_policy: diagnostic_binding_for_constraint(
-                &document,
-                QUOTE_CLOSURE_POLICY_CONTRACT,
-                UNCLOSED_QUOTE_DIAGNOSTIC,
-                Severity::Error,
-            ),
-        }
+        Self { fact_bindings }
     }
 
-    fn binding_for_fact(&self, kind: CsvParseFactKind) -> &CsvDiagnosticBinding {
-        match kind {
-            CsvParseFactKind::ParseError => &self.parse_error,
-            CsvParseFactKind::UnsupportedCharset => &self.unsupported_charset,
-            CsvParseFactKind::UnsupportedEncoding => &self.unsupported_encoding,
-            CsvParseFactKind::DeclaredUsAsciiNonAsciiByte => &self.us_ascii_byte_compatibility,
-            CsvParseFactKind::InvalidHeaderParameter => &self.header_parameter_values,
-            CsvParseFactKind::InvalidQuoteEscape => &self.quote_escape_policy,
-            CsvParseFactKind::UnclosedQuote => &self.quote_closure_policy,
-            CsvParseFactKind::RaggedRow => &self.field_count_policy,
-        }
+    fn binding_for_fact(&self, kind: CsvParseFactKind) -> Option<&CsvDiagnosticBinding> {
+        self.fact_bindings.get(kind.as_str())
     }
 }
 
@@ -355,13 +296,14 @@ pub fn validate_csv_parse_report(
     report
         .facts
         .iter()
-        .map(|fact| {
-            csv_fact_diagnostic(
+        .filter_map(|fact| {
+            let binding = contracts.binding_for_fact(fact.kind)?;
+            Some(csv_fact_diagnostic(
                 report,
                 fact,
-                contracts.binding_for_fact(fact.kind),
+                binding,
                 csv_fact_message(fact),
-            )
+            ))
         })
         .collect()
 }
@@ -1015,14 +957,15 @@ fn csv_parse_fact_values(
         .iter()
         .map(|fact| {
             let binding = contracts.binding_for_fact(fact.kind);
+            let fatal = binding.is_some_and(|binding| binding.severity.is_hard_violation());
             json!({
                 "kind": fact.kind.as_str(),
-                "contract": binding.contract,
-                "behavior": binding.behavior,
-                "diagnosticCode": binding.diagnostic_code,
-                "diagnosticSeverity": csv_severity_name(binding.severity),
-                "recoverable": !binding.severity.is_hard_violation(),
-                "fatal": binding.severity.is_hard_violation(),
+                "contract": binding.map(|binding| binding.contract.as_str()),
+                "behavior": binding.and_then(|binding| binding.behavior.as_deref()),
+                "diagnosticCode": binding.map(|binding| binding.diagnostic_code.as_str()),
+                "diagnosticSeverity": binding.map(|binding| csv_severity_name(binding.severity)),
+                "recoverable": !fatal,
+                "fatal": fatal,
                 "parameter": fact.parameter,
                 "actual": fact.actual,
                 "expected": fact.expected,
@@ -1241,48 +1184,6 @@ fn csv_fact_message(fact: &CsvParseFact) -> String {
     }
 }
 
-fn diagnostic_binding_for_constraint(
-    document: &CemDocument,
-    contract: &str,
-    fallback_diagnostic_code: &str,
-    fallback_severity: Severity,
-) -> CsvDiagnosticBinding {
-    let constraint_attrs =
-        first_element_attrs_by_attr(document, "constraint", "kind", contract).unwrap_or_default();
-    let diagnostic_code = constraint_attrs
-        .get("diagnostic")
-        .cloned()
-        .unwrap_or_else(|| fallback_diagnostic_code.to_owned());
-    let diagnostic_attrs =
-        first_element_attrs_by_attr(document, "diagnostic", "code", &diagnostic_code)
-            .unwrap_or_default();
-    let severity = diagnostic_attrs
-        .get("severity")
-        .and_then(|value| parse_severity(value))
-        .unwrap_or(fallback_severity);
-
-    CsvDiagnosticBinding {
-        contract: contract.to_owned(),
-        behavior: constraint_attrs
-            .get("behavior")
-            .cloned()
-            .or_else(|| Some(CSV_PARSE_REPORT_BEHAVIOR.to_owned())),
-        diagnostic_code,
-        severity,
-        policy: constraint_attrs.get("policy").cloned(),
-    }
-}
-
-fn parse_severity(value: &str) -> Option<Severity> {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "info" => Some(Severity::Info),
-        "warning" => Some(Severity::Warning),
-        "error" => Some(Severity::Error),
-        "fatal" => Some(Severity::Fatal),
-        _ => None,
-    }
-}
-
 fn csv_parse_error_fact_kind(error: &csv::Error) -> CsvParseFactKind {
     let message = error.to_string().to_ascii_lowercase();
     if message.contains("utf-8") || message.contains("utf8") {
@@ -1346,67 +1247,27 @@ fn content_type_parameter(content_type: &str, name: &str) -> Option<String> {
     })
 }
 
-fn parse_cem_document(input: &str) -> CemDocument {
-    let src = BytesSource::new(SourceId(1), input.as_bytes().to_vec());
-    let tok = CemTokenizer::from_source(src);
-    let normalizer = CemEventNormalizer::new(tok);
-    CemAstBuilder::new(normalizer).build()
-}
-
-fn first_element_attrs_by_attr(
-    document: &CemDocument,
-    local_name: &str,
-    attr_name: &str,
-    attr_value: &str,
-) -> Option<BTreeMap<String, String>> {
-    document.iter().find_map(|node| {
-        let CemAstNode::Element {
-            node_id,
-            expanded_name,
-            ..
-        } = node
-        else {
-            return None;
-        };
-        if expanded_name.local_name != local_name {
-            return None;
-        }
-
-        let attrs = collect_attrs(document, *node_id);
-        attrs
-            .get(attr_name)
-            .is_some_and(|value| value == attr_value)
-            .then_some(attrs)
-    })
-}
-
-fn collect_attrs(document: &CemDocument, node_id: AstNodeId) -> BTreeMap<String, String> {
-    let mut attrs = BTreeMap::new();
-    let Some(CemAstNode::Element { attributes, .. }) = document.get(node_id) else {
-        return attrs;
-    };
-
-    for attr_id in attributes {
-        let Some(CemAstNode::Attribute {
-            expanded_name,
-            value,
-            ..
-        }) = document.get(*attr_id)
-        else {
-            continue;
-        };
-        attrs.insert(
-            expanded_name.local_name.clone(),
-            value.clone().unwrap_or_default(),
-        );
-    }
-
-    attrs
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const CSV_PARSE_REPORT_BEHAVIOR: &str = "csv-parse-report-fact";
+
+    const CSV_SOURCE_PARSER_CONTRACT: &str = "csv-source-parser";
+    const CHARSET_PARAMETER_SUPPORTED_CONTRACT: &str = "charset-parameter-supported";
+    const UTF8_DECODE_CONTRACT: &str = "utf-8-decode";
+    const US_ASCII_BYTE_COMPATIBILITY_CONTRACT: &str = "us-ascii-byte-compatibility";
+    const HEADER_PARAMETER_VALUES_CONTRACT: &str = "header-parameter-values";
+    const FIELD_COUNT_POLICY_CONTRACT: &str = "field-count-policy";
+    const QUOTE_ESCAPE_POLICY_CONTRACT: &str = "quote-escape-policy";
+    const QUOTE_CLOSURE_POLICY_CONTRACT: &str = "quote-closure-policy";
+
+    const PARSE_ERROR_DIAGNOSTIC: &str = "cem.csv.parse_error";
+    const UNSUPPORTED_ENCODING_DIAGNOSTIC: &str = "cem.csv.unsupported_encoding";
+    const INCONSISTENT_FIELD_COUNT_DIAGNOSTIC: &str = "cem.csv.inconsistent_field_count";
+    const UNCLOSED_QUOTE_DIAGNOSTIC: &str = "cem.csv.unclosed_quote";
+    const INVALID_QUOTE_ESCAPE_DIAGNOSTIC: &str = "cem.csv.invalid_quote_escape";
+    const INVALID_HEADER_PARAMETER_DIAGNOSTIC: &str = "cem.csv.invalid_header_parameter";
 
     #[test]
     fn csv_parse_report_facts_are_neutral() {
@@ -1739,13 +1600,79 @@ mod tests {
     }
 
     #[test]
+    fn csv_fact_diagnostic_bindings_are_schema_declared_by_fact_kind() {
+        let contracts = CsvSchemaContractCatalog::from_builtin();
+        let cases = [
+            (
+                CsvParseFactKind::ParseError,
+                CSV_SOURCE_PARSER_CONTRACT,
+                PARSE_ERROR_DIAGNOSTIC,
+                Severity::Error,
+            ),
+            (
+                CsvParseFactKind::UnsupportedCharset,
+                CHARSET_PARAMETER_SUPPORTED_CONTRACT,
+                UNSUPPORTED_ENCODING_DIAGNOSTIC,
+                Severity::Error,
+            ),
+            (
+                CsvParseFactKind::UnsupportedEncoding,
+                UTF8_DECODE_CONTRACT,
+                UNSUPPORTED_ENCODING_DIAGNOSTIC,
+                Severity::Error,
+            ),
+            (
+                CsvParseFactKind::DeclaredUsAsciiNonAsciiByte,
+                US_ASCII_BYTE_COMPATIBILITY_CONTRACT,
+                UNSUPPORTED_ENCODING_DIAGNOSTIC,
+                Severity::Error,
+            ),
+            (
+                CsvParseFactKind::InvalidHeaderParameter,
+                HEADER_PARAMETER_VALUES_CONTRACT,
+                INVALID_HEADER_PARAMETER_DIAGNOSTIC,
+                Severity::Warning,
+            ),
+            (
+                CsvParseFactKind::InvalidQuoteEscape,
+                QUOTE_ESCAPE_POLICY_CONTRACT,
+                INVALID_QUOTE_ESCAPE_DIAGNOSTIC,
+                Severity::Error,
+            ),
+            (
+                CsvParseFactKind::UnclosedQuote,
+                QUOTE_CLOSURE_POLICY_CONTRACT,
+                UNCLOSED_QUOTE_DIAGNOSTIC,
+                Severity::Error,
+            ),
+            (
+                CsvParseFactKind::RaggedRow,
+                FIELD_COUNT_POLICY_CONTRACT,
+                INCONSISTENT_FIELD_COUNT_DIAGNOSTIC,
+                Severity::Warning,
+            ),
+        ];
+
+        for (fact_kind, contract, diagnostic_code, severity) in cases {
+            let binding = contracts
+                .binding_for_fact(fact_kind)
+                .unwrap_or_else(|| panic!("schema binding for {}", fact_kind.as_str()));
+            assert_eq!(binding.fact_kind, fact_kind.as_str());
+            assert_eq!(binding.contract, contract);
+            assert_eq!(binding.behavior.as_deref(), Some(CSV_PARSE_REPORT_BEHAVIOR));
+            assert_eq!(binding.diagnostic_code, diagnostic_code);
+            assert_eq!(binding.severity, severity);
+        }
+    }
+
+    #[test]
     fn csv_header_diagnostic_is_schema_declared() {
         let source = crate::schema::package_sources::builtin_schema_package_source(CSV_PACKAGE_ID)
             .expect("CSV package source")
             .schema_source
             .replace(
-                r#"{constraint @kind="header-parameter-values" @target="table" @diagnostic="cem.csv.invalid_header_parameter" @behavior="csv-parse-report-fact" @policy="header parameter values must be present or absent; other values are reported as metadata drift"}"#,
-                r#"{constraint @kind="header-parameter-values" @target="table" @diagnostic="example.csv.header_parameter" @behavior="csv-parse-report-fact" @policy="header parameter values must be present or absent; other values are reported as metadata drift"}"#,
+                r#"{constraint @kind="header-parameter-values" @target="table" @diagnostic="cem.csv.invalid_header_parameter" @behavior="csv-parse-report-fact" @fact-kind="invalid-header-parameter" @policy="header parameter values must be present or absent; other values are reported as metadata drift"}"#,
+                r#"{constraint @kind="header-parameter-values" @target="table" @diagnostic="example.csv.header_parameter" @behavior="csv-parse-report-fact" @fact-kind="invalid-header-parameter" @policy="header parameter values must be present or absent; other values are reported as metadata drift"}"#,
             )
             .replace(
                 r#"{diagnostic @code="cem.csv.invalid_header_parameter" @severity="warning"}"#,
@@ -1769,6 +1696,37 @@ mod tests {
         assert_eq!(
             diagnostics[0].details.as_ref().unwrap()["factKind"],
             "invalid-header-parameter"
+        );
+    }
+
+    #[test]
+    fn csv_fact_kind_binding_is_schema_owned() {
+        let source = crate::schema::package_sources::builtin_schema_package_source(CSV_PACKAGE_ID)
+            .expect("CSV package source")
+            .schema_source
+            .replace(
+                r#"@fact-kind="invalid-header-parameter""#,
+                r#"@fact-kind="schema-ignored-header-parameter""#,
+            );
+        let contracts = CsvSchemaContractCatalog::from_schema_source(&source);
+        assert!(contracts
+            .binding_for_fact(CsvParseFactKind::InvalidHeaderParameter)
+            .is_none());
+
+        let report = extract_csv_parse_report(CsvSourceValidationRequest {
+            bytes: b"id,name\n1,Ada\n",
+            source_uri: "memory://table.csv",
+            content_type: Some("text/csv; header=maybe"),
+        });
+        assert!(report
+            .facts
+            .iter()
+            .any(|fact| fact.kind == CsvParseFactKind::InvalidHeaderParameter));
+
+        let diagnostics = validate_csv_parse_report(&report, &contracts);
+        assert!(
+            diagnostics.is_empty(),
+            "unbound parse facts stay neutral instead of falling back to Rust-owned diagnostics: {diagnostics:#?}"
         );
     }
 }

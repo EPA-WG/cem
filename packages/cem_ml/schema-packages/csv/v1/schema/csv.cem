@@ -79,19 +79,19 @@
     }
 
     {constraints |
-        {constraint @kind="csv-source-parser" @target="table" @diagnostic="cem.csv.parse_error" @behavior="csv-parse-report-fact" @policy="delegate-to-csv-parser"}
+        {constraint @kind="csv-source-parser" @target="table" @diagnostic="cem.csv.parse_error" @behavior="csv-parse-report-fact" @fact-kind="parse-error" @policy="delegate-to-csv-parser"}
         {constraint @kind="text-csv-primary" @target="table" @policy="text/csv is the canonical media type for CSV resources"}
         {constraint @kind="comma-delimiter-default" @target="table" @policy="delimiter defaults to comma for text/csv"}
         {constraint @kind="header-parameter-preserved" @target="table" @policy="preserve MIME header parameter as present absent or unknown"}
-        {constraint @kind="header-parameter-values" @target="table" @diagnostic="cem.csv.invalid_header_parameter" @behavior="csv-parse-report-fact" @policy="header parameter values must be present or absent; other values are reported as metadata drift"}
-        {constraint @kind="charset-parameter-supported" @target="table" @diagnostic="cem.csv.unsupported_encoding" @behavior="csv-parse-report-fact" @policy="text/csv charset parameters are accepted for utf-8 and us-ascii; other encodings require an explicit converter"}
-        {constraint @kind="utf-8-decode" @target="table" @diagnostic="cem.csv.unsupported_encoding" @behavior="csv-parse-report-fact" @policy="CSV bytes must be valid UTF-8 after accepted charset handling"}
-        {constraint @kind="us-ascii-byte-compatibility" @target="table" @diagnostic="cem.csv.unsupported_encoding" @behavior="csv-parse-report-fact" @policy="US-ASCII declarations reject non-ASCII bytes"}
+        {constraint @kind="header-parameter-values" @target="table" @diagnostic="cem.csv.invalid_header_parameter" @behavior="csv-parse-report-fact" @fact-kind="invalid-header-parameter" @policy="header parameter values must be present or absent; other values are reported as metadata drift"}
+        {constraint @kind="charset-parameter-supported" @target="table" @diagnostic="cem.csv.unsupported_encoding" @behavior="csv-parse-report-fact" @fact-kind="unsupported-charset" @policy="text/csv charset parameters are accepted for utf-8 and us-ascii; other encodings require an explicit converter"}
+        {constraint @kind="utf-8-decode" @target="table" @diagnostic="cem.csv.unsupported_encoding" @behavior="csv-parse-report-fact" @fact-kind="unsupported-encoding" @policy="CSV bytes must be valid UTF-8 after accepted charset handling"}
+        {constraint @kind="us-ascii-byte-compatibility" @target="table" @diagnostic="cem.csv.unsupported_encoding" @behavior="csv-parse-report-fact" @fact-kind="declared-us-ascii-non-ascii-byte" @policy="US-ASCII declarations reject non-ASCII bytes"}
         {constraint @kind="field-order-preserved" @target="row" @policy="required"}
         {constraint @kind="row-order-preserved" @target="table" @policy="required"}
-        {constraint @kind="field-count-policy" @target="table" @diagnostic="cem.csv.inconsistent_field_count" @behavior="csv-parse-report-fact" @policy="report inconsistent row width unless schema explicitly permits ragged rows"}
-        {constraint @kind="quote-escape-policy" @target="field" @diagnostic="cem.csv.invalid_quote_escape" @behavior="csv-parse-report-fact" @policy="double quote inside quoted field is represented by two double quotes"}
-        {constraint @kind="quote-closure-policy" @target="field" @diagnostic="cem.csv.unclosed_quote" @behavior="csv-parse-report-fact" @policy="quoted fields must close before the CSV source ends"}
+        {constraint @kind="field-count-policy" @target="table" @diagnostic="cem.csv.inconsistent_field_count" @behavior="csv-parse-report-fact" @fact-kind="ragged-row" @policy="report inconsistent row width unless schema explicitly permits ragged rows"}
+        {constraint @kind="quote-escape-policy" @target="field" @diagnostic="cem.csv.invalid_quote_escape" @behavior="csv-parse-report-fact" @fact-kind="invalid-quote-escape" @policy="double quote inside quoted field is represented by two double quotes"}
+        {constraint @kind="quote-closure-policy" @target="field" @diagnostic="cem.csv.unclosed_quote" @behavior="csv-parse-report-fact" @fact-kind="unclosed-quote" @policy="quoted fields must close before the CSV source ends"}
         {constraint @kind="source-map-preferred" @target="field" @policy="required when parser exposes source ranges"}
     }
 

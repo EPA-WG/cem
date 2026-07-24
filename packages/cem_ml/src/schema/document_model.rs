@@ -113,6 +113,7 @@ pub struct SchemaDocumentModel {
     pub attributes: BTreeMap<String, AttributeModel>,
     pub behaviors: BTreeMap<String, BehaviorDefinition>,
     pub constraints: BTreeMap<String, ConstraintDefinition>,
+    pub diagnostics: BTreeMap<String, DiagnosticDefinition>,
     pub diagnostic_behaviors: BTreeMap<String, DiagnosticBehavior>,
     pub compile_diagnostics: Vec<Diagnostic>,
 }
@@ -280,6 +281,15 @@ pub struct DiagnosticBehavior {
     pub source_map: SourceMapStack,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiagnosticDefinition {
+    pub code: String,
+    pub severity: Severity,
+    pub behavior: Option<String>,
+    pub message: Option<String>,
+    pub source_map: SourceMapStack,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EngineDiagnosticBehavior {
     FieldContract,
@@ -314,6 +324,7 @@ pub struct ConstraintDefinition {
     pub policy: Option<String>,
     pub diagnostic: Option<String>,
     pub behavior: Option<String>,
+    pub fact_kind: Option<String>,
     pub definition: Option<BehaviorDefinition>,
     pub engine_behavior: Option<EngineDiagnosticBehavior>,
     pub reference_resolution: Option<ReferenceResolutionConstraint>,
@@ -4276,6 +4287,7 @@ fn compile_document_model_from_document_with_seen(
     }
 
     model.attributes = collect_attribute_models(document, schema_id);
+    model.diagnostics = collect_diagnostic_definitions(document, schema_id);
     let (diagnostic_behaviors, diagnostic_compile_diagnostics) =
         collect_diagnostic_behaviors(document, schema_id, schema_uri, &uses, &model.behaviors);
     model.diagnostic_behaviors = diagnostic_behaviors;
@@ -4355,6 +4367,7 @@ fn empty_document_model(schema_uri: &str) -> SchemaDocumentModel {
         attributes: BTreeMap::new(),
         behaviors: BTreeMap::new(),
         constraints: BTreeMap::new(),
+        diagnostics: BTreeMap::new(),
         diagnostic_behaviors: BTreeMap::new(),
         compile_diagnostics: Vec::new(),
     }
@@ -9326,6 +9339,7 @@ fn collect_constraint_definitions(
                     policy: optional_non_empty_attr(&attrs, "policy").map(str::to_owned),
                     diagnostic: optional_non_empty_attr(&attrs, "diagnostic").map(str::to_owned),
                     behavior,
+                    fact_kind: optional_non_empty_attr(&attrs, "fact-kind").map(str::to_owned),
                     definition,
                     engine_behavior,
                     reference_resolution,
@@ -13723,6 +13737,44 @@ fn reference_attribute_source_values(
             })
         })
         .collect()
+}
+
+fn collect_diagnostic_definitions(
+    document: &CemDocument,
+    schema_id: AstNodeId,
+) -> BTreeMap<String, DiagnosticDefinition> {
+    let mut definitions = BTreeMap::new();
+    for diagnostics_id in element_child_ids_by_local_name(document, schema_id, "diagnostics") {
+        let Some(CemAstNode::Element { children, .. }) = document.get(diagnostics_id) else {
+            continue;
+        };
+        for child_id in children {
+            let Some(child) = document.get(*child_id) else {
+                continue;
+            };
+            if element_local_name(child) != Some("diagnostic") {
+                continue;
+            }
+            let attrs = collect_attrs(document, *child_id);
+            let Some(code) = optional_non_empty_attr(&attrs, "code") else {
+                continue;
+            };
+            let severity = optional_non_empty_attr(&attrs, "severity")
+                .and_then(parse_diagnostic_severity)
+                .unwrap_or(Severity::Error);
+            definitions.insert(
+                code.to_owned(),
+                DiagnosticDefinition {
+                    code: code.to_owned(),
+                    severity,
+                    behavior: optional_non_empty_attr(&attrs, "behavior").map(str::to_owned),
+                    message: optional_non_empty_attr(&attrs, "message").map(str::to_owned),
+                    source_map: source_stack_for_node(child).clone(),
+                },
+            );
+        }
+    }
+    definitions
 }
 
 fn collect_diagnostic_behaviors(

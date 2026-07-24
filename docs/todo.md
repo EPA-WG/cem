@@ -31,7 +31,7 @@ then resume dependency-ordered schema-package folder alignment.
 - [x] Promote CSV formatter/colorizer source-range metadata to the generic
       writer/source-map boundary instead of carrying it only as token `value`
       payload data.
-- [ ] Move the remaining Rust-owned CSV diagnostic policy dispatch behind
+- [x] Move the remaining Rust-owned CSV diagnostic policy dispatch behind
       schema-package behavior bindings so parser facts stay neutral and `.cem`
       owns diagnostic codes/severities.
 - [x] Tighten package-local verify/build inputs so CSV package verification

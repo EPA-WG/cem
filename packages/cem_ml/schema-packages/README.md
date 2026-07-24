@@ -100,7 +100,10 @@ tests:
   state, dialect state, and recoverable/fatal parser facts as data rather than
   package-specific Rust diagnostics;
 - schema-owned diagnostics: bind those facts to declared constraints,
-  severities, diagnostic codes, and structured details in `.cem` schema source;
+  severities, diagnostic codes, and structured details in `.cem` schema source.
+  Resource parse-fact diagnostics use constraint-owned `@fact-kind` bindings so
+  native parsers emit neutral facts and schemas decide which facts become
+  diagnostics;
 - examples and manifests: cover the smallest valid fixture, representative
   production shape, edge cases, invalid contract cases, and security-relevant
   cases through manifest-declared examples;
