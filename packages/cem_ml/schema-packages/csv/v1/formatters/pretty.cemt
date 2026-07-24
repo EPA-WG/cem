@@ -18,49 +18,59 @@
         {param @name="subject" @type="json" @required=true}
         {body |
             {$ {
-	                kind: "cem-tree",
-	                contentType: "text/csv",
-	                schema: "https://cem.dev/ns/data/csv/1",
-	                category: "csv-document",
-	                formatterProfile: "pretty",
-	                formatNodes: [
-	                    {
-	                        kind: "format-marker",
-	                        name: "csv.format-document",
-	                        formatterRole: "formatter.boundary",
-	                        formatterProfile: "pretty"
-	                    },
-	                    {
-	                        kind: "format-decision",
-	                        name: "csv.layout",
-	                        formatterRole: "formatter.layout",
-	                        formatterProfile: "pretty",
-	                        value: {
-	                            layout: "pretty-records",
-	                            delimiter: ",",
-	                            lineEnding: $lineEnding,
-	                            presentationOnly: true,
-	                            strictCsv: false,
-	                            dataPreserving: false
-	                        }
-	                    }
-	                ],
-	                nodes: extend(
+                kind: "cem-tree",
+                contentType: "text/csv",
+                schema: "https://cem.dev/ns/data/csv/1",
+                category: "csv-document",
+                formatterProfile: "pretty",
+                formatNodes: [
+                    {
+                        kind: "format-marker",
+                        name: "csv.format-document",
+                        formatterRole: "formatter.boundary",
+                        formatterProfile: "pretty"
+                    },
+                    {
+                        kind: "format-decision",
+                        name: "csv.layout",
+                        formatterRole: "formatter.layout",
+                        formatterProfile: "pretty",
+                        value: {
+                            layout: "pretty-records",
+                            delimiter: ",",
+                            lineEnding: $lineEnding,
+                            presentationOnly: true,
+                            strictCsv: false,
+                            dataPreserving: false
+                        }
+                    },
+                    {
+                        kind: "format-decision",
+                        name: "csv.presentation-plan",
+                        formatterRole: "formatter.presentation",
+                        formatterProfile: "pretty",
+                        value: call("csv.format-document.presentation-plan", {
+                            rows: $subject.rows,
+                            profile: "pretty"
+                        })
+                    }
+                ],
+                nodes: extend(
                     [
-	                        {
-	                            kind: "csv.format-marker",
-	                            writerKind: "token",
-	                            text: "",
+                        {
+                            kind: "csv.format-marker",
+                            writerKind: "token",
+                            text: "",
                             role: "formatter.boundary",
                             value: {
                                 name: "csv.format-document",
                                 formatterProfile: "pretty"
                             }
                         },
-	                        {
-	                            kind: "csv.format-decision",
-	                            writerKind: "token",
-	                            text: "",
+                        {
+                            kind: "csv.format-decision",
+                            writerKind: "token",
+                            text: "",
                             role: "formatter.layout",
                             value: {
                                 layout: "pretty-records",
@@ -74,31 +84,453 @@
                     ],
                     call("csv.format-document.rows", {
                         rows: $subject.rows,
-                        profile: "pretty"
+                        profile: "pretty",
+                        plan: call("csv.format-document.presentation-plan", {
+                            rows: $subject.rows,
+                            profile: "pretty"
+                        })
                     })
                 )
             } }
         }
     }
 
-    {function
-        @name="csv.format-document.rows"
-        @visibility="private"
-        @returns="array"
-        @deterministic=true |
+    {function @name="csv.format-document.presentation-plan" @visibility="private" @returns="object" @deterministic=true |
         {param @name="rows" @type="array" @required=true}
         {param @name="profile" @type="string" @required=true}
+        {body |
+            {$ {
+                columnCount: call("csv.format-document.column-count", { rows: $rows }),
+                headerRow: call("csv.format-document.has-header-row", { rows: $rows }),
+                columnStats: call("csv.format-document.column-stats", {
+                    rows: $rows,
+                    headerRow: call("csv.format-document.has-header-row", { rows: $rows })
+                }),
+                widths: call("csv.format-document.column-widths", {
+                    rows: $rows,
+                    profile: $profile,
+                    headerRow: call("csv.format-document.has-header-row", { rows: $rows }),
+                    columnStats: call("csv.format-document.column-stats", {
+                        rows: $rows,
+                        headerRow: call("csv.format-document.has-header-row", { rows: $rows })
+                    }),
+                    maxFieldWidth: call("csv.format-document.max-field-width", {}),
+                    stringTrim: call("csv.format-document.string-trim-mode", {})
+                }),
+                maxFieldWidth: call("csv.format-document.max-field-width", {}),
+                stringTrim: call("csv.format-document.string-trim-mode", {}),
+                displayWidthPolicy: "unicode-terminal"
+            } }
+        }
+    }
+
+    {function @name="csv.format-document.max-field-width" @visibility="private" @returns="integer" @deterministic=true |
+        {body |
+            {$ match(exists($formatterOptions.csv.maxFieldWidth), {
+                true: toInteger($formatterOptions.csv.maxFieldWidth),
+                false: 0
+            }) }
+        }
+    }
+
+    {function @name="csv.format-document.string-trim-mode" @visibility="private" @returns="string" @deterministic=true |
+        {body |
+            {$ match(exists($formatterOptions.csv.stringTrim), {
+                true: $formatterOptions.csv.stringTrim,
+                false: "right"
+            }) }
+        }
+    }
+
+    {function @name="csv.format-document.column-count" @visibility="private" @returns="integer" @deterministic=true |
+        {param @name="rows" @type="array" @required=true}
+        {body | {$ fold($rows, 0, max($acc, length($item.fields))) } }
+    }
+
+    {function @name="csv.format-document.has-header-row" @visibility="private" @returns="boolean" @deterministic=true |
+        {param @name="rows" @type="array" @required=true}
+        {body |
+            {$ match(gte(length($rows), 2), {
+                true: match(call("csv.format-document.first-row-is-labels", {
+                    row: get($rows, 0)
+                }), {
+                    true: call("csv.format-document.later-rows-have-typed-fields", { rows: $rows }),
+                    false: false
+                }),
+                false: false
+            }) }
+        }
+    }
+
+    {function @name="csv.format-document.first-row-is-labels" @visibility="private" @returns="boolean" @deterministic=true |
+        {param @name="row" @type="object" @required=true}
+        {body |
+            {$ fold($row.fields, true, match($acc, {
+                false: false,
+                true: call("csv.format-document.field-is-label", { field: $item })
+            })) }
+        }
+    }
+
+    {function @name="csv.format-document.field-is-label" @visibility="private" @returns="boolean" @deterministic=true |
+        {param @name="field" @type="object" @required=true}
+        {body |
+            {$ match(gt(length(call("csv.format-document.field-trimmed-value", { field: $field })), 0), {
+                true: match(call("csv.format-document.scalar-type", {
+                    value: call("csv.format-document.field-trimmed-value", { field: $field })
+                }), {
+                    string: true,
+                    default: false
+                }),
+                false: false
+            }) }
+        }
+    }
+
+    {function @name="csv.format-document.later-rows-have-typed-fields" @visibility="private" @returns="boolean" @deterministic=true |
+        {param @name="rows" @type="array" @required=true}
+        {body |
+            {$ fold($rows, false, match($index, {
+                0: $acc,
+                default: match($acc, {
+                    true: true,
+                    false: call("csv.format-document.row-has-typed-field", { row: $item })
+                })
+            })) }
+        }
+    }
+
+    {function @name="csv.format-document.row-has-typed-field" @visibility="private" @returns="boolean" @deterministic=true |
+        {param @name="row" @type="object" @required=true}
+        {body |
+            {$ fold($row.fields, false, match($acc, {
+                true: true,
+                false: call("csv.format-document.field-is-typed", { field: $item })
+            })) }
+        }
+    }
+
+    {function @name="csv.format-document.field-is-typed" @visibility="private" @returns="boolean" @deterministic=true |
+        {param @name="field" @type="object" @required=true}
+        {body |
+            {$ match(gt(length(call("csv.format-document.field-trimmed-value", { field: $field })), 0), {
+                true: match(call("csv.format-document.scalar-type", {
+                    value: call("csv.format-document.field-trimmed-value", { field: $field })
+                }), {
+                    string: false,
+                    default: true
+                }),
+                false: false
+            }) }
+        }
+    }
+
+    {function @name="csv.format-document.column-stats" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="rows" @type="array" @required=true}
+        {param @name="headerRow" @type="boolean" @required=true}
+        {body |
+            {$ fold($rows, { columns: {} }, match(call("csv.format-document.skip-stats-row", {
+                rowIndex: $index,
+                headerRow: $headerRow
+            }), {
+                true: $acc,
+                false: call("csv.format-document.column-stats-row", {
+                    state: $acc,
+                    row: $item
+                })
+            })) }
+        }
+    }
+
+    {function @name="csv.format-document.skip-stats-row" @visibility="private" @returns="boolean" @deterministic=true |
+        {param @name="rowIndex" @type="integer" @required=true}
+        {param @name="headerRow" @type="boolean" @required=true}
+        {body | {$ match($headerRow, { true: match($rowIndex, { 0: true, default: false }), false: false }) } }
+    }
+
+    {function @name="csv.format-document.column-stats-row" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="state" @type="object" @required=true}
+        {param @name="row" @type="object" @required=true}
+        {body |
+            {$ fold($row.fields, $state, call("csv.format-document.column-stats-field", {
+                state: $acc,
+                field: $item,
+                fieldIndex: $index
+            })) }
+        }
+    }
+
+    {function @name="csv.format-document.column-stats-field" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="state" @type="object" @required=true}
+        {param @name="field" @type="object" @required=true}
+        {param @name="fieldIndex" @type="integer" @required=true}
+        {body |
+            {$ match(gt(length(call("csv.format-document.field-trimmed-value", { field: $field })), 0), {
+                true: set($state, concat("columns.", toString($fieldIndex)), call("csv.format-document.column-stat-next", {
+                    stat: call("csv.format-document.column-stat", {
+                        columns: $state.columns,
+                        fieldIndex: $fieldIndex
+                    }),
+                    scalarType: call("csv.format-document.scalar-type", {
+                        value: call("csv.format-document.field-trimmed-value", { field: $field })
+                    })
+                })),
+                false: $state
+            }) }
+        }
+    }
+
+    {function @name="csv.format-document.column-stat" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="columns" @type="object" @required=true}
+        {param @name="fieldIndex" @type="integer" @required=true}
+        {body |
+            {$ match(typeOf(get($columns, $fieldIndex)), {
+                object: get($columns, $fieldIndex),
+                default: {
+                    sawValue: false,
+                    allInteger: true,
+                    allNumeric: true,
+                    sawDecimal: false
+                }
+            }) }
+        }
+    }
+
+    {function @name="csv.format-document.column-stat-next" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="stat" @type="object" @required=true}
+        {param @name="scalarType" @type="string" @required=true}
+        {body |
+            {$ match($scalarType, {
+                integer: merge($stat, { sawValue: true }),
+                decimal: merge($stat, { sawValue: true, allInteger: false, sawDecimal: true }),
+                default: merge($stat, { sawValue: true, allInteger: false, allNumeric: false })
+            }) }
+        }
+    }
+
+    {function @name="csv.format-document.column-type" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="stat" @type="any" @required=true @nullable=true}
+        {body |
+            {$ match(typeOf($stat), {
+                object: match($stat.sawValue, {
+                    true: match($stat.allInteger, {
+                        true: "integer",
+                        false: match($stat.allNumeric, {
+                            true: match($stat.sawDecimal, { true: "decimal", false: "string" }),
+                            false: "string"
+                        })
+                    }),
+                    false: "string"
+                }),
+                default: "string"
+            }) }
+        }
+    }
+
+    {function @name="csv.format-document.column-widths" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="rows" @type="array" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="headerRow" @type="boolean" @required=true}
+        {param @name="columnStats" @type="object" @required=true}
+        {param @name="maxFieldWidth" @type="integer" @required=true}
+        {param @name="stringTrim" @type="string" @required=true}
+        {body |
+            {$ fold($rows, {}, call("csv.format-document.column-widths-row", {
+                widths: $acc,
+                row: $item,
+                rowIndex: $index,
+                profile: $profile,
+                headerRow: $headerRow,
+                columnStats: $columnStats,
+                maxFieldWidth: $maxFieldWidth,
+                stringTrim: $stringTrim
+            })) }
+        }
+    }
+
+    {function @name="csv.format-document.column-widths-row" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="widths" @type="object" @required=true}
+        {param @name="row" @type="object" @required=true}
+        {param @name="rowIndex" @type="integer" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="headerRow" @type="boolean" @required=true}
+        {param @name="columnStats" @type="object" @required=true}
+        {param @name="maxFieldWidth" @type="integer" @required=true}
+        {param @name="stringTrim" @type="string" @required=true}
+        {body |
+            {$ fold($row.fields, $widths, call("csv.format-document.column-widths-field", {
+                widths: $acc,
+                field: $item,
+                rowIndex: $rowIndex,
+                fieldIndex: $index,
+                profile: $profile,
+                headerRow: $headerRow,
+                columnStats: $columnStats,
+                maxFieldWidth: $maxFieldWidth,
+                stringTrim: $stringTrim
+            })) }
+        }
+    }
+
+    {function @name="csv.format-document.column-widths-field" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="widths" @type="object" @required=true}
+        {param @name="field" @type="object" @required=true}
+        {param @name="rowIndex" @type="integer" @required=true}
+        {param @name="fieldIndex" @type="integer" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="headerRow" @type="boolean" @required=true}
+        {param @name="columnStats" @type="object" @required=true}
+        {param @name="maxFieldWidth" @type="integer" @required=true}
+        {param @name="stringTrim" @type="string" @required=true}
+        {body |
+            {$ set($widths, toString($fieldIndex), call("csv.format-document.column-width-next", {
+                width: call("csv.format-document.column-width", {
+                    widths: $widths,
+                    fieldIndex: $fieldIndex,
+                    columnType: call("csv.format-document.column-type", {
+                        stat: get($columnStats.columns, $fieldIndex)
+                    })
+                }),
+                text: call("csv.format-document.display-field-text", {
+                    raw: call("csv.format-document.field-value", { field: $field }),
+                    alignType: call("csv.format-document.field-align-type", {
+                        raw: call("csv.format-document.field-value", { field: $field }),
+                        rowIndex: $rowIndex,
+                        fieldIndex: $fieldIndex,
+                        headerRow: $headerRow,
+                        columnStats: $columnStats
+                    }),
+                    profile: $profile,
+                    maxFieldWidth: $maxFieldWidth,
+                    stringTrim: $stringTrim
+                }),
+                alignType: call("csv.format-document.field-align-type", {
+                    raw: call("csv.format-document.field-value", { field: $field }),
+                    rowIndex: $rowIndex,
+                    fieldIndex: $fieldIndex,
+                    headerRow: $headerRow,
+                    columnStats: $columnStats
+                }),
+                columnType: call("csv.format-document.column-type", {
+                    stat: get($columnStats.columns, $fieldIndex)
+                })
+            })) }
+        }
+    }
+
+    {function @name="csv.format-document.column-width" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="widths" @type="object" @required=true}
+        {param @name="fieldIndex" @type="integer" @required=true}
+        {param @name="columnType" @type="string" @required=true}
+        {body |
+            {$ match(typeOf(get($widths, $fieldIndex)), {
+                object: get($widths, $fieldIndex),
+                default: match($columnType, {
+                    decimal: { kind: "decimal", left: 0, right: 0, total: 0 },
+                    default: { kind: "plain", width: 0 }
+                })
+            }) }
+        }
+    }
+
+    {function @name="csv.format-document.column-width-next" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="width" @type="object" @required=true}
+        {param @name="text" @type="string" @required=true}
+        {param @name="alignType" @type="string" @required=true}
+        {param @name="columnType" @type="string" @required=true}
+        {body |
+            {$ match($columnType, {
+                decimal: call("csv.format-document.decimal-width-next", {
+                    width: match($width.kind, {
+                        decimal: $width,
+                        default: { kind: "decimal", left: 0, right: 0, total: 0 }
+                    }),
+                    text: $text,
+                    alignType: $alignType
+                }),
+                default: {
+                    kind: "plain",
+                    width: max($width.width, displayWidth($text))
+                }
+            }) }
+        }
+    }
+
+    {function @name="csv.format-document.decimal-width-next" @visibility="private" @returns="object" @deterministic=true |
+        {param @name="width" @type="object" @required=true}
+        {param @name="text" @type="string" @required=true}
+        {param @name="alignType" @type="string" @required=true}
+        {body |
+            {$ {
+                kind: "decimal",
+                left: call("csv.format-document.decimal-width-left-next", { width: $width, text: $text, alignType: $alignType }),
+                right: call("csv.format-document.decimal-width-right-next", { width: $width, text: $text, alignType: $alignType }),
+                total: call("csv.format-document.decimal-width-total-next", { width: $width, text: $text, alignType: $alignType })
+            } }
+        }
+    }
+
+    {function @name="csv.format-document.decimal-width-left-next" @visibility="private" @returns="integer" @deterministic=true |
+        {param @name="width" @type="object" @required=true}
+        {param @name="text" @type="string" @required=true}
+        {param @name="alignType" @type="string" @required=true}
+        {body |
+            {$ match($alignType, {
+                decimal: max($width.left, call("csv.format-document.decimal-left-width", { text: $text })),
+                default: $width.left
+            }) }
+        }
+    }
+
+    {function @name="csv.format-document.decimal-width-right-next" @visibility="private" @returns="integer" @deterministic=true |
+        {param @name="width" @type="object" @required=true}
+        {param @name="text" @type="string" @required=true}
+        {param @name="alignType" @type="string" @required=true}
+        {body |
+            {$ match($alignType, {
+                decimal: max($width.right, call("csv.format-document.decimal-right-width", { text: $text })),
+                default: $width.right
+            }) }
+        }
+    }
+
+    {function @name="csv.format-document.decimal-width-total-next" @visibility="private" @returns="integer" @deterministic=true |
+        {param @name="width" @type="object" @required=true}
+        {param @name="text" @type="string" @required=true}
+        {param @name="alignType" @type="string" @required=true}
+        {body |
+            {$ max(
+                max($width.total, displayWidth($text)),
+                add(
+                    add(
+                        call("csv.format-document.decimal-width-left-next", { width: $width, text: $text, alignType: $alignType }),
+                        match(gt(call("csv.format-document.decimal-width-right-next", { width: $width, text: $text, alignType: $alignType }), 0), {
+                            true: 1,
+                            false: 0
+                        })
+                    ),
+                    call("csv.format-document.decimal-width-right-next", { width: $width, text: $text, alignType: $alignType })
+                )
+            ) }
+        }
+    }
+
+    {function @name="csv.format-document.rows" @visibility="private" @returns="array" @deterministic=true |
+        {param @name="rows" @type="array" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="plan" @type="object" @required=true}
         {body |
             {$ fold($rows, [], extend(
                 extend($acc, call("csv.format-document.row-tokens", {
                     row: $item,
                     rowIndex: $index,
-                    profile: $profile
+                    profile: $profile,
+                    plan: $plan
                 })),
                 [{
-	                    kind: "csv.record-ending",
-	                    writerKind: "token",
-	                    text: match($lineEnding, { crlf: "\r\n", default: "\n" }),
+                    kind: "csv.record-ending",
+                    writerKind: "token",
+                    text: match($lineEnding, { crlf: "\r\n", default: "\n" }),
                     role: "syntax.punctuation",
                     value: {
                         rowIndex: $index,
@@ -109,14 +541,11 @@
         }
     }
 
-    {function
-        @name="csv.format-document.row-tokens"
-        @visibility="private"
-        @returns="array"
-        @deterministic=true |
+    {function @name="csv.format-document.row-tokens" @visibility="private" @returns="array" @deterministic=true |
         {param @name="row" @type="object" @required=true}
         {param @name="rowIndex" @type="integer" @required=true}
         {param @name="profile" @type="string" @required=true}
+        {param @name="plan" @type="object" @required=true}
         {body |
             {$ fold($row.fields, [], extend(
                 extend(
@@ -124,9 +553,9 @@
                     match($index, {
                         0: [],
                         default: [{
-	                            kind: "csv.delimiter",
-	                            writerKind: "token",
-	                            text: ",",
+                            kind: "csv.delimiter",
+                            writerKind: "token",
+                            text: ",",
                             role: "syntax.punctuation",
                             value: {
                                 rowIndex: $rowIndex,
@@ -140,64 +569,385 @@
                     field: $item,
                     rowIndex: $rowIndex,
                     fieldIndex: $index,
-                    profile: $profile
+                    profile: $profile,
+                    plan: $plan
                 })]
             )) }
         }
     }
 
-    {function
-        @name="csv.format-document.field-token"
-        @visibility="private"
-        @returns="object"
-        @deterministic=true |
+    {function @name="csv.format-document.field-token" @visibility="private" @returns="object" @deterministic=true |
         {param @name="field" @type="object" @required=true}
         {param @name="rowIndex" @type="integer" @required=true}
         {param @name="fieldIndex" @type="integer" @required=true}
         {param @name="profile" @type="string" @required=true}
+        {param @name="plan" @type="object" @required=true}
         {body |
             {$ {
-	                kind: "csv.field",
-	                writerKind: "token",
-	                text: call("csv.format-document.field-text", { field: $field }),
+                kind: "csv.field",
+                writerKind: "token",
+                text: call("csv.format-document.field-text", {
+                    field: $field,
+                    rowIndex: $rowIndex,
+                    fieldIndex: $fieldIndex,
+                    profile: $profile,
+                    plan: $plan
+                }),
                 role: "syntax.string",
                 value: {
                     rowIndex: $rowIndex,
                     fieldIndex: $fieldIndex,
-                    raw: match(exists($field.value), {
-                        true: $field.value,
-                        false: ""
-                    }),
+                    raw: call("csv.format-document.field-value", { field: $field }),
                     formatterProfile: $profile
                 }
             } }
         }
     }
 
-    {function
-        @name="csv.format-document.field-text"
-        @visibility="private"
-        @returns="string"
-        @deterministic=true |
+    {function @name="csv.format-document.field-text" @visibility="private" @returns="string" @deterministic=true |
         {param @name="field" @type="object" @required=true}
+        {param @name="rowIndex" @type="integer" @required=true}
+        {param @name="fieldIndex" @type="integer" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="plan" @type="object" @required=true}
         {body |
-            {$ match(exists($field.displayText), {
-                true: $field.displayText,
-                false: call("csv.format-document.quote-field", {
-                    value: match(exists($field.value), {
-                        true: $field.value,
-                        false: ""
+            {$ match($profile, {
+                pretty: match(lt(add($fieldIndex, 1), $plan.columnCount), {
+                    true: concat(call("csv.format-document.aligned-field-text", {
+                        field: $field,
+                        rowIndex: $rowIndex,
+                        fieldIndex: $fieldIndex,
+                        profile: $profile,
+                        plan: $plan
+                    }), "\t"),
+                    false: call("csv.format-document.aligned-field-text", {
+                        field: $field,
+                        rowIndex: $rowIndex,
+                        fieldIndex: $fieldIndex,
+                        profile: $profile,
+                        plan: $plan
                     })
+                }),
+                default: call("csv.format-document.aligned-field-text", {
+                    field: $field,
+                    rowIndex: $rowIndex,
+                    fieldIndex: $fieldIndex,
+                    profile: $profile,
+                    plan: $plan
                 })
             }) }
         }
     }
 
-    {function
-        @name="csv.format-document.quote-field"
-        @visibility="private"
-        @returns="string"
-        @deterministic=true |
+    {function @name="csv.format-document.aligned-field-text" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="field" @type="object" @required=true}
+        {param @name="rowIndex" @type="integer" @required=true}
+        {param @name="fieldIndex" @type="integer" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="plan" @type="object" @required=true}
+        {body |
+            {$ call("csv.format-document.align-cell-text", {
+                text: call("csv.format-document.display-field-text", {
+                    raw: call("csv.format-document.field-value", { field: $field }),
+                    alignType: call("csv.format-document.field-align-type", {
+                        raw: call("csv.format-document.field-value", { field: $field }),
+                        rowIndex: $rowIndex,
+                        fieldIndex: $fieldIndex,
+                        headerRow: $plan.headerRow,
+                        columnStats: $plan.columnStats
+                    }),
+                    profile: $profile,
+                    maxFieldWidth: $plan.maxFieldWidth,
+                    stringTrim: $plan.stringTrim
+                }),
+                alignType: call("csv.format-document.field-align-type", {
+                    raw: call("csv.format-document.field-value", { field: $field }),
+                    rowIndex: $rowIndex,
+                    fieldIndex: $fieldIndex,
+                    headerRow: $plan.headerRow,
+                    columnStats: $plan.columnStats
+                }),
+                width: get($plan.widths, $fieldIndex)
+            }) }
+        }
+    }
+
+    {function @name="csv.format-document.field-align-type" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="raw" @type="string" @required=true}
+        {param @name="rowIndex" @type="integer" @required=true}
+        {param @name="fieldIndex" @type="integer" @required=true}
+        {param @name="headerRow" @type="boolean" @required=true}
+        {param @name="columnStats" @type="object" @required=true}
+        {body |
+            {$ match(call("csv.format-document.is-header-field", {
+                rowIndex: $rowIndex,
+                headerRow: $headerRow
+            }), {
+                true: "string",
+                false: call("csv.format-document.cell-align-type", {
+                    columnType: call("csv.format-document.column-type", {
+                        stat: get($columnStats.columns, $fieldIndex)
+                    }),
+                    scalarType: call("csv.format-document.scalar-type", { value: trim($raw) })
+                })
+            }) }
+        }
+    }
+
+    {function @name="csv.format-document.is-header-field" @visibility="private" @returns="boolean" @deterministic=true |
+        {param @name="rowIndex" @type="integer" @required=true}
+        {param @name="headerRow" @type="boolean" @required=true}
+        {body | {$ match($headerRow, { true: match($rowIndex, { 0: true, default: false }), false: false }) } }
+    }
+
+    {function @name="csv.format-document.cell-align-type" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="columnType" @type="string" @required=true}
+        {param @name="scalarType" @type="string" @required=true}
+        {body |
+            {$ match(concat($columnType, concat(":", $scalarType)), {
+                "decimal:decimal": "decimal",
+                "decimal:integer": "decimal",
+                "integer:integer": "integer",
+                "string:string": "string",
+                default: $scalarType
+            }) }
+        }
+    }
+
+    {function @name="csv.format-document.display-field-text" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="raw" @type="string" @required=true}
+        {param @name="alignType" @type="string" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="maxFieldWidth" @type="integer" @required=true}
+        {param @name="stringTrim" @type="string" @required=true}
+        {body |
+            {$ call("csv.format-document.quote-field", {
+                value: call("csv.format-document.trim-for-width", {
+                    raw: $raw,
+                    alignType: $alignType,
+                    profile: $profile,
+                    maxFieldWidth: $maxFieldWidth,
+                    stringTrim: $stringTrim
+                })
+            }) }
+        }
+    }
+
+    {function @name="csv.format-document.trim-for-width" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="raw" @type="string" @required=true}
+        {param @name="alignType" @type="string" @required=true}
+        {param @name="profile" @type="string" @required=true}
+        {param @name="maxFieldWidth" @type="integer" @required=true}
+        {param @name="stringTrim" @type="string" @required=true}
+        {body |
+            {$ match($profile, {
+                tabular: match(gt($maxFieldWidth, 0), {
+                    true: match(gt(displayWidth($raw), $maxFieldWidth), {
+                        true: call("csv.format-document.trim-typed-value", {
+                            raw: $raw,
+                            alignType: $alignType,
+                            width: $maxFieldWidth,
+                            stringTrim: $stringTrim
+                        }),
+                        false: $raw
+                    }),
+                    false: $raw
+                }),
+                default: $raw
+            }) }
+        }
+    }
+
+    {function @name="csv.format-document.trim-typed-value" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="raw" @type="string" @required=true}
+        {param @name="alignType" @type="string" @required=true}
+        {param @name="width" @type="integer" @required=true}
+        {param @name="stringTrim" @type="string" @required=true}
+        {body |
+            {$ match($alignType, {
+                integer: call("csv.format-document.trim-left", { raw: $raw, width: $width }),
+                decimal: call("csv.format-document.trim-decimal", { raw: $raw, width: $width }),
+                default: call("csv.format-document.trim-string", {
+                    raw: $raw,
+                    width: $width,
+                    stringTrim: $stringTrim
+                })
+            }) }
+        }
+    }
+
+    {function @name="csv.format-document.trim-decimal" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="raw" @type="string" @required=true}
+        {param @name="width" @type="integer" @required=true}
+        {body |
+            {$ match(lt(indexOf($raw, "."), 0), {
+                true: call("csv.format-document.trim-left", { raw: $raw, width: $width }),
+                false: match(lte(displayWidth(substring($raw, 0, add(indexOf($raw, "."), 1))), $width), {
+                    true: concat(
+                        substring($raw, 0, add(indexOf($raw, "."), 1)),
+                        displayPrefix(
+                            substring($raw, add(indexOf($raw, "."), 1)),
+                            sub($width, displayWidth(substring($raw, 0, add(indexOf($raw, "."), 1))))
+                        )
+                    ),
+                    false: call("csv.format-document.trim-left", { raw: $raw, width: $width })
+                })
+            }) }
+        }
+    }
+
+    {function @name="csv.format-document.trim-string" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="raw" @type="string" @required=true}
+        {param @name="width" @type="integer" @required=true}
+        {param @name="stringTrim" @type="string" @required=true}
+        {body |
+            {$ match(lte($width, 3), {
+                true: displayPrefix("...", $width),
+                false: match($stringTrim, {
+                    left: concat("...", displaySuffix($raw, sub($width, 3))),
+                    middle: concat(
+                        displayPrefix($raw, div(add(sub($width, 3), 1), 2)),
+                        concat("...", displaySuffix($raw, sub(sub($width, 3), div(add(sub($width, 3), 1), 2))))
+                    ),
+                    default: concat(displayPrefix($raw, sub($width, 3)), "...")
+                })
+            }) }
+        }
+    }
+
+    {function @name="csv.format-document.trim-left" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="raw" @type="string" @required=true}
+        {param @name="width" @type="integer" @required=true}
+        {body |
+            {$ match(lte($width, 3), {
+                true: displayPrefix("...", $width),
+                false: concat("...", displaySuffix($raw, sub($width, 3)))
+            }) }
+        }
+    }
+
+    {function @name="csv.format-document.align-cell-text" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="text" @type="string" @required=true}
+        {param @name="alignType" @type="string" @required=true}
+        {param @name="width" @type="object" @required=true}
+        {body |
+            {$ match(concat($alignType, concat(":", $width.kind)), {
+                "integer:plain": call("csv.format-document.pad-left", {
+                    text: $text,
+                    count: max(sub($width.width, displayWidth($text)), 0)
+                }),
+                "decimal:decimal": call("csv.format-document.align-decimal", {
+                    text: $text,
+                    width: $width
+                }),
+                default: match($width.kind, {
+                    plain: call("csv.format-document.pad-right", {
+                        text: $text,
+                        count: max(sub($width.width, displayWidth($text)), 0)
+                    }),
+                    decimal: call("csv.format-document.pad-right", {
+                        text: $text,
+                        count: max(sub($width.total, displayWidth($text)), 0)
+                    }),
+                    default: $text
+                })
+            }) }
+        }
+    }
+
+    {function @name="csv.format-document.align-decimal" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="text" @type="string" @required=true}
+        {param @name="width" @type="object" @required=true}
+        {body |
+            {$ concat(
+                call("csv.format-document.pad-left", {
+                    text: $text,
+                    count: max(sub($width.left, call("csv.format-document.decimal-left-width", { text: $text })), 0)
+                }),
+                repeat(" ", call("csv.format-document.decimal-trailing-pad", {
+                    text: $text,
+                    width: $width
+                }))
+            ) }
+        }
+    }
+
+    {function @name="csv.format-document.decimal-trailing-pad" @visibility="private" @returns="integer" @deterministic=true |
+        {param @name="text" @type="string" @required=true}
+        {param @name="width" @type="object" @required=true}
+        {body |
+            {$ max(
+                sub(
+                    sub(
+                        $width.total,
+                        add(
+                            max(sub($width.left, call("csv.format-document.decimal-left-width", { text: $text })), 0),
+                            displayWidth($text)
+                        )
+                    ),
+                    max(sub(call("csv.format-document.decimal-right-width", { text: $text }), $width.right), 0)
+                ),
+                0
+            ) }
+        }
+    }
+
+    {function @name="csv.format-document.decimal-left-width" @visibility="private" @returns="integer" @deterministic=true |
+        {param @name="text" @type="string" @required=true}
+        {body |
+            {$ match(lt(indexOf($text, "."), 0), {
+                true: displayWidth($text),
+                false: displayWidth(substring($text, 0, indexOf($text, ".")))
+            }) }
+        }
+    }
+
+    {function @name="csv.format-document.decimal-right-width" @visibility="private" @returns="integer" @deterministic=true |
+        {param @name="text" @type="string" @required=true}
+        {body |
+            {$ match(lt(indexOf($text, "."), 0), {
+                true: 0,
+                false: displayWidth(substring($text, add(indexOf($text, "."), 1)))
+            }) }
+        }
+    }
+
+    {function @name="csv.format-document.pad-left" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="text" @type="string" @required=true}
+        {param @name="count" @type="integer" @required=true}
+        {body | {$ concat(repeat(" ", $count), $text) } }
+    }
+
+    {function @name="csv.format-document.pad-right" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="text" @type="string" @required=true}
+        {param @name="count" @type="integer" @required=true}
+        {body | {$ concat($text, repeat(" ", $count)) } }
+    }
+
+    {function @name="csv.format-document.field-value" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="field" @type="object" @required=true}
+        {body | {$ match(exists($field.value), { true: $field.value, false: "" }) } }
+    }
+
+    {function @name="csv.format-document.field-trimmed-value" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="field" @type="object" @required=true}
+        {body | {$ trim(call("csv.format-document.field-value", { field: $field })) } }
+    }
+
+    {function @name="csv.format-document.scalar-type" @visibility="private" @returns="string" @deterministic=true |
+        {param @name="value" @type="string" @required=true}
+        {body |
+            {$ match(isAsciiInteger($value), {
+                true: "integer",
+                false: match(isAsciiDecimal($value), {
+                    true: "decimal",
+                    false: "string"
+                })
+            }) }
+        }
+    }
+
+    {function @name="csv.format-document.quote-field" @visibility="private" @returns="string" @deterministic=true |
         {param @name="value" @type="string" @required=true}
         {body |
             {$ match(call("csv.format-document.needs-quotes", { value: $value }), {
@@ -207,11 +957,7 @@
         }
     }
 
-    {function
-        @name="csv.format-document.needs-quotes"
-        @visibility="private"
-        @returns="boolean"
-        @deterministic=true |
+    {function @name="csv.format-document.needs-quotes" @visibility="private" @returns="boolean" @deterministic=true |
         {param @name="value" @type="string" @required=true}
         {body |
             {$ match(contains($value, ","), {

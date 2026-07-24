@@ -57,6 +57,15 @@ consume that tree and return a colored CSV CEM tree with `colorNodes`. The
 generic writer is the only stage that flattens those writer-token nodes into
 target-native CSV bytes.
 
+The `pretty` and `tabular` formatter assets own their visual presentation
+plan in CEMT. Each emitted formatted tree includes a `formatNodes` decision
+named `csv.presentation-plan` with the inferred header disposition, column
+count, column statistics, column widths, active width/trim options, and
+`displayWidthPolicy: "unicode-terminal"`. Rust only validates formatter option
+syntax, selects the generic line-ending binding, and supplies deterministic
+generic CEMT primitives such as `displayWidth`, `displayPrefix`, and
+`displaySuffix`.
+
 ## Formatter Presentation Profiles
 
 CSV formatting has two different audiences: machine import and human review.
@@ -90,8 +99,8 @@ use `compact` and choose a line-ending policy explicitly when the receiver
 requires CRLF.
 
 `pretty` and `tabular` align values by declared column type when available,
-falling back to column inference across non-empty fields. Mixed or unknown
-columns use string alignment:
+falling back to CEMT-owned column inference across non-empty fields. Mixed or
+unknown columns use string alignment:
 
 - strings are left aligned;
 - integers are right aligned;

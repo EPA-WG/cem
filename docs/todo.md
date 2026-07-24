@@ -47,7 +47,7 @@ then resume dependency-ordered schema-package folder alignment.
       tree output. Formatter assets now return `formatNodes` and ordered
       writer-token nodes; colorizer assets consume and return CEM trees with
       `colorNodes`; the generic writer performs final token-to-text emission.
-- [ ] Finish the deeper CSV formatted-tree migration by adding any missing
+- [x] Finish the deeper CSV formatted-tree migration by adding any missing
       schema-facing formatted-tree shape and moving Rust-owned `pretty`/`tabular`
       alignment, trimming, type inference, and display-width behavior into CEMT
       or declared host primitives.
@@ -59,7 +59,7 @@ then resume dependency-ordered schema-package folder alignment.
       expose row/field source ranges, quoting state, encoding/dialect facts, and
       recoverable/fatal parser facts in the schema-facing CSV table data consumed
       by formatter/colorizer stages.
-- [ ] Replace `csv_display_width`'s character-count implementation with a real
+- [x] Replace `csv_display_width`'s character-count implementation with a real
       terminal/display-width policy or narrow the `wide-unicode.csv` claim until
       executable coverage proves the intended behavior.
 
@@ -116,12 +116,11 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Start the CSV format-support AC remediation checklist above. After it is green,
-continue dependency-ordered package alignment with `cem-native-template/v1`.
-Check its manifest/schema-source agreement, manifest-owned examples, README
-diagnostic expectations, package-owned formatter/colorizer artifacts, runtime
-conversion contract status, and package-local Nx verify target against
-[`packages/cem_ml/schema-packages/README.md`](../packages/cem_ml/schema-packages/README.md).
+Add package-local verify coverage for CSV examples and SVG preview drift. The
+target should run the documented CSV README commands, compare stable
+stdout/rendered SVG output against `examples/previews/`, and fail the CSV
+package verify target when previews drift. After the CSV parser-data follow-up
+is green, resume dependency-ordered package alignment with `cem-native-template/v1`.
 
 ## Current Verification Commands
 
