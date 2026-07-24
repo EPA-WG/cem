@@ -1,0 +1,5 @@
+module "https://example.test/queries/invalid-utf8"
+
+declare let label = "bad: ÿ"
+
+label

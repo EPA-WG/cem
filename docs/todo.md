@@ -130,11 +130,13 @@ then decide whether the remaining `cem-ql/v1` package checklist item can close.
 - [x] Strengthen CEM-QL manifest/index tests to enumerate all expected examples,
       content types, expected results, and diagnostics like CSV does, not only
       invalid cases.
-- [ ] Add missing CEM-QL examples and manifest declarations for alias content
-      type (`text/cem-ql`), LF/CRLF `lineEnding` behavior, comments/whitespace,
-      source token range preservation, duplicate import/declaration diagnostics,
-      unresolved import/type-error placeholders, invalid UTF-8 handling, and
-      compiled artifact/cache identity.
+- [x] Add CEM-QL examples and manifest declarations for the non-ambiguous
+      coverage cases: alias content type (`text/cem-ql`), LF/CRLF source
+      fixtures, comments/whitespace, source token byte-range preservation, and
+      invalid UTF-8 handling.
+- [ ] Decide and implement the remaining CEM-QL semantic fixtures:
+      duplicate import/declaration diagnostics, unresolved import/type-error
+      placeholders, and compiled artifact/cache identity.
 - [x] Extend package-local verify coverage so CEM-QL fails on direct engine
       conversion regressions, README/SVG drift, formatter profile drift, HTML
       wrapper/span-role drift, and manifest/example coverage gaps.
@@ -199,11 +201,10 @@ Remaining dependency-ordered package checklist:
 ### Next Work Item
 
 Resolve the remaining CEM-QL example coverage decision point: choose concrete
-source/diagnostic/cache semantics for alias content type, line endings,
-comments/whitespace, token ranges, duplicate declarations/imports, unresolved
-imports, type errors, invalid UTF-8, and compiled artifact/cache identity. Then
-add the examples and manifest declarations, update package verification, and
-re-run `cem_ml_schema_package_cem_ql_v1:verify`.
+source/diagnostic/cache semantics for duplicate declarations/imports,
+unresolved imports, type errors, and compiled artifact/cache identity. Then add
+the examples and manifest declarations, update package verification, and re-run
+`cem_ml_schema_package_cem_ql_v1:verify`.
 
 ## Current Verification Commands
 

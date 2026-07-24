@@ -1,0 +1,5 @@
+module "https://example.test/queries/alias-content-type"
+
+declare let label = "alias"
+
+label

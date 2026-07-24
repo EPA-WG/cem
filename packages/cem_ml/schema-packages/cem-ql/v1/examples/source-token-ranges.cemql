@@ -1,0 +1,5 @@
+module "https://example.test/queries/source-token-ranges"
+
+declare let label = "héllo"
+
+label

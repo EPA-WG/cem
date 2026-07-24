@@ -21,6 +21,8 @@
 
 # Preserve intentional byte-level line-ending fixtures.
 packages/cem_ml/schema-packages/csv/v1/examples/line-ending-crlf.csv -text -diff
+packages/cem_ml/schema-packages/cem-ql/v1/examples/line-ending-crlf.cemql -text -diff
+packages/cem_ml/schema-packages/cem-ql/v1/examples/invalid-utf8.cemql -text -diff
 
 # Binary files
 *.png binary

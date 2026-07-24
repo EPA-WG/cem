@@ -1,0 +1,11 @@
+module "https://example.test/queries/comments-and-whitespace"
+
+// Leading comment retained as a token.
+declare let greeting = "Hello"
+
+/* Block comment retained as a token. */
+if greeting == "Hello" {
+  greeting
+} else {
+  "fallback"
+}

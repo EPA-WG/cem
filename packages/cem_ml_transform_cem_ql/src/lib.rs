@@ -7720,6 +7720,201 @@ greeting
     }
 
     #[test]
+    fn real_engine_convert_uses_registered_cem_ql_source_output_handler_for_alias_line_endings_and_comments(
+    ) {
+        let source = "module \"https://example.test/queries/direct-alias\"\n\n// retained comment\ndeclare let greeting = \"Hello\"\n\n/* retained block */\ngreeting\n";
+        let response = RealCemMlEngine::new()
+            .convert(ConvertRequest {
+                input: EngineInput {
+                    uri: "direct-alias.cemql".to_owned(),
+                    bytes: source.as_bytes().to_vec(),
+                    from_format: None,
+                    identity: Some(FormatIdentity {
+                        content_type: Some("text/cem-ql".to_owned()),
+                        schema: Some(CEM_QL_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                    root_scope: ScopeConfig::default(),
+                },
+                to_format: LayerFormat::Cem,
+                preserve_source_offsets: false,
+                context: engine_context_with_cem_ql_template_adapter(),
+                target: Some(FormatIdentity {
+                    content_type: Some("text/cem-ql".to_owned()),
+                    schema: Some(CEM_QL_SCHEMA_URI.to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                target_scope: ScopeConfig {
+                    cemt_formatter: Some("cem-ql.format-tree".to_owned()),
+                    cemt_formatter_profile: Some("compact".to_owned()),
+                    cemt_colorizer: Some("cem-ql.color-tree".to_owned()),
+                    cemt_color_profile: Some("none".to_owned()),
+                    cemt_formatter_options: BTreeMap::from([(
+                        "lineEnding".to_owned(),
+                        "crlf".to_owned(),
+                    )]),
+                    ..ScopeConfig::default()
+                },
+                scheduler_scope_id: 0,
+            })
+            .expect("alias CEM-QL convert should use registered handler");
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        let primary = response.primary_bytes.expect("primary bytes");
+        assert_eq!(primary.content_type, "text/cem-ql");
+        assert_eq!(primary.schema.as_deref(), Some(CEM_QL_SCHEMA_URI));
+        let output = String::from_utf8(primary.bytes).expect("CEM-QL output is UTF-8");
+        assert_eq!(output, source.replace('\n', "\r\n"));
+        assert!(output.contains("// retained comment"));
+        assert!(output.contains("/* retained block */"));
+    }
+
+    #[test]
+    fn real_engine_convert_uses_registered_cem_ql_source_output_handler_for_lf_line_ending_output()
+    {
+        let source = "module \"https://example.test/queries/direct-crlf\"\r\n\r\ndeclare let label = \"crlf\"\r\n\r\nlabel\r\n";
+        let response = RealCemMlEngine::new()
+            .convert(ConvertRequest {
+                input: EngineInput {
+                    uri: "direct-crlf.cemql".to_owned(),
+                    bytes: source.as_bytes().to_vec(),
+                    from_format: None,
+                    identity: Some(FormatIdentity {
+                        content_type: Some(CEM_QL_CONTENT_TYPE.to_owned()),
+                        schema: Some(CEM_QL_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                    root_scope: ScopeConfig::default(),
+                },
+                to_format: LayerFormat::Cem,
+                preserve_source_offsets: false,
+                context: engine_context_with_cem_ql_template_adapter(),
+                target: Some(FormatIdentity {
+                    content_type: Some(CEM_QL_CONTENT_TYPE.to_owned()),
+                    schema: Some(CEM_QL_SCHEMA_URI.to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                target_scope: ScopeConfig {
+                    cemt_formatter: Some("cem-ql.format-tree".to_owned()),
+                    cemt_formatter_profile: Some("compact".to_owned()),
+                    cemt_colorizer: Some("cem-ql.color-tree".to_owned()),
+                    cemt_color_profile: Some("none".to_owned()),
+                    cemt_formatter_options: BTreeMap::from([(
+                        "lineEnding".to_owned(),
+                        "lf".to_owned(),
+                    )]),
+                    ..ScopeConfig::default()
+                },
+                scheduler_scope_id: 0,
+            })
+            .expect("CRLF CEM-QL convert should use registered handler");
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        let primary = response.primary_bytes.expect("primary bytes");
+        assert_eq!(primary.content_type, CEM_QL_CONTENT_TYPE);
+        let output = String::from_utf8(primary.bytes).expect("CEM-QL output is UTF-8");
+        assert_eq!(output, source.replace("\r\n", "\n"));
+        assert!(!output.contains("\r\n"));
+    }
+
+    #[test]
+    fn real_engine_convert_uses_registered_cem_ql_source_output_handler_for_invalid_utf8() {
+        let mut bytes = b"module \"https://example.test/queries/invalid-utf8\"\n\n".to_vec();
+        bytes.extend_from_slice(b"declare let label = \"bad: ");
+        bytes.push(0xff);
+        bytes.extend_from_slice(b"\"\n\nlabel\n");
+
+        let response = RealCemMlEngine::new()
+            .convert(ConvertRequest {
+                input: EngineInput {
+                    uri: "invalid-utf8.cemql".to_owned(),
+                    bytes,
+                    from_format: None,
+                    identity: Some(FormatIdentity {
+                        content_type: Some(CEM_QL_CONTENT_TYPE.to_owned()),
+                        schema: Some(CEM_QL_SCHEMA_URI.to_owned()),
+                        ..FormatIdentity::default()
+                    }),
+                    root_scope: ScopeConfig::default(),
+                },
+                to_format: LayerFormat::Cem,
+                preserve_source_offsets: false,
+                context: engine_context_with_cem_ql_template_adapter(),
+                target: Some(FormatIdentity {
+                    content_type: Some(CEM_QL_CONTENT_TYPE.to_owned()),
+                    schema: Some(CEM_QL_SCHEMA_URI.to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                target_scope: ScopeConfig {
+                    cemt_formatter: Some("cem-ql.format-tree".to_owned()),
+                    cemt_colorizer: Some("cem-ql.color-tree".to_owned()),
+                    ..ScopeConfig::default()
+                },
+                scheduler_scope_id: 0,
+            })
+            .expect("invalid UTF-8 CEM-QL convert should return diagnostics");
+
+        assert!(response.primary_bytes.is_none());
+        assert!(response
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "cem.ql.invalid_utf8"));
+        assert!(!response
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "cem.lifecycle.adapter_unsupported"));
+    }
+
+    #[test]
+    fn real_engine_convert_uses_registered_cem_ql_source_output_handler_preserves_token_ranges() {
+        let source = "module \"https://example.test/queries/source-token-ranges\"\n\n// comment\ndeclare let label = \"héllo\"\n\nlabel\n";
+        let tree = cem_ql_source_token_tree("source-token-ranges.cemql", source);
+        let tokens = tree["tokens"].as_array().expect("tokens array");
+        assert!(tokens.iter().any(|token| {
+            token["tokenKind"] == "LineComment" && token["role"] == "syntax.comment"
+        }));
+
+        let string_token = tokens
+            .iter()
+            .find(|token| token["lexeme"] == "\"héllo\"")
+            .expect("string token with non-ASCII payload");
+        let expected_offset = source.find("\"héllo\"").expect("string lexeme offset") as u64;
+        let expected_len = "\"héllo\"".len() as u64;
+        assert_eq!(
+            string_token["value"]["byteOffset"].as_u64(),
+            Some(expected_offset)
+        );
+        assert_eq!(
+            string_token["value"]["byteLength"].as_u64(),
+            Some(expected_len)
+        );
+        assert_eq!(
+            string_token["sourceMap"]["frames"][0]["span"]["ranges"]["start"].as_u64(),
+            Some(expected_offset)
+        );
+        assert_eq!(
+            string_token["sourceMap"]["frames"][0]["span"]["ranges"]["len"].as_u64(),
+            Some(expected_len)
+        );
+        assert_eq!(
+            string_token["outputSpan"]["origin"]["frames"][0]["span"]["ranges"]["start"].as_u64(),
+            Some(expected_offset)
+        );
+        assert_eq!(
+            string_token["outputSpan"]["origin"]["frames"][0]["span"]["ranges"]["len"].as_u64(),
+            Some(expected_len)
+        );
+    }
+
+    #[test]
     fn real_engine_convert_uses_registered_cem_ql_source_output_handler_for_html() {
         let source = r#"module "https://example.test/queries/direct-html"
 

@@ -149,6 +149,46 @@
     }
 
     {example
+        @id="alias-content-type"
+        @path="examples/alias-content-type.cemql"
+        @content-type="text/cem-ql"
+        @schema="https://cem.dev/ns/query/cem-ql/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="line-ending-lf"
+        @path="examples/line-ending-lf.cemql"
+        @content-type="application/vnd.cem.query+cem-ql"
+        @schema="https://cem.dev/ns/query/cem-ql/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="line-ending-crlf"
+        @path="examples/line-ending-crlf.cemql"
+        @content-type="application/vnd.cem.query+cem-ql"
+        @schema="https://cem.dev/ns/query/cem-ql/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="comments-and-whitespace"
+        @path="examples/comments-and-whitespace.cemql"
+        @content-type="application/vnd.cem.query+cem-ql"
+        @schema="https://cem.dev/ns/query/cem-ql/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="source-token-ranges"
+        @path="examples/source-token-ranges.cemql"
+        @content-type="application/vnd.cem.query+cem-ql"
+        @schema="https://cem.dev/ns/query/cem-ql/1"
+        @expected-result="pass"
+    }
+
+    {example
         @id="invalid-parse"
         @path="examples/invalid-parse.cemql"
         @content-type="application/vnd.cem.query+cem-ql"
@@ -173,5 +213,14 @@
         @schema="https://cem.dev/ns/query/cem-ql/1"
         @expected-result="fail"
         @expected-diagnostics="cem.ql.use_rust_boolean_ops"
+    }
+
+    {example
+        @id="invalid-utf8"
+        @path="examples/invalid-utf8.cemql"
+        @content-type="application/vnd.cem.query+cem-ql"
+        @schema="https://cem.dev/ns/query/cem-ql/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.ql.invalid_utf8"
     }
 }

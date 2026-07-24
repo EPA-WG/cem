@@ -1,0 +1,5 @@
+module "https://example.test/queries/line-ending-crlf"
+
+declare let label = "crlf"
+
+label

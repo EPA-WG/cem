@@ -1100,8 +1100,21 @@ mod tests {
 
     #[test]
     fn cem_ql_package_examples_are_manifest_indexed() {
+        let package = builtin_schema_package_source("cem-ql").expect("CEM-QL package source");
         let examples =
-            manifest_indexed_package_examples("cem-ql", CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI);
+            schema_package_examples_from_package_sources(package).expect("CEM-QL package examples");
+        let declared_paths = examples
+            .iter()
+            .map(|example| example.path.clone())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            declared_paths,
+            top_level_example_paths("cem-ql"),
+            "CEM-QL top-level examples must be discoverable from package.cem"
+        );
+        assert!(examples
+            .iter()
+            .all(|example| example.schema == CEM_QL_SCHEMA_URI));
 
         let expected = [
             (
@@ -1141,6 +1154,36 @@ mod tests {
                 None,
             ),
             (
+                "alias-content-type",
+                "text/cem-ql",
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "line-ending-lf",
+                CEM_QL_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "line-ending-crlf",
+                CEM_QL_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "comments-and-whitespace",
+                CEM_QL_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "source-token-ranges",
+                CEM_QL_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
                 "invalid-parse",
                 CEM_QL_CONTENT_TYPE,
                 SchemaPackageExampleExpectedResult::Fail,
@@ -1157,6 +1200,12 @@ mod tests {
                 CEM_QL_CONTENT_TYPE,
                 SchemaPackageExampleExpectedResult::Fail,
                 Some("cem.ql.use_rust_boolean_ops"),
+            ),
+            (
+                "invalid-utf8",
+                CEM_QL_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.ql.invalid_utf8"),
             ),
         ];
         let actual_ids = examples
