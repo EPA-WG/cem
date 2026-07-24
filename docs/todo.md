@@ -181,11 +181,20 @@ close.
       `cargo test -p cem-ml-cli schema_owned_cem_native_template_examples_validate_through_cli`,
       and
       `yarn nx run cem_ml_schema_package_cem_native_template_v1:verify`.
-- [ ] Decide the next CEM-native template semantic fixture slice: resolver
-      policy for `{import}`, duplicate declarations, call-target resolution,
-      reserved default expressions, and expression-schema ownership need
-      schema-owned examples and focused engine coverage before the package
-      checklist can close.
+- [x] Implement schema-owned duplicate import alias, duplicate template
+      entrypoint, duplicate param, duplicate let, unknown same-module call, and
+      reserved default-expression fixtures for `cem-native-template/v1`.
+- [x] Map native-template source validation for those fixtures to declared
+      `cem.template.*` diagnostics while preserving CEMT transform diagnostics
+      on the existing `cem.transform_template.*` boundary.
+- [x] Update package manifest, README example table, manifest-index assertions,
+      and package-local verify coverage for the new semantic fixtures.
+- [ ] Decide resolver-policy semantics for `{import}` denial, unresolved
+      imports, and explicit substitutions, including requested identity,
+      substituted identity, source range, and cache/dependency stamp behavior.
+- [ ] Decide expression-schema ownership for template expressions and add
+      invalid expression fixture coverage once the schema-owned fact shape is
+      clear.
 
 ### Schema Package Folder Alignment
 
@@ -240,11 +249,11 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Resolve the CEM-native template semantic fixture decision point: choose the
-source/diagnostic semantics for import resolver policy, duplicate declarations,
-call-target resolution, reserved default expressions, and expression-schema
-ownership. Then add package examples, manifest declarations, focused
-engine/CLI coverage, and decide whether `cem-native-template/v1` can close.
+Resolve the remaining CEM-native template decision point: choose resolver-policy
+semantics for `{import}` denial, unresolved imports, and explicit
+substitutions, plus expression-schema ownership for template expressions. Then
+add package examples, manifest declarations, focused engine/CLI coverage, and
+decide whether `cem-native-template/v1` can close.
 
 ## Current Verification Commands
 

@@ -75,6 +75,7 @@
         {diagnostic @code="cem.template.entrypoint_duplicate" @severity="error"}
         {diagnostic @code="cem.template.param_duplicate" @severity="error"}
         {diagnostic @code="cem.template.import_alias_duplicate" @severity="error"}
+        {diagnostic @code="cem.template.let_duplicate" @severity="error"}
         {diagnostic @code="cem.template.call_unknown" @severity="error"}
         {diagnostic @code="cem.template.param_default_expr_reserved" @severity="fatal"}
         {diagnostic @code="cem.transform_template.let_expr_invalid" @severity="fatal"}

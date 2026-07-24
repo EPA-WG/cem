@@ -1044,6 +1044,42 @@ mod tests {
                 SchemaPackageExampleExpectedResult::Fail,
                 Some("cem.schema_model.missing_required_attribute"),
             ),
+            (
+                "invalid-duplicate-import-alias",
+                CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.template.import_alias_duplicate"),
+            ),
+            (
+                "invalid-duplicate-template-entrypoint",
+                CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.template.entrypoint_duplicate"),
+            ),
+            (
+                "invalid-duplicate-param",
+                CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.template.param_duplicate"),
+            ),
+            (
+                "invalid-duplicate-let",
+                CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.template.let_duplicate"),
+            ),
+            (
+                "invalid-unknown-call",
+                CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.template.call_unknown"),
+            ),
+            (
+                "invalid-default-expr-reserved",
+                CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.template.param_default_expr_reserved"),
+            ),
         ];
         let actual_ids = examples
             .iter()

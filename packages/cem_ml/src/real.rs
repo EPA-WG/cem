@@ -45,7 +45,8 @@ use crate::schema::registry::{
     content_type_essence, schema_descriptor_from_manifest_and_schema_sources,
     schema_source_path_from_manifest_source, SchemaDescriptor,
     CEM_DOM_JSON_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_CONTENT_TYPE,
-    CEM_DOM_PROJECTION_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
+    CEM_DOM_PROJECTION_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
+    CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
     CEM_SCHEMA_PACKAGE_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI,
     HTML_CONTENT_TYPE, HTML_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
     XML_SCHEMA_URI,
@@ -82,7 +83,10 @@ use crate::transform_template::{
     TRANSFORM_TEMPLATE_PARAM_DUPLICATE_ALIAS_CODE, TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE,
     TRANSFORM_TEMPLATE_PARAM_TYPE_CODE, TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE,
 };
-use crate::validation::{RuleContext, RuleRegistry, RuleResourceRead, RuleResourceReader};
+use crate::validation::{
+    rules::validate_cem_native_template_source_semantics, RuleContext, RuleRegistry,
+    RuleResourceRead, RuleResourceReader,
+};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -4918,6 +4922,15 @@ fn run_scheduled_validation_documents(
                         ));
                     }
                 }
+                if is_cem_native_template_schema(input, context) {
+                    let identity = effective_input_identity(input, context);
+                    input_diags.extend(validate_cem_native_template_source_semantics(
+                        &loaded.bytes,
+                        &input_uri(input, context),
+                        identity.content_type.as_deref(),
+                        identity.schema.as_deref(),
+                    ));
+                }
                 input_diags.extend(run.diagnostics);
             }
         });
@@ -5035,6 +5048,17 @@ fn is_schema_package_manifest_schema(input: &EngineInput, context: &EngineContex
             .as_deref()
             .is_some_and(|content_type| {
                 content_type_essence(content_type) == CEM_SCHEMA_PACKAGE_CONTENT_TYPE
+            })
+}
+
+fn is_cem_native_template_schema(input: &EngineInput, context: &EngineContext) -> bool {
+    let identity = effective_input_identity(input, context);
+    identity.schema.as_deref() == Some(CEM_NATIVE_TEMPLATE_SCHEMA_URI)
+        || identity
+            .content_type
+            .as_deref()
+            .is_some_and(|content_type| {
+                content_type_essence(content_type) == CEM_NATIVE_TEMPLATE_CONTENT_TYPE
             })
 }
 

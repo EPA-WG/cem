@@ -113,4 +113,58 @@
         @expected-result="fail"
         @expected-diagnostics="cem.schema_model.missing_required_attribute"
     }
+
+    {example
+        @id="invalid-duplicate-import-alias"
+        @path="examples/invalid-duplicate-import-alias.cem"
+        @content-type="application/vnd.cem.template+cem"
+        @schema="https://cem.dev/ns/template/cem-native/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.template.import_alias_duplicate"
+    }
+
+    {example
+        @id="invalid-duplicate-template-entrypoint"
+        @path="examples/invalid-duplicate-template-entrypoint.cem"
+        @content-type="application/vnd.cem.template+cem"
+        @schema="https://cem.dev/ns/template/cem-native/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.template.entrypoint_duplicate"
+    }
+
+    {example
+        @id="invalid-duplicate-param"
+        @path="examples/invalid-duplicate-param.cem"
+        @content-type="application/vnd.cem.template+cem"
+        @schema="https://cem.dev/ns/template/cem-native/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.template.param_duplicate"
+    }
+
+    {example
+        @id="invalid-duplicate-let"
+        @path="examples/invalid-duplicate-let.cem"
+        @content-type="application/vnd.cem.template+cem"
+        @schema="https://cem.dev/ns/template/cem-native/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.template.let_duplicate"
+    }
+
+    {example
+        @id="invalid-unknown-call"
+        @path="examples/invalid-unknown-call.cem"
+        @content-type="application/vnd.cem.template+cem"
+        @schema="https://cem.dev/ns/template/cem-native/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.template.call_unknown"
+    }
+
+    {example
+        @id="invalid-default-expr-reserved"
+        @path="examples/invalid-default-expr-reserved.cem"
+        @content-type="application/vnd.cem.template+cem"
+        @schema="https://cem.dev/ns/template/cem-native/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.template.param_default_expr_reserved"
+    }
 }

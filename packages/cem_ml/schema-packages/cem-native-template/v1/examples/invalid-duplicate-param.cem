@@ -1,0 +1,11 @@
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@default template
+
+{module |
+    {template @name="card" |
+        {param @name="title" @type="string"}
+        {param @name="title" @type="string"}
+        {body | Duplicate param.}
+    }
+}

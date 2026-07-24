@@ -50,6 +50,7 @@ attribute contracts and the diagnostic codes for template-specific policy:
 - `cem.template.entrypoint_duplicate`
 - `cem.template.param_duplicate`
 - `cem.template.import_alias_duplicate`
+- `cem.template.let_duplicate`
 - `cem.template.call_unknown`
 - `cem.template.param_default_expr_reserved`
 - `cem.transform_template.let_expr_invalid`
@@ -133,8 +134,7 @@ Tracked but not complete:
 - schema-owned fact bindings for all template parser and semantic diagnostics;
 - resolver-policy fixtures for `{import}` denial, unresolved imports, and
   explicit substitutions;
-- package examples for duplicate imports, duplicate declarations, unknown calls,
-  reserved default expressions, and invalid expression ownership;
+- package examples for invalid expression ownership;
 - HTML and Markdown preview drift checks once their template presentation
   profiles become stable enough for README demos.
 
@@ -148,6 +148,12 @@ CLI validation integration tests.
 | [`basic-template.cem`](examples/basic-template.cem) | Minimal module with one template and body. | Pass |
 | [`module-template.cem`](examples/module-template.cem) | Module with import metadata, params, nested template output, and a template call with `with:*` data propagation. | Pass |
 | [`invalid-missing-required-attribute.cem`](examples/invalid-missing-required-attribute.cem) | Template declaration missing its required `name` attribute. | Fail with `cem.schema_model.missing_required_attribute` |
+| [`invalid-duplicate-import-alias.cem`](examples/invalid-duplicate-import-alias.cem) | Duplicate `{import @as=...}` alias in one module. | Fail with `cem.template.import_alias_duplicate` |
+| [`invalid-duplicate-template-entrypoint.cem`](examples/invalid-duplicate-template-entrypoint.cem) | Duplicate `{template @name=...}` entrypoint in one module. | Fail with `cem.template.entrypoint_duplicate` |
+| [`invalid-duplicate-param.cem`](examples/invalid-duplicate-param.cem) | Duplicate `{param @name=...}` in one template scope. | Fail with `cem.template.param_duplicate` |
+| [`invalid-duplicate-let.cem`](examples/invalid-duplicate-let.cem) | Duplicate `{let @name=...}` in one body scope. | Fail with `cem.template.let_duplicate` |
+| [`invalid-unknown-call.cem`](examples/invalid-unknown-call.cem) | Same-module `{call @template=...}` whose target is not declared. | Fail with `cem.template.call_unknown` |
+| [`invalid-default-expr-reserved.cem`](examples/invalid-default-expr-reserved.cem) | Reserved param `default-expr` syntax. | Fail with `cem.template.param_default_expr_reserved` |
 
 Validate an example explicitly against this schema:
 

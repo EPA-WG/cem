@@ -1,0 +1,13 @@
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@default template
+
+{module |
+    {template @name="card" |
+        {body |
+            {let @name="layout" @value="compact"}
+            {let @name="layout" @value="expanded"}
+            Duplicate let binding.
+        }
+    }
+}

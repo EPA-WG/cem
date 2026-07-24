@@ -15670,6 +15670,39 @@ mod tests {
     }
 
     #[test]
+    fn validate_native_template_schema_reports_template_semantic_diagnostics() {
+        let p = write_fixture(
+            "validate-native-template-schema-duplicate-template.cem",
+            r#"@doc cem-ml 1
+{module |
+  {template @name="page" | {body | One}}
+  {template @name="page" | {body | Two}}
+}"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--schema",
+                cem_ml::transform_template::CEM_NATIVE_TEMPLATE_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.template.entrypoint_duplicate"));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.transform_template.declaration_duplicate"));
+    }
+
+    #[test]
     fn validate_cem_transform_schema_selects_cem_input_adapter() {
         let p = write_fixture(
             "validate-cem-transform-schema.cemt",

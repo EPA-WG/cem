@@ -191,6 +191,15 @@ pub const TRANSFORM_TEMPLATE_OUTPUT_FORMATTER_UNKNOWN_CODE: &str =
     "cem.transform_template.output_formatter_unknown";
 pub const TRANSFORM_TEMPLATE_OUTPUT_COLORIZER_UNKNOWN_CODE: &str =
     "cem.transform_template.output_colorizer_unknown";
+
+pub const CEM_TEMPLATE_MODULE_REQUIRED_CODE: &str = "cem.template.module_required";
+pub const CEM_TEMPLATE_ENTRYPOINT_DUPLICATE_CODE: &str = "cem.template.entrypoint_duplicate";
+pub const CEM_TEMPLATE_PARAM_DUPLICATE_CODE: &str = "cem.template.param_duplicate";
+pub const CEM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE: &str = "cem.template.import_alias_duplicate";
+pub const CEM_TEMPLATE_LET_DUPLICATE_CODE: &str = "cem.template.let_duplicate";
+pub const CEM_TEMPLATE_CALL_UNKNOWN_CODE: &str = "cem.template.call_unknown";
+pub const CEM_TEMPLATE_PARAM_DEFAULT_EXPR_RESERVED_CODE: &str =
+    "cem.template.param_default_expr_reserved";
 pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_AMBIGUOUS_CODE: &str =
     "cem.transform_template.output_function_ambiguous";
 pub const TRANSFORM_TEMPLATE_OUTPUT_FUNCTION_CAPABILITY_MISSING_CODE: &str =
@@ -18984,7 +18993,7 @@ impl NativeTemplateModuleLowerer<'_> {
             && self.module_count == 0
         {
             self.push_diag(
-                TRANSFORM_TEMPLATE_DECLARATION_REQUIRED_CODE,
+                self.module_required_code(),
                 "CEM template schema requires one top-level `module` node",
             );
         } else if self.module_count > 1 {
@@ -19082,7 +19091,7 @@ impl NativeTemplateModuleLowerer<'_> {
             .or_else(|| attr_value(&attrs, "", "defaultExpr"));
         if default_expr.is_some() {
             self.push_diag(
-                TRANSFORM_TEMPLATE_PARAM_DEFAULT_EXPR_RESERVED_CODE,
+                self.param_default_expr_reserved_code(),
                 format!(
                     "template param `{name}` uses reserved `@default-expr`; use literal `@default` until default expression semantics are defined"
                 ),
@@ -19533,7 +19542,7 @@ impl NativeTemplateModuleLowerer<'_> {
         for import in self.options.imports.clone() {
             if !aliases.insert(import.alias.clone()) {
                 self.push_diag(
-                    TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE,
+                    self.import_alias_duplicate_code(),
                     format!(
                         "template module import alias `{}` is declared more than once",
                         import.alias
@@ -19546,7 +19555,7 @@ impl NativeTemplateModuleLowerer<'_> {
         for entrypoint in self.options.entrypoints.clone() {
             if !entrypoints.insert(entrypoint.name.clone()) {
                 self.push_diag(
-                    TRANSFORM_TEMPLATE_DECLARATION_DUPLICATE_CODE,
+                    self.entrypoint_duplicate_code(),
                     format!(
                         "template entrypoint `{}` is declared more than once",
                         entrypoint.name
@@ -19559,7 +19568,7 @@ impl NativeTemplateModuleLowerer<'_> {
         for param in self.options.params.clone() {
             if !params.insert(param.name.clone()) {
                 self.push_diag(
-                    TRANSFORM_TEMPLATE_DECLARATION_DUPLICATE_CODE,
+                    self.param_duplicate_code(),
                     format!("template param `{}` is declared more than once", param.name),
                 );
             }
@@ -19570,7 +19579,7 @@ impl NativeTemplateModuleLowerer<'_> {
             if !let_bindings.insert((binding.owner_entrypoint.clone(), binding.name.clone())) {
                 let scope = binding.owner_entrypoint.as_deref().unwrap_or("module body");
                 self.push_diag(
-                    TRANSFORM_TEMPLATE_DECLARATION_DUPLICATE_CODE,
+                    self.let_duplicate_code(),
                     format!(
                         "template let `{}` is declared more than once in `{scope}`",
                         binding.name
@@ -19690,7 +19699,7 @@ impl NativeTemplateModuleLowerer<'_> {
                 if !imports.contains(import_alias) {
                     self.push_call_diag(
                         source_map.as_ref(),
-                        TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE,
+                        self.call_unknown_code(),
                         format!(
                             "template call to `{}` references unknown import alias `{import_alias}`",
                             call.template
@@ -19703,7 +19712,7 @@ impl NativeTemplateModuleLowerer<'_> {
             if !templates.contains(&call.template) {
                 self.push_call_diag(
                     source_map.as_ref(),
-                    TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE,
+                    self.call_unknown_code(),
                     format!("template call target `{}` is not declared", call.template),
                 );
                 continue;
@@ -19951,6 +19960,66 @@ impl NativeTemplateModuleLowerer<'_> {
                 value_type.as_contract_name()
             ),
         );
+    }
+
+    fn uses_cem_template_diagnostics(&self) -> bool {
+        self.explicit_template_schema && !self.explicit_transform_schema
+    }
+
+    fn module_required_code(&self) -> &'static str {
+        if self.uses_cem_template_diagnostics() {
+            CEM_TEMPLATE_MODULE_REQUIRED_CODE
+        } else {
+            TRANSFORM_TEMPLATE_DECLARATION_REQUIRED_CODE
+        }
+    }
+
+    fn import_alias_duplicate_code(&self) -> &'static str {
+        if self.uses_cem_template_diagnostics() {
+            CEM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE
+        } else {
+            TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE
+        }
+    }
+
+    fn entrypoint_duplicate_code(&self) -> &'static str {
+        if self.uses_cem_template_diagnostics() {
+            CEM_TEMPLATE_ENTRYPOINT_DUPLICATE_CODE
+        } else {
+            TRANSFORM_TEMPLATE_DECLARATION_DUPLICATE_CODE
+        }
+    }
+
+    fn param_duplicate_code(&self) -> &'static str {
+        if self.uses_cem_template_diagnostics() {
+            CEM_TEMPLATE_PARAM_DUPLICATE_CODE
+        } else {
+            TRANSFORM_TEMPLATE_DECLARATION_DUPLICATE_CODE
+        }
+    }
+
+    fn let_duplicate_code(&self) -> &'static str {
+        if self.uses_cem_template_diagnostics() {
+            CEM_TEMPLATE_LET_DUPLICATE_CODE
+        } else {
+            TRANSFORM_TEMPLATE_DECLARATION_DUPLICATE_CODE
+        }
+    }
+
+    fn call_unknown_code(&self) -> &'static str {
+        if self.uses_cem_template_diagnostics() {
+            CEM_TEMPLATE_CALL_UNKNOWN_CODE
+        } else {
+            TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE
+        }
+    }
+
+    fn param_default_expr_reserved_code(&self) -> &'static str {
+        if self.uses_cem_template_diagnostics() {
+            CEM_TEMPLATE_PARAM_DEFAULT_EXPR_RESERVED_CODE
+        } else {
+            TRANSFORM_TEMPLATE_PARAM_DEFAULT_EXPR_RESERVED_CODE
+        }
     }
 
     fn push_missing_attr(&mut self, element: &str, attr: &str) {
@@ -22424,7 +22493,7 @@ mod tests {
 
         assert!(response.module_declared);
         for code in [
-            TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE,
+            CEM_TEMPLATE_CALL_UNKNOWN_CODE,
             TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE,
             TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE,
             TRANSFORM_TEMPLATE_PARAM_TYPE_CODE,
@@ -22441,7 +22510,7 @@ mod tests {
             .filter(|diag| {
                 matches!(
                     diag.code.as_str(),
-                    TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE
+                    CEM_TEMPLATE_CALL_UNKNOWN_CODE
                         | TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE
                         | TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE
                         | TRANSFORM_TEMPLATE_PARAM_TYPE_CODE
@@ -22457,7 +22526,7 @@ mod tests {
                 && diag.message.contains("argument `count` expected integer")
         }));
         assert!(response.diagnostics.iter().any(|diag| {
-            diag.code == TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE
+            diag.code == CEM_TEMPLATE_CALL_UNKNOWN_CODE
                 && diag.message.contains("unknown import alias `icons`")
         }));
     }
@@ -33756,15 +33825,15 @@ mod tests {
         assert!(response
             .diagnostics
             .iter()
-            .any(|diag| diag.code == TRANSFORM_TEMPLATE_PARAM_DEFAULT_EXPR_RESERVED_CODE));
+            .any(|diag| diag.code == CEM_TEMPLATE_PARAM_DEFAULT_EXPR_RESERVED_CODE));
         assert!(response
             .diagnostics
             .iter()
-            .any(|diag| diag.code == TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE));
+            .any(|diag| diag.code == CEM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE));
         assert!(response
             .diagnostics
             .iter()
-            .any(|diag| diag.code == TRANSFORM_TEMPLATE_DECLARATION_DUPLICATE_CODE));
+            .any(|diag| diag.code == CEM_TEMPLATE_ENTRYPOINT_DUPLICATE_CODE));
         assert!(response
             .diagnostics
             .iter()
@@ -33814,7 +33883,7 @@ mod tests {
         assert!(response
             .diagnostics
             .iter()
-            .any(|diag| diag.code == TRANSFORM_TEMPLATE_DECLARATION_DUPLICATE_CODE));
+            .any(|diag| diag.code == CEM_TEMPLATE_LET_DUPLICATE_CODE));
     }
 
     #[test]
@@ -33899,7 +33968,7 @@ mod tests {
         assert!(response
             .diagnostics
             .iter()
-            .any(|diag| diag.code == TRANSFORM_TEMPLATE_DECLARATION_REQUIRED_CODE));
+            .any(|diag| diag.code == CEM_TEMPLATE_MODULE_REQUIRED_CODE));
     }
 
     #[test]

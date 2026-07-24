@@ -1390,6 +1390,38 @@ fn schema_document_model_descriptor() -> &'static RuleDescriptor {
     })
 }
 
+pub(crate) fn validate_cem_native_template_source_semantics(
+    bytes: &[u8],
+    source_uri: &str,
+    content_type: Option<&str>,
+    schema_uri: Option<&str>,
+) -> Vec<Diagnostic> {
+    let content_type = content_type
+        .map(content_type_essence)
+        .unwrap_or_else(|| CEM_NATIVE_TEMPLATE_CONTENT_TYPE.to_owned());
+    let schema = schema_uri
+        .unwrap_or(CEM_NATIVE_TEMPLATE_SCHEMA_URI)
+        .to_owned();
+    let response = parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+        template: TemplateInput {
+            uri: source_uri.to_owned(),
+            bytes: bytes.to_vec(),
+            identity: Some(FormatIdentity {
+                content_type: Some(content_type),
+                schema: Some(schema),
+                ..FormatIdentity::default()
+            }),
+            root_scope: ScopeConfig::default(),
+        },
+    });
+
+    response
+        .diagnostics
+        .into_iter()
+        .filter(|diagnostic| diagnostic.code.starts_with("cem.template."))
+        .collect()
+}
+
 // ---------- Schema Package Converter Contract ----------
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -2737,6 +2769,16 @@ fn validate_schema_package_example_source_bytes(
         upstream_diagnostics: &upstream_diagnostics,
         schema_behavior_evaluator,
     }));
+    if schema_uri == CEM_NATIVE_TEMPLATE_SCHEMA_URI
+        || content_type_essence(content_type) == CEM_NATIVE_TEMPLATE_CONTENT_TYPE
+    {
+        diagnostics.extend(validate_cem_native_template_source_semantics(
+            bytes,
+            source_uri,
+            Some(content_type),
+            Some(schema_uri),
+        ));
+    }
     Some(diagnostics)
 }
 
