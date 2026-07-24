@@ -22,6 +22,21 @@ then resume dependency-ordered schema-package folder alignment.
 
 ### Immediate: CSV Format-Support AC Remediation
 
+- [x] Route CSV source projection through generic decoded-source semantics so
+      UTF-8 BOM bytes are skipped from field content while raw byte length and
+      absolute source ranges remain correct.
+- [x] Add focused Rust and CLI coverage proving `utf8-bom.csv` compact output
+      starts with `id`, not a UTF-8 BOM, and that row/field source ranges still
+      point at the original byte offsets.
+- [x] Promote CSV formatter/colorizer source-range metadata to the generic
+      writer/source-map boundary instead of carrying it only as token `value`
+      payload data.
+- [ ] Move the remaining Rust-owned CSV diagnostic policy dispatch behind
+      schema-package behavior bindings so parser facts stay neutral and `.cem`
+      owns diagnostic codes/severities.
+- [x] Tighten package-local verify/build inputs so CSV package verification
+      cannot pass against a stale `cem_ml_cli` binary when shared Rust code
+      changes.
 - [x] Replace the static schema-owned CLI validation example list with a
       `package.cem`-derived harness for package examples. The harness must load
       manifest-declared examples, preserve each example's content type, schema

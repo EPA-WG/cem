@@ -13309,6 +13309,7 @@ mod tests {
                     "fieldCount": 4,
                     "byteOffset": 0,
                     "byteLength": 21,
+                    "recordEndingSourceMap": csv_test_source_map(20, 1),
                     "sourceRange": {
                         "byteOffset": 0,
                         "byteLength": 21,
@@ -13324,6 +13325,7 @@ mod tests {
                             "quoted": false,
                             "byteOffset": 0,
                             "byteLength": 2,
+                            "sourceMap": csv_test_source_map(0, 2),
                             "sourceRange": {
                                 "byteOffset": 0,
                                 "byteLength": 2,
@@ -13333,7 +13335,12 @@ mod tests {
                                 "endColumn": 3
                             }
                         },
-                        {"index": 1, "value": "name"},
+                        {
+                            "index": 1,
+                            "value": "name",
+                            "delimiterBeforeSourceMap": csv_test_source_map(2, 1),
+                            "sourceMap": csv_test_source_map(3, 4)
+                        },
                         {"index": 2, "value": "score"},
                         {"index": 3, "value": "amount"}
                     ]
@@ -13404,6 +13411,10 @@ mod tests {
                 }]
             }
         })
+    }
+
+    fn csv_test_source_map(start: u64, len: u32) -> Value {
+        csv_test_output_span(start, len)["origin"].clone()
     }
 
     fn execute_builtin_csv_colorizer_profile(
@@ -13646,7 +13657,27 @@ mod tests {
                 "{profile}"
             );
             assert_eq!(
+                formatted["nodes"][2]["outputSpan"]["origin"],
+                csv_test_source_map(0, 2),
+                "{profile}"
+            );
+            assert_eq!(
+                formatted["nodes"][3]["outputSpan"]["origin"],
+                csv_test_source_map(2, 1),
+                "{profile}"
+            );
+            assert_eq!(
+                formatted["nodes"][4]["outputSpan"]["origin"],
+                csv_test_source_map(3, 4),
+                "{profile}"
+            );
+            assert_eq!(
                 formatted["nodes"][9]["value"]["rowSourceRange"]["byteOffset"], 0,
+                "{profile}"
+            );
+            assert_eq!(
+                formatted["nodes"][9]["outputSpan"]["origin"],
+                csv_test_source_map(20, 1),
                 "{profile}"
             );
             assert_eq!(
@@ -13834,6 +13865,88 @@ mod tests {
                 Some(expected),
                 "{name}"
             );
+        }
+    }
+
+    #[test]
+    fn builtin_csv_output_pipeline_generates_output_spans_from_formatter_tokens() {
+        let schema_registry = SchemaRegistry::with_builtin_schemas();
+        let conversion_registry = ConversionRegistry::with_builtin_converters();
+        let environment = ConversionOutputPipelineEnvironment {
+            schema_registry: &schema_registry,
+            conversion_registry: &conversion_registry,
+            package_artifact_reader: None,
+            artifact_cache: None,
+        };
+        let table = serde_json::json!({
+            "kind": "csv-table",
+            "rows": [{
+                "index": 0,
+                "recordEndingSourceMap": csv_test_source_map(7, 1),
+                "fields": [
+                    {
+                        "index": 0,
+                        "value": "id",
+                        "sourceMap": csv_test_source_map(0, 2)
+                    },
+                    {
+                        "index": 1,
+                        "value": "name",
+                        "delimiterBeforeSourceMap": csv_test_source_map(2, 1),
+                        "sourceMap": csv_test_source_map(3, 4)
+                    }
+                ]
+            }]
+        });
+        let target_scope = ScopeConfig {
+            cemt_formatter_profile: Some("compact".to_owned()),
+            ..ScopeConfig::default()
+        };
+
+        let execution = execute_csv_document_output_pipeline_with_environment(
+            &environment,
+            table,
+            &target_scope,
+            Some("builtin:csv-output-spans"),
+        );
+
+        assert!(
+            execution.diagnostics.is_empty(),
+            "{:?}",
+            execution.diagnostics
+        );
+        assert_eq!(
+            execution.output.as_ref().and_then(Value::as_str),
+            Some("id,name\n")
+        );
+        assert_eq!(execution.output_spans.len(), 4);
+        for (index, (output_start, output_len, source_start, source_len)) in [
+            (0u64, 2u32, 0u64, 2u32),
+            (2u64, 1u32, 2u64, 1u32),
+            (3u64, 4u32, 3u64, 4u32),
+            (7u64, 1u32, 7u64, 1u32),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let span = &execution.output_spans[index];
+            assert_eq!(span.output_range.start, output_start, "span {index}");
+            assert_eq!(span.output_range.len, output_len, "span {index}");
+            let frame = span
+                .origin
+                .frames
+                .first()
+                .unwrap_or_else(|| panic!("span {index} has origin frame"));
+            assert_eq!(frame.source_id, SourceId(0), "span {index}");
+            match frame.span {
+                crate::source_map::FrameSpan::Single(range) => {
+                    assert_eq!(range.start, source_start, "span {index}");
+                    assert_eq!(range.len, source_len, "span {index}");
+                }
+                crate::source_map::FrameSpan::Multi(_) => {
+                    panic!("span {index} should have a single source range")
+                }
+            }
         }
     }
 

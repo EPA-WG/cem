@@ -16,7 +16,20 @@
                 "production": {
                     "release": true
                 }
-            }
+            },
+            "inputs": [
+                "{projectRoot}/src/**/*.rs",
+                "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.lock",
+                "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml/grammar/tree-sitter-cem/**/*",
+                "{workspaceRoot}/packages/cem_ql/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ql/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml_transform_cem_ql/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml_transform_cem_ql/Cargo.toml"
+            ]
         },
         "test": {
             "cache": true,

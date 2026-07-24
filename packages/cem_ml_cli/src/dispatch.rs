@@ -24598,6 +24598,41 @@ start =
     }
 
     #[test]
+    fn convert_csv_utf8_bom_compact_output_skips_bom_content() {
+        let p = write_binary_fixture(
+            "convert-csv-utf8-bom.csv",
+            b"\xEF\xBB\xBFid,name,active\n1,Ada,true\n2,Lin,false\n",
+        );
+        let input_spec = format!(
+            "uri={},contentType=text/csv,schema={}",
+            p.display(),
+            cem_ml::schema::registry::CSV_SCHEMA_URI
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "convert",
+                "--input-spec",
+                &input_spec,
+                "--to-content-type",
+                "text/csv",
+                "--to-schema",
+                cem_ml::schema::registry::CSV_SCHEMA_URI,
+                "--cemt-formatter-profile",
+                "compact",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        assert!(
+            !stdout.as_bytes().starts_with(b"\xEF\xBB\xBF"),
+            "{stdout:?}"
+        );
+        assert_eq!(stdout, "id,name,active\n1,Ada,true\n2,Lin,false\n");
+    }
+
+    #[test]
     fn convert_csv_input_spec_applies_tabular_formatter_options() {
         let p = write_fixture(
             "convert-csv-tabular-options.csv",

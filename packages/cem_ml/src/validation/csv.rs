@@ -4,7 +4,8 @@ use crate::parser::builder::CemAstBuilder;
 use crate::parser::document::CemDocument;
 use crate::parser::{AstNodeId, CemAstNode};
 use crate::schema::registry::CSV_CONTENT_TYPE;
-use crate::source::{BytesSource, SourceId};
+use crate::source::decode::Utf8Decoder;
+use crate::source::{BytesSource, EncodingDecoder, SourceId};
 use crate::tokenizer::cem::CemTokenizer;
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -57,6 +58,12 @@ pub struct CsvParseFact {
     pub expected_count: Option<usize>,
     pub actual_count: Option<usize>,
     pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CsvDecodedSource {
+    text: String,
+    byte_offset_base: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -195,10 +202,13 @@ pub fn csv_table_value_from_source_bytes(
     let report = extract_csv_parse_report(request);
     let contracts = CsvSchemaContractCatalog::from_builtin();
     let diagnostics = validate_csv_parse_report(&report, &contracts);
-    let source = std::str::from_utf8(request.bytes).ok();
-    let line_ending = source.and_then(csv_detect_line_ending_style);
+    let source = csv_decode_source_text(request, None).ok();
+    let line_ending = source
+        .as_ref()
+        .and_then(|source| csv_detect_line_ending_style(&source.text));
     let header = csv_header_disposition(request.content_type);
     let rows = source
+        .as_ref()
         .filter(|_| !csv_parse_report_has_encoding_blocker(&report))
         .map(csv_project_rows)
         .unwrap_or_default();
@@ -283,25 +293,59 @@ pub fn extract_csv_parse_report(request: CsvSourceValidationRequest<'_>) -> CsvP
         }
     }
 
-    let source = match std::str::from_utf8(request.bytes) {
+    let source = match csv_decode_source_text(request, charset.as_deref()) {
         Ok(source) => source,
-        Err(error) => {
-            let mut fact = csv_fact(
-                CsvParseFactKind::UnsupportedEncoding,
-                Some("charset"),
-                charset.as_deref().or(Some("utf-8")),
-                &["valid UTF-8"],
-            );
-            fact.byte_offset = u64::try_from(error.valid_up_to()).ok();
-            fact.message = Some(format!("CSV source must be valid UTF-8: {error}"));
+        Err(fact) => {
             report.facts.push(fact);
             return report;
         }
     };
 
-    collect_csv_quote_policy_facts(source, &mut report.facts);
-    collect_csv_record_facts(source, &mut report.facts);
+    collect_csv_quote_policy_facts(&source, &mut report.facts);
+    collect_csv_record_facts(&source, &mut report.facts);
     report
+}
+
+fn csv_decode_source_text(
+    request: CsvSourceValidationRequest<'_>,
+    charset: Option<&str>,
+) -> Result<CsvDecodedSource, CsvParseFact> {
+    let mut decoder = Utf8Decoder::new(BytesSource::new(SourceId(1), request.bytes.to_vec()));
+    let mut text = String::new();
+    let mut first_scalar_byte_offset = None;
+
+    while let Some(chunk) = decoder.decode_next() {
+        for (scalar, range) in chunk.scalars {
+            first_scalar_byte_offset.get_or_insert(range.start);
+            text.push(scalar);
+        }
+    }
+
+    let diagnostics = decoder.take_diagnostics();
+    if let Some(diagnostic) = diagnostics.iter().find(|diagnostic| {
+        matches!(
+            diagnostic.code.as_str(),
+            "cem.byte.invalid_utf8" | "cem.byte.unsupported_encoding"
+        )
+    }) {
+        let mut fact = csv_fact(
+            CsvParseFactKind::UnsupportedEncoding,
+            Some("charset"),
+            charset.or(Some("utf-8")),
+            &["valid UTF-8"],
+        );
+        fact.byte_offset = diagnostic.byte_offset;
+        fact.message = Some(diagnostic.message.clone());
+        return Err(fact);
+    }
+
+    let byte_offset_base = first_scalar_byte_offset
+        .or_else(|| decoder.bom().map(|bom| bom.byte_range.end()))
+        .unwrap_or(0);
+    Ok(CsvDecodedSource {
+        text,
+        byte_offset_base,
+    })
 }
 
 pub fn validate_csv_parse_report(
@@ -322,11 +366,11 @@ pub fn validate_csv_parse_report(
         .collect()
 }
 
-fn collect_csv_record_facts(source: &str, facts: &mut Vec<CsvParseFact>) {
+fn collect_csv_record_facts(source: &CsvDecodedSource, facts: &mut Vec<CsvParseFact>) {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(false)
         .flexible(true)
-        .from_reader(source.as_bytes());
+        .from_reader(source.text.as_bytes());
     let mut expected_field_count: Option<usize> = None;
     for (row_index, result) in reader.records().enumerate() {
         match result {
@@ -341,7 +385,8 @@ fn collect_csv_record_facts(source: &str, facts: &mut Vec<CsvParseFact>) {
                         fact.expected_count = Some(expected);
                         fact.actual_count = Some(field_count);
                         fact.line = csv_position_line(record.position());
-                        fact.byte_offset = csv_position_byte_offset(record.position());
+                        fact.byte_offset =
+                            csv_position_byte_offset(record.position(), source.byte_offset_base);
                         facts.push(fact);
                     }
                 } else {
@@ -351,7 +396,8 @@ fn collect_csv_record_facts(source: &str, facts: &mut Vec<CsvParseFact>) {
             Err(error) => {
                 let mut fact = csv_fact(csv_parse_error_fact_kind(&error), None, None, &[]);
                 fact.line = csv_position_line(error.position());
-                fact.byte_offset = csv_position_byte_offset(error.position());
+                fact.byte_offset =
+                    csv_position_byte_offset(error.position(), source.byte_offset_base);
                 fact.message = Some(format!("CSV parse error: {error}"));
                 facts.push(fact);
                 break;
@@ -375,8 +421,8 @@ enum CsvQuoteState {
     AfterQuote,
 }
 
-fn collect_csv_quote_policy_facts(source: &str, facts: &mut Vec<CsvParseFact>) {
-    let bytes = source.as_bytes();
+fn collect_csv_quote_policy_facts(source: &CsvDecodedSource, facts: &mut Vec<CsvParseFact>) {
+    let bytes = source.text.as_bytes();
     let mut state = CsvQuoteState::StartField;
     let mut byte = 0usize;
     let mut line = 1u32;
@@ -386,7 +432,7 @@ fn collect_csv_quote_policy_facts(source: &str, facts: &mut Vec<CsvParseFact>) {
         let current = CsvSourcePosition {
             line,
             column,
-            byte_offset: byte as u64,
+            byte_offset: source.byte_offset_base + byte as u64,
         };
         match state {
             CsvQuoteState::StartField => match bytes[byte] {
@@ -636,7 +682,7 @@ fn csv_line_ending_style_from_flags(
     }
 }
 
-fn csv_project_rows(source: &str) -> Vec<serde_json::Value> {
+fn csv_project_rows(source: &CsvDecodedSource) -> Vec<serde_json::Value> {
     let records = csv_scan_projected_records(source);
     records
         .into_iter()
@@ -653,6 +699,9 @@ fn csv_project_rows(source: &str) -> Vec<serde_json::Value> {
                         "byteOffset": field.range.start.byte_offset,
                         "byteLength": csv_range_byte_length(field.range),
                         "sourceRange": csv_source_range_value(field.range),
+                        "sourceMap": csv_source_map_value(field.range),
+                        "delimiterBeforeSourceRange": field.delimiter_before.map(csv_source_range_value),
+                        "delimiterBeforeSourceMap": field.delimiter_before.map(csv_source_map_value),
                     })
                 })
                 .collect::<Vec<_>>();
@@ -662,6 +711,9 @@ fn csv_project_rows(source: &str) -> Vec<serde_json::Value> {
                 "byteOffset": record.range.start.byte_offset,
                 "byteLength": csv_range_byte_length(record.range),
                 "sourceRange": csv_source_range_value(record.range),
+                "sourceMap": csv_source_map_value(record.range),
+                "recordEndingSourceRange": record.record_ending.map(csv_source_range_value),
+                "recordEndingSourceMap": record.record_ending.map(csv_source_map_value),
                 "fields": fields,
             })
         })
@@ -672,6 +724,7 @@ fn csv_project_rows(source: &str) -> Vec<serde_json::Value> {
 struct CsvProjectedRecord {
     index: usize,
     range: CsvSourceRange,
+    record_ending: Option<CsvSourceRange>,
     fields: Vec<CsvProjectedField>,
 }
 
@@ -680,6 +733,7 @@ struct CsvProjectedField {
     value: String,
     quoted: bool,
     range: CsvSourceRange,
+    delimiter_before: Option<CsvSourceRange>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -688,8 +742,9 @@ struct CsvSourceRange {
     end: CsvSourcePosition,
 }
 
-fn csv_scan_projected_records(source: &str) -> Vec<CsvProjectedRecord> {
-    let bytes = source.as_bytes();
+fn csv_scan_projected_records(source: &CsvDecodedSource) -> Vec<CsvProjectedRecord> {
+    let text = source.text.as_str();
+    let bytes = text.as_bytes();
     if bytes.is_empty() {
         return Vec::new();
     }
@@ -700,21 +755,36 @@ fn csv_scan_projected_records(source: &str) -> Vec<CsvProjectedRecord> {
     let mut line = 1u32;
     let mut column = 1u32;
     let mut row_index = 0usize;
-    let mut row_start = csv_current_position(byte, line, column);
+    let mut row_start = csv_current_position(byte, line, column, source.byte_offset_base);
+    let mut delimiter_before = None;
 
     loop {
-        let field = csv_scan_projected_field(source, &mut byte, &mut line, &mut column);
+        let mut field = csv_scan_projected_field(source, &mut byte, &mut line, &mut column);
+        field.delimiter_before = delimiter_before.take();
         fields.push(field);
 
         if byte < bytes.len() && bytes[byte] == b',' {
-            advance_csv_projection_cursor(source, &mut byte, &mut line, &mut column);
+            let delimiter_start = csv_current_position(byte, line, column, source.byte_offset_base);
+            advance_csv_projection_cursor(text, &mut byte, &mut line, &mut column);
+            let delimiter_end = csv_current_position(byte, line, column, source.byte_offset_base);
+            delimiter_before = Some(CsvSourceRange {
+                start: delimiter_start,
+                end: delimiter_end,
+            });
             continue;
         }
 
-        let mut row_end = csv_current_position(byte, line, column);
+        let mut row_end = csv_current_position(byte, line, column, source.byte_offset_base);
+        let mut record_ending = None;
         if byte < bytes.len() && matches!(bytes[byte], b'\r' | b'\n') {
-            advance_csv_projection_cursor(source, &mut byte, &mut line, &mut column);
-            row_end = csv_current_position(byte, line, column);
+            let record_ending_start =
+                csv_current_position(byte, line, column, source.byte_offset_base);
+            advance_csv_projection_cursor(text, &mut byte, &mut line, &mut column);
+            row_end = csv_current_position(byte, line, column, source.byte_offset_base);
+            record_ending = Some(CsvSourceRange {
+                start: record_ending_start,
+                end: row_end,
+            });
         }
 
         records.push(CsvProjectedRecord {
@@ -723,6 +793,7 @@ fn csv_scan_projected_records(source: &str) -> Vec<CsvProjectedRecord> {
                 start: row_start,
                 end: row_end,
             },
+            record_ending,
             fields,
         });
 
@@ -731,56 +802,58 @@ fn csv_scan_projected_records(source: &str) -> Vec<CsvProjectedRecord> {
         }
 
         row_index += 1;
-        row_start = csv_current_position(byte, line, column);
+        row_start = csv_current_position(byte, line, column, source.byte_offset_base);
         fields = Vec::new();
+        delimiter_before = None;
     }
 
     records
 }
 
 fn csv_scan_projected_field(
-    source: &str,
+    source: &CsvDecodedSource,
     byte: &mut usize,
     line: &mut u32,
     column: &mut u32,
 ) -> CsvProjectedField {
-    let bytes = source.as_bytes();
-    let start = csv_current_position(*byte, *line, *column);
+    let text = source.text.as_str();
+    let bytes = text.as_bytes();
+    let start = csv_current_position(*byte, *line, *column, source.byte_offset_base);
     let mut value = String::new();
     let mut quoted = false;
 
     if *byte < bytes.len() && bytes[*byte] == b'"' {
         quoted = true;
-        advance_csv_projection_cursor(source, byte, line, column);
+        advance_csv_projection_cursor(text, byte, line, column);
         while *byte < bytes.len() {
             if bytes[*byte] == b'"' {
                 if bytes.get(*byte + 1) == Some(&b'"') {
                     value.push('"');
-                    advance_csv_projection_cursor(source, byte, line, column);
-                    advance_csv_projection_cursor(source, byte, line, column);
+                    advance_csv_projection_cursor(text, byte, line, column);
+                    advance_csv_projection_cursor(text, byte, line, column);
                     continue;
                 }
-                advance_csv_projection_cursor(source, byte, line, column);
+                advance_csv_projection_cursor(text, byte, line, column);
                 break;
             }
 
-            let Some(ch) = source.get(*byte..).and_then(|tail| tail.chars().next()) else {
+            let Some(ch) = text.get(*byte..).and_then(|tail| tail.chars().next()) else {
                 break;
             };
             value.push(ch);
-            advance_csv_projection_cursor(source, byte, line, column);
+            advance_csv_projection_cursor(text, byte, line, column);
         }
 
         while *byte < bytes.len() && !matches!(bytes[*byte], b',' | b'\r' | b'\n') {
-            advance_csv_projection_cursor(source, byte, line, column);
+            advance_csv_projection_cursor(text, byte, line, column);
         }
     } else {
         while *byte < bytes.len() && !matches!(bytes[*byte], b',' | b'\r' | b'\n') {
-            let Some(ch) = source.get(*byte..).and_then(|tail| tail.chars().next()) else {
+            let Some(ch) = text.get(*byte..).and_then(|tail| tail.chars().next()) else {
                 break;
             };
             value.push(ch);
-            advance_csv_projection_cursor(source, byte, line, column);
+            advance_csv_projection_cursor(text, byte, line, column);
         }
     }
 
@@ -789,8 +862,9 @@ fn csv_scan_projected_field(
         quoted,
         range: CsvSourceRange {
             start,
-            end: csv_current_position(*byte, *line, *column),
+            end: csv_current_position(*byte, *line, *column, source.byte_offset_base),
         },
+        delimiter_before: None,
     }
 }
 
@@ -824,11 +898,16 @@ fn advance_csv_projection_cursor(source: &str, byte: &mut usize, line: &mut u32,
     }
 }
 
-fn csv_current_position(byte: usize, line: u32, column: u32) -> CsvSourcePosition {
+fn csv_current_position(
+    byte: usize,
+    line: u32,
+    column: u32,
+    byte_offset_base: u64,
+) -> CsvSourcePosition {
     CsvSourcePosition {
         line,
         column,
-        byte_offset: byte as u64,
+        byte_offset: byte_offset_base + byte as u64,
     }
 }
 
@@ -848,6 +927,25 @@ fn csv_range_byte_length(range: CsvSourceRange) -> u64 {
         .end
         .byte_offset
         .saturating_sub(range.start.byte_offset)
+}
+
+fn csv_source_map_value(range: CsvSourceRange) -> serde_json::Value {
+    json!({
+        "frames": [{
+            "source_id": 1,
+            "span": {
+                "kind": "Single",
+                "ranges": {
+                    "start": range.start.byte_offset,
+                    "len": u32::try_from(csv_range_byte_length(range)).unwrap_or(u32::MAX),
+                },
+            },
+            "transform": {
+                "kind": "ContentTypeTransform",
+                "content_type": CSV_CONTENT_TYPE,
+            },
+        }],
+    })
 }
 
 fn csv_source_value(
@@ -1204,8 +1302,11 @@ fn csv_position_line(position: Option<&csv::Position>) -> Option<u32> {
     position.and_then(|position| u32::try_from(position.line()).ok())
 }
 
-fn csv_position_byte_offset(position: Option<&csv::Position>) -> Option<u64> {
-    position.map(csv::Position::byte)
+fn csv_position_byte_offset(
+    position: Option<&csv::Position>,
+    byte_offset_base: u64,
+) -> Option<u64> {
+    position.map(|position| byte_offset_base + position.byte())
 }
 
 fn csv_normalized_parameter(value: &str) -> String {
@@ -1360,6 +1461,60 @@ mod tests {
                 "{name}"
             );
         }
+    }
+
+    #[test]
+    fn csv_table_projection_skips_utf8_bom_content_and_preserves_offsets() {
+        let bytes = b"\xEF\xBB\xBFid,name,active\n1,Ada,true\n";
+        let (table, diagnostics) = csv_table_value_from_source_bytes(CsvSourceValidationRequest {
+            bytes,
+            source_uri: "memory://bom.csv",
+            content_type: Some("text/csv"),
+        });
+
+        assert!(
+            diagnostics.is_empty(),
+            "UTF-8 BOM should not produce CSV diagnostics: {diagnostics:#?}"
+        );
+        let table = table.expect("valid BOM CSV projects table data");
+        assert_eq!(table["source"]["byteLength"], bytes.len());
+
+        let rows = table["rows"].as_array().expect("rows array");
+        assert_eq!(rows[0]["byteOffset"], 3);
+        assert_eq!(rows[0]["sourceRange"]["byteOffset"], 3);
+        assert_eq!(rows[0]["sourceRange"]["line"], 1);
+        assert_eq!(rows[0]["sourceRange"]["column"], 1);
+        assert_eq!(rows[0]["fields"][0]["value"], "id");
+        assert_eq!(rows[0]["fields"][0]["byteOffset"], 3);
+        assert_eq!(rows[0]["fields"][0]["byteLength"], 2);
+        assert_eq!(rows[0]["fields"][0]["sourceRange"]["byteOffset"], 3);
+        assert_eq!(
+            rows[0]["fields"][0]["sourceMap"]["frames"][0]["source_id"],
+            1
+        );
+        assert_eq!(
+            rows[0]["fields"][0]["sourceMap"]["frames"][0]["span"]["ranges"]["start"],
+            3
+        );
+        assert_eq!(
+            rows[0]["fields"][0]["sourceMap"]["frames"][0]["span"]["ranges"]["len"],
+            2
+        );
+        assert_eq!(rows[0]["fields"][1]["value"], "name");
+        assert_eq!(rows[0]["fields"][1]["byteOffset"], 6);
+        assert_eq!(
+            rows[0]["fields"][1]["delimiterBeforeSourceRange"]["byteOffset"],
+            5
+        );
+        assert_eq!(
+            rows[0]["fields"][1]["delimiterBeforeSourceMap"]["frames"][0]["span"]["ranges"]
+                ["start"],
+            5
+        );
+        assert_eq!(
+            rows[0]["recordEndingSourceMap"]["frames"][0]["span"]["ranges"]["start"],
+            17
+        );
     }
 
     #[test]

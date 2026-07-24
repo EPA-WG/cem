@@ -18340,7 +18340,7 @@ fn validate_writer_token_stream_value(value: &Value) -> Result<(), String> {
         if let Some(style) = object.get("style") {
             validate_writer_token_style(style, &format!("tokens[{index}].style"))?;
         }
-        if let Some(output_span) = object.get("outputSpan") {
+        if let Some(output_span) = object.get("outputSpan").filter(|value| !value.is_null()) {
             serde_json::from_value::<OutputSpan>(output_span.clone()).map_err(|error| {
                 format!("`tokens[{index}].outputSpan` is not a valid output span: {error}")
             })?;
@@ -33047,6 +33047,21 @@ mod tests {
             TRANSFORM_TEMPLATE_ENCODED_ARTIFACT_VALUE_TYPE_CODE
         );
         assert!(token_error.message().contains("tokens[0].kind"));
+
+        let null_token_span = TransformTemplateEncodedArtifact::new(
+            TransformTemplateEncodedArtifactIdentity::new(
+                TransformTemplateOutputProducedKind::Tokens,
+                target.clone(),
+            ),
+            json!({"tokens": [{"kind": "syntax.text", "text": "x", "outputSpan": null}]}),
+        );
+        null_token_span
+            .validate_insertion(
+                &TransformTemplateEncodedArtifactInsertionContext::from_encoded_artifact_identity(
+                    &null_token_span.identity,
+                ),
+            )
+            .expect("null optional token output span is treated as absent");
 
         let invalid_token_span = TransformTemplateEncodedArtifact::new(
             TransformTemplateEncodedArtifactIdentity::new(

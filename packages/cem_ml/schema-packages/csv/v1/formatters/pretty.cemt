@@ -531,6 +531,12 @@
                     kind: "csv.record-ending",
                     writerKind: "token",
                     text: match($lineEnding, { crlf: "\r\n", default: "\n" }),
+                    outputSpan: match(exists($item.recordEndingSourceMap), {
+                        true: call("csv.format-document.output-span", {
+                            sourceMap: $item.recordEndingSourceMap
+                        }),
+                        false: null
+                    }),
                     role: "syntax.punctuation",
                     value: {
                         rowIndex: $index,
@@ -557,6 +563,22 @@
         }
     }
 
+    {function @name="csv.format-document.output-span" @visibility="private" @returns="json" @deterministic=true |
+        {param @name="sourceMap" @type="json" @required=true}
+        {body |
+            {$ match(typeOf($sourceMap), {
+                null: null,
+                default: {
+                    outputRange: {
+                        start: 0,
+                        len: 0
+                    },
+                    origin: $sourceMap
+                }
+            }) }
+        }
+    }
+
     {function @name="csv.format-document.row-tokens" @visibility="private" @returns="array" @deterministic=true |
         {param @name="row" @type="object" @required=true}
         {param @name="rowIndex" @type="integer" @required=true}
@@ -572,6 +594,12 @@
                             kind: "csv.delimiter",
                             writerKind: "token",
                             text: ",",
+                            outputSpan: match(exists($item.delimiterBeforeSourceMap), {
+                                true: call("csv.format-document.output-span", {
+                                    sourceMap: $item.delimiterBeforeSourceMap
+                                }),
+                                false: null
+                            }),
                             role: "syntax.punctuation",
                             value: {
                                 rowIndex: $rowIndex,
@@ -608,6 +636,12 @@
                     fieldIndex: $fieldIndex,
                     profile: $profile,
                     plan: $plan
+                }),
+                outputSpan: match(exists($field.sourceMap), {
+                    true: call("csv.format-document.output-span", {
+                        sourceMap: $field.sourceMap
+                    }),
+                    false: null
                 }),
                 role: "syntax.string",
                 value: {
