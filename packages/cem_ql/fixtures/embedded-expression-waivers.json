@@ -11,17 +11,6 @@
       }
     },
     {
-      "id": "schema-package-cem-dom-projection-v1-legacy-test-syntax",
-      "owner": "schema-package:cem-dom-projection/v1",
-      "reason": "The dom-to-html converter still contains XPath-style predicate syntax such as single-equals comparison and `and`, which the Rust-first parser correctly rejects before runtime fixture evaluation.",
-      "removalCondition": "Remove after dom-to-html converter tests use Rust-first CEM-QL syntax and are covered by representative node/attribute functional fixtures.",
-      "scope": {
-        "sourcePath": "packages/cem_ml/schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt",
-        "hostKind": "test-attribute",
-        "sourceContains": " and "
-      }
-    },
-    {
       "id": "schema-package-cem-dom-projection-v1-cemt-body-bindings",
       "owner": "schema-package:cem-dom-projection/v1",
       "reason": "The dom-to-html converter body expressions still contain CEMT-render host bindings and template-call data flow that need the transform-template runtime, not only standalone CEM-QL policy bindings.",

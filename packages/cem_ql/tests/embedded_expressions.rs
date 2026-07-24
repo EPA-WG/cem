@@ -402,7 +402,7 @@ fn compiler_audit_rejects_old_xpath_boolean_syntax_with_source_provenance() {
 }
 
 #[test]
-fn repository_compile_audit_runs_parsable_expressions_and_flags_stale_syntax() {
+fn repository_compile_audit_runs_parsable_expressions_and_keeps_dom_converter_migrated() {
     let reports = compile_repository_embedded_expressions(workspace_root())
         .expect("repository compile audit reports");
     assert!(
@@ -414,50 +414,43 @@ fn repository_compile_audit_runs_parsable_expressions_and_flags_stale_syntax() {
         !report.parse_succeeded || (report.resolve_ran && report.type_check_ran)
     }));
 
-    let stale_report = reports
+    let dom_predicate_report = reports
         .iter()
         .find(|report| {
             report.expression.source_path().ends_with(
                 "packages/cem_ml/schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt",
-            ) && report.expression.source.contains(" and ")
+            ) && report.expression.source
+                == r#"node.kind == "element" && str:starts_with(node.name, "@")"#
         })
-        .expect("dom-to-html fixture should still expose stale XPath boolean syntax");
+        .expect("dom-to-html fixture keeps the migrated Rust-first element predicate");
     assert!(
-        stale_report
-            .diagnostics_for_stage(EmbeddedCompileStage::Parse)
-            .any(|diagnostic| diagnostic.diagnostic.code == "cem.ql.use_rust_boolean_ops"),
-        "{stale_report:#?}"
+        dom_predicate_report.parse_succeeded,
+        "{dom_predicate_report:#?}"
     );
-    assert!(stale_report.hard_diagnostics().all(|diagnostic| {
-        diagnostic.source_byte_offset.is_some()
-            && diagnostic.diagnostic.uri.as_deref().is_some_and(|uri| {
-                uri.ends_with(
-                    "packages/cem_ml/schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt",
-                )
-        })
-    }));
+    assert!(
+        reports.iter().all(|report| {
+            !report.expression.source_path().ends_with(
+                "packages/cem_ml/schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt",
+            ) || !report.expression.source.contains(" and ")
+        }),
+        "checked-in dom-to-html converter should not retain XPath-style `and` syntax"
+    );
 }
 
 #[test]
-fn checked_in_stale_xpath_expression_reports_exact_source_file_and_byte_range() {
+fn checked_in_dom_converter_expression_reports_exact_source_file_and_byte_range() {
     let source_path = Path::new(
         "packages/cem_ml/schema-packages/cem-dom-projection/v1/converters/dom-to-html.cemt",
     );
-    let stale_source = r#"node.kind = "element" and str:starts_with(node.name, "@")"#;
-    let host_source = format!("'{stale_source}'");
+    let expression_source = r#"node.kind == "element" && str:starts_with(node.name, "@")"#;
+    let host_source = format!("'{expression_source}'");
     let checked_in_source = std::fs::read_to_string(workspace_root().join(source_path))
         .expect("checked-in dom-to-html CEMT fixture");
     let expected_host_start = checked_in_source
         .find(&host_source)
-        .expect("checked-in fixture keeps the stale XPath-style @test expression")
+        .expect("checked-in fixture keeps the migrated Rust-first @test expression")
         as u64;
     let expected_expression_start = expected_host_start + 1;
-    let expected_boolean_operator_offset = stale_source
-        .find("and")
-        .expect("stale expression contains XPath `and` operator")
-        as u64;
-    let expected_source_diagnostic_offset =
-        expected_expression_start + expected_boolean_operator_offset;
 
     let reports = compile_repository_embedded_expressions(workspace_root())
         .expect("repository compile audit reports");
@@ -466,9 +459,9 @@ fn checked_in_stale_xpath_expression_reports_exact_source_file_and_byte_range() 
         .find(|report| {
             report.expression.source_path() == source_path
                 && report.expression.host_kind() == EmbeddedHostKind::TestAttribute
-                && report.expression.source == stale_source
+                && report.expression.source == expression_source
         })
-        .expect("repository audit report for checked-in stale XPath-style expression");
+        .expect("repository audit report for checked-in Rust-first expression");
 
     assert_eq!(report.expression.source_path(), source_path);
     assert_eq!(report.expression.host_range().start, expected_host_start);
@@ -479,30 +472,12 @@ fn checked_in_stale_xpath_expression_reports_exact_source_file_and_byte_range() 
     );
     assert_eq!(
         report.expression.expression_range().len,
-        stale_source.len() as u32
+        expression_source.len() as u32
     );
-    assert!(!report.parse_succeeded, "{report:#?}");
-
-    let diagnostic = report
-        .diagnostics_for_stage(EmbeddedCompileStage::Parse)
-        .find(|diagnostic| diagnostic.diagnostic.code == "cem.ql.use_rust_boolean_ops")
-        .expect("XPath `and` must map to the Rust-first boolean diagnostic");
-    assert_eq!(
-        diagnostic.local_byte_offset,
-        Some(expected_boolean_operator_offset)
-    );
-    assert_eq!(
-        diagnostic.source_byte_offset,
-        Some(expected_source_diagnostic_offset)
-    );
-    assert_eq!(
-        diagnostic.diagnostic.byte_offset,
-        Some(expected_source_diagnostic_offset)
-    );
-    assert_eq!(
-        diagnostic.diagnostic.uri.as_deref(),
-        Some(source_path.to_string_lossy().as_ref())
-    );
+    assert!(report.parse_succeeded, "{report:#?}");
+    assert!(report.resolve_ran, "{report:#?}");
+    assert!(report.type_check_ran, "{report:#?}");
+    assert!(!report.has_hard_diagnostics(), "{report:#?}");
 }
 
 #[test]
@@ -541,7 +516,7 @@ fn explicit_functional_waivers_are_well_scoped_and_owned() {
     let waivers = embedded_functional_waivers();
 
     assert!(
-        waivers.len() >= 6,
+        waivers.len() >= 5,
         "expected concrete waivers for known embedded audit gaps, got {waivers:#?}"
     );
     let errors = validate_embedded_functional_waivers(&waivers, &expressions);
@@ -552,7 +527,6 @@ fn explicit_functional_waivers_are_well_scoped_and_owned() {
         .map(|waiver| waiver.id.as_str())
         .collect::<BTreeSet<_>>();
     assert!(ids.contains("schema-package-csv-v1-cemt-helper-dsl"));
-    assert!(ids.contains("schema-package-cem-dom-projection-v1-legacy-test-syntax"));
     assert!(ids.contains("schema-package-schema-v1-behavior-runtime"));
     assert!(ids.contains("custom-element-material-importmap-external-resources"));
     assert!(waivers.iter().all(|waiver| {
@@ -592,12 +566,12 @@ fn embedded_expression_audit_gate_runs_compile_fixtures_and_waivers() {
         "all parsable expressions must reach resolver and type checker"
     );
     assert!(
-        compile_reports.iter().any(|report| {
-            report
+        compile_reports.iter().all(|report| {
+            !report
                 .diagnostics_for_stage(EmbeddedCompileStage::Parse)
                 .any(|diagnostic| diagnostic.diagnostic.code == "cem.ql.use_rust_boolean_ops")
         }),
-        "audit gate must retain stale XPath-style syntax failures until sources are migrated"
+        "checked-in embedded expressions must stay on Rust-first boolean syntax"
     );
 
     let fixture_reports =

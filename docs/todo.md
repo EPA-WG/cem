@@ -138,8 +138,8 @@ then decide whether the remaining `cem-ql/v1` package checklist item can close.
       fixtures. Duplicate explicit import aliases and same-scope declarations
       now report hard schema-owned diagnostics before resolver/type/artifact
       stages.
-- [ ] Decide and implement the remaining CEM-QL semantic fixtures:
-      type-error placeholders and compiled artifact/cache identity.
+- [ ] Decide and implement the remaining CEM-QL semantic fixture:
+      compiled artifact/cache identity.
   - [x] Decide denied/unresolved import semantics and CEM-ML resolver-policy
         ownership, including explicit substitution versus implicit fallback.
   - [x] Implement import-policy resolution diagnostics on CEM-QL validate and
@@ -147,7 +147,7 @@ then decide whether the remaining `cem-ql/v1` package checklist item can close.
         external imports.
   - [x] Add the CEM-QL unresolved-import package example, manifest declaration,
         schema diagnostic binding, README coverage, and focused tests.
-  - [ ] Decide and implement type-error placeholder fixture semantics.
+  - [x] Decide and implement type-error placeholder fixture semantics.
   - [ ] Decide and implement compiled artifact/cache identity fixture semantics.
 - [x] Extend package-local verify coverage so CEM-QL fails on direct engine
       conversion regressions, README/SVG drift, formatter profile drift, HTML
@@ -213,9 +213,9 @@ Remaining dependency-ordered package checklist:
 ### Next Work Item
 
 Resolve the remaining CEM-QL example coverage decision point: choose concrete
-source/diagnostic semantics for type-error fixtures and compiled
-artifact/cache identity. Then add the examples and manifest declarations,
-update package verification, and re-run `cem_ml_schema_package_cem_ql_v1:verify`.
+source/diagnostic semantics for compiled artifact/cache identity. Then add the
+example and manifest declaration, update package verification, and re-run
+`cem_ml_schema_package_cem_ql_v1:verify`.
 
 ## Current Verification Commands
 

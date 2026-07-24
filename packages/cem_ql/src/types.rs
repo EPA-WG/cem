@@ -1,17 +1,18 @@
 //! Layer 4: static type checker.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use cem_ml::diagnostics::{Diagnostic, Severity};
 use cem_ml::source::ByteRange;
+use serde_json::json;
 
 use crate::diagnostics::{
     self as ql_diagnostics, DiagnosticCode, CROSS_TYPE_COMPARE, TYPE_ERROR, UNKNOWN_FUNCTION,
     UNKNOWN_TYPE, UNKNOWN_VARIABLE,
 };
 use crate::parser::{
-    BinaryOp, Expression, FunctionDecl, FunctionParam, LiteralValue, PathStep, PipelineStep, QName,
-    SurfaceModule, SurfaceNode, TypeExpr, UnaryOp, VariableDecl,
+    BinaryOp, Expression, FunctionDecl, FunctionParam, ImportDecl, LiteralValue, PathStep,
+    PipelineStep, QName, SurfaceModule, SurfaceNode, TypeExpr, UnaryOp, VariableDecl,
 };
 use crate::resolve::{Arity, QNameKey, SchemaTypeId};
 
@@ -222,6 +223,7 @@ pub struct TypeChecker {
     pub config: TyConfig,
     pub schemas: SchemaTypeRegistry,
     pub functions: HashMap<FunctionSignatureKey, FunctionSignature>,
+    imported_prefixes: BTreeSet<String>,
     scopes: Vec<HashMap<QNameKey, Type>>,
     diagnostics: Vec<Diagnostic>,
 }
@@ -232,6 +234,7 @@ impl Default for TypeChecker {
             config: TyConfig::default(),
             schemas: SchemaTypeRegistry::default(),
             functions: HashMap::new(),
+            imported_prefixes: BTreeSet::new(),
             scopes: vec![HashMap::new()],
             diagnostics: Vec::new(),
         }
@@ -256,6 +259,16 @@ impl TypeChecker {
 
     pub fn register_function(&mut self, signature: FunctionSignature) {
         self.functions.insert(signature.key(), signature);
+    }
+
+    pub fn seed_runtime_import_surface(&mut self, module: &SurfaceModule) {
+        self.register_default_stdlib_aliases();
+        self.register_bare_stdlib_helpers();
+        for node in &module.nodes {
+            if let SurfaceNode::Import(import) = node {
+                self.register_import_surface(import);
+            }
+        }
     }
 
     pub fn declare_variable(&mut self, name: QNameKey, ty: Type) {
@@ -371,6 +384,9 @@ impl TypeChecker {
         match expr {
             Expression::Literal(value, _) => self.infer_literal(value),
             Expression::Name(name, range) => self.lookup_variable(name).unwrap_or_else(|| {
+                if self.is_imported_name(name) {
+                    return Type::Any;
+                }
                 self.emit(
                     UNKNOWN_VARIABLE,
                     format!(
@@ -401,7 +417,7 @@ impl TypeChecker {
                 range,
             } => {
                 let cond_ty = self.infer_expression(cond);
-                self.expect_subtype(&cond_ty, &boolean_type(), cond.range());
+                self.expect_subtype_for(&cond_ty, &boolean_type(), cond.range(), "if-condition");
                 let then_ty = self.infer_expression(then_branch);
                 let else_ty = self.infer_expression(else_branch);
                 self.common_type(&then_ty, &else_ty).unwrap_or_else(|| {
@@ -556,10 +572,19 @@ impl TypeChecker {
         for step in steps {
             current = match step {
                 PipelineStep::Named { name, args, range } => {
+                    let any_receiver = current.is_any();
                     let mut all_args = Vec::with_capacity(args.len() + 1);
                     all_args.push(current);
                     all_args.extend(args.iter().map(|arg| self.infer_expression(arg)));
-                    self.call_named(name, &all_args, *range)
+                    if any_receiver
+                        && self
+                            .lookup_function_signature(name, all_args.len())
+                            .is_none()
+                    {
+                        Type::Any
+                    } else {
+                        self.call_named(name, &all_args, *range)
+                    }
                 }
                 PipelineStep::Lambda { lambda, .. } => {
                     self.infer_expression(lambda);
@@ -608,8 +633,12 @@ impl TypeChecker {
             }
             BinaryOp::Minus => self.infer_minus(&lhs_ty, &rhs_ty, range),
             BinaryOp::Is => {
-                self.expect_subtype(&lhs_ty, &Type::Node(NodeKind::Node), lhs.range());
-                self.expect_subtype(&rhs_ty, &Type::Node(NodeKind::Node), rhs.range());
+                if !lhs_ty.is_any() {
+                    self.expect_subtype(&lhs_ty, &Type::Node(NodeKind::Node), lhs.range());
+                }
+                if !rhs_ty.is_any() {
+                    self.expect_subtype(&rhs_ty, &Type::Node(NodeKind::Node), rhs.range());
+                }
                 boolean_type()
             }
             BinaryOp::Coalesce => {
@@ -732,25 +761,13 @@ impl TypeChecker {
     fn infer_set(&mut self, lhs: &Expression, rhs: &Expression, range: ByteRange) -> Type {
         let lhs_ty = self.infer_expression(lhs);
         let rhs_ty = self.infer_expression(rhs);
-        let lhs_item = stream_item_type(&lhs_ty);
-        let rhs_item = stream_item_type(&rhs_ty);
-        match (lhs_item, rhs_item) {
-            (Some(left), Some(right)) => {
-                Type::stream(self.common_type(&left, &right).unwrap_or_else(|| {
-                    self.warn_cross_type_compare(&left, &right, range);
-                    Type::Any
-                }))
-            }
-            _ if lhs_ty.is_any() || rhs_ty.is_any() => Type::Any,
-            _ => {
-                self.emit(
-                    TYPE_ERROR,
-                    format!("set operators require streams, got `{lhs_ty:?}` and `{rhs_ty:?}`"),
-                    range,
-                );
-                Type::Any
-            }
-        }
+        let lhs_item = set_operand_item_type(&lhs_ty);
+        let rhs_item = set_operand_item_type(&rhs_ty);
+
+        Type::stream(self.common_type(&lhs_item, &rhs_item).unwrap_or_else(|| {
+            self.warn_cross_type_compare(&lhs_item, &rhs_item, range);
+            Type::Any
+        }))
     }
 
     fn infer_call(&mut self, callee: &Expression, args: &[Expression], range: ByteRange) -> Type {
@@ -777,11 +794,10 @@ impl TypeChecker {
     }
 
     fn call_named(&mut self, name: &QName, args: &[Type], range: ByteRange) -> Type {
-        let key = FunctionSignatureKey {
-            name: QNameKey::from_qname(name),
-            arity: Arity(args.len().try_into().unwrap_or(u32::MAX)),
-        };
-        let Some(signature) = self.functions.get(&key).cloned() else {
+        let Some(signature) = self.lookup_function_signature(name, args.len()) else {
+            if self.is_imported_name(name) {
+                return Type::Any;
+            }
             self.emit(
                 UNKNOWN_FUNCTION,
                 format!(
@@ -797,6 +813,15 @@ impl TypeChecker {
         signature.ret
     }
 
+    fn lookup_function_signature(&self, name: &QName, arity: usize) -> Option<FunctionSignature> {
+        self.functions
+            .get(&FunctionSignatureKey {
+                name: QNameKey::from_qname(name),
+                arity: Arity(arity.try_into().unwrap_or(u32::MAX)),
+            })
+            .cloned()
+    }
+
     fn check_call_args(&mut self, params: &[Type], args: &[Type], range: ByteRange) {
         for (actual, expected) in args.iter().zip(params) {
             self.expect_subtype(actual, expected, range);
@@ -810,6 +835,9 @@ impl TypeChecker {
         }
         if let Some(schema_id) = self.schemas.resolve(&key) {
             return Type::SchemaElement(schema_id);
+        }
+        if self.is_imported_key(&key) {
+            return Type::Any;
         }
         self.emit(
             UNKNOWN_TYPE,
@@ -828,13 +856,28 @@ impl TypeChecker {
     }
 
     fn expect_subtype(&mut self, actual: &Type, expected: &Type, range: ByteRange) -> bool {
+        self.expect_subtype_for(actual, expected, range, "subtype-check")
+    }
+
+    fn expect_subtype_for(
+        &mut self,
+        actual: &Type,
+        expected: &Type,
+        range: ByteRange,
+        expression_kind: &'static str,
+    ) -> bool {
+        if actual.is_any() {
+            return true;
+        }
         if actual.is_subtype_of(expected, &self.schemas) {
             return true;
         }
-        self.emit(
-            TYPE_ERROR,
+        self.emit_type_error(
             format!("type `{actual:?}` is not a subtype of `{expected:?}`"),
             range,
+            expression_kind,
+            Some(actual),
+            Some(expected),
         );
         false
     }
@@ -881,8 +924,109 @@ impl TypeChecker {
         let Some(severity) = self.config.severity_for(code) else {
             return;
         };
-        self.diagnostics
-            .push(diagnostic(code, message, range, severity));
+        let mut diagnostic = diagnostic(code, message, range, severity);
+        if code == TYPE_ERROR {
+            diagnostic.details = Some(type_error_details("static-expression", None, None, range));
+        }
+        self.diagnostics.push(diagnostic);
+    }
+
+    fn emit_type_error(
+        &mut self,
+        message: impl Into<String>,
+        range: ByteRange,
+        expression_kind: &'static str,
+        actual: Option<&Type>,
+        expected: Option<&Type>,
+    ) {
+        let Some(severity) = self.config.severity_for(TYPE_ERROR) else {
+            return;
+        };
+        let mut diagnostic = diagnostic(TYPE_ERROR, message, range, severity);
+        diagnostic.details = Some(type_error_details(expression_kind, actual, expected, range));
+        self.diagnostics.push(diagnostic);
+    }
+
+    fn register_import_surface(&mut self, import: &ImportDecl) {
+        let Some(alias) = import.alias.as_deref() else {
+            return;
+        };
+        self.imported_prefixes.insert(alias.to_owned());
+        if import.uri.starts_with("cem:stdlib/") {
+            self.register_stdlib_module_alias(alias, &import.uri);
+        }
+    }
+
+    fn register_default_stdlib_aliases(&mut self) {
+        for (alias, module) in [
+            ("seq", "cem:stdlib/sequence"),
+            ("str", "cem:stdlib/strings"),
+            ("num", "cem:stdlib/numbers"),
+            ("dt", "cem:stdlib/datetime"),
+            ("dom", "cem:stdlib/dom"),
+            ("report", "cem:stdlib/report"),
+            ("state", "cem:stdlib/state"),
+            ("tpl", "cem:stdlib/template"),
+            ("cemml", "cem:stdlib/cemml"),
+            ("ct", "cem:stdlib/content-types"),
+            ("user", "cem:stdlib/user"),
+        ] {
+            self.imported_prefixes.insert(alias.to_owned());
+            self.register_stdlib_module_alias(alias, module);
+        }
+    }
+
+    fn register_bare_stdlib_helpers(&mut self) {
+        self.register_function(FunctionSignature {
+            name: QNameKey::new(None, "same_node"),
+            params: vec![Type::Any, Type::Any],
+            ret: boolean_type(),
+        });
+        for function in crate::stdlib::ModuleRegistry::with_all_known().functions {
+            let bare = function.module == "cem:stdlib/sequence"
+                || (function.module == "cem:stdlib/content-types" && function.name == "read");
+            if bare {
+                self.register_any_function(
+                    QNameKey::new(None, function.name),
+                    function.min_arity,
+                    function.max_arity,
+                );
+            }
+        }
+    }
+
+    fn register_stdlib_module_alias(&mut self, alias: &str, module: &str) {
+        for function in crate::stdlib::ModuleRegistry::with_all_known()
+            .functions
+            .into_iter()
+            .filter(|function| function.module == module)
+        {
+            self.register_any_function(
+                QNameKey::new(Some(alias.to_owned()), function.name),
+                function.min_arity,
+                function.max_arity,
+            );
+        }
+    }
+
+    fn register_any_function(&mut self, name: QNameKey, min_arity: u8, max_arity: u8) {
+        for arity in min_arity..=max_arity {
+            self.register_function(FunctionSignature {
+                name: name.clone(),
+                params: vec![Type::Any; arity as usize],
+                ret: Type::Any,
+            });
+        }
+    }
+
+    fn is_imported_name(&self, name: &QName) -> bool {
+        self.is_imported_key(&QNameKey::from_qname(name))
+    }
+
+    fn is_imported_key(&self, key: &QNameKey) -> bool {
+        key.prefix
+            .as_ref()
+            .is_some_and(|prefix| self.imported_prefixes.contains(prefix))
     }
 }
 
@@ -920,6 +1064,10 @@ pub(crate) fn stream_item_type(ty: &Type) -> Option<Type> {
     }
 }
 
+fn set_operand_item_type(ty: &Type) -> Type {
+    stream_item_type(ty).unwrap_or_else(|| ty.clone())
+}
+
 fn can_cast(actual: &Type, expected: &Type) -> bool {
     matches!((actual, expected), (Type::Atom(_), Type::Atom(_)))
         || actual == expected
@@ -947,4 +1095,25 @@ fn diagnostic(
     severity: Severity,
 ) -> Diagnostic {
     ql_diagnostics::spanned(code, message, range, severity)
+}
+
+fn type_error_details(
+    expression_kind: &'static str,
+    actual: Option<&Type>,
+    expected: Option<&Type>,
+    range: ByteRange,
+) -> serde_json::Value {
+    json!({
+        "behavior": "cem-ql-type-report-fact",
+        "factKind": "type-error",
+        "contract": "static-type-check",
+        "phase": "static",
+        "disposition": "artifact-blocking",
+        "recoverable": true,
+        "fatal": false,
+        "expressionKind": expression_kind,
+        "actualType": actual.map(|ty| format!("{ty:?}")),
+        "expectedType": expected.map(|ty| format!("{ty:?}")),
+        "range": range,
+    })
 }

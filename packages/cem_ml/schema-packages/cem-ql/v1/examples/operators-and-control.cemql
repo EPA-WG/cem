@@ -10,7 +10,7 @@ declare let rhs = 3
     let arithmetic = (lhs + rhs, lhs - rhs, lhs * rhs, lhs / rhs, lhs % rhs, -rhs);
     let comparisons = (lhs == rhs, lhs != rhs, lhs > rhs, lhs >= rhs, rhs < lhs, rhs <= lhs);
     let booleans = ((lhs > rhs) && true, false || (rhs == 3), !(lhs == rhs));
-    let type_checks = (lhs is integer, num:double(lhs) as double, treat_as("https://example.test", anyURI));
+    let type_checks = (lhs is integer, num:double(lhs) as double, treat_as("https://example.test" as anyURI, anyURI));
     let sets = (
         (1, 2) | (2, 3),
         (1, 2, 3) & (2, 4),

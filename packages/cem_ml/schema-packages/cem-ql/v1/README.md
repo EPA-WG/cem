@@ -137,6 +137,23 @@ the substituted URI, the import declaration source range, and the resolver
 policy stamp used for compiled artifact identity. If a substitution target is
 missing, the result is still `cem.ql.import_unresolved`.
 
+## Type Check Policy
+
+Static type checks run after parse and import-policy resolution succeed.
+Formatter, colorizer, terminal preview, and HTML preview flows remain passive
+and do not type-check source text.
+
+The default validation and compile profile is strict. A statically provable type
+failure emits `cem.ql.type_error` with `cem-ql-type-report-fact` details and
+blocks compiled artifact emission. The first package-owned type-error fixture
+uses an integer binding in an `if` condition because CEM-QL has no truthiness
+coercion: conditions must be boolean.
+
+Imported-module surfaces and current stdlib helper aliases are treated as
+`Any` until full import/export type signatures are available. This avoids false
+unknown-function cascades while still catching local expression type errors
+whose operands are statically known.
+
 ## Formatter And Preview SDLC
 
 CEM-QL formatter/colorizer changes follow the same lifecycle as CSV and other
@@ -157,11 +174,11 @@ Tracked but not complete:
   streams;
 - schema-owned diagnostic policy execution from parse facts rather than bridge
   logic selecting some `cem.ql.*` codes directly;
-- examples for type errors and compiled artifact/cache validation. Alias
-  content type, line-ending policy, comments/whitespace, invalid UTF-8, token
-  byte-range preservation, duplicate import aliases, unresolved imports, and
-  duplicate declarations now have package examples and focused conversion
-  coverage.
+- examples for compiled artifact/cache validation. Alias content type,
+  line-ending policy, comments/whitespace, invalid UTF-8, token byte-range
+  preservation, duplicate import aliases, unresolved imports, static type
+  errors, and duplicate declarations now have package examples and focused
+  conversion coverage.
 
 ## Resource Model
 
@@ -274,6 +291,7 @@ unchanged, state that explicitly in the change notes.
 | [`invalid-missing-module.cemql`](examples/invalid-missing-module.cemql) | Query source missing the required module URI declaration.                                         | Fail with `cem.ql.module_uri_missing` |
 | [`invalid-old-syntax.cemql`](examples/invalid-old-syntax.cemql)         | XPath boolean spelling rejected with a Rust-first replacement diagnostic.                         | Fail with `cem.ql.use_rust_boolean_ops` |
 | [`invalid-unresolved-import.cemql`](examples/invalid-unresolved-import.cemql) | Unregistered `urn:cem:` module import rejected by import resolution policy.                       | Fail with `cem.ql.import_unresolved` |
+| [`invalid-type-error.cemql`](examples/invalid-type-error.cemql)         | Integer binding used as an `if` condition rejected by strict static type checking.                | Fail with `cem.ql.type_error`       |
 
 The current parser has record literals and stream sequence literals; it does
 not define a separate `[...]` array literal. Arrays enter CEM-QL through host

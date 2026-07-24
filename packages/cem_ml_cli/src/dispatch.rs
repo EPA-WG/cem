@@ -4217,6 +4217,7 @@ fn collect_cem_ql_source_diagnostics(
             continue;
         };
 
+        let mut input_diagnostics = Vec::new();
         let parsed = cem_ql::api::parse(source);
         if !parsed.module.nodes.iter().any(|node| {
             matches!(
@@ -4224,9 +4225,9 @@ fn collect_cem_ql_source_diagnostics(
                 cem_ql::parser::SurfaceNode::Module(module) if !module.uri.trim().is_empty()
             )
         }) {
-            diagnostics.push(cem_ql_module_uri_missing_diagnostic(input));
+            input_diagnostics.push(cem_ql_module_uri_missing_diagnostic(input));
         }
-        diagnostics.extend(
+        input_diagnostics.extend(
             cem_ql::api::resolve_imports(&parsed.module, &cem_ql::resolve::ImportPolicy::new())
                 .into_iter()
                 .map(|mut diagnostic| {
@@ -4234,10 +4235,24 @@ fn collect_cem_ql_source_diagnostics(
                     diagnostic
                 }),
         );
-        diagnostics.extend(parsed.diagnostics.into_iter().map(|mut diagnostic| {
+        input_diagnostics.extend(parsed.diagnostics.into_iter().map(|mut diagnostic| {
             diagnostic.uri = Some(input.uri.clone());
             diagnostic
         }));
+        if !input_diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.severity.is_hard_violation())
+        {
+            input_diagnostics.extend(
+                cem_ql::api::type_check(&parsed.module, &cem_ql::api::CompileContext::default())
+                    .into_iter()
+                    .map(|mut diagnostic| {
+                        diagnostic.uri = Some(input.uri.clone());
+                        diagnostic
+                    }),
+            );
+        }
+        diagnostics.extend(input_diagnostics);
     }
     diagnostics
 }
@@ -15784,6 +15799,42 @@ import "urn:cem:acme/missing" as missing
             .unwrap_or_else(|| panic!("unresolved import diagnostic in {stdout}"));
         assert_eq!(diagnostic["details"]["factKind"], "unresolved-import");
         assert_eq!(diagnostic["details"]["reason"], "registry-miss");
+    }
+
+    #[test]
+    fn validate_cem_ql_source_reports_static_type_errors() {
+        let p = write_fixture(
+            "validate-cem-ql-source-type-error.cemql",
+            r#"module "https://example.test/queries/type-error"
+
+declare let count = 1
+
+if count { "bad" } else { "ok" }"#,
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                "application/vnd.cem.query+cem-ql",
+                "--schema",
+                cem_ml::schema::registry::CEM_QL_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diag| diag["code"] == "cem.ql.type_error")
+            .unwrap_or_else(|| panic!("type error diagnostic in {stdout}"));
+        assert_eq!(diagnostic["details"]["factKind"], "type-error");
+        assert_eq!(diagnostic["details"]["behavior"], "cem-ql-type-report-fact");
+        assert_eq!(diagnostic["details"]["expressionKind"], "if-condition");
     }
 
     #[test]

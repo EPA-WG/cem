@@ -16,6 +16,7 @@ use crate::parser::{Parser, SurfaceModule};
 use crate::resolve::overlay::OverlayMap;
 use crate::resolve::{ImportPolicy, NameResolver};
 use crate::semantic::validate_module_shape;
+use crate::types::{TyConfig, Type, TypeChecker};
 
 #[cfg(any(target_arch = "wasm32", test))]
 mod json_boundary;
@@ -35,6 +36,13 @@ pub fn compile(source: &str, context: &CompileContext) -> Result<CompiledQuery, 
     }
     let import_report = resolve_imports(&parsed.module, &context.import_policy);
     if let Some(diagnostic) = import_report
+        .iter()
+        .find(|diagnostic| diagnostic.severity.is_hard_violation())
+    {
+        return Err(CompileError::diagnostic(diagnostic));
+    }
+    let type_report = type_check(&parsed.module, context);
+    if let Some(diagnostic) = type_report
         .iter()
         .find(|diagnostic| diagnostic.severity.is_hard_violation())
     {
@@ -85,6 +93,16 @@ pub fn resolve_imports(module: &SurfaceModule, import_policy: &ImportPolicy) -> 
         .diagnostics
 }
 
+/// Run strict or profile-configured static type checks for a parsed module.
+pub fn type_check(module: &SurfaceModule, context: &CompileContext) -> Vec<Diagnostic> {
+    let mut checker = TypeChecker::with_config(context.type_config.clone());
+    checker.seed_runtime_import_surface(module);
+    for name in context.policy_bindings.keys() {
+        checker.declare_variable(crate::resolve::QNameKey::new(None, name.clone()), Type::Any);
+    }
+    checker.check_surface_module(module).diagnostics
+}
+
 /// Load a compiled binary artifact by content hash.
 pub fn load(_hash: ContentHash, _ctx: &LoadContext) -> Result<CompiledQuery, LoadError> {
     Err(LoadError::unsupported(
@@ -97,6 +115,7 @@ pub struct CompileContext {
     pub schema_frame: Option<SchemaFrame>,
     pub overlay: OverlayMap,
     pub import_policy: ImportPolicy,
+    pub type_config: TyConfig,
     pub diagnostics: Vec<Diagnostic>,
     pub source_map_base: SourceMapStack,
     pub policy_bindings: BTreeMap<String, ItemStream>,

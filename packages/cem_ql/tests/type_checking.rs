@@ -1,5 +1,5 @@
 use cem_ml::diagnostics::Severity;
-use cem_ql::api::parse;
+use cem_ql::api::{compile, parse, CompileContext};
 use cem_ql::resolve::{Arity, QNameKey, SchemaTypeId};
 use cem_ql::types::{
     AtomType, FunctionSignature, FunctionSignatureKey, NodeKind, RecordField, SchemaTypeInfo,
@@ -49,6 +49,83 @@ fn strict_profile_reports_static_type_errors_as_errors() {
         .diagnostics
         .iter()
         .any(|diag| { diag.code == "cem.ql.type_error" && diag.severity == Severity::Error }));
+}
+
+#[test]
+fn strict_profile_reports_integer_if_conditions_as_type_errors() {
+    let mut checker = TypeChecker::new();
+    let report = check(
+        r#"declare let count = 1
+           if count { "bad" } else { "ok" }"#,
+        &mut checker,
+    );
+
+    let diagnostic = report
+        .diagnostics
+        .iter()
+        .find(|diag| diag.code == "cem.ql.type_error")
+        .unwrap_or_else(|| panic!("expected type error, got {:?}", report.diagnostics));
+    assert_eq!(diagnostic.severity, Severity::Error);
+    assert_eq!(
+        diagnostic
+            .details
+            .as_ref()
+            .and_then(|details| details.get("behavior"))
+            .and_then(serde_json::Value::as_str),
+        Some("cem-ql-type-report-fact")
+    );
+    assert_eq!(
+        diagnostic
+            .details
+            .as_ref()
+            .and_then(|details| details.get("expressionKind"))
+            .and_then(serde_json::Value::as_str),
+        Some("if-condition")
+    );
+}
+
+#[test]
+fn compile_fails_on_static_type_errors_before_artifact_lowering() {
+    let error = compile(
+        r#"module "https://example.test/queries/invalid-type-error"
+
+declare let count = 1
+
+if count { "bad" } else { "ok" }
+"#,
+        &CompileContext::default(),
+    )
+    .unwrap_err();
+    assert_eq!(error.code, "cem.ql.compile_failed");
+    assert!(error.message.contains("cem.ql.type_error"), "{}", error);
+}
+
+#[test]
+fn runtime_import_surface_avoids_unknown_stdlib_and_import_cascades() {
+    let parsed = parse(
+        r#"module "https://example.test/queries/import-surface"
+
+import "cem:stdlib/sequence" as seq
+import "https://example.test/queries/shared" as shared
+
+{
+    let rows = ({ name: "Ada" });
+    let selected = rows.where(fn(row) => row.name == "Ada");
+    (seq:count(selected), any(selected, fn(row) => row.name == "Ada"), shared:value())
+}
+"#,
+    );
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+
+    let mut checker = TypeChecker::new();
+    checker.seed_runtime_import_surface(&parsed.module);
+    let report = checker.check_surface_module(&parsed.module);
+
+    assert!(
+        report.diagnostics.is_empty(),
+        "seeded import surface should avoid false unknowns: {:?}",
+        report.diagnostics
+    );
 }
 
 #[test]
@@ -107,6 +184,25 @@ fn minus_rejects_mixed_numeric_and_stream_operands() {
 }
 
 #[test]
+fn set_operators_promote_singleton_operands_to_streams() {
+    let mut checker = TypeChecker::new();
+    let report = check(r#"(1) | ("1")"#, &mut checker);
+
+    assert!(
+        !report
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "cem.ql.type_error"),
+        "{:?}",
+        report.diagnostics
+    );
+    assert!(report.diagnostics.iter().any(|diag| {
+        diag.code == "cem.ql.cross_type_compare" && diag.severity == Severity::Warning
+    }));
+    assert_eq!(report.root_type, Some(Type::stream(Type::Any)));
+}
+
+#[test]
 fn numeric_operators_require_matching_numeric_types() {
     for source in ["1 + 1.0", "1.0 * 1.0e0", "1 / 1.0e0", "1.0 % 2"] {
         let mut checker = TypeChecker::new();
@@ -151,6 +247,20 @@ fn computed_record_keys_must_type_check_as_strings() {
         .diagnostics
         .iter()
         .any(|diag| diag.code == "cem.ql.type_error"));
+}
+
+#[test]
+fn deferred_any_satisfies_static_expectations_without_hard_type_errors() {
+    let mut checker = TypeChecker::new();
+    checker.declare_variable(QNameKey::new(None, "runtimeKey"), Type::Any);
+    let report = check(r#"{ [runtimeKey]: "Ada" }"#, &mut checker);
+
+    assert!(
+        report.diagnostics.is_empty(),
+        "deferred runtime Any should not fail static subtype checks: {:?}",
+        report.diagnostics
+    );
+    assert_eq!(report.root_type, Some(Type::Any));
 }
 
 #[test]

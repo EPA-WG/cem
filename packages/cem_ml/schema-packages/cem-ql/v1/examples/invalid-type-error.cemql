@@ -1,0 +1,5 @@
+module "https://example.test/queries/invalid-type-error"
+
+declare let count = 1
+
+if count { "bad" } else { "ok" }

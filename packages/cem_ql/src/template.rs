@@ -264,6 +264,7 @@ fn with_embedding_frame(
         schema_frame: ctx.schema_frame.clone(),
         overlay: ctx.overlay.clone(),
         import_policy: ctx.import_policy.clone(),
+        type_config: ctx.type_config.clone(),
         diagnostics: ctx.diagnostics.clone(),
         source_map_base: base,
         policy_bindings: ctx.policy_bindings.clone(),
