@@ -34,8 +34,9 @@ use crate::parser::format;
 use crate::projection;
 use crate::report::{Report, ReportOptionsSnapshot};
 use crate::resolver::{
-    has_uri_scheme, is_windows_drive_path, parse_local_file_uri, ResolveDirection, ResolvePurpose,
-    ResolveRequest, ResolvedRead, ResolverDiagnostic,
+    has_uri_scheme, is_windows_drive_path, parse_local_file_uri, ResolveDirection,
+    ResolvePolicyDecision, ResolvePolicyDiagnostic, ResolvePurpose, ResolveRequest, ResolvedRead,
+    ResolverDiagnostic,
 };
 use crate::run_config::ScopeConfig;
 use crate::schema::document_model::compile_schema_document_model;
@@ -4084,6 +4085,18 @@ fn preflight_template_module_imports(
                 dependency_hash_input.push(0);
                 dependency_hash_input.extend_from_slice(import.uri.as_bytes());
                 dependency_hash_input.push(0);
+                if let Some(normalized_uri) = &module.normalized_uri {
+                    dependency_hash_input.extend_from_slice(normalized_uri.as_bytes());
+                }
+                dependency_hash_input.push(0);
+                if let Some(substituted_uri) = &module.substituted_uri {
+                    dependency_hash_input.extend_from_slice(substituted_uri.as_bytes());
+                }
+                dependency_hash_input.push(0);
+                if let Some(resolver_policy_stamp) = &module.resolver_policy_stamp {
+                    dependency_hash_input.extend_from_slice(resolver_policy_stamp.as_bytes());
+                }
+                dependency_hash_input.push(0);
                 if let Some(content_type) = import
                     .identity
                     .as_ref()
@@ -4140,22 +4153,78 @@ fn preflight_template_module_imports(
     !has_fatal
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
+struct TemplateImportSourceRead {
+    read: ResolvedRead,
+    policy_decision: ResolvePolicyDecision,
+}
+
+#[derive(Debug, Clone)]
+enum TemplateImportReadError {
+    Policy(ResolvePolicyDiagnostic),
+    Resolver {
+        error: ResolverDiagnostic,
+        policy_decision: ResolvePolicyDecision,
+    },
+}
+
+impl TemplateImportReadError {
+    fn source_uri(&self) -> &str {
+        match self {
+            Self::Policy(error) => error.request.uri.as_str(),
+            Self::Resolver {
+                policy_decision, ..
+            } => policy_decision.requested_uri.as_str(),
+        }
+    }
+}
+
+impl std::fmt::Display for TemplateImportReadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Policy(error) => write!(f, "{error}"),
+            Self::Resolver { error, .. } => write!(f, "{error}"),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 struct TemplateImportResolutionDiagnosticKind {
     code: &'static str,
     fact_kind: &'static str,
     contract: &'static str,
-    reason: &'static str,
+    reason: String,
 }
 
 fn template_import_resolution_diagnostic(
     importing_template: &TemplateInput,
     import: &TransformTemplateModuleImport,
     parent_uri: Option<&str>,
-    error: &ResolverDiagnostic,
+    error: &TemplateImportReadError,
 ) -> Diagnostic {
-    let kind = template_import_resolution_diagnostic_kind(import.uri.as_str(), error);
+    let kind = template_import_resolution_diagnostic_kind(error);
     let source_range = import.source_range.map(byte_range_details);
+    let policy_decision = template_import_error_policy_decision(error);
+    let requested_uri = policy_decision
+        .map(|decision| decision.requested_uri.as_str())
+        .unwrap_or_else(|| error.source_uri());
+    let normalized_uri = policy_decision
+        .map(|decision| Value::String(decision.normalized_uri.clone()))
+        .unwrap_or_else(|| Value::String(error.source_uri().trim().to_owned()));
+    let effective_uri = policy_decision
+        .map(|decision| Value::String(decision.effective_uri.clone()))
+        .unwrap_or(Value::Null);
+    let substituted_uri = policy_decision
+        .and_then(|decision| decision.substituted_uri.as_deref())
+        .map(|uri| Value::String(uri.to_owned()))
+        .unwrap_or(Value::Null);
+    let policy_stamp = template_import_error_policy_stamp(error);
+    let resolver_code = template_import_error_resolver_code(error)
+        .map(Value::String)
+        .unwrap_or(Value::Null);
+    let resolver_uri = template_import_error_resolver_uri(error)
+        .map(Value::String)
+        .unwrap_or(Value::Null);
     Diagnostic {
         uri: Some(importing_template.uri.clone()),
         byte_offset: import.source_range.map(|range| range.start),
@@ -4163,7 +4232,7 @@ fn template_import_resolution_diagnostic(
         severity: Severity::Error,
         message: format!(
             "template module import `{}` could not resolve `{}`: {error}",
-            import.alias, import.uri
+            import.alias, requested_uri
         ),
         details: Some(json!({
             "behavior": "cem-template-resolution-fact",
@@ -4172,9 +4241,11 @@ fn template_import_resolution_diagnostic(
             "disposition": "artifact-blocking",
             "recoverable": true,
             "fatal": false,
-            "requestedUri": import.uri.as_str(),
+            "requestedUri": requested_uri,
+            "normalizedUri": normalized_uri,
+            "effectiveUri": effective_uri,
             "resolvedUri": Value::Null,
-            "substitutedUri": Value::Null,
+            "substitutedUri": substituted_uri,
             "importAlias": import.alias.as_str(),
             "parentUri": parent_uri,
             "sourceUri": importing_template.uri.as_str(),
@@ -4186,12 +4257,12 @@ fn template_import_resolution_diagnostic(
                 .identity
                 .as_ref()
                 .and_then(|identity| identity.schema.as_deref()),
-            "scheme": template_import_uri_scheme(import.uri.as_str()),
-            "schemeTier": template_import_scheme_tier(import.uri.as_str()),
-            "reason": kind.reason,
-            "resolverCode": error.code(),
-            "resolverUri": resolver_diagnostic_uri(error),
-            "resolverPolicy": "cem-ml-template-resolver/1",
+            "scheme": template_import_uri_scheme(requested_uri),
+            "schemeTier": template_import_scheme_tier(requested_uri),
+            "reason": kind.reason.as_str(),
+            "resolverCode": resolver_code,
+            "resolverUri": resolver_uri,
+            "resolverPolicy": policy_stamp,
             "cacheStampBehavior": "artifact-blocking-no-cache-key",
             "sourceRange": source_range,
         })),
@@ -4200,39 +4271,117 @@ fn template_import_resolution_diagnostic(
 }
 
 fn template_import_resolution_diagnostic_kind(
-    uri: &str,
-    error: &ResolverDiagnostic,
+    error: &TemplateImportReadError,
 ) -> TemplateImportResolutionDiagnosticKind {
     match error {
-        ResolverDiagnostic::UnsupportedResolver { .. }
-            if uri.starts_with("cem:") || uri.starts_with("urn:cem:") =>
+        TemplateImportReadError::Policy(error) => TemplateImportResolutionDiagnosticKind {
+            code: CEM_TEMPLATE_IMPORT_DENIED_CODE,
+            fact_kind: "denied-import",
+            contract: "external-template-imports-require-resolver-policy",
+            reason: error.reason.clone(),
+        },
+        TemplateImportReadError::Resolver {
+            error: ResolverDiagnostic::UnsupportedResolver { .. },
+            policy_decision,
+        } if policy_decision.substituted_uri.is_some() => TemplateImportResolutionDiagnosticKind {
+            code: CEM_TEMPLATE_IMPORT_UNRESOLVED_CODE,
+            fact_kind: "unresolved-import",
+            contract: "import-target-must-resolve",
+            reason: "substitution-target-missing".to_owned(),
+        },
+        TemplateImportReadError::Resolver {
+            error: ResolverDiagnostic::Io { .. },
+            policy_decision,
+        } if policy_decision.substituted_uri.is_some() => TemplateImportResolutionDiagnosticKind {
+            code: CEM_TEMPLATE_IMPORT_UNRESOLVED_CODE,
+            fact_kind: "unresolved-import",
+            contract: "import-target-must-resolve",
+            reason: "substitution-target-missing".to_owned(),
+        },
+        TemplateImportReadError::Resolver {
+            error: ResolverDiagnostic::UnsupportedResolver { .. },
+            policy_decision,
+        } if policy_decision.requested_uri.starts_with("cem:")
+            || policy_decision.requested_uri.starts_with("urn:cem:") =>
         {
             TemplateImportResolutionDiagnosticKind {
                 code: CEM_TEMPLATE_IMPORT_UNRESOLVED_CODE,
                 fact_kind: "unresolved-import",
                 contract: "import-target-must-resolve",
-                reason: "registry-miss",
+                reason: "registry-miss".to_owned(),
             }
         }
-        ResolverDiagnostic::UnsupportedResolver { .. }
-        | ResolverDiagnostic::NonLocalFileUri { .. }
-        | ResolverDiagnostic::InvalidFileUri { .. } => TemplateImportResolutionDiagnosticKind {
+        TemplateImportReadError::Resolver {
+            error:
+                ResolverDiagnostic::UnsupportedResolver { .. }
+                | ResolverDiagnostic::NonLocalFileUri { .. }
+                | ResolverDiagnostic::InvalidFileUri { .. },
+            policy_decision,
+        } => TemplateImportResolutionDiagnosticKind {
             code: CEM_TEMPLATE_IMPORT_DENIED_CODE,
             fact_kind: "denied-import",
             contract: "external-template-imports-require-resolver-policy",
             reason: match error {
-                ResolverDiagnostic::NonLocalFileUri { .. } => "non-local-file-uri",
-                ResolverDiagnostic::InvalidFileUri { .. } => "invalid-file-uri",
-                _ if template_import_uri_scheme(uri).is_some() => "missing-uri-scheme-grant",
+                TemplateImportReadError::Resolver {
+                    error: ResolverDiagnostic::NonLocalFileUri { .. },
+                    ..
+                } => "non-local-file-uri",
+                TemplateImportReadError::Resolver {
+                    error: ResolverDiagnostic::InvalidFileUri { .. },
+                    ..
+                } => "invalid-file-uri",
+                _ if template_import_uri_scheme(&policy_decision.requested_uri).is_some() => {
+                    "missing-uri-scheme-grant"
+                }
                 _ => "resolver-unsupported",
-            },
+            }
+            .to_owned(),
         },
-        ResolverDiagnostic::Io { .. } => TemplateImportResolutionDiagnosticKind {
+        TemplateImportReadError::Resolver {
+            error: ResolverDiagnostic::Io { .. },
+            ..
+        } => TemplateImportResolutionDiagnosticKind {
             code: CEM_TEMPLATE_IMPORT_UNRESOLVED_CODE,
             fact_kind: "unresolved-import",
             contract: "import-target-must-resolve",
-            reason: "read-failed",
+            reason: "read-failed".to_owned(),
         },
+    }
+}
+
+fn template_import_error_policy_decision(
+    error: &TemplateImportReadError,
+) -> Option<&ResolvePolicyDecision> {
+    match error {
+        TemplateImportReadError::Policy(_) => None,
+        TemplateImportReadError::Resolver {
+            policy_decision, ..
+        } => Some(policy_decision),
+    }
+}
+
+fn template_import_error_policy_stamp(error: &TemplateImportReadError) -> &str {
+    match error {
+        TemplateImportReadError::Policy(error) => error.policy_stamp.as_str(),
+        TemplateImportReadError::Resolver {
+            policy_decision, ..
+        } => policy_decision.policy_stamp.as_str(),
+    }
+}
+
+fn template_import_error_resolver_code(error: &TemplateImportReadError) -> Option<String> {
+    match error {
+        TemplateImportReadError::Policy(_) => None,
+        TemplateImportReadError::Resolver { error, .. } => Some(error.code().to_owned()),
+    }
+}
+
+fn template_import_error_resolver_uri(error: &TemplateImportReadError) -> Option<String> {
+    match error {
+        TemplateImportReadError::Policy(_) => None,
+        TemplateImportReadError::Resolver { error, .. } => {
+            Some(resolver_diagnostic_uri(error).to_owned())
+        }
     }
 }
 
@@ -4276,13 +4425,21 @@ fn read_template_module_import(
     template: &TemplateInput,
     import: &TransformTemplateModuleImport,
     parent_uri: Option<&str>,
-) -> Result<TransformTemplateResolvedModule, ResolverDiagnostic> {
+) -> Result<TransformTemplateResolvedModule, TemplateImportReadError> {
     let content_type_hint = import
         .identity
         .as_ref()
         .and_then(|identity| identity.content_type.as_deref().map(str::to_owned));
-    let read =
-        read_template_import_source(context, template, &import.uri, content_type_hint.as_deref())?;
+    let source_read = read_template_import_source_with_policy(
+        context,
+        template,
+        &import.uri,
+        content_type_hint.as_deref(),
+    )?;
+    let TemplateImportSourceRead {
+        read,
+        policy_decision,
+    } = source_read;
     let mut identity = import.identity.clone();
     if let Some(content_type) = read.content_type.clone() {
         let mut resolved_identity = identity.unwrap_or_default();
@@ -4295,11 +4452,46 @@ fn read_template_module_import(
     Ok(TransformTemplateResolvedModule {
         alias: import.alias.clone(),
         parent_uri: parent_uri.map(str::to_owned),
-        requested_uri: Some(import.uri.clone()),
+        requested_uri: Some(policy_decision.requested_uri),
+        normalized_uri: Some(policy_decision.normalized_uri),
+        substituted_uri: policy_decision.substituted_uri,
+        resolver_policy_stamp: Some(policy_decision.policy_stamp),
         uri: read.uri,
         identity,
         content_hash,
         bytes: read.bytes,
+    })
+}
+
+fn read_template_import_source_with_policy(
+    context: &EngineContext,
+    template: &TemplateInput,
+    import_uri: &str,
+    content_type_hint: Option<&str>,
+) -> Result<TemplateImportSourceRead, TemplateImportReadError> {
+    let mut request =
+        ResolveRequest::new(import_uri, ResolvePurpose::Template, ResolveDirection::Read)
+            .with_base_uri(template.uri.as_str());
+    if let Some(content_type_hint) = content_type_hint {
+        request = request.with_content_type_hint(content_type_hint);
+    }
+    let policy_decision = context
+        .resolver_policy
+        .decide(&request)
+        .map_err(TemplateImportReadError::Policy)?;
+    let read = read_template_import_source(
+        context,
+        template,
+        &policy_decision.effective_uri,
+        content_type_hint,
+    )
+    .map_err(|error| TemplateImportReadError::Resolver {
+        error,
+        policy_decision: policy_decision.clone(),
+    })?;
+    Ok(TemplateImportSourceRead {
+        read,
+        policy_decision,
     })
 }
 
@@ -7052,7 +7244,10 @@ mod tests {
         ConversionPackageArtifactDescriptor, ConversionReadiness, ConversionRegistry,
         ConversionRustFallbackDescriptor, ConversionTemplateDescriptor,
     };
-    use crate::resolver::{ResolverRegistry, ResourceResolver};
+    use crate::resolver::{
+        ResolvePolicyRequestKey, ResolvePolicySubstitution, ResolverPolicy, ResolverRegistry,
+        ResourceResolver,
+    };
     use crate::schema::registry::{
         CEM_SCHEMA_CONTENT_TYPE, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI,
     };
@@ -10443,6 +10638,130 @@ mod tests {
         assert_eq!(details["resolverCode"], "cem.resolver.io");
         assert_eq!(details["reason"], "read-failed");
         assert_eq!(details["schemeTier"], "relative-resource");
+    }
+
+    #[test]
+    fn template_module_preflight_applies_explicit_policy_substitution() {
+        let mut context = context_with_resolver(
+            "cem+vfs",
+            ResolvePurpose::Template,
+            MapReadResolver {
+                entries: vec![(
+                    "cem+vfs://templates/substitute.cem",
+                    br#"{@doc cem-ml 1}
+{module |
+  {template @name="card" @visibility="public" | {body | {span | Substitute}}}
+}"#,
+                    Some("text/cem-ml"),
+                )],
+            },
+        );
+        context.resolver_policy = ResolverPolicy::new().with_substitution(
+            ResolvePolicyRequestKey::new(
+                "ui.cem",
+                ResolvePurpose::Template,
+                ResolveDirection::Read,
+            )
+            .with_base_uri("cem+vfs://templates/main.cem"),
+            ResolvePolicySubstitution::new("substitute.cem", "test-substitution"),
+        );
+        let template = template("cem+vfs://templates/main.cem", b"{main}");
+        let options = TransformTemplateModuleOptions {
+            imports: vec![TransformTemplateModuleImport {
+                alias: "ui".to_owned(),
+                uri: "ui.cem".to_owned(),
+                identity: None,
+                kind: TransformTemplateModuleDependencyKind::Import,
+                source_range: None,
+            }],
+            ..TransformTemplateModuleOptions::default()
+        };
+        let mut diagnostics = Vec::new();
+
+        let preflight = preflight_transform_template_modules(
+            &context,
+            "adapter",
+            &template,
+            &TransformTemplateEntrypoint::implicit(),
+            &options,
+            TransformExecutionPolicy::default(),
+            &mut diagnostics,
+        )
+        .expect("preflight should resolve substituted import");
+
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let resolved = &preflight.resolved_imports[0];
+        assert_eq!(resolved.requested_uri.as_deref(), Some("ui.cem"));
+        assert_eq!(resolved.normalized_uri.as_deref(), Some("ui.cem"));
+        assert_eq!(resolved.substituted_uri.as_deref(), Some("substitute.cem"));
+        assert_eq!(resolved.uri, "cem+vfs://templates/substitute.cem");
+        assert!(resolved
+            .resolver_policy_stamp
+            .as_deref()
+            .is_some_and(|stamp| stamp.contains("substitute.cem")));
+        assert!(preflight
+            .cache_key
+            .expect("cache key")
+            .dependency_graph_hash
+            .starts_with("cem-bin/1+blake3:"));
+    }
+
+    #[test]
+    fn template_module_preflight_reports_unresolved_failed_policy_substitution() {
+        let mut context = context_with_resolver(
+            "cem+vfs",
+            ResolvePurpose::Template,
+            MapReadResolver {
+                entries: Vec::new(),
+            },
+        );
+        context.resolver_policy = ResolverPolicy::new().with_substitution(
+            ResolvePolicyRequestKey::new(
+                "ui.cem",
+                ResolvePurpose::Template,
+                ResolveDirection::Read,
+            )
+            .with_base_uri("cem+vfs://templates/main.cem"),
+            ResolvePolicySubstitution::new("missing.cem", "test-substitution"),
+        );
+        let template = template("cem+vfs://templates/main.cem", b"{main}");
+        let options = TransformTemplateModuleOptions {
+            imports: vec![TransformTemplateModuleImport {
+                alias: "ui".to_owned(),
+                uri: "ui.cem".to_owned(),
+                identity: None,
+                kind: TransformTemplateModuleDependencyKind::Import,
+                source_range: None,
+            }],
+            ..TransformTemplateModuleOptions::default()
+        };
+        let mut diagnostics = Vec::new();
+
+        let preflight = preflight_transform_template_modules(
+            &context,
+            "adapter",
+            &template,
+            &TransformTemplateEntrypoint::implicit(),
+            &options,
+            TransformExecutionPolicy::default(),
+            &mut diagnostics,
+        );
+
+        assert!(preflight.is_none());
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diag| diag.code == CEM_TEMPLATE_IMPORT_UNRESOLVED_CODE)
+            .unwrap_or_else(|| panic!("expected unresolved import diagnostic: {diagnostics:?}"));
+        let details = diagnostic.details.as_ref().expect("details");
+        assert_eq!(details["requestedUri"], "ui.cem");
+        assert_eq!(details["normalizedUri"], "ui.cem");
+        assert_eq!(details["effectiveUri"], "missing.cem");
+        assert_eq!(details["substitutedUri"], "missing.cem");
+        assert_eq!(details["resolverCode"], "cem.resolver.unsupported");
+        assert_eq!(details["reason"], "substitution-target-missing");
+        assert!(details["resolverPolicy"]
+            .as_str()
+            .is_some_and(|stamp| stamp.contains("missing.cem")));
     }
 
     #[test]

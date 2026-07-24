@@ -98,36 +98,41 @@ approval.
 
 ## Import Resolution Policy
 
-CEM-ML owns the generic resolver policy for CEM-native template imports. A
-template source declares `{import}` entries with aliases, requested URIs,
-optional content-type/schema hints, and source ranges. Source validation parses
-and checks declaration semantics only; it does not fetch imported modules.
+CEM-ML owns the generic resolver policy for CEM-native template imports through
+`EngineContext.resolver_policy`. A template source declares `{import}` entries
+with aliases, requested URIs, optional content-type/schema hints, and source
+ranges. Source validation parses and checks declaration semantics only; it does
+not fetch imported modules.
 
 Compile, render, and explicit preflight flows resolve imports before artifact
 emission:
 
+- resolver policy runs first and decides whether the request is denied, passed
+  through, or explicitly substituted;
 - relative paths and local `file://` URIs are resolved through the local
   filesystem path when the source URI is local;
 - remote or custom schemes require a registered CEM-ML resolver for
   `ResolvePurpose::Template`;
 - no implicit fallback, best-effort replacement, or silent substitution is
-  attempted;
+  attempted; substitution is only allowed when resolver policy declares the
+  requested URI and substituted URI before the read;
 - denied imports emit `cem.template.import_denied` with
   `cem-template-resolution-fact` details and block artifact emission;
-- allowed local reads or registry-owned imports that cannot produce bytes emit
-  `cem.template.import_unresolved` and block artifact emission.
+- allowed local reads, registry-owned imports, or policy-substituted imports
+  that cannot produce bytes emit `cem.template.import_unresolved` and block
+  artifact emission.
 
 Diagnostics preserve the importing source URI, import alias, requested URI,
-resolved/substituted URI slots, content-type/schema hints, resolver diagnostic
-code, reason, source range when available, and cache-stamp behavior. Successful
-dependency graph hashes include parent URI, alias, requested URI,
-content-type/schema hints, resolved URI, and content hash.
+normalized URI, effective URI, resolved/substituted URI slots,
+content-type/schema hints, resolver diagnostic code, reason, resolver-policy
+stamp, source range when available, and cache-stamp behavior. Successful
+dependency graph hashes include parent URI, alias, requested URI, normalized
+URI, substituted URI when present, resolver-policy stamp, content-type/schema
+hints, resolved URI, and content hash.
 
-Explicit substitution is not yet a public resolver capability. A registered
-resolver may canonicalize a returned URI, and the runtime preserves both the
-requested and resolved identities, but it does not label the result as an
-approved substitution until the shared resolver policy exposes requested,
-substituted, and policy-stamp fields.
+A registered resolver may still canonicalize its returned URI. Canonicalization
+is not substitution: the result is considered substituted only when
+`resolver_policy` selected a `substitutedUri` before dispatch.
 
 ## Formatter And Preview SDLC
 
@@ -166,8 +171,6 @@ document behavior.
 Tracked but not complete:
 
 - schema-owned fact bindings for all template parser and semantic diagnostics;
-- explicit substitution support once the shared CEM-ML resolver policy exposes
-  substituted identity and substitution-policy stamps;
 - package examples for invalid expression ownership;
 - HTML and Markdown preview drift checks once their template presentation
   profiles become stable enough for README demos.

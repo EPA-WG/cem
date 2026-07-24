@@ -74,6 +74,18 @@ external syntax such as JSON, HTML, or XML:
    or presentation output changes, AI-assisted edits must update the affected
    SVG preview in the same change or explicitly state that the preview remains
    unchanged because the visible output did not change.
+7. **Resolver policy is separate from resource adapters.** CEM-ML resolver
+   policy decides whether a request is denied, passed through, or explicitly
+   substituted before a local read or `ResourceResolver` dispatch happens.
+   `ResourceResolver` implementations stay byte/resource adapters: they read,
+   write, or list the effective URI selected by policy and do not own trust,
+   substitution, or diagnostic semantics. Any package that resolves external
+   resources during compile, render, preflight, or runtime must preserve the
+   requested URI, normalized URI, effective/resolved URI, substituted URI when
+   present, resolver-policy stamp, source range, and resource content hash in
+   diagnostics and cache/dependency identity. Passive validation, formatting,
+   colorizing, and preview generation must not perform policy-sensitive
+   resource reads unless that package explicitly documents a resolving mode.
 
 These principles are the base contract for each package described below.
 

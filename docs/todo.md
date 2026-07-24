@@ -198,9 +198,23 @@ close.
       source range, resolver code, and cache-stamp behavior, and successful
       dependency hashes include parent URI, alias, requested URI,
       content-type/schema hints, resolved URI, and content hash.
-- [ ] Decide explicit substitution support in the shared CEM-ML resolver API,
-      including substituted identity, substitution-policy stamps, diagnostics,
-      and cache/dependency stamp behavior for CEM-native template imports.
+- [x] Decide and implement explicit substitution support in the shared CEM-ML
+      resolver API, including substituted identity, substitution-policy stamps,
+      diagnostics, and cache/dependency stamp behavior for CEM-native template
+      imports.
+  - [x] Add a generic resolver-policy decision boundary before resolver reads,
+        keeping resource resolvers as byte adapters.
+  - [x] Add default resolver-policy behavior that preserves current local and
+        relative import reads while making explicit substitutions opt-in.
+  - [x] Route CEM-native template import preflight through the policy decision
+        before local or registered resolver reads.
+  - [x] Preserve requested URI, normalized URI, substituted URI, effective URI,
+        and resolver-policy stamp in diagnostics, resolved import metadata, and
+        dependency hashes.
+  - [x] Add focused tests for explicit substitution success and failed
+        substitution resolving as `cem.template.import_unresolved`.
+  - [x] Document the shared policy/resolver split in package-level and
+        CEM-native template README guidance.
 - [ ] Decide expression-schema ownership for template expressions and add
       invalid expression fixture coverage once the schema-owned fact shape is
       clear.
@@ -258,11 +272,10 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Resolve the remaining CEM-native template decision points: decide explicit
-substitution support in the shared CEM-ML resolver API, then decide
-expression-schema ownership for template expressions. After those are settled,
-add the focused package examples/coverage they require and decide whether
-`cem-native-template/v1` can close.
+Resolve the remaining CEM-native template decision point: decide
+expression-schema ownership for template expressions, add the focused package
+examples/coverage it requires, and decide whether `cem-native-template/v1` can
+close.
 
 ## Current Verification Commands
 

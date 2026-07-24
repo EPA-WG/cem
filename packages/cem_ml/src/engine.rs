@@ -2,7 +2,7 @@ use crate::conversion::{ConversionRegistry, DomProjectionParityCemtAdapter};
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::interpreter::OutputSpan;
 use crate::report::{Report, SchedulerTraceReport};
-use crate::resolver::ResolverRegistry;
+use crate::resolver::{ResolverPolicy, ResolverRegistry};
 use crate::run_config::{SchedulerConfig, ScopeConfig};
 use crate::schema::document_model::{SchemaBehaviorEvaluator, SchemaDocumentModelRegistry};
 use crate::schema::registry::{
@@ -126,6 +126,7 @@ pub struct EngineContext {
     pub schema_document_models: SchemaDocumentModelRegistry,
     pub converter_registry: ConversionRegistry,
     pub schema_package_manifests: Vec<EngineInput>,
+    pub resolver_policy: ResolverPolicy,
     pub resolver_registry: ResolverRegistry,
     pub template_adapter_registry: TransformTemplateAdapterRegistry,
     pub transform_template_encode_registry: TransformTemplateEncodeImplementationRegistry,
@@ -148,6 +149,7 @@ impl Default for EngineContext {
             schema_document_models: SchemaDocumentModelRegistry::default(),
             converter_registry: ConversionRegistry::with_builtin_converters(),
             schema_package_manifests: Vec::new(),
+            resolver_policy: ResolverPolicy::default(),
             resolver_registry: ResolverRegistry::default(),
             template_adapter_registry,
             transform_template_encode_registry:

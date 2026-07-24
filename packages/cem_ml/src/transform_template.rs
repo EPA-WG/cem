@@ -20299,6 +20299,12 @@ pub struct TransformTemplateResolvedModule {
     pub parent_uri: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requested_uri: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub normalized_uri: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub substituted_uri: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolver_policy_stamp: Option<String>,
     pub uri: String,
     #[serde(default)]
     pub identity: Option<FormatIdentity>,

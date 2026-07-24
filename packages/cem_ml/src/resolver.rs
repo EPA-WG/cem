@@ -108,6 +108,239 @@ pub struct ResolvedRead {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvePolicyDecision {
+    pub requested_uri: String,
+    pub normalized_uri: String,
+    pub effective_uri: String,
+    pub substituted_uri: Option<String>,
+    pub reason: Option<String>,
+    pub policy_stamp: String,
+}
+
+impl ResolvePolicyDecision {
+    fn from_request(request: &ResolveRequest, policy_stamp: String) -> Self {
+        let normalized_uri = normalize_policy_uri(&request.uri);
+        Self {
+            requested_uri: request.uri.clone(),
+            effective_uri: normalized_uri.clone(),
+            normalized_uri,
+            substituted_uri: None,
+            reason: None,
+            policy_stamp,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvePolicyDiagnostic {
+    pub request: ResolveRequest,
+    pub reason: String,
+    pub policy_stamp: String,
+}
+
+impl fmt::Display for ResolvePolicyDiagnostic {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "resolver policy denied {} {} URI `{}`: {}",
+            self.request.direction, self.request.purpose, self.request.uri, self.reason
+        )
+    }
+}
+
+impl std::error::Error for ResolvePolicyDiagnostic {}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ResolvePolicyRequestKey {
+    pub uri: String,
+    pub base_uri: Option<String>,
+    pub purpose: ResolvePurpose,
+    pub direction: ResolveDirection,
+    pub content_type_hint: Option<String>,
+}
+
+impl ResolvePolicyRequestKey {
+    pub fn new(
+        uri: impl Into<String>,
+        purpose: ResolvePurpose,
+        direction: ResolveDirection,
+    ) -> Self {
+        let uri = uri.into();
+        Self {
+            uri: normalize_policy_uri(&uri),
+            base_uri: None,
+            purpose,
+            direction,
+            content_type_hint: None,
+        }
+    }
+
+    pub fn with_base_uri(mut self, base_uri: impl Into<String>) -> Self {
+        self.base_uri = Some(normalize_policy_uri(&base_uri.into()));
+        self
+    }
+
+    pub fn with_content_type_hint(mut self, content_type_hint: impl Into<String>) -> Self {
+        self.content_type_hint = Some(content_type_hint.into());
+        self
+    }
+
+    fn from_request(request: &ResolveRequest) -> Self {
+        let mut key = Self::new(request.uri.as_str(), request.purpose, request.direction);
+        if let Some(base_uri) = &request.base_uri {
+            key = key.with_base_uri(base_uri.as_str());
+        }
+        if let Some(content_type_hint) = &request.content_type_hint {
+            key = key.with_content_type_hint(content_type_hint.as_str());
+        }
+        key
+    }
+
+    fn candidates_from_request(request: &ResolveRequest) -> Vec<Self> {
+        let exact = Self::from_request(request);
+        let mut candidates = vec![exact.clone()];
+        if exact.content_type_hint.is_some() {
+            let mut without_content_type = exact.clone();
+            without_content_type.content_type_hint = None;
+            candidates.push(without_content_type);
+        }
+        if exact.base_uri.is_some() {
+            let mut without_base = exact.clone();
+            without_base.base_uri = None;
+            candidates.push(without_base.clone());
+            if without_base.content_type_hint.is_some() {
+                without_base.content_type_hint = None;
+                candidates.push(without_base);
+            }
+        }
+        candidates
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvePolicySubstitution {
+    pub substituted_uri: String,
+    pub reason: String,
+}
+
+impl ResolvePolicySubstitution {
+    pub fn new(substituted_uri: impl Into<String>, reason: impl Into<String>) -> Self {
+        Self {
+            substituted_uri: normalize_policy_uri(&substituted_uri.into()),
+            reason: reason.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvePolicyDenial {
+    pub reason: String,
+}
+
+impl ResolvePolicyDenial {
+    pub fn new(reason: impl Into<String>) -> Self {
+        Self {
+            reason: reason.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ResolverPolicy {
+    substitutions: BTreeMap<ResolvePolicyRequestKey, ResolvePolicySubstitution>,
+    denials: BTreeMap<ResolvePolicyRequestKey, ResolvePolicyDenial>,
+}
+
+impl ResolverPolicy {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn register_substitution(
+        &mut self,
+        key: ResolvePolicyRequestKey,
+        substitution: ResolvePolicySubstitution,
+    ) -> Option<ResolvePolicySubstitution> {
+        self.substitutions.insert(key, substitution)
+    }
+
+    pub fn with_substitution(
+        mut self,
+        key: ResolvePolicyRequestKey,
+        substitution: ResolvePolicySubstitution,
+    ) -> Self {
+        self.register_substitution(key, substitution);
+        self
+    }
+
+    pub fn register_denial(
+        &mut self,
+        key: ResolvePolicyRequestKey,
+        denial: ResolvePolicyDenial,
+    ) -> Option<ResolvePolicyDenial> {
+        self.denials.insert(key, denial)
+    }
+
+    pub fn with_denial(
+        mut self,
+        key: ResolvePolicyRequestKey,
+        denial: ResolvePolicyDenial,
+    ) -> Self {
+        self.register_denial(key, denial);
+        self
+    }
+
+    pub fn decide(
+        &self,
+        request: &ResolveRequest,
+    ) -> Result<ResolvePolicyDecision, ResolvePolicyDiagnostic> {
+        let keys = ResolvePolicyRequestKey::candidates_from_request(request);
+        let policy_stamp = self.cache_stamp();
+        for key in &keys {
+            if let Some(denial) = self.denials.get(key) {
+                return Err(ResolvePolicyDiagnostic {
+                    request: request.clone(),
+                    reason: denial.reason.clone(),
+                    policy_stamp,
+                });
+            }
+        }
+        for key in &keys {
+            if let Some(substitution) = self.substitutions.get(key) {
+                let normalized_uri = normalize_policy_uri(&request.uri);
+                return Ok(ResolvePolicyDecision {
+                    requested_uri: request.uri.clone(),
+                    normalized_uri,
+                    effective_uri: substitution.substituted_uri.clone(),
+                    substituted_uri: Some(substitution.substituted_uri.clone()),
+                    reason: Some(substitution.reason.clone()),
+                    policy_stamp,
+                });
+            }
+        }
+
+        Ok(ResolvePolicyDecision::from_request(request, policy_stamp))
+    }
+
+    pub fn cache_stamp(&self) -> String {
+        let substitutions =
+            stamped_policy_map(self.substitutions.iter().map(|(key, substitution)| {
+                (
+                    key,
+                    substitution.substituted_uri.as_str(),
+                    substitution.reason.as_str(),
+                )
+            }));
+        let denials = stamped_policy_map(
+            self.denials
+                .iter()
+                .map(|(key, denial)| (key, "", denial.reason.as_str())),
+        );
+        format!("resolver-policy/1;substitutions={substitutions};denials={denials}")
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolveListRequest {
     pub uri: String,
     pub base_uri: Option<String>,
@@ -463,6 +696,33 @@ fn list_request_scheme(request: &ResolveListRequest) -> Result<&str, ResolverDia
         })
 }
 
+fn normalize_policy_uri(value: &str) -> String {
+    value.trim().to_owned()
+}
+
+fn stamped_policy_map<'a, I>(entries: I) -> String
+where
+    I: Iterator<Item = (&'a ResolvePolicyRequestKey, &'a str, &'a str)>,
+{
+    entries
+        .map(|(key, target, reason)| {
+            format!(
+                "{}:{}|{}|{}|{}|{}=>{}:{}:{}",
+                key.uri.len(),
+                key.uri,
+                key.base_uri.as_deref().unwrap_or(""),
+                key.content_type_hint.as_deref().unwrap_or(""),
+                key.purpose,
+                key.direction,
+                target.len(),
+                target,
+                reason
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
 fn normalize_scheme(scheme: impl AsRef<str>) -> String {
     scheme
         .as_ref()
@@ -627,6 +887,103 @@ mod tests {
             Some("application/cem+xml")
         );
         assert_eq!(ResolvePurpose::Template.as_str(), "template");
+    }
+
+    #[test]
+    fn resolver_policy_defaults_to_passthrough_decisions() {
+        let request =
+            ResolveRequest::new("ui.cem", ResolvePurpose::Template, ResolveDirection::Read)
+                .with_base_uri("cem+vfs://templates/main.cem")
+                .with_content_type_hint("text/cem-ml");
+
+        let decision = ResolverPolicy::new()
+            .decide(&request)
+            .expect("default policy allows pass-through");
+
+        assert_eq!(decision.requested_uri, "ui.cem");
+        assert_eq!(decision.normalized_uri, "ui.cem");
+        assert_eq!(decision.effective_uri, "ui.cem");
+        assert_eq!(decision.substituted_uri, None);
+        assert_eq!(decision.reason, None);
+        assert!(decision
+            .policy_stamp
+            .starts_with("resolver-policy/1;substitutions="));
+    }
+
+    #[test]
+    fn resolver_policy_applies_exact_substitution_before_resolver_read() {
+        let request =
+            ResolveRequest::new(" ui.cem ", ResolvePurpose::Template, ResolveDirection::Read)
+                .with_base_uri("cem+vfs://templates/main.cem")
+                .with_content_type_hint("text/cem-ml");
+        let policy = ResolverPolicy::new().with_substitution(
+            ResolvePolicyRequestKey::new(
+                "ui.cem",
+                ResolvePurpose::Template,
+                ResolveDirection::Read,
+            )
+            .with_base_uri("cem+vfs://templates/main.cem")
+            .with_content_type_hint("text/cem-ml"),
+            ResolvePolicySubstitution::new("substitute.cem", "fixture-substitution"),
+        );
+
+        let decision = policy
+            .decide(&request)
+            .expect("policy applies matching substitution");
+
+        assert_eq!(decision.requested_uri, " ui.cem ");
+        assert_eq!(decision.normalized_uri, "ui.cem");
+        assert_eq!(decision.effective_uri, "substitute.cem");
+        assert_eq!(decision.substituted_uri.as_deref(), Some("substitute.cem"));
+        assert_eq!(decision.reason.as_deref(), Some("fixture-substitution"));
+        assert!(decision.policy_stamp.contains("substitute.cem"));
+    }
+
+    #[test]
+    fn resolver_policy_allows_broad_substitution_keys_without_base_uri() {
+        let request =
+            ResolveRequest::new("ui.cem", ResolvePurpose::Template, ResolveDirection::Read)
+                .with_base_uri("cem+vfs://templates/main.cem");
+        let policy = ResolverPolicy::new().with_substitution(
+            ResolvePolicyRequestKey::new(
+                "ui.cem",
+                ResolvePurpose::Template,
+                ResolveDirection::Read,
+            ),
+            ResolvePolicySubstitution::new("fallback.cem", "global-fixture-substitution"),
+        );
+
+        let decision = policy
+            .decide(&request)
+            .expect("base-less policy key applies broadly");
+
+        assert_eq!(decision.effective_uri, "fallback.cem");
+        assert_eq!(decision.substituted_uri.as_deref(), Some("fallback.cem"));
+    }
+
+    #[test]
+    fn resolver_policy_reports_exact_denial_before_resolver_read() {
+        let request = ResolveRequest::new(
+            "https://example.test/template.cem",
+            ResolvePurpose::Template,
+            ResolveDirection::Read,
+        );
+        let policy = ResolverPolicy::new().with_denial(
+            ResolvePolicyRequestKey::new(
+                "https://example.test/template.cem",
+                ResolvePurpose::Template,
+                ResolveDirection::Read,
+            ),
+            ResolvePolicyDenial::new("network-disabled"),
+        );
+
+        let diagnostic = policy
+            .decide(&request)
+            .expect_err("policy denial blocks read before resolver dispatch");
+
+        assert_eq!(diagnostic.request.uri, "https://example.test/template.cem");
+        assert_eq!(diagnostic.reason, "network-disabled");
+        assert!(diagnostic.policy_stamp.contains("network-disabled"));
     }
 
     #[test]
