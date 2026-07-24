@@ -63,6 +63,32 @@ as CSV and CEM-QL: Rust reports neutral parser/template facts with source
 ranges, and this package's `.cem` schema owns code, severity, and structured
 details.
 
+## Expression Schema Ownership
+
+CEM-native template does not own an expression language. It owns the slots where
+expressions may appear, the lexical/context bindings those slots expose, the
+expected result type/nullability, and the compile/render phase in which the
+expression may run. Expression syntax, parse facts, type facts, evaluator IR,
+and expression diagnostics are delegated to the shared CEM-QL expression schema
+owned by `cem-ql/v1`.
+
+Current and reserved expression-bearing slots are:
+
+- `let @expr` and `let @expression` for immutable template-scope bindings;
+- `call @with:*` for values passed to another template entrypoint;
+- future `param @default-expr` / `@defaultExpr` defaults, which remain reserved
+  until default-expression context and failure reporting are implemented;
+- CEM-ML expression nodes or attribute-value spans that appear inside template
+  output fragments.
+
+Invalid expression syntax and expression type failures should surface as
+`cem.ql.*` diagnostics with template slot provenance: module URI, template
+entrypoint, slot kind/path, source range, expected type/nullability, evaluation
+phase, and resolver-policy stamp when the expression is allowed to perform
+resource-sensitive work. Template-owned diagnostics remain for slot misuse,
+such as duplicate declarations, unknown template calls, or use of a reserved
+default-expression slot.
+
 ## Output Artifacts
 
 The package declares CEMT formatter and colorizer artifacts in `package.cem`.
@@ -171,7 +197,8 @@ document behavior.
 Tracked but not complete:
 
 - schema-owned fact bindings for all template parser and semantic diagnostics;
-- package examples for invalid expression ownership;
+- invalid expression slot examples and verification once the CEM-QL standalone
+  expression API/CLI and expression fact report are available;
 - HTML and Markdown preview drift checks once their template presentation
   profiles become stable enough for README demos.
 

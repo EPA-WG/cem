@@ -5,7 +5,7 @@
 
 {schema @name="cem-ql" @namespace="https://cem.dev/ns/query/cem-ql/1" @version="1.0.0" |
     {summary |
-        {text | CEM-QL query module and compiled artifact resource schema. CEM-QL source is plain UTF-8 parsed by the cem-ql crate, while this schema provides registry identity, loader metadata, and cache artifact validation hooks for modules, imports, declarations, expressions, and compiled query artifacts.}
+        {text | CEM-QL query module, shared expression, and compiled artifact resource schema. CEM-QL source is plain UTF-8 parsed by the cem-ql crate, while this schema provides registry identity, loader metadata, standalone expression reports, expression slot ownership, and cache artifact validation hooks for modules, imports, declarations, expressions, and compiled query artifacts.}
     }
 
     {uses |
@@ -38,6 +38,11 @@
         {element @name="param" @required-attributes="name" @optional-attributes="type"}
         {element @name="body" @children="expression"}
         {element @name="expression" @optional-attributes="kind type streaming"}
+        {element @name="expression-resource" @required-attributes="content-type schema-uri" @optional-attributes="uri source-hash source-map-mode resolver-policy-stamp host-capability-profile evaluation-phase" @children="source? encoding-report? token-stream? parse-facts? expression-context? expression-result?"}
+        {element @name="expression-context" @optional-attributes="data-uri data-content-type data-schema context-binding context-source context-item binding-profile" @children="expression-binding*"}
+        {element @name="expression-binding" @required-attributes="name" @optional-attributes="type nullable binding-source"}
+        {element @name="expression-result" @required-attributes="type" @optional-attributes="nullable item-count serialization source-map"}
+        {element @name="expression-slot" @required-attributes="host-package slot-kind" @optional-attributes="slot-path expected-type expected-nullable evaluation-phase resolver-policy-stamp byte-offset byte-length line column end-line end-column"}
         {element @name="artifact" @required-attributes="content-type format hash mode source-hash schema-uri schema-version compiler-version policy-stamp stdlib-overlay-fingerprint type-profile source-map-mode" @optional-attributes="source-uri module-uri source-map import-closure"}
     }
 
@@ -55,9 +60,10 @@
         {attribute @name="as" @type="schema:identifier"}
         {attribute @name="scheme" @type="schema:identifier" @values="platform network package local"}
         {attribute @name="policy" @type="schema:identifier"}
-        {attribute @name="kind" @type="schema:identifier" @values="variable function expression module artifact parse-error invalid-utf8 module-uri-missing legacy-syntax import-alias-duplicate declaration-duplicate unresolved-import type-error artifact-hash-mismatch policy-mismatch source-map-unavailable"}
+        {attribute @name="kind" @type="schema:identifier" @values="variable function expression module artifact parse-error invalid-utf8 module-uri-missing legacy-syntax import-alias-duplicate declaration-duplicate unresolved-import type-error expression-context-invalid data-binding-missing result-type-mismatch host-capability-denied artifact-hash-mismatch policy-mismatch source-map-unavailable"}
         {attribute @name="name" @type="schema:identifier"}
         {attribute @name="type" @type="schema:string"}
+        {attribute @name="nullable" @type="schema:boolean"}
         {attribute @name="visibility" @type="schema:identifier" @values="private public"}
         {attribute @name="streaming" @type="schema:boolean"}
         {attribute @name="format" @type="schema:identifier" @values="cem-ql-ir-v1 cem-bin"}
@@ -92,6 +98,24 @@
         {attribute @name="schema-version" @type="schema:semver"}
         {attribute @name="compiler-version" @type="schema:semver"}
         {attribute @name="policy-stamp" @type="schema:string"}
+        {attribute @name="resolver-policy-stamp" @type="schema:string"}
+        {attribute @name="host-capability-profile" @type="schema:string"}
+        {attribute @name="evaluation-phase" @type="schema:identifier" @values="validate compile render runtime"}
+        {attribute @name="data-uri" @type="schema:uri"}
+        {attribute @name="data-content-type" @type="schema:media-type"}
+        {attribute @name="data-schema" @type="schema:uri"}
+        {attribute @name="context-binding" @type="schema:identifier"}
+        {attribute @name="context-source" @type="schema:identifier" @values="input binding none"}
+        {attribute @name="context-item" @type="schema:string"}
+        {attribute @name="binding-profile" @type="schema:string"}
+        {attribute @name="binding-source" @type="schema:identifier" @values="input literal resource host"}
+        {attribute @name="item-count" @type="cemml:integer"}
+        {attribute @name="serialization" @type="schema:identifier" @values="json text cem-tree none"}
+        {attribute @name="host-package" @type="schema:string"}
+        {attribute @name="slot-kind" @type="schema:identifier"}
+        {attribute @name="slot-path" @type="schema:string"}
+        {attribute @name="expected-type" @type="schema:string"}
+        {attribute @name="expected-nullable" @type="schema:boolean"}
         {attribute @name="stdlib-overlay-fingerprint" @type="schema:string"}
         {attribute @name="type-profile" @type="schema:string"}
         {attribute @name="source-map-mode" @type="schema:identifier" @values="none dev"}
@@ -108,6 +132,11 @@
         {constraint @kind="unique-declaration-name-per-scope" @target="module" @diagnostic="cem.ql.declaration_duplicate" @behavior="cem-ql-parse-report-fact" @fact-kind="declaration-duplicate" @policy="required"}
         {constraint @kind="unresolved-import-policy" @target="import" @diagnostic="cem.ql.import_unresolved" @behavior="cem-ql-resolution-fact" @fact-kind="unresolved-import" @policy="imports must resolve through the active module resolver"}
         {constraint @kind="type-check-policy" @target="expression" @diagnostic="cem.ql.type_error" @behavior="cem-ql-type-report-fact" @fact-kind="type-error" @policy="typed evaluator IR rejects incompatible operands and declarations"}
+        {constraint @kind="standalone-expression-parser" @target="expression-resource" @diagnostic="cem.ql.parse_error" @behavior="cem-ql-expression-report-fact" @fact-kind="parse-error" @policy="standalone expression source uses the shared CEM-QL expression parser without requiring a module declaration"}
+        {constraint @kind="standalone-expression-context-valid" @target="expression-context" @diagnostic="cem.ql.expression_context_invalid" @behavior="cem-ql-expression-report-fact" @fact-kind="expression-context-invalid" @policy="data and named bindings must lower to CEM-QL ItemStream values before evaluation"}
+        {constraint @kind="standalone-expression-data-binding-required" @target="expression-binding" @diagnostic="cem.ql.data_binding_missing" @behavior="cem-ql-expression-report-fact" @fact-kind="data-binding-missing" @policy="referenced data bindings must be present unless the type profile declares them optional"}
+        {constraint @kind="standalone-expression-result-type" @target="expression-result" @diagnostic="cem.ql.result_type_mismatch" @behavior="cem-ql-expression-report-fact" @fact-kind="result-type-mismatch" @policy="typed expression result must match the requested output type and nullability"}
+        {constraint @kind="standalone-expression-host-capability-policy" @target="expression-resource" @diagnostic="cem.ql.host_capability_denied" @behavior="cem-ql-expression-report-fact" @fact-kind="host-capability-denied" @policy="resource-sensitive helpers require explicit host capability policy before evaluation"}
         {constraint @kind="artifact-hash-required" @target="artifact" @diagnostic="cem.ql.artifact_hash_mismatch" @behavior="cem-ql-artifact-report-fact" @fact-kind="artifact-hash-mismatch" @policy="artifact hash covers the full identity envelope and IR bytes"}
         {constraint @kind="artifact-source-identity-validated" @target="artifact" @diagnostic="cem.ql.artifact_hash_mismatch" @behavior="cem-ql-artifact-report-fact" @fact-kind="artifact-source-mismatch" @policy="source URI and source byte hash must match the active source context when provided"}
         {constraint @kind="artifact-policy-stamps-validated" @target="artifact" @diagnostic="cem.cc.policy_mismatch" @behavior="cem-ql-artifact-report-fact" @fact-kind="policy-mismatch" @policy="import policy stdlib overlay type profile cache mode and source-map mode must match the active compile context on load"}
@@ -126,6 +155,10 @@
         {diagnostic @code="cem.ql.parse_error" @severity="error"}
         {diagnostic @code="cem.ql.use_rust_boolean_ops" @severity="error"}
         {diagnostic @code="cem.ql.type_error" @severity="error"}
+        {diagnostic @code="cem.ql.expression_context_invalid" @severity="error"}
+        {diagnostic @code="cem.ql.data_binding_missing" @severity="error"}
+        {diagnostic @code="cem.ql.result_type_mismatch" @severity="error"}
+        {diagnostic @code="cem.ql.host_capability_denied" @severity="error"}
         {diagnostic @code="cem.ql.artifact_hash_mismatch" @severity="error"}
         {diagnostic @code="cem.ql.source_map_unavailable" @severity="info"}
         {diagnostic @code="cem.cc.policy_mismatch" @severity="error"}

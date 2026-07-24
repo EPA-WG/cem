@@ -2,8 +2,9 @@
 
 Status: schema, examples, formatter, and colorizer package frame
 
-This package defines registry identity for CEM-QL query source modules and
-compiled query artifacts.
+This package defines registry identity for CEM-QL query source modules, the
+shared CEM-QL expression contract used by templates and schema behavior slots,
+and compiled query artifacts.
 
 CEM-QL source is not CEM-ML syntax. The schema package and this manifest are
 authored in CEM-ML, but resources with the `application/vnd.cem.query+cem-ql`
@@ -31,6 +32,78 @@ errors, and `seq:difference(a, b)` remains only a named helper alias.
 - Authoring alias: `text/cem-ql`
 - Compiled artifact alias: `application/vnd.cem.query-artifact+cem-bin`
 - Legacy/internal cache aliases: `cem-ql/1`, `cem-ql/module`
+- Shared expression schema anchor: `https://cem.dev/ns/query/cem-ql/1#expression`
+- Planned standalone expression content type:
+  `application/vnd.cem.query-expression+cem-ql`
+
+The standalone expression content type is intentionally not registered as a
+shipped source content type until the expression API, CLI runner, examples, and
+package verify gates exist. Until then, shipped CLI validation and conversion
+support remains module-source oriented.
+
+## Shared Expression Contract
+
+CEM-QL owns the shared expression schema used by CEM-native templates,
+CEM-transform resources, schema behavior declarations, and component/runtime
+bindings. A parent package declares an expression slot; it does not define a
+private expression grammar. Slot metadata must carry the expression source
+range, slot path, lexical bindings, context item/data binding, expected result
+type and nullability, evaluation phase, resolver policy, and host capability
+profile.
+
+CEM-QL owns expression tokenization, parse facts, type facts, evaluator IR,
+diagnostic codes such as `cem.ql.parse_error` and `cem.ql.type_error`, and the
+runtime item/value model. Parent packages may add diagnostics for slot misuse
+or phase violations, but invalid expression syntax and expression type errors
+remain CEM-QL facts wrapped with parent slot provenance.
+
+Standalone expression execution is a roadmap API/CLI feature for running one
+CEM-QL expression against a data resource without wrapping it in a query module
+or template. The target Rust API should compile and evaluate an expression from
+source bytes plus a typed data/context input, returning a typed value sequence,
+diagnostics, source maps, policy stamps, and optional formatted output. The
+target CLI should expose that path under the CEM-ML CLI, for example a future
+`cem-ml query expr` command that accepts expression source from an argument,
+file, or stdin and data from a content-type/schema-declared input resource.
+
+## Standalone Expression Resource Contract
+
+Standalone expression support uses the same schema namespace and evaluator as
+query modules, but its resource shape is expression-first:
+
+- candidate source content type:
+  `application/vnd.cem.query-expression+cem-ql`;
+- schema anchor: `https://cem.dev/ns/query/cem-ql/1#expression`;
+- source identity: optional source URI, normalized media type, byte length,
+  line-ending style, UTF-8 decode report, token ranges, source hash, and
+  source-map mode;
+- data/context input: one primary `input` binding plus optional named bindings,
+  each lowered from a declared content type/schema resource into a CEM-QL
+  `ItemStream`; a context item may be selected from `input`, from a named
+  binding, or left unset;
+- result model: `ItemStream` with CEM-QL atoms, records, arrays, nodes,
+  lambdas, and resource handles, serialized according to the requested writer
+  profile;
+- diagnostics: `cem.ql.parse_error`, `cem.ql.type_error`,
+  `cem.ql.expression_context_invalid`, `cem.ql.data_binding_missing`,
+  `cem.ql.result_type_mismatch`, `cem.ql.host_capability_denied`, and existing
+  resolver/import diagnostics where resource-sensitive helpers are allowed;
+- policy/cache identity: resolver-policy stamp, host capability profile,
+  type-check profile, stdlib overlay fingerprint, source hash, data/resource
+  identity, and source-map mode.
+
+`schema/cem-ql.cem` declares this report shape as `expression-resource`,
+`expression-context`, `expression-binding`, `expression-result`, and
+`expression-slot`. `expression-slot` is the provenance bridge used by parent
+packages such as CEM-native template; it preserves host package, slot kind,
+slot path, expected type/nullability, evaluation phase, and source range while
+the CEM-QL diagnostic remains the expression diagnostic.
+
+Contract-only fixtures live under
+[`examples/expression-contract/`](examples/expression-contract/). They are not
+manifest-declared package examples yet because the standalone API/CLI runner is
+not shipped. When the runner lands, these fixtures should move into the
+manifest-owned example harness with executable expected results.
 
 ## Standards And CEM Policy Matrix
 
@@ -190,6 +263,9 @@ schema-package output support:
 
 Tracked but not complete:
 
+- standalone expression resource registration, Rust API, CLI runner, package
+  examples, and package verify gates for running a CEM-QL expression against
+  declared data without a wrapping query module;
 - AST-aware `pretty` and `tabular` layout rules beyond source-preserving token
   streams;
 - schema-owned diagnostic policy execution from parse facts rather than bridge
@@ -208,7 +284,9 @@ The schema describes the query resource model used by loaders and caches:
 - query modules declare a module URI;
 - imports bind other module URIs through explicit aliases;
 - declarations define immutable `declare let` bindings and functions;
-- expressions are compiled to typed evaluator IR;
+- expressions are compiled to typed evaluator IR and may be embedded through
+  parent package slots or, after the standalone runner lands, executed directly
+  against a declared data/context input;
 - compiled artifacts carry hash, mode, policy stamps, import closure, and
   optional source-map sidecars.
 

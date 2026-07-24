@@ -1,0 +1,24 @@
+{
+  "contractStatus": "planned",
+  "contentType": "application/vnd.cem.query-expression+cem-ql",
+  "schema": "https://cem.dev/ns/query/cem-ql/1#expression",
+  "source": {
+    "uri": "schema-packages/cem-ql/v1/examples/expression-contract/basic-expression.expr.cemql",
+    "lineEnding": "lf"
+  },
+  "context": {
+    "primaryBinding": "input",
+    "contextSource": "binding",
+    "contextBinding": "input"
+  },
+  "result": {
+    "type": "string*",
+    "items": [
+      "Ada",
+      "Lin"
+    ],
+    "serialization": "json"
+  },
+  "diagnostics": [],
+  "resolverPolicyStamp": "resolver-policy/1;substitutions=0;denials=0"
+}

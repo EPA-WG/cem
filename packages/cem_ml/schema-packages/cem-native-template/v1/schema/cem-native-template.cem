@@ -4,7 +4,7 @@
 
 {schema @name="cem-native-template" @namespace="https://cem.dev/ns/template/cem-native/1" @version="1.0.0" |
     {summary |
-        {text | CEM-native template module language. This schema defines module declarations, imports, params, template entrypoints, bodies, immutable let bindings, and calls consumed by CEM-native template adapters. It is separate from ordinary CEM documents and from CLI transform graph wiring.}
+        {text | CEM-native template module language. This schema defines module declarations, imports, params, template entrypoints, bodies, immutable let bindings, calls, and CEM-QL expression slots consumed by CEM-native template adapters. It is separate from ordinary CEM documents and from CLI transform graph wiring.}
     }
 
     {uses |
@@ -88,6 +88,6 @@
     {open-content |
         {accept @kind="template-output-element" @policy="delegate-to-active-schema"}
         {accept @kind="template-output-attribute" @policy="delegate-to-active-schema"}
-        {accept @kind="template-expression" @policy="delegate-to-expression-schema"}
+        {accept @kind="template-expression" @policy="delegate-to-cem-ql-expression-schema"}
     }
 }

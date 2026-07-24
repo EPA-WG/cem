@@ -86,6 +86,16 @@ external syntax such as JSON, HTML, or XML:
    diagnostics and cache/dependency identity. Passive validation, formatting,
    colorizing, and preview generation must not perform policy-sensitive
    resource reads unless that package explicitly documents a resolving mode.
+8. **Embedded expression schemas are language-owned.** Parent packages declare
+   expression slots, expected bindings, result type/nullability, evaluation
+   phase, source ranges, and safety policy; they do not own a private
+   expression grammar. The shared CEM expression contract is the CEM-QL
+   expression schema owned by `cem-ql/v1`. Template, transform, schema
+   behavior, and component packages consume that contract by declaring slots
+   that delegate to CEM-QL parse, type, diagnostic, and evaluator semantics.
+   Standalone expression execution must be exposed through the shared CEM-QL
+   API/CLI path so an expression can run against data without being wrapped in
+   a query module or template module.
 
 These principles are the base contract for each package described below.
 
@@ -218,17 +228,21 @@ namespace, source-file registration, and descriptor provenance.
 `cem-native-template/v1` defines the CEM-native template module language used
 by template adapters. It owns `application/vnd.cem.template+cem` and also
 claims current generic CEM source content types as aliases that require an
-explicit schema when ambiguous.
+explicit schema when ambiguous. Template expression slots delegate to the
+shared CEM-QL expression schema; the template package owns slot context and
+phase policy, not expression grammar.
 
 `cem-transform/v1` defines CEMT (`.cemt`) converter-template resources. It
 owns `application/vnd.cem.transform+cem` and reuses the CEM-native template
 schema as its base language.
 
-`cem-ql/v1` defines CEM-QL query source module and compiled query artifact
-resource identities. It owns `application/vnd.cem.query+cem-ql`, claims
-`text/cem-ql` as an authoring alias, and claims compiled artifact/cache aliases
-for query binaries. CEM-QL source is not CEM-ML syntax; its parser lives in the
-`cem-ql` crate.
+`cem-ql/v1` defines CEM-QL query source module, shared expression schema, and
+compiled query artifact resource identities. It owns
+`application/vnd.cem.query+cem-ql`, claims `text/cem-ql` as an authoring alias,
+and claims compiled artifact/cache aliases for query binaries. CEM-QL source is
+not CEM-ML syntax; its parser lives in the `cem-ql` crate. Standalone
+expression execution is roadmap work for the same package/API surface, not a
+template-package-specific feature.
 
 `json/v1` defines generic JSON text resource identity. It owns
 `application/json` and claims `text/json` as an alias. JSON source is not

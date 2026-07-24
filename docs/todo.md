@@ -7,11 +7,9 @@ history.
 
 ## Immediate Goal
 
-Current active slice: remediate `cem-native-template/v1` package review
-findings against
-[`packages/cem_ml/schema-packages/README.md`](../packages/cem_ml/schema-packages/README.md),
-then decide whether the `cem-native-template/v1` package checklist item can
-close.
+Current active slice: adopt the shared CEM-QL expression contract for template
+expression slots, then implement the standalone CEM-QL expression API/CLI path
+needed before invalid template expression fixtures can close.
 
 ### Completed Immediate Phase: CSV Formatter Review Findings
 
@@ -215,9 +213,35 @@ close.
         substitution resolving as `cem.template.import_unresolved`.
   - [x] Document the shared policy/resolver split in package-level and
         CEM-native template README guidance.
-- [ ] Decide expression-schema ownership for template expressions and add
-      invalid expression fixture coverage once the schema-owned fact shape is
-      clear.
+- [x] Decide expression-schema ownership for template expressions: CEM-QL owns
+      the shared expression schema; CEM-native template owns expression slot
+      context, expected type/nullability, evaluation phase, and provenance.
+- [x] Document the shared expression contract in the package-level README,
+      CEM-QL README, CEM-native template README, and existing schema delegation
+      policy labels.
+- [x] Add standalone CEM-QL expression API and CLI execution to the Phase 2
+      roadmap.
+
+### Immediate: Shared CEM-QL Expression Contract Execution
+
+- [x] Define the schema-facing standalone CEM-QL expression resource contract:
+      candidate content type, source identity, data/context input model, result
+      value model, diagnostics, source maps, resolver-policy stamp, and package
+      examples.
+- [ ] Add a `cem_ql` Rust API that can compile and evaluate one standalone
+      expression against a typed data/context input without requiring a query
+      module wrapper.
+- [ ] Add a CEM-ML CLI expression runner, currently planned as a `query expr`
+      subcommand, that shares run config, input content-type/schema identity,
+      resolver policy, output formatting, and diagnostic reporting with
+      existing commands.
+- [ ] Add package-owned CEM-QL examples and tests for valid standalone
+      expression execution, parse errors, type errors, source ranges, and data
+      binding failures.
+- [ ] Wire CEM-native template expression slots to consume the shared CEM-QL
+      expression fact/result contract and preserve template slot provenance.
+- [ ] Add invalid CEM-native template expression fixtures once the shared
+      CEM-QL expression fact report is executable.
 
 ### Schema Package Folder Alignment
 
@@ -272,10 +296,9 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Resolve the remaining CEM-native template decision point: decide
-expression-schema ownership for template expressions, add the focused package
-examples/coverage it requires, and decide whether `cem-native-template/v1` can
-close.
+Add the `cem_ql` Rust API that compiles and evaluates one standalone expression
+against a typed data/context input without requiring a query module wrapper.
+After that, expose the same path through the CEM-ML CLI expression runner.
 
 ## Current Verification Commands
 

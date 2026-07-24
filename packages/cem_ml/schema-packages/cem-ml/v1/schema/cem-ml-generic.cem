@@ -92,6 +92,6 @@
         {accept @kind="host-attribute" @policy="delegate-to-active-schema"}
         {accept @kind="text" @policy="preserve"}
         {accept @kind="comment" @policy="preserve"}
-        {accept @kind="expression" @policy="delegate-to-expression-schema"}
+        {accept @kind="expression" @policy="delegate-to-cem-ql-expression-schema"}
     }
 }

@@ -116,6 +116,12 @@ Deliverables:
   reserialization.
 - Parallel- and multicast-capable artifact streams: sealed binary chunks can be consumed by multiple downstream readers
   or workers, replayed from cache, and routed into CEM-QL/query APIs without changing their binary representation.
+- Shared CEM-QL expression API and CLI runner: `cem-ql` owns the reusable expression schema used by templates,
+  transforms, schema behaviors, and component bindings. The Rust API can compile and evaluate one standalone CEM-QL
+  expression against a typed data/context input while preserving diagnostics, source maps, resolver-policy stamps, host
+  capability policy, and typed result values. The CEM-ML CLI exposes the same engine path, for example through a future
+  `cem-ml query expr` subcommand that accepts expression source from an argument, file, or stdin and data from
+  content-type/schema-declared input resources.
 - XSLT or transform pipeline from validated semantic documents into light-DOM custom-element markup.
 - Validation reports for unknown elements, invalid state combinations, missing labels, broken references, unsafe
   content, unsupported embedded-language handoffs, and non-streamable schema features.
@@ -133,6 +139,9 @@ Exit criteria:
   that generated it.
 - Embedded `style`, `script`, CDATA/text, and CSF-like field payloads either validate through explicit scoped handoffs
   or produce actionable diagnostics.
+- A standalone CEM-QL expression can be compiled and run against declared data through the Rust API and CEM-ML CLI, with
+  the same parser, type, diagnostics, resolver-policy, source-map, and output contracts used when that expression is
+  embedded in a template or schema behavior slot.
 - The same fixture can feed docs/examples without copying business structure into multiple formats.
 
 ## Phase 3 - Custom-Element Runtime

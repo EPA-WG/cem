@@ -99,6 +99,6 @@
     {open-content |
         {accept @kind="template-output-element" @policy="delegate-to-target-schema"}
         {accept @kind="template-output-attribute" @policy="delegate-to-target-schema"}
-        {accept @kind="template-expression" @policy="delegate-to-expression-schema"}
+        {accept @kind="template-expression" @policy="delegate-to-cem-ql-expression-schema"}
     }
 }

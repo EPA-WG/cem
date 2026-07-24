@@ -1,0 +1,26 @@
+{
+  "contentType": "application/json",
+  "schema": "https://cem.dev/ns/data/json/1",
+  "bindings": {
+    "input": {
+      "items": [
+        {
+          "name": "Ada",
+          "tier": "required"
+        },
+        {
+          "name": "Lin",
+          "tier": "recommended"
+        },
+        {
+          "name": "Max",
+          "tier": "deprecated"
+        }
+      ]
+    }
+  },
+  "context": {
+    "contextSource": "binding",
+    "contextBinding": "input"
+  }
+}
