@@ -9,13 +9,13 @@
   <text x="78" y="23" fill="#c9d1d9" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13">pretty + terminal color</text>
   <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18" xml:space="preserve">
     <text y="70">
-      <tspan x="28" fill="#5fafff">id</tspan><tspan x="105" fill="#8b949e">,</tspan><tspan x="116" fill="#5fd75f">name</tspan><tspan x="182" fill="#8b949e">,</tspan><tspan x="193" fill="#ff8700">active</tspan>
+      <tspan x="28" fill="#5fafff">id</tspan><tspan x="116" fill="#8b949e">,</tspan><tspan x="127" fill="#5fd75f">name</tspan><tspan x="204" fill="#8b949e">,</tspan><tspan x="215" fill="#ff8700">active</tspan>
     </text>
     <text y="98">
-      <tspan x="28" fill="#5fafff"> 1</tspan><tspan x="105" fill="#8b949e">,</tspan><tspan x="116" fill="#5fd75f">Ada </tspan><tspan x="182" fill="#8b949e">,</tspan><tspan x="193" fill="#ff8700">true  </tspan>
+      <tspan x="28" fill="#5fafff"> 1</tspan><tspan x="116" fill="#8b949e">,</tspan><tspan x="127" fill="#5fd75f">Ada </tspan><tspan x="204" fill="#8b949e">,</tspan><tspan x="215" fill="#ff8700">true  </tspan>
     </text>
     <text y="126">
-      <tspan x="28" fill="#5fafff"> 2</tspan><tspan x="105" fill="#8b949e">,</tspan><tspan x="116" fill="#5fd75f">Lin </tspan><tspan x="182" fill="#8b949e">,</tspan><tspan x="193" fill="#ff8700">false </tspan>
+      <tspan x="28" fill="#5fafff"> 2</tspan><tspan x="116" fill="#8b949e">,</tspan><tspan x="127" fill="#5fd75f">Lin </tspan><tspan x="204" fill="#8b949e">,</tspan><tspan x="215" fill="#ff8700">false </tspan>
     </text>
   </g>
 </svg>

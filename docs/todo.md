@@ -51,7 +51,7 @@ then resume dependency-ordered schema-package folder alignment.
       schema-facing formatted-tree shape and moving Rust-owned `pretty`/`tabular`
       alignment, trimming, type inference, and display-width behavior into CEMT
       or declared host primitives.
-- [ ] Add package-local verify coverage for CSV examples and SVG preview drift:
+- [x] Add package-local verify coverage for CSV examples and SVG preview drift:
       run documented README commands, compare stable stdout/rendered SVG output
       against `examples/previews/`, and fail the CSV package verify target on
       drift.
@@ -116,11 +116,11 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Add package-local verify coverage for CSV examples and SVG preview drift. The
-target should run the documented CSV README commands, compare stable
-stdout/rendered SVG output against `examples/previews/`, and fail the CSV
-package verify target when previews drift. After the CSV parser-data follow-up
-is green, resume dependency-ordered package alignment with `cem-native-template/v1`.
+Follow through on CSV parser data gaps: expose row/field source ranges, quoting
+state, encoding/dialect facts, and recoverable/fatal parser facts in the
+schema-facing CSV table data consumed by formatter/colorizer stages. After that
+parser-data follow-up is green, resume dependency-ordered package alignment with
+`cem-native-template/v1`.
 
 ## Current Verification Commands
 

@@ -364,8 +364,9 @@ CLI validation integration tests.
 <!--
 AI maintenance: when changing the command examples below, their referenced CSV
 fixtures, formatter/colorizer assets, CLI report shape, or CSV presentation
-output, update the matching SVG preview in `examples/previews/` in the same
-change.
+output, refresh the matching SVG previews with
+`node packages/cem_ml/schema-packages/csv/v1/scripts/verify-previews.mjs --update`
+and commit the preview changes in the same change.
 -->
 
 | Example | Purpose | Expected result |
@@ -390,7 +391,8 @@ change.
 Validate an example explicitly against this schema:
 
 ```bash
-cargo run -p cem-ml-cli -- validate \
+dist/target/cem_ml_cli/debug/cem-ml validate \
+  --format json \
   --content-type text/csv \
   --schema https://cem.dev/ns/data/csv/1 \
   packages/cem_ml/schema-packages/csv/v1/examples/basic-table.csv
@@ -404,7 +406,7 @@ decorates terminal presentation only. Use `compact` for canonical import-safe
 CSV; readable profiles may carry presentation spacing.
 
 ```bash
-dist/target/debug/cem-ml convert \
+dist/target/cem_ml_cli/debug/cem-ml convert \
   packages/cem_ml/schema-packages/csv/v1/examples/basic-table.csv \
   --content-type text/csv \
   --schema https://cem.dev/ns/data/csv/1 \
@@ -421,7 +423,7 @@ Render the same table as tabular review output with a maximum field display
 width and middle string trimming:
 
 ```bash
-dist/target/debug/cem-ml convert \
+dist/target/cem_ml_cli/debug/cem-ml convert \
   packages/cem_ml/schema-packages/csv/v1/examples/basic-table.csv \
   --content-type text/csv \
   --schema https://cem.dev/ns/data/csv/1 \

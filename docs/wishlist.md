@@ -11,6 +11,9 @@ in [`todo.md`](todo.md).
 - [ ] **Web-service schema validation.** Extend CEM-ML's generic schema engine to support service-description schemas
       such as OpenAPI/Swagger and GraphQL. Compose service validation with the existing URL-level validation—including
       URL parameter encoding—so web services can participate in a unified web-application validation chain.
+- [ ] **`*.cemt.md` authored transform-doc format with HTML output.** Add a Markdown-adjacent CEMT documentation format
+      that can embed CEMT modules/examples and transform them into HTML documentation or previews through the CEM-ML
+      pipeline.
 
 ## CEM Elements Runtime
 
