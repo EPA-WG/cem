@@ -76,7 +76,8 @@ use crate::transform_template::{
     TransformTemplateModuleVisibility, TransformTemplateOutputArtifact,
     TransformTemplateOutputColorSelection, TransformTemplateOutputFunctionRegistry,
     TransformTemplateOutputProducedKind, TransformTemplateRenderRequest,
-    TransformTemplateResolvedModule, TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE,
+    TransformTemplateResolvedModule, CEM_TEMPLATE_IMPORT_DENIED_CODE,
+    CEM_TEMPLATE_IMPORT_UNRESOLVED_CODE, TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE,
     TRANSFORM_TEMPLATE_ENTRYPOINT_NOT_PUBLIC_CODE, TRANSFORM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE,
     TRANSFORM_TEMPLATE_IMPORT_CYCLE_CODE, TRANSFORM_TEMPLATE_IMPORT_DEPTH_CODE,
     TRANSFORM_TEMPLATE_INCLUDE_RESERVED_CODE, TRANSFORM_TEMPLATE_LET_EXPR_INVALID_CODE,
@@ -4081,6 +4082,24 @@ fn preflight_template_module_imports(
                 dependency_hash_input.push(0);
                 dependency_hash_input.extend_from_slice(import.alias.as_bytes());
                 dependency_hash_input.push(0);
+                dependency_hash_input.extend_from_slice(import.uri.as_bytes());
+                dependency_hash_input.push(0);
+                if let Some(content_type) = import
+                    .identity
+                    .as_ref()
+                    .and_then(|identity| identity.content_type.as_deref())
+                {
+                    dependency_hash_input.extend_from_slice(content_type.as_bytes());
+                }
+                dependency_hash_input.push(0);
+                if let Some(schema) = import
+                    .identity
+                    .as_ref()
+                    .and_then(|identity| identity.schema.as_deref())
+                {
+                    dependency_hash_input.extend_from_slice(schema.as_bytes());
+                }
+                dependency_hash_input.push(0);
                 dependency_hash_input.extend_from_slice(module.uri.as_bytes());
                 dependency_hash_input.push(0);
                 dependency_hash_input.extend_from_slice(module.content_hash.as_bytes());
@@ -4107,13 +4126,11 @@ fn preflight_template_module_imports(
                 ancestry.pop();
             }
             Err(error) => {
-                diagnostics.push(template_module_diagnostic(
-                    Some(&import.uri),
-                    error.code(),
-                    format!(
-                        "template module import `{}` could not be read: {error}",
-                        import.alias
-                    ),
+                diagnostics.push(template_import_resolution_diagnostic(
+                    importing_template,
+                    import,
+                    parent_uri,
+                    &error,
                 ));
                 has_fatal = true;
             }
@@ -4121,6 +4138,137 @@ fn preflight_template_module_imports(
     }
 
     !has_fatal
+}
+
+#[derive(Debug, Clone, Copy)]
+struct TemplateImportResolutionDiagnosticKind {
+    code: &'static str,
+    fact_kind: &'static str,
+    contract: &'static str,
+    reason: &'static str,
+}
+
+fn template_import_resolution_diagnostic(
+    importing_template: &TemplateInput,
+    import: &TransformTemplateModuleImport,
+    parent_uri: Option<&str>,
+    error: &ResolverDiagnostic,
+) -> Diagnostic {
+    let kind = template_import_resolution_diagnostic_kind(import.uri.as_str(), error);
+    let source_range = import.source_range.map(byte_range_details);
+    Diagnostic {
+        uri: Some(importing_template.uri.clone()),
+        byte_offset: import.source_range.map(|range| range.start),
+        code: kind.code.to_owned(),
+        severity: Severity::Error,
+        message: format!(
+            "template module import `{}` could not resolve `{}`: {error}",
+            import.alias, import.uri
+        ),
+        details: Some(json!({
+            "behavior": "cem-template-resolution-fact",
+            "factKind": kind.fact_kind,
+            "contract": kind.contract,
+            "disposition": "artifact-blocking",
+            "recoverable": true,
+            "fatal": false,
+            "requestedUri": import.uri.as_str(),
+            "resolvedUri": Value::Null,
+            "substitutedUri": Value::Null,
+            "importAlias": import.alias.as_str(),
+            "parentUri": parent_uri,
+            "sourceUri": importing_template.uri.as_str(),
+            "contentType": import
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.content_type.as_deref()),
+            "schema": import
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.schema.as_deref()),
+            "scheme": template_import_uri_scheme(import.uri.as_str()),
+            "schemeTier": template_import_scheme_tier(import.uri.as_str()),
+            "reason": kind.reason,
+            "resolverCode": error.code(),
+            "resolverUri": resolver_diagnostic_uri(error),
+            "resolverPolicy": "cem-ml-template-resolver/1",
+            "cacheStampBehavior": "artifact-blocking-no-cache-key",
+            "sourceRange": source_range,
+        })),
+        ..Diagnostic::default()
+    }
+}
+
+fn template_import_resolution_diagnostic_kind(
+    uri: &str,
+    error: &ResolverDiagnostic,
+) -> TemplateImportResolutionDiagnosticKind {
+    match error {
+        ResolverDiagnostic::UnsupportedResolver { .. }
+            if uri.starts_with("cem:") || uri.starts_with("urn:cem:") =>
+        {
+            TemplateImportResolutionDiagnosticKind {
+                code: CEM_TEMPLATE_IMPORT_UNRESOLVED_CODE,
+                fact_kind: "unresolved-import",
+                contract: "import-target-must-resolve",
+                reason: "registry-miss",
+            }
+        }
+        ResolverDiagnostic::UnsupportedResolver { .. }
+        | ResolverDiagnostic::NonLocalFileUri { .. }
+        | ResolverDiagnostic::InvalidFileUri { .. } => TemplateImportResolutionDiagnosticKind {
+            code: CEM_TEMPLATE_IMPORT_DENIED_CODE,
+            fact_kind: "denied-import",
+            contract: "external-template-imports-require-resolver-policy",
+            reason: match error {
+                ResolverDiagnostic::NonLocalFileUri { .. } => "non-local-file-uri",
+                ResolverDiagnostic::InvalidFileUri { .. } => "invalid-file-uri",
+                _ if template_import_uri_scheme(uri).is_some() => "missing-uri-scheme-grant",
+                _ => "resolver-unsupported",
+            },
+        },
+        ResolverDiagnostic::Io { .. } => TemplateImportResolutionDiagnosticKind {
+            code: CEM_TEMPLATE_IMPORT_UNRESOLVED_CODE,
+            fact_kind: "unresolved-import",
+            contract: "import-target-must-resolve",
+            reason: "read-failed",
+        },
+    }
+}
+
+fn template_import_uri_scheme(uri: &str) -> Option<&str> {
+    uri.split_once(':').map(|(scheme, _)| scheme)
+}
+
+fn template_import_scheme_tier(uri: &str) -> &'static str {
+    if uri.starts_with("cem:") {
+        "platform-stdlib"
+    } else if uri.starts_with("urn:cem:") {
+        "plugin-registry"
+    } else if template_import_uri_scheme(uri).is_some() {
+        "external-resource"
+    } else {
+        "relative-resource"
+    }
+}
+
+fn resolver_diagnostic_uri(error: &ResolverDiagnostic) -> &str {
+    match error {
+        ResolverDiagnostic::UnsupportedResolver { uri, .. }
+        | ResolverDiagnostic::NonLocalFileUri { uri }
+        | ResolverDiagnostic::InvalidFileUri { uri, .. }
+        | ResolverDiagnostic::Io { uri, .. } => uri.as_str(),
+    }
+}
+
+fn byte_range_details(range: ByteRange) -> Value {
+    json!({
+        "span": {
+            "start": range.start,
+            "len": range.len,
+            "end": range.end(),
+        }
+    })
 }
 
 fn read_template_module_import(
@@ -4147,6 +4295,7 @@ fn read_template_module_import(
     Ok(TransformTemplateResolvedModule {
         alias: import.alias.clone(),
         parent_uri: parent_uri.map(str::to_owned),
+        requested_uri: Some(import.uri.clone()),
         uri: read.uri,
         identity,
         content_hash,
@@ -7594,6 +7743,7 @@ mod tests {
                 uri: "ui.cem".to_owned(),
                 identity: None,
                 kind: TransformTemplateModuleDependencyKind::Import,
+                source_range: None,
             }],
             ..TransformTemplateModuleOptions::default()
         };
@@ -7668,6 +7818,7 @@ mod tests {
                 uri: "ui.cem".to_owned(),
                 identity: None,
                 kind: TransformTemplateModuleDependencyKind::Import,
+                source_range: None,
             }],
             calls: vec![crate::transform_template::TransformTemplateModuleCallSite {
                 owner_entrypoint: None,
@@ -9887,6 +10038,7 @@ mod tests {
                 uri: "ui.cem".to_owned(),
                 identity: None,
                 kind: TransformTemplateModuleDependencyKind::Import,
+                source_range: None,
             }],
             calls: vec![crate::transform_template::TransformTemplateModuleCallSite {
                 owner_entrypoint: Some("card".to_owned()),
@@ -9940,6 +10092,7 @@ mod tests {
                 uri: "ui.cem".to_owned(),
                 identity: None,
                 kind: TransformTemplateModuleDependencyKind::Import,
+                source_range: None,
             }],
             calls: vec![crate::transform_template::TransformTemplateModuleCallSite {
                 owner_entrypoint: Some("card".to_owned()),
@@ -9983,6 +10136,7 @@ mod tests {
                 uri: "ui.cem".to_owned(),
                 identity: None,
                 kind: TransformTemplateModuleDependencyKind::IncludeReserved,
+                source_range: None,
             }],
             ..TransformTemplateModuleOptions::default()
         };
@@ -10023,12 +10177,14 @@ mod tests {
                     uri: "ui.cem".to_owned(),
                     identity: None,
                     kind: TransformTemplateModuleDependencyKind::Import,
+                    source_range: None,
                 },
                 TransformTemplateModuleImport {
                     alias: "ui".to_owned(),
                     uri: "ui-2.cem".to_owned(),
                     identity: None,
                     kind: TransformTemplateModuleDependencyKind::Import,
+                    source_range: None,
                 },
             ],
             ..TransformTemplateModuleOptions::default()
@@ -10069,6 +10225,7 @@ mod tests {
                 uri: "main.cem".to_owned(),
                 identity: None,
                 kind: TransformTemplateModuleDependencyKind::Import,
+                source_range: None,
             }],
             ..TransformTemplateModuleOptions::default()
         };
@@ -10119,6 +10276,7 @@ mod tests {
                 uri: "ui.cem".to_owned(),
                 identity: None,
                 kind: TransformTemplateModuleDependencyKind::Import,
+                source_range: None,
             }],
             ..TransformTemplateModuleOptions::default()
         };
@@ -10161,6 +10319,7 @@ mod tests {
                 uri: "ui.cem".to_owned(),
                 identity: None,
                 kind: TransformTemplateModuleDependencyKind::Import,
+                source_range: None,
             }],
             limits: crate::transform_template::TransformTemplateModuleLimits {
                 max_import_depth: 1,
@@ -10184,6 +10343,106 @@ mod tests {
         assert!(diagnostics
             .iter()
             .any(|diag| diag.code == TRANSFORM_TEMPLATE_IMPORT_DEPTH_CODE));
+    }
+
+    #[test]
+    fn template_module_preflight_reports_denied_external_imports() {
+        let template = template(
+            "cem+vfs://templates/main.cem",
+            br#"{@doc cem-ml 1}
+{module |
+  {import @as="ui" @src="https://example.test/templates/ui.cem"}
+  {template @name="card" | {body | {span | Card}}}
+}"#,
+        );
+        let parse_response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: template.clone(),
+            });
+        assert!(
+            parse_response.diagnostics.is_empty(),
+            "{:?}",
+            parse_response.diagnostics
+        );
+        assert!(parse_response.module_options.imports[0]
+            .source_range
+            .is_some());
+        let mut diagnostics = Vec::new();
+
+        let preflight = preflight_transform_template_modules(
+            &ctx(),
+            "adapter",
+            &template,
+            &TransformTemplateEntrypoint::implicit(),
+            &parse_response.module_options,
+            TransformExecutionPolicy::default(),
+            &mut diagnostics,
+        );
+
+        assert!(preflight.is_none());
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diag| diag.code == CEM_TEMPLATE_IMPORT_DENIED_CODE)
+            .unwrap_or_else(|| panic!("expected denied import diagnostic: {diagnostics:?}"));
+        let details = diagnostic.details.as_ref().expect("details");
+        assert_eq!(diagnostic.severity, Severity::Error);
+        assert_eq!(diagnostic.uri.as_deref(), Some(template.uri.as_str()));
+        assert_eq!(
+            details["requestedUri"],
+            "https://example.test/templates/ui.cem"
+        );
+        assert_eq!(details["importAlias"], "ui");
+        assert_eq!(details["resolverCode"], "cem.resolver.unsupported");
+        assert_eq!(details["reason"], "missing-uri-scheme-grant");
+        assert_eq!(details["schemeTier"], "external-resource");
+        assert!(details["sourceRange"]["span"]["start"].is_u64());
+    }
+
+    #[test]
+    fn template_module_preflight_reports_unresolved_local_imports() {
+        let template = template(
+            "main.cem",
+            br#"{@doc cem-ml 1}
+{module |
+  {import @as="missing" @src="definitely-missing-template-import.cem"}
+  {template @name="card" | {body | {span | Card}}}
+}"#,
+        );
+        let parse_response =
+            parse_cem_native_template_module_options(TransformTemplateModuleParseRequest {
+                template: template.clone(),
+            });
+        assert!(
+            parse_response.diagnostics.is_empty(),
+            "{:?}",
+            parse_response.diagnostics
+        );
+        let mut diagnostics = Vec::new();
+
+        let preflight = preflight_transform_template_modules(
+            &ctx(),
+            "adapter",
+            &template,
+            &TransformTemplateEntrypoint::implicit(),
+            &parse_response.module_options,
+            TransformExecutionPolicy::default(),
+            &mut diagnostics,
+        );
+
+        assert!(preflight.is_none());
+        let diagnostic = diagnostics
+            .iter()
+            .find(|diag| diag.code == CEM_TEMPLATE_IMPORT_UNRESOLVED_CODE)
+            .unwrap_or_else(|| panic!("expected unresolved import diagnostic: {diagnostics:?}"));
+        let details = diagnostic.details.as_ref().expect("details");
+        assert_eq!(
+            details["requestedUri"],
+            "definitely-missing-template-import.cem"
+        );
+        assert_eq!(details["importAlias"], "missing");
+        assert_eq!(details["resolverCode"], "cem.resolver.io");
+        assert_eq!(details["reason"], "read-failed");
+        assert_eq!(details["schemeTier"], "relative-resource");
     }
 
     #[test]

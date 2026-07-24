@@ -196,6 +196,8 @@ pub const CEM_TEMPLATE_MODULE_REQUIRED_CODE: &str = "cem.template.module_require
 pub const CEM_TEMPLATE_ENTRYPOINT_DUPLICATE_CODE: &str = "cem.template.entrypoint_duplicate";
 pub const CEM_TEMPLATE_PARAM_DUPLICATE_CODE: &str = "cem.template.param_duplicate";
 pub const CEM_TEMPLATE_IMPORT_ALIAS_DUPLICATE_CODE: &str = "cem.template.import_alias_duplicate";
+pub const CEM_TEMPLATE_IMPORT_DENIED_CODE: &str = "cem.template.import_denied";
+pub const CEM_TEMPLATE_IMPORT_UNRESOLVED_CODE: &str = "cem.template.import_unresolved";
 pub const CEM_TEMPLATE_LET_DUPLICATE_CODE: &str = "cem.template.let_duplicate";
 pub const CEM_TEMPLATE_CALL_UNKNOWN_CODE: &str = "cem.template.call_unknown";
 pub const CEM_TEMPLATE_PARAM_DEFAULT_EXPR_RESERVED_CODE: &str =
@@ -293,6 +295,8 @@ pub struct TransformTemplateModuleImport {
     pub identity: Option<FormatIdentity>,
     #[serde(default)]
     pub kind: TransformTemplateModuleDependencyKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_range: Option<ByteRange>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -19055,6 +19059,8 @@ impl NativeTemplateModuleLowerer<'_> {
             uri,
             identity,
             kind: TransformTemplateModuleDependencyKind::Import,
+            source_range: template_node_source_map(self.document, import_id)
+                .and_then(|source_map| source_map_byte_range(&source_map)),
         });
         self.reject_decl_children(import_id, "import");
     }
@@ -20140,9 +20146,13 @@ fn template_node_source_map(doc: &CemDocument, node_id: AstNodeId) -> Option<Sou
 }
 
 fn source_map_start_offset(source_map: &SourceMapStack) -> Option<u64> {
+    source_map_byte_range(source_map).map(|range| range.start)
+}
+
+fn source_map_byte_range(source_map: &SourceMapStack) -> Option<ByteRange> {
     source_map.current().and_then(|frame| match &frame.span {
-        FrameSpan::Single(range) => Some(range.start),
-        FrameSpan::Multi(ranges) => ranges.first().map(|range| range.start),
+        FrameSpan::Single(range) => Some(*range),
+        FrameSpan::Multi(ranges) => ranges.first().copied(),
     })
 }
 
@@ -20287,6 +20297,8 @@ pub struct TransformTemplateResolvedModule {
     pub alias: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent_uri: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requested_uri: Option<String>,
     pub uri: String,
     #[serde(default)]
     pub identity: Option<FormatIdentity>,
@@ -34274,6 +34286,7 @@ mod tests {
                 uri: "ui.cem".to_owned(),
                 identity: None,
                 kind: TransformTemplateModuleDependencyKind::Import,
+                source_range: None,
             }],
             entrypoints: vec![TransformTemplateModuleEntrypointDeclaration {
                 name: "card".to_owned(),

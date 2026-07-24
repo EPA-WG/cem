@@ -68,6 +68,8 @@
         {constraint @kind="unique-let-name-per-scope" @target="let" @policy="required"}
         {constraint @kind="let-value-or-expression" @target="let" @policy="exactly one of value, expr, or expression is required"}
         {constraint @kind="call-target-resolvable" @target="call" @policy="required"}
+        {constraint @kind="import-denied-policy" @target="import" @diagnostic="cem.template.import_denied" @behavior="cem-template-resolution-fact" @fact-kind="denied-import" @policy="external template imports require explicit CEM-ML resolver policy"}
+        {constraint @kind="import-target-resolvable" @target="import" @diagnostic="cem.template.import_unresolved" @behavior="cem-template-resolution-fact" @fact-kind="unresolved-import" @policy="compile and render imports must resolve before artifact emission"}
     }
 
     {diagnostics |
@@ -75,6 +77,8 @@
         {diagnostic @code="cem.template.entrypoint_duplicate" @severity="error"}
         {diagnostic @code="cem.template.param_duplicate" @severity="error"}
         {diagnostic @code="cem.template.import_alias_duplicate" @severity="error"}
+        {diagnostic @code="cem.template.import_denied" @severity="error"}
+        {diagnostic @code="cem.template.import_unresolved" @severity="error"}
         {diagnostic @code="cem.template.let_duplicate" @severity="error"}
         {diagnostic @code="cem.template.call_unknown" @severity="error"}
         {diagnostic @code="cem.template.param_default_expr_reserved" @severity="fatal"}
