@@ -40,7 +40,9 @@ mod tests {
             compile, evaluate, load, parse, CompileContext, CompileError, EvaluationContext,
             LoadContext, LoadError, ParseResult,
         };
-        use crate::artifact::{CompiledArtifact, QueryArtifactFormat};
+        use crate::artifact::{
+            ArtifactLoadError, CompiledArtifact, CompiledArtifactIdentity, QueryArtifactFormat,
+        };
         use crate::diagnostics::{DiagnosticCode, DiagnosticSpec, QueryDiagnostic};
         use crate::embedded::{
             EmbeddedArtifactRole, EmbeddedExpression, EmbeddedExpressionProvenance,
@@ -81,6 +83,8 @@ mod tests {
         _accept::<LoadError>();
         _accept::<ParseResult>();
         _accept::<CompiledArtifact>();
+        _accept::<CompiledArtifactIdentity>();
+        _accept::<ArtifactLoadError>();
         _accept::<QueryArtifactFormat>();
         _accept::<DiagnosticCode>();
         _accept::<DiagnosticSpec>();

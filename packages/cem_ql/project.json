@@ -187,6 +187,7 @@
                 "{projectRoot}/src/**/*.rs",
                 "{projectRoot}/tests/compiled_artifact_reload.rs",
                 "{projectRoot}/Cargo.toml",
+                "{workspaceRoot}/packages/cem_ml/schema-packages/cem-ql/v1/examples/compiled-artifact-identity.cemql",
                 "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml"
             ],

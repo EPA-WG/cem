@@ -15,7 +15,9 @@ use cem_ml::content_cache::{
     ArtifactContentType, CemHashRequest, CemHashResponse, ContentHash, InMemoryCemHashTransport,
 };
 
-use crate::api::{compile, compile_artifact, reload_artifact, CompileContext, CompileError};
+use crate::api::{
+    compile, compile_artifact, reload_artifact_with_context, CompileContext, CompileError,
+};
 use crate::artifact::CompiledArtifact;
 use crate::ir::CompiledQuery;
 
@@ -144,7 +146,8 @@ impl<T: Transport> ArtifactLoader<T> {
                     ));
                 }
                 let artifact = self.cache.get(uri).expect("cache populated").clone();
-                let query = reload_artifact(&artifact).map_err(LoaderError::reload)?;
+                let query = reload_artifact_with_context(&artifact, context)
+                    .map_err(LoaderError::reload)?;
                 self.telemetry.cache_hits.fetch_add(1, Ordering::SeqCst);
                 Ok((query, LoadOutcome::CacheHit))
             }
@@ -152,7 +155,7 @@ impl<T: Transport> ArtifactLoader<T> {
                 let source = std::str::from_utf8(&body)
                     .map_err(|_| LoaderError::protocol("response body is not valid UTF-8"))?;
                 let query = compile(source, context).map_err(LoaderError::compile)?;
-                let artifact = CompiledArtifact::from_query(&query);
+                let artifact = CompiledArtifact::from_query_with_context(&query, context);
                 if artifact.content_hash != cem_hash {
                     return Err(LoaderError::hash_mismatch(
                         "recomputed artifact hash does not match server CEM-Hash",

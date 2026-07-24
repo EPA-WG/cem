@@ -138,7 +138,7 @@ then decide whether the remaining `cem-ql/v1` package checklist item can close.
       fixtures. Duplicate explicit import aliases and same-scope declarations
       now report hard schema-owned diagnostics before resolver/type/artifact
       stages.
-- [ ] Decide and implement the remaining CEM-QL semantic fixture:
+- [x] Decide and implement the remaining CEM-QL semantic fixture:
       compiled artifact/cache identity.
   - [x] Decide denied/unresolved import semantics and CEM-ML resolver-policy
         ownership, including explicit substitution versus implicit fallback.
@@ -148,7 +148,7 @@ then decide whether the remaining `cem-ql/v1` package checklist item can close.
   - [x] Add the CEM-QL unresolved-import package example, manifest declaration,
         schema diagnostic binding, README coverage, and focused tests.
   - [x] Decide and implement type-error placeholder fixture semantics.
-  - [ ] Decide and implement compiled artifact/cache identity fixture semantics.
+  - [x] Decide and implement compiled artifact/cache identity fixture semantics.
 - [x] Extend package-local verify coverage so CEM-QL fails on direct engine
       conversion regressions, README/SVG drift, formatter profile drift, HTML
       wrapper/span-role drift, and manifest/example coverage gaps.
@@ -162,7 +162,7 @@ then decide whether the remaining `cem-ql/v1` package checklist item can close.
 ### Schema Package Folder Alignment
 
 Remaining dependency-ordered package checklist:
-- [ ] `cem-ql/v1`
+- [x] `cem-ql/v1`
 - [ ] `cem-native-template/v1`
 - [ ] `cem-transform/v1`
 - [ ] `cem-ast-projection/v1`
@@ -212,10 +212,10 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Resolve the remaining CEM-QL example coverage decision point: choose concrete
-source/diagnostic semantics for compiled artifact/cache identity. Then add the
-example and manifest declaration, update package verification, and re-run
-`cem_ml_schema_package_cem_ql_v1:verify`.
+Start the next dependency-ordered package checklist item: review
+`cem-native-template/v1` against the common schema-package AC, convert any
+findings into immediate todo checkitems, then implement the smallest blocking
+remediation with focused package verification.
 
 ## Current Verification Commands
 

@@ -1,0 +1,8 @@
+module "https://example.test/queries/compiled-artifact-identity"
+
+declare let label = "artifact identity"
+
+{
+    let parts = ("compiled", label);
+    str:concat(parts, "/")
+}

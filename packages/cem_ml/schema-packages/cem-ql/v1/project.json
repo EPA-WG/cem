@@ -23,6 +23,8 @@
                     "cargo test -p cem-ml cem_ql_output_templates_are_schema_package_assets --target-dir dist/target/cem_ml_cli",
                     "cargo test -p cem-ml cem_ql_package_examples_are_manifest_indexed --target-dir dist/target/cem_ml_cli",
                     "cargo test -p cem-ml-cli schema_owned_cem_ql_examples_validate_through_cli --target-dir dist/target/cem_ml_cli",
+                    "cargo test -p cem-ql --test compiled_artifact_reload --target-dir dist/target/cem_ml_cli",
+                    "cargo test -p cem-ql --test transport_protocol --target-dir dist/target/cem_ml_cli",
                     "node packages/cem_ml/schema-packages/cem-ql/v1/scripts/verify-previews.mjs"
                 ],
                 "parallel": false,
@@ -46,6 +48,8 @@
                 "{workspaceRoot}/packages/cem_ml_cli/tests/schema_validation_examples.rs",
                 "{workspaceRoot}/packages/cem_ml_cli/Cargo.toml",
                 "{workspaceRoot}/packages/cem_ql/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ql/tests/compiled_artifact_reload.rs",
+                "{workspaceRoot}/packages/cem_ql/tests/transport_protocol.rs",
                 "{workspaceRoot}/packages/cem_ql/Cargo.toml",
                 "{workspaceRoot}/packages/cem_ml_transform_cem_ql/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml_transform_cem_ql/Cargo.toml"

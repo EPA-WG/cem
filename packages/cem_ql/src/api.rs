@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use cem_ml::content_cache::ContentHash;
+use cem_ml::content_cache::{CacheMode, ContentHash};
 use cem_ml::diagnostics::Diagnostic;
 use cem_ml::scheduler::ScopePolicy;
 use cem_ml::schema::SchemaFrame;
@@ -70,11 +70,20 @@ pub fn compile_artifact(
     source: &str,
     context: &CompileContext,
 ) -> Result<CompiledArtifact, CompileError> {
-    compile(source, context).map(|query| CompiledArtifact::from_query(&query))
+    compile(source, context).map(|query| CompiledArtifact::from_query_with_context(&query, context))
 }
 
 pub fn reload_artifact(artifact: &CompiledArtifact) -> Result<CompiledQuery, LoadError> {
-    artifact.reload().map_err(LoadError::unsupported)
+    artifact.reload().map_err(LoadError::artifact)
+}
+
+pub fn reload_artifact_with_context(
+    artifact: &CompiledArtifact,
+    context: &CompileContext,
+) -> Result<CompiledQuery, LoadError> {
+    artifact
+        .reload_with_context(context)
+        .map_err(LoadError::artifact)
 }
 
 /// Parse-only entry point for tooling.
@@ -110,15 +119,35 @@ pub fn load(_hash: ContentHash, _ctx: &LoadContext) -> Result<CompiledQuery, Loa
     ))
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct CompileContext {
     pub schema_frame: Option<SchemaFrame>,
     pub overlay: OverlayMap,
     pub import_policy: ImportPolicy,
     pub type_config: TyConfig,
+    pub cache_mode: CacheMode,
+    pub source_uri: Option<String>,
+    pub expected_source_hash: Option<ContentHash>,
     pub diagnostics: Vec<Diagnostic>,
     pub source_map_base: SourceMapStack,
     pub policy_bindings: BTreeMap<String, ItemStream>,
+}
+
+impl Default for CompileContext {
+    fn default() -> Self {
+        Self {
+            schema_frame: None,
+            overlay: OverlayMap::default(),
+            import_policy: ImportPolicy::default(),
+            type_config: TyConfig::default(),
+            cache_mode: CacheMode::Prod,
+            source_uri: None,
+            expected_source_hash: None,
+            diagnostics: Vec::new(),
+            source_map_base: SourceMapStack::default(),
+            policy_bindings: BTreeMap::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -181,6 +210,13 @@ impl LoadError {
         Self {
             code: "cem.ql.unsupported",
             message: message.into(),
+        }
+    }
+
+    pub fn artifact(error: crate::artifact::ArtifactLoadError) -> Self {
+        Self {
+            code: error.code,
+            message: error.message,
         }
     }
 }

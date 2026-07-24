@@ -197,6 +197,13 @@ impl TyConfig {
         }
     }
 
+    pub fn cache_stamp(&self) -> String {
+        format!(
+            "ty-config/1;type-error={:?};resolution={:?};cross-type-compare={}",
+            self.type_error_severity, self.resolution_error_severity, self.emit_cross_type_compare
+        )
+    }
+
     fn severity_for(&self, code: DiagnosticCode) -> Option<Severity> {
         if code == TYPE_ERROR {
             Some(self.type_error_severity)

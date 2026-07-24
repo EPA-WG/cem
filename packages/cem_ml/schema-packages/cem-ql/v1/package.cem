@@ -189,6 +189,14 @@
     }
 
     {example
+        @id="compiled-artifact-identity"
+        @path="examples/compiled-artifact-identity.cemql"
+        @content-type="application/vnd.cem.query+cem-ql"
+        @schema="https://cem.dev/ns/query/cem-ql/1"
+        @expected-result="pass"
+    }
+
+    {example
         @id="invalid-parse"
         @path="examples/invalid-parse.cemql"
         @content-type="application/vnd.cem.query+cem-ql"

@@ -17,6 +17,7 @@ use cem_ml::content_cache::ContentHash;
 use cem_ml::scheduler::ScopePolicy;
 use cem_ql::api::{compile_artifact, evaluate, CompileContext, EvaluationContext};
 use cem_ql::eval::{ItemStream, QueryContextScope};
+use cem_ql::resolve::ImportPolicy;
 use cem_ql::transport::{ArtifactLoader, InMemoryTransport, LoadOutcome};
 
 const URI: &str = "cem-ql://ac-qc-v-2/fixture.ql";
@@ -132,6 +133,42 @@ fn ac_qc_v_2_server_hash_mismatch_fails_closed() {
         .expect_err("mismatched CEM-Hash must fail closed");
     assert_eq!(err.code, "cem.cc.hash_mismatch");
     assert_eq!(loader.telemetry().compiled(), 0, "no artifact cached");
+}
+
+#[test]
+fn ac_qc_v_2_cache_hit_revalidates_active_policy_stamps() {
+    let source = r#"module "https://example.test/queries/transport-policy-stamp"
+
+42"#;
+
+    let mut transport = InMemoryTransport::new();
+    let published_hash = publish_source(&mut transport, source);
+
+    let mut loader = ArtifactLoader::new(transport);
+    loader
+        .load(URI, &CompileContext::default())
+        .expect("pass 1: loader resolves source body");
+    assert_eq!(loader.cached_hash(URI), Some(&published_hash));
+
+    let changed_context = CompileContext {
+        import_policy: ImportPolicy::new().allow_scheme("https").unwrap(),
+        ..CompileContext::default()
+    };
+    let err = loader
+        .load(URI, &changed_context)
+        .expect_err("304 cache hit must still reject policy drift");
+    assert_eq!(err.code, "cem.cc.policy_mismatch");
+    assert_eq!(loader.telemetry().compiled(), 1);
+    assert_eq!(
+        loader.telemetry().cache_hits(),
+        0,
+        "rejected reload must not count as a cache hit"
+    );
+    assert_eq!(
+        loader.telemetry().conditional_requests(),
+        1,
+        "pass two still sends If-CEM-Hash before local stamp validation"
+    );
 }
 
 #[test]

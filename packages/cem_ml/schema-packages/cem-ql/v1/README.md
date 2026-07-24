@@ -154,6 +154,26 @@ Imported-module surfaces and current stdlib helper aliases are treated as
 unknown-function cascades while still catching local expression type errors
 whose operands are statically known.
 
+## Compiled Artifact Identity
+
+Compiled CEM-QL artifacts are content-addressed generated outputs. The package
+does not check in opaque `.cem-bin` examples while the binary IR layout is still
+private to the Rust crate; package verification generates artifacts from
+schema-owned source fixtures and validates their identity envelope.
+
+The artifact hash covers the full envelope: artifact content type, artifact
+format version, IR format, CEM-QL schema URI/version, compiler version, source
+byte hash, optional source URI, module URI, cache mode, source-map mode, import
+policy stamp, import closure stamp, stdlib overlay fingerprint, and type-check
+profile. Reload under an active compile context must fail closed when source
+bytes, source URI, import policy, stdlib overlay, cache mode, source-map mode,
+or type-check profile differ from the artifact envelope.
+
+Formatter and writer options are intentionally outside compiled query identity.
+`compact`, `pretty`, `tabular`, `lineEnding`, terminal color, and HTML color
+profiles affect source presentation only; they must not change compiled query
+cache keys unless they also change semantic compile inputs.
+
 ## Formatter And Preview SDLC
 
 CEM-QL formatter/colorizer changes follow the same lifecycle as CSV and other
@@ -174,11 +194,12 @@ Tracked but not complete:
   streams;
 - schema-owned diagnostic policy execution from parse facts rather than bridge
   logic selecting some `cem.ql.*` codes directly;
-- examples for compiled artifact/cache validation. Alias content type,
-  line-ending policy, comments/whitespace, invalid UTF-8, token byte-range
-  preservation, duplicate import aliases, unresolved imports, static type
-  errors, and duplicate declarations now have package examples and focused
-  conversion coverage.
+- schema-owned binary artifact fixture files once the `.cem-bin` IR envelope is
+  declared public and stable. Alias content type, line-ending policy,
+  comments/whitespace, invalid UTF-8, token byte-range preservation, duplicate
+  import aliases, unresolved imports, static type errors, compiled
+  artifact/cache identity, and duplicate declarations now have package examples
+  and focused verification coverage.
 
 ## Resource Model
 
@@ -287,6 +308,7 @@ unchanged, state that explicitly in the change notes.
 | [`collections-and-pipelines.cemql`](examples/collections-and-pipelines.cemql) | Record streams, dot pipelines, current-item projection, `for` mapping, and `any`/`all` helpers. | Pass                                  |
 | [`stdlib-data-helpers.cemql`](examples/stdlib-data-helpers.cemql)       | Sequence helpers, string helpers, number helpers, date/time helpers, and report helper calls.     | Pass                                  |
 | [`host-resource-helpers.cemql`](examples/host-resource-helpers.cemql)   | State helpers, template helpers, CEM-ML helpers, content-type constants, `read(...)`, and JSON-array resource boundary shape. | Pass                                  |
+| [`compiled-artifact-identity.cemql`](examples/compiled-artifact-identity.cemql) | Package-owned source used to generate and validate compiled artifact cache identity stamps.        | Pass                                  |
 | [`invalid-parse.cemql`](examples/invalid-parse.cemql)                   | Incomplete expression rejected by the CEM-QL parser.                                              | Fail with `cem.ql.parse_error`        |
 | [`invalid-missing-module.cemql`](examples/invalid-missing-module.cemql) | Query source missing the required module URI declaration.                                         | Fail with `cem.ql.module_uri_missing` |
 | [`invalid-old-syntax.cemql`](examples/invalid-old-syntax.cemql)         | XPath boolean spelling rejected with a Rust-first replacement diagnostic.                         | Fail with `cem.ql.use_rust_boolean_ops` |

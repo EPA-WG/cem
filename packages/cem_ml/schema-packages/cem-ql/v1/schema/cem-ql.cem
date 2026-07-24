@@ -38,7 +38,7 @@
         {element @name="param" @required-attributes="name" @optional-attributes="type"}
         {element @name="body" @children="expression"}
         {element @name="expression" @optional-attributes="kind type streaming"}
-        {element @name="artifact" @required-attributes="format hash mode" @optional-attributes="source-uri module-uri policy-stamp source-map import-closure"}
+        {element @name="artifact" @required-attributes="content-type format hash mode source-hash schema-uri schema-version compiler-version policy-stamp stdlib-overlay-fingerprint type-profile source-map-mode" @optional-attributes="source-uri module-uri source-map import-closure"}
     }
 
     {attributes |
@@ -87,7 +87,14 @@
         {attribute @name="message" @type="schema:string"}
         {attribute @name="source-uri" @type="schema:uri"}
         {attribute @name="module-uri" @type="schema:uri"}
+        {attribute @name="source-hash" @type="schema:string"}
+        {attribute @name="schema-uri" @type="schema:uri"}
+        {attribute @name="schema-version" @type="schema:semver"}
+        {attribute @name="compiler-version" @type="schema:semver"}
         {attribute @name="policy-stamp" @type="schema:string"}
+        {attribute @name="stdlib-overlay-fingerprint" @type="schema:string"}
+        {attribute @name="type-profile" @type="schema:string"}
+        {attribute @name="source-map-mode" @type="schema:identifier" @values="none dev"}
         {attribute @name="source-map" @type="schema:uri"}
         {attribute @name="import-closure" @type="schema:string"}
     }
@@ -101,8 +108,9 @@
         {constraint @kind="unique-declaration-name-per-scope" @target="module" @diagnostic="cem.ql.declaration_duplicate" @behavior="cem-ql-parse-report-fact" @fact-kind="declaration-duplicate" @policy="required"}
         {constraint @kind="unresolved-import-policy" @target="import" @diagnostic="cem.ql.import_unresolved" @behavior="cem-ql-resolution-fact" @fact-kind="unresolved-import" @policy="imports must resolve through the active module resolver"}
         {constraint @kind="type-check-policy" @target="expression" @diagnostic="cem.ql.type_error" @behavior="cem-ql-type-report-fact" @fact-kind="type-error" @policy="typed evaluator IR rejects incompatible operands and declarations"}
-        {constraint @kind="artifact-hash-required" @target="artifact" @diagnostic="cem.ql.artifact_hash_mismatch" @behavior="cem-ql-parse-report-fact" @fact-kind="artifact-hash-mismatch" @policy="required"}
-        {constraint @kind="artifact-policy-stamps-validated" @target="artifact" @diagnostic="cem.cc.policy_mismatch" @behavior="cem-ql-parse-report-fact" @fact-kind="policy-mismatch" @policy="required on load"}
+        {constraint @kind="artifact-hash-required" @target="artifact" @diagnostic="cem.ql.artifact_hash_mismatch" @behavior="cem-ql-artifact-report-fact" @fact-kind="artifact-hash-mismatch" @policy="artifact hash covers the full identity envelope and IR bytes"}
+        {constraint @kind="artifact-source-identity-validated" @target="artifact" @diagnostic="cem.ql.artifact_hash_mismatch" @behavior="cem-ql-artifact-report-fact" @fact-kind="artifact-source-mismatch" @policy="source URI and source byte hash must match the active source context when provided"}
+        {constraint @kind="artifact-policy-stamps-validated" @target="artifact" @diagnostic="cem.cc.policy_mismatch" @behavior="cem-ql-artifact-report-fact" @fact-kind="policy-mismatch" @policy="import policy stdlib overlay type profile cache mode and source-map mode must match the active compile context on load"}
         {constraint @kind="artifact-source-map-dev-only" @target="artifact" @policy="dev mode only"}
         {constraint @kind="source-map-preferred" @target="token" @diagnostic="cem.ql.source_map_unavailable" @behavior="cem-ql-parse-report-fact" @fact-kind="source-map-unavailable" @policy="required when parser exposes source ranges"}
     }

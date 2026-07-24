@@ -1184,6 +1184,12 @@ mod tests {
                 None,
             ),
             (
+                "compiled-artifact-identity",
+                CEM_QL_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
                 "invalid-parse",
                 CEM_QL_CONTENT_TYPE,
                 SchemaPackageExampleExpectedResult::Fail,

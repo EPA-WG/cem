@@ -692,6 +692,14 @@ impl ImportPolicy {
         self
     }
 
+    pub fn cache_stamp(&self) -> String {
+        format!(
+            "import-policy/1;allowed={};registered-urn-cem={}",
+            stamped_set(&self.allowed_schemes),
+            stamped_set(&self.registered_urn_cem)
+        )
+    }
+
     pub fn resolve_import(&self, import: &ImportDecl) -> Result<ImportResolution, Box<Diagnostic>> {
         if import.uri.starts_with("cem:") {
             if platform_stdlib_module_exists(&import.uri) {
@@ -756,6 +764,14 @@ pub enum ImportKind {
 
 fn scheme_of(uri: &str) -> Option<&str> {
     uri.split_once(':').map(|(scheme, _)| scheme)
+}
+
+fn stamped_set(values: &BTreeSet<String>) -> String {
+    values
+        .iter()
+        .map(|value| format!("{}:{}", value.len(), value))
+        .collect::<Vec<_>>()
+        .join(",")
 }
 
 fn is_reserved_grant(scheme: &str) -> bool {
