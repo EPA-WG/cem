@@ -7,9 +7,11 @@ history.
 
 ## Immediate Goal
 
-Current active slice: remediate CEM-QL CSV-parity review findings against
+Current active slice: remediate `cem-native-template/v1` package review
+findings against
 [`packages/cem_ml/schema-packages/README.md`](../packages/cem_ml/schema-packages/README.md),
-then decide whether the remaining `cem-ql/v1` package checklist item can close.
+then decide whether the `cem-native-template/v1` package checklist item can
+close.
 
 ### Completed Immediate Phase: CSV Formatter Review Findings
 
@@ -159,6 +161,32 @@ then decide whether the remaining `cem-ql/v1` package checklist item can close.
       `cargo test -p cem-ml-cli schema_owned_cem_ql_examples_validate_through_cli`,
       and `yarn nx run cem_ml_schema_package_cem_ql_v1:verify`.
 
+### Immediate: CEM-Native Template Package Review Remediation
+
+- [x] Strengthen `cem-native-template/v1` README coverage for standards/source
+      identity, generic LF `lineEnding` behavior, formatter/colorizer profile
+      semantics, parser facts and diagnostic ownership, safety notes,
+      verification gates, release behavior, and tracked incomplete work.
+- [x] Add README command examples with adjacent SVG previews for the
+      schema-owned validation report and colored `pretty` formatter output, and
+      add package-local preview drift checking.
+- [x] Strengthen the manifest-index Rust test so it enumerates every
+      `cem-native-template` example ID, content type, expected result, and
+      expected diagnostic code instead of only checking the invalid fixture.
+- [x] Extend `cem_ml_schema_package_cem_native_template_v1:verify` so it runs
+      schema-owned example validation and README/SVG drift checks, not only
+      manifest validation.
+- [x] Re-run focused gates:
+      `cargo test -p cem-ml cem_native_template_package_examples_are_manifest_indexed`,
+      `cargo test -p cem-ml-cli schema_owned_cem_native_template_examples_validate_through_cli`,
+      and
+      `yarn nx run cem_ml_schema_package_cem_native_template_v1:verify`.
+- [ ] Decide the next CEM-native template semantic fixture slice: resolver
+      policy for `{import}`, duplicate declarations, call-target resolution,
+      reserved default expressions, and expression-schema ownership need
+      schema-owned examples and focused engine coverage before the package
+      checklist can close.
+
 ### Schema Package Folder Alignment
 
 Remaining dependency-ordered package checklist:
@@ -212,10 +240,11 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Start the next dependency-ordered package checklist item: review
-`cem-native-template/v1` against the common schema-package AC, convert any
-findings into immediate todo checkitems, then implement the smallest blocking
-remediation with focused package verification.
+Resolve the CEM-native template semantic fixture decision point: choose the
+source/diagnostic semantics for import resolver policy, duplicate declarations,
+call-target resolution, reserved default expressions, and expression-schema
+ownership. Then add package examples, manifest declarations, focused
+engine/CLI coverage, and decide whether `cem-native-template/v1` can close.
 
 ## Current Verification Commands
 

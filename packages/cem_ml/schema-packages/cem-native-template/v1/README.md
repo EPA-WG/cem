@@ -1,10 +1,13 @@
 # CEM-Native Template Schema Package
 
-Status: schema, examples, formatter, and colorizer package frame
+Status: schema, examples, formatter, colorizer, README previews, and
+package-local verification frame
 
 This package defines the CEM-native template module language used by template
 adapters. It is a schema package for authored template modules, not for CLI
 transform graph configuration.
+
+## Source Identity
 
 Owned schema URI:
 
@@ -18,14 +21,122 @@ Primary content type:
 application/vnd.cem.template+cem
 ```
 
-Current runtime aliases are also declared so callers can keep using generic
-CEM-ML source content types with an explicit template schema.
+Current runtime aliases are declared so callers can keep using generic CEM-ML
+source content types with an explicit template schema:
+
+- `application/cem`
+- `application/cem+xml`
+- `text/cem`
+- `text/cem-ml`
+
+The aliases are intentionally ambiguous without a schema URI. Callers that use
+one of the generic CEM-ML content types must pass
+`https://cem.dev/ns/template/cem-native/1` when they want this package instead
+of an ordinary CEM document.
+
+CEM-native template source uses the CEM-ML document syntax, directive syntax,
+namespace binding, text model, and Linux-style LF (`\n`) formatter output by
+default. `lineEnding` is a generic formatter option; package-specific template
+options must only be added for template-specific semantics.
+
+## Parser Facts And Diagnostics
+
+Native parsing extracts the byte-accurate CEM-ML tree, namespace bindings,
+template module declarations, imports, params, bodies, immutable `let` bindings,
+and call metadata. The package schema declares the template-facing element and
+attribute contracts and the diagnostic codes for template-specific policy:
+
+- `cem.template.module_required`
+- `cem.template.entrypoint_duplicate`
+- `cem.template.param_duplicate`
+- `cem.template.import_alias_duplicate`
+- `cem.template.call_unknown`
+- `cem.template.param_default_expr_reserved`
+- `cem.transform_template.let_expr_invalid`
+
+Current incomplete boundary: some parser and semantic diagnostics are still
+selected by Rust after extracting template facts. The target shape is the same
+as CSV and CEM-QL: Rust reports neutral parser/template facts with source
+ranges, and this package's `.cem` schema owns code, severity, and structured
+details.
 
 ## Output Artifacts
 
 The package declares CEMT formatter and colorizer artifacts in `package.cem`.
 The public formatter profile names are `compact`, `pretty`, and `tabular`.
 The public colorizer profile names are `terminal`, `html`, and `md`.
+
+Formatters produce formatted CEM trees, colorizers enrich those trees, and the
+generic writer emits terminal, HTML, Markdown, or source bytes. Token arrays,
+ANSI sequences, and HTML spans are writer-boundary implementation details.
+
+Formatter profile behavior:
+
+- `compact`: single-line module body layout after the directive prelude;
+- `pretty`: indented review layout for template modules and output fragments;
+- `tabular`: review layout that gives declaration attributes their own aligned
+  lines where useful;
+- `lineEnding=lf|crlf|preserve`: generic output line-ending control, default
+  `lf`.
+
+Colorizer profile behavior:
+
+- `terminal`: semantic roles mapped to ANSI color output;
+- `html`: semantic roles mapped to HTML color spans by the generic writer;
+- `md`: reserved Markdown-oriented color role output for documentation
+  pipelines.
+
+## Safety Notes
+
+Template modules can describe generated markup and request imports. Validation
+must not execute template output, fetch imports implicitly, evaluate arbitrary
+host expressions, or substitute unresolved imports without resolver-policy
+approval. Import denial and unresolved import behavior are tracked as semantic
+fixture work below.
+
+## Formatter And Preview SDLC
+
+When a command example, fixture, formatter, colorizer, CLI report shape, or
+visible presentation output changes, update the SVG previews in
+`examples/previews/` in the same change by running
+`node packages/cem_ml/schema-packages/cem-native-template/v1/scripts/verify-previews.mjs --update`.
+
+The package `verify` target regenerates previews into `dist/previews/` and
+fails on drift.
+
+## Verification
+
+Focused package gates:
+
+```bash
+cargo test -p cem-ml cem_native_template_package_examples_are_manifest_indexed
+```
+
+```bash
+cargo test -p cem-ml-cli schema_owned_cem_native_template_examples_validate_through_cli
+```
+
+```bash
+yarn nx run cem_ml_schema_package_cem_native_template_v1:verify
+```
+
+## Release Behavior
+
+This package is versioned as `1.0.0`. The primary content type and schema URI
+are compatibility anchors. The generic CEM-ML aliases remain opt-in through an
+explicit schema URI. Unsupported or ambiguous template semantics should fail
+closed through validation diagnostics rather than falling back to ordinary CEM
+document behavior.
+
+Tracked but not complete:
+
+- schema-owned fact bindings for all template parser and semantic diagnostics;
+- resolver-policy fixtures for `{import}` denial, unresolved imports, and
+  explicit substitutions;
+- package examples for duplicate imports, duplicate declarations, unknown calls,
+  reserved default expressions, and invalid expression ownership;
+- HTML and Markdown preview drift checks once their template presentation
+  profiles become stable enough for README demos.
 
 ## Validation Examples
 
@@ -42,7 +153,27 @@ Validate an example explicitly against this schema:
 
 ```bash
 cargo run -p cem-ml-cli -- validate \
+  --format json \
   --content-type application/vnd.cem.template+cem \
   --schema https://cem.dev/ns/template/cem-native/1 \
   packages/cem_ml/schema-packages/cem-native-template/v1/examples/basic-template.cem
 ```
+
+![Preview of the CEM-native template validation JSON report](examples/previews/basic-template-validate.svg)
+
+Format and color the same example through the package formatter/colorizer
+pipeline:
+
+```bash
+cargo run -p cem-ml-cli -- convert \
+  packages/cem_ml/schema-packages/cem-native-template/v1/examples/basic-template.cem \
+  --content-type application/vnd.cem.template+cem \
+  --schema https://cem.dev/ns/template/cem-native/1 \
+  --to-content-type application/vnd.cem.template+cem \
+  --to-schema https://cem.dev/ns/template/cem-native/1 \
+  --cemt-formatter-profile pretty \
+  --cemt-color-profile terminal \
+  --output-color-type ansi-256
+```
+
+![Preview of the colored pretty CEM-native template output](examples/previews/basic-template-pretty-terminal.svg)

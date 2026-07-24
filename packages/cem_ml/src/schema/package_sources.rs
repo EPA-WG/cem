@@ -1024,18 +1024,52 @@ mod tests {
             CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
             CEM_NATIVE_TEMPLATE_SCHEMA_URI,
         );
-        let missing_required = examples
+
+        let expected = [
+            (
+                "basic-template",
+                CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "module-template",
+                CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "invalid-missing-required-attribute",
+                CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.schema_model.missing_required_attribute"),
+            ),
+        ];
+        let actual_ids = examples
             .iter()
-            .find(|example| example.id == "invalid-missing-required-attribute")
-            .expect("invalid missing required native template example");
+            .map(|example| example.id.as_str())
+            .collect::<BTreeSet<_>>();
+        let expected_ids = expected
+            .iter()
+            .map(|(id, _, _, _)| *id)
+            .collect::<BTreeSet<_>>();
         assert_eq!(
-            missing_required.expected_result,
-            SchemaPackageExampleExpectedResult::Fail
+            actual_ids, expected_ids,
+            "checked CEM-native template example expectations must cover every manifest example"
         );
-        assert_eq!(
-            missing_required.expected_diagnostic_codes,
-            vec!["cem.schema_model.missing_required_attribute".to_owned()]
-        );
+
+        for (id, content_type, expected_result, expected_code) in expected {
+            let example = examples
+                .iter()
+                .find(|example| example.id == id)
+                .unwrap_or_else(|| panic!("CEM-native template example `{id}`"));
+            assert_eq!(example.content_type, content_type);
+            assert_eq!(example.expected_result, expected_result);
+            let expected_codes = expected_code
+                .map(|code| vec![code.to_owned()])
+                .unwrap_or_default();
+            assert_eq!(example.expected_diagnostic_codes, expected_codes);
+        }
     }
 
     #[test]
