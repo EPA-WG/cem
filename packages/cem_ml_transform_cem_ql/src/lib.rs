@@ -364,6 +364,7 @@ fn evaluate_cem_ql_behavior_query(
             scope_policy: ScopePolicy::host_root(),
             diagnostics: Vec::new(),
             policy_bindings: bindings,
+            current_item: None,
         },
     );
     if let Some(error) = stream.error.as_ref() {

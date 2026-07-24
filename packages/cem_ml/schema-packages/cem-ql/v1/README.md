@@ -57,14 +57,17 @@ runtime item/value model. Parent packages may add diagnostics for slot misuse
 or phase violations, but invalid expression syntax and expression type errors
 remain CEM-QL facts wrapped with parent slot provenance.
 
-Standalone expression execution is a roadmap API/CLI feature for running one
-CEM-QL expression against a data resource without wrapping it in a query module
-or template. The target Rust API should compile and evaluate an expression from
-source bytes plus a typed data/context input, returning a typed value sequence,
-diagnostics, source maps, policy stamps, and optional formatted output. The
-target CLI should expose that path under the CEM-ML CLI, for example a future
-`cem-ml query expr` command that accepts expression source from an argument,
-file, or stdin and data from a content-type/schema-declared input resource.
+Standalone expression execution runs one CEM-QL expression against a data
+resource without wrapping it in a query module or template. The Rust API
+exposes `cem_ql::api::compile_expression` and
+`cem_ql::api::evaluate_expression` for source bytes plus typed data/context
+bindings. It returns compiled expression metadata, the inferred root type,
+diagnostics, policy/capability stamps supplied by the caller, and the evaluated
+item stream. Source-map reporting and formatted output are still part of the
+target CLI/resource-runner slice. The target CLI should expose that path under
+the CEM-ML CLI, for example a future `cem-ml query expr` command that accepts
+expression source from an argument, file, or stdin and data from a
+content-type/schema-declared input resource.
 
 ## Standalone Expression Resource Contract
 
@@ -263,9 +266,9 @@ schema-package output support:
 
 Tracked but not complete:
 
-- standalone expression resource registration, Rust API, CLI runner, package
-  examples, and package verify gates for running a CEM-QL expression against
-  declared data without a wrapping query module;
+- standalone expression resource registration, CLI runner, manifest-owned
+  package examples, and package verify gates for running a CEM-QL expression
+  against declared data without a wrapping query module;
 - AST-aware `pretty` and `tabular` layout rules beyond source-preserving token
   streams;
 - schema-owned diagnostic policy execution from parse facts rather than bridge

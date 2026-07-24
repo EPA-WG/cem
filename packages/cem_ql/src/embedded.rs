@@ -588,6 +588,7 @@ pub fn validate_embedded_functional_fixture(
             scope_policy: fixture.scope_policy,
             diagnostics: Vec::new(),
             policy_bindings: fixture.bindings.clone(),
+            current_item: None,
         },
     ));
     report

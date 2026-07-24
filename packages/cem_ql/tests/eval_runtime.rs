@@ -28,6 +28,7 @@ fn eval_with_bindings(
             scope_policy: policy,
             diagnostics: Vec::new(),
             policy_bindings,
+            current_item: None,
         },
     )
 }

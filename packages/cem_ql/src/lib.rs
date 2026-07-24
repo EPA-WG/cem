@@ -37,8 +37,11 @@ mod tests {
     #[test]
     fn layered_runtime_contract_types_are_importable() {
         use crate::api::{
-            compile, evaluate, load, parse, CompileContext, CompileError, EvaluationContext,
-            LoadContext, LoadError, ParseResult,
+            compile, compile_expression, evaluate, evaluate_expression, load, parse,
+            CompileContext, CompileError, CompiledExpression, EvaluationContext, ExpressionError,
+            ExpressionEvaluation, LoadContext, LoadError, ParseResult, StandaloneExpressionBinding,
+            StandaloneExpressionContext, CEM_QL_EXPRESSION_CONTENT_TYPE,
+            CEM_QL_EXPRESSION_SCHEMA_URI,
         };
         use crate::artifact::{
             ArtifactLoadError, CompiledArtifact, CompiledArtifactIdentity, QueryArtifactFormat,
@@ -78,10 +81,15 @@ mod tests {
 
         _accept::<CompileContext>();
         _accept::<CompileError>();
+        _accept::<CompiledExpression>();
         _accept::<EvaluationContext>();
+        _accept::<ExpressionEvaluation>();
+        _accept::<ExpressionError>();
         _accept::<LoadContext>();
         _accept::<LoadError>();
         _accept::<ParseResult>();
+        _accept::<StandaloneExpressionBinding>();
+        _accept::<StandaloneExpressionContext>();
         _accept::<CompiledArtifact>();
         _accept::<CompiledArtifactIdentity>();
         _accept::<ArtifactLoadError>();
@@ -183,8 +191,24 @@ mod tests {
         _accept::<TypeChecker>();
 
         let _compile: fn(&str, &CompileContext) -> Result<CompiledQuery, CompileError> = compile;
+        let _compile_expression: fn(
+            &str,
+            &StandaloneExpressionContext,
+        ) -> Result<CompiledExpression, ExpressionError> = compile_expression;
         let _evaluate: fn(&CompiledQuery, &EvaluationContext) -> ItemStream = evaluate;
+        let _evaluate_expression: fn(
+            &str,
+            &StandaloneExpressionContext,
+        ) -> Result<ExpressionEvaluation, ExpressionError> = evaluate_expression;
         let _parse: fn(&str) -> ParseResult = parse;
+        assert_eq!(
+            CEM_QL_EXPRESSION_CONTENT_TYPE,
+            "application/vnd.cem.query-expression+cem-ql"
+        );
+        assert_eq!(
+            CEM_QL_EXPRESSION_SCHEMA_URI,
+            "https://cem.dev/ns/query/cem-ql/1#expression"
+        );
         let _validate_module_shape: fn(&SurfaceModule) -> Vec<cem_ml::diagnostics::Diagnostic> =
             validate_module_shape;
         let _load: fn(

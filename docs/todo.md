@@ -228,7 +228,7 @@ needed before invalid template expression fixtures can close.
       candidate content type, source identity, data/context input model, result
       value model, diagnostics, source maps, resolver-policy stamp, and package
       examples.
-- [ ] Add a `cem_ql` Rust API that can compile and evaluate one standalone
+- [x] Add a `cem_ql` Rust API that can compile and evaluate one standalone
       expression against a typed data/context input without requiring a query
       module wrapper.
 - [ ] Add a CEM-ML CLI expression runner, currently planned as a `query expr`
@@ -296,9 +296,10 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Add the `cem_ql` Rust API that compiles and evaluates one standalone expression
-against a typed data/context input without requiring a query module wrapper.
-After that, expose the same path through the CEM-ML CLI expression runner.
+Expose the standalone CEM-QL expression path through the CEM-ML CLI expression
+runner, currently planned as `cem-ml query expr`, sharing run config, input
+identity, resolver policy, output formatting, and diagnostic reporting with
+existing commands.
 
 ## Current Verification Commands
 

@@ -291,6 +291,10 @@ impl TypeChecker {
         self.expect_subtype(&actual, expected, expr.range())
     }
 
+    pub fn check_type(&mut self, actual: &Type, expected: &Type, range: ByteRange) -> bool {
+        self.expect_subtype(actual, expected, range)
+    }
+
     pub fn diagnostics(&self) -> &[Diagnostic] {
         &self.diagnostics
     }

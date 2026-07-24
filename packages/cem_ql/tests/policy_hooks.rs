@@ -54,6 +54,7 @@ fn contexts() -> (CompileContext, EvaluationContext) {
             scope_policy: ScopePolicy::host_root().with_queue_size(128),
             diagnostics: Vec::new(),
             policy_bindings,
+            current_item: None,
         },
     )
 }

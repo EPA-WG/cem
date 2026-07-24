@@ -46,6 +46,7 @@ fn eval_context() -> EvaluationContext {
         scope_policy: ScopePolicy::host_root().with_queue_size(2048),
         diagnostics: Vec::new(),
         policy_bindings: Default::default(),
+        current_item: None,
     }
 }
 

@@ -35,6 +35,7 @@ pub(crate) fn evaluate_query_source_json(source: &str, bindings_json: &str) -> S
             scope_policy: ScopePolicy::host_root().with_queue_size(DEFAULT_WASM_QUEUE_SIZE),
             diagnostics: Vec::new(),
             policy_bindings,
+            current_item: None,
         },
     );
     query_result_json(&stream).to_string()

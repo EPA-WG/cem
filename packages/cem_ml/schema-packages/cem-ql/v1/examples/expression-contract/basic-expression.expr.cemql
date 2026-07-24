@@ -1,1 +1,1 @@
-input.items.where(fn(item) => item.tier != "deprecated").name
+input.items.name

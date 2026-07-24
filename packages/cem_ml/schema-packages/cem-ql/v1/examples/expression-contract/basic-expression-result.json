@@ -1,5 +1,5 @@
 {
-  "contractStatus": "planned",
+  "contractStatus": "rust-api-supported-cli-planned",
   "contentType": "application/vnd.cem.query-expression+cem-ql",
   "schema": "https://cem.dev/ns/query/cem-ql/1#expression",
   "source": {
@@ -15,7 +15,8 @@
     "type": "string*",
     "items": [
       "Ada",
-      "Lin"
+      "Lin",
+      "Max"
     ],
     "serialization": "json"
   },

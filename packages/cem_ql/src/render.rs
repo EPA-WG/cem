@@ -256,6 +256,7 @@ pub fn render_compiled_template(artifact: &TemplateArtifact, data: &TemplateData
             scope_policy: ScopePolicy::host_root().with_queue_size(128),
             diagnostics: Vec::new(),
             policy_bindings,
+            current_item: None,
         },
         diagnostics: artifact.diagnostics.clone(),
         templates,

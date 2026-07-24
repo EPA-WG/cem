@@ -196,7 +196,7 @@ impl<'a> EvalCtx<'a> {
             scopes: vec![HashMap::new()],
             globals: HashMap::new(),
             functions: HashMap::new(),
-            current_items: Vec::new(),
+            current_items: context.current_item.clone().into_iter().collect(),
             counters: HashMap::new(),
             limits: limits_from_policy(context.scope_policy),
             call_depth: 0,

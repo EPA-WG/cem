@@ -241,8 +241,9 @@ compiled query artifact resource identities. It owns
 `application/vnd.cem.query+cem-ql`, claims `text/cem-ql` as an authoring alias,
 and claims compiled artifact/cache aliases for query binaries. CEM-QL source is
 not CEM-ML syntax; its parser lives in the `cem-ql` crate. Standalone
-expression execution is roadmap work for the same package/API surface, not a
-template-package-specific feature.
+expression execution belongs to the same package/API surface, not a
+template-package-specific feature; the Rust API exists, while CLI/resource
+registration remains the next execution slice.
 
 `json/v1` defines generic JSON text resource identity. It owns
 `application/json` and claims `text/json` as an alias. JSON source is not
