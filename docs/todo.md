@@ -81,7 +81,7 @@ then resume dependency-ordered schema-package folder alignment.
 ### Schema Package Folder Alignment
 
 Remaining dependency-ordered package checklist:
-- [ ] `cem-ql/v1`
+- [x] `cem-ql/v1`
 - [ ] `cem-native-template/v1`
 - [ ] `cem-transform/v1`
 - [ ] `cem-ast-projection/v1`

@@ -60,7 +60,15 @@ The schema describes the query resource model used by loaders and caches:
 ## Validation Examples
 
 The schema-owned examples live in [`examples/`](examples/) and are used by the
-CLI validation integration tests.
+CLI validation integration tests and the package-local `verify` target.
+
+<!--
+AI maintenance: when changing the command example below, its referenced CEM-QL
+fixture, formatter/colorizer assets, CLI report shape, or CEM-QL presentation
+output, refresh the matching SVG preview with
+`node packages/cem_ml/schema-packages/cem-ql/v1/scripts/verify-previews.mjs --update`
+and commit the preview changes in the same change.
+-->
 
 | Example                                                                 | Purpose                                                                                           | Expected result                       |
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------- |
@@ -80,11 +88,14 @@ and resource boundaries such as JSON `read(...)` or WASM bindings, and are
 therefore represented in the host/resource helper example rather than as a
 new surface syntax.
 
-Validate an example explicitly against this schema:
+Validate an example explicitly against this schema from a built CLI binary:
 
 ```bash
-cargo run -p cem-ml-cli -- validate \
+dist/target/cem_ml_cli/debug/cem-ml validate \
+  --format json \
   --content-type application/vnd.cem.query+cem-ql \
   --schema https://cem.dev/ns/query/cem-ql/1 \
   packages/cem_ml/schema-packages/cem-ql/v1/examples/basic-query.cemql
 ```
+
+![Preview of the CEM-QL validation JSON report](examples/previews/basic-query-validate.svg)
