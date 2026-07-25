@@ -168,6 +168,9 @@ Generic formatter options are unprefixed:
   used by repository fixtures, `crlf` is available for transport-specific
   output, and `preserve` keeps source whitespace exactly where token source
   preservation metadata is available.
+- `tabSize=N`: positive integer tab-stop width used by readable formatter
+  metadata and HTML preview wrappers when output contains literal tab
+  characters. The default is `8`.
 
 No CEM-QL-specific formatter options are currently implemented. Future CEM-QL
 formatter options should use the `cemQl.` namespace only when they express

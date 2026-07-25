@@ -21,19 +21,19 @@
       <tspan x="28" fill="#79c0ff">{</tspan><tspan x="39" fill="#79c0ff">module</tspan><tspan x="105" fill="#d6dee6"> |</tspan>
     </text>
     <text y="182">
-      <tspan x="28" fill="#c9d1d9">  </tspan><tspan x="50" fill="#79c0ff">{</tspan><tspan x="61" fill="#79c0ff">template</tspan><tspan x="149" fill="#d6dee6"> </tspan><tspan x="160" fill="#79c0ff">@name=main</tspan><tspan x="270" fill="#d6dee6"> |</tspan>
+      <tspan x="28" fill="#c9d1d9">    </tspan><tspan x="72" fill="#79c0ff">{</tspan><tspan x="83" fill="#79c0ff">template</tspan><tspan x="171" fill="#d6dee6"> </tspan><tspan x="182" fill="#79c0ff">@name=main</tspan><tspan x="292" fill="#d6dee6"> |</tspan>
     </text>
     <text y="210">
-      <tspan x="28" fill="#c9d1d9">    </tspan><tspan x="72" fill="#79c0ff">{</tspan><tspan x="83" fill="#79c0ff">body</tspan><tspan x="127" fill="#d6dee6"> |</tspan>
+      <tspan x="28" fill="#c9d1d9">        </tspan><tspan x="116" fill="#79c0ff">{</tspan><tspan x="127" fill="#79c0ff">body</tspan><tspan x="171" fill="#d6dee6"> |</tspan>
     </text>
     <text y="238">
-      <tspan x="28" fill="#c9d1d9">      </tspan><tspan x="94" fill="#7ee787">Converted output.</tspan>
+      <tspan x="28" fill="#c9d1d9">            </tspan><tspan x="160" fill="#7ee787">Converted output.</tspan>
     </text>
     <text y="266">
-      <tspan x="28" fill="#79c0ff">}</tspan>
+      <tspan x="28" fill="#d6dee6">        </tspan><tspan x="116" fill="#79c0ff">}</tspan>
     </text>
     <text y="294">
-      <tspan x="28" fill="#79c0ff">}</tspan>
+      <tspan x="28" fill="#d6dee6">    </tspan><tspan x="72" fill="#79c0ff">}</tspan>
     </text>
     <text y="322">
       <tspan x="28" fill="#79c0ff">}</tspan>

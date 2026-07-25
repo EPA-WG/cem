@@ -112,6 +112,25 @@ tests:
   standard requires or strongly expects another record separator, package docs
   must warn about the default conflict and document the strict interchange
   option, for example `lineEnding=crlf`;
+- formatter page geometry: readable formatter profiles default to a four-space
+  `indent`, an eight-column `tabSize`, and a 100-character `wrapColumn` target
+  when the formatter performs wrapping. This README is the active implementation
+  contract; [`indent-vs-tab-size.md`](../../../docs/indent-vs-tab-size.md) is
+  the linked decision and rationale archive, not an independent source of
+  acceptance criteria;
+- formatter indentation: readable formatter profiles default to a four-space
+  indent unit. `indent` is a generic formatter option whose value is the exact
+  whitespace string to repeat per depth level; spaces and tabs in this value
+  must be preserved rather than trimmed. Packages that emit indented output must
+  read the generic option before applying package-specific layout rules;
+- formatter tab stops: readable formatter profiles that emit literal tab
+  characters default to an eight-column tab-stop assumption. `tabSize` is a
+  generic formatter option whose positive integer value must be carried through
+  formatter metadata and any preview renderer that expands tabs;
+- formatter wrapping: readable formatter profiles that wrap output default to
+  a 100-character soft target. `wrapColumn` is a generic formatter option whose
+  positive integer value must guide wrapping without overriding target-format
+  correctness or user-provided hard layout requirements;
 - standards and registry mapping: cite the primary specification, registered
   content types, content-type parameters, fragment identifiers, and known
   interoperability notes;
@@ -183,8 +202,8 @@ checks a CLI demo. Review findings should explicitly cover these layers:
 6. **Profile semantics.** `compact`, `pretty`, `tabular`, `terminal`, `html`,
    and `md` profiles must either have distinct documented behavior or be
    explicitly documented and tested as intentional aliases until real behavior is
-   implemented. Generic formatter options such as `lineEnding` must be reviewed
-   across all profiles.
+   implemented. Generic formatter options such as `lineEnding`, `indent`,
+   `tabSize`, and `wrapColumn` must be reviewed across all profiles.
 7. **README AC coverage.** The README must include standards/registry mapping,
    source identity, parser facts, formatter/colorizer profiles, command demos
    with adjacent SVG previews, safety/security notes, verification gates,
@@ -448,8 +467,9 @@ Every package should expose at least these formatter profiles:
   deterministic byte output.
 - `pretty`: a readable profile aligned with common Prettier-style defaults for
   indentation, wrapping, and stable ordering.
-- `tabular`: vertically aligned where useful, with scope closers kept on the
-  same line when they fit.
+- `tabular`: vertically aligned where useful, wrapping only after the
+  `wrapColumn` target is reached and keeping scope closers on the same line
+  when they fit.
 
 Colorizer assets live under `colorizers/` and are also CEMT transforms over the
 formatted CEM tree. Every package should expose at least these colorizer

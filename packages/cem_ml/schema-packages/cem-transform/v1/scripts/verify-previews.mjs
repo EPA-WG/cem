@@ -14,6 +14,7 @@ const cli = join(workspaceRoot, 'dist/target/cem_ml_cli/debug/cem-ml');
 const update = process.argv.includes('--update');
 const cliEnv = { ...process.env };
 delete cliEnv.NO_COLOR;
+const defaultFormatterTabSize = 8;
 
 const commonInputArgs = [
     'packages/cem_ml/schema-packages/cem-transform/v1/examples/basic-transform.cemt',
@@ -282,7 +283,7 @@ function ansi256(code) {
 }
 
 function nextTabColumn(column) {
-    return column + (8 - (column % 8 || 8));
+    return (Math.floor(column / defaultFormatterTabSize) + 1) * defaultFormatterTabSize;
 }
 
 function displayWidth(char) {

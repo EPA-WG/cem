@@ -1894,7 +1894,7 @@ fn validate_endpoint_schema_content_type(
     else {
         return;
     };
-    let schema = registry.schema(schema_uri);
+    let schema = schema_descriptor_for_manifest_reference(registry, schema_uri);
     let comparison = if let Some(schema) = schema {
         compare_content_type_schema_membership(
             content_type,
@@ -1999,6 +1999,19 @@ fn package_declares_schema_uri(
     doc.iter().any(|node| {
         element_local_name(node) == Some("schema")
             && attr_value(doc, node, "uri").map(str::trim) == Some(schema_uri)
+    })
+}
+
+fn schema_descriptor_for_manifest_reference<'a>(
+    registry: &'a SchemaRegistry,
+    schema_uri: &str,
+) -> Option<&'a SchemaDescriptor> {
+    registry.schema(schema_uri).or_else(|| {
+        let (base_uri, fragment) = schema_uri.split_once('#')?;
+        if base_uri.is_empty() || fragment.is_empty() {
+            return None;
+        }
+        registry.schema(base_uri)
     })
 }
 
@@ -2447,7 +2460,7 @@ fn validate_schema_package_example(
     else {
         return;
     };
-    let schema = registry.schema(schema_uri);
+    let schema = schema_descriptor_for_manifest_reference(registry, schema_uri);
     let comparison = if let Some(schema) = schema {
         compare_content_type_schema_membership(
             content_type,
@@ -2911,15 +2924,13 @@ fn schema_package_example_tokenizer(
 }
 
 fn parse_example_cem_document(bytes: &[u8]) -> CemDocument {
-    let handoff_diagnostics = {
+    let schema_machine_diagnostics = {
         let src = BytesSource::new(SourceId(1), bytes.to_vec());
         let tok = CemTokenizer::from_source(src);
         let normalizer = CemEventNormalizer::new(tok);
         CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer)
             .run()
             .diagnostics
-            .into_iter()
-            .filter(|diagnostic| diagnostic.code.starts_with("cem.handoff."))
     };
 
     let src = BytesSource::new(SourceId(1), bytes.to_vec());
@@ -2928,7 +2939,7 @@ fn parse_example_cem_document(bytes: &[u8]) -> CemDocument {
     let normalizer = CemEventNormalizer::new(tok);
     let mut document = CemAstBuilder::new(normalizer).build();
     document.diagnostics.extend(tok_diags);
-    document.diagnostics.extend(handoff_diagnostics);
+    document.diagnostics.extend(schema_machine_diagnostics);
     document
 }
 

@@ -39,6 +39,7 @@
                             layout: "pretty-records",
                             delimiter: ",",
                             lineEnding: $lineEnding,
+                            tabSize: $tabSize,
                             presentationOnly: true,
                             strictCsv: false,
                             dataPreserving: false
@@ -119,7 +120,8 @@
                 }),
                 maxFieldWidth: call("csv.format-document.max-field-width", {}),
                 stringTrim: call("csv.format-document.string-trim-mode", {}),
-                displayWidthPolicy: "unicode-terminal"
+                displayWidthPolicy: "unicode-terminal",
+                tabSize: $tabSize
             } }
         }
     }

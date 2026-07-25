@@ -699,7 +699,7 @@ decisions, formatted CEM output trees, or formatted token streams:
     @canonical=false
     @streamable=true |
     {param @name="subject" @type="object" @required=true}
-    {param @name="indent" @type="string" @default="  "}
+    {param @name="indent" @type="string" @default="    "}
 }
 ```
 

@@ -39,7 +39,7 @@
         @canonical=false
         @streamable=true |
         {param @name="subject" @type="object" @required=true}
-        {param @name="indent" @type="string" @default="  "}
+        {param @name="indent" @type="string" @default="    "}
     }
 
     {format-function

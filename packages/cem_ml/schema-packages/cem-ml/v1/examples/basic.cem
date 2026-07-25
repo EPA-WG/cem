@@ -1,6 +1,7 @@
 @doc cem-ml 1
 
-{article @id="welcome" |
+{article @id="welcome" @attr1="abc"  @attr2="long attr value"  @attr3="abc"  @attr4="abc"  @attr5="abc"
+    @attr6="abc"  @attr7="abc" |
     {h1 | Welcome}
     {p | This is a minimal CEM-ML document.}
 }

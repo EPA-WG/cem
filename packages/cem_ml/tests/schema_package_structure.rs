@@ -263,7 +263,7 @@ fn schema_package_examples_use_manifest_owned_reference_records() {
         .iter()
         .find(|report| report.package_id == "csv")
         .expect("csv package report");
-    assert_eq!(csv.manifest_example_count, 8);
+    assert_eq!(csv.manifest_example_count, 16);
 }
 
 #[test]

@@ -3533,7 +3533,7 @@ fn write_structured_xml_value(
     depth: usize,
 ) {
     let name = xml_element_name(name);
-    let indent = "  ".repeat(depth);
+    let indent = cem_ml::transform_template::DEFAULT_FORMATTER_INDENT.repeat(depth);
     match value {
         serde_json::Value::Object(fields) => {
             out.push_str(&indent);
@@ -10129,7 +10129,7 @@ fn transform_graph_report_from_artifacts(
 
 fn cem_indent(out: &mut String, indent: usize) {
     for _ in 0..indent {
-        out.push_str("  ");
+        out.push_str(cem_ml::transform_template::DEFAULT_FORMATTER_INDENT);
     }
 }
 
@@ -20713,7 +20713,7 @@ start =
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert!(stdout.trim().is_empty());
         let written = std::fs::read_to_string(&out_path).unwrap();
-        assert_eq!(written, "{cem:if @test=ready |\n  {button | Go}\n}\n");
+        assert_eq!(written, "{cem:if @test=ready |\n    {button | Go}\n}\n");
     }
 
     #[test]
@@ -25655,7 +25655,7 @@ declare let broken = 1 +
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
         assert_eq!(
             stdout,
-            "{cem:if @test=\"!(disabled)\" |\n  {button | Go}\n}\n"
+            "{cem:if @test=\"!(disabled)\" |\n    {button | Go}\n}\n"
         );
     }
 
@@ -25744,7 +25744,7 @@ declare let broken = 1 +
             ],
         );
         assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
-        assert_eq!(stdout, "{cem:if @test=ready |\n  {button | Go}\n}\n");
+        assert_eq!(stdout, "{cem:if @test=ready |\n    {button | Go}\n}\n");
     }
 
     #[test]

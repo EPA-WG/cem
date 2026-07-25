@@ -53,7 +53,7 @@ use cem_ml::transform_template::{
     TransformTemplateModulePreflight, TransformTemplateOutputArtifact,
     TransformTemplateOutputColorSelection, TransformTemplateOutputProducedKind,
     TransformTemplateRenderRequest, TransformTemplateRenderResponse,
-    TransformTemplateSourceMapPolicy, CEM_NATIVE_TEMPLATE_SCHEMA_URI,
+    TransformTemplateSourceMapPolicy, CEM_NATIVE_TEMPLATE_SCHEMA_URI, DEFAULT_FORMATTER_TAB_SIZE,
     TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE, TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE,
     TRANSFORM_TEMPLATE_PARAM_TYPE_CODE, TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE,
 };
@@ -1908,9 +1908,13 @@ pub fn engine_context_with_cem_ql_template_adapter() -> EngineContext {
 const CEM_QL_DIRECT_OUTPUT_CONVERTER_ID: &str = "cem-ql-direct-output";
 const CEM_QL_DIRECT_FORMATTER: &str = "cem-ql.format-tree";
 const CEM_QL_DIRECT_COLORIZER: &str = "cem-ql.color-tree";
-const CEM_QL_HTML_PREVIEW_PREFIX: &str =
-    r#"<pre class="cem-output cem-output-cem-ql" style="white-space: pre; tab-size: 8">"#;
 const CEM_QL_HTML_PREVIEW_SUFFIX: &str = "</pre>";
+
+fn cem_ql_html_preview_prefix(tab_size: usize) -> String {
+    format!(
+        r#"<pre class="cem-output cem-output-cem-ql" style="white-space: pre; tab-size: {tab_size}">"#
+    )
+}
 
 #[derive(Debug)]
 struct CemQlSourceOutputConvertHandler;
@@ -2052,7 +2056,8 @@ fn convert_cem_ql_source_output(
         output_color_selection.as_ref(),
     );
     if html_output {
-        content = format!("{CEM_QL_HTML_PREVIEW_PREFIX}{content}{CEM_QL_HTML_PREVIEW_SUFFIX}");
+        let prefix = cem_ql_html_preview_prefix(cem_ql_formatter_tab_size(&request.target_scope));
+        content = format!("{prefix}{content}{CEM_QL_HTML_PREVIEW_SUFFIX}");
     }
 
     let (content_type, schema, format_version) =
@@ -2550,6 +2555,17 @@ fn cem_ql_formatter_profile(target_scope: &ScopeConfig) -> String {
         .filter(|profile| !profile.is_empty())
         .unwrap_or("compact")
         .to_owned()
+}
+
+fn cem_ql_formatter_tab_size(target_scope: &ScopeConfig) -> usize {
+    target_scope
+        .cemt_formatter_options
+        .get("tabSize")
+        .map(String::as_str)
+        .map(str::trim)
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_FORMATTER_TAB_SIZE as usize)
 }
 
 fn cem_ql_output_color_selection(
@@ -8368,6 +8384,29 @@ value
     }
 
     #[test]
+    fn cem_ql_formatter_tab_size_uses_shared_default_and_positive_option() {
+        assert_eq!(
+            cem_ql_formatter_tab_size(&ScopeConfig::default()),
+            DEFAULT_FORMATTER_TAB_SIZE as usize
+        );
+
+        let explicit = ScopeConfig {
+            cemt_formatter_options: BTreeMap::from([("tabSize".to_owned(), "6".to_owned())]),
+            ..ScopeConfig::default()
+        };
+        assert_eq!(cem_ql_formatter_tab_size(&explicit), 6);
+
+        let invalid = ScopeConfig {
+            cemt_formatter_options: BTreeMap::from([("tabSize".to_owned(), "0".to_owned())]),
+            ..ScopeConfig::default()
+        };
+        assert_eq!(
+            cem_ql_formatter_tab_size(&invalid),
+            DEFAULT_FORMATTER_TAB_SIZE as usize
+        );
+    }
+
+    #[test]
     fn real_engine_convert_uses_registered_cem_ql_source_output_handler_for_html() {
         let source = r#"module "https://example.test/queries/direct-html"
 
@@ -8403,6 +8442,10 @@ if greeting == "Hello" {
                 target_scope: ScopeConfig {
                     cemt_formatter: Some("cem-ql.format-tree".to_owned()),
                     cemt_formatter_profile: Some("tabular".to_owned()),
+                    cemt_formatter_options: BTreeMap::from([(
+                        "tabSize".to_owned(),
+                        "6".to_owned(),
+                    )]),
                     cemt_colorizer: Some("cem-ql.color-tree".to_owned()),
                     output_color_type: Some("html-css-vars".to_owned()),
                     ..ScopeConfig::default()
@@ -8420,7 +8463,7 @@ if greeting == "Hello" {
         assert_eq!(primary.content_type, HTML_CONTENT_TYPE);
         assert_eq!(primary.schema.as_deref(), Some(HTML_SCHEMA_URI));
         let html = String::from_utf8(primary.bytes).expect("HTML output is UTF-8");
-        assert!(html.starts_with(CEM_QL_HTML_PREVIEW_PREFIX), "{html}");
+        assert!(html.starts_with(&cem_ql_html_preview_prefix(6)), "{html}");
         assert!(html.ends_with(CEM_QL_HTML_PREVIEW_SUFFIX), "{html}");
         assert!(html.contains(r#"data-role="syntax.keyword""#), "{html}");
         assert!(html.contains(r#"data-role="syntax.string""#), "{html}");

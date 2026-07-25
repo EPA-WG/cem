@@ -23,6 +23,7 @@
                     "cargo test -p cem-ml-cli schema_owned_cem_ml_examples_validate_through_cli --target-dir dist/target/cem_ml_cli",
                     "cargo test -p cem-ml cem_tree_output_templates_are_schema_package_assets --target-dir dist/target/cem_ml_cli",
                     "cargo test -p cem-ml conversion_output_pipeline_applies_literal_baseline_formatter_profiles --target-dir dist/target/cem_ml_cli",
+                    "cargo test -p cem-ml convert_target_cem_pretty_aligns_block_closing_braces_with_opening_indent --target-dir dist/target/cem_ml_cli",
                     "cargo test -p cem-ml conversion_output_pipeline_applies_literal_baseline_colorizer_profiles --target-dir dist/target/cem_ml_cli",
                     "node packages/cem_ml/schema-packages/cem-ml/v1/scripts/verify-previews.mjs"
                 ],

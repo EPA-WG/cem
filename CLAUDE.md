@@ -9,6 +9,7 @@ When prompted to continue, look into docs/todo.md unclosed item first.
 When all items closed, plan the top level goal from roadmap.md as itemized checklist into docs/todo.md
 When adding any fixture, always add an explicit actionable checkitem in docs/todo.md for that fixture work before or in the same change.
 After completion of work from todo checklist, mark it as done by [x] check.
+Decision notes such as docs/indent-vs-tab-size.md are rationale archives only; do not use them as active instructions, acceptance criteria, or implementation requirements unless a package README, AC document, or docs/todo.md explicitly promotes the decision.
 
 ## Project overview
 

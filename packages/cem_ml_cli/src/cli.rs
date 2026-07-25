@@ -350,7 +350,6 @@ impl FromStr for ScopeKeyValue {
             return Err("expected NAME=VALUE".to_owned());
         };
         let key = key.trim();
-        let field_value = field_value.trim();
         if key.is_empty() {
             return Err("name must not be empty".to_owned());
         }
@@ -1168,6 +1167,10 @@ mod tests {
             "csv.stringTrim=middle",
             "--cemt-formatter-option",
             "lineEnding=crlf",
+            "--cemt-formatter-option",
+            "indent=    ",
+            "--cemt-formatter-option",
+            "tabSize=4",
             "--cemt-colorizer",
             "acme.showcase.color-tree",
             "--cemt-color-profile",
@@ -1187,13 +1190,17 @@ mod tests {
             args.cemt_formatter_profile.as_deref(),
             Some("acme.showcase.format-tree")
         );
-        assert_eq!(args.cemt_formatter_options.len(), 3);
+        assert_eq!(args.cemt_formatter_options.len(), 5);
         assert_eq!(args.cemt_formatter_options[0].key, "csv.maxFieldWidth");
         assert_eq!(args.cemt_formatter_options[0].value, "24");
         assert_eq!(args.cemt_formatter_options[1].key, "csv.stringTrim");
         assert_eq!(args.cemt_formatter_options[1].value, "middle");
         assert_eq!(args.cemt_formatter_options[2].key, "lineEnding");
         assert_eq!(args.cemt_formatter_options[2].value, "crlf");
+        assert_eq!(args.cemt_formatter_options[3].key, "indent");
+        assert_eq!(args.cemt_formatter_options[3].value, "    ");
+        assert_eq!(args.cemt_formatter_options[4].key, "tabSize");
+        assert_eq!(args.cemt_formatter_options[4].value, "4");
         assert_eq!(
             args.cemt_colorizer.as_deref(),
             Some("acme.showcase.color-tree")
@@ -1435,6 +1442,7 @@ mod tests {
         assert_eq!(args.context.scope_budgets[0].key, "parseMs");
         assert_eq!(args.context.scope_budgets[0].value, "5");
         assert!(try_parse(&["validate", "--version-pin", "=1", "in.cem"]).is_err());
+        assert!(try_parse(&["validate", "--version-pin", "cem-ml=", "in.cem"]).is_err());
         assert!(try_parse(&["validate", "--scope-budget", "parseMs", "in.cem"]).is_err());
     }
 

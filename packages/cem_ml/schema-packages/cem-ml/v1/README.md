@@ -148,12 +148,15 @@ The formatter profiles use one CEMT body with profile-aware layout:
 - `compact` keeps minimal deterministic spacing and is the interchange-safe
   default;
 - `pretty` expands non-text child groups into block layout;
-- `tabular` also lays attributes out vertically with formatter-owned line
-  ending and indent nodes.
+- `tabular` keeps attributes inline while they fit within `wrapColumn`, then
+  lays wrapped attributes out on vertically aligned parent + 1 indent lines.
 
-Default output line endings are LF (`\n`, Linux style). `lineEnding` is the
-generic formatter option shared across packages; CEM-ML does not define a
-package-specific line-ending option.
+Default output line endings are LF (`\n`, Linux style). Readable indentation
+defaults to four spaces per depth level. `lineEnding` and `indent` are generic
+formatter options shared across packages; CEM-ML does not define
+package-specific line-ending or indentation options. Readable formatters that
+emit literal tab characters use generic `tabSize` for the visual tab-stop
+assumption, which defaults to `8`.
 
 The colorizer profiles map to writer-boundary behavior:
 
@@ -233,6 +236,10 @@ cargo test -p cem-ml cem_tree_output_templates_are_schema_package_assets
 
 ```bash
 cargo test -p cem-ml conversion_output_pipeline_applies_literal_baseline_formatter_profiles
+```
+
+```bash
+cargo test -p cem-ml convert_target_cem_pretty_aligns_block_closing_braces_with_opening_indent
 ```
 
 ```bash

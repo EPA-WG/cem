@@ -62,10 +62,10 @@ The `pretty` and `tabular` formatter assets own their visual presentation
 plan in CEMT. Each emitted formatted tree includes a `formatNodes` decision
 named `csv.presentation-plan` with the inferred header disposition, column
 count, column statistics, column widths, active width/trim options, and
-`displayWidthPolicy: "unicode-terminal"`. Rust only validates formatter option
-syntax, selects the generic line-ending binding, and supplies deterministic
-generic CEMT primitives such as `displayWidth`, `displayPrefix`, and
-`displaySuffix`.
+`displayWidthPolicy: "unicode-terminal"` plus the active `tabSize` assumption.
+Rust only validates formatter option syntax, selects generic formatter bindings
+such as `lineEnding` and `tabSize`, and supplies deterministic generic CEMT
+primitives such as `displayWidth`, `displayPrefix`, and `displaySuffix`.
 
 ## Formatter Presentation Profiles
 
@@ -77,7 +77,8 @@ lexical spaces that belong to the original field value; those spaces remain
 data and are quoted when needed.
 
 `pretty` is a readable presentation profile. It may use horizontal tab
-characters with an 8-column tab-stop assumption to align nearby fields, but it
+characters with an eight-column default tab-stop assumption to align nearby
+fields. The assumption is controlled by generic formatter option `tabSize`; it
 does not guarantee strict vertical alignment across every row. `pretty` should
 avoid trimming by default, but it is still visual output rather than an
 interchange contract.
@@ -118,6 +119,9 @@ The intended generic CLI surface for formatter options is repeatable
   source line endings when source preservation metadata is available. CR-only
   and mixed source line endings currently normalize to LF because the formatter
   exposes one record-ending choice per output document.
+- `tabSize=N`: positive integer tab-stop width used by readable formatters and
+  SVG previews when interpreting literal horizontal tab characters. The default
+  is `8`.
 
 CSV-specific formatter options use the `csv.` namespace:
 

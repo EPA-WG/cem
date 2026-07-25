@@ -4,7 +4,7 @@
 //! formatter normalizes the surface per the rules in `docs/todo.md`
 //! §Authoring Tooling:
 //!
-//! - **Indentation.** Two spaces per nesting level.
+//! - **Indentation.** The shared default formatter indent per nesting level.
 //! - **Canonical `|` insertion.** Explicit `|` before any non-empty
 //!   element content; omitted when the element has no children.
 //! - **Attribute ordering.** Sorted by `(namespace, local_name)` so the
@@ -26,6 +26,7 @@ use crate::parser::{AstNodeId, CemAstNode};
 use crate::source::ByteRange;
 use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 use crate::tokenizer::SchemaTokenizer;
+use crate::transform_template::DEFAULT_FORMATTER_INDENT;
 
 pub fn format(doc: &CemDocument) -> String {
     let mut out = String::new();
@@ -328,7 +329,7 @@ fn is_inline_eligible(doc: &CemDocument, children: &[AstNodeId]) -> bool {
 
 fn push_indent(out: &mut String, indent: usize) {
     for _ in 0..indent {
-        out.push_str("  ");
+        out.push_str(DEFAULT_FORMATTER_INDENT);
     }
 }
 
@@ -477,7 +478,7 @@ mod tests {
     fn deeply_nested_uses_block_form() {
         let out = format_source("{outer | {inner | {leaf | x}}}");
         assert!(out.contains('\n'));
-        assert!(out.contains("  {inner"));
+        assert!(out.contains("    {inner"));
     }
 
     #[test]
