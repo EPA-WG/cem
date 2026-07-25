@@ -4274,22 +4274,19 @@ fn collect_cem_ql_source_diagnostics(
         };
 
         if is_cem_ql_expression_source_input(input) {
+            let mut input_diagnostics = Vec::new();
             let context = cem_ql::api::StandaloneExpressionContext::default()
                 .with_input(cem_ql::eval::ItemStream::empty(), cem_ql::types::Type::Any);
             match cem_ql::api::compile_expression(source, &context) {
                 Ok(compiled) => {
-                    diagnostics.extend(compiled.diagnostics.into_iter().map(|mut diagnostic| {
-                        diagnostic.uri = Some(input.uri.clone());
-                        diagnostic
-                    }));
+                    input_diagnostics.extend(compiled.diagnostics);
                 }
                 Err(error) => {
-                    diagnostics.extend(error.diagnostics.into_iter().map(|mut diagnostic| {
-                        diagnostic.uri = Some(input.uri.clone());
-                        diagnostic
-                    }));
+                    input_diagnostics.extend(error.diagnostics);
                 }
             }
+            finish_cem_ql_source_diagnostics(input, &mut input_diagnostics);
+            diagnostics.extend(input_diagnostics);
             continue;
         }
 
@@ -4305,32 +4302,32 @@ fn collect_cem_ql_source_diagnostics(
         }
         input_diagnostics.extend(
             cem_ql::api::resolve_imports(&parsed.module, &cem_ql::resolve::ImportPolicy::new())
-                .into_iter()
-                .map(|mut diagnostic| {
-                    diagnostic.uri = Some(input.uri.clone());
-                    diagnostic
-                }),
+                .into_iter(),
         );
-        input_diagnostics.extend(parsed.diagnostics.into_iter().map(|mut diagnostic| {
-            diagnostic.uri = Some(input.uri.clone());
-            diagnostic
-        }));
+        input_diagnostics.extend(parsed.diagnostics);
         if !input_diagnostics
             .iter()
             .any(|diagnostic| diagnostic.severity.is_hard_violation())
         {
             input_diagnostics.extend(
                 cem_ql::api::type_check(&parsed.module, &cem_ql::api::CompileContext::default())
-                    .into_iter()
-                    .map(|mut diagnostic| {
-                        diagnostic.uri = Some(input.uri.clone());
-                        diagnostic
-                    }),
+                    .into_iter(),
             );
         }
+        finish_cem_ql_source_diagnostics(input, &mut input_diagnostics);
         diagnostics.extend(input_diagnostics);
     }
     diagnostics
+}
+
+fn finish_cem_ql_source_diagnostics(
+    input: &eng::EngineInput,
+    diagnostics: &mut [cem_ml::diagnostics::Diagnostic],
+) {
+    cem_ml::diagnostics::project_diagnostics_for_source(diagnostics, &input.bytes);
+    for diagnostic in diagnostics {
+        diagnostic.uri.get_or_insert_with(|| input.uri.clone());
+    }
 }
 
 fn is_cem_ql_expression_source_input(input: &eng::EngineInput) -> bool {
@@ -4360,10 +4357,10 @@ fn cem_ql_invalid_utf8_diagnostic(input: &eng::EngineInput) -> cem_ml::diagnosti
 }
 
 fn cem_ql_module_uri_missing_diagnostic(
-    input: &eng::EngineInput,
+    _input: &eng::EngineInput,
 ) -> cem_ml::diagnostics::Diagnostic {
     cem_ml::diagnostics::Diagnostic {
-        uri: Some(input.uri.clone()),
+        uri: None,
         code: "cem.ql.module_uri_missing".to_owned(),
         severity: cem_ml::diagnostics::Severity::Error,
         message: "CEM-QL module source requires a `module \"...\"` URI declaration".to_owned(),

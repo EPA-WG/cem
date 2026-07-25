@@ -236,7 +236,7 @@ needed before invalid template expression fixtures can close.
       transformations use `--template *.cem-ql`, and both share transform run
       config, input content-type/schema identity, resolver policy, output
       formatting, and diagnostic reporting.
-- [ ] Add package-owned CEM-QL examples and tests for valid standalone
+- [x] Add package-owned CEM-QL examples and tests for valid standalone
       expression execution, parse errors, type errors, source ranges, and data
       binding failures.
 - [ ] Wire CEM-native template expression slots to consume the shared CEM-QL
@@ -297,9 +297,8 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Add package-owned CEM-QL expression examples and tests for parse errors, type
-errors, source ranges, and data binding failures on top of the valid
-`basic-expression.cem-ql` transform example.
+Wire CEM-native template expression slots to consume the shared CEM-QL
+expression fact/result contract and preserve template slot provenance.
 
 ## Current Verification Commands
 

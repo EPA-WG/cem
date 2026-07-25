@@ -11,7 +11,7 @@ use cem_ml::source_map::SourceMapStack;
 use serde_json::json;
 
 use crate::artifact::CompiledArtifact;
-use crate::diagnostics::{self as ql_diagnostics, PARSE_ERROR};
+use crate::diagnostics::{self as ql_diagnostics, DATA_BINDING_MISSING, PARSE_ERROR};
 use crate::eval::{Evaluator, Item, ItemStream, QueryContextScope};
 use crate::ir::lower::IrLowerer;
 use crate::ir::CompiledQuery;
@@ -80,7 +80,13 @@ pub fn compile_expression(
 ) -> Result<CompiledExpression, ExpressionError> {
     let parsed = Parser::new(source).parse_module();
     let mut diagnostics = context.diagnostics.clone();
-    diagnostics.extend(parsed.diagnostics.clone());
+    diagnostics.extend(
+        parsed
+            .diagnostics
+            .clone()
+            .into_iter()
+            .map(standalone_expression_source_diagnostic),
+    );
     if has_hard_diagnostics(&diagnostics) {
         return Err(ExpressionError::diagnostics("parse", diagnostics));
     }
@@ -98,7 +104,12 @@ pub fn compile_expression(
         nodes: vec![SurfaceNode::Expression(expression.clone())],
     };
     let root_type = type_check_standalone_expression(&expression, &module, context);
-    diagnostics.extend(root_type.diagnostics);
+    diagnostics.extend(
+        root_type
+            .diagnostics
+            .into_iter()
+            .map(|diagnostic| standalone_expression_type_diagnostic(diagnostic, context)),
+    );
     if has_hard_diagnostics(&diagnostics) {
         return Err(ExpressionError::diagnostics("type-check", diagnostics));
     }
@@ -532,6 +543,41 @@ fn standalone_expression_parse_diagnostic(
     diagnostic
 }
 
+fn standalone_expression_source_diagnostic(mut diagnostic: Diagnostic) -> Diagnostic {
+    if diagnostic.code == PARSE_ERROR.as_str() && diagnostic.details.is_none() {
+        diagnostic.details = Some(json!({
+            "behavior": "cem-ql-expression-report-fact",
+            "factKind": "parse-error",
+            "contract": "standalone-expression-parser",
+            "recoverable": true,
+            "fatal": false,
+            "contentType": CEM_QL_EXPRESSION_CONTENT_TYPE,
+            "schema": CEM_QL_EXPRESSION_SCHEMA_URI,
+        }));
+    }
+    diagnostic
+}
+
+fn standalone_expression_type_diagnostic(
+    mut diagnostic: Diagnostic,
+    context: &StandaloneExpressionContext,
+) -> Diagnostic {
+    if diagnostic.code == ql_diagnostics::UNKNOWN_VARIABLE.as_str() {
+        diagnostic.code = DATA_BINDING_MISSING.into();
+        diagnostic.details = Some(json!({
+            "behavior": "cem-ql-expression-report-fact",
+            "factKind": "data-binding-missing",
+            "contract": "standalone-expression-binding",
+            "recoverable": true,
+            "fatal": false,
+            "contentType": CEM_QL_EXPRESSION_CONTENT_TYPE,
+            "schema": CEM_QL_EXPRESSION_SCHEMA_URI,
+            "availableBindings": context.bindings.keys().cloned().collect::<Vec<_>>(),
+        }));
+    }
+    diagnostic
+}
+
 fn has_hard_diagnostics(diagnostics: &[Diagnostic]) -> bool {
     diagnostics
         .iter()
@@ -619,6 +665,35 @@ mod tests {
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code == "cem.ql.type_error"));
+    }
+
+    #[test]
+    fn standalone_expression_reports_missing_data_binding() {
+        let context =
+            StandaloneExpressionContext::default().with_input(ItemStream::empty(), Type::Any);
+
+        let error = compile_expression("missingBinding", &context)
+            .expect_err("unbound standalone expression name should fail");
+
+        let diagnostic = error
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "cem.ql.data_binding_missing")
+            .unwrap_or_else(|| panic!("missing data binding diagnostic: {error:#?}"));
+        assert_eq!(
+            diagnostic
+                .details
+                .as_ref()
+                .and_then(|details| details.get("contract")),
+            Some(&json!("standalone-expression-binding"))
+        );
+        assert_eq!(
+            diagnostic
+                .details
+                .as_ref()
+                .and_then(|details| details.get("availableBindings")),
+            Some(&json!(["input"]))
+        );
     }
 
     fn row(name: &str, tier: &str) -> Item {

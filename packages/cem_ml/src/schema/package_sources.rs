@@ -1202,6 +1202,27 @@ mod tests {
                 None,
             ),
             (
+                "invalid-expression-parse",
+                CEM_QL_EXPRESSION_CONTENT_TYPE,
+                CEM_QL_EXPRESSION_SCHEMA_URI,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.ql.parse_error"),
+            ),
+            (
+                "invalid-expression-type-error",
+                CEM_QL_EXPRESSION_CONTENT_TYPE,
+                CEM_QL_EXPRESSION_SCHEMA_URI,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.ql.type_error"),
+            ),
+            (
+                "invalid-expression-data-binding",
+                CEM_QL_EXPRESSION_CONTENT_TYPE,
+                CEM_QL_EXPRESSION_SCHEMA_URI,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.ql.data_binding_missing"),
+            ),
+            (
                 "module-query",
                 CEM_QL_CONTENT_TYPE,
                 CEM_QL_SCHEMA_URI,

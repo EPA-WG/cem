@@ -24,6 +24,8 @@ const CEM_SCHEMA_PACKAGE_URI: &str = "https://cem.dev/ns/schema-package/1";
 const CEM_SCHEMA_PACKAGE_CONTENT_TYPE: &str = "application/vnd.cem.schema-package+cem";
 const CSV_SCHEMA_URI: &str = "https://cem.dev/ns/data/csv/1";
 const CSV_CONTENT_TYPE: &str = "text/csv";
+const CEM_QL_EXPRESSION_SCHEMA_URI: &str = "https://cem.dev/ns/query/cem-ql/1#expression";
+const CEM_QL_EXPRESSION_CONTENT_TYPE: &str = "application/vnd.cem.query-expression+cem-ql";
 const XML_SCHEMA_URI: &str = "https://cem.dev/ns/data/xml/1";
 const XML_CONTENT_TYPE: &str = "application/xml";
 const HTML_CONTENT_TYPE: &str = "text/html";
@@ -674,6 +676,143 @@ fn schema_owned_csv_examples_emit_schema_owned_contract_details() {
 fn schema_owned_examples_cover_runtime_constraints() {
     let examples = schema_owned_validation_examples_from_package_manifest("schema-package");
     assert_schema_package_runtime_constraint_example_coverage(&examples);
+}
+
+#[test]
+fn schema_owned_cem_ql_expression_examples_execute_and_report_details() {
+    let engine = RealCemMlEngine::new();
+    let examples = schema_owned_validation_examples_from_package_manifest("cem-ql");
+    for id in [
+        "basic-expression",
+        "invalid-expression-parse",
+        "invalid-expression-type-error",
+        "invalid-expression-data-binding",
+    ] {
+        assert!(
+            examples
+                .iter()
+                .any(|example| example.name == format!("cem-ql {id}")),
+            "CEM-QL expression example `{id}` must be manifest-owned"
+        );
+    }
+
+    let root = test_temp_dir("schema-owned-cem-ql-expression-execution");
+    let data = root.join("data.cem");
+    write_test_file(&data, "{p @id=\"source\"}");
+    let basic_expression = workspace_path(
+        "packages/cem_ml/schema-packages/cem-ql/v1/examples/basic-expression.cem-ql",
+    );
+    let output = cem_ml_in_process(
+        &engine,
+        &[
+            "transform",
+            data.to_str().expect("data path is utf-8"),
+            "--data-content-type",
+            CEM_ML_CONTENT_TYPE,
+            "--template",
+            basic_expression.to_str().expect("expression path is utf-8"),
+            "--output-color-type",
+            "none",
+        ],
+    );
+    assert_eq!(
+        output.exit_code, EXIT_OK,
+        "basic expression transform stderr:\n{}",
+        output.stderr
+    );
+    assert!(
+        output.stderr.trim().is_empty(),
+        "basic expression transform stderr must stay empty:\n{}",
+        output.stderr
+    );
+    let result: serde_json::Value = serde_json::from_str(output.stdout.trim())
+        .unwrap_or_else(|err| panic!("basic expression transform stdout is JSON: {err}"));
+    assert_eq!(
+        result["items"],
+        serde_json::json!([{
+            "kind": "atomic",
+            "type": "string",
+            "value": "document"
+        }])
+    );
+    assert_eq!(result["diagnostics"], serde_json::json!([]));
+    assert_eq!(result["error"], serde_json::Value::Null);
+
+    let detail_expectations = [
+        (
+            "invalid-expression-parse",
+            "cem.ql.parse_error",
+            "cem-ql-expression-report-fact",
+            "parse-error",
+            "standalone-expression-parser",
+        ),
+        (
+            "invalid-expression-type-error",
+            "cem.ql.type_error",
+            "cem-ql-type-report-fact",
+            "type-error",
+            "static-type-check",
+        ),
+        (
+            "invalid-expression-data-binding",
+            "cem.ql.data_binding_missing",
+            "cem-ql-expression-report-fact",
+            "data-binding-missing",
+            "standalone-expression-binding",
+        ),
+    ];
+
+    for (id, code, behavior, fact_kind, contract) in detail_expectations {
+        let example = examples
+            .iter()
+            .find(|example| example.name == format!("cem-ql {id}"))
+            .unwrap_or_else(|| panic!("expression example `{id}`"));
+        let path = workspace_path(&example.path);
+        let uri = path.to_str().expect("example path is utf-8");
+        let output = cem_ml_in_process(
+            &engine,
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                CEM_QL_EXPRESSION_CONTENT_TYPE,
+                "--schema",
+                CEM_QL_EXPRESSION_SCHEMA_URI,
+                uri,
+            ],
+        );
+        assert_eq!(
+            output.exit_code, EXIT_HARD_FAILURE,
+            "{id} stderr:\n{}",
+            output.stderr
+        );
+        assert!(
+            output.stderr.trim().is_empty(),
+            "{id} stderr must stay empty:\n{}",
+            output.stderr
+        );
+        let report: serde_json::Value = serde_json::from_str(output.stdout.trim())
+            .unwrap_or_else(|err| panic!("{id} stdout is validation JSON: {err}"));
+        let diagnostic = diagnostics(&report)
+            .iter()
+            .find(|diagnostic| {
+                diagnostic["code"] == code && diagnostic_uri_matches(diagnostic, uri)
+            })
+            .unwrap_or_else(|| panic!("{id} missing `{code}` in {}", output.stdout));
+        assert_eq!(diagnostic["severity"], "error", "{id}");
+        assert_eq!(diagnostic["details"]["behavior"], behavior, "{id}");
+        assert_eq!(diagnostic["details"]["factKind"], fact_kind, "{id}");
+        assert_eq!(diagnostic["details"]["contract"], contract, "{id}");
+        assert!(
+            diagnostic["byteOffset"].as_u64().is_some(),
+            "{id} should preserve diagnostic byte offset: {diagnostic:#}"
+        );
+        assert!(
+            diagnostic["line"].as_u64().is_some() && diagnostic["column"].as_u64().is_some(),
+            "{id} should project diagnostic line/column: {diagnostic:#}"
+        );
+    }
 }
 
 macro_rules! schema_owned_package_validation_test {

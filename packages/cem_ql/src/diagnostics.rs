@@ -47,6 +47,7 @@ pub const TYPE_ERROR: DiagnosticCode = DiagnosticCode("cem.ql.type_error");
 pub const UNKNOWN_TYPE: DiagnosticCode = DiagnosticCode("cem.ql.unknown_type");
 pub const UNKNOWN_FUNCTION: DiagnosticCode = DiagnosticCode("cem.ql.unknown_function");
 pub const UNKNOWN_VARIABLE: DiagnosticCode = DiagnosticCode("cem.ql.unknown_variable");
+pub const DATA_BINDING_MISSING: DiagnosticCode = DiagnosticCode("cem.ql.data_binding_missing");
 pub const SCOPE_VIOLATION: DiagnosticCode = DiagnosticCode("cem.ql.scope_violation");
 pub const UNRESOLVED_REFERENCE: DiagnosticCode = DiagnosticCode("cem.ql.unresolved_reference");
 pub const CROSS_TYPE_COMPARE: DiagnosticCode = DiagnosticCode("cem.ql.cross_type_compare");
@@ -109,6 +110,13 @@ pub const TIER_A_DIAGNOSTICS: &[DiagnosticSpec] = &[
         default_severity: Severity::Error,
         layer: "L3",
         description: "Variable name not in resolution chain.",
+    },
+    DiagnosticSpec {
+        code: DATA_BINDING_MISSING,
+        default_severity: Severity::Error,
+        layer: "L3",
+        description:
+            "Standalone expression references a data/context binding not supplied by the host.",
     },
     DiagnosticSpec {
         code: SCOPE_VIOLATION,

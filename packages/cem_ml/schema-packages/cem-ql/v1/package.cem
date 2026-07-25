@@ -118,6 +118,33 @@
     }
 
     {example
+        @id="invalid-expression-parse"
+        @path="examples/invalid-expression-parse.cem-ql"
+        @content-type="application/vnd.cem.query-expression+cem-ql"
+        @schema="https://cem.dev/ns/query/cem-ql/1#expression"
+        @expected-result="fail"
+        @expected-diagnostics="cem.ql.parse_error"
+    }
+
+    {example
+        @id="invalid-expression-type-error"
+        @path="examples/invalid-expression-type-error.cem-ql"
+        @content-type="application/vnd.cem.query-expression+cem-ql"
+        @schema="https://cem.dev/ns/query/cem-ql/1#expression"
+        @expected-result="fail"
+        @expected-diagnostics="cem.ql.type_error"
+    }
+
+    {example
+        @id="invalid-expression-data-binding"
+        @path="examples/invalid-expression-data-binding.cem-ql"
+        @content-type="application/vnd.cem.query-expression+cem-ql"
+        @schema="https://cem.dev/ns/query/cem-ql/1#expression"
+        @expected-result="fail"
+        @expected-diagnostics="cem.ql.data_binding_missing"
+    }
+
+    {example
         @id="module-query"
         @path="examples/module-query.cemql"
         @content-type="application/vnd.cem.query+cem-ql"

@@ -102,9 +102,9 @@ the CEM-QL diagnostic remains the expression diagnostic.
 Contract-only fixtures live under
 [`examples/expression-contract/`](examples/expression-contract/). They are not
 manifest-declared package examples because they document the broader expression
-resource report envelope. The executable package example
-[`basic-expression.cem-ql`](examples/basic-expression.cem-ql) covers the
-shipped transform CLI expression source shape.
+resource report envelope. Top-level `*.cem-ql` examples are manifest-owned
+executable validation/transform fixtures for the shipped standalone expression
+source shape.
 
 ## Standards And CEM Policy Matrix
 
@@ -264,8 +264,8 @@ schema-package output support:
 
 Tracked but not complete:
 
-- additional standalone expression package examples and package verify gates
-  for parse errors, type errors, source ranges, and data binding failures;
+- package-local verify gate coverage for standalone expression source-range and
+  execution fixture drift beyond the Rust/CLI tests;
 - AST-aware `pretty` and `tabular` layout rules beyond source-preserving token
   streams;
 - schema-owned diagnostic policy execution from parse facts rather than bridge
@@ -382,6 +382,9 @@ unchanged, state that explicitly in the change notes.
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------- |
 | [`basic-query.cemql`](examples/basic-query.cemql)                       | Minimal query module with a module URI, immutable binding declaration, and expression.            | Pass                                  |
 | [`basic-expression.cem-ql`](examples/basic-expression.cem-ql)           | Standalone expression transform source that reads the primary data resource through `input`.      | Pass                                  |
+| [`invalid-expression-parse.cem-ql`](examples/invalid-expression-parse.cem-ql) | Standalone expression parse/source-range diagnostic fixture.                                      | Fail: `cem.ql.parse_error`           |
+| [`invalid-expression-type-error.cem-ql`](examples/invalid-expression-type-error.cem-ql) | Standalone expression static type diagnostic fixture.                                             | Fail: `cem.ql.type_error`            |
+| [`invalid-expression-data-binding.cem-ql`](examples/invalid-expression-data-binding.cem-ql) | Standalone expression missing data binding diagnostic fixture.                                    | Fail: `cem.ql.data_binding_missing`  |
 | [`module-query.cemql`](examples/module-query.cemql)                     | Query module with import, immutable binding declaration, function declaration, and conditional expression. | Pass                                  |
 | [`operators-and-control.cemql`](examples/operators-and-control.cemql)   | Arithmetic, comparisons, boolean short-circuit operators, type tests/casts, set operators, block `let`, and `if`/`else`. | Pass                                  |
 | [`collections-and-pipelines.cemql`](examples/collections-and-pipelines.cemql) | Record streams, dot pipelines, current-item projection, `for` mapping, and `any`/`all` helpers. | Pass                                  |
