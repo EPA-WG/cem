@@ -8,8 +8,8 @@ history.
 ## Immediate Goal
 
 Current active slice: schema package folder alignment, continuing with
-`cem-ast-projection/v1` after closing the CEM transform package alignment
-slice.
+`cem-events-projection/v1` after closing the CEM AST projection package
+alignment slice.
 
 ### Completed Immediate Phase: CSV Formatter Review Findings
 
@@ -256,6 +256,21 @@ slice.
 
 ### Schema Package Folder Alignment
 
+- [x] Align `cem-ast-projection/v1` package folder with common package AC.
+  - [x] Strengthen the `cem-ast-projection` manifest-index Rust test so it
+        enumerates every example ID, content type, schema, expected result, and
+        expected diagnostic code.
+  - [x] Add README SVG previews immediately after the binary and JSON debug
+        validation command examples.
+  - [x] Add package-local preview drift checking for `cem-ast-projection/v1`.
+  - [x] Extend `cem_ml_schema_package_cem_ast_projection_v1:verify` so it runs
+        manifest validation, manifest-index coverage, schema-owned CLI example
+        validation, and README/SVG preview drift checks.
+  - [x] Expand `cem-ast-projection/v1` README coverage for source identity,
+        binary/JSON projection contracts, formatter/colorizer absence,
+        parser/diagnostic ownership, safety notes, verification gates, release
+        behavior, and tracked incomplete work.
+
 - [x] Align `cem-transform/v1` package folder with common package AC.
   - [x] Strengthen the `cem-transform` manifest-index Rust test so it
         enumerates every example ID, content type, schema, expected result, and
@@ -276,7 +291,7 @@ Remaining dependency-ordered package checklist:
 - [x] `cem-ql/v1`
 - [x] `cem-native-template/v1`
 - [x] `cem-transform/v1`
-- [ ] `cem-ast-projection/v1`
+- [x] `cem-ast-projection/v1`
 - [ ] `cem-events-projection/v1`
 - [ ] `cem-dom-projection/v1`
 - [ ] `cem-ml/v1`
@@ -324,7 +339,7 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Review and align `cem-ast-projection/v1` against the common schema-package AC:
+Review and align `cem-events-projection/v1` against the common schema-package AC:
 manifest-derived examples, README command/SVG preview drift, package-local
 verify coverage, source identity, parser/diagnostic ownership, formatter and
 colorizer contracts, and any fixture gaps that need explicit todo checkitems.

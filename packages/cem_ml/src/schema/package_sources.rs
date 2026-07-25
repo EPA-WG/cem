@@ -2455,48 +2455,64 @@ mod tests {
             top_level_example_paths("cem-ast-projection"),
             "cem-ast-projection top-level examples must be discoverable from package.cem"
         );
-        assert_eq!(examples.len(), 5);
-        assert!(examples
-            .iter()
-            .all(|example| example.schema == CEM_AST_PROJECTION_SCHEMA_URI));
 
-        for (id, content_type, expected_result, expected_code) in [
+        let expected = [
             (
                 "basic-ast",
                 CEM_AST_PROJECTION_CONTENT_TYPE,
+                CEM_AST_PROJECTION_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "basic-ast-json",
                 CEM_AST_JSON_PROJECTION_CONTENT_TYPE,
+                CEM_AST_PROJECTION_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "nested-ast-json",
                 CEM_AST_JSON_PROJECTION_CONTENT_TYPE,
+                CEM_AST_PROJECTION_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "invalid-kind-json",
                 CEM_AST_JSON_PROJECTION_CONTENT_TYPE,
+                CEM_AST_PROJECTION_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Fail,
                 Some("cem.projection.ast.json_shape"),
             ),
             (
                 "invalid-binary",
                 CEM_AST_PROJECTION_CONTENT_TYPE,
+                CEM_AST_PROJECTION_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Fail,
                 Some("cem.projection.ast.binary_magic"),
             ),
-        ] {
+        ];
+        let actual_ids = examples
+            .iter()
+            .map(|example| example.id.as_str())
+            .collect::<BTreeSet<_>>();
+        let expected_ids = expected
+            .iter()
+            .map(|(id, _, _, _, _)| *id)
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            actual_ids, expected_ids,
+            "checked CEM AST projection example expectations must cover every manifest example"
+        );
+
+        for (id, content_type, schema, expected_result, expected_code) in expected {
             let example = examples
                 .iter()
                 .find(|example| example.id == id)
                 .unwrap_or_else(|| panic!("CEM AST projection example `{id}`"));
             assert_eq!(example.content_type, content_type);
+            assert_eq!(example.schema, schema);
             assert_eq!(example.expected_result, expected_result);
             let expected_codes = expected_code
                 .map(|code| vec![code.to_owned()])
