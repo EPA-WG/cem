@@ -141,12 +141,18 @@
             {$ match(exists($subject.attributes), {
                 true: match(length($subject.attributes), {
                     0: $subject,
-                    1: set($subject, "formatBeforeAttributes", call("cem.format-tree.attribute-prefix", { subject: $subject, depth: $depth })),
-                    default: set(
-                        set($subject, "formatBeforeAttributes", call("cem.format-tree.attribute-prefix", { subject: $subject, depth: $depth })),
-                        "formatBetweenAttributes",
-                        call("cem.format-tree.attribute-spacing", { subject: $subject, depth: $depth })
-                    )
+                    1: call("cem.format-tree.wrap-node-attributes", {
+                        subject: set($subject, "formatBeforeAttributes", call("cem.format-tree.attribute-prefix", { subject: $subject, depth: $depth })),
+                        depth: $depth
+                    }),
+                    default: call("cem.format-tree.wrap-node-attributes", {
+                        subject: set(
+                            set($subject, "formatBeforeAttributes", call("cem.format-tree.attribute-prefix", { subject: $subject, depth: $depth })),
+                            "formatBetweenAttributes",
+                            call("cem.format-tree.attribute-spacing", { subject: $subject, depth: $depth })
+                        ),
+                        depth: $depth
+                    })
                 }),
                 false: $subject
             }) }
@@ -213,7 +219,8 @@
                         lineEnding: $lineEnding
                     })
                 ),
-                layout: $layout
+                layout: $layout,
+                depth: $depth
             }) }
         }
     }
@@ -533,11 +540,12 @@
         |
         {param @name="subject" @type="object" @required=true}
         {param @name="layout" @type="string" @required=true}
+        {param @name="depth" @type="integer" @default="0"}
         {body |
             {$ match($layout, {
                 block: set($subject, "formatBeforeClose", {
                     kind: "whitespace",
-                    value: "",
+                    value: repeat($indent, $depth),
                     formatterOwned: true,
                     formatterRole: "formatter.close-indent",
                     colorRole: "syntax.raw"
@@ -556,20 +564,13 @@
         {param @name="subject" @type="json" @required=true}
         {param @name="depth" @type="integer" @default="0"}
         {body |
-            {$ match($formatterProfile, {
-                tabular: call("cem.format-tree.attribute-tabular-spacing", {
-                    subject: $subject,
-                    depth: $depth,
-                    formatterRole: "formatter.attribute-prefix"
-                }),
-                default: {
-                    kind: "whitespace",
-                    value: " ",
-                    formatterOwned: true,
-                    formatterRole: "formatter.attribute-prefix",
-                    colorRole: "syntax.raw"
-                }
-            }) }
+            {$ {
+                kind: "whitespace",
+                value: " ",
+                formatterOwned: true,
+                formatterRole: "formatter.attribute-prefix",
+                colorRole: "syntax.raw"
+            } }
         }
     }
 
@@ -582,19 +583,204 @@
         {param @name="subject" @type="json" @required=true}
         {param @name="depth" @type="integer" @default="0"}
         {body |
+            {$ {
+                kind: "whitespace",
+                value: " ",
+                formatterOwned: true,
+                formatterRole: "formatter.attribute-spacing",
+                colorRole: "syntax.raw"
+            } }
+        }
+    }
+
+    {function
+        @name="cem.format-tree.wrap-node-attributes"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="depth" @type="integer" @default="0"}
+        {body |
+            {$ match(call("cem.format-tree.attributes-can-wrap", { subject: $subject }), {
+                true: set($subject, "attributes", get(call("cem.format-tree.wrapped-attributes", { subject: $subject, depth: $depth }), "attributes")),
+                default: $subject
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.format-tree.attributes-can-wrap"
+        @visibility="private"
+        @returns="boolean"
+        @deterministic=true
+        |
+        {param @name="subject" @type="json" @required=true}
+        {body |
             {$ match($formatterProfile, {
-                tabular: call("cem.format-tree.attribute-tabular-spacing", {
-                    subject: $subject,
-                    depth: $depth,
-                    formatterRole: "formatter.attribute-spacing"
-                }),
+                tabular: match($wrapColumn, { none: false, preserve: false, default: gt(toInteger($wrapColumn), 0) }),
+                pretty: match($wrapColumn, { none: false, preserve: false, default: gt(toInteger($wrapColumn), 0) }),
+                default: false
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.format-tree.wrapped-attributes"
+        @visibility="private"
+        @returns="object"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="depth" @type="integer" @default="0"}
+        {body |
+            {$ fold($subject.attributes, {
+                attributes: [],
+                column: call("cem.format-tree.attribute-initial-column", { subject: $subject, depth: $depth })
+            }, match(call("cem.format-tree.attribute-wraps-before", { attribute: $item, column: $acc.column, index: $index }), {
+                true: {
+                    attributes: append($acc.attributes, set($item, "formatBefore", call("cem.format-tree.attribute-tabular-spacing", {
+                        subject: $subject,
+                        depth: $depth,
+                        formatterRole: "formatter.attribute-spacing"
+                    }))),
+                    column: call("cem.format-tree.attribute-wrapped-column", { attribute: $item, depth: $depth })
+                },
                 default: {
-                    kind: "whitespace",
-                    value: " ",
-                    formatterOwned: true,
-                    formatterRole: "formatter.attribute-spacing",
-                    colorRole: "syntax.raw"
+                    attributes: append($acc.attributes, $item),
+                    column: add(add($acc.column, 1), call("cem.format-tree.attribute-width", { subject: $item }))
                 }
+            })) }
+        }
+    }
+
+    {function
+        @name="cem.format-tree.attribute-initial-column"
+        @visibility="private"
+        @returns="integer"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {param @name="depth" @type="integer" @default="0"}
+        {body |
+            {$ add(
+                add(displayWidth(repeat($indent, $depth)), 1),
+                displayWidth($subject.name)
+            ) }
+        }
+    }
+
+    {function
+        @name="cem.format-tree.attribute-wraps-before"
+        @visibility="private"
+        @returns="boolean"
+        @deterministic=true
+        |
+        {param @name="attribute" @type="object" @required=true}
+        {param @name="column" @type="integer" @required=true}
+        {param @name="index" @type="integer" @required=true}
+        {body |
+            {$ match($index, {
+                0: false,
+                default: gt(
+                    add(add($column, 1), call("cem.format-tree.attribute-width", { subject: $attribute })),
+                    toInteger($wrapColumn)
+                )
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.format-tree.attribute-wrapped-column"
+        @visibility="private"
+        @returns="integer"
+        @deterministic=true
+        |
+        {param @name="attribute" @type="object" @required=true}
+        {param @name="depth" @type="integer" @default="0"}
+        {body |
+            {$ add(
+                displayWidth(repeat($indent, add($depth, 1))),
+                call("cem.format-tree.attribute-width", { subject: $attribute })
+            ) }
+        }
+    }
+
+    {function
+        @name="cem.format-tree.attribute-width"
+        @visibility="private"
+        @returns="integer"
+        @deterministic=true
+        |
+        {param @name="subject" @type="object" @required=true}
+        {body |
+            {$ match(exists($subject.value), {
+                false: add(1, displayWidth($subject.name)),
+                true: match(typeOf($subject.value), {
+                    null: add(1, displayWidth($subject.name)),
+                    boolean: match($subject.value, {
+                        true: add(1, displayWidth($subject.name)),
+                        default: add(
+                            add(add(1, displayWidth($subject.name)), 1),
+                            call("cem.format-tree.attribute-value-width", { subject: $subject.value })
+                        )
+                    }),
+                    default: add(
+                        add(add(1, displayWidth($subject.name)), 1),
+                        call("cem.format-tree.attribute-value-width", { subject: $subject.value })
+                    )
+                })
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.format-tree.attribute-value-width"
+        @visibility="private"
+        @returns="integer"
+        @deterministic=true
+        |
+        {param @name="subject" @type="json" @required=true}
+        {body |
+            {$ match(typeOf($subject), {
+                string: match(call("cem.format-tree.attribute-bare-value-safe", { subject: $subject }), {
+                    true: displayWidth($subject),
+                    default: add(displayWidth($subject), 2)
+                }),
+                default: displayWidth(toString($subject))
+            }) }
+        }
+    }
+
+    {function
+        @name="cem.format-tree.attribute-bare-value-safe"
+        @visibility="private"
+        @returns="boolean"
+        @deterministic=true
+        |
+        {param @name="subject" @type="string" @required=true}
+        {body |
+            {$ match($subject, {
+                "": false,
+                default: match(contains($subject, " "), {
+                    true: false,
+                    false: match(contains($subject, "\t"), {
+                        true: false,
+                        false: match(contains($subject, "\""), {
+                            true: false,
+                            false: match(contains($subject, "'"), {
+                                true: false,
+                                false: match(contains($subject, "="), {
+                                    true: false,
+                                    false: match(contains($subject, "|"), {
+                                        true: false,
+                                        false: true
+                                    })
+                                })
+                            })
+                        })
+                    })
+                })
             }) }
         }
     }

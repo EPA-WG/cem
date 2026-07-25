@@ -59,6 +59,7 @@ use crate::transform_template::{
     TransformTemplateRenderRequest, TransformTemplateRenderResponse,
     TransformTemplateSourceMapPolicy, TransformTemplateTargetSyntaxKind,
     TransformTemplateTargetSyntaxRules, TransformTemplateTerminalColorCapability,
+    DEFAULT_FORMATTER_TAB_SIZE,
 };
 use serde_json::Value;
 use std::cell::RefCell;
@@ -3908,7 +3909,7 @@ pub fn execute_csv_document_output_pipeline_with_environment(
             Ok(options) => options,
             Err(message) => return csv_output_pipeline_failed(diagnostic_uri, message),
         };
-    let line_ending = csv_formatter_line_ending(&table_value, presentation_options);
+    let line_ending = csv_formatter_line_ending(&table_value, &presentation_options);
     let format_options = TransformTemplateEncodeOptions {
         formatter: Some(formatter_name.to_owned()),
         formatter_profile: Some(formatter_profile.to_owned()),
@@ -4136,7 +4137,7 @@ pub fn execute_csv_document_output_pipeline_with_environment(
                 .as_ref()
                 .is_some_and(csv_output_color_selection_is_html)
             {
-                csv_wrap_html_preview_artifact(&mut artifact);
+                csv_wrap_html_preview_artifact(&mut artifact, presentation_options.tab_size);
             }
             ConversionOutputPipelineExecution {
                 output: Some(artifact.value),
@@ -4299,21 +4300,27 @@ fn csv_cemt_color_profile_for_output(
         .or_else(|| inferred.map(str::to_owned)))
 }
 
-const CSV_HTML_PREVIEW_PREFIX: &str =
-    r#"<pre class="cem-output cem-output-csv" style="white-space: pre; tab-size: 8">"#;
 const CSV_HTML_PREVIEW_SUFFIX: &str = "</pre>";
 
-fn csv_wrap_html_preview_artifact(artifact: &mut TransformTemplateEncodedArtifact) {
+fn csv_html_preview_prefix(tab_size: usize) -> String {
+    format!(
+        r#"<pre class="cem-output cem-output-csv" style="white-space: pre; tab-size: {tab_size}">"#
+    )
+}
+
+fn csv_wrap_html_preview_artifact(
+    artifact: &mut TransformTemplateEncodedArtifact,
+    tab_size: usize,
+) {
     let Some(text) = artifact.value.as_str() else {
         return;
     };
-    let prefix_len = CSV_HTML_PREVIEW_PREFIX.len() as u64;
+    let prefix = csv_html_preview_prefix(tab_size);
+    let prefix_len = prefix.len() as u64;
     for span in &mut artifact.output_spans {
         span.output_range.start = span.output_range.start.saturating_add(prefix_len);
     }
-    artifact.value = Value::String(format!(
-        "{CSV_HTML_PREVIEW_PREFIX}{text}{CSV_HTML_PREVIEW_SUFFIX}"
-    ));
+    artifact.value = Value::String(format!("{prefix}{text}{CSV_HTML_PREVIEW_SUFFIX}"));
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -4326,11 +4333,15 @@ enum FormatterLineEndingMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct CsvFormatterPresentationOptions {
     line_ending: Option<FormatterLineEndingMode>,
+    tab_size: usize,
 }
 
 impl CsvFormatterPresentationOptions {
     fn from_options(options: &BTreeMap<String, String>) -> Result<Self, String> {
-        let mut parsed = Self { line_ending: None };
+        let mut parsed = Self {
+            line_ending: None,
+            tab_size: DEFAULT_FORMATTER_TAB_SIZE as usize,
+        };
         for (key, value) in options {
             match key.as_str() {
                 "csv.maxFieldWidth" => {
@@ -4362,6 +4373,17 @@ impl CsvFormatterPresentationOptions {
                         }
                     });
                 }
+                "tabSize" => {
+                    let size = value.parse::<usize>().map_err(|_| {
+                        format!("Formatter option `{key}` must be a positive integer")
+                    })?;
+                    if size == 0 {
+                        return Err(format!(
+                            "Formatter option `{key}` must be greater than zero"
+                        ));
+                    }
+                    parsed.tab_size = size;
+                }
                 _ if key.starts_with("csv.") => {
                     return Err(format!("unsupported CSV formatter option `{key}`"));
                 }
@@ -4374,7 +4396,7 @@ impl CsvFormatterPresentationOptions {
 
 fn csv_formatter_line_ending(
     table_value: &Value,
-    options: CsvFormatterPresentationOptions,
+    options: &CsvFormatterPresentationOptions,
 ) -> Option<String> {
     match options.line_ending {
         Some(FormatterLineEndingMode::Lf) => Some("lf".to_owned()),
@@ -6666,6 +6688,12 @@ fn conversion_cem_tree_pipeline_options(
         color_profile: Some(color_profile.to_owned()),
         mode: writer_options.mode,
         canonical: writer_options.canonical,
+        line_ending: writer_options.line_ending.clone(),
+        ordering: writer_options.ordering.clone(),
+        wrap_column: writer_options.wrap_column.clone(),
+        formatter_options: writer_options.formatter_options.clone(),
+        indent: writer_options.indent.clone(),
+        tab_size: writer_options.tab_size.clone(),
         source_map_policy: writer_options.source_map_policy,
         ..TransformTemplateEncodeOptions::default()
     }
@@ -11141,7 +11169,7 @@ mod tests {
             .as_ref()
             .and_then(Value::as_str)
             .expect("pretty writer output");
-        assert!(pretty_output.contains("\n  {title"));
+        assert!(pretty_output.contains("\n    {title"));
 
         let mut tabular_pipeline = direct_cem_output_pipeline();
         tabular_pipeline.cemt_options.formatter_profile = Some("tabular".to_owned());
@@ -11176,27 +11204,81 @@ mod tests {
             .expect("tabular formatted tree");
         assert_eq!(tabular_formatted.value["formatterProfile"], "tabular");
         assert_eq!(
-            tabular_formatted.value["nodes"][0]["formatBeforeAttributes"][0]["value"],
-            "\n"
+            tabular_formatted.value["nodes"][0]["formatBeforeAttributes"]["value"],
+            " "
         );
         assert_eq!(
-            tabular_formatted.value["nodes"][0]["formatBeforeAttributes"][1]["value"],
-            "  "
-        );
-        assert_eq!(
-            tabular_formatted.value["nodes"][0]["formatBetweenAttributes"][0]["formatterRole"],
+            tabular_formatted.value["nodes"][0]["formatBetweenAttributes"]["formatterRole"],
             "formatter.attribute-spacing"
         );
         assert_eq!(
-            tabular_formatted.value["nodes"][0]["formatBetweenAttributes"][1]["formatterRole"],
-            "formatter.attribute-indent"
+            tabular_formatted.value["nodes"][0]["formatBetweenAttributes"]["value"],
+            " "
         );
         let tabular_output = tabular_execution
             .output
             .as_ref()
             .and_then(Value::as_str)
             .expect("tabular writer output");
-        assert!(tabular_output.contains("{card\n  @tone=info\n  @size=lg"));
+        assert!(tabular_output.contains("{card @tone=info @size=lg |"));
+
+        tabular_pipeline.cemt_options.wrap_column = Some("24".to_owned());
+        let wrapped_tabular_execution = execute_conversion_output_pipeline(
+            &tabular_pipeline,
+            serde_json::json!({
+                "kind": "element",
+                "name": "card",
+                "attributes": [
+                    {"kind": "attribute", "name": "tone", "value": "info"},
+                    {"kind": "attribute", "name": "size", "value": "lg"}
+                ],
+                "children": [{"kind": "text", "value": "Ready"}]
+            }),
+            None,
+            Vec::new(),
+            "test-tabular-cem-output-wrapped",
+            Some("tabular-dom"),
+            Some("converter.cemt"),
+        );
+
+        assert!(
+            wrapped_tabular_execution.diagnostics.is_empty(),
+            "{:?}",
+            wrapped_tabular_execution.diagnostics
+        );
+        let wrapped_tabular_formatted = wrapped_tabular_execution
+            .formatted_cem_tree
+            .as_ref()
+            .expect("wrapped tabular formatted tree");
+        assert_eq!(
+            wrapped_tabular_formatted.value["nodes"][0]["formatBeforeAttributes"]["value"],
+            " "
+        );
+        assert_eq!(
+            wrapped_tabular_formatted.value["nodes"][0]["formatBetweenAttributes"]["formatterRole"],
+            "formatter.attribute-spacing"
+        );
+        assert_eq!(
+            wrapped_tabular_formatted.value["nodes"][0]["attributes"][1]["formatBefore"][0]
+                ["formatterRole"],
+            "formatter.attribute-spacing"
+        );
+        assert_eq!(
+            wrapped_tabular_formatted.value["nodes"][0]["attributes"][1]["formatBefore"][0]
+                ["value"],
+            "\n"
+        );
+        assert_eq!(
+            wrapped_tabular_formatted.value["nodes"][0]["attributes"][1]["formatBefore"][1]
+                ["formatterRole"],
+            "formatter.attribute-indent"
+        );
+        let wrapped_tabular_output = wrapped_tabular_execution
+            .output
+            .as_ref()
+            .and_then(Value::as_str)
+            .expect("wrapped tabular writer output");
+        assert!(wrapped_tabular_output.contains("{card @tone=info\n    @size=lg"));
     }
 
     #[test]
@@ -14209,6 +14291,19 @@ mod tests {
     }
 
     #[test]
+    fn builtin_csv_formatter_applies_tab_size_options() {
+        let (formatted, _execution) = execute_builtin_csv_formatter_profile_with_options(
+            "pretty",
+            BTreeMap::from([("tabSize".to_owned(), "6".to_owned())]),
+        )
+        .expect("CSV pretty formatter accepts generic tabSize option");
+
+        assert_eq!(formatted["formatNodes"][1]["value"]["tabSize"], 6);
+        assert_eq!(formatted["formatNodes"][2]["name"], "csv.presentation-plan");
+        assert_eq!(formatted["formatNodes"][2]["value"]["tabSize"], 6);
+    }
+
+    #[test]
     fn builtin_csv_formatter_applies_line_ending_options() {
         let schema_registry = SchemaRegistry::with_builtin_schemas();
         let conversion_registry = ConversionRegistry::with_builtin_converters();
@@ -14341,6 +14436,12 @@ mod tests {
             output_color_type: Some("html-css-vars".to_owned()),
             ..ScopeConfig::default()
         };
+        let html_tab_size_scope = ScopeConfig {
+            cemt_formatter_profile: Some("tabular".to_owned()),
+            cemt_formatter_options: BTreeMap::from([("tabSize".to_owned(), "6".to_owned())]),
+            output_color_type: Some("html-css-vars".to_owned()),
+            ..ScopeConfig::default()
+        };
         let plain_scope = ScopeConfig {
             cemt_formatter_profile: Some("tabular".to_owned()),
             cemt_color_profile: Some("terminal".to_owned()),
@@ -14360,6 +14461,12 @@ mod tests {
             &html_scope,
             Some("builtin:csv-html-output"),
         );
+        let html_tab_size = execute_csv_document_output_pipeline_with_environment(
+            &environment,
+            table.clone(),
+            &html_tab_size_scope,
+            Some("builtin:csv-html-tab-size-output"),
+        );
         let plain = execute_csv_document_output_pipeline_with_environment(
             &environment,
             table,
@@ -14373,14 +14480,30 @@ mod tests {
             terminal.diagnostics
         );
         assert!(html.diagnostics.is_empty(), "{:?}", html.diagnostics);
+        assert!(
+            html_tab_size.diagnostics.is_empty(),
+            "{:?}",
+            html_tab_size.diagnostics
+        );
         assert!(plain.diagnostics.is_empty(), "{:?}", plain.diagnostics);
         let terminal_text =
             strip_ansi_codes(terminal.output.as_ref().and_then(Value::as_str).unwrap());
         let html_output = html.output.as_ref().and_then(Value::as_str).unwrap();
         let plain_output = plain.output.as_ref().and_then(Value::as_str).unwrap();
         assert!(
-            html_output.starts_with(CSV_HTML_PREVIEW_PREFIX),
+            html_output.starts_with(&csv_html_preview_prefix(
+                DEFAULT_FORMATTER_TAB_SIZE as usize
+            )),
             "{html_output}"
+        );
+        assert!(
+            html_tab_size
+                .output
+                .as_ref()
+                .and_then(Value::as_str)
+                .is_some_and(|output| output.starts_with(&csv_html_preview_prefix(6))),
+            "{:?}",
+            html_tab_size.output
         );
         assert!(
             html_output.contains(r#"data-role="data.field.1""#),

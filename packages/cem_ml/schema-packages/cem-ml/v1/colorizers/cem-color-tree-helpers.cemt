@@ -255,26 +255,34 @@
                                         subject: call("cem.color-tree.color-child-field", {
                                             subject: call("cem.color-tree.color-child-field", {
                                                 subject: call("cem.color-tree.color-child-field", {
-                                                    subject: $subject,
-                                                    field: "attributes",
+                                                    subject: call("cem.color-tree.color-child-field", {
+                                                        subject: call("cem.color-tree.color-child-field", {
+                                                            subject: $subject,
+                                                            field: "attributes",
+                                                            colorProfile: $colorProfile
+                                                        }),
+                                                        field: "children",
+                                                        colorProfile: $colorProfile
+                                                    }),
+                                                    field: "slots",
                                                     colorProfile: $colorProfile
                                                 }),
-                                                field: "children",
+                                                field: "nodes",
                                                 colorProfile: $colorProfile
                                             }),
-                                            field: "slots",
+                                            field: "node",
                                             colorProfile: $colorProfile
                                         }),
-                                        field: "nodes",
+                                        field: "root",
                                         colorProfile: $colorProfile
                                     }),
-                                    field: "node",
+                                    field: "formatLayout",
                                     colorProfile: $colorProfile
                                 }),
-                                field: "root",
+                                field: "formatBefore",
                                 colorProfile: $colorProfile
                             }),
-                            field: "formatLayout",
+                            field: "formatBeforeAttribute",
                             colorProfile: $colorProfile
                         }),
                         field: "formatBeforeAttributes",
@@ -326,6 +334,14 @@
                 }),
                 formatLayout: match(exists($subject.formatLayout), {
                     true: set($subject, "formatLayout", call("cem.color-tree.color-value", { subject: $subject.formatLayout, colorProfile: $colorProfile })),
+                    false: $subject
+                }),
+                formatBefore: match(exists($subject.formatBefore), {
+                    true: set($subject, "formatBefore", call("cem.color-tree.color-value", { subject: $subject.formatBefore, colorProfile: $colorProfile })),
+                    false: $subject
+                }),
+                formatBeforeAttribute: match(exists($subject.formatBeforeAttribute), {
+                    true: set($subject, "formatBeforeAttribute", call("cem.color-tree.color-value", { subject: $subject.formatBeforeAttribute, colorProfile: $colorProfile })),
                     false: $subject
                 }),
                 formatBeforeAttributes: match(exists($subject.formatBeforeAttributes), {

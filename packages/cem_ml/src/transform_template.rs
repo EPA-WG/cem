@@ -2202,6 +2202,8 @@ pub struct TransformTemplateEncodeOptions {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub indent: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tab_size: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub namespace_policy: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub namespace_placement: Option<String>,
@@ -5273,27 +5275,32 @@ fn transform_template_format_cem_tree_object(
 ) -> Result<Value, String> {
     let source_map = transform_template_cem_tree_node_source_map(&fields);
     let layout = transform_template_cem_tree_child_layout_for_fields(&fields);
-    if transform_template_cem_tree_attribute_count(fields.get("attributes")) > 0 {
+    let attribute_count = transform_template_cem_tree_attribute_count(fields.get("attributes"));
+    if attribute_count > 0 {
+        let format_before_attributes = transform_template_cem_tree_formatter_whitespace_node(
+            " ",
+            "formatter.attribute-prefix",
+            source_map.as_ref(),
+        );
         fields
             .entry("formatBeforeAttributes".to_owned())
-            .or_insert_with(|| {
-                transform_template_cem_tree_formatter_whitespace_node(
-                    " ",
-                    "formatter.attribute-prefix",
-                    source_map.as_ref(),
-                )
-            });
+            .or_insert(format_before_attributes);
     }
-    if transform_template_cem_tree_attribute_count(fields.get("attributes")) > 1 {
+    if attribute_count > 1 {
+        transform_template_cem_tree_wrap_attributes_at_column(
+            &mut fields,
+            binding,
+            depth,
+            source_map.as_ref(),
+        )?;
+        let format_between_attributes = transform_template_cem_tree_formatter_whitespace_node(
+            " ",
+            "formatter.attribute-spacing",
+            source_map.as_ref(),
+        );
         fields
             .entry("formatBetweenAttributes".to_owned())
-            .or_insert_with(|| {
-                transform_template_cem_tree_formatter_whitespace_node(
-                    " ",
-                    "formatter.attribute-spacing",
-                    source_map.as_ref(),
-                )
-            });
+            .or_insert(format_between_attributes);
     }
     for field in ["children", "nodes", "slots"] {
         if let Some(value) = fields.remove(field) {
@@ -5344,6 +5351,99 @@ fn transform_template_format_cem_tree_object(
         }
     }
     Ok(Value::Object(fields))
+}
+
+fn transform_template_cem_tree_wrap_attributes_at_column(
+    fields: &mut serde_json::Map<String, Value>,
+    binding: &TransformTemplateEncodeBinding,
+    depth: usize,
+    source_map: Option<&SourceMapStack>,
+) -> Result<(), String> {
+    let Some(wrap_column) =
+        transform_template_cem_tree_attribute_wrap_column(&binding.options, binding)?
+    else {
+        return Ok(());
+    };
+    let name = match transform_template_cem_tree_name(fields) {
+        Some("") => String::new(),
+        Some("$") => "$".to_owned(),
+        Some(raw_name) => transform_template_encode_cem_name(raw_name)?,
+        None => "node".to_owned(),
+    };
+    let mut width = cemt_display_width(&transform_template_cem_tree_formatter_indent_data(
+        &binding.options,
+        depth,
+    ))
+    .saturating_add(1)
+    .saturating_add(cemt_display_width(&name));
+    let wrapped_indent_width = cemt_display_width(
+        &transform_template_cem_tree_formatter_indent_data(
+            &binding.options,
+            depth.saturating_add(1),
+        ),
+    );
+    let Some(Value::Array(attributes)) = fields.get_mut("attributes") else {
+        return Ok(());
+    };
+    for (index, attribute) in attributes.iter_mut().enumerate() {
+        let attribute_fields = attribute.as_object().ok_or_else(|| {
+            format!(
+                "CEM tree formatter expected attribute object, got {}",
+                json_value_type_name(attribute)
+            )
+        })?;
+        let attribute_width =
+            cemt_display_width(&transform_template_cem_tree_attribute_to_text(attribute_fields)?);
+        let inline_width = width.saturating_add(1).saturating_add(attribute_width);
+        if index > 0 && inline_width > wrap_column {
+            if let Some(attribute_fields) = attribute.as_object_mut() {
+                attribute_fields.entry("formatBefore".to_owned()).or_insert_with(|| {
+                    transform_template_cem_tree_formatter_attribute_line_break(
+                        &binding.options,
+                        depth,
+                        "formatter.attribute-spacing",
+                        source_map,
+                    )
+                });
+            }
+            width = wrapped_indent_width.saturating_add(attribute_width);
+        } else {
+            width = inline_width;
+        }
+    }
+    Ok(())
+}
+
+fn transform_template_cem_tree_attribute_wrap_column(
+    options: &TransformTemplateEncodeOptions,
+    binding: &TransformTemplateEncodeBinding,
+) -> Result<Option<usize>, String> {
+    match binding.identity.formatter_profile.as_deref() {
+        Some("pretty" | "tabular") => {
+            transform_template_cem_tree_formatter_wrap_column_limit(options)
+        }
+        _ => Ok(None),
+    }
+}
+
+fn transform_template_cem_tree_formatter_wrap_column_limit(
+    options: &TransformTemplateEncodeOptions,
+) -> Result<Option<usize>, String> {
+    let Some(value) = transform_template_encode_options_wrap_column_option(options) else {
+        return Ok(Some(DEFAULT_FORMATTER_WRAP_COLUMN));
+    };
+    match value {
+        "none" | "preserve" => Ok(None),
+        _ => {
+            let column = value
+                .parse::<usize>()
+                .map_err(|_| format!("Formatter option `wrapColumn` must be a positive integer, `none`, or `preserve`, got `{value}`"))?;
+            if column == 0 {
+                return Err("Formatter option `wrapColumn` must be greater than zero".to_owned());
+            }
+            Ok(Some(column))
+        }
+    }
 }
 
 fn transform_template_format_cem_tree_child_value(
@@ -5449,6 +5549,26 @@ fn transform_template_cem_tree_content_boundary_nodes(
             source_map,
         ),
         trailing,
+    ])
+}
+
+fn transform_template_cem_tree_formatter_attribute_line_break(
+    options: &TransformTemplateEncodeOptions,
+    depth: usize,
+    formatter_role: &str,
+    source_map: Option<&SourceMapStack>,
+) -> Value {
+    Value::Array(vec![
+        transform_template_cem_tree_formatter_whitespace_node(
+            &transform_template_cem_tree_formatter_line_ending_data(options),
+            formatter_role,
+            source_map,
+        ),
+        transform_template_cem_tree_formatter_whitespace_node(
+            &transform_template_cem_tree_formatter_indent_data(options, depth.saturating_add(1)),
+            "formatter.attribute-indent",
+            source_map,
+        ),
     ])
 }
 
@@ -5608,6 +5728,13 @@ fn transform_template_cem_tree_format_nodes(
             source_map.as_ref(),
         ),
         transform_template_cem_tree_format_decision(
+            "tab-size",
+            "formatter.tab-size",
+            transform_template_cem_tree_formatter_tab_size(options).to_string(),
+            formatter_profile,
+            source_map.as_ref(),
+        ),
+        transform_template_cem_tree_format_decision(
             "ordering",
             "formatter.ordering",
             transform_template_cem_tree_formatter_ordering(options),
@@ -5753,10 +5880,30 @@ fn transform_template_non_empty_formatter_option(value: Option<&str>) -> Option<
     value.map(str::trim).filter(|value| !value.is_empty())
 }
 
+pub const DEFAULT_FORMATTER_INDENT: &str = "    ";
+pub const DEFAULT_FORMATTER_TAB_SIZE: i64 = 8;
+pub const DEFAULT_FORMATTER_WRAP_COLUMN: usize = 100;
+
+fn transform_template_non_empty_indent_option(value: Option<&str>) -> Option<&str> {
+    value.filter(|value| !value.is_empty())
+}
+
+fn transform_template_encode_options_indent_option(
+    options: &TransformTemplateEncodeOptions,
+) -> Option<&str> {
+    transform_template_non_empty_indent_option(options.indent.as_deref()).or_else(|| {
+        transform_template_non_empty_indent_option(
+            options.formatter_options.get("indent").map(String::as_str),
+        )
+    })
+}
+
 fn transform_template_cem_tree_formatter_indent(
     options: &TransformTemplateEncodeOptions,
 ) -> String {
-    options.indent.clone().unwrap_or_else(|| "  ".to_owned())
+    transform_template_encode_options_indent_option(options)
+        .unwrap_or(DEFAULT_FORMATTER_INDENT)
+        .to_owned()
 }
 
 fn transform_template_cem_tree_formatter_indent_data(
@@ -5764,6 +5911,36 @@ fn transform_template_cem_tree_formatter_indent_data(
     depth: usize,
 ) -> String {
     transform_template_cem_tree_formatter_indent(options).repeat(depth)
+}
+
+fn transform_template_encode_options_tab_size_option(
+    options: &TransformTemplateEncodeOptions,
+) -> Option<&str> {
+    transform_template_non_empty_formatter_option(options.tab_size.as_deref()).or_else(|| {
+        transform_template_non_empty_formatter_option(
+            options.formatter_options.get("tabSize").map(String::as_str),
+        )
+    })
+}
+
+fn transform_template_cem_tree_formatter_tab_size(options: &TransformTemplateEncodeOptions) -> i64 {
+    transform_template_encode_options_tab_size_option(options)
+        .and_then(|value| value.parse::<i64>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_FORMATTER_TAB_SIZE)
+}
+
+fn transform_template_encode_options_wrap_column_option(
+    options: &TransformTemplateEncodeOptions,
+) -> Option<&str> {
+    transform_template_non_empty_formatter_option(options.wrap_column.as_deref()).or_else(|| {
+        transform_template_non_empty_formatter_option(
+            options
+                .formatter_options
+                .get("wrapColumn")
+                .map(String::as_str),
+        )
+    })
 }
 
 fn transform_template_cem_tree_formatter_ordering(
@@ -5781,13 +5958,9 @@ fn transform_template_cem_tree_formatter_ordering(
 fn transform_template_cem_tree_formatter_wrapping(
     options: &TransformTemplateEncodeOptions,
 ) -> String {
-    options
-        .wrap_column
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or("none")
-        .to_owned()
+    transform_template_encode_options_wrap_column_option(options)
+        .map(str::to_owned)
+        .unwrap_or_else(|| DEFAULT_FORMATTER_WRAP_COLUMN.to_string())
 }
 
 fn transform_template_first_cem_tree_source_map_in_values(
@@ -5814,6 +5987,8 @@ fn transform_template_first_cem_tree_source_map(value: &Value) -> Option<SourceM
                 "formatNodes",
                 "colorNodes",
                 "formatLayout",
+                "formatBefore",
+                "formatBeforeAttribute",
                 "formatBeforeAttributes",
                 "formatBetweenAttributes",
                 "formatContentBoundary",
@@ -6211,6 +6386,8 @@ fn transform_template_apply_cem_tree_color_to_node(
         "formatNodes",
         "colorNodes",
         "formatLayout",
+        "formatBefore",
+        "formatBeforeAttribute",
         "formatBeforeAttributes",
         "formatBetweenAttributes",
         "formatContentBoundary",
@@ -7629,17 +7806,12 @@ fn transform_template_markdown_wrap_column(
     {
         match selector.trim() {
             "" | "preserve" | "markdown.preserve" | "canonical" | "markdown.canonical" => {}
-            "wrap" | "markdown.wrap" => default_wrap = Some(80),
+            "wrap" | "markdown.wrap" => default_wrap = Some(DEFAULT_FORMATTER_WRAP_COLUMN),
             other => return Err(format!("unsupported Markdown formatter `{other}`")),
         }
     }
 
-    let Some(selector) = options
-        .wrap_column
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    else {
+    let Some(selector) = transform_template_encode_options_wrap_column_option(options) else {
         return Ok(default_wrap);
     };
 
@@ -7898,9 +8070,10 @@ pub fn transform_template_format_yaml_value(
         Value::Null => "null".to_owned(),
         Value::Bool(value) => value.to_string(),
         Value::Number(value) => value.to_string(),
-        Value::Array(_) | Value::Object(_) if mode.pretty => {
-            transform_template_pretty_json_value(value, options.indent.as_deref())?
-        }
+        Value::Array(_) | Value::Object(_) if mode.pretty => transform_template_pretty_json_value(
+            value,
+            &transform_template_cem_tree_formatter_indent(options),
+        )?,
         Value::Array(_) | Value::Object(_) => transform_template_encode_json_value(value)?,
     };
     transform_template_apply_yaml_line_ending(
@@ -7948,7 +8121,7 @@ fn transform_template_yaml_formatter_mode(
     ordering = transform_template_formatter_ordering(options, ordering, "YAML")?;
 
     if pretty {
-        let indent = options.indent.as_deref().unwrap_or("  ");
+        let indent = transform_template_cem_tree_formatter_indent(options);
         if !indent.chars().all(|ch| ch == ' ' || ch == '\t') {
             return Err("YAML formatter indent may contain only spaces or tabs".to_owned());
         }
@@ -8132,7 +8305,10 @@ pub fn transform_template_format_json_value(
         value
     };
     let output = if mode.pretty {
-        transform_template_pretty_json_value(value, options.indent.as_deref())?
+        transform_template_pretty_json_value(
+            value,
+            &transform_template_cem_tree_formatter_indent(options),
+        )?
     } else {
         transform_template_encode_json_value(value)?
     };
@@ -8233,11 +8409,7 @@ fn transform_template_order_json_value(value: &Value) -> Value {
     }
 }
 
-fn transform_template_pretty_json_value(
-    value: &Value,
-    indent: Option<&str>,
-) -> Result<String, String> {
-    let indent = indent.unwrap_or("  ");
+fn transform_template_pretty_json_value(value: &Value, indent: &str) -> Result<String, String> {
     if !indent.chars().all(|ch| ch == ' ' || ch == '\t') {
         return Err("JSON formatter indent may contain only spaces or tabs".to_owned());
     }
@@ -8322,7 +8494,7 @@ fn transform_template_validate_xml_formatter_options(
     }
 
     if options.pretty {
-        let indent = options.indent.as_deref().unwrap_or("  ");
+        let indent = transform_template_cem_tree_formatter_indent(options);
         if !indent.chars().all(|ch| ch == ' ' || ch == '\t') {
             return Err("XML formatter indent may contain only spaces or tabs".to_owned());
         }
@@ -9272,6 +9444,8 @@ fn validate_cem_tree_materialized_html_color_metadata_value(
                 "formatNodes",
                 "colorNodes",
                 "formatLayout",
+                "formatBefore",
+                "formatBeforeAttribute",
                 "formatBeforeAttributes",
                 "formatBetweenAttributes",
                 "formatContentBoundary",
@@ -10071,7 +10245,9 @@ fn transform_template_render_cem_tree_element(
     rendered.push_colored_mapped(&name, tag_source_map, color_role.as_deref());
     if !attributes.is_empty() {
         for (index, attribute) in attributes.iter().enumerate() {
-            if index == 0 {
+            if let Some(format_before) = attribute.format_before.as_ref() {
+                transform_template_render_cem_tree_format_value(format_before, rendered)?;
+            } else if index == 0 {
                 if !name.is_empty() {
                     if let Some(format_before_attributes) = fields.get("formatBeforeAttributes") {
                         transform_template_render_cem_tree_format_value(
@@ -10593,6 +10769,7 @@ struct TransformTemplateCemTreeTextEntry {
     text: String,
     source_map: Option<SourceMapStack>,
     color_role: Option<String>,
+    format_before: Option<Value>,
 }
 
 fn transform_template_cem_tree_attributes_to_text_entries(
@@ -10616,6 +10793,10 @@ fn transform_template_cem_tree_attributes_to_text_entries(
                     source_map: transform_template_cem_tree_node_source_map(fields),
                     color_role: transform_template_cem_tree_render_color_role(fields)
                         .or_else(|| Some("syntax.attribute".to_owned())),
+                    format_before: fields
+                        .get("formatBefore")
+                        .or_else(|| fields.get("formatBeforeAttribute"))
+                        .cloned(),
                 })
             })
             .collect(),
@@ -10631,6 +10812,7 @@ fn transform_template_cem_tree_attributes_to_text_entries(
                         )?,
                         source_map: None,
                         color_role: Some("syntax.attribute".to_owned()),
+                        format_before: None,
                     })
                 })
                 .collect()
@@ -11259,6 +11441,13 @@ fn cemt_runtime_bind_output_contract_metadata(
             ))
         });
     scoped_bindings
+        .entry("tabSize".to_owned())
+        .or_insert_with(|| {
+            Value::Number(serde_json::Number::from(
+                transform_template_cem_tree_formatter_tab_size(&binding.options),
+            ))
+        });
+    scoped_bindings
         .entry("ordering".to_owned())
         .or_insert_with(|| {
             Value::String(transform_template_cem_tree_formatter_ordering(
@@ -11449,6 +11638,13 @@ fn resolve_encode_request_runtime_values(
     resolve_runtime_string_field(
         &mut request.options.indent,
         "indent",
+        value_bindings,
+        uri,
+        expression,
+    )?;
+    resolve_runtime_string_field(
+        &mut request.options.tab_size,
+        "tabSize",
         value_bindings,
         uri,
         expression,
@@ -17512,17 +17708,9 @@ fn parse_cemt_encode_options(
         optional_object_string(&fields, &["quote", "quotePolicy", "quote-policy"])?;
     options.ordering =
         optional_object_string(&fields, &["ordering", "order", "keyOrder", "key-order"])?;
-    options.wrap_column = optional_object_string(
-        &fields,
-        &[
-            "wrap",
-            "wrapColumn",
-            "wrap-column",
-            "lineWidth",
-            "line-width",
-        ],
-    )?;
+    options.wrap_column = optional_object_string(&fields, &["wrap", "wrapColumn", "wrap-column"])?;
     options.indent = optional_object_string_preserve(&fields, &["indent"])?;
+    options.tab_size = optional_object_string(&fields, &["tabSize", "tab-size"])?;
     options.namespace_policy =
         optional_object_string(&fields, &["namespacePolicy", "namespace-policy"])?;
     options.namespace_placement = optional_object_string(
@@ -23864,6 +24052,7 @@ mod tests {
                 mode: $mode,
                 lineEnding: $lineEnding,
                 indent: $indent,
+                tabSize: $tabSize,
                 ordering: $ordering,
                 wrapColumn: $wrapColumn,
                 formatterOptions: $formatterOptions,
@@ -23898,7 +24087,11 @@ mod tests {
         .with_options(TransformTemplateEncodeOptions {
             colorizer: Some("cem.color-tree".to_owned()),
             color_profile: Some("classes".to_owned()),
-            formatter_options: BTreeMap::from([("lineEnding".to_owned(), "crlf".to_owned())]),
+            formatter_options: BTreeMap::from([
+                ("lineEnding".to_owned(), "crlf".to_owned()),
+                ("indent".to_owned(), "\t".to_owned()),
+                ("tabSize".to_owned(), "6".to_owned()),
+            ]),
             ..TransformTemplateEncodeOptions::default()
         });
         let binding = registry
@@ -23928,11 +24121,14 @@ mod tests {
         assert_eq!(value["functionProfile"], "classes");
         assert_eq!(value["mode"], "document");
         assert_eq!(value["lineEnding"], "crlf");
-        assert_eq!(value["indent"], "  ");
+        assert_eq!(value["indent"], "\t");
+        assert_eq!(value["tabSize"], 6);
         assert_eq!(value["ordering"], "source");
-        assert_eq!(value["wrapColumn"], "none");
+        assert_eq!(value["wrapColumn"], "100");
         assert_eq!(value["colorProfile"], "classes");
         assert_eq!(value["formatterOptions"]["lineEnding"], "crlf");
+        assert_eq!(value["formatterOptions"]["indent"], "\t");
+        assert_eq!(value["formatterOptions"]["tabSize"], "6");
     }
 
     #[test]
@@ -25498,7 +25694,10 @@ mod tests {
             &writer_context,
         )
         .expect_err("writer rejects formatted-only tree");
-        assert!(formatted_writer_error.contains("run `cem.color-tree` before the writer"));
+        assert!(
+            formatted_writer_error.contains("run the package colorizer before the writer"),
+            "{formatted_writer_error}"
+        );
 
         let color_request = TransformTemplateEncodeBindingRequest::new(
             formatted,
@@ -26941,8 +27140,10 @@ mod tests {
         let options = TransformTemplateEncodeOptions {
             pretty: true,
             formatter_profile: Some("json.pretty".to_owned()),
-            indent: Some("\t".to_owned()),
-            formatter_options: BTreeMap::from([("lineEnding".to_owned(), "crlf".to_owned())]),
+            formatter_options: BTreeMap::from([
+                ("lineEnding".to_owned(), "crlf".to_owned()),
+                ("indent".to_owned(), "\t".to_owned()),
+            ]),
             ..TransformTemplateEncodeOptions::default()
         };
         let binding = TransformTemplateEncodeBinding {
@@ -26974,6 +27175,61 @@ mod tests {
             .encode(&unsupported, &json!(["a"]))
             .expect_err("unsupported formatter is rejected");
         assert!(error.contains("unsupported JSON formatter `json.unknown`"));
+    }
+
+    #[test]
+    fn builtin_json_and_yaml_pretty_defaults_use_shared_formatter_indent() {
+        let registry = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+        let value = json!(["a", {"ok": true}]);
+        let expected = "[\n    \"a\",\n    {\n        \"ok\": true\n    }\n]";
+
+        let json_options = TransformTemplateEncodeOptions {
+            pretty: true,
+            formatter_profile: Some("json.pretty".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        };
+        let json_binding = TransformTemplateEncodeBinding {
+            function: json_output_function_descriptor("json.value", "json-value", "json"),
+            subject_type: "array".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::from_options(
+                TransformTemplateOutputProducedKind::Text,
+                TransformTemplateEncodingTarget::new(
+                    JSON_CONTENT_TYPE,
+                    JSON_VALUE_SCHEMA_URI,
+                    "json-value",
+                ),
+                &json_options,
+            ),
+            options: json_options,
+        };
+        let encoded_json = registry
+            .encode(&json_binding, &value)
+            .expect("json pretty formatter runs");
+        assert_eq!(encoded_json, Value::String(expected.to_owned()));
+
+        let yaml_options = TransformTemplateEncodeOptions {
+            pretty: true,
+            formatter_profile: Some("yaml.pretty".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        };
+        let yaml_binding = TransformTemplateEncodeBinding {
+            function: yaml_output_function_descriptor("yaml.value", "yaml-value", "json"),
+            subject_type: "array".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::from_options(
+                TransformTemplateOutputProducedKind::Text,
+                TransformTemplateEncodingTarget::new(
+                    YAML_CONTENT_TYPE,
+                    YAML_SCHEMA_URI,
+                    "yaml-value",
+                ),
+                &yaml_options,
+            ),
+            options: yaml_options,
+        };
+        let encoded_yaml = registry
+            .encode(&yaml_binding, &value)
+            .expect("yaml pretty formatter runs");
+        assert_eq!(encoded_yaml, Value::String(expected.to_owned()));
     }
 
     #[test]
@@ -28771,6 +29027,10 @@ mod tests {
             "\t"
         );
         assert_eq!(
+            cem_tree_format_decision(&formatted, "tab-size")["value"],
+            "8"
+        );
+        assert_eq!(
             cem_tree_format_decision(&formatted, "ordering")["value"],
             "lexical"
         );
@@ -28927,7 +29187,7 @@ mod tests {
                 .as_array()
                 .expect("formatNodes are an array")
                 .len(),
-            6
+            7
         );
 
         let envelope =
@@ -28941,6 +29201,10 @@ mod tests {
         assert_eq!(
             cem_tree_format_decision(&envelope, "indent")["value"],
             "    "
+        );
+        assert_eq!(
+            cem_tree_format_decision(&envelope, "tab-size")["value"],
+            "8"
         );
         assert_eq!(
             cem_tree_format_decision(&envelope, "wrapping")["value"],
@@ -29234,7 +29498,7 @@ mod tests {
         );
         assert_eq!(formatted["nodes"][0]["formatBeforeClose"]["value"], "");
         assert_eq!(formatted["nodes"][0]["children"][0]["kind"], "whitespace");
-        assert_eq!(formatted["nodes"][0]["children"][0]["value"], "  ");
+        assert_eq!(formatted["nodes"][0]["children"][0]["value"], "    ");
         assert_eq!(
             formatted["nodes"][0]["children"][0]["formatterRole"],
             "formatter.indent"
@@ -29247,7 +29511,7 @@ mod tests {
             "formatter.line-ending"
         );
         assert_eq!(formatted["nodes"][0]["children"][3]["kind"], "whitespace");
-        assert_eq!(formatted["nodes"][0]["children"][3]["value"], "  ");
+        assert_eq!(formatted["nodes"][0]["children"][3]["value"], "    ");
         assert_eq!(
             formatted["nodes"][0]["children"][3]["formatterRole"],
             "formatter.indent"
@@ -29262,6 +29526,62 @@ mod tests {
         assert_eq!(
             formatted["nodes"][0]["formatBetweenAttributes"]["value"],
             " "
+        );
+    }
+
+    #[test]
+    fn format_binding_wraps_attributes_only_after_wrap_column() {
+        let implementations =
+            TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+        let subject = json!({
+            "kind": "element",
+            "name": "card",
+            "attributes": [
+                {"kind": "attribute", "name": "tone", "value": "info"},
+                {"kind": "attribute", "name": "size", "value": "lg"}
+            ],
+            "children": [{"kind": "text", "value": "Ready"}]
+        });
+        let options = TransformTemplateEncodeOptions {
+            formatter: Some("cem.format-tree".to_owned()),
+            formatter_profile: Some("tabular".to_owned()),
+            wrap_column: Some("24".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        };
+        let binding = TransformTemplateEncodeBinding {
+            function: cem_tree_format_function_descriptor(),
+            subject_type: "cem-ast-node".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::from_options(
+                TransformTemplateOutputProducedKind::CemTree,
+                TransformTemplateEncodingTarget::new(
+                    CEM_ML_CONTENT_TYPE,
+                    CEM_ML_SCHEMA_URI,
+                    "cem-tree",
+                ),
+                &options,
+            ),
+            options,
+        };
+        let formatted = implementations
+            .encode(&binding, &subject)
+            .expect("CEM tree formatter runs");
+
+        assert_eq!(formatted["nodes"][0]["formatBeforeAttributes"]["value"], " ");
+        assert_eq!(formatted["nodes"][0]["formatBetweenAttributes"]["value"], " ");
+        assert!(formatted["nodes"][0]["attributes"][0]
+            .get("formatBefore")
+            .is_none());
+        assert_eq!(
+            formatted["nodes"][0]["attributes"][1]["formatBefore"][0]["formatterRole"],
+            "formatter.attribute-spacing"
+        );
+        assert_eq!(
+            formatted["nodes"][0]["attributes"][1]["formatBefore"][0]["value"],
+            "\n"
+        );
+        assert_eq!(
+            formatted["nodes"][0]["attributes"][1]["formatBefore"][1]["formatterRole"],
+            "formatter.attribute-indent"
         );
     }
 
@@ -31177,6 +31497,7 @@ mod tests {
                     ordering: "lexical",
                     wrapColumn: "72",
                     indent: "  ",
+                    tabSize: "6",
                     namespacePolicy: "repair",
                     namespacePlacement: "root",
                     binaryFraming: "cem-bin/ast-v1",
@@ -31215,6 +31536,7 @@ mod tests {
         assert_eq!(parsed.options.ordering.as_deref(), Some("lexical"));
         assert_eq!(parsed.options.wrap_column.as_deref(), Some("72"));
         assert_eq!(parsed.options.indent.as_deref(), Some("  "));
+        assert_eq!(parsed.options.tab_size.as_deref(), Some("6"));
         assert_eq!(parsed.options.namespace_policy.as_deref(), Some("repair"));
         assert_eq!(parsed.options.namespace_placement.as_deref(), Some("root"));
         assert_eq!(

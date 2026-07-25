@@ -7249,7 +7249,8 @@ mod tests {
         ResourceResolver,
     };
     use crate::schema::registry::{
-        CEM_SCHEMA_CONTENT_TYPE, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI,
+        CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
+        CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI,
     };
     use crate::transform_template::{
         TransformTemplateAdapterCapability, TransformTemplateAdapterError,
@@ -11901,7 +11902,7 @@ mod tests {
         assert_eq!(resp.primary["kind"], "cem");
         assert_eq!(
             resp.primary["content"].as_str().unwrap(),
-            "{cem:if @test=\"!(disabled)\" |\n  {button | Go}\n}\n"
+            "{cem:if @test=\"!(disabled)\" |\n    {button | Go}\n}\n"
         );
         assert!(
             resp.diagnostics
@@ -11988,6 +11989,150 @@ mod tests {
         let resp = RealCemMlEngine::new().convert(req).unwrap();
         assert_eq!(resp.primary["kind"], "cem");
         assert_eq!(resp.primary["content"], "@doc cem-ml 1\n{p | Hi}\n");
+        assert!(
+            resp.diagnostics.is_empty(),
+            "unexpected diagnostics: {:?}",
+            resp.diagnostics
+        );
+    }
+
+    #[test]
+    fn convert_target_cem_pretty_aligns_block_closing_braces_with_opening_indent() {
+        let convert_with_indent_options = |cemt_formatter_options| {
+            let req = ConvertRequest {
+                input: input(
+                    br#"@doc cem-ml 1
+
+{article @id="welcome" |
+    {h1 | Welcome}
+    {p | This is a minimal CEM-ML document.}
+}"#,
+                    "basic.cem",
+                ),
+                to_format: LayerFormat::DomJson,
+                preserve_source_offsets: false,
+                context: ctx(),
+                target: Some(FormatIdentity {
+                    content_type: Some(CEM_ML_CONTENT_TYPE.to_owned()),
+                    schema: Some(CEM_ML_SCHEMA_URI.to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                target_scope: ScopeConfig {
+                    cemt_formatter_profile: Some("pretty".to_owned()),
+                    cemt_formatter_options,
+                    ..ScopeConfig::default()
+                },
+                scheduler_scope_id: 0,
+            };
+            RealCemMlEngine::new().convert(req).unwrap()
+        };
+
+        let resp = convert_with_indent_options(BTreeMap::new());
+        assert_eq!(
+            resp.primary["content"].as_str().unwrap(),
+            "@doc cem-ml 1\n{article @id=welcome |\n    {h1 |\n        Welcome\n    }\n    {p |\n        This is a minimal CEM-ML document.\n    }\n}\n"
+        );
+        assert!(
+            resp.diagnostics.is_empty(),
+            "unexpected diagnostics: {:?}",
+            resp.diagnostics
+        );
+
+        let resp =
+            convert_with_indent_options(BTreeMap::from([("indent".to_owned(), "  ".to_owned())]));
+        assert_eq!(
+            resp.primary["content"].as_str().unwrap(),
+            "@doc cem-ml 1\n{article @id=welcome |\n  {h1 |\n    Welcome\n  }\n  {p |\n    This is a minimal CEM-ML document.\n  }\n}\n"
+        );
+        assert!(
+            resp.diagnostics.is_empty(),
+            "unexpected diagnostics: {:?}",
+            resp.diagnostics
+        );
+    }
+
+    #[test]
+    fn convert_target_cem_pretty_wraps_attributes_at_wrap_column() {
+        let req = ConvertRequest {
+            input: input(
+                br#"@doc cem-ml 1
+{article @data-attr1=abc @data-attr2="long attr value" @data-attr3=abc @data-attr4=abc @data-attr5=abc @data-attr6=abc @id=welcome |
+    {h1 | Welcome}
+}"#,
+                "long-attributes.cem",
+            ),
+            to_format: LayerFormat::DomJson,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: Some(FormatIdentity {
+                content_type: Some(CEM_ML_CONTENT_TYPE.to_owned()),
+                schema: Some(CEM_ML_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            target_scope: ScopeConfig {
+                cemt_formatter_profile: Some("pretty".to_owned()),
+                ..ScopeConfig::default()
+            },
+            scheduler_scope_id: 0,
+        };
+
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+
+        assert_eq!(
+            resp.primary["content"].as_str().unwrap(),
+            "@doc cem-ml 1\n{article @data-attr1=abc @data-attr2=\"long attr value\" @data-attr3=abc @data-attr4=abc\n    @data-attr5=abc @data-attr6=abc @id=welcome |\n    {h1 |\n        Welcome\n    }\n}\n"
+        );
+        assert!(
+            resp.diagnostics.is_empty(),
+            "unexpected diagnostics: {:?}",
+            resp.diagnostics
+        );
+    }
+
+    #[test]
+    fn convert_target_cem_tabular_wraps_attributes_only_after_wrap_column() {
+        let convert_with_options = |cemt_formatter_options| {
+            let req = ConvertRequest {
+                input: input(
+                    br#"@doc cem-ml 1
+{article @data-tone=info @data-size=lg @id=welcome}"#,
+                    "tabular-attributes.cem",
+                ),
+                to_format: LayerFormat::DomJson,
+                preserve_source_offsets: false,
+                context: ctx(),
+                target: Some(FormatIdentity {
+                    content_type: Some(CEM_ML_CONTENT_TYPE.to_owned()),
+                    schema: Some(CEM_ML_SCHEMA_URI.to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                target_scope: ScopeConfig {
+                    cemt_formatter_profile: Some("tabular".to_owned()),
+                    cemt_formatter_options,
+                    ..ScopeConfig::default()
+                },
+                scheduler_scope_id: 0,
+            };
+            RealCemMlEngine::new().convert(req).unwrap()
+        };
+
+        let resp = convert_with_options(BTreeMap::new());
+        assert_eq!(
+            resp.primary["content"].as_str().unwrap(),
+            "@doc cem-ml 1\n{article @data-size=lg @data-tone=info @id=welcome}\n"
+        );
+        assert!(
+            resp.diagnostics.is_empty(),
+            "unexpected diagnostics: {:?}",
+            resp.diagnostics
+        );
+
+        let resp =
+            convert_with_options(BTreeMap::from([("wrapColumn".to_owned(), "48".to_owned())]));
+        assert_eq!(
+            resp.primary["content"].as_str().unwrap(),
+            "@doc cem-ml 1\n{article @data-size=lg @data-tone=info\n    @id=welcome}\n"
+        );
         assert!(
             resp.diagnostics.is_empty(),
             "unexpected diagnostics: {:?}",
