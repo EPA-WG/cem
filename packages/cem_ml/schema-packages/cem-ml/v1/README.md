@@ -297,7 +297,7 @@ cargo run -p cem-ml-cli -- validate \
 
 ![Preview of the CEM-ML validation JSON report](examples/previews/basic-validate.svg)
 
-Render the same example through the package-owned pretty formatter and terminal
+Render the same example through the package-owned tabular formatter and terminal
 colorizer:
 
 ```bash
@@ -307,9 +307,9 @@ cargo run -p cem-ml-cli -- convert \
   --schema https://cem.dev/ns/cem-ml/1 \
   --to-content-type application/cem \
   --to-schema https://cem.dev/ns/cem-ml/1 \
-  --cemt-formatter-profile pretty \
+  --cemt-formatter-profile tabular \
   --cemt-color-profile terminal \
   --output-color-type ansi-256
 ```
 
-![Preview of the CEM-ML pretty terminal formatter output](examples/previews/basic-pretty-terminal.svg)
+![Preview of the CEM-ML tabular terminal formatter output](examples/previews/basic-tabular-terminal.svg)

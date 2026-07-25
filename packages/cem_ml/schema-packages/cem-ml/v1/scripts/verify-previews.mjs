@@ -36,12 +36,12 @@ const cases = [
         args: ['validate', '--format', 'json', ...commonInputArgs],
     },
     {
-        id: 'basic-pretty-terminal',
-        preview: 'basic-pretty-terminal.svg',
-        title: 'CEM-ML pretty formatter terminal preview',
+        id: 'basic-tabular-terminal',
+        preview: 'basic-tabular-terminal.svg',
+        title: 'CEM-ML tabular formatter terminal preview',
         description:
-            'Terminal-style preview of colored pretty CEM-ML output for the basic CEM-ML example.',
-        terminalTitle: 'pretty + terminal color',
+            'Terminal-style preview of colored tabular CEM-ML output for the basic CEM-ML example.',
+        terminalTitle: 'tabular + terminal color',
         renderer: 'ansi',
         args: [
             'convert',
@@ -51,7 +51,7 @@ const cases = [
             '--to-schema',
             'https://cem.dev/ns/cem-ml/1',
             '--cemt-formatter-profile',
-            'pretty',
+            'tabular',
             '--cemt-color-profile',
             'terminal',
             '--output-color-type',

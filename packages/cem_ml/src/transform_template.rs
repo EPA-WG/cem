@@ -9855,6 +9855,252 @@ impl TransformTemplateCemTreeRenderedText {
             self.push_unmapped("\u{1b}[0m");
         }
     }
+
+    fn apply_text_edits(&mut self, mut edits: Vec<TransformTemplateRenderedTextEdit>) {
+        edits.sort_by(|left, right| right.start.cmp(&left.start));
+        for edit in edits {
+            self.text
+                .replace_range(edit.start..edit.end, &edit.replacement);
+            self.adjust_output_spans_for_edit(
+                edit.start as u64,
+                edit.end as u64,
+                edit.replacement.len() as u64,
+            );
+        }
+    }
+
+    fn adjust_output_spans_for_edit(&mut self, start: u64, end: u64, replacement_len: u64) {
+        let removed_len = end.saturating_sub(start);
+        let delta = replacement_len as i128 - removed_len as i128;
+        self.output_spans = self
+            .output_spans
+            .drain(..)
+            .filter_map(|mut span| {
+                let span_start = span.output_range.start;
+                let span_end = span.output_range.end();
+                if span_end <= start {
+                    return Some(span);
+                }
+                if span_start >= end {
+                    span.output_range.start =
+                        transform_template_shift_byte_offset(span.output_range.start, delta);
+                    transform_template_shift_interpreter_render_frames(&mut span.origin, delta);
+                    return Some(span);
+                }
+                None
+            })
+            .collect();
+    }
+}
+
+#[derive(Debug, Clone)]
+struct TransformTemplateRenderedTextEdit {
+    start: usize,
+    end: usize,
+    replacement: String,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct TransformTemplateRenderedTextLine {
+    start: usize,
+    content_end: usize,
+}
+
+fn transform_template_shift_byte_offset(value: u64, delta: i128) -> u64 {
+    if delta < 0 {
+        value.saturating_sub((-delta) as u64)
+    } else {
+        value.saturating_add(delta as u64)
+    }
+}
+
+fn transform_template_shift_interpreter_render_frames(
+    source_map: &mut SourceMapStack,
+    delta: i128,
+) {
+    for frame in &mut source_map.frames {
+        if !matches!(frame.transform, TransformKind::InterpreterRender) {
+            continue;
+        }
+        match &mut frame.span {
+            FrameSpan::Single(range) => {
+                range.start = transform_template_shift_byte_offset(range.start, delta);
+            }
+            FrameSpan::Multi(ranges) => {
+                for range in ranges {
+                    range.start = transform_template_shift_byte_offset(range.start, delta);
+                }
+            }
+        }
+    }
+}
+
+fn transform_template_merge_tabular_cem_closing_scopes(
+    rendered: &mut TransformTemplateCemTreeRenderedText,
+    value: &Value,
+    writer_boundary_context: &TransformTemplateEncodedArtifactInsertionContext,
+    syntax: TransformTemplateCemTreeWriterSyntax,
+) {
+    if syntax != TransformTemplateCemTreeWriterSyntax::Cem
+        || !transform_template_cem_tree_writer_uses_tabular_profile(value, writer_boundary_context)
+        || rendered.terminal_color_profile.is_some()
+        || rendered.markdown_color_profile.is_some()
+    {
+        return;
+    }
+    let line_ending = rendered.line_ending.clone();
+    if line_ending.is_empty() {
+        return;
+    }
+    let indent = transform_template_cem_tree_writer_indent(value);
+    if indent.is_empty() {
+        return;
+    }
+    let lines = transform_template_rendered_text_lines(&rendered.text, &line_ending);
+    if lines.len() < 2 {
+        return;
+    }
+    let mut edits = Vec::new();
+    let mut index = 0usize;
+    while index + 1 < lines.len() {
+        let line = lines[index];
+        let line_text = &rendered.text[line.start..line.content_end];
+        let mut last_close_line = index;
+        while last_close_line + 1 < lines.len()
+            && transform_template_rendered_text_line_is_close_scope(
+                &rendered.text
+                    [lines[last_close_line + 1].start..lines[last_close_line + 1].content_end],
+            )
+        {
+            last_close_line += 1;
+        }
+        let following_close_count = last_close_line.saturating_sub(index);
+        if following_close_count == 0 {
+            index += 1;
+            continue;
+        }
+
+        if transform_template_rendered_text_line_is_close_scope(line_text) {
+            if following_close_count > 0 {
+                let merged = transform_template_rendered_text_merged_close_scopes(
+                    &rendered.text
+                        [lines[last_close_line].start..lines[last_close_line].content_end],
+                    following_close_count + 1,
+                    &indent,
+                );
+                edits.push(TransformTemplateRenderedTextEdit {
+                    start: line.start,
+                    end: lines[last_close_line].content_end,
+                    replacement: merged,
+                });
+                index = last_close_line + 1;
+                continue;
+            }
+        } else if let Some(close_start) =
+            transform_template_rendered_text_trailing_close_scope_start(line_text)
+        {
+            let merged = transform_template_rendered_text_merged_close_scopes(
+                &rendered.text[lines[last_close_line].start..lines[last_close_line].content_end],
+                following_close_count + 1,
+                &indent,
+            );
+            edits.push(TransformTemplateRenderedTextEdit {
+                start: line.start + close_start,
+                end: line.start + close_start + 1,
+                replacement: String::new(),
+            });
+            edits.push(TransformTemplateRenderedTextEdit {
+                start: lines[index + 1].start,
+                end: lines[last_close_line].content_end,
+                replacement: merged,
+            });
+            index = last_close_line + 1;
+            continue;
+        }
+        index += 1;
+    }
+    if !edits.is_empty() {
+        rendered.apply_text_edits(edits);
+    }
+}
+
+fn transform_template_cem_tree_writer_uses_tabular_profile(
+    value: &Value,
+    writer_boundary_context: &TransformTemplateEncodedArtifactInsertionContext,
+) -> bool {
+    trimmed_value_string_field(value, "formatterProfile")
+        .or_else(|| trimmed_optional_str(writer_boundary_context.formatter_profile.as_deref()))
+        == Some("tabular")
+}
+
+fn transform_template_cem_tree_writer_indent(value: &Value) -> String {
+    transform_template_cem_tree_writer_format_decision_value(value, "indent")
+        .map(str::to_owned)
+        .unwrap_or_else(|| DEFAULT_FORMATTER_INDENT.to_owned())
+}
+
+fn transform_template_rendered_text_lines(
+    text: &str,
+    line_ending: &str,
+) -> Vec<TransformTemplateRenderedTextLine> {
+    let mut lines = Vec::new();
+    let mut start = 0usize;
+    while let Some(relative_end) = text[start..].find(line_ending) {
+        let content_end = start + relative_end;
+        lines.push(TransformTemplateRenderedTextLine { start, content_end });
+        start = content_end + line_ending.len();
+    }
+    if start < text.len() {
+        lines.push(TransformTemplateRenderedTextLine {
+            start,
+            content_end: text.len(),
+        });
+    }
+    lines
+}
+
+fn transform_template_rendered_text_line_is_close_scope(line: &str) -> bool {
+    line.trim() == "}"
+}
+
+fn transform_template_rendered_text_trailing_close_scope_start(line: &str) -> Option<usize> {
+    let trimmed_end = line.trim_end();
+    if trimmed_end.trim() == "}" || !trimmed_end.ends_with("```}") {
+        return None;
+    }
+    Some(trimmed_end.len().saturating_sub(1))
+}
+
+fn transform_template_rendered_text_merged_close_scopes(
+    outer_close_line: &str,
+    close_count: usize,
+    indent: &str,
+) -> String {
+    let base_indent = transform_template_rendered_text_leading_whitespace(outer_close_line);
+    let separator = transform_template_rendered_text_close_scope_separator(indent);
+    let mut merged = base_indent.to_owned();
+    for index in 0..close_count {
+        if index > 0 {
+            merged.push_str(&separator);
+        }
+        merged.push('}');
+    }
+    merged
+}
+
+fn transform_template_rendered_text_leading_whitespace(line: &str) -> &str {
+    let end = line
+        .char_indices()
+        .find_map(|(index, ch)| (!ch.is_whitespace()).then_some(index))
+        .unwrap_or(line.len());
+    &line[..end]
+}
+
+fn transform_template_rendered_text_close_scope_separator(indent: &str) -> String {
+    if indent.chars().all(|ch| ch == ' ') {
+        return " ".repeat(indent.chars().count().saturating_sub(1));
+    }
+    indent.to_owned()
 }
 
 fn transform_template_cem_tree_value_to_rendered_text(
@@ -9886,15 +10132,9 @@ fn transform_template_cem_tree_value_to_rendered_text(
     rendered.line_ending = line_ending;
     if let Some(nodes) = object.get("nodes").and_then(Value::as_array) {
         transform_template_render_cem_tree_nodes(nodes, syntax, &mut rendered)?;
-        rendered.finish_terminal_color_boundary();
-        return Ok(rendered);
-    }
-    if let Some(node) = object.get("node") {
+    } else if let Some(node) = object.get("node") {
         transform_template_render_cem_tree_node(node, syntax, &mut rendered)?;
-        rendered.finish_terminal_color_boundary();
-        return Ok(rendered);
-    }
-    if let Some(root) = object.get("root") {
+    } else if let Some(root) = object.get("root") {
         match root {
             Value::Array(nodes) => {
                 transform_template_render_cem_tree_nodes(nodes, syntax, &mut rendered)?
@@ -9909,10 +10149,17 @@ fn transform_template_cem_tree_value_to_rendered_text(
                 ))
             }
         }
-        rendered.finish_terminal_color_boundary();
-        return Ok(rendered);
+    } else {
+        return Err("CEM tree writer expected `nodes`, `node`, or `root`".to_owned());
     }
-    Err("CEM tree writer expected `nodes`, `node`, or `root`".to_owned())
+    transform_template_merge_tabular_cem_closing_scopes(
+        &mut rendered,
+        value,
+        writer_boundary_context,
+        syntax,
+    );
+    rendered.finish_terminal_color_boundary();
+    Ok(rendered)
 }
 
 fn transform_template_render_cem_tree_nodes(
@@ -29677,6 +29924,80 @@ mod tests {
             .expect("formatted CEM tree renders");
 
         assert_eq!(rendered.text, "{card |\n\t{span | Ready}\n}");
+    }
+
+    #[test]
+    fn tabular_writer_merges_adjacent_closing_scopes() {
+        let implementations =
+            TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
+        let subject = json!({
+            "kind": "element",
+            "name": "module",
+            "children": [{
+                "kind": "element",
+                "name": "format-function",
+                "children": [{
+                    "kind": "element",
+                    "name": "body",
+                    "children": [{
+                        "kind": "element",
+                        "name": "$",
+                        "children": [{
+                            "kind": "text",
+                            "value": "{\n    key: true\n}"
+                        }]
+                    }]
+                }]
+            }, {
+                "kind": "element",
+                "name": "function"
+            }]
+        });
+        let options = TransformTemplateEncodeOptions {
+            formatter: Some("cem.format-tree".to_owned()),
+            formatter_profile: Some("tabular".to_owned()),
+            indent: Some("    ".to_owned()),
+            ..TransformTemplateEncodeOptions::default()
+        };
+        let binding = TransformTemplateEncodeBinding {
+            function: cem_tree_format_function_descriptor(),
+            subject_type: "cem-ast-node".to_owned(),
+            identity: TransformTemplateEncodedArtifactIdentity::from_options(
+                TransformTemplateOutputProducedKind::CemTree,
+                TransformTemplateEncodingTarget::new(
+                    CEM_ML_CONTENT_TYPE,
+                    CEM_ML_SCHEMA_URI,
+                    "cem-tree",
+                ),
+                &options,
+            ),
+            options,
+        };
+        let formatted = implementations
+            .encode(&binding, &subject)
+            .expect("CEM tree formatter runs");
+        let context = TransformTemplateEncodedArtifactInsertionContext::new(
+            CEM_ML_CONTENT_TYPE,
+            CEM_ML_SCHEMA_URI,
+        )
+        .with_category("cem-tree")
+        .with_produces(TransformTemplateOutputProducedKind::Text);
+
+        let rendered = transform_template_cem_tree_value_to_rendered_text(&formatted, &context)
+            .expect("tabular CEM tree renders");
+
+        assert!(
+            rendered.text.contains("\n    }   }   }\n    {function}"),
+            "{}",
+            rendered.text
+        );
+        assert!(!rendered
+            .text
+            .contains("}```}\n            }\n        }\n    }"));
+        assert!(rendered
+            .output_spans
+            .iter()
+            .all(|span| span.output_range.end() <= rendered.text.len() as u64));
     }
 
     #[test]
