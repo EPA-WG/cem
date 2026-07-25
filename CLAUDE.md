@@ -7,6 +7,7 @@ Codex shorthand:
 The itemized and prioritized work items list resides in docs/todo.md file.
 When prompted to continue, look into docs/todo.md unclosed item first.
 When all items closed, plan the top level goal from roadmap.md as itemized checklist into docs/todo.md
+When adding any fixture, always add an explicit actionable checkitem in docs/todo.md for that fixture work before or in the same change.
 After completion of work from todo checklist, mark it as done by [x] check.
 
 ## Project overview

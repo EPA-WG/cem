@@ -207,9 +207,6 @@ document behavior.
 Tracked but not complete:
 
 - schema-owned fact bindings for all template parser and semantic diagnostics;
-- invalid expression slot examples and package verification now that the
-  CEM-QL standalone expression API/CLI and embedded expression fact report are
-  executable;
 - HTML and Markdown preview drift checks once their template presentation
   profiles become stable enough for README demos.
 
@@ -229,6 +226,15 @@ CLI validation integration tests.
 | [`invalid-duplicate-let.cem`](examples/invalid-duplicate-let.cem) | Duplicate `{let @name=...}` in one body scope. | Fail with `cem.template.let_duplicate` |
 | [`invalid-unknown-call.cem`](examples/invalid-unknown-call.cem) | Same-module `{call @template=...}` whose target is not declared. | Fail with `cem.template.call_unknown` |
 | [`invalid-default-expr-reserved.cem`](examples/invalid-default-expr-reserved.cem) | Reserved param `default-expr` syntax. | Fail with `cem.template.param_default_expr_reserved` |
+| [`invalid-expression-parse.cem`](examples/invalid-expression-parse.cem) | Invalid Rust-first CEM-QL expression syntax in a template `@test` slot. | Fail with `cem.ql.use_rust_boolean_ops` |
+| [`invalid-expression-type-error.cem`](examples/invalid-expression-type-error.cem) | Non-boolean expression in a template `@test` slot. | Fail with `cem.ql.type_error` |
+| [`invalid-expression-data-binding.cem`](examples/invalid-expression-data-binding.cem) | Unavailable prefixed binding in a template `@with:*` slot. | Fail with `cem.ql.data_binding_missing` |
+
+Delegated expression examples are validated by the CLI/package verification
+gate, where the CEM-native template package and the shared CEM-QL expression
+compiler are both available. Core CEM-ML package-manifest validation remains
+limited to CEM syntax, schema-model checks, and template-owned `cem.template.*`
+semantics to avoid a dependency cycle from `cem-ml` back into `cem-ql`.
 
 Validate an example explicitly against this schema:
 

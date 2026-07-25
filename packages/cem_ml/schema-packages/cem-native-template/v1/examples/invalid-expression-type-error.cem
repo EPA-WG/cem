@@ -1,0 +1,14 @@
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@ns cem = "https://cem.dev/ns/core/1"
+@default template
+
+{module |
+    {template @name="page" |
+        {body |
+            {cem:if @test="1" |
+                Non-boolean condition.
+            }
+        }
+    }
+}

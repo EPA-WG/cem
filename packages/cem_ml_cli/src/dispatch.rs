@@ -4027,6 +4027,7 @@ fn collect_embedding_diagnostics(
             Some(&input.uri),
             template_pass::TemplatePassIdentity::from(input.identity.as_ref()),
         ));
+        diagnostics.extend(collect_cem_native_template_expression_diagnostics(input));
     }
     diagnostics
 }
@@ -4108,6 +4109,13 @@ fn direct_source_validation_report(
 fn is_cem_ql_source_input(input: &eng::EngineInput) -> bool {
     source_input_matches_schema_uri(input, cem_ml::schema::registry::CEM_QL_SCHEMA_URI)
         || is_cem_ql_expression_source_input(input)
+}
+
+fn is_cem_native_template_source_input(input: &eng::EngineInput) -> bool {
+    source_input_matches_schema_uri(
+        input,
+        cem_ml::schema::registry::CEM_NATIVE_TEMPLATE_SCHEMA_URI,
+    )
 }
 
 fn is_json_source_input(input: &eng::EngineInput) -> bool {
@@ -4317,6 +4325,37 @@ fn collect_cem_ql_source_diagnostics(
         finish_cem_ql_source_diagnostics(input, &mut input_diagnostics);
         diagnostics.extend(input_diagnostics);
     }
+    diagnostics
+}
+
+fn collect_cem_native_template_expression_diagnostics(
+    input: &eng::EngineInput,
+) -> Vec<cem_ml::diagnostics::Diagnostic> {
+    if !is_cem_native_template_source_input(input) {
+        return Vec::new();
+    }
+
+    let Ok(source) = std::str::from_utf8(&input.bytes) else {
+        return Vec::new();
+    };
+
+    let expressions =
+        cem_ql::embedded::extract_embedded_expressions_from_source(&input.uri, source);
+    let mut diagnostics = cem_ql::embedded::compile_embedded_expressions(&expressions)
+        .into_iter()
+        .flat_map(|report| {
+            report
+                .diagnostics
+                .into_iter()
+                .map(|diagnostic| diagnostic.diagnostic)
+        })
+        .collect::<Vec<_>>();
+    for diagnostic in &mut diagnostics {
+        if diagnostic.uri.as_deref() == Some(input.uri.as_str()) {
+            diagnostic.uri = None;
+        }
+    }
+    finish_cem_ql_source_diagnostics(input, &mut diagnostics);
     diagnostics
 }
 

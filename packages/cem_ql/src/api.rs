@@ -118,7 +118,13 @@ pub fn compile_expression(
         .with_policy_bindings(context.bindings.keys().cloned())
         .with_policy_functions(context.functions.iter().map(function_key))
         .lower_module(&module);
-    diagnostics.extend(lowered.diagnostics.clone());
+    diagnostics.extend(
+        lowered
+            .diagnostics
+            .clone()
+            .into_iter()
+            .map(|diagnostic| standalone_expression_type_diagnostic(diagnostic, context)),
+    );
     if has_hard_diagnostics(&diagnostics) {
         return Err(ExpressionError::diagnostics("lower", diagnostics));
     }

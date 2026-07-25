@@ -1080,6 +1080,24 @@ mod tests {
                 SchemaPackageExampleExpectedResult::Fail,
                 Some("cem.template.param_default_expr_reserved"),
             ),
+            (
+                "invalid-expression-parse",
+                CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.ql.use_rust_boolean_ops"),
+            ),
+            (
+                "invalid-expression-type-error",
+                CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.ql.type_error"),
+            ),
+            (
+                "invalid-expression-data-binding",
+                CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.ql.data_binding_missing"),
+            ),
         ];
         let actual_ids = examples
             .iter()

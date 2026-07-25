@@ -2545,6 +2545,15 @@ fn validate_schema_package_example_source_contract(
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
+    let core_expected_diagnostics = expected_diagnostics
+        .iter()
+        .filter(|code| {
+            !is_delegated_schema_package_example_diagnostic(content_type, schema_uri, code)
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let has_delegated_expected_diagnostics =
+        core_expected_diagnostics.len() != expected_diagnostics.len();
 
     match (expected_fail, hard_diagnostics.is_empty()) {
         (false, false) => out.push(schema_package_example_source_result_diag(
@@ -2559,42 +2568,60 @@ fn validate_schema_package_example_source_contract(
             &expected_diagnostics,
             &hard_diagnostics,
         )),
-        (true, true) => out.push(schema_package_example_source_result_diag(
-            ctx.document,
-            node,
-            example_id,
-            path,
-            content_type,
-            schema_uri,
-            "fail",
-            "pass",
-            &expected_diagnostics,
-            &hard_diagnostics,
-        )),
-        (true, false) => {
-            let diagnostics_comparison =
-                compare_expected_diagnostics(&hard_diagnostics, &expected_diagnostics);
-            if !diagnostics_comparison.passed {
-                let missing = expected_diagnostics
-                    .iter()
-                    .filter(|expected| !hard_diagnostics.iter().any(|actual| actual == *expected))
-                    .cloned()
-                    .collect::<Vec<_>>();
-                out.push(schema_package_example_expected_diagnostics_diag(
+        (true, true) => {
+            if !has_delegated_expected_diagnostics || !core_expected_diagnostics.is_empty() {
+                out.push(schema_package_example_source_result_diag(
                     ctx.document,
                     node,
                     example_id,
                     path,
                     content_type,
                     schema_uri,
-                    &missing,
+                    "fail",
+                    "pass",
                     &expected_diagnostics,
                     &hard_diagnostics,
                 ));
             }
         }
+        (true, false) => {
+            if !core_expected_diagnostics.is_empty() {
+                let diagnostics_comparison =
+                    compare_expected_diagnostics(&hard_diagnostics, &core_expected_diagnostics);
+                if !diagnostics_comparison.passed {
+                    let missing = core_expected_diagnostics
+                        .iter()
+                        .filter(|expected| {
+                            !hard_diagnostics.iter().any(|actual| actual == *expected)
+                        })
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    out.push(schema_package_example_expected_diagnostics_diag(
+                        ctx.document,
+                        node,
+                        example_id,
+                        path,
+                        content_type,
+                        schema_uri,
+                        &missing,
+                        &expected_diagnostics,
+                        &hard_diagnostics,
+                    ));
+                }
+            }
+        }
         (false, true) => {}
     }
+}
+
+fn is_delegated_schema_package_example_diagnostic(
+    content_type: &str,
+    schema_uri: &str,
+    code: &str,
+) -> bool {
+    (schema_uri == CEM_NATIVE_TEMPLATE_SCHEMA_URI
+        || content_type_essence(content_type) == CEM_NATIVE_TEMPLATE_CONTENT_TYPE)
+        && code.starts_with("cem.ql.")
 }
 
 fn compare_expected_diagnostics(

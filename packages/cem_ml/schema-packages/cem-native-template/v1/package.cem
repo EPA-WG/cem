@@ -167,4 +167,31 @@
         @expected-result="fail"
         @expected-diagnostics="cem.template.param_default_expr_reserved"
     }
+
+    {example
+        @id="invalid-expression-parse"
+        @path="examples/invalid-expression-parse.cem"
+        @content-type="application/vnd.cem.template+cem"
+        @schema="https://cem.dev/ns/template/cem-native/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.ql.use_rust_boolean_ops"
+    }
+
+    {example
+        @id="invalid-expression-type-error"
+        @path="examples/invalid-expression-type-error.cem"
+        @content-type="application/vnd.cem.template+cem"
+        @schema="https://cem.dev/ns/template/cem-native/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.ql.type_error"
+    }
+
+    {example
+        @id="invalid-expression-data-binding"
+        @path="examples/invalid-expression-data-binding.cem"
+        @content-type="application/vnd.cem.template+cem"
+        @schema="https://cem.dev/ns/template/cem-native/1"
+        @expected-result="fail"
+        @expected-diagnostics="cem.ql.data_binding_missing"
+    }
 }

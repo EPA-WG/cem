@@ -1,0 +1,16 @@
+@doc cem-ml 1
+@ns template = "https://cem.dev/ns/template/cem-native/1"
+@default template
+
+{module |
+    {template @name="page" |
+        {body |
+            {call @template="hero" @with:title="external:title"}
+        }
+    }
+
+    {template @name="hero" |
+        {param @name="title" @type="string"}
+        {body | Hero.}
+    }
+}

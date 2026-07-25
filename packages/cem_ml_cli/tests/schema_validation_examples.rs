@@ -24,6 +24,8 @@ const CEM_SCHEMA_PACKAGE_URI: &str = "https://cem.dev/ns/schema-package/1";
 const CEM_SCHEMA_PACKAGE_CONTENT_TYPE: &str = "application/vnd.cem.schema-package+cem";
 const CSV_SCHEMA_URI: &str = "https://cem.dev/ns/data/csv/1";
 const CSV_CONTENT_TYPE: &str = "text/csv";
+const CEM_NATIVE_TEMPLATE_SCHEMA_URI: &str = "https://cem.dev/ns/template/cem-native/1";
+const CEM_NATIVE_TEMPLATE_CONTENT_TYPE: &str = "application/vnd.cem.template+cem";
 const CEM_QL_EXPRESSION_SCHEMA_URI: &str = "https://cem.dev/ns/query/cem-ql/1#expression";
 const CEM_QL_EXPRESSION_CONTENT_TYPE: &str = "application/vnd.cem.query-expression+cem-ql";
 const XML_SCHEMA_URI: &str = "https://cem.dev/ns/data/xml/1";
@@ -811,6 +813,93 @@ fn schema_owned_cem_ql_expression_examples_execute_and_report_details() {
         assert!(
             diagnostic["line"].as_u64().is_some() && diagnostic["column"].as_u64().is_some(),
             "{id} should project diagnostic line/column: {diagnostic:#}"
+        );
+    }
+}
+
+#[test]
+fn cem_native_template_invalid_expression_examples_preserve_expression_slot_details() {
+    let example = ValidationExample {
+        content_type: CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
+        schema_uri: CEM_NATIVE_TEMPLATE_SCHEMA_URI,
+    };
+
+    for (file, code, slot_kind, expected_type) in [
+        (
+            "invalid-expression-parse.cem",
+            "cem.ql.use_rust_boolean_ops",
+            "test-attribute",
+            Some("schema:boolean"),
+        ),
+        (
+            "invalid-expression-type-error.cem",
+            "cem.ql.type_error",
+            "test-attribute",
+            Some("schema:boolean"),
+        ),
+        (
+            "invalid-expression-data-binding.cem",
+            "cem.ql.data_binding_missing",
+            "call-with-attribute",
+            None,
+        ),
+    ] {
+        let relative =
+            format!("packages/cem_ml/schema-packages/cem-native-template/v1/examples/{file}");
+        let path = workspace_path(&relative);
+        let uri = path.to_str().expect("example path is utf-8");
+        let output = validate_example(&example, &path);
+        assert_eq!(
+            output.status.code(),
+            Some(EXIT_HARD_FAILURE),
+            "{file} stderr:\n{}",
+            stderr(&output)
+        );
+        let out = stdout(&output);
+        let report: serde_json::Value = serde_json::from_str(out.trim())
+            .unwrap_or_else(|err| panic!("{file} stdout is validation JSON: {err}"));
+        let diagnostic = diagnostics(&report)
+            .iter()
+            .find(|diagnostic| {
+                diagnostic["code"] == code && diagnostic_uri_matches(diagnostic, uri)
+            })
+            .unwrap_or_else(|| panic!("{file} missing `{code}` in {out}"));
+        assert_eq!(diagnostic["severity"], "error", "{file}");
+        assert_eq!(
+            diagnostic["details"]["expressionSlot"]["contract"], "expression-slot",
+            "{file}"
+        );
+        assert_eq!(
+            diagnostic["details"]["expressionSlot"]["hostPackage"], "cem-native-template/v1",
+            "{file}"
+        );
+        assert_eq!(
+            diagnostic["details"]["expressionSlot"]["slotKind"], slot_kind,
+            "{file}"
+        );
+        match expected_type {
+            Some(expected_type) => assert_eq!(
+                diagnostic["details"]["expressionSlot"]["expectedType"], expected_type,
+                "{file}"
+            ),
+            None => assert!(
+                diagnostic["details"]["expressionSlot"]["expectedType"].is_null(),
+                "{file} should not declare an expected slot type"
+            ),
+        }
+        assert!(
+            diagnostic["details"]["expressionSlot"]["expressionRange"]["byteOffset"]
+                .as_u64()
+                .is_some(),
+            "{file} should preserve expression byte offset: {diagnostic:#}"
+        );
+        assert!(
+            diagnostic["byteOffset"].as_u64().is_some(),
+            "{file} should preserve diagnostic byte offset: {diagnostic:#}"
+        );
+        assert!(
+            diagnostic["line"].as_u64().is_some() && diagnostic["column"].as_u64().is_some(),
+            "{file} should project line/column: {diagnostic:#}"
         );
     }
 }

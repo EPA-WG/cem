@@ -789,7 +789,7 @@ impl EmbeddedHostCompileSupport {
     ) -> StandaloneExpressionContext {
         let mut context = StandaloneExpressionContext {
             expected_type: slot.expected_type.clone(),
-            type_config: TyConfig::dev_profile(),
+            type_config: TyConfig::strict(),
             source_uri: Some(slot.source_uri.clone()),
             resolver_policy_stamp: slot.resolver_policy_stamp.clone(),
             host_capability_profile: Some("embedded-expression-audit".to_owned()),

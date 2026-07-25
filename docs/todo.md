@@ -7,9 +7,9 @@ history.
 
 ## Immediate Goal
 
-Current active slice: adopt the shared CEM-QL expression contract for template
-expression slots, then implement the standalone CEM-QL expression API/CLI path
-needed before invalid template expression fixtures can close.
+Current active slice: schema package folder alignment, continuing with
+`cem-transform/v1` after closing the CEM-native template expression fixture
+slice.
 
 ### Completed Immediate Phase: CSV Formatter Review Findings
 
@@ -241,14 +241,24 @@ needed before invalid template expression fixtures can close.
       binding failures.
 - [x] Wire CEM-native template expression slots to consume the shared CEM-QL
       expression fact/result contract and preserve template slot provenance.
-- [ ] Add invalid CEM-native template expression fixtures once the shared
+- [x] Add invalid CEM-native template expression fixtures once the shared
       CEM-QL expression fact report is executable.
+  - [x] Add an invalid template expression parse fixture that expects
+        `cem.ql.use_rust_boolean_ops` with `expressionSlot` provenance.
+  - [x] Add an invalid template expression type fixture that expects
+        `cem.ql.type_error` with expected result type provenance.
+  - [x] Add an invalid template expression data-binding fixture that expects
+        `cem.ql.data_binding_missing` with available binding provenance.
+  - [x] Route CLI CEM-native template validation through the embedded CEM-QL
+        expression audit while keeping core CEM-ML dependency direction intact.
+  - [x] Update CEM-native manifest, README, package example index tests, and
+        package verify coverage for the invalid expression fixtures.
 
 ### Schema Package Folder Alignment
 
 Remaining dependency-ordered package checklist:
 - [x] `cem-ql/v1`
-- [ ] `cem-native-template/v1`
+- [x] `cem-native-template/v1`
 - [ ] `cem-transform/v1`
 - [ ] `cem-ast-projection/v1`
 - [ ] `cem-events-projection/v1`
@@ -297,8 +307,10 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Wire CEM-native template expression slots to consume the shared CEM-QL
-expression fact/result contract and preserve template slot provenance.
+Review and align `cem-transform/v1` against the common schema-package AC:
+manifest-derived examples, README command/SVG preview drift, package-local
+verify coverage, source identity, parser/diagnostic ownership, formatter and
+colorizer contracts, and any fixture gaps that need explicit todo checkitems.
 
 ## Current Verification Commands
 
