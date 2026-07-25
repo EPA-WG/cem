@@ -66,6 +66,7 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 use yaml_rust2::{Yaml, YamlEmitter, YamlLoader};
 
 pub const CONVERSION_PARITY_NATIVE_PAIR_MISSING_CODE: &str =
@@ -2662,6 +2663,9 @@ pub struct ConversionOutputPipelineExecution {
     pub output_spans: Vec<OutputSpan>,
     pub format_execution: Option<ConversionOutputPipelineStageExecution>,
     pub color_execution: Option<ConversionOutputPipelineStageExecution>,
+    pub format_elapsed_ns: Option<u128>,
+    pub color_elapsed_ns: Option<u128>,
+    pub writer_elapsed_ns: Option<u128>,
     pub formatted_cem_tree: Option<TransformTemplateEncodedArtifact>,
     pub colored_cem_tree: Option<TransformTemplateEncodedArtifact>,
     pub diagnostics: Vec<Diagnostic>,
@@ -3745,11 +3749,11 @@ pub fn execute_conversion_output_pipeline_with_environment(
             };
         }
     };
-    let (formatted_output, format_execution) = match execute_conversion_cem_tree_format_stage(
-        environment,
-        &format_binding,
-        &rendered_value,
-    ) {
+    let format_started = Instant::now();
+    let format_result =
+        execute_conversion_cem_tree_format_stage(environment, &format_binding, &rendered_value);
+    let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
+    let (formatted_output, format_execution) = match format_result {
         Ok(output) => output,
         Err(message) => {
             diagnostics.push(conversion_output_pipeline_diagnostic(
@@ -3764,6 +3768,7 @@ pub fn execute_conversion_output_pipeline_with_environment(
             return ConversionOutputPipelineExecution {
                 output: None,
                 diagnostics,
+                format_elapsed_ns,
                 ..ConversionOutputPipelineExecution::default()
             };
         }
@@ -3784,6 +3789,7 @@ pub fn execute_conversion_output_pipeline_with_environment(
             output: None,
             diagnostics,
             format_execution,
+            format_elapsed_ns,
             ..ConversionOutputPipelineExecution::default()
         };
     }
@@ -3792,6 +3798,7 @@ pub fn execute_conversion_output_pipeline_with_environment(
         pipeline,
         formatted_artifact,
         format_execution,
+        format_elapsed_ns,
         diagnostics,
         converter_id,
         diagnostic_node,
@@ -3859,6 +3866,7 @@ pub fn execute_conversion_output_pipeline_from_formatted_cem_tree_with_environme
         environment,
         pipeline,
         formatted_artifact,
+        None,
         None,
         diagnostics,
         converter_id,
@@ -3935,20 +3943,26 @@ pub fn execute_csv_document_output_pipeline_with_environment(
             return csv_output_pipeline_failed(diagnostic_uri, message);
         }
     };
-    let (formatted_output, format_execution) = match execute_conversion_cem_tree_output_stage(
+    let format_started = Instant::now();
+    let format_result = execute_conversion_cem_tree_output_stage(
         environment,
         format_stage,
         &format_binding,
         &table_value,
-    ) {
+    );
+    let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
+    let (formatted_output, format_execution) = match format_result {
         Ok(output) => output,
         Err(message) => {
-            return csv_output_pipeline_failed(
+            return csv_output_pipeline_failed_with_timings(
                 diagnostic_uri,
                 format!(
                     "CEMT formatter `{}` failed: {message}",
                     format_binding.function.name
                 ),
+                format_elapsed_ns,
+                None,
+                None,
             );
         }
     };
@@ -3964,9 +3978,12 @@ pub fn execute_csv_document_output_pipeline_with_environment(
     formatted_context.canonical = Some(formatter_profile == "compact");
     formatted_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
     if let Err(error) = formatted_artifact.validate_insertion(&formatted_context) {
-        return csv_output_pipeline_failed(
+        return csv_output_pipeline_failed_with_timings(
             diagnostic_uri,
             error.diagnostic(diagnostic_uri).message,
+            format_elapsed_ns,
+            None,
+            None,
         );
     }
 
@@ -3984,6 +4001,7 @@ pub fn execute_csv_document_output_pipeline_with_environment(
         || output_color_selection
             .as_ref()
             .is_some_and(csv_output_color_selection_requests_color);
+    let mut color_elapsed_ns = None;
     let (writer_artifact, color_execution, colored_cem_tree) = if wants_color {
         let colorizer_name = target_scope
             .cemt_colorizer
@@ -4018,20 +4036,26 @@ pub fn execute_csv_document_output_pipeline_with_environment(
                 return csv_output_pipeline_failed(diagnostic_uri, message);
             }
         };
-        let (colored_output, color_execution) = match execute_conversion_cem_tree_output_stage(
+        let color_started = Instant::now();
+        let color_result = execute_conversion_cem_tree_output_stage(
             environment,
             color_stage,
             &color_binding,
             &formatted_artifact.value,
-        ) {
+        );
+        color_elapsed_ns = Some(color_started.elapsed().as_nanos());
+        let (colored_output, color_execution) = match color_result {
             Ok(output) => output,
             Err(message) => {
-                return csv_output_pipeline_failed(
+                return csv_output_pipeline_failed_with_timings(
                     diagnostic_uri,
                     format!(
                         "CEMT colorizer `{}` failed: {message}",
                         color_binding.function.name
                     ),
+                    format_elapsed_ns,
+                    color_elapsed_ns,
+                    None,
                 );
             }
         };
@@ -4046,9 +4070,12 @@ pub fn execute_csv_document_output_pipeline_with_environment(
         colored_context.mode = Some(TransformTemplateEncodedArtifactMode::Document);
         colored_context.source_map_policy = Some(TransformTemplateSourceMapPolicy::Generated);
         if let Err(error) = colored_artifact.validate_insertion(&colored_context) {
-            return csv_output_pipeline_failed(
+            return csv_output_pipeline_failed_with_timings(
                 diagnostic_uri,
                 error.diagnostic(diagnostic_uri).message,
+                format_elapsed_ns,
+                color_elapsed_ns,
+                None,
             );
         }
         (
@@ -4115,17 +4142,22 @@ pub fn execute_csv_document_output_pipeline_with_environment(
         },
         artifact: writer_artifact,
     };
+    let writer_started = Instant::now();
     let mut composition = compose_transform_template_encoded_text_artifacts(
         &[evaluated],
         &writer_context,
         diagnostic_uri,
     );
+    let writer_elapsed_ns = Some(writer_started.elapsed().as_nanos());
     if !composition.diagnostics.is_empty() {
         return ConversionOutputPipelineExecution {
             output: None,
             diagnostics: std::mem::take(&mut composition.diagnostics),
             format_execution,
             color_execution,
+            format_elapsed_ns,
+            color_elapsed_ns,
+            writer_elapsed_ns,
             formatted_cem_tree: Some(formatted_artifact),
             colored_cem_tree,
             ..ConversionOutputPipelineExecution::default()
@@ -4145,6 +4177,9 @@ pub fn execute_csv_document_output_pipeline_with_environment(
                 output_spans: artifact.output_spans,
                 format_execution,
                 color_execution,
+                format_elapsed_ns,
+                color_elapsed_ns,
+                writer_elapsed_ns,
                 formatted_cem_tree: Some(formatted_artifact),
                 colored_cem_tree,
                 diagnostics: Vec::new(),
@@ -4154,6 +4189,9 @@ pub fn execute_csv_document_output_pipeline_with_environment(
             output: None,
             format_execution,
             color_execution,
+            format_elapsed_ns,
+            color_elapsed_ns,
+            writer_elapsed_ns,
             formatted_cem_tree: Some(formatted_artifact),
             colored_cem_tree,
             ..ConversionOutputPipelineExecution::default()
@@ -4456,6 +4494,16 @@ fn csv_output_pipeline_failed(
     diagnostic_uri: Option<&str>,
     message: String,
 ) -> ConversionOutputPipelineExecution {
+    csv_output_pipeline_failed_with_timings(diagnostic_uri, message, None, None, None)
+}
+
+fn csv_output_pipeline_failed_with_timings(
+    diagnostic_uri: Option<&str>,
+    message: String,
+    format_elapsed_ns: Option<u128>,
+    color_elapsed_ns: Option<u128>,
+    writer_elapsed_ns: Option<u128>,
+) -> ConversionOutputPipelineExecution {
     ConversionOutputPipelineExecution {
         output: None,
         diagnostics: vec![conversion_output_pipeline_diagnostic(
@@ -4464,6 +4512,9 @@ fn csv_output_pipeline_failed(
             diagnostic_uri,
             message,
         )],
+        format_elapsed_ns,
+        color_elapsed_ns,
+        writer_elapsed_ns,
         ..ConversionOutputPipelineExecution::default()
     }
 }
@@ -4706,6 +4757,7 @@ fn execute_conversion_output_pipeline_from_formatted_artifact(
     pipeline: &ConversionOutputPipeline,
     formatted_artifact: TransformTemplateEncodedArtifact,
     format_execution: Option<ConversionOutputPipelineStageExecution>,
+    format_elapsed_ns: Option<u128>,
     mut diagnostics: Vec<Diagnostic>,
     converter_id: &str,
     diagnostic_node: Option<&str>,
@@ -4715,76 +4767,109 @@ fn execute_conversion_output_pipeline_from_formatted_artifact(
     let implementations = TransformTemplateEncodeImplementationRegistry::with_builtin_encoders();
     let formatted_cem_tree = Some(formatted_artifact.clone());
 
-    let color_request = TransformTemplateEncodeBindingRequest::new(
-        formatted_artifact.value.clone(),
-        pipeline.cemt_target.clone(),
-    )
-    .with_subject_type(conversion_output_pipeline_color_subject_type(
-        formatted_artifact.identity.produces,
-    ))
-    .with_options(pipeline.cemt_options.clone());
-    let color_binding = match functions
-        .resolve_color_binding(&color_request, implementations.host_capabilities())
-    {
-        Ok(binding) => binding.into_encode_binding(),
-        Err(message) => {
-            let mut diagnostic = message.diagnostic(diagnostic_uri);
-            diagnostic.node = diagnostic_node.map(str::to_owned);
-            diagnostics.push(diagnostic);
-            return ConversionOutputPipelineExecution {
-                output: None,
-                diagnostics,
-                format_execution,
-                formatted_cem_tree: formatted_cem_tree.clone(),
-                ..ConversionOutputPipelineExecution::default()
+    let (writer_artifact, writer_binding, color_execution, color_elapsed_ns, colored_cem_tree) =
+        if conversion_output_pipeline_should_skip_color_stage(pipeline) {
+            let formatter_profile = formatted_artifact
+                .identity
+                .formatter_profile
+                .as_deref()
+                .or(pipeline.cemt_options.formatter_profile.as_deref())
+                .unwrap_or("compact");
+            let writer_binding = TransformTemplateEncodeBinding {
+                function: conversion_cem_tree_format_function_descriptor(formatter_profile),
+                subject_type: "cem-tree".to_owned(),
+                identity: formatted_artifact.identity.clone(),
+                options: pipeline.cemt_options.clone(),
             };
-        }
-    };
-    let (colored_output, color_execution) = match execute_conversion_cem_tree_color_stage(
-        environment,
-        &color_binding,
-        &formatted_artifact.value,
-    ) {
-        Ok(output) => output,
-        Err(message) => {
-            diagnostics.push(conversion_output_pipeline_diagnostic(
-                converter_id,
-                diagnostic_node,
-                diagnostic_uri,
-                format!(
-                    "CEMT colorizer `{}` failed: {message}",
-                    color_binding.function.name
-                ),
-            ));
-            return ConversionOutputPipelineExecution {
-                output: None,
-                diagnostics,
-                format_execution,
-                formatted_cem_tree: formatted_cem_tree.clone(),
-                ..ConversionOutputPipelineExecution::default()
+            (formatted_artifact.clone(), writer_binding, None, None, None)
+        } else {
+            let color_request = TransformTemplateEncodeBindingRequest::new(
+                formatted_artifact.value.clone(),
+                pipeline.cemt_target.clone(),
+            )
+            .with_subject_type(conversion_output_pipeline_color_subject_type(
+                formatted_artifact.identity.produces,
+            ))
+            .with_options(pipeline.cemt_options.clone());
+            let color_binding = match functions
+                .resolve_color_binding(&color_request, implementations.host_capabilities())
+            {
+                Ok(binding) => binding.into_encode_binding(),
+                Err(message) => {
+                    let mut diagnostic = message.diagnostic(diagnostic_uri);
+                    diagnostic.node = diagnostic_node.map(str::to_owned);
+                    diagnostics.push(diagnostic);
+                    return ConversionOutputPipelineExecution {
+                        output: None,
+                        diagnostics,
+                        format_execution,
+                        format_elapsed_ns,
+                        formatted_cem_tree: formatted_cem_tree.clone(),
+                        ..ConversionOutputPipelineExecution::default()
+                    };
+                }
             };
-        }
-    };
-    let color_execution = Some(color_execution);
-    let colored_artifact = color_binding.artifact_with_metadata(
-        colored_output,
-        formatted_artifact.source_map.clone(),
-        formatted_artifact.output_spans.clone(),
-    );
-    if let Err(error) = colored_artifact.validate_insertion(&pipeline.cemt_insertion_context) {
-        let mut diagnostic = error.diagnostic(diagnostic_uri);
-        diagnostic.node = diagnostic_node.map(str::to_owned);
-        diagnostics.push(diagnostic);
-        return ConversionOutputPipelineExecution {
-            output: None,
-            diagnostics,
-            format_execution,
-            color_execution,
-            formatted_cem_tree,
-            ..ConversionOutputPipelineExecution::default()
+            let color_started = Instant::now();
+            let color_result = execute_conversion_cem_tree_color_stage(
+                environment,
+                &color_binding,
+                &formatted_artifact.value,
+            );
+            let color_elapsed_ns = Some(color_started.elapsed().as_nanos());
+            let (colored_output, color_execution) = match color_result {
+                Ok(output) => output,
+                Err(message) => {
+                    diagnostics.push(conversion_output_pipeline_diagnostic(
+                        converter_id,
+                        diagnostic_node,
+                        diagnostic_uri,
+                        format!(
+                            "CEMT colorizer `{}` failed: {message}",
+                            color_binding.function.name
+                        ),
+                    ));
+                    return ConversionOutputPipelineExecution {
+                        output: None,
+                        diagnostics,
+                        format_execution,
+                        format_elapsed_ns,
+                        color_elapsed_ns,
+                        formatted_cem_tree: formatted_cem_tree.clone(),
+                        ..ConversionOutputPipelineExecution::default()
+                    };
+                }
+            };
+            let color_execution = Some(color_execution);
+            let colored_artifact = color_binding.artifact_with_metadata(
+                colored_output,
+                formatted_artifact.source_map.clone(),
+                formatted_artifact.output_spans.clone(),
+            );
+            if let Err(error) =
+                colored_artifact.validate_insertion(&pipeline.cemt_insertion_context)
+            {
+                let mut diagnostic = error.diagnostic(diagnostic_uri);
+                diagnostic.node = diagnostic_node.map(str::to_owned);
+                diagnostics.push(diagnostic);
+                return ConversionOutputPipelineExecution {
+                    output: None,
+                    diagnostics,
+                    format_execution,
+                    color_execution,
+                    format_elapsed_ns,
+                    color_elapsed_ns,
+                    formatted_cem_tree,
+                    ..ConversionOutputPipelineExecution::default()
+                };
+            }
+            (
+                colored_artifact.clone(),
+                color_binding,
+                color_execution,
+                color_elapsed_ns,
+                Some(colored_artifact),
+            )
         };
-    }
-    let colored_cem_tree = Some(colored_artifact.clone());
 
     let evaluated = TransformTemplateEvaluatedEncodeExpression {
         expression: TransformTemplateEncodeExpression {
@@ -4795,15 +4880,17 @@ fn execute_conversion_output_pipeline_from_formatted_artifact(
             target: pipeline.cemt_target.clone(),
             options: pipeline.cemt_options.clone(),
         },
-        subject: formatted_artifact.value.clone(),
-        binding: color_binding,
-        artifact: colored_artifact.clone(),
+        subject: writer_artifact.value.clone(),
+        binding: writer_binding,
+        artifact: writer_artifact,
     };
+    let writer_started = Instant::now();
     let composition = compose_transform_template_encoded_text_artifacts(
         &[evaluated],
         &pipeline.writer_insertion_context,
         diagnostic_uri,
     );
+    let writer_elapsed_ns = Some(writer_started.elapsed().as_nanos());
     diagnostics.extend(composition.diagnostics);
     match composition.artifact {
         Some(artifact) => ConversionOutputPipelineExecution {
@@ -4812,6 +4899,9 @@ fn execute_conversion_output_pipeline_from_formatted_artifact(
             output_spans: artifact.output_spans,
             format_execution,
             color_execution,
+            format_elapsed_ns,
+            color_elapsed_ns,
+            writer_elapsed_ns,
             formatted_cem_tree,
             colored_cem_tree,
             diagnostics,
@@ -4821,6 +4911,9 @@ fn execute_conversion_output_pipeline_from_formatted_artifact(
             diagnostics,
             format_execution,
             color_execution,
+            format_elapsed_ns,
+            color_elapsed_ns,
+            writer_elapsed_ns,
             formatted_cem_tree,
             colored_cem_tree,
             ..ConversionOutputPipelineExecution::default()
@@ -4853,6 +4946,33 @@ fn conversion_output_pipeline_color_subject_type(
         TransformTemplateOutputProducedKind::Chunks => "chunks",
         TransformTemplateOutputProducedKind::Diagnostics => "diagnostics",
     }
+}
+
+fn conversion_output_pipeline_should_skip_color_stage(pipeline: &ConversionOutputPipeline) -> bool {
+    let colorizer = pipeline
+        .cemt_options
+        .colorizer
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if colorizer.is_some() {
+        return false;
+    }
+
+    let cemt_color_profile = pipeline
+        .cemt_options
+        .color_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let writer_color_profile = pipeline
+        .writer_insertion_context
+        .color_profile
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    cemt_color_profile.is_none_or(|profile| profile == "none")
+        && writer_color_profile.is_none_or(|profile| profile == "none")
 }
 
 fn conversion_cem_tree_output_function_registry(
@@ -11061,6 +11181,9 @@ mod tests {
             "{:?}",
             execution.diagnostics
         );
+        assert!(execution.format_elapsed_ns.is_some());
+        assert!(execution.color_elapsed_ns.is_some());
+        assert!(execution.writer_elapsed_ns.is_some());
         assert_eq!(
             execution.format_execution,
             Some(ConversionOutputPipelineStageExecution::CemtAdapter {
@@ -11155,6 +11278,8 @@ mod tests {
             "{:?}",
             pretty_execution.diagnostics
         );
+        assert_eq!(pretty_execution.color_execution, None);
+        assert_eq!(pretty_execution.color_elapsed_ns, None);
         let pretty_formatted = pretty_execution
             .formatted_cem_tree
             .as_ref()
@@ -11198,6 +11323,8 @@ mod tests {
             "{:?}",
             tabular_execution.diagnostics
         );
+        assert_eq!(tabular_execution.color_execution, None);
+        assert_eq!(tabular_execution.color_elapsed_ns, None);
         let tabular_formatted = tabular_execution
             .formatted_cem_tree
             .as_ref()
@@ -14486,6 +14613,12 @@ mod tests {
             html_tab_size.diagnostics
         );
         assert!(plain.diagnostics.is_empty(), "{:?}", plain.diagnostics);
+        assert!(terminal.format_elapsed_ns.is_some());
+        assert!(terminal.color_elapsed_ns.is_some());
+        assert!(terminal.writer_elapsed_ns.is_some());
+        assert!(plain.format_elapsed_ns.is_some());
+        assert!(plain.color_elapsed_ns.is_some());
+        assert!(plain.writer_elapsed_ns.is_some());
         let terminal_text =
             strip_ansi_codes(terminal.output.as_ref().and_then(Value::as_str).unwrap());
         let html_output = html.output.as_ref().and_then(Value::as_str).unwrap();

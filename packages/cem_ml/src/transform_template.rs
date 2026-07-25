@@ -35,6 +35,7 @@ use crate::tokenizer::cem::CemTokenizer;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::any::Any;
+use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -5376,12 +5377,11 @@ fn transform_template_cem_tree_wrap_attributes_at_column(
     ))
     .saturating_add(1)
     .saturating_add(cemt_display_width(&name));
-    let wrapped_indent_width = cemt_display_width(
-        &transform_template_cem_tree_formatter_indent_data(
+    let wrapped_indent_width =
+        cemt_display_width(&transform_template_cem_tree_formatter_indent_data(
             &binding.options,
             depth.saturating_add(1),
-        ),
-    );
+        ));
     let Some(Value::Array(attributes)) = fields.get_mut("attributes") else {
         return Ok(());
     };
@@ -5392,19 +5392,22 @@ fn transform_template_cem_tree_wrap_attributes_at_column(
                 json_value_type_name(attribute)
             )
         })?;
-        let attribute_width =
-            cemt_display_width(&transform_template_cem_tree_attribute_to_text(attribute_fields)?);
+        let attribute_width = cemt_display_width(&transform_template_cem_tree_attribute_to_text(
+            attribute_fields,
+        )?);
         let inline_width = width.saturating_add(1).saturating_add(attribute_width);
         if index > 0 && inline_width > wrap_column {
             if let Some(attribute_fields) = attribute.as_object_mut() {
-                attribute_fields.entry("formatBefore".to_owned()).or_insert_with(|| {
-                    transform_template_cem_tree_formatter_attribute_line_break(
-                        &binding.options,
-                        depth,
-                        "formatter.attribute-spacing",
-                        source_map,
-                    )
-                });
+                attribute_fields
+                    .entry("formatBefore".to_owned())
+                    .or_insert_with(|| {
+                        transform_template_cem_tree_formatter_attribute_line_break(
+                            &binding.options,
+                            depth,
+                            "formatter.attribute-spacing",
+                            source_map,
+                        )
+                    });
             }
             width = wrapped_indent_width.saturating_add(attribute_width);
         } else {
@@ -9270,10 +9273,12 @@ fn validate_cem_tree_writer_boundary(
     let identity_color_profile = trimmed_optional_str(artifact.identity.color_profile.as_deref());
     let value_color_profile = trimmed_value_string_field(&artifact.value, "colorProfile");
     let colored = artifact.value.get("colored").and_then(Value::as_bool) == Some(true);
+    let writer_color_profile =
+        trimmed_optional_str(writer_boundary_context.color_profile.as_deref());
     let color_requested = colored
-        || identity_color_profile.is_some()
-        || value_color_profile.is_some()
-        || trimmed_optional_str(writer_boundary_context.color_profile.as_deref()).is_some();
+        || cemt_writer_color_profile_requests_color(identity_color_profile)
+        || cemt_writer_color_profile_requests_color(value_color_profile)
+        || cemt_writer_color_profile_requests_color(writer_color_profile);
     if !color_requested {
         return Ok(());
     }
@@ -9296,7 +9301,7 @@ fn validate_cem_tree_writer_boundary(
             ));
         }
     }
-    if let Some(expected) = trimmed_optional_str(writer_boundary_context.color_profile.as_deref()) {
+    if let Some(expected) = writer_color_profile {
         if color_profile != expected {
             return Err(format!(
                 "CEM tree writer expected colorProfile `{expected}`, got `{color_profile}`"
@@ -9316,6 +9321,10 @@ fn validate_cem_tree_writer_boundary(
     validate_cem_tree_color_metadata(&artifact.value, color_profile)?;
 
     Ok(())
+}
+
+fn cemt_writer_color_profile_requests_color(profile: Option<&str>) -> bool {
+    profile.is_some_and(|profile| profile != "none")
 }
 
 fn validate_cem_tree_formatter_metadata(
@@ -11381,7 +11390,8 @@ fn cemt_runtime_bind_output_function_params(
     subject: &Value,
     value_bindings: &BTreeMap<String, Value>,
 ) -> Result<BTreeMap<String, Value>, String> {
-    let mut scoped_bindings = value_bindings.clone();
+    let mut scoped_bindings =
+        cemt_runtime_clone_bindings_excluding_names(value_bindings, &["subject"]);
     scoped_bindings.insert("subject".to_owned(), subject.clone());
     cemt_runtime_bind_output_contract_metadata(binding, &mut scoped_bindings);
 
@@ -11414,6 +11424,24 @@ fn cemt_runtime_bind_output_function_params(
     }
 
     Ok(scoped_bindings)
+}
+
+fn cemt_runtime_clone_bindings_excluding_names(
+    value_bindings: &BTreeMap<String, Value>,
+    excluded_names: &[&str],
+) -> BTreeMap<String, Value> {
+    if excluded_names.is_empty() {
+        return value_bindings.clone();
+    }
+    value_bindings
+        .iter()
+        .filter(|(name, _)| {
+            !excluded_names
+                .iter()
+                .any(|excluded| *excluded == name.as_str())
+        })
+        .map(|(name, value)| (name.clone(), value.clone()))
+        .collect()
 }
 
 fn cemt_runtime_bind_output_contract_metadata(
@@ -12355,6 +12383,7 @@ const CEMT_RUNTIME_CALL_RECURSION_LIMIT: usize = 64;
 const CEMT_RUNTIME_STACK_DEPTH_LIMIT: usize = 128;
 const CEMT_RUNTIME_QUEUE_LENGTH_LIMIT: usize = 1024;
 const CEMT_RUNTIME_REPEAT_LIMIT: usize = 4096;
+const CEMT_RUNTIME_PARSE_CACHE_LIMIT: usize = 4096;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CemtRuntimeFunction {
@@ -12464,588 +12493,497 @@ fn resolve_encode_subject_expression_at_depth(
     call_depth: usize,
 ) -> Result<Option<Value>, String> {
     let expression = expression.trim();
-    if let Some(value) = resolve_cemt_call_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
+    if let Some(function_name) = cemt_expression_call_name(expression) {
+        return resolve_cemt_function_call_expression_by_name(
+            function_name,
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        );
     }
-    if let Some(value) = resolve_cemt_map_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
+    if expression.starts_with('{') {
+        if let Some(value) = resolve_cemt_object_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        )? {
+            return Ok(Some(value));
+        }
     }
-    if let Some(value) = resolve_cemt_fold_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_append_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_extend_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_metadata_accumulator_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_merge_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_set_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_tree_patch_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_apply_edits_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_edit_constructor_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_with_stack_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_stack_push_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_stack_pop_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_stack_top_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_stack_depth_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_stack_path_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_queue_push_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-        "defer",
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_queue_push_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-        "queuePush",
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_queue_shift_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_queue_peek_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_queue_length_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_length_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_last_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_type_of_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_add_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_sub_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_mul_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_div_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_min_max_expression(
-        expression,
-        "min",
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-        |left, right| left.min(right),
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_min_max_expression(
-        expression,
-        "max",
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-        |left, right| left.max(right),
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_compare_expression(
-        expression,
-        "lt",
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-        |ordering| ordering.is_lt(),
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_compare_expression(
-        expression,
-        "lte",
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-        |ordering| ordering.is_le(),
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_compare_expression(
-        expression,
-        "gt",
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-        |ordering| ordering.is_gt(),
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_compare_expression(
-        expression,
-        "gte",
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-        |ordering| ordering.is_ge(),
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_mod_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_concat_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_get_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_contains_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_replace_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_trim_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_substring_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_index_of_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_display_width_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_display_prefix_suffix_expression(
-        expression,
-        "displayPrefix",
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-        false,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_display_prefix_suffix_expression(
-        expression,
-        "displaySuffix",
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-        true,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_to_integer_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_to_string_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_ascii_number_predicate_expression(
-        expression,
-        "isAsciiInteger",
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-        cemt_is_ascii_integer,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_ascii_number_predicate_expression(
-        expression,
-        "isAsciiDecimal",
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-        cemt_is_ascii_decimal,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_starts_with_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_ends_with_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_repeat_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_source_map_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_drain_queue_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_diagnostic_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_diagnostics_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_match_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_exists_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_object_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
-    }
-    if let Some(value) = resolve_cemt_array_expression(
-        expression,
-        value_bindings,
-        runtime_functions,
-        binding,
-        call_depth,
-    )? {
-        return Ok(Some(value));
+    if expression.starts_with('[') {
+        if let Some(value) = resolve_cemt_array_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        )? {
+            return Ok(Some(value));
+        }
     }
     if expression.starts_with('"') || expression.starts_with('\'') {
         return Ok(parse_cemt_quoted_string(expression).ok().map(Value::String));
     }
+    if let Some(path) = expression.strip_prefix('$') {
+        return Ok(resolve_encode_subject_path(path, value_bindings).cloned());
+    }
     if let Ok(value) = serde_json::from_str::<Value>(expression) {
         return Ok(Some(value));
     }
+    Ok(None)
+}
 
-    let Some(path) = expression.strip_prefix('$') else {
-        return Ok(None);
-    };
-    Ok(resolve_encode_subject_path(path, value_bindings).cloned())
+fn resolve_cemt_function_call_expression_by_name(
+    function_name: &str,
+    expression: &str,
+    value_bindings: &BTreeMap<String, Value>,
+    runtime_functions: &BTreeMap<String, CemtRuntimeFunction>,
+    binding: Option<&TransformTemplateEncodeBinding>,
+    call_depth: usize,
+) -> Result<Option<Value>, String> {
+    match function_name {
+        "call" => resolve_cemt_call_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "map" => resolve_cemt_map_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "fold" => resolve_cemt_fold_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "append" => resolve_cemt_append_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "extend" => resolve_cemt_extend_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "appendFormatNode"
+        | "appendColorNode"
+        | "appendDiagnostic"
+        | "appendNamespace"
+        | "appendOutputSpan"
+        | "appendWriterBoundary" => resolve_cemt_metadata_accumulator_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "merge" => resolve_cemt_merge_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "set" => resolve_cemt_set_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "replaceNode" | "appendNode" | "prependNode" | "wrapNode" => {
+            resolve_cemt_tree_patch_expression(
+                expression,
+                value_bindings,
+                runtime_functions,
+                binding,
+                call_depth,
+            )
+        }
+        "applyEdits" => resolve_cemt_apply_edits_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "setEdit" | "replaceEdit" | "appendEdit" | "prependEdit" | "wrapEdit" => {
+            resolve_cemt_edit_constructor_expression(
+                expression,
+                value_bindings,
+                runtime_functions,
+                binding,
+                call_depth,
+            )
+        }
+        "withStack" => resolve_cemt_with_stack_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "stackPush" => resolve_cemt_stack_push_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "stackPop" => resolve_cemt_stack_pop_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "stackTop" => resolve_cemt_stack_top_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "stackDepth" => resolve_cemt_stack_depth_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "stackPath" => resolve_cemt_stack_path_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "defer" | "queuePush" => resolve_cemt_queue_push_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+            function_name,
+        ),
+        "queueShift" => resolve_cemt_queue_shift_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "queuePeek" => resolve_cemt_queue_peek_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "queueLength" => resolve_cemt_queue_length_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "length" => resolve_cemt_length_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "last" => resolve_cemt_last_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "typeOf" => resolve_cemt_type_of_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "add" => resolve_cemt_add_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "sub" => resolve_cemt_sub_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "mul" => resolve_cemt_mul_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "div" => resolve_cemt_div_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "min" => resolve_cemt_min_max_expression(
+            expression,
+            "min",
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+            |left, right| left.min(right),
+        ),
+        "max" => resolve_cemt_min_max_expression(
+            expression,
+            "max",
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+            |left, right| left.max(right),
+        ),
+        "lt" => resolve_cemt_compare_expression(
+            expression,
+            "lt",
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+            |ordering| ordering.is_lt(),
+        ),
+        "lte" => resolve_cemt_compare_expression(
+            expression,
+            "lte",
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+            |ordering| ordering.is_le(),
+        ),
+        "gt" => resolve_cemt_compare_expression(
+            expression,
+            "gt",
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+            |ordering| ordering.is_gt(),
+        ),
+        "gte" => resolve_cemt_compare_expression(
+            expression,
+            "gte",
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+            |ordering| ordering.is_ge(),
+        ),
+        "mod" => resolve_cemt_mod_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "concat" => resolve_cemt_concat_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "get" => resolve_cemt_get_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "contains" => resolve_cemt_contains_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "replace" => resolve_cemt_replace_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "trim" => resolve_cemt_trim_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "substring" => resolve_cemt_substring_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "indexOf" => resolve_cemt_index_of_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "displayWidth" => resolve_cemt_display_width_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "displayPrefix" => resolve_cemt_display_prefix_suffix_expression(
+            expression,
+            "displayPrefix",
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+            false,
+        ),
+        "displaySuffix" => resolve_cemt_display_prefix_suffix_expression(
+            expression,
+            "displaySuffix",
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+            true,
+        ),
+        "toInteger" => resolve_cemt_to_integer_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "toString" => resolve_cemt_to_string_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "isAsciiInteger" => resolve_cemt_ascii_number_predicate_expression(
+            expression,
+            "isAsciiInteger",
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+            cemt_is_ascii_integer,
+        ),
+        "isAsciiDecimal" => resolve_cemt_ascii_number_predicate_expression(
+            expression,
+            "isAsciiDecimal",
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+            cemt_is_ascii_decimal,
+        ),
+        "startsWith" => resolve_cemt_starts_with_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "endsWith" => resolve_cemt_ends_with_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "repeat" => resolve_cemt_repeat_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "sourceMap" => resolve_cemt_source_map_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "drainQueue" => resolve_cemt_drain_queue_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "diagnostic" => resolve_cemt_diagnostic_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "diagnostics" => resolve_cemt_diagnostics_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "match" => resolve_cemt_match_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        "exists" => resolve_cemt_exists_expression(
+            expression,
+            value_bindings,
+            runtime_functions,
+            binding,
+            call_depth,
+        ),
+        _ => Ok(None),
+    }
 }
 
 fn resolve_cemt_call_expression(
@@ -13140,7 +13078,7 @@ fn resolve_cemt_call_expression(
         }
     }
 
-    let mut scoped_bindings = value_bindings.clone();
+    let mut bound_arguments = Vec::new();
     for param in &function.params {
         let value = if let Some(literal) = arguments.get(&param.name) {
             let Some(value) = resolve_cemt_literal_runtime_value(
@@ -13176,7 +13114,17 @@ fn resolve_cemt_call_expression(
                 json_value_type_name(&value)
             ));
         }
-        scoped_bindings.insert(param.name.clone(), value);
+        bound_arguments.push((param.name.clone(), value));
+    }
+
+    let bound_argument_names = bound_arguments
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .collect::<Vec<_>>();
+    let mut scoped_bindings =
+        cemt_runtime_clone_bindings_excluding_names(value_bindings, &bound_argument_names);
+    for (name, value) in bound_arguments {
+        scoped_bindings.insert(name, value);
     }
 
     let result = resolve_encode_subject_expression_at_depth(
@@ -13229,7 +13177,8 @@ fn resolve_cemt_map_expression(
 
     let mut mapped = Vec::with_capacity(items.len());
     for (index, item) in items.into_iter().enumerate() {
-        let mut scoped_bindings = value_bindings.clone();
+        let mut scoped_bindings =
+            cemt_runtime_clone_bindings_excluding_names(value_bindings, &["item", "index"]);
         scoped_bindings.insert("item".to_owned(), item);
         scoped_bindings.insert(
             "index".to_owned(),
@@ -13291,7 +13240,10 @@ fn resolve_cemt_fold_expression(
     };
 
     for (index, item) in items.into_iter().enumerate() {
-        let mut scoped_bindings = value_bindings.clone();
+        let mut scoped_bindings = cemt_runtime_clone_bindings_excluding_names(
+            value_bindings,
+            &["item", "index", "acc", "accumulator"],
+        );
         scoped_bindings.insert("item".to_owned(), item);
         scoped_bindings.insert(
             "index".to_owned(),
@@ -14289,7 +14241,8 @@ fn resolve_cemt_with_stack_expression(
         .ok_or_else(|| format!("CEMT withStack frame for `{stack_name}` could not be resolved"))?,
     )?;
 
-    let mut scoped_bindings = value_bindings.clone();
+    let mut scoped_bindings =
+        cemt_runtime_clone_bindings_excluding_names(value_bindings, &[stack_name.as_str()]);
     scoped_bindings.insert(stack_name, Value::Array(stack));
     resolve_encode_subject_expression_at_depth(
         &args[2],
@@ -16442,7 +16395,10 @@ fn resolve_cemt_drain_queue_expression(
     };
 
     for (index, item) in queue.iter().cloned().enumerate() {
-        let mut scoped_bindings = value_bindings.clone();
+        let mut scoped_bindings = cemt_runtime_clone_bindings_excluding_names(
+            value_bindings,
+            &["item", "index", "acc", "accumulator", "queue"],
+        );
         scoped_bindings.insert("item".to_owned(), item);
         scoped_bindings.insert(
             "index".to_owned(),
@@ -17589,7 +17545,59 @@ impl CemtExpressionLiteral {
     }
 }
 
+type CemtFunctionCallArgsParseResult =
+    Result<Option<Vec<String>>, TransformTemplateEncodeExpressionParseError>;
+type CemtObjectLiteralParseResult =
+    Result<BTreeMap<String, CemtExpressionLiteral>, TransformTemplateEncodeExpressionParseError>;
+
+thread_local! {
+    static CEMT_FUNCTION_CALL_ARG_CACHE: RefCell<BTreeMap<(String, String), CemtFunctionCallArgsParseResult>> =
+        RefCell::new(BTreeMap::new());
+    static CEMT_OBJECT_LITERAL_CACHE: RefCell<BTreeMap<String, CemtObjectLiteralParseResult>> =
+        RefCell::new(BTreeMap::new());
+}
+
+fn cemt_expression_call_name(expression: &str) -> Option<&str> {
+    let expression = expression.trim_start();
+    let mut end = 0usize;
+    for (index, ch) in expression.char_indices() {
+        if index == 0 && !(ch.is_ascii_alphabetic() || ch == '_') {
+            return None;
+        }
+        if is_identifier_continue(ch) {
+            end = index + ch.len_utf8();
+            continue;
+        }
+        return (end > 0 && expression[index..].trim_start().starts_with('('))
+            .then_some(&expression[..end]);
+    }
+    None
+}
+
 fn parse_cemt_function_call_args(
+    expression: &str,
+    name: &str,
+) -> Result<Option<Vec<String>>, TransformTemplateEncodeExpressionParseError> {
+    let expression = expression.trim();
+    let key = (expression.to_owned(), name.to_owned());
+    if let Some(cached) =
+        CEMT_FUNCTION_CALL_ARG_CACHE.with(|cache| cache.borrow().get(&key).cloned())
+    {
+        return cached;
+    }
+
+    let result = parse_cemt_function_call_args_uncached(expression, name);
+    CEMT_FUNCTION_CALL_ARG_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        if cache.len() >= CEMT_RUNTIME_PARSE_CACHE_LIMIT {
+            cache.clear();
+        }
+        cache.insert(key, result.clone());
+    });
+    result
+}
+
+fn parse_cemt_function_call_args_uncached(
     expression: &str,
     name: &str,
 ) -> Result<Option<Vec<String>>, TransformTemplateEncodeExpressionParseError> {
@@ -17620,6 +17628,26 @@ fn parse_cemt_function_call_args(
 }
 
 fn parse_cemt_object_literal(
+    raw: &str,
+) -> Result<BTreeMap<String, CemtExpressionLiteral>, TransformTemplateEncodeExpressionParseError> {
+    let key = raw.trim().to_owned();
+    if let Some(cached) = CEMT_OBJECT_LITERAL_CACHE.with(|cache| cache.borrow().get(&key).cloned())
+    {
+        return cached;
+    }
+
+    let result = parse_cemt_object_literal_uncached(&key);
+    CEMT_OBJECT_LITERAL_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        if cache.len() >= CEMT_RUNTIME_PARSE_CACHE_LIMIT {
+            cache.clear();
+        }
+        cache.insert(key, result.clone());
+    });
+    result
+}
+
+fn parse_cemt_object_literal_uncached(
     raw: &str,
 ) -> Result<BTreeMap<String, CemtExpressionLiteral>, TransformTemplateEncodeExpressionParseError> {
     let raw = raw.trim();
@@ -29566,8 +29594,14 @@ mod tests {
             .encode(&binding, &subject)
             .expect("CEM tree formatter runs");
 
-        assert_eq!(formatted["nodes"][0]["formatBeforeAttributes"]["value"], " ");
-        assert_eq!(formatted["nodes"][0]["formatBetweenAttributes"]["value"], " ");
+        assert_eq!(
+            formatted["nodes"][0]["formatBeforeAttributes"]["value"],
+            " "
+        );
+        assert_eq!(
+            formatted["nodes"][0]["formatBetweenAttributes"]["value"],
+            " "
+        );
         assert!(formatted["nodes"][0]["attributes"][0]
             .get("formatBefore")
             .is_none());
