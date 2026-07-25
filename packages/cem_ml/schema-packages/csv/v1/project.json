@@ -19,6 +19,16 @@
                 "commands": [
                     "mkdir -p packages/cem_ml/schema-packages/csv/v1/dist",
                     "./dist/target/cem_ml_cli/debug/cem-ml --quiet validate --fail-level parse --format json --content-type application/vnd.cem.schema-package+cem --schema https://cem.dev/ns/schema-package/1 --report-json packages/cem_ml/schema-packages/csv/v1/dist packages/cem_ml/schema-packages/csv/v1/package.cem",
+                    "cargo test -p cem-ml csv_package_examples_are_manifest_indexed --target-dir dist/target/cem_ml_cli",
+                    "cargo test -p cem-ml csv_output_assets_follow_schema_package_readme_contract --target-dir dist/target/cem_ml_cli",
+                    "cargo test -p cem-ml-cli schema_owned_csv_examples_validate_through_cli --target-dir dist/target/cem_ml_cli",
+                    "cargo test -p cem-ml-cli schema_owned_csv_examples_emit_schema_owned_contract_details --target-dir dist/target/cem_ml_cli",
+                    "cargo test -p cem-ml builtin_csv_formatter_profiles_execute_package_cemt_assets --target-dir dist/target/cem_ml_cli",
+                    "cargo test -p cem-ml builtin_csv_tabular_formatter_applies_max_field_width_options --target-dir dist/target/cem_ml_cli",
+                    "cargo test -p cem-ml builtin_csv_formatter_applies_line_ending_options --target-dir dist/target/cem_ml_cli",
+                    "cargo test -p cem-ml builtin_csv_colorizer_profiles_execute_package_cemt_assets --target-dir dist/target/cem_ml_cli",
+                    "cargo test -p cem-ml builtin_csv_output_pipeline_renders_html_color_backend_with_terminal_text_parity --target-dir dist/target/cem_ml_cli",
+                    "cargo test -p cem-ml builtin_csv_output_pipeline_generates_output_spans_from_formatter_tokens --target-dir dist/target/cem_ml_cli",
                     "node packages/cem_ml/schema-packages/csv/v1/scripts/verify-previews.mjs"
                 ],
                 "parallel": false,
@@ -33,9 +43,12 @@
                 "{projectRoot}/converters/**/*.cemt",
                 "{projectRoot}/scripts/**/*.mjs",
                 "{projectRoot}/examples/**/*",
+                "{workspaceRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.lock",
                 "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml",
                 "{workspaceRoot}/packages/cem_ml_cli/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml_cli/tests/schema_validation_examples.rs",
                 "{workspaceRoot}/packages/cem_ml_cli/Cargo.toml"
             ],
             "outputs": [

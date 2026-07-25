@@ -1638,96 +1638,112 @@ mod tests {
             (
                 "basic-table",
                 CSV_CONTENT_TYPE,
+                CSV_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "quoted-fields",
                 CSV_CONTENT_TYPE,
+                CSV_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "header-absent",
                 "text/csv; header=absent",
+                CSV_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "line-ending-lf",
                 CSV_CONTENT_TYPE,
+                CSV_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "line-ending-crlf",
                 CSV_CONTENT_TYPE,
+                CSV_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "utf8-bom",
                 "text/csv; charset=utf-8",
+                CSV_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "spaced-fields",
                 CSV_CONTENT_TYPE,
+                CSV_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "tabs-and-empty-fields",
                 CSV_CONTENT_TYPE,
+                CSV_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "formula-looking-values",
                 CSV_CONTENT_TYPE,
+                CSV_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "wide-unicode",
                 "text/csv; charset=utf-8",
+                CSV_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "invalid-unclosed-quote",
                 CSV_CONTENT_TYPE,
+                CSV_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Fail,
                 Some("cem.csv.unclosed_quote"),
             ),
             (
                 "invalid-quote-escape",
                 CSV_CONTENT_TYPE,
+                CSV_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Fail,
                 Some("cem.csv.invalid_quote_escape"),
             ),
             (
                 "ragged-row",
                 CSV_CONTENT_TYPE,
+                CSV_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 Some("cem.csv.inconsistent_field_count"),
             ),
             (
                 "unsupported-charset",
                 "text/csv; charset=iso-8859-1",
+                CSV_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Fail,
                 Some("cem.csv.unsupported_encoding"),
             ),
             (
                 "us-ascii-non-ascii-byte",
                 "text/csv; charset=us-ascii",
+                CSV_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Fail,
                 Some("cem.csv.unsupported_encoding"),
             ),
             (
                 "invalid-header-parameter",
                 "text/csv; header=maybe",
+                CSV_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 Some("cem.csv.invalid_header_parameter"),
             ),
@@ -1738,19 +1754,20 @@ mod tests {
             .collect::<BTreeSet<_>>();
         let expected_ids = expected
             .iter()
-            .map(|(id, _, _, _)| *id)
+            .map(|(id, _, _, _, _)| *id)
             .collect::<BTreeSet<_>>();
         assert_eq!(
             actual_ids, expected_ids,
             "checked CSV example expectations must cover every manifest example"
         );
 
-        for (id, content_type, expected_result, expected_code) in expected {
+        for (id, content_type, schema, expected_result, expected_code) in expected {
             let example = examples
                 .iter()
                 .find(|example| example.id == id)
                 .unwrap_or_else(|| panic!("CSV example `{id}`"));
             assert_eq!(example.content_type, content_type);
+            assert_eq!(example.schema, schema);
             assert_eq!(example.expected_result, expected_result);
             let expected_codes = expected_code
                 .map(|code| vec![code.to_owned()])

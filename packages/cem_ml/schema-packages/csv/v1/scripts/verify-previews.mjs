@@ -92,6 +92,7 @@ const cases = [
     },
 ];
 
+mkdirSync(previewRoot, { recursive: true });
 mkdirSync(generatedRoot, { recursive: true });
 
 const failures = [];

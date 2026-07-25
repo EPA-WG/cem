@@ -1,6 +1,7 @@
 # CSV Resource Schema Package
 
-Status: schema, examples, formatter, and colorizer package frame
+Status: schema, examples, formatter/colorizer assets, README previews, and
+package-local verification frame
 
 This package defines registry identity for generic comma-separated value
 resources.
@@ -22,18 +23,17 @@ declared charsets require an explicit converter instead of silent transcoding.
 
 ## Standards And CEM Policy Matrix
 
-| Area                                                                                                                                                        | External contract                                                                                                                | CEM policy                                                                                                                                                                                                                                                                                                             |
-|-------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Media type                                                                                                                                                  | IANA registers `text/csv` with RFC 4180 and RFC 7111 references.                                                                 | `text/csv` is the only primary CSV content type for this package. Delimited text variants need their own package or explicit converter profile.                                                                                                                                                                        |
-| Charset                                                                                                                                                     | RFC 7111, updating the registration under RFC 6657, says `charset` should be used and UTF-8 should be assumed when it is absent. | UTF-8, `utf8`, US-ASCII, and `ascii` are accepted directly. Other declared charsets produce `cem.csv.unsupported_encoding` until an explicit transcoding converter is selected.                                                                                                                                        |
-| Header parameter                                                                                                                                            | RFC 4180/RFC 7111 define optional `header=present                                                                                | absent`; absent metadata leaves header detection to processors.                                                                                                                                                                                                                                                        |
-| The raw `header` parameter is preserved. Unknown values produce `cem.csv.invalid_header_parameter` as metadata drift while valid CSV bytes can still parse. |                                                                                                                                  |                                                                                                                                                                                                                                                                                                                        |
-| Line endings                                                                                                                                                | RFC 4180 uses CRLF for records and notes that other implementations may use other values; CSVW accepts common LF handling.       | Parsers accept CRLF, LF, CR, and mixed line endings as facts. Formatter output defaults to LF for repository-friendly deterministic fixtures. This conflicts with strict `text/csv` CRLF interchange expectations; use generic formatter option `lineEnding=crlf` when the receiver requires strict media-type output. |
-| Field spacing                                                                                                                                               | RFC 4180 treats spaces as part of a field and says they should not be ignored.                                                   | Formatter-owned presentation padding is allowed only in readable profiles. Compact output must not add alignment padding or trim field values.                                                                                                                                                                         |
-| Quoting                                                                                                                                                     | RFC 4180 requires quoting for fields containing commas, quotes, or record line breaks and doubles quotes inside quoted fields.   | `compact` uses the package-owned quoting rule as strict writer output. Readable profiles start from the same quoted field text, but may add presentation padding around serialized fields and are not strict-CSV guarantees.                                                                                           |
-| Fragments                                                                                                                                                   | RFC 7111 defines 1-based `row`, `col`, and `cell` fragment addressing with ranges and ignored invalid selections.                | The schema records source-map hooks today. Full fragment resolver tests remain a tracked implementation item.                                                                                                                                                                                                          |
-| CSVW metadata                                                                                                                                               | W3C CSVW defines dialect metadata, datatypes, null/default handling, list separators, keys, foreign keys, and transformations.   | This package currently models the core table and a narrow dialect subset. CSVW-compatible typed column metadata is future schema-owned work, not formatter inference.                                                                                                                                                  |
-| Spreadsheet consumers                                                                                                                                       | Spreadsheet applications may interpret CSV cells as formulas even though CSV itself is passive text.                             | CSV syntax validation does not rewrite data. Spreadsheet-safe export must be an explicit lossy presentation/security profile or warning mode.                                                                                                                                                                          |
+| Area | External contract | CEM policy |
+| --- | --- | --- |
+| Media type | IANA registers `text/csv` with RFC 4180 and RFC 7111 references. | `text/csv` is the only primary CSV content type for this package. Delimited text variants need their own package or explicit converter profile. |
+| Charset | RFC 7111, updating the registration under RFC 6657, says `charset` should be used and UTF-8 should be assumed when it is absent. | UTF-8, `utf8`, US-ASCII, and `ascii` are accepted directly. Other declared charsets produce `cem.csv.unsupported_encoding` until an explicit transcoding converter is selected. |
+| Header parameter | RFC 4180/RFC 7111 define optional `header=present` and `header=absent`; absent metadata leaves header detection to processors. | The raw `header` parameter is preserved. Unknown values produce `cem.csv.invalid_header_parameter` as metadata drift while valid CSV bytes can still parse. |
+| Line endings | RFC 4180 uses CRLF for records and notes that other implementations may use other values; CSVW accepts common LF handling. | Parsers accept CRLF, LF, CR, and mixed line endings as facts. Formatter output defaults to LF for repository-friendly deterministic fixtures. This conflicts with strict `text/csv` CRLF interchange expectations; use generic formatter option `lineEnding=crlf` when the receiver requires strict media-type output. |
+| Field spacing | RFC 4180 treats spaces as part of a field and says they should not be ignored. | Formatter-owned presentation padding is allowed only in readable profiles. Compact output must not add alignment padding or trim field values. |
+| Quoting | RFC 4180 requires quoting for fields containing commas, quotes, or record line breaks and doubles quotes inside quoted fields. | `compact` uses the package-owned quoting rule as strict writer output. Readable profiles start from the same quoted field text, but may add presentation padding around serialized fields and are not strict-CSV guarantees. |
+| Fragments | RFC 7111 defines 1-based `row`, `col`, and `cell` fragment addressing with ranges and ignored invalid selections. | The schema records source-map hooks today. Full fragment resolver tests remain a tracked implementation item. |
+| CSVW metadata | W3C CSVW defines dialect metadata, datatypes, null/default handling, list separators, keys, foreign keys, and transformations. | This package currently models the core table and a narrow dialect subset. CSVW-compatible typed column metadata is future schema-owned work, not formatter inference. |
+| Spreadsheet consumers | Spreadsheet applications may interpret CSV cells as formulas even though CSV itself is passive text. | CSV syntax validation does not rewrite data. Spreadsheet-safe export must be an explicit lossy presentation/security profile or warning mode. |
 
 Primary references: [RFC 4180](https://datatracker.ietf.org/doc/html/rfc4180),
 [RFC 7111](https://datatracker.ietf.org/doc/html/rfc7111),
@@ -169,7 +169,71 @@ schema-package output support:
 4. Update README command examples and their SVG previews in
    `examples/previews/` when visible output changes.
 5. Run the CSV package verify target, which validates the package and checks
-   README SVG preview drift from the documented command output.
+   manifest/example coverage, formatter/colorizer output contracts, writer
+   parity, output spans, and README SVG preview drift from the documented
+   command output.
+
+## Verification
+
+Focused package gates:
+
+```bash
+cargo test -p cem-ml csv_package_examples_are_manifest_indexed
+```
+
+```bash
+cargo test -p cem-ml csv_output_assets_follow_schema_package_readme_contract
+```
+
+```bash
+cargo test -p cem-ml-cli schema_owned_csv_examples_validate_through_cli
+```
+
+```bash
+cargo test -p cem-ml-cli schema_owned_csv_examples_emit_schema_owned_contract_details
+```
+
+```bash
+cargo test -p cem-ml builtin_csv_formatter_profiles_execute_package_cemt_assets
+```
+
+```bash
+cargo test -p cem-ml builtin_csv_tabular_formatter_applies_max_field_width_options
+```
+
+```bash
+cargo test -p cem-ml builtin_csv_formatter_applies_line_ending_options
+```
+
+```bash
+cargo test -p cem-ml builtin_csv_colorizer_profiles_execute_package_cemt_assets
+```
+
+```bash
+cargo test -p cem-ml builtin_csv_output_pipeline_renders_html_color_backend_with_terminal_text_parity
+```
+
+```bash
+cargo test -p cem-ml builtin_csv_output_pipeline_generates_output_spans_from_formatter_tokens
+```
+
+```bash
+yarn nx run cem_ml_schema_package_csv_v1:verify
+```
+
+## Release Behavior
+
+This package is versioned as `1.0.0`. The primary `text/csv` content type and
+`https://cem.dev/ns/data/csv/1` schema URI are compatibility anchors. Parser
+input accepts common CRLF, LF, CR, and mixed line endings as facts, but
+formatter output defaults to LF for deterministic repository and CLI behavior.
+Use generic `lineEnding=crlf` when producing strict RFC 4180 interchange bytes.
+
+`compact` is the import-safe formatter profile. `pretty`, `tabular`, and
+terminal-colored output are visual review profiles; formatter padding and
+max-width trimming can be lossy or strict-CSV-incompatible. Spreadsheet-safe
+rewrites are not implicit and must be introduced only as an explicit lossy
+security profile.
 
 Tracked but not complete:
 
@@ -351,7 +415,7 @@ diagnostic provenance schema-owned and inspectable.
    CSV diagnostics change because the schema changed, not because a Rust CSV
    branch changed.
 
-### Verification Gates
+### Target Migration Gates
 
 The migration is not complete until these gates pass:
 
@@ -380,24 +444,24 @@ output, refresh the matching SVG previews with
 and commit the preview changes in the same change.
 -->
 
-| Example                                                                 | Purpose                                                                      | Expected result                                      |
-|-------------------------------------------------------------------------|------------------------------------------------------------------------------|------------------------------------------------------|
-| [`basic-table.csv`](examples/basic-table.csv)                           | Minimal table with a header row and scalar fields.                           | Pass                                                 |
-| [`quoted-fields.csv`](examples/quoted-fields.csv)                       | Quoted fields with an embedded newline and escaped quote.                    | Pass                                                 |
-| [`header-absent.csv`](examples/header-absent.csv)                       | Data rows with `header=absent` content-type metadata.                        | Pass                                                 |
-| [`line-ending-lf.csv`](examples/line-ending-lf.csv)                     | LF-delimited rows accepted by the parser and used by repo fixtures.          | Pass                                                 |
-| [`line-ending-crlf.csv`](examples/line-ending-crlf.csv)                 | CRLF-delimited rows for strict `text/csv` interchange coverage.              | Pass                                                 |
-| [`utf8-bom.csv`](examples/utf8-bom.csv)                                 | UTF-8 source with a byte-order mark at the beginning of the first field.     | Pass                                                 |
-| [`spaced-fields.csv`](examples/spaced-fields.csv)                       | Leading and trailing spaces preserved as field content.                      | Pass                                                 |
-| [`tabs-and-empty-fields.csv`](examples/tabs-and-empty-fields.csv)       | Tab characters and empty fields preserved as field content.                  | Pass                                                 |
-| [`formula-looking-values.csv`](examples/formula-looking-values.csv)     | CSV-syntax-valid values that spreadsheet applications may treat as formulas. | Pass                                                 |
-| [`wide-unicode.csv`](examples/wide-unicode.csv)                         | Non-ASCII display-width coverage for formatter review output.                | Pass                                                 |
-| [`invalid-unclosed-quote.csv`](examples/invalid-unclosed-quote.csv)     | Unterminated quoted field rejected by the CSV quote policy.                  | Fail with `cem.csv.unclosed_quote`                   |
-| [`invalid-quote-escape.csv`](examples/invalid-quote-escape.csv)         | Quote inside an unquoted field rejected by the CSV quote policy.             | Fail with `cem.csv.invalid_quote_escape`             |
-| [`ragged-row.csv`](examples/ragged-row.csv)                             | Row width differs from the first row.                                        | Pass with warning `cem.csv.inconsistent_field_count` |
-| [`unsupported-charset.csv`](examples/unsupported-charset.csv)           | MIME charset requires transcoding before direct CSV validation.              | Fail with `cem.csv.unsupported_encoding`             |
-| [`us-ascii-non-ascii-byte.csv`](examples/us-ascii-non-ascii-byte.csv)   | Source declares US-ASCII but contains a non-ASCII byte.                      | Fail with `cem.csv.unsupported_encoding`             |
-| [`invalid-header-parameter.csv`](examples/invalid-header-parameter.csv) | CSV bytes are valid, but MIME header metadata is invalid.                    | Pass with warning `cem.csv.invalid_header_parameter` |
+| Example | Content type | Purpose | Expected result |
+| --- | --- | --- | --- |
+| [`basic-table.csv`](examples/basic-table.csv) | `text/csv` | Minimal table with a header row and scalar fields. | Pass |
+| [`quoted-fields.csv`](examples/quoted-fields.csv) | `text/csv` | Quoted fields with an embedded newline and escaped quote. | Pass |
+| [`header-absent.csv`](examples/header-absent.csv) | `text/csv; header=absent` | Data rows with `header=absent` content-type metadata. | Pass |
+| [`line-ending-lf.csv`](examples/line-ending-lf.csv) | `text/csv` | LF-delimited rows accepted by the parser and used by repo fixtures. | Pass |
+| [`line-ending-crlf.csv`](examples/line-ending-crlf.csv) | `text/csv` | CRLF-delimited rows for strict `text/csv` interchange coverage. | Pass |
+| [`utf8-bom.csv`](examples/utf8-bom.csv) | `text/csv; charset=utf-8` | UTF-8 source with a byte-order mark at the beginning of the first field. | Pass |
+| [`spaced-fields.csv`](examples/spaced-fields.csv) | `text/csv` | Leading and trailing spaces preserved as field content. | Pass |
+| [`tabs-and-empty-fields.csv`](examples/tabs-and-empty-fields.csv) | `text/csv` | Tab characters and empty fields preserved as field content. | Pass |
+| [`formula-looking-values.csv`](examples/formula-looking-values.csv) | `text/csv` | CSV-syntax-valid values that spreadsheet applications may treat as formulas. | Pass |
+| [`wide-unicode.csv`](examples/wide-unicode.csv) | `text/csv; charset=utf-8` | Non-ASCII display-width coverage for formatter review output. | Pass |
+| [`invalid-unclosed-quote.csv`](examples/invalid-unclosed-quote.csv) | `text/csv` | Unterminated quoted field rejected by the CSV quote policy. | Fail with `cem.csv.unclosed_quote` |
+| [`invalid-quote-escape.csv`](examples/invalid-quote-escape.csv) | `text/csv` | Quote inside an unquoted field rejected by the CSV quote policy. | Fail with `cem.csv.invalid_quote_escape` |
+| [`ragged-row.csv`](examples/ragged-row.csv) | `text/csv` | Row width differs from the first row. | Pass with warning `cem.csv.inconsistent_field_count` |
+| [`unsupported-charset.csv`](examples/unsupported-charset.csv) | `text/csv; charset=iso-8859-1` | MIME charset requires transcoding before direct CSV validation. | Fail with `cem.csv.unsupported_encoding` |
+| [`us-ascii-non-ascii-byte.csv`](examples/us-ascii-non-ascii-byte.csv) | `text/csv; charset=us-ascii` | Source declares US-ASCII but contains a non-ASCII byte. | Fail with `cem.csv.unsupported_encoding` |
+| [`invalid-header-parameter.csv`](examples/invalid-header-parameter.csv) | `text/csv; header=maybe` | CSV bytes are valid, but MIME header metadata is invalid. | Pass with warning `cem.csv.invalid_header_parameter` |
 
 Validate an example explicitly against this schema:
 

@@ -8,7 +8,7 @@ history.
 ## Immediate Goal
 
 Current active slice: schema package folder alignment, continuing with
-`csv/v1` after closing the CEM-ML package alignment slice.
+`json/v1` after closing the CSV package alignment slice.
 
 ### Completed Immediate Phase: CSV Formatter Review Findings
 
@@ -339,6 +339,22 @@ Current active slice: schema package folder alignment, continuing with
         formatter/colorizer profiles, safety notes, verification gates, release
         behavior, and tracked incomplete work.
 
+- [x] Align `csv/v1` package folder with common package AC.
+  - [x] Keep the existing explicit `csv_package_examples_are_manifest_indexed`
+        coverage wired into the package-local verify target.
+  - [x] Extend `cem_ml_schema_package_csv_v1:verify` so it runs manifest
+        validation, manifest-index coverage, schema-owned CLI example
+        validation, formatter profile coverage, formatter option coverage,
+        colorizer profile coverage, HTML/terminal writer parity coverage, and
+        README/SVG preview drift checks.
+  - [x] Fix CSV README standards/policy table structure and make the
+        `header` parameter policy readable as one row.
+  - [x] Expand CSV README verification and release-behavior coverage so the
+        package-local gates, strict/interchange defaults, visual formatter
+        lossiness, and tracked incomplete work are explicit.
+  - [x] Harden CSV preview drift checking so update mode creates both the
+        checked-in preview directory and generated preview directory.
+
 Remaining dependency-ordered package checklist:
 - [x] `cem-ql/v1`
 - [x] `cem-native-template/v1`
@@ -347,7 +363,7 @@ Remaining dependency-ordered package checklist:
 - [x] `cem-events-projection/v1`
 - [x] `cem-dom-projection/v1`
 - [x] `cem-ml/v1`
-- [ ] `csv/v1`
+- [x] `csv/v1`
 - [ ] `json/v1`
 - [ ] `json-schema/v1`
 - [ ] `yaml/v1`
@@ -391,10 +407,10 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Review and align `csv/v1` against the common schema-package AC:
+Review and align `json/v1` against the common schema-package AC:
 manifest-derived examples, README command/SVG preview drift, package-local
 verify coverage, source identity, parser/diagnostic ownership, formatter and
-colorizer contracts, CSV standards/interchange boundaries, and any fixture gaps
+colorizer contracts, JSON standards/interchange boundaries, and any fixture gaps
 that need explicit todo checkitems.
 
 ## Current Verification Commands
