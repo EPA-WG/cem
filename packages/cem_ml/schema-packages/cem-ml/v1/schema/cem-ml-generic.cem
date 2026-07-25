@@ -81,9 +81,17 @@
         {diagnostic @code="cem.doc.format_unknown" @severity="error"}
         {diagnostic @code="cem.doc.version_unsupported" @severity="error"}
         {diagnostic @code="cem.doc.prerelease_unmatched" @severity="error"}
+        {diagnostic @code="cem.ast.unbalanced_close" @severity="error"}
+        {diagnostic @code="cem.ast.unclosed_scope" @severity="error"}
+        {diagnostic @code="cem.ast.unresolved_reference" @severity="error"}
         {diagnostic @code="cem.syntax.unclosed_scope" @severity="error"}
         {diagnostic @code="cem.syntax.invalid_name" @severity="error"}
         {diagnostic @code="cem.namespace.unbound_prefix" @severity="error"}
+        {diagnostic @code="cem.schema.unclosed_scope" @severity="error"}
+        {diagnostic @code="cem.schema.unresolved_namespace" @severity="error"}
+        {diagnostic @code="cem.handoff.xslt_dispatched" @severity="info"}
+        {diagnostic @code="cem.handoff.child_parser_deferred" @severity="warning"}
+        {diagnostic @code="cem.handoff.unsupported_content_type" @severity="error"}
         {diagnostic @code="cem.content_type.unsupported_handoff" @severity="error"}
     }
 

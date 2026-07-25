@@ -1,11 +1,17 @@
 # CEM-ML Generic Schema Package
 
-Status: initial source package
+Status: bootstrap schema, examples, formatter/colorizer CEMT assets, README
+previews, and package-local verification frame
 
 [cem-ml-syntax.md](../../../../../docs/cem-ml-syntax.md)
 
 This package is the first schema-package source for the generic CEM-ML document
 model. It owns CEM-ML syntax and content-type identity, not domain semantics.
+Domain vocabularies such as CEM core annotations, HTML, SVG, templates, query,
+transform, and schema-package manifests are separate packages layered on top of
+this generic model.
+
+## Source Identity
 
 Owned schema URI:
 
@@ -37,8 +43,43 @@ types:
 - `text/cem`
 - `application/cem+xml`
 
-The semantic CEM annotation vocabulary remains in `packages/cem_ml/schema/cem-core.md`
-under `https://cem.dev/ns/core/1`.
+The semantic CEM annotation vocabulary remains in
+`packages/cem_ml/schema/cem-core.md` under `https://cem.dev/ns/core/1`.
+
+## Syntax Facts And Diagnostics
+
+The generic CEM-ML schema declares persisted document directives, namespace
+directives, default namespace directives, schema hints, lexical node forms,
+attributes, text, comments, CDATA/raw text, expression nodes, and typed content
+handoff scopes. Parser output preserves byte ranges, line/column coordinates,
+namespace context, and handoff boundaries for downstream schema validation,
+projection, formatting, and source-map reporting.
+
+The package schema declares the diagnostics used by its examples and current
+runtime validation reports:
+
+- `cem.doc.version_missing`
+- `cem.doc.semver_invalid`
+- `cem.doc.format_unknown`
+- `cem.doc.version_unsupported`
+- `cem.doc.prerelease_unmatched`
+- `cem.ast.unbalanced_close`
+- `cem.ast.unclosed_scope`
+- `cem.ast.unresolved_reference`
+- `cem.syntax.unclosed_scope`
+- `cem.syntax.invalid_name`
+- `cem.namespace.unbound_prefix`
+- `cem.schema.unclosed_scope`
+- `cem.schema.unresolved_namespace`
+- `cem.handoff.xslt_dispatched`
+- `cem.handoff.child_parser_deferred`
+- `cem.handoff.unsupported_content_type`
+- `cem.content_type.unsupported_handoff`
+
+Current incomplete boundary: byte-accurate parsing, handoff dispatch facts, and
+some parser diagnostic emission still run through native Rust. The target shape
+is Rust extracting neutral parse and handoff facts while this package's `.cem`
+schema owns code, severity, and structured details.
 
 ## Folder Contract
 
@@ -46,14 +87,6 @@ under `https://cem.dev/ns/core/1`.
 schema URI and source file, the primary and alias content types, namespace
 claims, Rust-backed projection converter metadata, formatter/colorizer CEMT
 artifacts, helper artifacts, and every validation example under `examples/`.
-
-`project.json` owns the package-local Nx library
-`cem_ml_schema_package_cem_ml_v1`. Its `verify` target validates `package.cem`
-through the CLI at the parse failure boundary and tracks `README.md`,
-`schema/**/*.cem`, `formatters/**/*.cemt`, `colorizers/**/*.cemt`,
-`converters/**/*.cemt`, and `examples/**/*` as package inputs. Full
-schema/content-type endpoint compatibility for converters remains a final
-registry pass after every package-local verify target is green.
 
 Example metadata is intentionally manifest-owned. This package does not require
 checked-in `.example.cem` sidecars because `package.cem` already records the
@@ -73,7 +106,7 @@ gate with the projection packages loaded.
 | `cem-ml-to-ast-projection-rust` | `application/cem`, `https://cem.dev/ns/cem-ml/1` | `application/vnd.cem.ast+cem-bin`, `https://cem.dev/ns/projection/ast/1` | `CemMlAstProjectionConverter` |
 | `cem-ml-to-events-projection-rust` | `application/cem`, `https://cem.dev/ns/cem-ml/1` | `application/vnd.cem.events+cem-bin`, `https://cem.dev/ns/projection/events/1` | `CemMlEventsProjectionConverter` |
 
-## CEMT Output Assets
+## Formatter And Colorizer Assets
 
 Schema-local output transformations live beside the schema package:
 
@@ -82,9 +115,8 @@ Schema-local output transformations live beside the schema package:
   `https://cem.dev/ns/cem-ml/1`.
 - [`formatters/cem-format-tree-helpers.cemt`](formatters/cem-format-tree-helpers.cemt)
   declares private canonical formatter helpers used by `cem.format-tree`,
-  including the private output-stage wrapper `cem.format-tree.apply-stage`
-  and internal CEMT functions `cem.format-tree.build-nodes` and
-  `cem.format-tree.build-envelope`.
+  including `cem.format-tree.apply-stage`,
+  `cem.format-tree.build-nodes`, and `cem.format-tree.build-envelope`.
 - [`formatters/formatter-coloring-pipeline.cemt`](formatters/formatter-coloring-pipeline.cemt)
   declares `acme.showcase.format-tree` as a package-qualified formatter that
   extends `cem.format-tree`.
@@ -109,22 +141,34 @@ inline Rust template strings. The artifact entries also declare the target CEM
 tree identity (`application/cem`, `https://cem.dev/ns/cem-ml/1`, `cem-tree`),
 the supplied CEMT function name, the CEMT function profile when present, and
 the formatter/color profiles that select the asset during output pipeline
-execution. Colorizer artifacts also keep the CEMT function profile separate
-from the output color profile, because one CEMT body can serve multiple output
-color profiles.
+execution.
 
-The baseline package-frame selectors are declared in `package.cem`:
-`compact`, `pretty`, and `tabular` select the canonical `cem.format-tree`
-formatter asset and matching helper asset; `terminal`, `html`, and `md` select
-the canonical `cem.color-tree` colorizer asset. The formatter profiles use one
-CEMT body with profile-aware layout: `compact` keeps minimal deterministic
-spacing, `pretty` expands non-text child groups into block layout, and `tabular`
-also lays attributes out vertically with formatter-owned line-ending and indent
-nodes. The `html` colorizer selector maps to the class-based HTML mode and
-materializes HTML writer attributes, `terminal` records terminal output plus
-auto capability metadata and renders ANSI/SGR-colored CEM text without HTML
-writer attributes, and `md` records Markdown output metadata and renders
-Markdown-safe inline HTML color spans without HTML writer attributes.
+The formatter profiles use one CEMT body with profile-aware layout:
+
+- `compact` keeps minimal deterministic spacing and is the interchange-safe
+  default;
+- `pretty` expands non-text child groups into block layout;
+- `tabular` also lays attributes out vertically with formatter-owned line
+  ending and indent nodes.
+
+Default output line endings are LF (`\n`, Linux style). `lineEnding` is the
+generic formatter option shared across packages; CEM-ML does not define a
+package-specific line-ending option.
+
+The colorizer profiles map to writer-boundary behavior:
+
+- `terminal` records terminal output plus auto capability metadata and renders
+  ANSI/SGR-colored CEM text;
+- `html` maps to the class-based HTML mode and materializes HTML writer
+  attributes;
+- `md` records Markdown output metadata and renders Markdown-safe inline HTML
+  color spans;
+- `none`, `classes`, `inline-style`, and `css-custom-properties` are manifest
+  selectors for current package-local output pipelines.
+
+Formatters produce formatted CEM tree output, colorizers enrich that tree, and
+only the writer emits terminal, HTML, Markdown, or source bytes. Token arrays,
+ANSI codes, and HTML spans are writer-boundary implementation details.
 
 Package-qualified formatter and colorizer artifacts are selected by explicit
 CEMT function name first, then by stage profile fallback. This keeps the
@@ -132,26 +176,11 @@ canonical `cem.format-tree` and `cem.color-tree` pipeline stable while allowing
 showcase or schema-specific formatter/colorizer bodies to opt in through the
 same manifest-declared asset path.
 
-The canonical and showcase artifacts expose their public formatter/colorizer
-functions as thin wrappers over package-owned helpers such as
-`cem.format-tree.apply-stage`, `cem.format-tree.build-nodes`,
-`cem.format-tree.build-envelope`, `cem.color-tree.apply-stage`,
-`cemml.cem-tree.format-tree-base`, and `cemml.cem-tree.color-tree-base`. New
-schema-specific formatter/colorizer functions should pass formatter decisions,
-color decisions, writer boundaries, and queued edits into helper functions
-instead of copying the full pipeline body. Helpers that do not represent an
-output stage use internal `{function @returns=...}` declarations rather than
-`format-function` or `color-function`. The runtime loads matching helper
-artifacts for the selected output stage before executing the public
-formatter/colorizer body, so helpers can live in dedicated package `.cemt`
-files beside their entrypoints.
-
 `cem.format-tree.build-nodes` performs canonical node traversal in CEMT with
 `typeOf`, `match`, `map`, `length`, numeric depth helpers, and helper calls. It
 still delegates low-level block-child whitespace and content-boundary
-construction to the registered CEMT runtime primitives until those
-writer-adjacent formatting primitives are also expressed as schema-owned
-helpers.
+construction to registered CEMT runtime primitives until those writer-adjacent
+formatting primitives are also expressed as schema-owned helpers.
 
 `cem.color-tree.apply-stage` performs canonical coloring in CEMT over the
 already formatted `cem-tree`. It reads the selected `$colorProfile`, recursively
@@ -159,33 +188,121 @@ annotates `nodes`, `formatNodes`, and `colorNodes`, materializes writer
 attribute nodes and text wrappers for HTML profiles, and leaves the writer as
 the final serialization phase for the colored tree.
 
-The `formatters/` and `colorizers/` directories are part of the package
-contract. Formatter, colorizer, and helper artifacts stay in those
-package-relative `.cemt` locations, keeping formatting, coloring, and schema
-identity in the same package hierarchy.
+## Safety Notes
+
+CEM-ML source can embed raw handoff content such as HTML, CSS, JavaScript, XML,
+JSON, templates, or future vendor media types. Validation and formatting must
+treat handoff payloads as data unless a downstream package explicitly parses or
+executes that content. Unsupported handoffs fail closed with
+`cem.handoff.unsupported_content_type`; supported but deferred child parsers
+record `cem.handoff.child_parser_deferred` so callers can choose whether to
+continue.
+
+Formatters and colorizers must preserve source ranges and avoid executing
+embedded content. HTML and Markdown writers must escape source text and
+generated attributes through the writer boundary. Resolver-sensitive work must
+use the shared resolver-policy layer; passive validation, formatting,
+colorizing, and preview generation should not perform policy-sensitive resource
+reads.
+
+## Formatter And Preview SDLC
+
+When a command example, fixture, formatter, colorizer, converter, CLI report
+shape, or visible presentation output changes, update the SVG previews in
+`examples/previews/` in the same change by running
+`node packages/cem_ml/schema-packages/cem-ml/v1/scripts/verify-previews.mjs --update`.
+
+The package `verify` target regenerates previews into `dist/previews/` and
+fails on drift.
+
+## Verification
+
+Focused package gates:
+
+```bash
+cargo test -p cem-ml cem_ml_package_examples_are_manifest_indexed
+```
+
+```bash
+cargo test -p cem-ml-cli schema_owned_cem_ml_examples_validate_through_cli
+```
+
+```bash
+cargo test -p cem-ml cem_tree_output_templates_are_schema_package_assets
+```
+
+```bash
+cargo test -p cem-ml conversion_output_pipeline_applies_literal_baseline_formatter_profiles
+```
+
+```bash
+cargo test -p cem-ml conversion_output_pipeline_applies_literal_baseline_colorizer_profiles
+```
+
+```bash
+yarn nx run cem_ml_schema_package_cem_ml_v1:verify
+```
+
+## Release Behavior
+
+This package is versioned as `1.0.0`. The primary `application/cem` content
+type and `https://cem.dev/ns/cem-ml/1` schema URI are bootstrap compatibility
+anchors. Alias content types are accepted for current runtime compatibility,
+but persisted examples use the primary content type unless an alias behavior is
+being tested explicitly.
+
+Projection converter edges are ready Rust bootstrap hooks. Formatter and
+colorizer assets are package-owned CEMT resources with Rust host primitives
+only for the remaining low-level traversal and writer-adjacent operations
+listed above.
+
+Tracked but not complete:
+
+- fully schema-owned parse-fact bindings for all native parser and handoff
+  diagnostics;
+- CEMT ownership of the remaining writer-adjacent formatter primitives;
+- additional alias content-type examples if alias-specific parser or lifecycle
+  behavior changes.
 
 ## Validation Examples
 
 The schema-owned examples live in [`examples/`](examples/) and are used by the
 CLI validation integration tests.
 
-| Example | Purpose | Expected result |
-| --- | --- | --- |
-| [`basic.cem`](examples/basic.cem) | Minimal persisted CEM-ML document. | Pass |
-| [`nested-handoff.cem`](examples/nested-handoff.cem) | Namespaced content with a `text/html` handoff boundary. | Pass |
-| [`embedded-handoffs.cem`](examples/embedded-handoffs.cem) | Scoped style/script, XML CDATA, and JSON string handoff payloads with bounded deferred-parser diagnostics. | Pass with `cem.handoff.child_parser_deferred` |
-| [`formatter-coloring-pipeline.package-artifacts.fixture.cem`](examples/formatter-coloring-pipeline.package-artifacts.fixture.cem) | Checked stage fixture generated through manifest-declared formatter/colorizer artifacts selected by explicit CEMT aliases. | Fail with `cem.schema.unresolved_namespace` under direct CEM-ML schema validation |
-| [`invalid-unclosed-scope.cem`](examples/invalid-unclosed-scope.cem) | Missing closing scope syntax diagnostic. | Fail with `cem.ast.unclosed_scope` |
-| [`invalid-unsupported-handoffs.cem`](examples/invalid-unsupported-handoffs.cem) | CSF-like and future vendor JSON handoff content types. | Fail with `cem.handoff.unsupported_content_type` |
+| Example | Content type | Purpose | Expected result |
+| --- | --- | --- | --- |
+| [`basic.cem`](examples/basic.cem) | `application/cem` | Minimal persisted CEM-ML document. | Pass |
+| [`nested-handoff.cem`](examples/nested-handoff.cem) | `application/cem` | Namespaced content with a `text/html` handoff boundary. | Pass |
+| [`embedded-handoffs.cem`](examples/embedded-handoffs.cem) | `application/cem` | Scoped style/script, XML CDATA, and JSON string handoff payloads with bounded deferred-parser diagnostics. | Pass with `cem.handoff.child_parser_deferred` |
+| [`formatter-coloring-pipeline.package-artifacts.fixture.cem`](examples/formatter-coloring-pipeline.package-artifacts.fixture.cem) | `application/cem` | Checked stage fixture generated through manifest-declared formatter/colorizer artifacts selected by explicit CEMT aliases. | Fail with `cem.schema.unresolved_namespace` under direct CEM-ML schema validation |
+| [`invalid-unclosed-scope.cem`](examples/invalid-unclosed-scope.cem) | `application/cem` | Missing closing scope syntax diagnostic. | Fail with `cem.ast.unclosed_scope` |
+| [`invalid-unsupported-handoffs.cem`](examples/invalid-unsupported-handoffs.cem) | `application/cem` | CSF-like and future vendor JSON handoff content types. | Fail with `cem.handoff.unsupported_content_type` |
 
 Validate an example explicitly against this schema:
 
 ```bash
 cargo run -p cem-ml-cli -- validate \
+  --format json \
   --content-type application/cem \
   --schema https://cem.dev/ns/cem-ml/1 \
   packages/cem_ml/schema-packages/cem-ml/v1/examples/basic.cem
 ```
 
-The validation harness also runs the same command shape for the invalid
-example and expects a hard validation failure.
+![Preview of the CEM-ML validation JSON report](examples/previews/basic-validate.svg)
+
+Render the same example through the package-owned pretty formatter and terminal
+colorizer:
+
+```bash
+cargo run -p cem-ml-cli -- convert \
+  packages/cem_ml/schema-packages/cem-ml/v1/examples/basic.cem \
+  --content-type application/cem \
+  --schema https://cem.dev/ns/cem-ml/1 \
+  --to-content-type application/cem \
+  --to-schema https://cem.dev/ns/cem-ml/1 \
+  --cemt-formatter-profile pretty \
+  --cemt-color-profile terminal \
+  --output-color-type ansi-256
+```
+
+![Preview of the CEM-ML pretty terminal formatter output](examples/previews/basic-pretty-terminal.svg)

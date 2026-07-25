@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="316" viewBox="0 0 760 316" role="img" aria-labelledby="title desc">
+  <title id="title">CEM-ML pretty formatter terminal preview</title>
+  <desc id="desc">Terminal-style preview of colored pretty CEM-ML output for the basic CEM-ML example.</desc>
+  <rect width="760" height="316" rx="8" fill="#101316"/>
+  <rect x="0" y="0" width="760" height="36" rx="8" fill="#1b2127"/>
+  <circle cx="20" cy="18" r="5" fill="#ff5f56"/>
+  <circle cx="38" cy="18" r="5" fill="#ffbd2e"/>
+  <circle cx="56" cy="18" r="5" fill="#27c93f"/>
+  <text x="78" y="23" fill="#c9d1d9" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13">pretty + terminal color</text>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18" xml:space="preserve">
+    <text y="70">
+      <tspan x="28" fill="#79c0ff">@</tspan><tspan x="39" fill="#79c0ff">doc</tspan><tspan x="72" fill="#d6dee6"> </tspan><tspan x="83" fill="#79c0ff">cem-ml 1</tspan>
+    </text>
+    <text y="98">
+      <tspan x="28" fill="#79c0ff">{</tspan><tspan x="39" fill="#79c0ff">article</tspan><tspan x="116" fill="#d6dee6"> </tspan><tspan x="127" fill="#79c0ff">@id=welcome</tspan><tspan x="248" fill="#d6dee6"> |</tspan>
+    </text>
+    <text y="126">
+      <tspan x="28" fill="#c9d1d9">  </tspan><tspan x="50" fill="#79c0ff">{</tspan><tspan x="61" fill="#79c0ff">h1</tspan><tspan x="83" fill="#d6dee6"> |</tspan>
+    </text>
+    <text y="154">
+      <tspan x="28" fill="#c9d1d9">    </tspan><tspan x="72" fill="#7ee787">Welcome</tspan>
+    </text>
+    <text y="182">
+      <tspan x="28" fill="#79c0ff">}</tspan>
+    </text>
+    <text y="210">
+      <tspan x="28" fill="#c9d1d9">  </tspan><tspan x="50" fill="#79c0ff">{</tspan><tspan x="61" fill="#79c0ff">p</tspan><tspan x="72" fill="#d6dee6"> |</tspan>
+    </text>
+    <text y="238">
+      <tspan x="28" fill="#c9d1d9">    </tspan><tspan x="72" fill="#7ee787">This is a minimal CEM-ML document.</tspan>
+    </text>
+    <text y="266">
+      <tspan x="28" fill="#79c0ff">}</tspan>
+    </text>
+    <text y="294">
+      <tspan x="28" fill="#79c0ff">}</tspan>
+    </text>
+  </g>
+</svg>

@@ -745,54 +745,77 @@ mod tests {
     fn cem_ml_package_examples_are_manifest_indexed() {
         let examples =
             manifest_indexed_package_examples("cem-ml", CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI);
-        let embedded = examples
+        let expected = [
+            (
+                "basic",
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "nested-handoff",
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "embedded-handoffs",
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                SchemaPackageExampleExpectedResult::Pass,
+                Some("cem.handoff.child_parser_deferred"),
+            ),
+            (
+                "formatter-coloring-pipeline-package-artifacts",
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.schema.unresolved_namespace"),
+            ),
+            (
+                "invalid-unclosed-scope",
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.ast.unclosed_scope"),
+            ),
+            (
+                "invalid-unsupported-handoffs",
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.handoff.unsupported_content_type"),
+            ),
+        ];
+
+        let actual_ids = examples
             .iter()
-            .find(|example| example.id == "embedded-handoffs")
-            .expect("embedded CEM-ML handoff example");
-        assert_eq!(
-            embedded.expected_result,
-            SchemaPackageExampleExpectedResult::Pass
-        );
-        assert_eq!(
-            embedded.expected_diagnostic_codes,
-            vec!["cem.handoff.child_parser_deferred".to_owned()]
-        );
-        let invalid = examples
+            .map(|example| example.id.as_str())
+            .collect::<BTreeSet<_>>();
+        let expected_ids = expected
             .iter()
-            .find(|example| example.id == "invalid-unclosed-scope")
-            .expect("invalid CEM-ML example");
+            .map(|(id, _, _, _, _)| *id)
+            .collect::<BTreeSet<_>>();
         assert_eq!(
-            invalid.expected_result,
-            SchemaPackageExampleExpectedResult::Fail
+            actual_ids, expected_ids,
+            "cem-ml examples must match the explicit package-owned coverage set"
         );
-        assert_eq!(
-            invalid.expected_diagnostic_codes,
-            vec!["cem.ast.unclosed_scope".to_owned()]
-        );
-        let pipeline_fixture = examples
-            .iter()
-            .find(|example| example.id == "formatter-coloring-pipeline-package-artifacts")
-            .expect("formatter/coloring pipeline package artifact fixture example");
-        assert_eq!(
-            pipeline_fixture.expected_result,
-            SchemaPackageExampleExpectedResult::Fail
-        );
-        assert_eq!(
-            pipeline_fixture.expected_diagnostic_codes,
-            vec!["cem.schema.unresolved_namespace".to_owned()]
-        );
-        let unsupported = examples
-            .iter()
-            .find(|example| example.id == "invalid-unsupported-handoffs")
-            .expect("unsupported CEM-ML handoff example");
-        assert_eq!(
-            unsupported.expected_result,
-            SchemaPackageExampleExpectedResult::Fail
-        );
-        assert_eq!(
-            unsupported.expected_diagnostic_codes,
-            vec!["cem.handoff.unsupported_content_type".to_owned()]
-        );
+
+        for (id, content_type, schema, expected_result, expected_code) in expected {
+            let example = examples
+                .iter()
+                .find(|example| example.id == id)
+                .unwrap_or_else(|| panic!("CEM-ML example `{id}`"));
+            assert_eq!(example.content_type, content_type);
+            assert_eq!(example.schema, schema);
+            assert_eq!(example.expected_result, expected_result);
+            let expected_codes = expected_code
+                .map(|code| vec![code.to_owned()])
+                .unwrap_or_default();
+            assert_eq!(example.expected_diagnostic_codes, expected_codes);
+        }
     }
 
     #[test]
