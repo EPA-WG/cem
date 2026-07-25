@@ -1141,48 +1141,90 @@ mod tests {
             top_level_example_paths("cem-transform"),
             "cem-transform top-level examples must be discoverable from package.cem"
         );
-        assert_eq!(examples.len(), 8);
 
-        let fixture = examples
+        let expected = [
+            (
+                "basic-transform",
+                CEM_TRANSFORM_CONTENT_TYPE,
+                CEM_TRANSFORM_SCHEMA_URI,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "module-transform",
+                CEM_TRANSFORM_CONTENT_TYPE,
+                CEM_TRANSFORM_SCHEMA_URI,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "function-declarations",
+                CEM_TRANSFORM_CONTENT_TYPE,
+                CEM_TRANSFORM_SCHEMA_URI,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "formatter-coloring-pipeline",
+                CEM_TRANSFORM_CONTENT_TYPE,
+                CEM_TRANSFORM_SCHEMA_URI,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "formatter-coloring-pipeline-fixture",
+                CEM_ML_CONTENT_TYPE,
+                CEM_ML_SCHEMA_URI,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.schema.unresolved_namespace"),
+            ),
+            (
+                "invalid-missing-required-attribute",
+                CEM_TRANSFORM_CONTENT_TYPE,
+                CEM_TRANSFORM_SCHEMA_URI,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.schema_model.missing_required_attribute"),
+            ),
+            (
+                "invalid-function-missing-category",
+                CEM_TRANSFORM_CONTENT_TYPE,
+                CEM_TRANSFORM_SCHEMA_URI,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.schema_model.missing_required_attribute"),
+            ),
+            (
+                "invalid-function-missing-contract-metadata",
+                CEM_TRANSFORM_CONTENT_TYPE,
+                CEM_TRANSFORM_SCHEMA_URI,
+                SchemaPackageExampleExpectedResult::Fail,
+                Some("cem.schema_model.missing_required_attribute"),
+            ),
+        ];
+        let actual_ids = examples
             .iter()
-            .find(|example| example.id == "formatter-coloring-pipeline-fixture")
-            .expect("formatter/coloring pipeline fixture example");
-        assert_eq!(fixture.content_type, CEM_ML_CONTENT_TYPE);
-        assert_eq!(fixture.schema, CEM_ML_SCHEMA_URI);
-        assert_eq!(
-            fixture.expected_result,
-            SchemaPackageExampleExpectedResult::Fail
-        );
-        assert_eq!(
-            fixture.expected_diagnostic_codes,
-            vec!["cem.schema.unresolved_namespace".to_owned()]
-        );
-
-        for example in examples
+            .map(|example| example.id.as_str())
+            .collect::<BTreeSet<_>>();
+        let expected_ids = expected
             .iter()
-            .filter(|example| example.id != "formatter-coloring-pipeline-fixture")
-        {
-            assert_eq!(example.content_type, CEM_TRANSFORM_CONTENT_TYPE);
-            assert_eq!(example.schema, CEM_TRANSFORM_SCHEMA_URI);
-        }
+            .map(|(id, _, _, _, _)| *id)
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            actual_ids, expected_ids,
+            "checked CEM transform example expectations must cover every manifest example"
+        );
 
-        for id in [
-            "invalid-missing-required-attribute",
-            "invalid-function-missing-category",
-            "invalid-function-missing-contract-metadata",
-        ] {
+        for (id, content_type, schema, expected_result, expected_code) in expected {
             let example = examples
                 .iter()
                 .find(|example| example.id == id)
-                .unwrap_or_else(|| panic!("invalid transform example `{id}`"));
-            assert_eq!(
-                example.expected_result,
-                SchemaPackageExampleExpectedResult::Fail
-            );
-            assert_eq!(
-                example.expected_diagnostic_codes,
-                vec!["cem.schema_model.missing_required_attribute".to_owned()]
-            );
+                .unwrap_or_else(|| panic!("CEM transform example `{id}`"));
+            assert_eq!(example.content_type, content_type);
+            assert_eq!(example.schema, schema);
+            assert_eq!(example.expected_result, expected_result);
+            let expected_codes = expected_code
+                .map(|code| vec![code.to_owned()])
+                .unwrap_or_default();
+            assert_eq!(example.expected_diagnostic_codes, expected_codes);
         }
     }
 

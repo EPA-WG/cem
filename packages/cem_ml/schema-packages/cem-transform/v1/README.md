@@ -1,9 +1,12 @@
 # CEM Transform Template Schema Package
 
-Status: schema, examples, formatter, and colorizer package frame
+Status: schema, examples, formatter, colorizer, README previews, and
+package-local verification frame
 
 This package defines CEMT (`.cemt`) resources. CEMT is the primary declarative
 converter implementation language in the schema content registry design.
+
+## Source Identity
 
 Owned schema URI:
 
@@ -17,16 +20,74 @@ Primary content type:
 application/vnd.cem.transform+cem
 ```
 
+CEMT source uses the CEM-ML document syntax, directive syntax, namespace
+binding, text model, and Linux-style LF (`\n`) formatter output by default.
+`lineEnding` is a generic formatter option; package-specific transform options
+must only be added for transform-specific semantics.
+
 CEMT reuses the CEM-native template module language. Source and target content
 identity is not embedded in `.cemt`; it is declared by `package.cem` converter
 edges so the same template execution surface can participate in registry
 planning.
+
+## Parser Facts And Diagnostics
+
+CEMT parsing reuses the CEM-native template module parser and adds transform
+function declarations for internal helpers, encoders, formatters, and
+colorizers. The package schema declares the transform-facing element and
+attribute contracts and the diagnostic codes for transform-specific policy:
+
+- `cem.transform.converter_identity_missing`
+- `cem.transform.converter_identity_mismatch`
+- `cem.transform.template_base_invalid`
+- `cem.transform.non_streamable_template`
+- `cem.transform.function_name_unqualified`
+- `cem.transform.function_identity_missing`
+- `cem.transform.function_capability_missing`
+- `cem.transform.function_shadowed_standard`
+- `cem.transform_template.let_expr_invalid`
+
+Current incomplete boundary: most transform declaration validation is still
+structural schema-model validation, and several declared transform-specific
+diagnostics remain target policy rather than executable schema-owned behavior.
+The target shape is the same as CSV, CEM-QL, and CEM-native template: Rust
+reports neutral parser/template/function facts with source ranges, and this
+package's `.cem` schema owns code, severity, and structured details.
+
+## Expression Schema Ownership
+
+CEMT does not own a private expression language. It inherits CEM-native
+template expression slots and delegates expression syntax, parse facts, type
+facts, evaluator IR, and expression diagnostics to the shared CEM-QL expression
+schema owned by `cem-ql/v1`. Transform-owned diagnostics remain for transform
+function declaration contracts and output producer policy.
 
 ## Output Artifacts
 
 The package declares CEMT formatter and colorizer artifacts in `package.cem`.
 The public formatter profile names are `compact`, `pretty`, and `tabular`.
 The public colorizer profile names are `terminal`, `html`, and `md`.
+
+Formatters produce formatted CEM trees, colorizers enrich those trees, and the
+generic writer emits terminal, HTML, Markdown, or source bytes. Token arrays,
+ANSI sequences, and HTML spans are writer-boundary implementation details.
+
+Formatter profile behavior:
+
+- `compact`: deterministic source-preserving CEMT output suitable for
+  interchange once transform-specific compacting matures;
+- `pretty`: indented review layout for transform modules and template output;
+- `tabular`: currently aliases the review layout until transform declaration
+  table alignment rules are implemented;
+- `lineEnding=lf|crlf|preserve`: generic output line-ending control, default
+  `lf`.
+
+Colorizer profile behavior:
+
+- `terminal`: semantic roles mapped to ANSI color output;
+- `html`: semantic roles mapped to HTML color spans by the generic writer;
+- `md`: reserved Markdown-oriented color role output for documentation
+  pipelines.
 
 ## Output Producer And Encoding Contract
 
@@ -140,6 +201,57 @@ matures. The temporary proposal remains as an implementation backlog and
 worked-example source in
 [`../../../docs/cemt-encoding-proposal.tmp.md`](../../../docs/cemt-encoding-proposal.tmp.md).
 
+## Safety Notes
+
+CEMT modules describe generated output and may request imports through the
+inherited template import surface. Passive validation and README preview
+generation must not fetch imports, execute generated output, evaluate arbitrary
+host expressions, or substitute unresolved resources without resolver-policy
+approval. Output producer functions must treat raw syntax emission,
+double-encoded artifacts, active content, and target-context escaping as
+explicit policy boundaries.
+
+## Formatter And Preview SDLC
+
+When a command example, fixture, formatter, colorizer, CLI report shape, or
+visible presentation output changes, update the SVG previews in
+`examples/previews/` in the same change by running
+`node packages/cem_ml/schema-packages/cem-transform/v1/scripts/verify-previews.mjs --update`.
+
+The package `verify` target regenerates previews into `dist/previews/` and
+fails on drift.
+
+## Verification
+
+Focused package gates:
+
+```bash
+cargo test -p cem-ml cem_transform_package_examples_are_manifest_indexed
+```
+
+```bash
+cargo test -p cem-ml-cli schema_owned_cem_transform_examples_validate_through_cli
+```
+
+```bash
+yarn nx run cem_ml_schema_package_cem_transform_v1:verify
+```
+
+## Release Behavior
+
+This package is versioned as `1.0.0`. The primary content type and schema URI
+are compatibility anchors. Unsupported transform semantics should fail closed
+through validation diagnostics rather than falling back to ordinary CEM or
+CEM-native template behavior.
+
+Tracked but not complete:
+
+- schema-owned fact bindings for all transform parser and semantic diagnostics;
+- distinct `compact` and `tabular` transform layout rules beyond the current
+  deterministic review layout;
+- HTML and Markdown preview drift checks once their transform presentation
+  profiles become stable enough for README demos.
+
 ## Validation Examples
 
 The schema-owned examples live in [`examples/`](examples/) and are used by the
@@ -160,7 +272,27 @@ Validate an example explicitly against this schema:
 
 ```bash
 cargo run -p cem-ml-cli -- validate \
+  --format json \
   --content-type application/vnd.cem.transform+cem \
   --schema https://cem.dev/ns/transform/cem/1 \
   packages/cem_ml/schema-packages/cem-transform/v1/examples/basic-transform.cemt
 ```
+
+![Preview of the CEM transform validation JSON report](examples/previews/basic-transform-validate.svg)
+
+Format and color the same example through the package formatter/colorizer
+pipeline:
+
+```bash
+cargo run -p cem-ml-cli -- convert \
+  packages/cem_ml/schema-packages/cem-transform/v1/examples/basic-transform.cemt \
+  --content-type application/vnd.cem.transform+cem \
+  --schema https://cem.dev/ns/transform/cem/1 \
+  --to-content-type application/vnd.cem.transform+cem \
+  --to-schema https://cem.dev/ns/transform/cem/1 \
+  --cemt-formatter-profile pretty \
+  --cemt-color-profile terminal \
+  --output-color-type ansi-256
+```
+
+![Preview of the colored pretty CEM transform output](examples/previews/basic-transform-pretty-terminal.svg)

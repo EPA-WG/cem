@@ -18,7 +18,10 @@
             "options": {
                 "commands": [
                     "mkdir -p packages/cem_ml/schema-packages/cem-transform/v1/dist",
-                    "./dist/target/cem_ml_cli/debug/cem-ml --quiet validate --fail-level parse --format json --content-type application/vnd.cem.schema-package+cem --schema https://cem.dev/ns/schema-package/1 --report-json packages/cem_ml/schema-packages/cem-transform/v1/dist packages/cem_ml/schema-packages/cem-transform/v1/package.cem"
+                    "./dist/target/cem_ml_cli/debug/cem-ml --quiet validate --fail-level parse --format json --content-type application/vnd.cem.schema-package+cem --schema https://cem.dev/ns/schema-package/1 --report-json packages/cem_ml/schema-packages/cem-transform/v1/dist packages/cem_ml/schema-packages/cem-transform/v1/package.cem",
+                    "cargo test -p cem-ml cem_transform_package_examples_are_manifest_indexed --target-dir dist/target/cem_ml_cli",
+                    "cargo test -p cem-ml-cli schema_owned_cem_transform_examples_validate_through_cli --target-dir dist/target/cem_ml_cli",
+                    "node packages/cem_ml/schema-packages/cem-transform/v1/scripts/verify-previews.mjs"
                 ],
                 "parallel": false,
                 "cwd": "{workspaceRoot}"
@@ -30,14 +33,19 @@
                 "{projectRoot}/formatters/**/*.cemt",
                 "{projectRoot}/colorizers/**/*.cemt",
                 "{projectRoot}/converters/**/*.cemt",
+                "{projectRoot}/scripts/**/*.mjs",
                 "{projectRoot}/examples/**/*",
+                "{workspaceRoot}/Cargo.toml",
+                "{workspaceRoot}/Cargo.lock",
                 "{workspaceRoot}/packages/cem_ml/src/**/*.rs",
                 "{workspaceRoot}/packages/cem_ml/Cargo.toml",
                 "{workspaceRoot}/packages/cem_ml_cli/src/**/*.rs",
+                "{workspaceRoot}/packages/cem_ml_cli/tests/schema_validation_examples.rs",
                 "{workspaceRoot}/packages/cem_ml_cli/Cargo.toml"
             ],
             "outputs": [
-                "{projectRoot}/dist/cem-ml.report.json"
+                "{projectRoot}/dist/cem-ml.report.json",
+                "{projectRoot}/dist/previews"
             ]
         }
     },
