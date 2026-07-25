@@ -10,6 +10,7 @@ use cem_ql::embedded::{
     EmbeddedHostKind,
 };
 use cem_ql::eval::{AtomValue, Item, ItemStream};
+use serde_json::json;
 
 fn workspace_root() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -139,7 +140,7 @@ fn embedded_functional_fixtures(
             real_expression(
                 expressions,
                 dom_projection,
-                EmbeddedHostKind::AttributeValueTemplate,
+                EmbeddedHostKind::CallWithAttribute,
                 "child",
             ),
             bindings(&[("child", ItemStream::once(child.clone()))]),
@@ -399,6 +400,71 @@ fn compiler_audit_rejects_old_xpath_boolean_syntax_with_source_provenance() {
         .expect("mapped source byte offset");
     assert!(source_offset >= expression.expression_range().start);
     assert!(source_offset < expression.expression_range().end());
+}
+
+#[test]
+fn compiler_audit_wraps_cem_native_template_diagnostics_with_slot_contract() {
+    let source = r#"{module |
+  {template @name="page" |
+    {body |
+      {cem:if @test='node.kind = "element" and visible' | ok}
+    }
+  }
+}"#;
+    let expressions = extract_embedded_expressions_from_source(
+        "packages/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-slot.cem",
+        source,
+    );
+    let expression = expressions
+        .iter()
+        .find(|expression| expression.host_kind() == EmbeddedHostKind::TestAttribute)
+        .expect("test attribute expression");
+    let report = compile_embedded_expression(expression);
+
+    assert_eq!(report.slot.host_package, "cem-native-template/v1");
+    assert_eq!(report.slot.slot_kind, EmbeddedHostKind::TestAttribute);
+    assert_eq!(report.slot.evaluation_phase.as_str(), "render");
+    assert_eq!(
+        report
+            .slot
+            .expected_type
+            .as_ref()
+            .map(|ty| format!("{ty:?}")),
+        Some("Atom(Boolean)".to_owned())
+    );
+
+    let diagnostic = report
+        .diagnostics_for_stage(EmbeddedCompileStage::Parse)
+        .find(|diagnostic| diagnostic.diagnostic.code == "cem.ql.use_rust_boolean_ops")
+        .expect("parse diagnostic from CEM-QL");
+    let details = diagnostic
+        .diagnostic
+        .details
+        .as_ref()
+        .expect("diagnostic keeps expression slot details");
+    assert_eq!(details["behavior"], json!("cem-ql-expression-report-fact"));
+    assert_eq!(
+        details["expressionSlot"]["contract"],
+        json!("expression-slot")
+    );
+    assert_eq!(
+        details["expressionSlot"]["hostPackage"],
+        json!("cem-native-template/v1")
+    );
+    assert_eq!(
+        details["expressionSlot"]["slotKind"],
+        json!("test-attribute")
+    );
+    assert_eq!(
+        details["expressionSlot"]["expectedType"],
+        json!("schema:boolean")
+    );
+    assert_eq!(
+        details["expressionSlot"]["sourceUri"],
+        json!("packages/cem_ml/schema-packages/cem-native-template/v1/examples/invalid-slot.cem")
+    );
+    assert!(details["expressionSlot"]["hostRange"]["byteOffset"].is_u64());
+    assert!(details["expressionSlot"]["expressionRange"]["byteOffset"].is_u64());
 }
 
 #[test]

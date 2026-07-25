@@ -89,6 +89,16 @@ resource-sensitive work. Template-owned diagnostics remain for slot misuse,
 such as duplicate declarations, unknown template calls, or use of a reserved
 default-expression slot.
 
+The Rust embedded-expression audit now compiles extracted template expression
+slots through the shared standalone CEM-QL expression API. Audit diagnostics
+preserve the CEM-QL diagnostic code and attach an `expressionSlot` report with
+host package, slot kind/path, expected result type, evaluation phase,
+passive-audit resolver-policy stamp, host range, and expression range.
+`let @expr` / `@expression`, `call @with:*`, `@select`, `@match`, `@test`,
+expression nodes, and attribute-value template spans are recognized as
+expression-bearing slots. This audit classification does not change existing
+render behavior for literal `@with:*` values.
+
 ## Output Artifacts
 
 The package declares CEMT formatter and colorizer artifacts in `package.cem`.
@@ -197,8 +207,9 @@ document behavior.
 Tracked but not complete:
 
 - schema-owned fact bindings for all template parser and semantic diagnostics;
-- invalid expression slot examples and verification once the CEM-QL standalone
-  expression API/CLI and expression fact report are available;
+- invalid expression slot examples and package verification now that the
+  CEM-QL standalone expression API/CLI and embedded expression fact report are
+  executable;
 - HTML and Markdown preview drift checks once their template presentation
   profiles become stable enough for README demos.
 

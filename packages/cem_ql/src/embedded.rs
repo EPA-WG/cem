@@ -2,10 +2,11 @@
 //! CEM/CEMT assets.
 //!
 //! Waivers live in later audit phases. This layer preserves source provenance
-//! while compiling extracted expressions through the Rust-first parser,
-//! resolver, and type checker so stale host syntax fails with canonical
-//! CEM-QL diagnostics. It also provides a small functional fixture harness for
-//! expressions whose host bindings can be represented by static runtime data.
+//! while compiling extracted expressions through the shared standalone CEM-QL
+//! expression API so stale host syntax fails with canonical CEM-QL diagnostics
+//! and parent slot provenance. It also provides a small functional fixture
+//! harness for expressions whose host bindings can be represented by static
+//! runtime data.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path, PathBuf};
@@ -18,18 +19,20 @@ use cem_ml::scheduler::ScopePolicy;
 use cem_ml::source::{ByteRange, BytesSource, SourceId};
 use cem_ml::tokenizer::cem::CemTokenizer;
 use cem_ml::tokenizer::{SchemaTokenKind, SchemaTokenizer};
-use serde_json::{Map, Value};
+use serde_json::{json, Map, Value};
 
 use crate::api;
+use crate::api::{
+    StandaloneExpressionBinding, StandaloneExpressionContext, CEM_QL_EXPRESSION_CONTENT_TYPE,
+    CEM_QL_EXPRESSION_SCHEMA_URI,
+};
 use crate::eval::{Item, ItemStream, QueryContextScope};
 use crate::parser::{
     Expression, FunctionParam, PathStep, PipelineStep, RecordKey, SurfaceModule, SurfaceNode,
     TypeExpr,
 };
-use crate::resolve::{
-    Arity, BindingKind, BindingSet, ImportPolicy, NameResolver, QNameKey, SchemaTypeId,
-};
-use crate::types::{FunctionSignature, SchemaTypeInfo, TyConfig, Type, TypeChecker};
+use crate::resolve::{Arity, QNameKey};
+use crate::types::{AtomType, FunctionSignature, TyConfig, Type};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EmbeddedExpression {
@@ -110,7 +113,25 @@ pub enum EmbeddedHostKind {
     TestAttribute,
     BehaviorSelectAttribute,
     BehaviorMatchAttribute,
+    LetExpressionAttribute,
+    CallWithAttribute,
     ExpressionNode,
+}
+
+impl EmbeddedHostKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            EmbeddedHostKind::AttributeValueTemplate => "attribute-value-template",
+            EmbeddedHostKind::SelectAttribute => "select-attribute",
+            EmbeddedHostKind::MatchAttribute => "match-attribute",
+            EmbeddedHostKind::TestAttribute => "test-attribute",
+            EmbeddedHostKind::BehaviorSelectAttribute => "behavior-select-attribute",
+            EmbeddedHostKind::BehaviorMatchAttribute => "behavior-match-attribute",
+            EmbeddedHostKind::LetExpressionAttribute => "let-expression-attribute",
+            EmbeddedHostKind::CallWithAttribute => "call-with-attribute",
+            EmbeddedHostKind::ExpressionNode => "expression-node",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -118,6 +139,85 @@ pub enum EmbeddedCompileStage {
     Parse,
     Resolve,
     TypeCheck,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EmbeddedExpressionEvaluationPhase {
+    Validate,
+    Compile,
+    Render,
+    Runtime,
+}
+
+impl EmbeddedExpressionEvaluationPhase {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            EmbeddedExpressionEvaluationPhase::Validate => "validate",
+            EmbeddedExpressionEvaluationPhase::Compile => "compile",
+            EmbeddedExpressionEvaluationPhase::Render => "render",
+            EmbeddedExpressionEvaluationPhase::Runtime => "runtime",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EmbeddedExpressionSlot {
+    pub host_package: String,
+    pub slot_kind: EmbeddedHostKind,
+    pub slot_path: String,
+    pub expected_type: Option<Type>,
+    pub expected_nullable: bool,
+    pub evaluation_phase: EmbeddedExpressionEvaluationPhase,
+    pub resolver_policy_stamp: Option<String>,
+    pub source_uri: String,
+    pub host_node_name: Option<String>,
+    pub host_attribute_name: Option<String>,
+    pub host_range: ByteRange,
+    pub expression_range: ByteRange,
+}
+
+impl EmbeddedExpressionSlot {
+    pub fn from_expression(expression: &EmbeddedExpression) -> Self {
+        let host = &expression.provenance.host;
+        let host_package = expression
+            .schema_package()
+            .map(|package| format!("{}/{}", package.package_id, package.version))
+            .unwrap_or_else(|| source_host_package(expression.source_path()));
+        Self {
+            host_package,
+            slot_kind: host.kind,
+            slot_path: expression_slot_path(expression),
+            expected_type: expected_slot_type(host.kind),
+            expected_nullable: false,
+            evaluation_phase: expression_evaluation_phase(expression),
+            resolver_policy_stamp: Some("embedded-expression-audit/passive-v1".to_owned()),
+            source_uri: expression.source_path().to_string_lossy().into_owned(),
+            host_node_name: host.node_name.clone(),
+            host_attribute_name: host.attribute_name.clone(),
+            host_range: host.range,
+            expression_range: expression.expression_range(),
+        }
+    }
+
+    pub fn to_report_details(&self) -> Value {
+        json!({
+            "contract": "expression-slot",
+            "contentType": CEM_QL_EXPRESSION_CONTENT_TYPE,
+            "schema": CEM_QL_EXPRESSION_SCHEMA_URI,
+            "hostPackage": self.host_package,
+            "slotKind": self.slot_kind.as_str(),
+            "slotPath": self.slot_path,
+            "expectedType": self.expected_type.as_ref().map(type_label),
+            "expectedNullable": self.expected_nullable,
+            "evaluationPhase": self.evaluation_phase.as_str(),
+            "resolverPolicyStamp": self.resolver_policy_stamp,
+            "sourceUri": self.source_uri,
+            "hostNode": self.host_node_name,
+            "hostAttribute": self.host_attribute_name,
+            "hostRange": byte_range_details(self.host_range),
+            "expressionRange": byte_range_details(self.expression_range),
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -131,6 +231,7 @@ pub struct EmbeddedCompileDiagnostic {
 #[derive(Debug, Clone)]
 pub struct EmbeddedExpressionCompileReport {
     pub expression: EmbeddedExpression,
+    pub slot: EmbeddedExpressionSlot,
     pub parse_succeeded: bool,
     pub resolve_ran: bool,
     pub resolve_succeeded: bool,
@@ -389,7 +490,7 @@ pub fn extract_embedded_expressions_from_source(
                 if let Some(host_kind) =
                     whole_attribute_expression_kind(&name, host_node.as_deref())
                 {
-                    let expression_range = trim_range(source, strip_quotes(source, value_range));
+                    let expression_range = whole_attribute_expression_range(source, value_range);
                     push_expression(EmbeddedExpressionInput {
                         expressions: &mut expressions,
                         source_path: &source_path,
@@ -463,70 +564,40 @@ pub fn extract_repository_embedded_expressions(
     Ok(expressions)
 }
 
-/// Compile one extracted embedded expression through parser, resolver, and type checker.
+/// Compile one extracted embedded expression through the standalone expression contract.
 pub fn compile_embedded_expression(
     expression: &EmbeddedExpression,
 ) -> EmbeddedExpressionCompileReport {
-    let mut diagnostics = Vec::new();
     let parsed = api::parse(&expression.normalized_source);
-    diagnostics.extend(map_compile_diagnostics(
-        EmbeddedCompileStage::Parse,
-        expression,
-        &parsed.diagnostics,
-    ));
-    let parse_succeeded = !parsed
-        .diagnostics
-        .iter()
-        .any(|diagnostic| diagnostic.severity.is_hard_violation());
-
-    let mut report = EmbeddedExpressionCompileReport {
-        expression: expression.clone(),
-        parse_succeeded,
-        resolve_ran: false,
-        resolve_succeeded: false,
-        type_check_ran: false,
-        type_check_succeeded: false,
-        root_type: None,
-        diagnostics,
-    };
-
-    if !parse_succeeded {
-        return report;
-    }
-
     let support = EmbeddedHostCompileSupport::from_module(&parsed.module);
+    let slot = EmbeddedExpressionSlot::from_expression(expression);
+    let context = support.standalone_context(expression, &slot);
+    let compiled = api::compile_expression(&expression.normalized_source, &context);
 
-    let mut resolver = NameResolver::new();
-    let host_site = support.resolver_binding_set(&mut resolver);
-    resolver.push_site(host_site);
-    let resolution_report = resolver.resolve_surface_module(&parsed.module, &ImportPolicy::new());
-    report.resolve_ran = true;
-    report.resolve_succeeded = !resolution_report
-        .diagnostics
-        .iter()
-        .any(|diagnostic| diagnostic.severity.is_hard_violation());
-    report.diagnostics.extend(map_compile_diagnostics(
-        EmbeddedCompileStage::Resolve,
-        expression,
-        &resolution_report.diagnostics,
-    ));
+    let diagnostics = match &compiled {
+        Ok(compiled) => map_compile_diagnostics(expression, &slot, &compiled.diagnostics),
+        Err(error) => map_compile_diagnostics(expression, &slot, &error.diagnostics),
+    };
+    let parse_succeeded = !has_hard_stage_diagnostics(&diagnostics, EmbeddedCompileStage::Parse);
+    let resolve_ran = parse_succeeded;
+    let resolve_succeeded =
+        resolve_ran && !has_hard_stage_diagnostics(&diagnostics, EmbeddedCompileStage::Resolve);
+    let type_check_ran = parse_succeeded && resolve_succeeded;
+    let type_check_succeeded = type_check_ran
+        && !has_hard_stage_diagnostics(&diagnostics, EmbeddedCompileStage::TypeCheck);
+    let root_type = compiled.ok().and_then(|compiled| compiled.root_type);
 
-    let mut type_checker = TypeChecker::with_config(TyConfig::dev_profile());
-    support.seed_type_checker(&mut type_checker);
-    let type_report = type_checker.check_surface_module(&parsed.module);
-    report.type_check_ran = true;
-    report.type_check_succeeded = !type_report
-        .diagnostics
-        .iter()
-        .any(|diagnostic| diagnostic.severity.is_hard_violation());
-    report.root_type = type_report.root_type;
-    report.diagnostics.extend(map_compile_diagnostics(
-        EmbeddedCompileStage::TypeCheck,
-        expression,
-        &type_report.diagnostics,
-    ));
-
-    report
+    EmbeddedExpressionCompileReport {
+        expression: expression.clone(),
+        slot,
+        parse_succeeded,
+        resolve_ran,
+        resolve_succeeded,
+        type_check_ran,
+        type_check_succeeded,
+        root_type,
+        diagnostics,
+    }
 }
 
 /// Compile a batch of extracted embedded expressions.
@@ -711,48 +782,39 @@ impl EmbeddedHostCompileSupport {
         support
     }
 
-    fn resolver_binding_set(&self, resolver: &mut NameResolver) -> BindingSet {
-        let mut site = BindingSet::new(10_000);
+    fn standalone_context(
+        &self,
+        _expression: &EmbeddedExpression,
+        slot: &EmbeddedExpressionSlot,
+    ) -> StandaloneExpressionContext {
+        let mut context = StandaloneExpressionContext {
+            expected_type: slot.expected_type.clone(),
+            type_config: TyConfig::dev_profile(),
+            source_uri: Some(slot.source_uri.clone()),
+            resolver_policy_stamp: slot.resolver_policy_stamp.clone(),
+            host_capability_profile: Some("embedded-expression-audit".to_owned()),
+            ..StandaloneExpressionContext::default()
+        };
         for name in &self.variables {
-            resolver.declare_binding(&mut site, BindingKind::Variable, name.clone(), None, None);
-        }
-        for (name, arity) in &self.functions {
-            resolver.declare_binding(
-                &mut site,
-                BindingKind::Function,
-                name.clone(),
-                Some(*arity),
-                None,
+            if name.prefix.is_some() {
+                continue;
+            }
+            context = context.with_binding(
+                name.local.clone(),
+                StandaloneExpressionBinding::new(ItemStream::empty(), Type::Any),
             );
-        }
-        for name in &self.types {
-            resolver.declare_binding(&mut site, BindingKind::SchemaType, name.clone(), None, None);
-        }
-        site
-    }
-
-    fn seed_type_checker(&self, type_checker: &mut TypeChecker) {
-        for name in &self.variables {
-            type_checker.declare_variable(name.clone(), Type::Any);
         }
         for (name, arity) in &self.functions {
             let Ok(param_count) = usize::try_from(arity.0) else {
                 continue;
             };
-            type_checker.register_function(FunctionSignature {
+            context = context.with_function(FunctionSignature {
                 name: name.clone(),
                 params: vec![Type::Any; param_count],
                 ret: Type::Any,
             });
         }
-        for (index, name) in self.types.iter().enumerate() {
-            type_checker.register_schema_type(SchemaTypeInfo {
-                id: SchemaTypeId(index.try_into().unwrap_or(u32::MAX)),
-                name: name.clone(),
-                element_name: name.clone(),
-                structural_supertypes: Vec::new(),
-            });
-        }
+        context
     }
 
     fn collect_surface_node(&mut self, node: &SurfaceNode) {
@@ -894,13 +956,14 @@ impl EmbeddedHostCompileSupport {
 }
 
 fn map_compile_diagnostics(
-    stage: EmbeddedCompileStage,
     expression: &EmbeddedExpression,
+    slot: &EmbeddedExpressionSlot,
     diagnostics: &[Diagnostic],
 ) -> Vec<EmbeddedCompileDiagnostic> {
     diagnostics
         .iter()
         .map(|diagnostic| {
+            let stage = stage_for_diagnostic(diagnostic);
             let local_byte_offset = diagnostic.byte_offset;
             let source_byte_offset =
                 local_byte_offset.map(|offset| expression.expression_range().start + offset);
@@ -911,6 +974,7 @@ fn map_compile_diagnostics(
             if let Some(source_byte_offset) = source_byte_offset {
                 mapped.byte_offset = Some(source_byte_offset);
             }
+            mapped.details = Some(enrich_expression_slot_details(mapped.details.take(), slot));
             EmbeddedCompileDiagnostic {
                 stage,
                 diagnostic: mapped,
@@ -919,6 +983,53 @@ fn map_compile_diagnostics(
             }
         })
         .collect()
+}
+
+fn has_hard_stage_diagnostics(
+    diagnostics: &[EmbeddedCompileDiagnostic],
+    stage: EmbeddedCompileStage,
+) -> bool {
+    diagnostics.iter().any(|diagnostic| {
+        diagnostic.stage == stage && diagnostic.diagnostic.severity.is_hard_violation()
+    })
+}
+
+fn stage_for_diagnostic(diagnostic: &Diagnostic) -> EmbeddedCompileStage {
+    match diagnostic.code.as_str() {
+        "cem.ql.parse_error" | "cem.ql.use_rust_boolean_ops" => EmbeddedCompileStage::Parse,
+        "cem.ql.import_denied"
+        | "cem.ql.import_unresolved"
+        | "cem.ql.reserved_scheme"
+        | "cem.ql.read_denied"
+        | "cem.ql.read_unsatisfiable"
+        | "cem.ql.data_binding_missing"
+        | "cem.ql.unknown_variable"
+        | "cem.ql.unknown_function"
+        | "cem.ql.unknown_type"
+        | "cem.ql.unresolved_reference" => EmbeddedCompileStage::Resolve,
+        _ => EmbeddedCompileStage::TypeCheck,
+    }
+}
+
+fn enrich_expression_slot_details(details: Option<Value>, slot: &EmbeddedExpressionSlot) -> Value {
+    let slot_details = slot.to_report_details();
+    match details {
+        Some(Value::Object(mut object)) => {
+            object
+                .entry("expressionSlot".to_owned())
+                .or_insert(slot_details);
+            Value::Object(object)
+        }
+        Some(upstream) => json!({
+            "behavior": "cem-ql-expression-report-fact",
+            "expressionSlot": slot_details,
+            "upstream": upstream,
+        }),
+        None => json!({
+            "behavior": "cem-ql-expression-report-fact",
+            "expressionSlot": slot_details,
+        }),
+    }
 }
 
 fn parse_waiver_scope(
@@ -990,6 +1101,8 @@ fn parse_host_kind_scope(value: &str) -> Result<EmbeddedHostKind, String> {
         "test-attribute" => Ok(EmbeddedHostKind::TestAttribute),
         "behavior-select-attribute" => Ok(EmbeddedHostKind::BehaviorSelectAttribute),
         "behavior-match-attribute" => Ok(EmbeddedHostKind::BehaviorMatchAttribute),
+        "let-expression-attribute" => Ok(EmbeddedHostKind::LetExpressionAttribute),
+        "call-with-attribute" => Ok(EmbeddedHostKind::CallWithAttribute),
         "expression-node" => Ok(EmbeddedHostKind::ExpressionNode),
         other => Err(format!("unknown embedded host kind `{other}`")),
     }
@@ -1155,13 +1268,19 @@ fn whole_attribute_expression_kind(
     attribute_name: &str,
     host_node: Option<&str>,
 ) -> Option<EmbeddedHostKind> {
-    match local_name(attribute_name) {
-        "select" if host_node.map(local_name) == Some("behavior") => {
+    let host_node = host_node.map(local_name);
+    let attribute_local = local_name(attribute_name);
+    if host_node == Some("let") && matches!(attribute_local, "expr" | "expression") {
+        return Some(EmbeddedHostKind::LetExpressionAttribute);
+    }
+    if host_node == Some("call") && attribute_name.starts_with("with:") {
+        return Some(EmbeddedHostKind::CallWithAttribute);
+    }
+    match attribute_local {
+        "select" if host_node == Some("behavior") => {
             Some(EmbeddedHostKind::BehaviorSelectAttribute)
         }
-        "match" if host_node.map(local_name) == Some("behavior") => {
-            Some(EmbeddedHostKind::BehaviorMatchAttribute)
-        }
+        "match" if host_node == Some("behavior") => Some(EmbeddedHostKind::BehaviorMatchAttribute),
         "select" => Some(EmbeddedHostKind::SelectAttribute),
         "match" => Some(EmbeddedHostKind::MatchAttribute),
         "test" => Some(EmbeddedHostKind::TestAttribute),
@@ -1175,6 +1294,95 @@ fn expression_role(base_role: EmbeddedArtifactRole, inside_behavior: bool) -> Em
     } else {
         base_role
     }
+}
+
+fn source_host_package(path: &Path) -> String {
+    let components = normalized_components(path);
+    if let Some(package_index) = components
+        .iter()
+        .position(|component| component == "packages")
+    {
+        if let Some(package) = components.get(package_index + 1) {
+            return package.clone();
+        }
+    }
+    if let Some(first) = components.first() {
+        return first.clone();
+    }
+    "unknown".to_owned()
+}
+
+fn expression_slot_path(expression: &EmbeddedExpression) -> String {
+    let host = &expression.provenance.host;
+    let node = host.node_name.as_deref().unwrap_or("*");
+    match &host.attribute_name {
+        Some(attribute) => format!(
+            "{}@{}[{}..{}]",
+            node,
+            attribute,
+            host.range.start,
+            host.range.end()
+        ),
+        None => format!(
+            "{}${}[{}..{}]",
+            node,
+            expression.host_kind().as_str(),
+            host.range.start,
+            host.range.end()
+        ),
+    }
+}
+
+fn expected_slot_type(kind: EmbeddedHostKind) -> Option<Type> {
+    match kind {
+        EmbeddedHostKind::TestAttribute
+        | EmbeddedHostKind::MatchAttribute
+        | EmbeddedHostKind::BehaviorMatchAttribute => Some(Type::atom(AtomType::Boolean)),
+        _ => None,
+    }
+}
+
+fn expression_evaluation_phase(
+    expression: &EmbeddedExpression,
+) -> EmbeddedExpressionEvaluationPhase {
+    match expression.artifact_role() {
+        EmbeddedArtifactRole::Validator => EmbeddedExpressionEvaluationPhase::Validate,
+        EmbeddedArtifactRole::TransformConfig => EmbeddedExpressionEvaluationPhase::Compile,
+        EmbeddedArtifactRole::Schema
+        | EmbeddedArtifactRole::PackageManifest
+        | EmbeddedArtifactRole::DocumentationFixture => EmbeddedExpressionEvaluationPhase::Compile,
+        EmbeddedArtifactRole::Formatter
+        | EmbeddedArtifactRole::Colorizer
+        | EmbeddedArtifactRole::Converter
+        | EmbeddedArtifactRole::Example
+        | EmbeddedArtifactRole::Demo
+        | EmbeddedArtifactRole::Unknown => EmbeddedExpressionEvaluationPhase::Render,
+    }
+}
+
+fn type_label(ty: &Type) -> String {
+    match ty {
+        Type::Atom(AtomType::String) => "schema:string".to_owned(),
+        Type::Atom(AtomType::Integer) => "schema:integer".to_owned(),
+        Type::Atom(AtomType::Decimal) => "schema:decimal".to_owned(),
+        Type::Atom(AtomType::Double) => "schema:double".to_owned(),
+        Type::Atom(AtomType::Boolean) => "schema:boolean".to_owned(),
+        Type::Atom(AtomType::Date) => "schema:date".to_owned(),
+        Type::Atom(AtomType::DateTime) => "schema:dateTime".to_owned(),
+        Type::Atom(AtomType::Duration) => "schema:duration".to_owned(),
+        Type::Atom(AtomType::AnyUri) => "schema:anyURI".to_owned(),
+        Type::Any => "item()*".to_owned(),
+        Type::Empty => "empty-sequence()".to_owned(),
+        other => format!("{other:?}"),
+    }
+}
+
+fn byte_range_details(range: ByteRange) -> Value {
+    json!({
+        "byteOffset": range.start,
+        "byteLength": range.len,
+        "endByteOffset": range.end(),
+    })
 }
 
 pub fn classify_artifact_role(path: impl AsRef<Path>) -> EmbeddedArtifactRole {
@@ -1277,6 +1485,21 @@ fn strip_quotes(source: &str, range: ByteRange) -> ByteRange {
         return ByteRange::new(range.start + 1, range.len.saturating_sub(2));
     }
     range
+}
+
+fn whole_attribute_expression_range(source: &str, range: ByteRange) -> ByteRange {
+    let body_range = strip_quotes(source, range);
+    let trimmed = trim_range(source, body_range);
+    let Some(text) = slice_range(source, trimmed) else {
+        return trimmed;
+    };
+    if text.starts_with('{') && text.ends_with('}') && text.len() >= 2 {
+        return trim_range(
+            source,
+            ByteRange::new(trimmed.start + 1, trimmed.len.saturating_sub(2)),
+        );
+    }
+    trimmed
 }
 
 fn trim_range(source: &str, range: ByteRange) -> ByteRange {
@@ -1412,6 +1635,31 @@ mod tests {
             expressions[0].provenance.artifact_role,
             EmbeddedArtifactRole::Demo
         );
+    }
+
+    #[test]
+    fn extracts_cem_native_template_expression_slots() {
+        let source = r#"{module |
+  {template @name="page" |
+    {body |
+      {let @name="title" @expr="input.title"}
+      {call @template="hero" @with:title="title"}
+    }
+  }
+}"#;
+        let expressions = extract_embedded_expressions_from_source(
+            "packages/cem_ml/schema-packages/cem-native-template/v1/examples/slots.cem",
+            source,
+        );
+
+        assert!(expressions.iter().any(|expression| {
+            expression.host_kind() == EmbeddedHostKind::LetExpressionAttribute
+                && expression.normalized_source == "input.title"
+        }));
+        assert!(expressions.iter().any(|expression| {
+            expression.host_kind() == EmbeddedHostKind::CallWithAttribute
+                && expression.normalized_source == "title"
+        }));
     }
 
     #[test]

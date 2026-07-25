@@ -48,10 +48,11 @@ mod tests {
         };
         use crate::diagnostics::{DiagnosticCode, DiagnosticSpec, QueryDiagnostic};
         use crate::embedded::{
-            EmbeddedArtifactRole, EmbeddedExpression, EmbeddedExpressionProvenance,
-            EmbeddedFunctionalFixture, EmbeddedFunctionalValidationReport,
-            EmbeddedFunctionalWaiver, EmbeddedFunctionalWaiverScope, EmbeddedHostKind,
-            EmbeddedHostProvenance, SchemaPackageIdentity,
+            EmbeddedArtifactRole, EmbeddedExpression, EmbeddedExpressionEvaluationPhase,
+            EmbeddedExpressionProvenance, EmbeddedExpressionSlot, EmbeddedFunctionalFixture,
+            EmbeddedFunctionalValidationReport, EmbeddedFunctionalWaiver,
+            EmbeddedFunctionalWaiverScope, EmbeddedHostKind, EmbeddedHostProvenance,
+            SchemaPackageIdentity,
         };
         use crate::eval::{
             AtomValue, BudgetAxis, EvalError, Evaluator, Item, ItemStream, QueryContextScope,
@@ -98,6 +99,8 @@ mod tests {
         _accept::<DiagnosticSpec>();
         _accept::<QueryDiagnostic>();
         _accept::<EmbeddedExpression>();
+        _accept::<EmbeddedExpressionSlot>();
+        _accept::<EmbeddedExpressionEvaluationPhase>();
         _accept::<EmbeddedExpressionProvenance>();
         _accept::<EmbeddedHostProvenance>();
         _accept::<SchemaPackageIdentity>();

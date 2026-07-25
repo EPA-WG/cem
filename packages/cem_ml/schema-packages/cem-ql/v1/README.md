@@ -80,7 +80,9 @@ query modules, but its resource shape is expression-first:
 - data/context input: one primary `input` binding plus optional named bindings,
   each lowered from a declared content type/schema resource into a CEM-QL
   `ItemStream`; a context item may be selected from `input`, from a named
-  binding, or left unset;
+  binding, or left unset; host helper signatures may be supplied for
+  compile/audit so known host functions can type-check and lower without a
+  query module wrapper;
 - result model: `ItemStream` with CEM-QL atoms, records, arrays, nodes,
   lambdas, and resource handles, serialized according to the requested writer
   profile;
@@ -93,11 +95,14 @@ query modules, but its resource shape is expression-first:
   identity, and source-map mode.
 
 `schema/cem-ql.cem` declares this report shape as `expression-resource`,
-`expression-context`, `expression-binding`, `expression-result`, and
-`expression-slot`. `expression-slot` is the provenance bridge used by parent
-packages such as CEM-native template; it preserves host package, slot kind,
-slot path, expected type/nullability, evaluation phase, and source range while
-the CEM-QL diagnostic remains the expression diagnostic.
+`expression-context`, `expression-binding`, `expression-helper`,
+`expression-result`, and `expression-slot`. `expression-slot` is the provenance
+bridge used by parent packages such as CEM-native template; it preserves host
+package, slot kind, slot path, expected type/nullability, evaluation phase, and
+source range while the CEM-QL diagnostic remains the expression diagnostic.
+`expression-helper` describes host-visible helper signatures only; executable
+helper implementations and user-defined overload semantics remain separate
+runtime work.
 
 Contract-only fixtures live under
 [`examples/expression-contract/`](examples/expression-contract/). They are not

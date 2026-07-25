@@ -39,8 +39,9 @@
         {element @name="body" @children="expression"}
         {element @name="expression" @optional-attributes="kind type streaming"}
         {element @name="expression-resource" @required-attributes="content-type schema-uri" @optional-attributes="uri source-hash source-map-mode resolver-policy-stamp host-capability-profile evaluation-phase" @children="source? encoding-report? token-stream? parse-facts? expression-context? expression-result?"}
-        {element @name="expression-context" @optional-attributes="data-uri data-content-type data-schema context-binding context-source context-item binding-profile" @children="expression-binding*"}
+        {element @name="expression-context" @optional-attributes="data-uri data-content-type data-schema context-binding context-source context-item binding-profile" @children="expression-binding* expression-helper*"}
         {element @name="expression-binding" @required-attributes="name" @optional-attributes="type nullable binding-source"}
+        {element @name="expression-helper" @required-attributes="name arity" @optional-attributes="param-types return-type binding-source"}
         {element @name="expression-result" @required-attributes="type" @optional-attributes="nullable item-count serialization source-map"}
         {element @name="expression-slot" @required-attributes="host-package slot-kind" @optional-attributes="slot-path expected-type expected-nullable evaluation-phase resolver-policy-stamp byte-offset byte-length line column end-line end-column"}
         {element @name="artifact" @required-attributes="content-type format hash mode source-hash schema-uri schema-version compiler-version policy-stamp stdlib-overlay-fingerprint type-profile source-map-mode" @optional-attributes="source-uri module-uri source-map import-closure"}
@@ -109,6 +110,9 @@
         {attribute @name="context-item" @type="schema:string"}
         {attribute @name="binding-profile" @type="schema:string"}
         {attribute @name="binding-source" @type="schema:identifier" @values="input literal resource host"}
+        {attribute @name="arity" @type="cemml:integer"}
+        {attribute @name="param-types" @type="schema:string"}
+        {attribute @name="return-type" @type="schema:string"}
         {attribute @name="item-count" @type="cemml:integer"}
         {attribute @name="serialization" @type="schema:identifier" @values="json text cem-tree none"}
         {attribute @name="host-package" @type="schema:string"}

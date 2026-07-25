@@ -32,6 +32,7 @@ pub struct IrLowerer {
     schemas: SchemaTypeRegistry,
     policy_bindings: HashMap<BindingId, String>,
     declared_policy_binding_names: Vec<String>,
+    declared_policy_functions: Vec<FunctionKey>,
 }
 
 impl Default for IrLowerer {
@@ -50,6 +51,7 @@ impl Default for IrLowerer {
             schemas: SchemaTypeRegistry::default(),
             policy_bindings: HashMap::new(),
             declared_policy_binding_names: Vec::new(),
+            declared_policy_functions: Vec::new(),
         }
     }
 }
@@ -76,6 +78,14 @@ impl IrLowerer {
 
     pub fn with_policy_bindings(mut self, names: impl IntoIterator<Item = String>) -> Self {
         self.declared_policy_binding_names = names.into_iter().collect();
+        self
+    }
+
+    pub fn with_policy_functions(
+        mut self,
+        functions: impl IntoIterator<Item = FunctionKey>,
+    ) -> Self {
+        self.declared_policy_functions = functions.into_iter().collect();
         self
     }
 
@@ -155,6 +165,11 @@ impl IrLowerer {
                 .insert(QNameKey::new(None, name.clone()), id);
             self.binding_types.insert(id, Type::Any);
             self.policy_bindings.insert(id, name);
+        }
+        let policy_functions = self.declared_policy_functions.clone();
+        for key in policy_functions {
+            let id = self.allocate_binding_id();
+            self.current_scope_mut().functions.insert(key, id);
         }
 
         for node in &module.nodes {

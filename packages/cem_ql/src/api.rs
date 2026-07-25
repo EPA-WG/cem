@@ -17,9 +17,9 @@ use crate::ir::lower::IrLowerer;
 use crate::ir::CompiledQuery;
 use crate::parser::{Expression, Parser, SurfaceModule, SurfaceNode};
 use crate::resolve::overlay::OverlayMap;
-use crate::resolve::{ImportPolicy, NameResolver, QNameKey};
+use crate::resolve::{Arity, FunctionKey, ImportPolicy, NameResolver, QNameKey};
 use crate::semantic::validate_module_shape;
-use crate::types::{TyConfig, Type, TypeChecker};
+use crate::types::{FunctionSignature, TyConfig, Type, TypeChecker};
 
 #[cfg(any(target_arch = "wasm32", test))]
 mod json_boundary;
@@ -116,6 +116,7 @@ pub fn compile_expression(
 
     let lowered = IrLowerer::new()
         .with_policy_bindings(context.bindings.keys().cloned())
+        .with_policy_functions(context.functions.iter().map(function_key))
         .lower_module(&module);
     diagnostics.extend(lowered.diagnostics.clone());
     if has_hard_diagnostics(&diagnostics) {
@@ -307,6 +308,7 @@ impl StandaloneExpressionBinding {
 #[derive(Debug, Clone)]
 pub struct StandaloneExpressionContext {
     pub bindings: BTreeMap<String, StandaloneExpressionBinding>,
+    pub functions: Vec<FunctionSignature>,
     pub context_item: Option<Item>,
     pub expected_type: Option<Type>,
     pub type_config: TyConfig,
@@ -322,6 +324,7 @@ impl Default for StandaloneExpressionContext {
     fn default() -> Self {
         Self {
             bindings: BTreeMap::new(),
+            functions: Vec::new(),
             context_item: None,
             expected_type: None,
             type_config: TyConfig::default(),
@@ -355,6 +358,11 @@ impl StandaloneExpressionContext {
 
     pub fn with_context_item(mut self, item: Item) -> Self {
         self.context_item = Some(item);
+        self
+    }
+
+    pub fn with_function(mut self, signature: FunctionSignature) -> Self {
+        self.functions.push(signature);
         self
     }
 
@@ -463,6 +471,9 @@ fn type_check_standalone_expression(
     for (name, binding) in &context.bindings {
         checker.declare_variable(QNameKey::new(None, name.clone()), binding.ty.clone());
     }
+    for signature in &context.functions {
+        checker.register_function(signature.clone());
+    }
     let root_type = checker.infer(expression);
     if let Some(expected_type) = &context.expected_type {
         checker.check_type(&root_type, expected_type, expression.range());
@@ -470,6 +481,13 @@ fn type_check_standalone_expression(
     StandaloneExpressionTypeReport {
         root_type: Some(root_type),
         diagnostics: checker.diagnostics().to_vec(),
+    }
+}
+
+fn function_key(signature: &FunctionSignature) -> FunctionKey {
+    FunctionKey {
+        name: signature.name.clone(),
+        arity: Arity(signature.params.len().try_into().unwrap_or(u32::MAX)),
     }
 }
 
@@ -589,7 +607,8 @@ mod tests {
     use std::collections::BTreeMap;
 
     use crate::eval::{AtomValue, Item};
-    use crate::types::AtomType;
+    use crate::resolve::QNameKey;
+    use crate::types::{AtomType, FunctionSignature};
 
     use super::*;
 
@@ -694,6 +713,26 @@ mod tests {
                 .and_then(|details| details.get("availableBindings")),
             Some(&json!(["input"]))
         );
+    }
+
+    #[test]
+    fn standalone_expression_accepts_host_function_signatures() {
+        let context = StandaloneExpressionContext::default()
+            .with_input(ItemStream::empty(), Type::Any)
+            .with_function(FunctionSignature {
+                name: QNameKey::new(None, "format"),
+                params: vec![Type::Any],
+                ret: Type::Any,
+            });
+
+        let compiled = compile_expression("format(input)", &context)
+            .expect("standalone expression should accept host helper signatures");
+
+        assert_eq!(compiled.query.source, "format(input)");
+        assert!(compiled
+            .diagnostics
+            .iter()
+            .all(|diagnostic| !diagnostic.severity.is_hard_violation()));
     }
 
     fn row(name: &str, tier: &str) -> Item {

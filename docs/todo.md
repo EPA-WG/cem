@@ -239,7 +239,7 @@ needed before invalid template expression fixtures can close.
 - [x] Add package-owned CEM-QL examples and tests for valid standalone
       expression execution, parse errors, type errors, source ranges, and data
       binding failures.
-- [ ] Wire CEM-native template expression slots to consume the shared CEM-QL
+- [x] Wire CEM-native template expression slots to consume the shared CEM-QL
       expression fact/result contract and preserve template slot provenance.
 - [ ] Add invalid CEM-native template expression fixtures once the shared
       CEM-QL expression fact report is executable.
