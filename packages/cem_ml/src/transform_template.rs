@@ -20,7 +20,8 @@ use crate::schema::registry::{
     AI_CONTEXT_JSON_CONTENT_TYPE, AI_CONTEXT_SCHEMA_URI, CEM_AST_PROJECTION_CONTENT_TYPE,
     CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI,
     CEM_EVENTS_PROJECTION_CONTENT_TYPE, CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE,
-    CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_QL_CONTENT_TYPE, CEM_QL_SCHEMA_URI,
+    CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_QL_CONTENT_TYPE,
+    CEM_QL_EXPRESSION_CONTENT_TYPE, CEM_QL_EXPRESSION_SCHEMA_URI, CEM_QL_SCHEMA_URI,
     CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI,
     CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
     JSON_VALUE_SCHEMA_URI, MARKDOWN_CONTENT_TYPE, MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE,
@@ -20666,6 +20667,13 @@ impl TransformTemplateAdapterRegistry {
             &[crate::schema::ir::CEM_CORE_NAMESPACE],
         ));
         registry.register(StaticTransformTemplateAdapter::new(
+            "cem-ql-expression",
+            TransformTemplateKind::CemQlExpression,
+            &[CEM_QL_EXPRESSION_CONTENT_TYPE],
+            &[CEM_QL_EXPRESSION_SCHEMA_URI],
+            &[],
+        ));
+        registry.register(StaticTransformTemplateAdapter::new(
             "xslt-template",
             TransformTemplateKind::Xslt,
             crate::legacy_custom_element::TEMPLATE_CONTENT_TYPES,
@@ -22056,6 +22064,10 @@ mod tests {
             content_type: Some(format!("{CEM_TRANSFORM_CONTENT_TYPE}; charset=utf-8")),
             ..FormatIdentity::default()
         };
+        let expression = FormatIdentity {
+            content_type: Some(format!("{CEM_QL_EXPRESSION_CONTENT_TYPE}; charset=utf-8")),
+            ..FormatIdentity::default()
+        };
         let xslt = FormatIdentity {
             default_namespace: Some(crate::schema::xslt::XSL_NAMESPACE.to_owned()),
             ..FormatIdentity::default()
@@ -22080,6 +22092,13 @@ mod tests {
             TransformTemplateAdapterResolution::Matched(TransformTemplateAdapterSelection {
                 adapter_id: "cem-native-template",
                 kind: TransformTemplateKind::CemNative,
+            })
+        );
+        assert_eq!(
+            registry.select(&expression),
+            TransformTemplateAdapterResolution::Matched(TransformTemplateAdapterSelection {
+                adapter_id: "cem-ql-expression",
+                kind: TransformTemplateKind::CemQlExpression,
             })
         );
         assert_eq!(

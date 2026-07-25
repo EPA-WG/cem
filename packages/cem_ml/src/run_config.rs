@@ -2280,6 +2280,7 @@ pub fn infer_content_type_from_path(path: &str) -> Option<String> {
         "css" => Some(crate::schema::registry::CSS_CONTENT_TYPE.to_owned()),
         "cemt" => Some(crate::schema::registry::CEM_TRANSFORM_CONTENT_TYPE.to_owned()),
         "cemql" => Some(crate::schema::registry::CEM_QL_CONTENT_TYPE.to_owned()),
+        "cem-ql" => Some(crate::schema::registry::CEM_QL_EXPRESSION_CONTENT_TYPE.to_owned()),
         "jsonschema" => Some(crate::schema::registry::JSON_SCHEMA_CONTENT_TYPE.to_owned()),
         "json" => Some(crate::schema::registry::JSON_CONTENT_TYPE.to_owned()),
         "yaml" | "yml" => Some(crate::schema::registry::YAML_CONTENT_TYPE.to_owned()),
@@ -2443,6 +2444,18 @@ mod tests {
         assert_eq!(
             infer_content_type_from_path("queries/MODULE.CEMQL").as_deref(),
             Some(crate::schema::registry::CEM_QL_CONTENT_TYPE)
+        );
+    }
+
+    #[test]
+    fn cem_ql_extension_infers_query_expression_content_type() {
+        assert_eq!(
+            infer_content_type_from_path("queries/expression.cem-ql").as_deref(),
+            Some(crate::schema::registry::CEM_QL_EXPRESSION_CONTENT_TYPE)
+        );
+        assert_eq!(
+            infer_content_type_from_path("queries/EXPRESSION.CEM-QL").as_deref(),
+            Some(crate::schema::registry::CEM_QL_EXPRESSION_CONTENT_TYPE)
         );
     }
 

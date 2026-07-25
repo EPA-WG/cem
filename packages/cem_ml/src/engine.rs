@@ -192,6 +192,7 @@ pub const TRANSFORM_TEMPLATE_UNSUPPORTED_CODE: &str = "cem.transform_template.id
 pub enum TransformTemplateKind {
     Xslt,
     CemNative,
+    CemQlExpression,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -200,6 +201,7 @@ pub enum TransformRuntimePhase {
     #[default]
     CemQlFragment,
     CemNativeModules,
+    CemQlExpression,
     XsltParity,
 }
 
@@ -561,12 +563,13 @@ fn validate_transform_execution_policy(policy: &TransformExecutionPolicy) -> Vec
         policy.runtime_phase,
         TransformRuntimePhase::CemQlFragment
             | TransformRuntimePhase::CemNativeModules
+            | TransformRuntimePhase::CemQlExpression
             | TransformRuntimePhase::XsltParity
     ) {
         diagnostics.push(transform_runtime_diagnostic(
             None,
             "cem.transform_runtime.phase_unsupported",
-            "transform runtime currently supports only the `cem-ql-fragment`, `cem-native-modules`, and `xslt-parity` phases",
+            "transform runtime currently supports only the `cem-ql-fragment`, `cem-native-modules`, `cem-ql-expression`, and `xslt-parity` phases",
         ));
     }
     if policy.cardinality != TransformCardinalityMode::OneToOne {
@@ -620,6 +623,17 @@ fn validate_transform_stage_runtime_contract(
             ),
         ));
     }
+    if policy.runtime_phase == TransformRuntimePhase::CemQlExpression
+        && template_kind != TransformTemplateKind::CemQlExpression
+    {
+        diagnostics.push(transform_runtime_diagnostic(
+            uri,
+            "cem.transform_runtime.template_kind_unsupported",
+            format!(
+                "transform stage `{stage_id}` uses `{template_kind:?}` template kind; the CEM-QL expression phase supports only CEM-QL expression templates"
+            ),
+        ));
+    }
     if policy.runtime_phase == TransformRuntimePhase::XsltParity
         && template_kind != TransformTemplateKind::Xslt
     {
@@ -639,6 +653,17 @@ fn validate_transform_stage_runtime_contract(
             "cem.transform_runtime.entrypoint_unsupported",
             format!(
                 "transform stage `{stage_id}` declares a named template entrypoint; the first runtime slice supports only the implicit entrypoint"
+            ),
+        ));
+    }
+    if policy.runtime_phase == TransformRuntimePhase::CemQlExpression
+        && !template_entrypoint.is_implicit()
+    {
+        diagnostics.push(transform_runtime_diagnostic(
+            uri,
+            "cem.transform_runtime.entrypoint_unsupported",
+            format!(
+                "transform stage `{stage_id}` declares a named template entrypoint; CEM-QL expression transforms use the expression root as the implicit entrypoint"
             ),
         ));
     }
@@ -1254,6 +1279,17 @@ mod tests {
             schema: Some(crate::schema::ir::CEM_CORE_NAMESPACE.to_owned()),
             ..FormatIdentity::default()
         };
+        let cem_ql_expression_content_type = FormatIdentity {
+            content_type: Some(format!(
+                "{}; charset=utf-8",
+                crate::schema::registry::CEM_QL_EXPRESSION_CONTENT_TYPE
+            )),
+            ..FormatIdentity::default()
+        };
+        let cem_ql_expression_schema = FormatIdentity {
+            schema: Some(crate::schema::registry::CEM_QL_EXPRESSION_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        };
         let xslt_namespace = FormatIdentity {
             namespaces: BTreeMap::from([(
                 "xsl".to_owned(),
@@ -1281,6 +1317,14 @@ mod tests {
         assert_eq!(
             classify_transform_template_identity(&cem_schema),
             Ok(TransformTemplateKind::CemNative)
+        );
+        assert_eq!(
+            classify_transform_template_identity(&cem_ql_expression_content_type),
+            Ok(TransformTemplateKind::CemQlExpression)
+        );
+        assert_eq!(
+            classify_transform_template_identity(&cem_ql_expression_schema),
+            Ok(TransformTemplateKind::CemQlExpression)
         );
         assert_eq!(
             classify_transform_template_identity(&xslt_namespace),

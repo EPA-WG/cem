@@ -699,10 +699,20 @@ pub struct TransformArgs {
     #[arg(
         long = "template",
         value_name = "FILE",
-        required_unless_present = "config",
+        required_unless_present_any = ["config", "template_expression"],
+        conflicts_with = "template_expression",
         help = "Template or stylesheet to apply to DATA"
     )]
     pub template: Option<PathBuf>,
+
+    #[arg(
+        long = "template-expression",
+        value_name = "CEM-QL",
+        required_unless_present_any = ["config", "template"],
+        conflicts_with = "template",
+        help = "Inline standalone CEM-QL expression to apply to DATA through the transform runtime"
+    )]
+    pub template_expression: Option<String>,
 
     #[arg(
         long = "template-content-type",
@@ -1302,6 +1312,26 @@ mod tests {
             panic!("expected transform command");
         };
         assert_eq!(args.output_color_type.as_deref(), Some("html-css-vars"));
+    }
+
+    #[test]
+    fn transform_template_expression_parses() {
+        let cli = try_parse(&[
+            "transform",
+            "data.cem",
+            "--template-expression",
+            "input.kind",
+            "--param",
+            "suffix=!",
+        ])
+        .unwrap();
+
+        let Command::Transform(args) = cli.command else {
+            panic!("expected transform command");
+        };
+        assert_eq!(args.template, None);
+        assert_eq!(args.template_expression.as_deref(), Some("input.kind"));
+        assert_eq!(args.params, vec!["suffix=!".to_owned()]);
     }
 
     #[test]

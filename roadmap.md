@@ -119,9 +119,9 @@ Deliverables:
 - Shared CEM-QL expression API and CLI runner: `cem-ql` owns the reusable expression schema used by templates,
   transforms, schema behaviors, and component bindings. The Rust API can compile and evaluate one standalone CEM-QL
   expression against a typed data/context input while preserving diagnostics, source maps, resolver-policy stamps, host
-  capability policy, and typed result values. The CEM-ML CLI exposes the same engine path, for example through a future
-  `cem-ml query expr` subcommand that accepts expression source from an argument, file, or stdin and data from
-  content-type/schema-declared input resources.
+  capability policy, and typed result values. The CEM-ML CLI exposes the same engine path through the existing
+  `transform` command: inline expressions use `--template-expression`, and file-backed expression transformations use
+  `--template *.cem-ql` with data from content-type/schema-declared input resources.
 - XSLT or transform pipeline from validated semantic documents into light-DOM custom-element markup.
 - Validation reports for unknown elements, invalid state combinations, missing labels, broken references, unsafe
   content, unsupported embedded-language handoffs, and non-streamable schema features.

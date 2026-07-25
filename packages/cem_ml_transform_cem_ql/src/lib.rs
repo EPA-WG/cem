@@ -57,9 +57,11 @@ use cem_ml::transform_template::{
     TRANSFORM_TEMPLATE_CALL_UNKNOWN_CODE, TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE,
     TRANSFORM_TEMPLATE_PARAM_TYPE_CODE, TRANSFORM_TEMPLATE_RECURSION_LIMIT_CODE,
 };
-use cem_ql::api::{compile, evaluate, CompileContext, EvaluationContext, ParseResult};
-use cem_ql::eval::QueryContextScope;
-use cem_ql::eval::{AtomValue, Item, ItemStream};
+use cem_ql::api::{
+    compile, compile_expression, evaluate, CompileContext, CompiledExpression, EvaluationContext,
+    ParseResult, StandaloneExpressionBinding, StandaloneExpressionContext,
+};
+use cem_ql::eval::{AtomValue, BudgetAxis, EvalError, Item, ItemStream, QueryContextScope};
 use cem_ql::lexer::{CookedTokenPayload, Lexer, Token, TokenKind};
 use cem_ql::parser::SurfaceNode;
 use cem_ql::render::{
@@ -67,14 +69,19 @@ use cem_ql::render::{
     render_plan_to_xml_with_source_map, CompileTemplateOptions, RenderPlan, RenderPlanAttribute,
     RenderPlanNode, TemplateArtifact, TemplateAttributeValue, TemplateData, TemplateNode,
 };
+use cem_ql::types::Type;
 use serde_json::{json, Map, Number, Value};
 
 pub const CEM_QL_TEMPLATE_ADAPTER_ID: &str = "cem-ql-cem-native-template";
+pub const CEM_QL_EXPRESSION_TEMPLATE_ADAPTER_ID: &str = "cem-ql-expression-template";
 pub const XSLT_PARITY_TEMPLATE_ADAPTER_ID: &str = "cem-ql-xslt-parity-template";
 const TRANSFORM_CALL_NODE: &str = "__cem_transform_call";
 
 #[derive(Debug, Clone, Default)]
 pub struct CemQlTransformTemplateAdapter;
+
+#[derive(Debug, Clone, Default)]
+pub struct CemQlExpressionTransformTemplateAdapter;
 
 #[derive(Debug, Clone, Default)]
 pub struct XsltParityTransformTemplateAdapter;
@@ -299,6 +306,13 @@ struct CemQlCompiledTemplatePayload {
     entrypoints: CemQlTemplateEntrypoints,
     modules: Vec<CemQlCompiledTemplateModulePayload>,
     max_recursion_depth: u32,
+}
+
+#[derive(Debug, Clone)]
+struct CemQlCompiledExpressionPayload {
+    template_uri: String,
+    compiled: CompiledExpression,
+    params: BTreeMap<String, Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -1566,6 +1580,101 @@ impl TransformTemplateAdapter for CemQlTransformTemplateAdapter {
     }
 }
 
+impl TransformTemplateAdapter for CemQlExpressionTransformTemplateAdapter {
+    fn id(&self) -> &'static str {
+        CEM_QL_EXPRESSION_TEMPLATE_ADAPTER_ID
+    }
+
+    fn kind(&self) -> TransformTemplateKind {
+        TransformTemplateKind::CemQlExpression
+    }
+
+    fn capability(&self) -> TransformTemplateAdapterCapability {
+        TransformTemplateAdapterCapability::Executable
+    }
+
+    fn matches_template(&self, identity: &FormatIdentity) -> bool {
+        matches_cem_ql_expression_identity(identity)
+    }
+
+    fn compile(
+        &self,
+        request: TransformTemplateCompileRequest<'_>,
+    ) -> TransformTemplateAdapterResult<TransformTemplateCompileResponse> {
+        let source = std::str::from_utf8(&request.template.bytes).map_err(|err| {
+            TransformTemplateAdapterError::failed(
+                self.id(),
+                TransformTemplateAdapterExecutionPhase::Compile,
+                format!(
+                    "expression template `{}` is not valid UTF-8: {err}",
+                    request.template.uri
+                ),
+            )
+        })?;
+        let context = expression_compile_context(
+            &request.template.uri,
+            request.params,
+            request.data_bindings,
+            request
+                .module_preflight
+                .cache_key
+                .as_ref()
+                .and_then(|cache_key| serde_json::to_string(cache_key).ok()),
+        );
+        let compiled = match compile_expression(source, &context) {
+            Ok(compiled) => compiled,
+            Err(error) => {
+                let diagnostics = diagnostics_with_uri(&error.diagnostics, &request.template.uri);
+                return Ok(TransformTemplateCompileResponse {
+                    artifact: TransformTemplateCompiledArtifact::new(
+                        self.id(),
+                        self.kind(),
+                        request.template.uri.clone(),
+                        request.template.identity.clone(),
+                        request.entrypoint.clone(),
+                        json!({
+                            "engine": "cem-ql",
+                            "templateKind": "expression",
+                            "diagnostics": diagnostics.len(),
+                        }),
+                    ),
+                    diagnostics,
+                });
+            }
+        };
+        let diagnostics = diagnostics_with_uri(&compiled.diagnostics, &request.template.uri);
+
+        Ok(TransformTemplateCompileResponse {
+            artifact: TransformTemplateCompiledArtifact::new(
+                self.id(),
+                self.kind(),
+                request.template.uri.clone(),
+                request.template.identity.clone(),
+                request.entrypoint.clone(),
+                json!({
+                    "engine": "cem-ql",
+                    "templateKind": "expression",
+                    "templateBytes": request.template.bytes.len(),
+                    "diagnostics": diagnostics.len(),
+                }),
+            )
+            .with_native_payload(CemQlCompiledExpressionPayload {
+                template_uri: request.template.uri.clone(),
+                compiled,
+                params: request.params.clone(),
+            }),
+            diagnostics,
+        })
+    }
+
+    fn render(
+        &self,
+        request: TransformTemplateRenderRequest<'_>,
+    ) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
+        render_cem_ql_expression_payload(self.id(), request)
+    }
+}
+
 impl TransformTemplateAdapter for XsltParityTransformTemplateAdapter {
     fn id(&self) -> &'static str {
         XSLT_PARITY_TEMPLATE_ADAPTER_ID
@@ -1769,6 +1878,7 @@ fn xml_text_escape(value: &str) -> String {
 
 pub fn register_cem_ql_template_adapter(registry: &mut TransformTemplateAdapterRegistry) {
     registry.register(CemQlTransformTemplateAdapter);
+    registry.register(CemQlExpressionTransformTemplateAdapter);
     registry.register(XsltParityTransformTemplateAdapter);
 }
 
@@ -2750,6 +2860,16 @@ fn matches_cem_native_identity(identity: &FormatIdentity) -> bool {
             .any(|uri| uri == cem_ml::schema::ir::CEM_CORE_NAMESPACE)
 }
 
+fn matches_cem_ql_expression_identity(identity: &FormatIdentity) -> bool {
+    if let Some(content_type) = identity.content_type.as_deref() {
+        return content_type_essence(content_type)
+            == cem_ml::schema::registry::CEM_QL_EXPRESSION_CONTENT_TYPE;
+    }
+
+    identity.schema.as_deref().map(str::trim)
+        == Some(cem_ml::schema::registry::CEM_QL_EXPRESSION_SCHEMA_URI)
+}
+
 fn matches_xslt_identity(identity: &FormatIdentity) -> bool {
     if let Some(content_type) = identity.content_type.as_deref() {
         let essence = content_type_essence(content_type);
@@ -2814,6 +2934,48 @@ fn render_cem_ql_payload(
             output_spans: rendered.output_spans,
         },
         diagnostics: rendered.diagnostics,
+    })
+}
+
+fn render_cem_ql_expression_payload(
+    adapter_id: &'static str,
+    request: TransformTemplateRenderRequest<'_>,
+) -> TransformTemplateAdapterResult<TransformTemplateRenderResponse> {
+    let payload = request
+        .compiled
+        .native_payload::<CemQlCompiledExpressionPayload>()
+        .ok_or_else(|| {
+            TransformTemplateAdapterError::failed(
+                adapter_id,
+                TransformTemplateAdapterExecutionPhase::Render,
+                "compiled expression artifact was not produced by the CEM-QL expression adapter",
+            )
+        })?;
+    let result = evaluate(
+        &payload.compiled.query,
+        &EvaluationContext {
+            scope: QueryContextScope(0),
+            scope_policy: ScopePolicy::host_root(),
+            diagnostics: Vec::new(),
+            policy_bindings: expression_policy_bindings(request.primary_input, &payload.params),
+            current_item: None,
+        },
+    );
+    let diagnostics = diagnostics_with_uri(&result.diagnostics, &payload.template_uri);
+
+    Ok(TransformTemplateRenderResponse {
+        output: TransformTemplateOutputArtifact {
+            uri: None,
+            identity: Some(FormatIdentity {
+                content_type: Some(cem_ml::schema::registry::JSON_CONTENT_TYPE.to_owned()),
+                schema: Some(cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            value: item_stream_json(&result),
+            source_map: None,
+            output_spans: Vec::new(),
+        },
+        diagnostics,
     })
 }
 
@@ -3723,6 +3885,45 @@ fn template_data_from_artifacts(
     data
 }
 
+fn expression_compile_context(
+    template_uri: &str,
+    params: &BTreeMap<String, Value>,
+    data_bindings: &[String],
+    resolver_policy_stamp: Option<String>,
+) -> StandaloneExpressionContext {
+    let mut context = StandaloneExpressionContext {
+        source_uri: Some(template_uri.to_owned()),
+        resolver_policy_stamp,
+        host_capability_profile: Some("cem-ml-transform".to_owned()),
+        ..StandaloneExpressionContext::default()
+    };
+    for binding in data_bindings {
+        context = context.with_binding(
+            binding.clone(),
+            StandaloneExpressionBinding::new(ItemStream::empty(), Type::Any),
+        );
+    }
+    for name in params.keys() {
+        context = context.with_binding(
+            name.clone(),
+            StandaloneExpressionBinding::new(ItemStream::empty(), Type::Any),
+        );
+    }
+    context
+}
+
+fn expression_policy_bindings(
+    primary: &TransformTemplateDataArtifact,
+    params: &BTreeMap<String, Value>,
+) -> BTreeMap<String, ItemStream> {
+    let mut bindings = BTreeMap::new();
+    bindings.insert("input".to_owned(), value_to_stream(&primary.value));
+    for (name, value) in params {
+        bindings.insert(name.clone(), value_to_stream(value));
+    }
+    bindings
+}
+
 fn value_to_stream(value: &Value) -> ItemStream {
     match value {
         Value::Array(items) => ItemStream::from_items(items.iter().map(value_to_item).collect()),
@@ -3756,6 +3957,112 @@ fn number_to_item(value: &Number) -> Item {
     } else {
         Item::Atomic(AtomValue::Decimal(value.to_string()))
     }
+}
+
+fn item_stream_json(stream: &ItemStream) -> Value {
+    json!({
+        "items": stream.items.iter().map(item_json).collect::<Vec<_>>(),
+        "diagnostics": stream.diagnostics,
+        "error": stream.error.as_ref().map(eval_error_json),
+    })
+}
+
+fn item_json(item: &Item) -> Value {
+    match item {
+        Item::Node(id) => json!({
+            "kind": "node",
+            "id": id,
+        }),
+        Item::Atomic(atom) => atom_json(atom),
+        Item::Record(fields) => {
+            let fields = fields
+                .iter()
+                .map(|(key, values)| {
+                    (
+                        key.clone(),
+                        Value::Array(values.iter().map(item_json).collect::<Vec<_>>()),
+                    )
+                })
+                .collect::<Map<_, _>>();
+            json!({
+                "kind": "record",
+                "fields": fields,
+            })
+        }
+        Item::Array(items) => json!({
+            "kind": "array",
+            "items": items.iter().map(item_json).collect::<Vec<_>>(),
+        }),
+        Item::Lambda(id) => json!({
+            "kind": "lambda",
+            "id": id.0,
+        }),
+        Item::Resource(resource) => json!({
+            "kind": "resource",
+            "id": resource.id,
+            "contentType": resource.content_type,
+            "schema": resource.schema,
+            "roles": resource.roles,
+            "failAccessor": resource.fail_accessor,
+        }),
+    }
+}
+
+fn atom_json(atom: &AtomValue) -> Value {
+    match atom {
+        AtomValue::String(value) => typed_atom_json("string", json!(value)),
+        AtomValue::Integer(value) => typed_atom_json("integer", json!(value)),
+        AtomValue::Decimal(value) => typed_atom_json("decimal", json!(value)),
+        AtomValue::Double(value) => typed_atom_json("double", double_json(*value)),
+        AtomValue::Boolean(value) => typed_atom_json("boolean", json!(value)),
+        AtomValue::AnyUri(value) => typed_atom_json("any-uri", json!(value)),
+        AtomValue::Null => typed_atom_json("null", Value::Null),
+    }
+}
+
+fn typed_atom_json(atom_type: &str, value: Value) -> Value {
+    json!({
+        "kind": "atomic",
+        "type": atom_type,
+        "value": value,
+    })
+}
+
+fn double_json(value: f64) -> Value {
+    if value.is_nan() {
+        Value::String("NaN".to_owned())
+    } else if value == f64::INFINITY {
+        Value::String("Infinity".to_owned())
+    } else if value == f64::NEG_INFINITY {
+        Value::String("-Infinity".to_owned())
+    } else {
+        json!(value)
+    }
+}
+
+fn eval_error_json(error: &EvalError) -> Value {
+    match error {
+        EvalError::BudgetExceeded(axis) => json!({
+            "kind": "eval",
+            "type": "budget-exceeded",
+            "axis": budget_axis_json(*axis),
+            "message": format!("budget exceeded for `{}`", axis.as_str()),
+        }),
+        EvalError::Unsupported(message) => json!({
+            "kind": "eval",
+            "type": "unsupported",
+            "message": message,
+        }),
+        EvalError::TypeError(message) => json!({
+            "kind": "eval",
+            "type": "type-error",
+            "message": message,
+        }),
+    }
+}
+
+fn budget_axis_json(axis: BudgetAxis) -> Value {
+    json!(axis.as_str())
 }
 
 pub fn json_object(fields: impl IntoIterator<Item = (impl Into<String>, Value)>) -> Value {
@@ -3955,7 +4262,7 @@ mod tests {
             @execution="ast-validation"
             @function="page-label-result"
             @select="resource"
-            @match='kind = "page" and label = null' |
+            @match='kind == "page" && label == null' |
             {inputs |
                 {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
             }
@@ -4173,7 +4480,7 @@ mod tests {
             @execution="ast-validation"
             @function="self:shared-label-result"
             @select="resource"
-            @match='kind = "page" and label = null' |
+            @match='kind == "page" && label == null' |
             {inputs |
                 {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
             }
@@ -4240,7 +4547,7 @@ mod tests {
             @execution="ast-validation"
             @function="page-title-result"
             @select="resource"
-            @match='kind = "page" and title = null' |
+            @match='kind == "page" && title == null' |
             {inputs |
                 {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
             }
@@ -4309,7 +4616,7 @@ mod tests {
             @execution="ast-validation"
             @function="page-kind-result"
             @select="resource"
-            @match='kind = "page"' |
+            @match='kind == "page"' |
             {inputs |
                 {input-binding @name="candidate" @type="schema:node" @source="candidate" @required=true @source-range="candidate"}
             }
@@ -4419,8 +4726,11 @@ mod tests {
 @default pkg
 
 {package @id="cem-ml" @version="1.0.0" |
-    {schema @uri="https://cem.dev/ns/cem-ml/1" @source="schema/cem-ml.cem"}
-    {content-type @value="application/cem" @primary=true}
+    {schema
+        @uri="https://example.test/ns/cem-ml-output-pipeline/1"
+        @source="schema/cem-ml-output-pipeline.cem"
+    }
+    {content-type @value="application/vnd.example.cem-ml-output-pipeline+cem" @primary=true}
     {artifact
         @kind="formatter"
         @path="formatters/cem-format-tree.cemt"
@@ -4469,8 +4779,23 @@ mod tests {
     }
 }
 "#;
+        const PACKAGE_SCHEMA_URI: &str =
+            "cem+test://packages/cem-ml/v1/schema/cem-ml-output-pipeline.cem";
+        const PACKAGE_SCHEMA_SOURCE: &[u8] = br#"@doc cem-ml 1
+@ns schema = "https://cem.dev/ns/schema/1"
+@default schema
 
-        let artifact_entries = builtin_schema_package_artifact_sources()
+{schema
+    @name="cem-ml-output-pipeline"
+    @namespace="https://example.test/ns/cem-ml-output-pipeline/1"
+    @version="1.0.0" |
+    {elements |
+        {element @name="package"}
+    }
+}
+"#;
+
+        let mut artifact_entries = builtin_schema_package_artifact_sources()
             .iter()
             .filter(|source| source.package_id == "cem-ml")
             .map(|source| {
@@ -4485,6 +4810,11 @@ mod tests {
                 )
             })
             .collect::<Vec<_>>();
+        artifact_entries.push((
+            PACKAGE_SCHEMA_URI.to_owned(),
+            PACKAGE_SCHEMA_SOURCE,
+            Some(cem_ml::schema::registry::CEM_SCHEMA_CONTENT_TYPE),
+        ));
 
         let mut resolver_registry = ResolverRegistry::new();
         resolver_registry.register(
@@ -4976,6 +5306,10 @@ mod tests {
                     resolved_imports: vec![TransformTemplateResolvedModule {
                         alias: "ui".to_owned(),
                         parent_uri: None,
+                        requested_uri: None,
+                        normalized_uri: None,
+                        substituted_uri: None,
+                        resolver_policy_stamp: None,
                         uri: "templates/ui.cem".to_owned(),
                         identity: Some(identity),
                         content_hash: "cem-bin/1+blake3:ui".to_owned(),
@@ -5094,6 +5428,10 @@ mod tests {
                     resolved_imports: vec![TransformTemplateResolvedModule {
                         alias: "ui".to_owned(),
                         parent_uri: None,
+                        requested_uri: None,
+                        normalized_uri: None,
+                        substituted_uri: None,
+                        resolver_policy_stamp: None,
                         uri: "templates/ui.cem".to_owned(),
                         identity: Some(identity),
                         content_hash: "cem-bin/1+blake3:test".to_owned(),
@@ -6334,6 +6672,10 @@ mod tests {
                     resolved_imports: vec![TransformTemplateResolvedModule {
                         alias: "ui".to_owned(),
                         parent_uri: None,
+                        requested_uri: None,
+                        normalized_uri: None,
+                        substituted_uri: None,
+                        resolver_policy_stamp: None,
                         uri: "templates/ui.cem".to_owned(),
                         identity: Some(identity),
                         content_hash: "cem-bin/1+blake3:ui".to_owned(),
@@ -6410,6 +6752,10 @@ mod tests {
                     resolved_imports: vec![TransformTemplateResolvedModule {
                         alias: "ui".to_owned(),
                         parent_uri: None,
+                        requested_uri: None,
+                        normalized_uri: None,
+                        substituted_uri: None,
+                        resolver_policy_stamp: None,
                         uri: "templates/ui.cem".to_owned(),
                         identity: Some(identity),
                         content_hash: "cem-bin/1+blake3:ui".to_owned(),
@@ -6489,6 +6835,10 @@ mod tests {
                         TransformTemplateResolvedModule {
                             alias: "ui".to_owned(),
                             parent_uri: None,
+                            requested_uri: None,
+                            normalized_uri: None,
+                            substituted_uri: None,
+                            resolver_policy_stamp: None,
                             uri: "templates/ui.cem".to_owned(),
                             identity: Some(identity.clone()),
                             content_hash: "cem-bin/1+blake3:ui".to_owned(),
@@ -6504,6 +6854,10 @@ mod tests {
                         TransformTemplateResolvedModule {
                             alias: "icons".to_owned(),
                             parent_uri: Some("templates/ui.cem".to_owned()),
+                            requested_uri: None,
+                            normalized_uri: None,
+                            substituted_uri: None,
+                            resolver_policy_stamp: None,
                             uri: "templates/icons.cem".to_owned(),
                             identity: Some(identity),
                             content_hash: "cem-bin/1+blake3:icons".to_owned(),
@@ -6586,6 +6940,10 @@ mod tests {
                     resolved_imports: vec![TransformTemplateResolvedModule {
                         alias: "ui".to_owned(),
                         parent_uri: None,
+                        requested_uri: None,
+                        normalized_uri: None,
+                        substituted_uri: None,
+                        resolver_policy_stamp: None,
                         uri: "templates/ui.cem".to_owned(),
                         identity: Some(identity),
                         content_hash: "cem-bin/1+blake3:ui".to_owned(),
@@ -6670,6 +7028,10 @@ mod tests {
                     resolved_imports: vec![TransformTemplateResolvedModule {
                         alias: "ui".to_owned(),
                         parent_uri: None,
+                        requested_uri: None,
+                        normalized_uri: None,
+                        substituted_uri: None,
+                        resolver_policy_stamp: None,
                         uri: "templates/ui.cem".to_owned(),
                         identity: Some(identity),
                         content_hash: "cem-bin/1+blake3:ui".to_owned(),
@@ -6748,6 +7110,10 @@ mod tests {
                     resolved_imports: vec![TransformTemplateResolvedModule {
                         alias: "ui".to_owned(),
                         parent_uri: None,
+                        requested_uri: None,
+                        normalized_uri: None,
+                        substituted_uri: None,
+                        resolver_policy_stamp: None,
                         uri: "templates/ui.cem".to_owned(),
                         identity: Some(identity),
                         content_hash: "cem-bin/1+blake3:ui".to_owned(),
@@ -6827,6 +7193,10 @@ mod tests {
                     resolved_imports: vec![TransformTemplateResolvedModule {
                         alias: "ui".to_owned(),
                         parent_uri: None,
+                        requested_uri: None,
+                        normalized_uri: None,
+                        substituted_uri: None,
+                        resolver_policy_stamp: None,
                         uri: "templates/ui.cem".to_owned(),
                         identity: Some(identity),
                         content_hash: "cem-bin/1+blake3:ui".to_owned(),
@@ -6905,6 +7275,10 @@ mod tests {
                     resolved_imports: vec![TransformTemplateResolvedModule {
                         alias: "ui".to_owned(),
                         parent_uri: None,
+                        requested_uri: None,
+                        normalized_uri: None,
+                        substituted_uri: None,
+                        resolver_policy_stamp: None,
                         uri: "templates/ui.cem".to_owned(),
                         identity: Some(identity),
                         content_hash: "cem-bin/1+blake3:ui".to_owned(),
@@ -6986,6 +7360,10 @@ mod tests {
                     resolved_imports: vec![TransformTemplateResolvedModule {
                         alias: "ui".to_owned(),
                         parent_uri: None,
+                        requested_uri: None,
+                        normalized_uri: None,
+                        substituted_uri: None,
+                        resolver_policy_stamp: None,
                         uri: "templates/ui.cem".to_owned(),
                         identity: Some(identity),
                         content_hash: "cem-bin/1+blake3:ui".to_owned(),
@@ -7067,6 +7445,10 @@ mod tests {
                     resolved_imports: vec![TransformTemplateResolvedModule {
                         alias: "ui".to_owned(),
                         parent_uri: None,
+                        requested_uri: None,
+                        normalized_uri: None,
+                        substituted_uri: None,
+                        resolver_policy_stamp: None,
                         uri: "templates/ui.cem".to_owned(),
                         identity: Some(identity),
                         content_hash: "cem-bin/1+blake3:ui".to_owned(),
@@ -7145,6 +7527,10 @@ mod tests {
                     resolved_imports: vec![TransformTemplateResolvedModule {
                         alias: "ui".to_owned(),
                         parent_uri: None,
+                        requested_uri: None,
+                        normalized_uri: None,
+                        substituted_uri: None,
+                        resolver_policy_stamp: None,
                         uri: "templates/ui.cem".to_owned(),
                         identity: Some(identity),
                         content_hash: "cem-bin/1+blake3:ui".to_owned(),
@@ -7226,6 +7612,10 @@ mod tests {
                     resolved_imports: vec![TransformTemplateResolvedModule {
                         alias: "ui".to_owned(),
                         parent_uri: None,
+                        requested_uri: None,
+                        normalized_uri: None,
+                        substituted_uri: None,
+                        resolver_policy_stamp: None,
                         uri: "templates/ui.cem".to_owned(),
                         identity: Some(identity),
                         content_hash: "cem-bin/1+blake3:ui".to_owned(),
@@ -7304,6 +7694,10 @@ mod tests {
                     resolved_imports: vec![TransformTemplateResolvedModule {
                         alias: "ui".to_owned(),
                         parent_uri: None,
+                        requested_uri: None,
+                        normalized_uri: None,
+                        substituted_uri: None,
+                        resolver_policy_stamp: None,
                         uri: "templates/ui.cem".to_owned(),
                         identity: Some(identity),
                         content_hash: "cem-bin/1+blake3:test".to_owned(),
@@ -8112,6 +8506,78 @@ if greeting == "Hello" {
         assert!(scopes.contains(&11));
         assert!(scopes.contains(&12));
         assert!(scopes.contains(&13));
+    }
+
+    #[test]
+    fn real_engine_transform_uses_registered_cem_ql_expression_adapter() {
+        let context = engine_context_with_cem_ql_template_adapter();
+        let request = TransformRequest {
+            data: EngineInput {
+                uri: "data.cem".to_owned(),
+                bytes: b"{p @id=\"guide\"}".to_vec(),
+                from_format: None,
+                identity: Some(FormatIdentity {
+                    content_type: Some("text/cem-ml".to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                root_scope: ScopeConfig::default(),
+            },
+            template: TemplateInput {
+                uri: "template.cem-ql".to_owned(),
+                bytes: b"input.kind".to_vec(),
+                identity: Some(FormatIdentity {
+                    content_type: Some(
+                        cem_ml::schema::registry::CEM_QL_EXPRESSION_CONTENT_TYPE.to_owned(),
+                    ),
+                    schema: Some(cem_ml::schema::registry::CEM_QL_EXPRESSION_SCHEMA_URI.to_owned()),
+                    ..FormatIdentity::default()
+                }),
+                root_scope: ScopeConfig::default(),
+            },
+            template_kind: TransformTemplateKind::CemQlExpression,
+            template_entrypoint: TransformTemplateEntrypoint::implicit(),
+            params: BTreeMap::new(),
+            preserve_source_offsets: false,
+            context,
+            target: Some(FormatIdentity {
+                content_type: Some(cem_ml::schema::registry::JSON_CONTENT_TYPE.to_owned()),
+                schema: Some(cem_ml::schema::registry::JSON_VALUE_SCHEMA_URI.to_owned()),
+                ..FormatIdentity::default()
+            }),
+            target_scope: ScopeConfig::default(),
+            scheduler_scope_ids: TransformSchedulerScopeIds {
+                data_load: 14,
+                template_load: 15,
+                execution: 16,
+                output: 17,
+            },
+            execution_policy: TransformExecutionPolicy {
+                runtime_phase: TransformRuntimePhase::CemQlExpression,
+                ..TransformExecutionPolicy::default()
+            },
+        };
+
+        let response = RealCemMlEngine::new()
+            .transform(request)
+            .expect("CEM-QL expression transform should execute");
+
+        assert!(
+            response.diagnostics.is_empty(),
+            "{:?}",
+            response.diagnostics
+        );
+        assert_eq!(
+            response.primary["items"],
+            json!([{
+                "kind": "atomic",
+                "type": "string",
+                "value": "document"
+            }])
+        );
+        assert_eq!(response.primary["diagnostics"], json!([]));
+        assert_eq!(response.primary["error"], Value::Null);
+        assert!(response.source_map.is_none());
+        assert!(response.output_spans.is_empty());
     }
 
     #[test]

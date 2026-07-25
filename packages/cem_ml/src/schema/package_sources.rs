@@ -479,11 +479,11 @@ mod tests {
         CEM_EVENTS_JSON_PROJECTION_CONTENT_TYPE, CEM_EVENTS_PROJECTION_CONTENT_TYPE,
         CEM_EVENTS_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI,
         CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_QL_CONTENT_TYPE,
-        CEM_QL_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
-        CEM_SCHEMA_PACKAGE_URI, CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE,
-        CEM_TRANSFORM_SCHEMA_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI, CSV_CONTENT_TYPE,
-        CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE,
-        JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI,
+        CEM_QL_EXPRESSION_CONTENT_TYPE, CEM_QL_EXPRESSION_SCHEMA_URI, CEM_QL_SCHEMA_URI,
+        CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
+        CEM_SCHEMA_URI, CEM_TRANSFORM_CONTENT_TYPE, CEM_TRANSFORM_SCHEMA_URI, CSS_CONTENT_TYPE,
+        CSS_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI,
+        JSON_CONTENT_TYPE, JSON_SCHEMA_CONTENT_TYPE, JSON_SCHEMA_SCHEMA_URI, JSON_VALUE_SCHEMA_URI,
         MARKDOWN_SCHEMA_URI, MATHML_CONTENT_TYPE, MATHML_SCHEMA_URI, RELAX_NG_COMPACT_CONTENT_TYPE,
         RELAX_NG_SCHEMA_URI, RELAX_NG_XML_CONTENT_TYPE, SVG_CONTENT_TYPE, SVG_SCHEMA_URI,
         XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI, XSLT_CONTENT_TYPE,
@@ -1182,128 +1182,155 @@ mod tests {
             top_level_example_paths("cem-ql"),
             "CEM-QL top-level examples must be discoverable from package.cem"
         );
-        assert!(examples
-            .iter()
-            .all(|example| example.schema == CEM_QL_SCHEMA_URI));
+        assert!(examples.iter().all(|example| {
+            example.schema == CEM_QL_SCHEMA_URI || example.schema == CEM_QL_EXPRESSION_SCHEMA_URI
+        }));
 
         let expected = [
             (
                 "basic-query",
                 CEM_QL_CONTENT_TYPE,
+                CEM_QL_SCHEMA_URI,
+                SchemaPackageExampleExpectedResult::Pass,
+                None,
+            ),
+            (
+                "basic-expression",
+                CEM_QL_EXPRESSION_CONTENT_TYPE,
+                CEM_QL_EXPRESSION_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "module-query",
                 CEM_QL_CONTENT_TYPE,
+                CEM_QL_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "operators-and-control",
                 CEM_QL_CONTENT_TYPE,
+                CEM_QL_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "collections-and-pipelines",
                 CEM_QL_CONTENT_TYPE,
+                CEM_QL_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "stdlib-data-helpers",
                 CEM_QL_CONTENT_TYPE,
+                CEM_QL_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "host-resource-helpers",
                 CEM_QL_CONTENT_TYPE,
+                CEM_QL_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "alias-content-type",
                 "text/cem-ql",
+                CEM_QL_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "line-ending-lf",
                 CEM_QL_CONTENT_TYPE,
+                CEM_QL_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "line-ending-crlf",
                 CEM_QL_CONTENT_TYPE,
+                CEM_QL_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "comments-and-whitespace",
                 CEM_QL_CONTENT_TYPE,
+                CEM_QL_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "source-token-ranges",
                 CEM_QL_CONTENT_TYPE,
+                CEM_QL_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "compiled-artifact-identity",
                 CEM_QL_CONTENT_TYPE,
+                CEM_QL_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Pass,
                 None,
             ),
             (
                 "invalid-parse",
                 CEM_QL_CONTENT_TYPE,
+                CEM_QL_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Fail,
                 Some("cem.ql.parse_error"),
             ),
             (
                 "invalid-missing-module",
                 CEM_QL_CONTENT_TYPE,
+                CEM_QL_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Fail,
                 Some("cem.ql.module_uri_missing"),
             ),
             (
                 "invalid-old-syntax",
                 CEM_QL_CONTENT_TYPE,
+                CEM_QL_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Fail,
                 Some("cem.ql.use_rust_boolean_ops"),
             ),
             (
                 "invalid-utf8",
                 CEM_QL_CONTENT_TYPE,
+                CEM_QL_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Fail,
                 Some("cem.ql.invalid_utf8"),
             ),
             (
                 "invalid-duplicate-import-alias",
                 CEM_QL_CONTENT_TYPE,
+                CEM_QL_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Fail,
                 Some("cem.ql.import_alias_duplicate"),
             ),
             (
                 "invalid-unresolved-import",
                 CEM_QL_CONTENT_TYPE,
+                CEM_QL_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Fail,
                 Some("cem.ql.import_unresolved"),
             ),
             (
                 "invalid-type-error",
                 CEM_QL_CONTENT_TYPE,
+                CEM_QL_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Fail,
                 Some("cem.ql.type_error"),
             ),
             (
                 "invalid-duplicate-declaration",
                 CEM_QL_CONTENT_TYPE,
+                CEM_QL_SCHEMA_URI,
                 SchemaPackageExampleExpectedResult::Fail,
                 Some("cem.ql.declaration_duplicate"),
             ),
@@ -1314,19 +1341,20 @@ mod tests {
             .collect::<BTreeSet<_>>();
         let expected_ids = expected
             .iter()
-            .map(|(id, _, _, _)| *id)
+            .map(|(id, _, _, _, _)| *id)
             .collect::<BTreeSet<_>>();
         assert_eq!(
             actual_ids, expected_ids,
             "checked CEM-QL example expectations must cover every manifest example"
         );
 
-        for (id, content_type, expected_result, expected_code) in expected {
+        for (id, content_type, schema, expected_result, expected_code) in expected {
             let example = examples
                 .iter()
                 .find(|example| example.id == id)
                 .unwrap_or_else(|| panic!("CEM-QL example `{id}`"));
             assert_eq!(example.content_type, content_type);
+            assert_eq!(example.schema, schema);
             assert_eq!(example.expected_result, expected_result);
             let expected_codes = expected_code
                 .map(|code| vec![code.to_owned()])

@@ -94,8 +94,8 @@ external syntax such as JSON, HTML, or XML:
    behavior, and component packages consume that contract by declaring slots
    that delegate to CEM-QL parse, type, diagnostic, and evaluator semantics.
    Standalone expression execution must be exposed through the shared CEM-QL
-   API/CLI path so an expression can run against data without being wrapped in
-   a query module or template module.
+   API and the CEM-ML `transform` CLI path so an expression can run against
+   data without being wrapped in a query module or template module.
 
 These principles are the base contract for each package described below.
 
@@ -242,8 +242,9 @@ compiled query artifact resource identities. It owns
 and claims compiled artifact/cache aliases for query binaries. CEM-QL source is
 not CEM-ML syntax; its parser lives in the `cem-ql` crate. Standalone
 expression execution belongs to the same package/API surface, not a
-template-package-specific feature; the Rust API exists, while CLI/resource
-registration remains the next execution slice.
+template-package-specific feature. The Rust API exists, and the CEM-ML
+`transform` command can run an inline `--template-expression` or a `*.cem-ql`
+expression transformation file.
 
 `json/v1` defines generic JSON text resource identity. It owns
 `application/json` and claims `text/json` as an alias. JSON source is not

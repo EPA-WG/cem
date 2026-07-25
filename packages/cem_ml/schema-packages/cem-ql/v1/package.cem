@@ -10,6 +10,7 @@
 
     {content-type @value="application/vnd.cem.query+cem-ql" @primary=true}
     {content-type @value="text/cem-ql" @alias=true}
+    {content-type @value="application/vnd.cem.query-expression+cem-ql" @alias=true}
     {content-type @value="application/vnd.cem.query-artifact+cem-bin" @alias=true}
     {content-type @value="cem-ql/1" @alias=true}
     {content-type @value="cem-ql/module" @alias=true}
@@ -105,6 +106,14 @@
         @path="examples/basic-query.cemql"
         @content-type="application/vnd.cem.query+cem-ql"
         @schema="https://cem.dev/ns/query/cem-ql/1"
+        @expected-result="pass"
+    }
+
+    {example
+        @id="basic-expression"
+        @path="examples/basic-expression.cem-ql"
+        @content-type="application/vnd.cem.query-expression+cem-ql"
+        @schema="https://cem.dev/ns/query/cem-ql/1#expression"
         @expected-result="pass"
     }
 

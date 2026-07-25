@@ -1228,6 +1228,20 @@ fn transform_template_scope(args: &cli::TransformArgs, template: &Path) -> Scope
     }
 }
 
+fn transform_inline_expression_scope(args: &cli::TransformArgs) -> ScopeConfig {
+    ScopeConfig {
+        default_content_type: Some(args.template_content_type.clone().unwrap_or_else(|| {
+            cem_ml::schema::registry::CEM_QL_EXPRESSION_CONTENT_TYPE.to_owned()
+        })),
+        schema: Some(
+            args.template_schema.clone().unwrap_or_else(|| {
+                cem_ml::schema::registry::CEM_QL_EXPRESSION_SCHEMA_URI.to_owned()
+            }),
+        ),
+        ..ScopeConfig::default()
+    }
+}
+
 fn transform_target_scope(args: &cli::TransformArgs) -> Result<ScopeConfig, CliRequestError> {
     let scope = ScopeConfig {
         default_content_type: args.to_content_type.clone(),
@@ -1281,10 +1295,18 @@ fn transform_execution_policy_for(
     params: &BTreeMap<String, serde_json::Value>,
 ) -> eng::TransformExecutionPolicy {
     let mut policy = eng::TransformExecutionPolicy::default();
-    if template_kind == eng::TransformTemplateKind::Xslt {
-        policy.runtime_phase = eng::TransformRuntimePhase::XsltParity;
-    } else if !entrypoint.is_implicit() || !params.is_empty() {
-        policy.runtime_phase = eng::TransformRuntimePhase::CemNativeModules;
+    match template_kind {
+        eng::TransformTemplateKind::Xslt => {
+            policy.runtime_phase = eng::TransformRuntimePhase::XsltParity;
+        }
+        eng::TransformTemplateKind::CemQlExpression => {
+            policy.runtime_phase = eng::TransformRuntimePhase::CemQlExpression;
+        }
+        eng::TransformTemplateKind::CemNative => {
+            if !entrypoint.is_implicit() || !params.is_empty() {
+                policy.runtime_phase = eng::TransformRuntimePhase::CemNativeModules;
+            }
+        }
     }
     policy
 }
@@ -1294,9 +1316,17 @@ fn validate_transform_template_module_surface(
     entrypoint: &eng::TransformTemplateEntrypoint,
     params: &BTreeMap<String, serde_json::Value>,
 ) -> Result<(), CliRequestError> {
+    if template_kind == eng::TransformTemplateKind::CemQlExpression && !entrypoint.is_implicit() {
+        return Err(CliRequestError::Usage(
+            "transform --template-entrypoint is not supported for CEM-QL expression transforms"
+                .into(),
+        ));
+    }
     if !matches!(
         template_kind,
-        eng::TransformTemplateKind::CemNative | eng::TransformTemplateKind::Xslt
+        eng::TransformTemplateKind::CemNative
+            | eng::TransformTemplateKind::Xslt
+            | eng::TransformTemplateKind::CemQlExpression
     ) && (!entrypoint.is_implicit() || !params.is_empty())
     {
         return Err(CliRequestError::Usage(
@@ -1307,6 +1337,39 @@ fn validate_transform_template_module_surface(
     Ok(())
 }
 
+fn transform_template_input_from_args(
+    context: &eng::EngineContext,
+    args: &cli::TransformArgs,
+) -> Result<eng::TemplateInput, CliRequestError> {
+    match (
+        args.template.as_deref(),
+        args.template_expression.as_deref(),
+    ) {
+        (Some(_), Some(_)) => Err(CliRequestError::Usage(
+            "transform accepts either --template or --template-expression, not both".into(),
+        )),
+        (Some(template_path), None) => template_input(
+            context,
+            template_path,
+            transform_template_scope(args, template_path),
+        )
+        .map_err(CliRequestError::Engine),
+        (None, Some(expression)) => {
+            let mut root_scope = transform_inline_expression_scope(args);
+            apply_schema_registry_defaults(context, &mut root_scope);
+            Ok(eng::TemplateInput {
+                uri: "cem+inline://transform/template.cem-ql".to_owned(),
+                bytes: expression.as_bytes().to_vec(),
+                identity: root_scope.format_identity_option(),
+                root_scope,
+            })
+        }
+        (None, None) => Err(CliRequestError::Usage(
+            "transform requires --template, --template-expression, or --config".into(),
+        )),
+    }
+}
+
 fn transform_request_from_args(
     context: &eng::EngineContext,
     args: &cli::TransformArgs,
@@ -1315,9 +1378,6 @@ fn transform_request_from_args(
         .data
         .as_deref()
         .ok_or_else(|| CliRequestError::Usage("transform requires DATA or --config".into()))?;
-    let template_path = args.template.as_deref().ok_or_else(|| {
-        CliRequestError::Usage("transform requires --template or --config".into())
-    })?;
     let data = engine_input(
         context,
         data_path,
@@ -1325,12 +1385,7 @@ fn transform_request_from_args(
         transform_data_scope(args, data_path),
     )
     .map_err(CliRequestError::Engine)?;
-    let template = template_input(
-        context,
-        template_path,
-        transform_template_scope(args, template_path),
-    )
-    .map_err(CliRequestError::Engine)?;
+    let template = transform_template_input_from_args(context, args)?;
     let template_identity = template
         .identity
         .clone()
@@ -4052,6 +4107,7 @@ fn direct_source_validation_report(
 
 fn is_cem_ql_source_input(input: &eng::EngineInput) -> bool {
     source_input_matches_schema_uri(input, cem_ml::schema::registry::CEM_QL_SCHEMA_URI)
+        || is_cem_ql_expression_source_input(input)
 }
 
 fn is_json_source_input(input: &eng::EngineInput) -> bool {
@@ -4217,6 +4273,26 @@ fn collect_cem_ql_source_diagnostics(
             continue;
         };
 
+        if is_cem_ql_expression_source_input(input) {
+            let context = cem_ql::api::StandaloneExpressionContext::default()
+                .with_input(cem_ql::eval::ItemStream::empty(), cem_ql::types::Type::Any);
+            match cem_ql::api::compile_expression(source, &context) {
+                Ok(compiled) => {
+                    diagnostics.extend(compiled.diagnostics.into_iter().map(|mut diagnostic| {
+                        diagnostic.uri = Some(input.uri.clone());
+                        diagnostic
+                    }));
+                }
+                Err(error) => {
+                    diagnostics.extend(error.diagnostics.into_iter().map(|mut diagnostic| {
+                        diagnostic.uri = Some(input.uri.clone());
+                        diagnostic
+                    }));
+                }
+            }
+            continue;
+        }
+
         let mut input_diagnostics = Vec::new();
         let parsed = cem_ql::api::parse(source);
         if !parsed.module.nodes.iter().any(|node| {
@@ -4255,6 +4331,22 @@ fn collect_cem_ql_source_diagnostics(
         diagnostics.extend(input_diagnostics);
     }
     diagnostics
+}
+
+fn is_cem_ql_expression_source_input(input: &eng::EngineInput) -> bool {
+    let identity = input
+        .identity
+        .clone()
+        .unwrap_or_else(|| input.root_scope.format_identity());
+    identity
+        .content_type
+        .as_deref()
+        .map(cli_content_type_essence)
+        .is_some_and(|content_type| {
+            content_type == cem_ml::schema::registry::CEM_QL_EXPRESSION_CONTENT_TYPE
+        })
+        || identity.schema.as_deref().map(str::trim)
+            == Some(cem_ml::schema::registry::CEM_QL_EXPRESSION_SCHEMA_URI)
 }
 
 fn cem_ql_invalid_utf8_diagnostic(input: &eng::EngineInput) -> cem_ml::diagnostics::Diagnostic {
@@ -12447,6 +12539,79 @@ mod tests {
     }
 
     #[test]
+    fn transform_writes_inline_cem_ql_expression_result_to_stdout() {
+        let data = write_fixture(
+            "transform-run-inline-expression-data.cem",
+            "{p @id=\"source\"}",
+        );
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "transform",
+                data.to_str().unwrap(),
+                "--data-content-type",
+                "text/cem-ml",
+                "--template-expression",
+                "input.kind",
+                "--output-color-type",
+                "none",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        let result: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+        assert_eq!(
+            result["items"],
+            serde_json::json!([{
+                "kind": "atomic",
+                "type": "string",
+                "value": "document"
+            }])
+        );
+        assert_eq!(result["diagnostics"], serde_json::json!([]));
+        assert_eq!(result["error"], serde_json::Value::Null);
+    }
+
+    #[test]
+    fn transform_writes_cem_ql_expression_file_result_to_stdout() {
+        let data = write_fixture(
+            "transform-run-expression-file-data.cem",
+            "{p @id=\"source\"}",
+        );
+        let template = write_fixture("transform-run-expression-file.cem-ql", "input.kind");
+
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "transform",
+                data.to_str().unwrap(),
+                "--data-content-type",
+                "text/cem-ml",
+                "--template",
+                template.to_str().unwrap(),
+                "--output-color-type",
+                "none",
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK);
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        let result: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+        assert_eq!(
+            result["items"],
+            serde_json::json!([{
+                "kind": "atomic",
+                "type": "string",
+                "value": "document"
+            }])
+        );
+        assert_eq!(result["diagnostics"], serde_json::json!([]));
+        assert_eq!(result["error"], serde_json::Value::Null);
+    }
+
+    #[test]
     fn transform_writes_document_to_out_when_requested() {
         let data = write_fixture("transform-run-out-data.cem", "{p @id=\"source\"}");
         let template = write_fixture("transform-run-out-template.cem", "{section | Done}");
@@ -14573,6 +14738,104 @@ mod tests {
     }
 
     #[test]
+    fn transform_request_helper_accepts_inline_cem_ql_expression_template() {
+        let data = write_fixture("transform-helper-inline-expression-data.cem", "{p Hi}");
+        let parsed = parse_cli(&[
+            "transform",
+            data.to_str().unwrap(),
+            "--data-content-type",
+            "text/cem-ml",
+            "--template-expression",
+            "input.kind",
+            "--param",
+            "suffix=!",
+        ]);
+        let cli::Command::Transform(args) = parsed.command else {
+            panic!("expected transform command");
+        };
+        let context = context(&cli::ContextOptions::default());
+
+        let request = match transform_request_from_args(&context, &args) {
+            Ok(request) => request,
+            Err(_) => panic!("transform request helper should accept inline expression"),
+        };
+
+        assert_eq!(
+            request.template.uri,
+            "cem+inline://transform/template.cem-ql"
+        );
+        assert_eq!(request.template.bytes, b"input.kind");
+        assert_eq!(
+            request
+                .template
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.content_type.as_deref()),
+            Some(cem_ml::schema::registry::CEM_QL_EXPRESSION_CONTENT_TYPE)
+        );
+        assert_eq!(
+            request
+                .template
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.schema.as_deref()),
+            Some(cem_ml::schema::registry::CEM_QL_EXPRESSION_SCHEMA_URI)
+        );
+        assert_eq!(
+            request.template_kind,
+            eng::TransformTemplateKind::CemQlExpression
+        );
+        assert_eq!(
+            request.execution_policy.runtime_phase,
+            eng::TransformRuntimePhase::CemQlExpression
+        );
+        assert_eq!(
+            request.params.get("suffix"),
+            Some(&serde_json::Value::String("!".to_owned()))
+        );
+    }
+
+    #[test]
+    fn transform_request_helper_infers_cem_ql_expression_template_file() {
+        let data = write_fixture("transform-helper-expression-file-data.cem", "{p Hi}");
+        let template = write_fixture("transform-helper-expression-file.cem-ql", "input.kind");
+        let parsed = parse_cli(&[
+            "transform",
+            data.to_str().unwrap(),
+            "--data-content-type",
+            "text/cem-ml",
+            "--template",
+            template.to_str().unwrap(),
+        ]);
+        let cli::Command::Transform(args) = parsed.command else {
+            panic!("expected transform command");
+        };
+        let context = context(&cli::ContextOptions::default());
+
+        let request = match transform_request_from_args(&context, &args) {
+            Ok(request) => request,
+            Err(_) => panic!("transform request helper should infer expression file"),
+        };
+
+        assert_eq!(
+            request
+                .template
+                .identity
+                .as_ref()
+                .and_then(|identity| identity.content_type.as_deref()),
+            Some(cem_ml::schema::registry::CEM_QL_EXPRESSION_CONTENT_TYPE)
+        );
+        assert_eq!(
+            request.template_kind,
+            eng::TransformTemplateKind::CemQlExpression
+        );
+        assert_eq!(
+            request.execution_policy.runtime_phase,
+            eng::TransformRuntimePhase::CemQlExpression
+        );
+    }
+
+    #[test]
     fn transform_request_helper_infers_cemt_template_schema_and_runtime_adapter() {
         let data = write_fixture("transform-helper-cemt-data.xml", "<items/>");
         let template = write_fixture(
@@ -15767,6 +16030,37 @@ count + 1"#,
         assert!(!diagnostics.iter().any(|diag| diag["code"]
             .as_str()
             .is_some_and(|code| code.starts_with("cem.schema."))));
+    }
+
+    #[test]
+    fn validate_cem_ql_expression_source_reports_parser_diagnostics() {
+        let p = write_fixture(
+            "validate-cem-ql-expression-source-invalid.cem-ql",
+            "input +",
+        );
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "validate",
+                "--format",
+                "json",
+                "--content-type",
+                cem_ml::schema::registry::CEM_QL_EXPRESSION_CONTENT_TYPE,
+                "--schema",
+                cem_ml::schema::registry::CEM_QL_EXPRESSION_SCHEMA_URI,
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_HARD_FAILURE, "{stderr}");
+        let v: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let diagnostics = v["diagnostics"].as_array().unwrap();
+        assert!(diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.ql.parse_error"));
+        assert!(!diagnostics
+            .iter()
+            .any(|diag| diag["code"] == "cem.ql.module_uri_missing"));
     }
 
     #[test]

@@ -33,13 +33,10 @@ errors, and `seq:difference(a, b)` remains only a named helper alias.
 - Compiled artifact alias: `application/vnd.cem.query-artifact+cem-bin`
 - Legacy/internal cache aliases: `cem-ql/1`, `cem-ql/module`
 - Shared expression schema anchor: `https://cem.dev/ns/query/cem-ql/1#expression`
-- Planned standalone expression content type:
-  `application/vnd.cem.query-expression+cem-ql`
+- Standalone expression content type: `application/vnd.cem.query-expression+cem-ql`
 
-The standalone expression content type is intentionally not registered as a
-shipped source content type until the expression API, CLI runner, examples, and
-package verify gates exist. Until then, shipped CLI validation and conversion
-support remains module-source oriented.
+Standalone expression files use the dashed `*.cem-ql` extension by convention,
+while query modules keep the existing `*.cemql` extension.
 
 ## Shared Expression Contract
 
@@ -63,11 +60,11 @@ exposes `cem_ql::api::compile_expression` and
 `cem_ql::api::evaluate_expression` for source bytes plus typed data/context
 bindings. It returns compiled expression metadata, the inferred root type,
 diagnostics, policy/capability stamps supplied by the caller, and the evaluated
-item stream. Source-map reporting and formatted output are still part of the
-target CLI/resource-runner slice. The target CLI should expose that path under
-the CEM-ML CLI, for example a future `cem-ml query expr` command that accepts
-expression source from an argument, file, or stdin and data from a
-content-type/schema-declared input resource.
+item stream. The CEM-ML CLI exposes the same path through the existing
+`transform` command: use `--template-expression` for inline expression source
+or pass a `*.cem-ql` file through `--template`. The transform command supplies
+the primary data resource as the `input` binding and maps repeated `--param
+NAME=VALUE` values to named expression bindings.
 
 ## Standalone Expression Resource Contract
 
@@ -104,9 +101,10 @@ the CEM-QL diagnostic remains the expression diagnostic.
 
 Contract-only fixtures live under
 [`examples/expression-contract/`](examples/expression-contract/). They are not
-manifest-declared package examples yet because the standalone API/CLI runner is
-not shipped. When the runner lands, these fixtures should move into the
-manifest-owned example harness with executable expected results.
+manifest-declared package examples because they document the broader expression
+resource report envelope. The executable package example
+[`basic-expression.cem-ql`](examples/basic-expression.cem-ql) covers the
+shipped transform CLI expression source shape.
 
 ## Standards And CEM Policy Matrix
 
@@ -266,9 +264,8 @@ schema-package output support:
 
 Tracked but not complete:
 
-- standalone expression resource registration, CLI runner, manifest-owned
-  package examples, and package verify gates for running a CEM-QL expression
-  against declared data without a wrapping query module;
+- additional standalone expression package examples and package verify gates
+  for parse errors, type errors, source ranges, and data binding failures;
 - AST-aware `pretty` and `tabular` layout rules beyond source-preserving token
   streams;
 - schema-owned diagnostic policy execution from parse facts rather than bridge
@@ -384,6 +381,7 @@ unchanged, state that explicitly in the change notes.
 | Example                                                                 | Purpose                                                                                           | Expected result                       |
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------- |
 | [`basic-query.cemql`](examples/basic-query.cemql)                       | Minimal query module with a module URI, immutable binding declaration, and expression.            | Pass                                  |
+| [`basic-expression.cem-ql`](examples/basic-expression.cem-ql)           | Standalone expression transform source that reads the primary data resource through `input`.      | Pass                                  |
 | [`module-query.cemql`](examples/module-query.cemql)                     | Query module with import, immutable binding declaration, function declaration, and conditional expression. | Pass                                  |
 | [`operators-and-control.cemql`](examples/operators-and-control.cemql)   | Arithmetic, comparisons, boolean short-circuit operators, type tests/casts, set operators, block `let`, and `if`/`else`. | Pass                                  |
 | [`collections-and-pipelines.cemql`](examples/collections-and-pipelines.cemql) | Record streams, dot pipelines, current-item projection, `for` mapping, and `any`/`all` helpers. | Pass                                  |

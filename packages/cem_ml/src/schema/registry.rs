@@ -20,6 +20,7 @@ pub const CEM_SCHEMA_PACKAGE_URI: &str = "https://cem.dev/ns/schema-package/1";
 pub const CEM_NATIVE_TEMPLATE_SCHEMA_URI: &str = "https://cem.dev/ns/template/cem-native/1";
 pub const CEM_TRANSFORM_SCHEMA_URI: &str = "https://cem.dev/ns/transform/cem/1";
 pub const CEM_QL_SCHEMA_URI: &str = "https://cem.dev/ns/query/cem-ql/1";
+pub const CEM_QL_EXPRESSION_SCHEMA_URI: &str = "https://cem.dev/ns/query/cem-ql/1#expression";
 pub const JSON_VALUE_SCHEMA_URI: &str = "https://cem.dev/ns/data/json/1";
 pub const JSON_SCHEMA_SCHEMA_URI: &str = "https://cem.dev/ns/data/json-schema/1";
 pub const YAML_SCHEMA_URI: &str = "https://cem.dev/ns/data/yaml/1";
@@ -50,6 +51,7 @@ pub const CEM_SCHEMA_PACKAGE_CONTENT_TYPE: &str = "application/vnd.cem.schema-pa
 pub const CEM_NATIVE_TEMPLATE_CONTENT_TYPE: &str = "application/vnd.cem.template+cem";
 pub const CEM_TRANSFORM_CONTENT_TYPE: &str = "application/vnd.cem.transform+cem";
 pub const CEM_QL_CONTENT_TYPE: &str = "application/vnd.cem.query+cem-ql";
+pub const CEM_QL_EXPRESSION_CONTENT_TYPE: &str = "application/vnd.cem.query-expression+cem-ql";
 pub const CEM_QL_ARTIFACT_CONTENT_TYPE: &str = "application/vnd.cem.query-artifact+cem-bin";
 pub const JSON_CONTENT_TYPE: &str = "application/json";
 pub const JSON_SCHEMA_CONTENT_TYPE: &str = "application/schema+json";
@@ -1429,6 +1431,7 @@ mod tests {
 
         for content_type in [
             "text/cem-ql; charset=utf-8",
+            CEM_QL_EXPRESSION_CONTENT_TYPE,
             CEM_QL_ARTIFACT_CONTENT_TYPE,
             "cem-ql/1",
             "cem-ql/module",

@@ -231,10 +231,11 @@ needed before invalid template expression fixtures can close.
 - [x] Add a `cem_ql` Rust API that can compile and evaluate one standalone
       expression against a typed data/context input without requiring a query
       module wrapper.
-- [ ] Add a CEM-ML CLI expression runner, currently planned as a `query expr`
-      subcommand, that shares run config, input content-type/schema identity,
-      resolver policy, output formatting, and diagnostic reporting with
-      existing commands.
+- [x] Add CEM-QL expression execution to the CEM-ML `transform` command:
+      inline expressions use `--template-expression`, file-backed expression
+      transformations use `--template *.cem-ql`, and both share transform run
+      config, input content-type/schema identity, resolver policy, output
+      formatting, and diagnostic reporting.
 - [ ] Add package-owned CEM-QL examples and tests for valid standalone
       expression execution, parse errors, type errors, source ranges, and data
       binding failures.
@@ -296,10 +297,9 @@ Remaining dependency-ordered package checklist:
 
 ### Next Work Item
 
-Expose the standalone CEM-QL expression path through the CEM-ML CLI expression
-runner, currently planned as `cem-ml query expr`, sharing run config, input
-identity, resolver policy, output formatting, and diagnostic reporting with
-existing commands.
+Add package-owned CEM-QL expression examples and tests for parse errors, type
+errors, source ranges, and data binding failures on top of the valid
+`basic-expression.cem-ql` transform example.
 
 ## Current Verification Commands
 
