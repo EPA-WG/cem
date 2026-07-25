@@ -1,15 +1,39 @@
-# CEM Events Projection Schema
+# CEM Events Projection Schema Package
 
-This package defines the semantic CEM event-stream projection layer:
+Status: schema, binary/JSON examples, README previews, and package-local
+verification frame
 
-- schema URI: `https://cem.dev/ns/projection/events/1`
-- primary content type: `application/vnd.cem.events+cem-bin`
-- debug/interchange view: `application/vnd.cem.events+json`
+This package defines the semantic CEM event-stream projection layer. The
+projection is an ordered parser/transform event view of CEM source: open/close
+events, names, values, trivia, separators, mode switches, diagnostics, source
+ranges, checkpoints, and sealed binary chunks for replay and multicast.
 
-The events projection is designed for replay, multicast, and incremental
-consumers. JSON output remains a view over this event layer.
+## Source Identity
 
-## Chunk Stream Contract
+Owned schema URI:
+
+```text
+https://cem.dev/ns/projection/events/1
+```
+
+Primary content type:
+
+```text
+application/vnd.cem.events+cem-bin
+```
+
+Debug/interchange view:
+
+```text
+application/vnd.cem.events+json
+```
+
+The JSON events export keeps the same schema identity but is a debug and
+interchange view over the semantic event-stream projection, not the canonical
+runtime artifact. The binary projection is the compatibility anchor for runtime
+and cache handoff.
+
+## Projection Facts And Diagnostics
 
 Binary events projection envelopes expose sealed semantic-record chunks. The
 root chunk carries the binary header and links to event sequence chunks; event
@@ -17,6 +41,92 @@ chunks use stable `event:{sequence}` root ids, parent chunk ids, per-chunk
 hashes, and source-map deltas derived from byte source truth. Native consumers
 can replay the original artifact by sorting chunks by `byteOffset` without
 reserializing the JSON debug view.
+
+The package schema declares the event-stream element and attribute contracts
+and the diagnostic codes for projection-specific policy:
+
+- `cem.projection.events.sequence_gap`
+- `cem.projection.events.chunk_hash_mismatch`
+- `cem.projection.events.checkpoint_invalid`
+- `cem.projection.events.source_map_missing`
+- `cem.projection.events.binary_magic`
+- `cem.projection.events.binary_truncated`
+- `cem.projection.events.binary_version`
+- `cem.projection.events.projection_mismatch`
+- `cem.projection.events.json_parse_error`
+- `cem.projection.events.json_shape`
+
+Current incomplete boundary: binary and JSON source validation still runs
+through native projection validators. The target shape is Rust extracting
+neutral event projection facts with byte ranges while this package's `.cem`
+schema owns code, severity, and structured details.
+
+## Output Artifacts
+
+This package currently declares one Rust converter from
+`application/vnd.cem.events+cem-bin` to `application/vnd.cem.events+json` for
+debug inspection. It does not declare formatter or colorizer artifacts.
+Formatter profiles `compact`, `pretty`, and `tabular`, colorizer profiles
+`terminal`, `html`, and `md`, and generic `lineEnding=lf|crlf|preserve`
+behavior are therefore not package-owned output surfaces yet.
+
+If event-stream projection formatting becomes user-facing, formatter/colorizer
+assets must follow the common package contract: formatters produce formatted
+CEM trees, colorizers enrich those trees, and the generic writer emits
+target-native terminal, HTML, Markdown, or byte output.
+
+## Safety Notes
+
+Events projection data may preserve source text, attribute values, parser
+events, diagnostics, and source-map coordinates from user input. Tools should
+treat projection artifacts as data, not executable content. Binary readers must
+fail closed on invalid magic bytes, unsupported versions, truncation, sequence
+gaps, checkpoint inconsistency, hash mismatch, and source-map inconsistency.
+JSON debug views should not be treated as canonical replay/cache input unless
+they are explicitly regenerated from a trusted binary projection.
+
+## Formatter And Preview SDLC
+
+When a command example, fixture, converter, CLI report shape, or visible
+presentation output changes, update the SVG previews in `examples/previews/`
+in the same change by running
+`node packages/cem_ml/schema-packages/cem-events-projection/v1/scripts/verify-previews.mjs --update`.
+
+The package `verify` target regenerates previews into `dist/previews/` and
+fails on drift.
+
+## Verification
+
+Focused package gates:
+
+```bash
+cargo test -p cem-ml cem_events_projection_package_examples_are_manifest_indexed
+```
+
+```bash
+cargo test -p cem-ml-cli schema_owned_cem_events_projection_examples_validate_through_cli
+```
+
+```bash
+yarn nx run cem_ml_schema_package_cem_events_projection_v1:verify
+```
+
+## Release Behavior
+
+This package is versioned as `1.0.0`. The primary binary content type and schema
+URI are compatibility anchors. The JSON view is a debug/interchange alias and
+may gain additional derived fields as long as binary projection identity remains
+stable. Unsupported binary versions, malformed chunks, sequence gaps, invalid
+checkpoints, and invalid JSON shapes fail closed through projection
+diagnostics.
+
+Tracked but not complete:
+
+- schema-owned fact bindings for all binary and JSON projection diagnostics;
+- canonical binary writer/reader parity fixtures beyond the current basic
+  event projection examples;
+- package-owned formatter/colorizer profiles if event-stream projection
+  presentation becomes user-facing.
 
 ## Validation Examples
 
@@ -35,16 +145,22 @@ Validate a binary projection explicitly:
 
 ```bash
 cargo run -p cem-ml-cli -- validate \
+  --format json \
   --content-type application/vnd.cem.events+cem-bin \
   --schema https://cem.dev/ns/projection/events/1 \
   packages/cem_ml/schema-packages/cem-events-projection/v1/examples/basic-events.cem-bin
 ```
 
+![Preview of the CEM events binary validation JSON report](examples/previews/basic-events-binary-validate.svg)
+
 Validate a JSON debug view explicitly:
 
 ```bash
 cargo run -p cem-ml-cli -- validate \
+  --format json \
   --content-type application/vnd.cem.events+json \
   --schema https://cem.dev/ns/projection/events/1 \
   packages/cem_ml/schema-packages/cem-events-projection/v1/examples/basic-events.events.json
 ```
+
+![Preview of the CEM events JSON validation report](examples/previews/basic-events-json-validate.svg)
