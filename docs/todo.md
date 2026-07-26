@@ -54,7 +54,7 @@ stream.
       behind schema-owned fact bindings, including unknown annotations,
       annotation values, state matrix violations, schema source scoping errors,
       invalid namespace directives, and non-streamable schema constraints.
-- [ ] Move remaining CEM-ML formatter writer-adjacent primitives for
+- [x] Move remaining CEM-ML formatter writer-adjacent primitives for
       block-child whitespace and content-boundary construction into CEMT
       helpers, or declare the host-primitive contract explicitly as the
       tracked runtime boundary.

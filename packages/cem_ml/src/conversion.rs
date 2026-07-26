@@ -11335,6 +11335,15 @@ mod tests {
             "{:?}",
             pretty_execution.diagnostics
         );
+        assert_eq!(
+            pretty_execution.format_execution,
+            Some(ConversionOutputPipelineStageExecution::CemtAdapter {
+                adapter_id: CEM_TREE_FORMAT_CEMT_ADAPTER_ID.to_owned(),
+                function_name: "cem.format-tree".to_owned(),
+                body_function_name: Some("cem.format-tree".to_owned()),
+                fallback_function_name: None,
+            })
+        );
         assert_eq!(pretty_execution.color_execution, None);
         assert_eq!(pretty_execution.color_elapsed_ns, None);
         let pretty_formatted = pretty_execution
@@ -11345,6 +11354,26 @@ mod tests {
         assert_eq!(
             pretty_formatted.value["nodes"][0]["formatLayout"]["value"],
             "block"
+        );
+        assert_eq!(
+            pretty_formatted.value["nodes"][0]["formatContentBoundary"][1]["formatterRole"],
+            "formatter.content-boundary"
+        );
+        assert_eq!(
+            pretty_formatted.value["nodes"][0]["formatBeforeClose"]["formatterRole"],
+            "formatter.close-indent"
+        );
+        assert_eq!(
+            pretty_formatted.value["nodes"][0]["children"][0]["formatterRole"],
+            "formatter.indent"
+        );
+        assert_eq!(
+            pretty_formatted.value["nodes"][0]["children"][1]["name"],
+            "title"
+        );
+        assert_eq!(
+            pretty_formatted.value["nodes"][0]["children"][2]["formatterRole"],
+            "formatter.line-ending"
         );
         let pretty_output = pretty_execution
             .output

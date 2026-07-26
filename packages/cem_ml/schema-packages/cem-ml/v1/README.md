@@ -88,10 +88,13 @@ runtime validation reports:
 - `cem.handoff.unsupported_content_type`
 - `cem.content_type.unsupported_handoff`
 
-Current incomplete boundary: byte-accurate formatter writer-adjacent
-primitives for block-child whitespace and content-boundary construction still
-run through native Rust. The target shape is CEMT helpers owning those reusable
-formatting primitives, or a documented host-primitive contract.
+Current formatter boundary: canonical CEM-ML formatter traversal,
+block-child whitespace construction, content-boundary fragments, and
+close-scope indentation are schema-owned CEMT helpers under
+`formatters/cem-format-tree-helpers.cemt`. Native Rust remains the writer host
+boundary only: it consumes formatted and optionally colored `cem-tree` nodes,
+serializes structural target syntax, and renders formatter-owned fragments
+without inventing package layout.
 
 ## Folder Contract
 
@@ -193,9 +196,13 @@ same manifest-declared asset path.
 
 `cem.format-tree.build-nodes` performs canonical node traversal in CEMT with
 `typeOf`, `match`, `map`, `length`, numeric depth helpers, and helper calls. It
-still delegates low-level block-child whitespace and content-boundary
-construction to registered CEMT runtime primitives until those writer-adjacent
-formatting primitives are also expressed as schema-owned helpers.
+uses schema-owned helpers for inter-node whitespace, block-child indentation,
+content-boundary fragments, attribute spacing, and close-scope indentation.
+The Rust writer host contract starts after this stage: it consumes
+formatter-owned `whitespace`, `raw`, and `format-token` fragments exactly as
+provided, emits CEM delimiters and escaped scalar text, materializes requested
+terminal/HTML/Markdown color output, and must not repair missing formatter
+layout by synthesizing package-specific spacing.
 
 `cem.color-tree.apply-stage` performs canonical coloring in CEMT over the
 already formatted `cem-tree`. It reads the selected `$colorProfile`, recursively
@@ -271,15 +278,14 @@ but persisted examples use the primary content type unless an alias behavior is
 being tested explicitly.
 
 Projection converter edges are ready Rust bootstrap hooks. Formatter and
-colorizer assets are package-owned CEMT resources with Rust host primitives
-only for the remaining low-level traversal and writer-adjacent operations
-listed above.
+colorizer assets are package-owned CEMT resources. Rust host primitives remain
+only at the writer boundary and for the legacy intrinsic fallback used when a
+caller bypasses package CEMT output assets.
 
 Tracked but not complete:
 
 - fully schema-owned parse-fact bindings for all native parser and handoff
   diagnostics;
-- CEMT ownership of the remaining writer-adjacent formatter primitives;
 - additional alias content-type examples if alias-specific parser or lifecycle
   behavior changes.
 

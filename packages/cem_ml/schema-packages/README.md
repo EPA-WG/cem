@@ -732,9 +732,11 @@ the public formatter/colorizer body.
 Canonical formatter node traversal now lives in the schema-owned
 `cem.format-tree.build-nodes` CEMT helper, and canonical coloring now lives in
 the schema-owned `cem.color-tree.apply-stage` helper over the formatted
-`cem-tree`. Native CEMT runtime operations remain only for lower-level
-formatting primitives that still need host-provided writer-policy data, such as
-block-child whitespace and content boundaries.
+`cem-tree`. CEM-ML block-child whitespace, content-boundary fragments, and
+close-scope indentation are formatter-owned CEMT helper output. Native writer
+code is the host boundary after formatting/coloring: it serializes target
+syntax and consumes formatter/colorizer metadata, but package-specific layout
+must stay in package CEMT assets.
 
 ## Direct References
 
