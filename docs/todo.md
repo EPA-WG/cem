@@ -50,7 +50,7 @@ stream.
 - [x] Move remaining CEM-ML schema-machine and handoff diagnostics behind the
       same neutral fact boundary, including unbalanced/unclosed schema scopes,
       unsupported/deferred handoffs, and XSLT dispatch/version diagnostics.
-- [ ] Move remaining CEM Core vocab and schema-scoping machine diagnostics
+- [x] Move remaining CEM Core vocab and schema-scoping machine diagnostics
       behind schema-owned fact bindings, including unknown annotations,
       annotation values, state matrix violations, schema source scoping errors,
       invalid namespace directives, and non-streamable schema constraints.

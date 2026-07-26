@@ -74,16 +74,24 @@ runtime validation reports:
 - `cem.schema.unresolved_namespace`
 - `cem.schema.unresolved_namespace_allowed`
 - `cem.schema.unresolved_namespace_ignored`
+- `cem.schema.unknown_annotation`
+- `cem.schema.unknown_annotation_value`
+- `cem.schema.disallowed_state`
+- `cem.schema.state_not_allowed_for_role`
+- `cem.schema.scoping.exclusive_src_select`
+- `cem.schema.scoping.missing_source`
+- `cem.ns.invalid_ns_directive`
+- `cem.schema.unsupported_constraint`
 - `cem.handoff.xslt_dispatched`
 - `cem.xslt.version_invalid`
 - `cem.handoff.child_parser_deferred`
 - `cem.handoff.unsupported_content_type`
 - `cem.content_type.unsupported_handoff`
 
-Current incomplete boundary: byte-accurate parsing, handoff dispatch facts, and
-some CEM Core vocab/scoping diagnostic emission still run through native Rust.
-The target shape is Rust extracting neutral facts while this package's `.cem`
-schema owns code, severity, and structured details.
+Current incomplete boundary: byte-accurate formatter writer-adjacent
+primitives for block-child whitespace and content-boundary construction still
+run through native Rust. The target shape is CEMT helpers owning those reusable
+formatting primitives, or a documented host-primitive contract.
 
 ## Folder Contract
 

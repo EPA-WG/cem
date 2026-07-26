@@ -911,19 +911,17 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         let existing_is_select = host.select.is_some();
         let existing_is_uri = host.src.is_some();
         if (existing_is_select && !is_select) || (existing_is_uri && is_select) {
-            self.diagnostics.push(Diagnostic {
-                uri: None,
-                line: None,
-                column: None,
+            self.push_schema_fact_diagnostic(CemMlSchemaFact {
+                kind: CemMlSchemaFactKind::SchemaScopingExclusiveSrcSelect,
                 byte_offset: Some(name_range.start),
-                code: "cem.schema.scoping.exclusive_src_select".to_owned(),
-                severity: Severity::Error,
                 message:
                     "`cem:schema-src` and `cem:schema-select` are mutually exclusive on the same host"
                         .to_owned(),
-                node: None,
-                details: None,
                 source_map: None,
+                details: Some(serde_json::json!({
+                    "scope": "host",
+                    "sourceRange": source_range_details(name_range),
+                })),
             });
             return;
         }
@@ -939,17 +937,15 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         let _ = frame;
         // 1. Validate exclusivity: src and select cannot both appear.
         if pending.src.is_some() && pending.select.is_some() {
-            self.diagnostics.push(Diagnostic {
-                uri: None,
-                line: None,
-                column: None,
+            self.push_schema_fact_diagnostic(CemMlSchemaFact {
+                kind: CemMlSchemaFactKind::SchemaScopingExclusiveSrcSelect,
                 byte_offset: Some(pending.open_byte_range.start),
-                code: "cem.schema.scoping.exclusive_src_select".to_owned(),
-                severity: Severity::Error,
                 message: "`cem:schema` element may carry `src` or `select`, not both".to_owned(),
-                node: None,
-                details: None,
-                source_map: None,
+                source_map: Some(frame.source_map_stack.clone()),
+                details: Some(serde_json::json!({
+                    "scope": "element",
+                    "sourceRange": source_range_details(pending.open_byte_range),
+                })),
             });
             return;
         }
@@ -1005,18 +1001,16 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         // `select`, *or* `cem:name` is a schema-compilation error per
         // AC-F-2.
         if pending.cem_name.is_none() && pending.src.is_none() && pending.select.is_none() {
-            self.diagnostics.push(Diagnostic {
-                uri: None,
-                line: None,
-                column: None,
+            self.push_schema_fact_diagnostic(CemMlSchemaFact {
+                kind: CemMlSchemaFactKind::SchemaScopingMissingSource,
                 byte_offset: Some(pending.open_byte_range.start),
-                code: "cem.schema.scoping.missing_source".to_owned(),
-                severity: Severity::Error,
                 message: "`cem:schema` element must declare `cem:name`, `src`, or `select`"
                     .to_owned(),
-                node: None,
-                details: None,
-                source_map: None,
+                source_map: Some(frame.source_map_stack.clone()),
+                details: Some(serde_json::json!({
+                    "scope": "element",
+                    "sourceRange": source_range_details(pending.open_byte_range),
+                })),
             });
         }
     }
@@ -1068,20 +1062,18 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         let def = match self.schema.annotation(&ann.local) {
             Some(def) => def,
             None => {
-                self.diagnostics.push(Diagnostic {
-                    uri: None,
-                    line: None,
-                    column: None,
+                self.push_schema_fact_diagnostic(CemMlSchemaFact {
+                    kind: CemMlSchemaFactKind::SchemaUnknownAnnotation,
                     byte_offset: Some(ann.name_range.start),
-                    code: "cem.schema.unknown_annotation".to_owned(),
-                    severity: Severity::Error,
                     message: format!(
                         "`cem:{}` is not part of the active CEM Core vocabulary",
                         ann.local
                     ),
-                    node: None,
-                    details: None,
                     source_map: None,
+                    details: Some(serde_json::json!({
+                        "annotation": ann.local,
+                        "sourceRange": source_range_details(ann.name_range),
+                    })),
                 });
                 return;
             }
@@ -1089,24 +1081,22 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         if let Some(value) = &ann.value {
             if let Some(allowed) = &def.allowed_values {
                 if !allowed.iter().any(|v| *v == value) {
-                    self.diagnostics.push(Diagnostic {
-                        uri: None,
-                        line: None,
-                        column: None,
-                        byte_offset: ann
-                            .value_range
-                            .map(|r| r.start)
-                            .or(Some(ann.name_range.start)),
-                        code: "cem.schema.unknown_annotation_value".to_owned(),
-                        severity: Severity::Error,
+                    let value_range = ann.value_range.unwrap_or(ann.name_range);
+                    self.push_schema_fact_diagnostic(CemMlSchemaFact {
+                        kind: CemMlSchemaFactKind::SchemaUnknownAnnotationValue,
+                        byte_offset: Some(value_range.start),
                         message: format!(
                             "value `{value}` is not in the Tier A enum for `cem:{}` (allowed: {})",
                             ann.local,
                             allowed.join(", ")
                         ),
-                        node: None,
-                        details: None,
                         source_map: None,
+                        details: Some(serde_json::json!({
+                            "annotation": ann.local,
+                            "value": value,
+                            "allowed": allowed,
+                            "sourceRange": source_range_details(value_range),
+                        })),
                     });
                 }
             }
@@ -1118,20 +1108,18 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
 
     fn validate_state(&mut self, state: &PendingState, active_annotation: Option<&str>) {
         if !self.schema.is_known_state(&state.value) {
-            self.diagnostics.push(Diagnostic {
-                uri: None,
-                line: None,
-                column: None,
+            self.push_schema_fact_diagnostic(CemMlSchemaFact {
+                kind: CemMlSchemaFactKind::SchemaDisallowedState,
                 byte_offset: Some(state.byte_range.start),
-                code: "cem.schema.disallowed_state".to_owned(),
-                severity: Severity::Error,
                 message: format!(
                     "`cem:state` value `{}` is not part of the CEM state matrix",
                     state.value
                 ),
-                node: None,
-                details: None,
                 source_map: None,
+                details: Some(serde_json::json!({
+                    "state": state.value,
+                    "sourceRange": source_range_details(state.byte_range),
+                })),
             });
             return;
         }
@@ -1142,22 +1130,22 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
             return;
         };
         if !def.allowed_states.iter().any(|s| *s == state.value) {
-            self.diagnostics.push(Diagnostic {
-                uri: None,
-                line: None,
-                column: None,
+            self.push_schema_fact_diagnostic(CemMlSchemaFact {
+                kind: CemMlSchemaFactKind::SchemaStateNotAllowedForRole,
                 byte_offset: Some(state.byte_range.start),
-                code: "cem.schema.state_not_allowed_for_role".to_owned(),
-                severity: Severity::Error,
                 message: format!(
                     "state `{}` is not allowed on `cem:{}` (allowed: {})",
                     state.value,
                     ann,
                     def.allowed_states.join(", ")
                 ),
-                node: None,
-                details: None,
                 source_map: None,
+                details: Some(serde_json::json!({
+                    "annotation": ann,
+                    "state": state.value,
+                    "allowed": def.allowed_states,
+                    "sourceRange": source_range_details(state.byte_range),
+                })),
             });
         }
     }
@@ -1187,17 +1175,15 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                         );
                     }
                 } else {
-                    self.diagnostics.push(Diagnostic {
-                        uri: None,
-                        line: None,
-                        column: None,
+                    self.push_schema_fact_diagnostic(CemMlSchemaFact {
+                        kind: CemMlSchemaFactKind::SchemaInvalidNsDirective,
                         byte_offset: Some(declared_at.start),
-                        code: "cem.ns.invalid_ns_directive".to_owned(),
-                        severity: Severity::Error,
                         message: format!("`@ns` directive body could not be parsed: `{body}`"),
-                        node: None,
-                        details: None,
-                        source_map: None,
+                        source_map: Some(frame.source_map_stack.clone()),
+                        details: Some(serde_json::json!({
+                            "body": body,
+                            "sourceRange": source_range_details(declared_at),
+                        })),
                     });
                 }
             }
@@ -1227,32 +1213,28 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
                     self.schema_scopes.current_mut().set_active(source);
                 }
                 Err(SchemaDirectiveError::ExclusiveSrcSelect) => {
-                    self.diagnostics.push(Diagnostic {
-                        uri: None,
-                        line: None,
-                        column: None,
+                    self.push_schema_fact_diagnostic(CemMlSchemaFact {
+                        kind: CemMlSchemaFactKind::SchemaScopingExclusiveSrcSelect,
                         byte_offset: Some(declared_at.start),
-                        code: "cem.schema.scoping.exclusive_src_select".to_owned(),
-                        severity: Severity::Error,
                         message: "`@schema` directive may carry `src` or `select`, not both"
                             .to_owned(),
-                        node: None,
-                        details: None,
-                        source_map: None,
+                        source_map: Some(frame.source_map_stack.clone()),
+                        details: Some(serde_json::json!({
+                            "scope": "directive",
+                            "sourceRange": source_range_details(declared_at),
+                        })),
                     });
                 }
                 Err(SchemaDirectiveError::MissingSource) => {
-                    self.diagnostics.push(Diagnostic {
-                        uri: None,
-                        line: None,
-                        column: None,
+                    self.push_schema_fact_diagnostic(CemMlSchemaFact {
+                        kind: CemMlSchemaFactKind::SchemaScopingMissingSource,
                         byte_offset: Some(declared_at.start),
-                        code: "cem.schema.scoping.missing_source".to_owned(),
-                        severity: Severity::Error,
                         message: "`@schema` directive must declare `src` or `select`".to_owned(),
-                        node: None,
-                        details: None,
-                        source_map: None,
+                        source_map: Some(frame.source_map_stack.clone()),
+                        details: Some(serde_json::json!({
+                            "scope": "directive",
+                            "sourceRange": source_range_details(declared_at),
+                        })),
                     });
                 }
             },
@@ -1281,21 +1263,20 @@ impl<E: EventNormalizer> CemSchemaMachine<E> {
         }
         // Reject non-streamable constraints at finalize so the diagnostic
         // surfaces even when no real input was consumed.
-        for c in &self.schema.non_streamable_constraints {
-            self.diagnostics.push(Diagnostic {
-                uri: None,
-                line: None,
-                column: None,
+        for c in self.schema.non_streamable_constraints.clone() {
+            self.push_schema_fact_diagnostic(CemMlSchemaFact {
+                kind: CemMlSchemaFactKind::SchemaUnsupportedConstraint,
                 byte_offset: None,
-                code: "cem.schema.unsupported_constraint".to_owned(),
-                severity: Severity::Error,
                 message: format!(
                     "constraint on `cem:{}` is not streamable: {} ({:?})",
                     c.annotation, c.reason, c.kind
                 ),
-                node: None,
-                details: None,
                 source_map: None,
+                details: Some(serde_json::json!({
+                    "annotation": c.annotation,
+                    "reason": c.reason,
+                    "kind": format!("{:?}", c.kind),
+                })),
             });
         }
         self.finished = true;
@@ -1320,6 +1301,16 @@ fn handoff_source_map(
         },
     });
     source_map
+}
+
+fn source_range_details(range: ByteRange) -> serde_json::Value {
+    serde_json::json!({
+        "span": {
+            "start": range.start,
+            "len": range.len,
+            "end": range.end(),
+        },
+    })
 }
 
 pub struct SchemaMachineOutcome {
@@ -1354,9 +1345,13 @@ mod tests {
         CemMlSchemaDiagnosticCatalog, CEM_ML_PACKAGE_ID, CEM_ML_SCHEMA_REPORT_BEHAVIOR,
         HANDOFF_CHILD_PARSER_DEFERRED_CONTRACT, HANDOFF_UNSUPPORTED_CONTENT_TYPE_CONTRACT,
         HANDOFF_XSLT_DISPATCHED_CONTRACT, HANDOFF_XSLT_VERSION_INVALID_CONTRACT,
-        SCHEMA_UNBALANCED_CLOSE_CONTRACT, SCHEMA_UNCLOSED_SCOPE_CONTRACT,
-        SCHEMA_UNRESOLVED_NAMESPACE_ALLOW_CONTRACT, SCHEMA_UNRESOLVED_NAMESPACE_IGNORE_CONTRACT,
-        SCHEMA_UNRESOLVED_NAMESPACE_REJECT_CONTRACT,
+        SCHEMA_DISALLOWED_STATE_CONTRACT, SCHEMA_INVALID_NS_DIRECTIVE_CONTRACT,
+        SCHEMA_SCOPING_EXCLUSIVE_SRC_SELECT_CONTRACT, SCHEMA_SCOPING_MISSING_SOURCE_CONTRACT,
+        SCHEMA_STATE_NOT_ALLOWED_FOR_ROLE_CONTRACT, SCHEMA_UNBALANCED_CLOSE_CONTRACT,
+        SCHEMA_UNCLOSED_SCOPE_CONTRACT, SCHEMA_UNKNOWN_ANNOTATION_CONTRACT,
+        SCHEMA_UNKNOWN_ANNOTATION_VALUE_CONTRACT, SCHEMA_UNRESOLVED_NAMESPACE_ALLOW_CONTRACT,
+        SCHEMA_UNRESOLVED_NAMESPACE_IGNORE_CONTRACT, SCHEMA_UNRESOLVED_NAMESPACE_REJECT_CONTRACT,
+        SCHEMA_UNSUPPORTED_CONSTRAINT_CONTRACT,
     };
     use crate::source::{BytesSource, SourceId};
     use crate::tokenizer::cem::CemTokenizer;
@@ -1405,6 +1400,13 @@ mod tests {
                         == Some(content_type)
             })
             .unwrap_or_else(|| panic!("expected `{code}` diagnostic for `{content_type}`"))
+    }
+
+    fn diagnostic_contract(diagnostic: &Diagnostic) -> Option<&str> {
+        diagnostic
+            .details
+            .as_ref()
+            .and_then(|details| details["contract"].as_str())
     }
 
     fn assert_handoff_diagnostic_bounds(diagnostic: &Diagnostic, content_type: &str) {
@@ -1493,6 +1495,46 @@ mod tests {
                 "cem.handoff.unsupported_content_type",
                 HANDOFF_UNSUPPORTED_CONTENT_TYPE_CONTRACT,
             ),
+            (
+                CemMlSchemaFactKind::SchemaUnknownAnnotation,
+                "cem.schema.unknown_annotation",
+                SCHEMA_UNKNOWN_ANNOTATION_CONTRACT,
+            ),
+            (
+                CemMlSchemaFactKind::SchemaUnknownAnnotationValue,
+                "cem.schema.unknown_annotation_value",
+                SCHEMA_UNKNOWN_ANNOTATION_VALUE_CONTRACT,
+            ),
+            (
+                CemMlSchemaFactKind::SchemaDisallowedState,
+                "cem.schema.disallowed_state",
+                SCHEMA_DISALLOWED_STATE_CONTRACT,
+            ),
+            (
+                CemMlSchemaFactKind::SchemaStateNotAllowedForRole,
+                "cem.schema.state_not_allowed_for_role",
+                SCHEMA_STATE_NOT_ALLOWED_FOR_ROLE_CONTRACT,
+            ),
+            (
+                CemMlSchemaFactKind::SchemaScopingExclusiveSrcSelect,
+                "cem.schema.scoping.exclusive_src_select",
+                SCHEMA_SCOPING_EXCLUSIVE_SRC_SELECT_CONTRACT,
+            ),
+            (
+                CemMlSchemaFactKind::SchemaScopingMissingSource,
+                "cem.schema.scoping.missing_source",
+                SCHEMA_SCOPING_MISSING_SOURCE_CONTRACT,
+            ),
+            (
+                CemMlSchemaFactKind::SchemaInvalidNsDirective,
+                "cem.ns.invalid_ns_directive",
+                SCHEMA_INVALID_NS_DIRECTIVE_CONTRACT,
+            ),
+            (
+                CemMlSchemaFactKind::SchemaUnsupportedConstraint,
+                "cem.schema.unsupported_constraint",
+                SCHEMA_UNSUPPORTED_CONSTRAINT_CONTRACT,
+            ),
         ] {
             let binding = catalog
                 .binding_for_fact(fact_kind)
@@ -1574,19 +1616,36 @@ mod tests {
     #[test]
     fn unknown_annotation_value_is_flagged() {
         let out = run_schema(r#"{button @cem:action=bogus | Save}"#);
-        assert!(out
+        let diagnostic = out
             .diagnostics
             .iter()
-            .any(|d| d.code == "cem.schema.unknown_annotation_value"));
+            .find(|d| d.code == "cem.schema.unknown_annotation_value")
+            .expect("unknown annotation value diagnostic");
+        assert_eq!(
+            diagnostic_contract(diagnostic),
+            Some(SCHEMA_UNKNOWN_ANNOTATION_VALUE_CONTRACT)
+        );
+        assert_eq!(
+            diagnostic
+                .details
+                .as_ref()
+                .and_then(|details| details["annotation"].as_str()),
+            Some("action")
+        );
     }
 
     #[test]
     fn unknown_annotation_is_flagged() {
         let out = run_schema(r#"{button @cem:made-up="x" | Save}"#);
-        assert!(out
+        let diagnostic = out
             .diagnostics
             .iter()
-            .any(|d| d.code == "cem.schema.unknown_annotation"));
+            .find(|d| d.code == "cem.schema.unknown_annotation")
+            .expect("unknown annotation diagnostic");
+        assert_eq!(
+            diagnostic_contract(diagnostic),
+            Some(SCHEMA_UNKNOWN_ANNOTATION_CONTRACT)
+        );
     }
 
     #[test]
@@ -1604,20 +1663,30 @@ mod tests {
     #[test]
     fn state_not_in_matrix_is_flagged() {
         let out = run_schema(r#"{button @cem:action=primary @cem:state="bogus" | Save}"#);
-        assert!(out
+        let diagnostic = out
             .diagnostics
             .iter()
-            .any(|d| d.code == "cem.schema.disallowed_state"));
+            .find(|d| d.code == "cem.schema.disallowed_state")
+            .expect("disallowed state diagnostic");
+        assert_eq!(
+            diagnostic_contract(diagnostic),
+            Some(SCHEMA_DISALLOWED_STATE_CONTRACT)
+        );
     }
 
     #[test]
     fn state_not_allowed_for_role_is_flagged() {
         // `selected` is in the matrix but not allowed on `cem:action`.
         let out = run_schema(r#"{button @cem:action=primary @cem:state="selected" | Save}"#);
-        assert!(out
+        let diagnostic = out
             .diagnostics
             .iter()
-            .any(|d| d.code == "cem.schema.state_not_allowed_for_role"));
+            .find(|d| d.code == "cem.schema.state_not_allowed_for_role")
+            .expect("state not allowed diagnostic");
+        assert_eq!(
+            diagnostic_contract(diagnostic),
+            Some(SCHEMA_STATE_NOT_ALLOWED_FOR_ROLE_CONTRACT)
+        );
     }
 
     #[test]
@@ -2116,10 +2185,15 @@ mod tests {
         let tok = CemTokenizer::from_source(src);
         let normalizer = CemEventNormalizer::new(tok);
         let outcome = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer).run();
-        assert!(outcome
+        let diagnostic = outcome
             .diagnostics
             .iter()
-            .any(|d| d.code == "cem.schema.scoping.exclusive_src_select"));
+            .find(|d| d.code == "cem.schema.scoping.exclusive_src_select")
+            .expect("schema src/select exclusivity diagnostic");
+        assert_eq!(
+            diagnostic_contract(diagnostic),
+            Some(SCHEMA_SCOPING_EXCLUSIVE_SRC_SELECT_CONTRACT)
+        );
     }
 
     #[test]
@@ -2129,10 +2203,15 @@ mod tests {
         let tok = CemTokenizer::from_source(src);
         let normalizer = CemEventNormalizer::new(tok);
         let outcome = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer).run();
-        assert!(outcome
+        let diagnostic = outcome
             .diagnostics
             .iter()
-            .any(|d| d.code == "cem.schema.scoping.missing_source"));
+            .find(|d| d.code == "cem.schema.scoping.missing_source")
+            .expect("schema missing-source diagnostic");
+        assert_eq!(
+            diagnostic_contract(diagnostic),
+            Some(SCHEMA_SCOPING_MISSING_SOURCE_CONTRACT)
+        );
     }
 
     #[test]
@@ -2189,10 +2268,29 @@ mod tests {
         let tok = CemTokenizer::from_source(src);
         let normalizer = CemEventNormalizer::new(tok);
         let outcome = CemSchemaMachine::new(CompiledSchema::cem_core(), normalizer).run();
-        assert!(outcome
+        let diagnostic = outcome
             .diagnostics
             .iter()
-            .any(|d| d.code == "cem.schema.scoping.exclusive_src_select"));
+            .find(|d| d.code == "cem.schema.scoping.exclusive_src_select")
+            .expect("host schema src/select exclusivity diagnostic");
+        assert_eq!(
+            diagnostic_contract(diagnostic),
+            Some(SCHEMA_SCOPING_EXCLUSIVE_SRC_SELECT_CONTRACT)
+        );
+    }
+
+    #[test]
+    fn invalid_ns_directive_is_schema_owned_fact_diagnostic() {
+        let out = run_schema("@ns invalid\n{button | Save}");
+        let diagnostic = out
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "cem.ns.invalid_ns_directive")
+            .expect("invalid @ns directive diagnostic");
+        assert_eq!(
+            diagnostic_contract(diagnostic),
+            Some(SCHEMA_INVALID_NS_DIRECTIVE_CONTRACT)
+        );
     }
 
     #[test]
@@ -2332,10 +2430,15 @@ mod tests {
         let tok = CemTokenizer::from_source(src);
         let normalizer = CemEventNormalizer::new(tok);
         let out = CemSchemaMachine::new(schema, normalizer).run();
-        assert!(out
+        let diagnostic = out
             .diagnostics
             .iter()
-            .any(|d| d.code == "cem.schema.unsupported_constraint"));
+            .find(|d| d.code == "cem.schema.unsupported_constraint")
+            .expect("unsupported constraint diagnostic");
+        assert_eq!(
+            diagnostic_contract(diagnostic),
+            Some(SCHEMA_UNSUPPORTED_CONSTRAINT_CONTRACT)
+        );
     }
 }
 

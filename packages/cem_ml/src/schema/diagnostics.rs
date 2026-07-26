@@ -38,6 +38,24 @@ pub(crate) const HANDOFF_CHILD_PARSER_DEFERRED_CONTRACT: &str = "handoff-child-p
 #[cfg(test)]
 pub(crate) const HANDOFF_UNSUPPORTED_CONTENT_TYPE_CONTRACT: &str =
     "handoff-unsupported-content-type";
+#[cfg(test)]
+pub(crate) const SCHEMA_UNKNOWN_ANNOTATION_CONTRACT: &str = "schema-unknown-annotation";
+#[cfg(test)]
+pub(crate) const SCHEMA_UNKNOWN_ANNOTATION_VALUE_CONTRACT: &str = "schema-unknown-annotation-value";
+#[cfg(test)]
+pub(crate) const SCHEMA_DISALLOWED_STATE_CONTRACT: &str = "schema-disallowed-state";
+#[cfg(test)]
+pub(crate) const SCHEMA_STATE_NOT_ALLOWED_FOR_ROLE_CONTRACT: &str =
+    "schema-state-not-allowed-for-role";
+#[cfg(test)]
+pub(crate) const SCHEMA_SCOPING_EXCLUSIVE_SRC_SELECT_CONTRACT: &str =
+    "schema-scoping-exclusive-src-select";
+#[cfg(test)]
+pub(crate) const SCHEMA_SCOPING_MISSING_SOURCE_CONTRACT: &str = "schema-scoping-missing-source";
+#[cfg(test)]
+pub(crate) const SCHEMA_INVALID_NS_DIRECTIVE_CONTRACT: &str = "schema-invalid-ns-directive";
+#[cfg(test)]
+pub(crate) const SCHEMA_UNSUPPORTED_CONSTRAINT_CONTRACT: &str = "schema-unsupported-constraint";
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CemMlSchemaFact {
@@ -59,6 +77,14 @@ pub(crate) enum CemMlSchemaFactKind {
     HandoffXsltVersionInvalid,
     HandoffChildParserDeferred,
     HandoffUnsupportedContentType,
+    SchemaUnknownAnnotation,
+    SchemaUnknownAnnotationValue,
+    SchemaDisallowedState,
+    SchemaStateNotAllowedForRole,
+    SchemaScopingExclusiveSrcSelect,
+    SchemaScopingMissingSource,
+    SchemaInvalidNsDirective,
+    SchemaUnsupportedConstraint,
 }
 
 impl CemMlSchemaFactKind {
@@ -73,6 +99,14 @@ impl CemMlSchemaFactKind {
             Self::HandoffXsltVersionInvalid => "handoff-xslt-version-invalid",
             Self::HandoffChildParserDeferred => "handoff-child-parser-deferred",
             Self::HandoffUnsupportedContentType => "handoff-unsupported-content-type",
+            Self::SchemaUnknownAnnotation => "schema-unknown-annotation",
+            Self::SchemaUnknownAnnotationValue => "schema-unknown-annotation-value",
+            Self::SchemaDisallowedState => "schema-disallowed-state",
+            Self::SchemaStateNotAllowedForRole => "schema-state-not-allowed-for-role",
+            Self::SchemaScopingExclusiveSrcSelect => "schema-scoping-exclusive-src-select",
+            Self::SchemaScopingMissingSource => "schema-scoping-missing-source",
+            Self::SchemaInvalidNsDirective => "schema-invalid-ns-directive",
+            Self::SchemaUnsupportedConstraint => "schema-unsupported-constraint",
         }
     }
 }
