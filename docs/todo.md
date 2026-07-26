@@ -58,7 +58,7 @@ stream.
       block-child whitespace and content-boundary construction into CEMT
       helpers, or declare the host-primitive contract explicitly as the
       tracked runtime boundary.
-- [ ] Add executable CEM-ML package review coverage that fails when the README
+- [x] Add executable CEM-ML package review coverage that fails when the README
       “tracked but not complete” items are not represented as open todo
       checkitems or package-local waiver metadata.
 - [ ] Add a JSON lifecycle input adapter that lowers `application/json`,

@@ -454,6 +454,49 @@ fn cem_ml_package_readme_tracks_manifest_contract() {
 }
 
 #[test]
+fn cem_ml_readme_tracked_work_is_todo_or_waived() {
+    let version_dir = schema_packages_root().join("cem-ml/v1");
+    let readme_path = version_dir.join("README.md");
+    let readme = fs::read_to_string(&readme_path)
+        .unwrap_or_else(|error| panic!("{} is not readable: {error}", readme_path.display()));
+    let todo_path = workspace_root().join("docs/todo.md");
+    let todo = fs::read_to_string(&todo_path)
+        .unwrap_or_else(|error| panic!("{} is not readable: {error}", todo_path.display()));
+
+    let tracked_items = readme_tracked_but_not_complete_items(&readme);
+    let open_todos = open_todo_checkitems(&todo);
+    let waived_items = package_review_waiver_items(&readme);
+
+    let missing_tracking = tracked_items
+        .iter()
+        .filter(|item| {
+            let normalized = normalize_review_tracking_item(item);
+            !open_todos.contains(&normalized) && !waived_items.contains(&normalized)
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    assert!(
+        missing_tracking.is_empty(),
+        "CEM-ML README tracked-but-not-complete items must be represented by open docs/todo.md checkitems or package-local `package-review-waiver` metadata: {}",
+        format_list(&missing_tracking)
+    );
+
+    let tracked_set = tracked_items
+        .iter()
+        .map(|item| normalize_review_tracking_item(item))
+        .collect::<BTreeSet<_>>();
+    let stale_waivers = waived_items
+        .difference(&tracked_set)
+        .cloned()
+        .collect::<Vec<_>>();
+    assert!(
+        stale_waivers.is_empty(),
+        "CEM-ML package-review-waiver metadata must reference current README tracked-but-not-complete items: {}",
+        format_list(&stale_waivers)
+    );
+}
+
+#[test]
 fn schema_definition_package_readme_tracks_manifest_contract() {
     let version_dir = schema_packages_root().join("schema/v1");
     let readme_path = version_dir.join("README.md");
@@ -1319,6 +1362,97 @@ fn assert_readme_mentions(readme: &str, value: &str, context: &str) {
         readme.contains(value),
         "README must mention {context} `{value}`"
     );
+}
+
+fn readme_tracked_but_not_complete_items(readme: &str) -> Vec<String> {
+    markdown_bullets_after_label(readme, "Tracked but not complete:")
+}
+
+fn package_review_waiver_items(readme: &str) -> BTreeSet<String> {
+    readme
+        .lines()
+        .filter_map(|line| {
+            let trimmed = line.trim();
+            let rest = trimmed.strip_prefix("<!-- package-review-waiver:")?;
+            let item = rest.strip_suffix("-->").unwrap_or(rest).trim();
+            (!item.is_empty()).then(|| normalize_review_tracking_item(item))
+        })
+        .collect()
+}
+
+fn open_todo_checkitems(todo: &str) -> BTreeSet<String> {
+    let mut items = BTreeSet::new();
+    let mut current: Option<String> = None;
+    for line in todo.lines() {
+        let trimmed = line.trim();
+        if let Some(rest) = trimmed.strip_prefix("- [ ] ") {
+            if let Some(item) = current.take() {
+                items.insert(normalize_review_tracking_item(&item));
+            }
+            current = Some(rest.to_owned());
+            continue;
+        }
+        if trimmed.starts_with("- [x] ") || trimmed.starts_with("##") || trimmed.is_empty() {
+            if let Some(item) = current.take() {
+                items.insert(normalize_review_tracking_item(&item));
+            }
+            continue;
+        }
+        if let Some(item) = current.as_mut() {
+            item.push(' ');
+            item.push_str(trimmed);
+        }
+    }
+    if let Some(item) = current {
+        items.insert(normalize_review_tracking_item(&item));
+    }
+    items
+}
+
+fn markdown_bullets_after_label(markdown: &str, label: &str) -> Vec<String> {
+    let mut items = Vec::new();
+    let mut current: Option<String> = None;
+    let mut in_section = false;
+    for line in markdown.lines() {
+        let trimmed = line.trim();
+        if !in_section {
+            in_section = trimmed == label;
+            continue;
+        }
+        if trimmed.starts_with("## ") {
+            break;
+        }
+        if let Some(rest) = trimmed.strip_prefix("- ") {
+            if let Some(item) = current.take() {
+                items.push(item);
+            }
+            current = Some(rest.to_owned());
+            continue;
+        }
+        if trimmed.is_empty() || trimmed.starts_with("<!-- package-review-waiver:") {
+            continue;
+        }
+        if let Some(item) = current.as_mut() {
+            if line.starts_with(' ') || line.starts_with('\t') {
+                item.push(' ');
+                item.push_str(trimmed);
+            } else if let Some(item) = current.take() {
+                items.push(item);
+            }
+        }
+    }
+    if let Some(item) = current {
+        items.push(item);
+    }
+    items
+}
+
+fn normalize_review_tracking_item(item: &str) -> String {
+    let item = item.trim().trim_end_matches(['.', ';']);
+    item.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_ascii_lowercase()
 }
 
 fn parse_cem_document(source: &str) -> CemDocument {

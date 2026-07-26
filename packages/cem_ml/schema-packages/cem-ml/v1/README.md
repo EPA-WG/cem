@@ -284,10 +284,15 @@ caller bypasses package CEMT output assets.
 
 Tracked but not complete:
 
-- fully schema-owned parse-fact bindings for all native parser and handoff
-  diagnostics;
 - additional alias content-type examples if alias-specific parser or lifecycle
   behavior changes.
+
+<!-- package-review-waiver: additional alias content-type examples if alias-specific parser or lifecycle behavior changes. -->
+
+Alias-specific examples are waived while aliases share the primary
+`application/cem` parser and lifecycle behavior. They become required when an
+alias adds distinct parser, lifecycle, validation, formatter, or diagnostic
+behavior.
 
 ## Examples
 
