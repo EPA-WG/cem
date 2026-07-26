@@ -4,6 +4,14 @@
 //! converter edges. Runtime execution still flows through the existing
 //! lifecycle and transform-template adapters.
 
+pub use crate::conversion_output::CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE;
+use crate::conversion_output::{
+    cemt_output_function_descriptor, default_formatter_tab_size, failed_pipeline_execution,
+    output_pipeline_diagnostic, output_span_value_for_source_map,
+    parse_formatter_line_ending_option, parse_positive_formatter_usize_option,
+    resolve_formatter_line_ending, wrap_html_pre_container_artifact,
+    CemtOutputFunctionDescriptorSpec, FormatterLineEndingMode,
+};
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::engine::{
     FormatIdentity, TemplateInput, TransformExecutionPolicy, TransformTemplateEntrypoint,
@@ -27,7 +35,7 @@ use crate::schema::registry::{
     HTML_CONTENT_TYPE, HTML_SCHEMA_URI, JSON_CONTENT_TYPE, JSON_VALUE_SCHEMA_URI, XML_CONTENT_TYPE,
     XML_SCHEMA_URI, YAML_CONTENT_TYPE, YAML_SCHEMA_URI,
 };
-use crate::source::{ByteRange, BytesSource, SourceId};
+use crate::source::{BytesSource, SourceId};
 use crate::source_map::SourceMapStack;
 use crate::tokenizer::cem::CemTokenizer;
 use crate::tokenizer::html::HtmlTokenizer;
@@ -52,14 +60,13 @@ use crate::transform_template::{
     TransformTemplateEncodingTarget, TransformTemplateEvaluatedEncodeExpression,
     TransformTemplateHtmlColorMode, TransformTemplateModuleOptions,
     TransformTemplateModuleParseRequest, TransformTemplateModulePreflight,
-    TransformTemplateModuleVisibility, TransformTemplateOutputArtifact,
-    TransformTemplateOutputColorSelection, TransformTemplateOutputFunctionDescriptor,
-    TransformTemplateOutputFunctionImplementation, TransformTemplateOutputFunctionKind,
-    TransformTemplateOutputFunctionRegistry, TransformTemplateOutputProducedKind,
-    TransformTemplateRenderRequest, TransformTemplateRenderResponse,
-    TransformTemplateSourceMapPolicy, TransformTemplateTargetSyntaxKind,
-    TransformTemplateTargetSyntaxRules, TransformTemplateTerminalColorCapability,
-    DEFAULT_FORMATTER_TAB_SIZE,
+    TransformTemplateOutputArtifact, TransformTemplateOutputColorSelection,
+    TransformTemplateOutputFunctionDescriptor, TransformTemplateOutputFunctionImplementation,
+    TransformTemplateOutputFunctionKind, TransformTemplateOutputFunctionRegistry,
+    TransformTemplateOutputProducedKind, TransformTemplateRenderRequest,
+    TransformTemplateRenderResponse, TransformTemplateSourceMapPolicy,
+    TransformTemplateTargetSyntaxKind, TransformTemplateTargetSyntaxRules,
+    TransformTemplateTerminalColorCapability,
 };
 use crate::validation::csv::CsvDocumentAst;
 use crate::validation::yaml::YamlDocumentAst;
@@ -85,9 +92,6 @@ pub const CONVERSION_OUTPUT_UNSUPPORTED_CATEGORY_CODE: &str =
 pub const CONVERSION_OUTPUT_CONTEXT_MISMATCH_CODE: &str = "cem.converter.output_context_mismatch";
 pub const CONVERSION_OUTPUT_COLOR_PROFILE_UNSAFE_CODE: &str =
     "cem.converter.output_color_profile_unsafe";
-pub const CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE: &str =
-    "cem.converter.output_pipeline_execution";
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ConversionImplementation {
     Cemt,
@@ -3789,7 +3793,7 @@ pub fn execute_conversion_output_pipeline_with_environment(
     let (formatted_output, format_execution) = match format_result {
         Ok(output) => output,
         Err(message) => {
-            diagnostics.push(conversion_output_pipeline_diagnostic(
+            diagnostics.push(output_pipeline_diagnostic(
                 converter_id,
                 diagnostic_node,
                 diagnostic_uri,
@@ -4423,34 +4427,18 @@ fn csv_cemt_color_profile_for_output(
         .or_else(|| inferred.map(str::to_owned)))
 }
 
-const CSV_HTML_PREVIEW_SUFFIX: &str = "</pre>";
+const CSV_HTML_PREVIEW_CLASS: &str = "cem-output-csv";
 
+#[cfg(test)]
 fn csv_html_preview_prefix(tab_size: usize) -> String {
-    format!(
-        r#"<pre class="cem-output cem-output-csv" style="white-space: pre; tab-size: {tab_size}">"#
-    )
+    crate::conversion_output::html_pre_container_prefix(CSV_HTML_PREVIEW_CLASS, tab_size)
 }
 
 fn csv_wrap_html_preview_artifact(
     artifact: &mut TransformTemplateEncodedArtifact,
     tab_size: usize,
 ) {
-    let Some(text) = artifact.value.as_str() else {
-        return;
-    };
-    let prefix = csv_html_preview_prefix(tab_size);
-    let prefix_len = prefix.len() as u64;
-    for span in &mut artifact.output_spans {
-        span.output_range.start = span.output_range.start.saturating_add(prefix_len);
-    }
-    artifact.value = Value::String(format!("{prefix}{text}{CSV_HTML_PREVIEW_SUFFIX}"));
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum FormatterLineEndingMode {
-    Lf,
-    Crlf,
-    Preserve,
+    wrap_html_pre_container_artifact(artifact, CSV_HTML_PREVIEW_CLASS, tab_size);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -4463,7 +4451,7 @@ impl CsvFormatterPresentationOptions {
     fn from_options(options: &BTreeMap<String, String>) -> Result<Self, String> {
         let mut parsed = Self {
             line_ending: None,
-            tab_size: DEFAULT_FORMATTER_TAB_SIZE as usize,
+            tab_size: default_formatter_tab_size(),
         };
         for (key, value) in options {
             match key.as_str() {
@@ -4485,27 +4473,10 @@ impl CsvFormatterPresentationOptions {
                     }
                 }
                 "lineEnding" => {
-                    parsed.line_ending = Some(match value.as_str() {
-                        "lf" => FormatterLineEndingMode::Lf,
-                        "crlf" => FormatterLineEndingMode::Crlf,
-                        "preserve" => FormatterLineEndingMode::Preserve,
-                        _ => {
-                            return Err(format!(
-                                "Formatter option `{key}` must be `lf`, `crlf`, or `preserve`"
-                            ))
-                        }
-                    });
+                    parsed.line_ending = Some(parse_formatter_line_ending_option(key, value)?);
                 }
                 "tabSize" => {
-                    let size = value.parse::<usize>().map_err(|_| {
-                        format!("Formatter option `{key}` must be a positive integer")
-                    })?;
-                    if size == 0 {
-                        return Err(format!(
-                            "Formatter option `{key}` must be greater than zero"
-                        ));
-                    }
-                    parsed.tab_size = size;
+                    parsed.tab_size = parse_positive_formatter_usize_option(key, value)?;
                 }
                 _ if key.starts_with("csv.") => {
                     return Err(format!("unsupported CSV formatter option `{key}`"));
@@ -4521,21 +4492,7 @@ fn csv_formatter_line_ending(
     source_line_ending: Option<&str>,
     options: &CsvFormatterPresentationOptions,
 ) -> Option<String> {
-    match options.line_ending {
-        Some(FormatterLineEndingMode::Lf) => Some("lf".to_owned()),
-        Some(FormatterLineEndingMode::Crlf) => Some("crlf".to_owned()),
-        Some(FormatterLineEndingMode::Preserve) => {
-            let source_line_ending = source_line_ending.unwrap_or("lf");
-            Some(
-                match source_line_ending {
-                    "crlf" => "crlf",
-                    _ => "lf",
-                }
-                .to_owned(),
-            )
-        }
-        None => None,
-    }
+    resolve_formatter_line_ending(source_line_ending, options.line_ending)
 }
 
 fn csv_output_function_descriptor(
@@ -4546,30 +4503,18 @@ fn csv_output_function_descriptor(
     produces: TransformTemplateOutputProducedKind,
     profile: Option<String>,
 ) -> TransformTemplateOutputFunctionDescriptor {
-    TransformTemplateOutputFunctionDescriptor {
+    cemt_output_function_descriptor(CemtOutputFunctionDescriptorSpec {
+        owner: "csv",
+        name,
+        category,
+        subject,
         kind,
-        owner: Some("csv".to_owned()),
-        name: name.to_owned(),
-        category: category.to_owned(),
-        subject: subject.to_owned(),
         produces,
-        content_type: CSV_CONTENT_TYPE.to_owned(),
-        schema: CSV_SCHEMA_URI.to_owned(),
+        content_type: CSV_CONTENT_TYPE,
+        schema: CSV_SCHEMA_URI,
         canonical: false,
-        streamable: true,
-        visibility: TransformTemplateModuleVisibility::Public,
-        implementation: TransformTemplateOutputFunctionImplementation::Cemt,
         profile,
-        extends: None,
-        capability: None,
-        deterministic: true,
-        trusted: false,
-        lossy: false,
-        fallback: None,
-        params: Vec::new(),
-        body_declared: false,
-        body_expression: None,
-    }
+    })
 }
 
 fn csv_output_pipeline_failed(
@@ -4586,19 +4531,15 @@ fn csv_output_pipeline_failed_with_timings(
     color_elapsed_ns: Option<u128>,
     writer_elapsed_ns: Option<u128>,
 ) -> ConversionOutputPipelineExecution {
-    ConversionOutputPipelineExecution {
-        output: None,
-        diagnostics: vec![conversion_output_pipeline_diagnostic(
-            "csv-direct-output",
-            Some("csv"),
-            diagnostic_uri,
-            message,
-        )],
+    failed_pipeline_execution(
+        "csv-direct-output",
+        Some("csv"),
+        diagnostic_uri,
+        message,
         format_elapsed_ns,
         color_elapsed_ns,
         writer_elapsed_ns,
-        ..ConversionOutputPipelineExecution::default()
-    }
+    )
 }
 
 pub trait YamlDocumentOutputSubject {
@@ -4973,27 +4914,18 @@ fn yaml_html_output_color_selection(
     Ok(None)
 }
 
-const YAML_HTML_PREVIEW_SUFFIX: &str = "</pre>";
+const YAML_HTML_PREVIEW_CLASS: &str = "cem-output-yaml";
 
+#[cfg(test)]
 fn yaml_html_preview_prefix(tab_size: usize) -> String {
-    format!(
-        r#"<pre class="cem-output cem-output-yaml" style="white-space: pre; tab-size: {tab_size}">"#
-    )
+    crate::conversion_output::html_pre_container_prefix(YAML_HTML_PREVIEW_CLASS, tab_size)
 }
 
 fn yaml_wrap_html_preview_artifact(
     artifact: &mut TransformTemplateEncodedArtifact,
     tab_size: usize,
 ) {
-    let Some(text) = artifact.value.as_str() else {
-        return;
-    };
-    let prefix = yaml_html_preview_prefix(tab_size);
-    let prefix_len = prefix.len() as u64;
-    for span in &mut artifact.output_spans {
-        span.output_range.start = span.output_range.start.saturating_add(prefix_len);
-    }
-    artifact.value = Value::String(format!("{prefix}{text}{YAML_HTML_PREVIEW_SUFFIX}"));
+    wrap_html_pre_container_artifact(artifact, YAML_HTML_PREVIEW_CLASS, tab_size);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -5006,32 +4938,15 @@ impl YamlFormatterPresentationOptions {
     fn from_options(options: &BTreeMap<String, String>) -> Result<Self, String> {
         let mut parsed = Self {
             line_ending: None,
-            tab_size: DEFAULT_FORMATTER_TAB_SIZE as usize,
+            tab_size: default_formatter_tab_size(),
         };
         for (key, value) in options {
             match key.as_str() {
                 "lineEnding" => {
-                    parsed.line_ending = Some(match value.as_str() {
-                        "lf" => FormatterLineEndingMode::Lf,
-                        "crlf" => FormatterLineEndingMode::Crlf,
-                        "preserve" => FormatterLineEndingMode::Preserve,
-                        _ => {
-                            return Err(format!(
-                                "Formatter option `{key}` must be `lf`, `crlf`, or `preserve`"
-                            ))
-                        }
-                    });
+                    parsed.line_ending = Some(parse_formatter_line_ending_option(key, value)?);
                 }
                 "tabSize" => {
-                    let size = value.parse::<usize>().map_err(|_| {
-                        format!("Formatter option `{key}` must be a positive integer")
-                    })?;
-                    if size == 0 {
-                        return Err(format!(
-                            "Formatter option `{key}` must be greater than zero"
-                        ));
-                    }
-                    parsed.tab_size = size;
+                    parsed.tab_size = parse_positive_formatter_usize_option(key, value)?;
                 }
                 _ if key.starts_with("yaml.") => {
                     return Err(format!("unsupported YAML formatter option `{key}`"));
@@ -5047,21 +4962,7 @@ fn yaml_formatter_line_ending(
     source_line_ending: Option<&str>,
     options: &YamlFormatterPresentationOptions,
 ) -> Option<String> {
-    match options.line_ending {
-        Some(FormatterLineEndingMode::Lf) => Some("lf".to_owned()),
-        Some(FormatterLineEndingMode::Crlf) => Some("crlf".to_owned()),
-        Some(FormatterLineEndingMode::Preserve) => {
-            let source_line_ending = source_line_ending.unwrap_or("lf");
-            Some(
-                match source_line_ending {
-                    "crlf" => "crlf",
-                    _ => "lf",
-                }
-                .to_owned(),
-            )
-        }
-        None => None,
-    }
+    resolve_formatter_line_ending(source_line_ending, options.line_ending)
 }
 
 fn yaml_format_document_cem_tree(
@@ -5638,13 +5539,7 @@ fn yaml_push_token(
 }
 
 fn yaml_output_span_for_source_map(text: &str, source_map: Option<&Value>) -> Option<Value> {
-    let source_map = source_map?;
-    let origin = serde_json::from_value::<SourceMapStack>(source_map.clone()).ok()?;
-    serde_json::to_value(OutputSpan {
-        output_range: ByteRange::new(0, u32::try_from(text.len()).unwrap_or(u32::MAX)),
-        origin,
-    })
-    .ok()
+    output_span_value_for_source_map(text, source_map)
 }
 
 fn yaml_output_function_descriptor(
@@ -5655,30 +5550,18 @@ fn yaml_output_function_descriptor(
     produces: TransformTemplateOutputProducedKind,
     profile: Option<String>,
 ) -> TransformTemplateOutputFunctionDescriptor {
-    TransformTemplateOutputFunctionDescriptor {
+    cemt_output_function_descriptor(CemtOutputFunctionDescriptorSpec {
+        owner: "yaml",
+        name,
+        category,
+        subject,
         kind,
-        owner: Some("yaml".to_owned()),
-        name: name.to_owned(),
-        category: category.to_owned(),
-        subject: subject.to_owned(),
         produces,
-        content_type: YAML_CONTENT_TYPE.to_owned(),
-        schema: YAML_SCHEMA_URI.to_owned(),
+        content_type: YAML_CONTENT_TYPE,
+        schema: YAML_SCHEMA_URI,
         canonical: false,
-        streamable: true,
-        visibility: TransformTemplateModuleVisibility::Public,
-        implementation: TransformTemplateOutputFunctionImplementation::Cemt,
         profile,
-        extends: None,
-        capability: None,
-        deterministic: true,
-        trusted: false,
-        lossy: false,
-        fallback: None,
-        params: Vec::new(),
-        body_declared: false,
-        body_expression: None,
-    }
+    })
 }
 
 fn yaml_output_pipeline_failed(
@@ -5695,19 +5578,15 @@ fn yaml_output_pipeline_failed_with_timings(
     color_elapsed_ns: Option<u128>,
     writer_elapsed_ns: Option<u128>,
 ) -> ConversionOutputPipelineExecution {
-    ConversionOutputPipelineExecution {
-        output: None,
-        diagnostics: vec![conversion_output_pipeline_diagnostic(
-            "yaml-direct-output",
-            Some("yaml"),
-            diagnostic_uri,
-            message,
-        )],
+    failed_pipeline_execution(
+        "yaml-direct-output",
+        Some("yaml"),
+        diagnostic_uri,
+        message,
         format_elapsed_ns,
         color_elapsed_ns,
         writer_elapsed_ns,
-        ..ConversionOutputPipelineExecution::default()
-    }
+    )
 }
 
 fn conversion_output_pipeline_formatted_cem_tree_artifact(
@@ -5823,7 +5702,7 @@ fn conversion_output_pipeline_claimed_formatted_cem_tree_diagnostic(
         .map(str::trim)
         .filter(|value| !value.is_empty());
     let Some(formatter_profile) = formatter_profile else {
-        return Some(conversion_output_pipeline_diagnostic(
+        return Some(output_pipeline_diagnostic(
             converter_id,
             diagnostic_node,
             diagnostic_uri,
@@ -5838,7 +5717,7 @@ fn conversion_output_pipeline_claimed_formatted_cem_tree_diagnostic(
         .filter(|value| !value.is_empty())
     {
         if formatter_profile != expected {
-            return Some(conversion_output_pipeline_diagnostic(
+            return Some(output_pipeline_diagnostic(
                 converter_id,
                 diagnostic_node,
                 diagnostic_uri,
@@ -5854,7 +5733,7 @@ fn conversion_output_pipeline_claimed_formatted_cem_tree_diagnostic(
         .and_then(Value::as_array)
         .filter(|nodes| !nodes.is_empty())
     else {
-        return Some(conversion_output_pipeline_diagnostic(
+        return Some(output_pipeline_diagnostic(
             converter_id,
             diagnostic_node,
             diagnostic_uri,
@@ -5866,7 +5745,7 @@ fn conversion_output_pipeline_claimed_formatted_cem_tree_diagnostic(
             && node.get("name").and_then(Value::as_str) == Some("cem.format-tree")
     });
     if !has_marker {
-        return Some(conversion_output_pipeline_diagnostic(
+        return Some(output_pipeline_diagnostic(
             converter_id,
             diagnostic_node,
             diagnostic_uri,
@@ -5881,7 +5760,7 @@ fn conversion_output_pipeline_claimed_formatted_cem_tree_diagnostic(
                 .is_some_and(|role| role.starts_with("formatter."))
     });
     if !has_decision {
-        return Some(conversion_output_pipeline_diagnostic(
+        return Some(output_pipeline_diagnostic(
             converter_id,
             diagnostic_node,
             diagnostic_uri,
@@ -6010,7 +5889,7 @@ fn execute_conversion_output_pipeline_from_formatted_artifact(
             let (colored_output, color_execution) = match color_result {
                 Ok(output) => output,
                 Err(message) => {
-                    diagnostics.push(conversion_output_pipeline_diagnostic(
+                    diagnostics.push(output_pipeline_diagnostic(
                         converter_id,
                         diagnostic_node,
                         diagnostic_uri,
@@ -6338,78 +6217,35 @@ fn package_artifact_function_profile(
 fn conversion_cem_tree_format_function_descriptor(
     profile: &str,
 ) -> TransformTemplateOutputFunctionDescriptor {
-    TransformTemplateOutputFunctionDescriptor {
+    cemt_output_function_descriptor(CemtOutputFunctionDescriptorSpec {
+        owner: "cem",
+        name: "cem.format-tree",
+        category: "cem-tree",
+        subject: "cem-ast-node",
         kind: TransformTemplateOutputFunctionKind::Format,
-        owner: Some("cem".to_owned()),
-        name: "cem.format-tree".to_owned(),
-        category: "cem-tree".to_owned(),
-        subject: "cem-ast-node".to_owned(),
         produces: TransformTemplateOutputProducedKind::CemTree,
-        content_type: CEM_ML_CONTENT_TYPE.to_owned(),
-        schema: CEM_ML_SCHEMA_URI.to_owned(),
+        content_type: CEM_ML_CONTENT_TYPE,
+        schema: CEM_ML_SCHEMA_URI,
         canonical: true,
-        streamable: true,
-        visibility: TransformTemplateModuleVisibility::Public,
-        implementation: TransformTemplateOutputFunctionImplementation::Cemt,
         profile: Some(profile.to_owned()),
-        extends: None,
-        capability: None,
-        deterministic: true,
-        trusted: false,
-        lossy: false,
-        fallback: None,
-        params: Vec::new(),
-        body_declared: false,
-        body_expression: None,
-    }
+    })
 }
 
 fn conversion_cem_tree_color_function_descriptor(
     profile: &str,
 ) -> TransformTemplateOutputFunctionDescriptor {
-    TransformTemplateOutputFunctionDescriptor {
+    cemt_output_function_descriptor(CemtOutputFunctionDescriptorSpec {
+        owner: "cem",
+        name: "cem.color-tree",
+        category: "cem-tree",
+        subject: "cem-tree",
         kind: TransformTemplateOutputFunctionKind::Color,
-        owner: Some("cem".to_owned()),
-        name: "cem.color-tree".to_owned(),
-        category: "cem-tree".to_owned(),
-        subject: "cem-tree".to_owned(),
         produces: TransformTemplateOutputProducedKind::CemTree,
-        content_type: CEM_ML_CONTENT_TYPE.to_owned(),
-        schema: CEM_ML_SCHEMA_URI.to_owned(),
+        content_type: CEM_ML_CONTENT_TYPE,
+        schema: CEM_ML_SCHEMA_URI,
         canonical: false,
-        streamable: true,
-        visibility: TransformTemplateModuleVisibility::Public,
-        implementation: TransformTemplateOutputFunctionImplementation::Cemt,
         profile: Some(profile.to_owned()),
-        extends: None,
-        capability: None,
-        deterministic: true,
-        trusted: false,
-        lossy: false,
-        fallback: None,
-        params: Vec::new(),
-        body_declared: false,
-        body_expression: None,
-    }
-}
-
-fn conversion_output_pipeline_diagnostic(
-    converter_id: &str,
-    diagnostic_node: Option<&str>,
-    diagnostic_uri: Option<&str>,
-    message: String,
-) -> Diagnostic {
-    Diagnostic {
-        uri: diagnostic_uri.map(str::to_owned),
-        code: CONVERSION_OUTPUT_PIPELINE_EXECUTION_CODE.to_owned(),
-        severity: Severity::Error,
-        message: format!(
-            "converter `{converter_id}` could not execute CEMT output pipeline: {message}"
-        ),
-        node: diagnostic_node.map(str::to_owned),
-        details: None,
-        ..Diagnostic::default()
-    }
+    })
 }
 
 fn conversion_template_identity(template: &ConversionTemplateDescriptor) -> FormatIdentity {
@@ -16117,15 +15953,12 @@ mod tests {
             .unwrap();
         let plain_output = plain.output.as_ref().and_then(Value::as_str).unwrap();
         assert!(
-            html_output.starts_with(&csv_html_preview_prefix(
-                DEFAULT_FORMATTER_TAB_SIZE as usize
-            )),
+            html_output.starts_with(&csv_html_preview_prefix(default_formatter_tab_size())),
             "{html_output}"
         );
         assert!(
-            html_color_profile_output.starts_with(&csv_html_preview_prefix(
-                DEFAULT_FORMATTER_TAB_SIZE as usize
-            )),
+            html_color_profile_output
+                .starts_with(&csv_html_preview_prefix(default_formatter_tab_size())),
             "{html_color_profile_output}"
         );
         assert!(
