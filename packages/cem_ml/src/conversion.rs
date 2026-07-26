@@ -927,10 +927,7 @@ fn conversion_render_dom_projection_parity_document(
     input: &Value,
     output: ConversionDomProjectionParityOutput,
 ) -> Result<String, String> {
-    let children = input
-        .get("children")
-        .and_then(Value::as_array)
-        .ok_or_else(|| "DOM projection input must contain a children array".to_owned())?;
+    let children = conversion_template_input_children(input)?;
     let mut rendered = String::new();
     for child in children {
         conversion_render_dom_projection_parity_node(child, output, &mut rendered)?;
@@ -1087,10 +1084,7 @@ fn conversion_dom_projection_parity_cem_tree_document(
     input: &Value,
     target_scope: &ScopeConfig,
 ) -> Result<Value, String> {
-    let children = input
-        .get("children")
-        .and_then(Value::as_array)
-        .ok_or_else(|| "DOM projection input must contain a children array".to_owned())?;
+    let children = conversion_template_input_children(input)?;
     let mut nodes = Vec::new();
     for child in children {
         if let Some(node) = conversion_dom_projection_parity_cem_tree_node(child)? {
@@ -1123,6 +1117,19 @@ fn conversion_dom_projection_parity_cem_tree_document(
         ],
         "nodes": nodes,
     }))
+}
+
+fn conversion_template_input_children(input: &Value) -> Result<&Vec<Value>, String> {
+    if let Some(nodes) = input.as_array() {
+        return Ok(nodes);
+    }
+    input
+        .get("children")
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            "converter template input must be a CEM AST stream array or contain a children array"
+                .to_owned()
+        })
 }
 
 fn conversion_dom_projection_parity_formatter_profile(target_scope: &ScopeConfig) -> String {

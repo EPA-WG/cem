@@ -44,13 +44,13 @@ use crate::schema::machine::CemSchemaMachine;
 use crate::schema::package_consistency::validate_schema_package_source_consistency;
 use crate::schema::registry::{
     content_type_essence, schema_descriptor_from_manifest_and_schema_sources,
-    schema_source_path_from_manifest_source, SchemaDescriptor,
-    CEM_DOM_JSON_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_CONTENT_TYPE,
-    CEM_DOM_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI,
-    CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
-    CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI,
-    CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, XHTML_CONTENT_TYPE,
-    XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
+    schema_source_path_from_manifest_source, SchemaDescriptor, CEM_AST_PROJECTION_CONTENT_TYPE,
+    CEM_AST_PROJECTION_SCHEMA_URI, CEM_DOM_JSON_PROJECTION_CONTENT_TYPE,
+    CEM_DOM_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE,
+    CEM_ML_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI,
+    CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI,
+    CSS_CONTENT_TYPE, CSS_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE,
+    HTML_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
 };
 use crate::schema::vocab::CompiledSchema;
 use crate::source::line_index::LineIndex;
@@ -115,7 +115,6 @@ impl RealCemMlEngine {
 #[derive(Debug, Clone)]
 struct ExportConversionExecution {
     converter_id: String,
-    source: FormatIdentity,
     target: FormatIdentity,
     execution: ConversionExecution,
     rust_fallback: Option<ConversionRustFallbackDescriptor>,
@@ -297,11 +296,6 @@ fn resolve_export_conversion_execution(
 
     Some(ExportConversionExecution {
         converter_id: execution.descriptor.id.clone(),
-        source: FormatIdentity {
-            content_type: Some(execution.source.content_type),
-            schema: Some(execution.source.schema),
-            ..FormatIdentity::default()
-        },
         target: FormatIdentity {
             content_type: Some(execution.target.content_type),
             schema: Some(execution.target.schema),
@@ -348,6 +342,7 @@ fn render_export_conversion_template(
     conversion: &ExportConversionExecution,
     to_format: LayerFormat,
     document: &CemDocument,
+    from_format: InputFormat,
     target_scope: &ScopeConfig,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> ExportConversionTemplateResult {
@@ -427,8 +422,13 @@ fn render_export_conversion_template(
     let primary_input = TransformTemplateDataArtifact {
         artifact_id: "input".to_owned(),
         uri: None,
-        identity: Some(conversion.source.clone()),
-        value: projection::dom_json(document),
+        identity: Some(FormatIdentity {
+            content_type: Some(CEM_AST_PROJECTION_CONTENT_TYPE.to_owned()),
+            schema: Some(CEM_AST_PROJECTION_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        }),
+        value: projection::ast_stream(document, Some(input_format_content_type(from_format)))
+            .into_cemt_subject(),
     };
     let secondary_inputs = BTreeMap::new();
     let render_target = conversion
@@ -6086,6 +6086,7 @@ impl CemMlEngine for RealCemMlEngine {
                             export_conversion,
                             to_format,
                             &run.document,
+                            from_format,
                             &request.target_scope,
                             &mut diagnostics,
                         );
@@ -6199,6 +6200,7 @@ impl CemMlEngine for RealCemMlEngine {
                             export_conversion,
                             to_format,
                             &run.document,
+                            from_format,
                             &request.target_scope,
                             &mut diagnostics,
                         );
@@ -7867,6 +7869,43 @@ mod tests {
                     });
                 }
 
+                let input_nodes = request.primary_input.value.as_array().ok_or_else(|| {
+                    TransformTemplateAdapterError::failed(
+                        self.id(),
+                        TransformTemplateAdapterExecutionPhase::Render,
+                        "converter template input was not a CEM AST stream array",
+                    )
+                })?;
+                let first_node = input_nodes.first().ok_or_else(|| {
+                    TransformTemplateAdapterError::failed(
+                        self.id(),
+                        TransformTemplateAdapterExecutionPhase::Render,
+                        "converter template input AST stream was empty",
+                    )
+                })?;
+                let source_content_type = first_node["sourceMap"]["frames"]
+                    .as_array()
+                    .and_then(|frames| {
+                        frames.iter().find_map(|frame| {
+                            (frame["transform"]["kind"] == "ContentTypeTransform")
+                                .then(|| frame["transform"]["content_type"].as_str())
+                                .flatten()
+                        })
+                    })
+                    .unwrap_or("missing-source-content-type");
+                let input_content_type = request
+                    .primary_input
+                    .identity
+                    .as_ref()
+                    .and_then(|identity| identity.content_type.as_deref())
+                    .unwrap_or("missing-input-content-type");
+                let input_summary = format!(
+                    "{}:{}:{}",
+                    first_node["kind"].as_str().unwrap_or("missing-kind"),
+                    input_content_type,
+                    source_content_type
+                );
+
                 return Ok(TransformTemplateRenderResponse {
                     output: TransformTemplateOutputArtifact {
                         uri: None,
@@ -7876,9 +7915,7 @@ mod tests {
                             "name": "cemt-ready",
                             "children": [{
                                 "kind": "text",
-                                "value": request.primary_input.value["kind"]
-                                    .as_str()
-                                    .unwrap_or("unknown")
+                                "value": input_summary
                             }]
                         }]),
                         source_map: Some(test_source_map_stack(10, 8)),
@@ -12384,7 +12421,7 @@ mod tests {
         assert_eq!(resp.primary["kind"], "html", "{:?}", resp.diagnostics);
         assert_eq!(
             resp.primary["content"],
-            "<cemt-ready class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\">document</span></cemt-ready>"
+            "<cemt-ready class=\"cem-color cem-color-syntax-name\" data-role=\"syntax.name\"><span class=\"cem-color cem-color-syntax-string\" data-role=\"syntax.string\">element:application/vnd.cem.ast+cem-bin:application/cem</span></cemt-ready>"
         );
         assert_ne!(resp.primary["sourceMap"], Value::Null);
         assert_eq!(
