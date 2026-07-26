@@ -31,9 +31,18 @@ stream.
 - [x] Move CEM-ML tokenizer diagnostics behind a pre-AST neutral fact stream
       interpreted by schema-owned bindings, including tokenizer scope and
       malformed lexical facts with source maps.
-- [ ] Move remaining CEM-ML syntax and namespace diagnostics behind
-      schema-owned fact bindings, including invalid names, unbound prefixes,
-      and syntax/namespace scope facts.
+- [x] Audit remaining CEM-ML syntax and namespace diagnostic emitters: no
+      active `cem.syntax.*` parser diagnostics are emitted today; unbound
+      prefixes are currently reported as document-validation
+      `cem.lint.unbound_prefix`, while unresolved namespace and scope
+      diagnostics are emitted by the schema machine as `cem.schema.*`.
+- [ ] Decide the boundary for `cem.lint.unbound_prefix`: either move
+      document-validation lints behind a separate schema-owned semantic fact
+      catalog, fold this one rule into the CEM-ML parser fact catalog, or
+      leave it for the schema-machine/validation diagnostic migration.
+- [ ] Move remaining active CEM-ML syntax and namespace diagnostics behind
+      schema-owned fact bindings after that boundary is decided, including
+      invalid names, unbound prefixes, and syntax/namespace scope facts.
 - [ ] Move remaining CEM-ML schema-machine and handoff diagnostics behind the
       same neutral fact boundary, including unbalanced/unclosed schema scopes,
       unsupported/deferred handoffs, and XSLT dispatch/version diagnostics.
