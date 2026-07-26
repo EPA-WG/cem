@@ -4170,7 +4170,6 @@ fn direct_source_validation_report(
     inputs: &[eng::EngineInput],
     fail_level: cli::FailLevel,
     context: &cli::ContextOptions,
-    engine_context: &eng::EngineContext,
 ) -> Option<cem_ml::report::Report> {
     if inputs.is_empty() {
         return None;
@@ -4178,9 +4177,7 @@ fn direct_source_validation_report(
 
     let mut diagnostics = Vec::new();
     for input in inputs {
-        if let Some(report) = collect_schema_package_source_validation(input, engine_context) {
-            diagnostics.extend(report.diagnostics);
-        } else if is_cem_ql_source_input(input) {
+        if is_cem_ql_source_input(input) {
             diagnostics.extend(collect_cem_ql_source_diagnostics(std::slice::from_ref(
                 input,
             )));
@@ -4384,25 +4381,6 @@ fn input_source_content_type(input: &eng::EngineInput) -> Option<String> {
         .clone()
         .unwrap_or_else(|| input.root_scope.format_identity());
     identity.content_type
-}
-
-fn collect_schema_package_source_validation(
-    input: &eng::EngineInput,
-    engine_context: &eng::EngineContext,
-) -> Option<cem_ml::validation::schema_package_source::SchemaPackageSourceValidationReport> {
-    let identity = input
-        .identity
-        .clone()
-        .unwrap_or_else(|| input.root_scope.format_identity());
-    cem_ml::validation::schema_package_source::validate_schema_package_source(
-        cem_ml::validation::schema_package_source::SchemaPackageSourceValidationRequest {
-            bytes: &input.bytes,
-            source_uri: &input.uri,
-            content_type: identity.content_type.as_deref(),
-            schema_uri: identity.schema.as_deref(),
-            schema_registry: &engine_context.schema_registry,
-        },
-    )
 }
 
 fn collect_cem_ql_source_diagnostics(
@@ -11123,9 +11101,7 @@ pub fn run_validate<E: CemMlEngine + ?Sized>(
             s,
         );
     }
-    if let Some(report) =
-        direct_source_validation_report(&inputs, args.fail_level, &args.context, &engine_context)
-    {
+    if let Some(report) = direct_source_validation_report(&inputs, args.fail_level, &args.context) {
         if let Err(e) = write_report_files(
             &engine_context,
             &report,
@@ -11226,9 +11202,7 @@ pub fn run_check<E: CemMlEngine + ?Sized>(
             s,
         );
     }
-    if let Some(report) =
-        direct_source_validation_report(&inputs, args.fail_level, &args.context, &engine_context)
-    {
+    if let Some(report) = direct_source_validation_report(&inputs, args.fail_level, &args.context) {
         if let Err(e) = write_report_files(
             &engine_context,
             &report,

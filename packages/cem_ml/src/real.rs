@@ -5171,6 +5171,12 @@ fn run_scheduled_validation_documents(
                 .unwrap_or_else(|| load_input_through_lifecycle(input, context));
             input_diags.append(&mut loaded.diagnostics);
             source_bytes_for_projection = Some(loaded.bytes.clone());
+            if matches!(
+                loaded.ast_stream.as_ref(),
+                Some(LoadedInputAstStream::CsvDocument(_))
+            ) {
+                return;
+            }
             if is_transform_config_schema(input, context) {
                 input_diags.extend(validate_transform_config_document(
                     input,
@@ -11310,6 +11316,83 @@ mod tests {
             .diagnostics
             .iter()
             .all(|diag| diag.uri.as_deref() == Some("file:///workspace/src/in.cem")));
+    }
+
+    #[test]
+    fn validate_csv_source_consumes_lifecycle_ast_without_cem_parse() {
+        let mut source = input(b"id,name\n1,Ada\n", "table.csv");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(CSV_CONTENT_TYPE.to_owned()),
+            schema: Some(CSV_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let req = ValidateRequest {
+            inputs: vec![source],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().validate(req).unwrap();
+
+        assert_eq!(resp.report.summary.input_count, 1);
+        assert_eq!(resp.report.summary.hard_violation_count, 0);
+        assert!(
+            resp.report.diagnostics.is_empty(),
+            "CSV validation should be completed by the lifecycle AST stream, not CEM parsing: {:?}",
+            resp.report.diagnostics
+        );
+    }
+
+    #[test]
+    fn check_csv_source_reports_schema_owned_lifecycle_diagnostics() {
+        let mut source = input(b"id,name\n1,\"Ada\n", "table.csv");
+        source.identity = Some(FormatIdentity {
+            content_type: Some(CSV_CONTENT_TYPE.to_owned()),
+            schema: Some(CSV_SCHEMA_URI.to_owned()),
+            ..FormatIdentity::default()
+        });
+        let req = CheckRequest {
+            inputs: vec![source],
+            projection: ValidateProjection::Json,
+            fail_level: FailLevel::Validate,
+            zero_hard_violations: true,
+            context: ctx(),
+        };
+
+        let resp = RealCemMlEngine::new().check(req).unwrap();
+
+        assert_eq!(resp.hard_violation_count, 1);
+        let diagnostic = resp
+            .report
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "cem.csv.unclosed_quote")
+            .expect("schema-owned CSV unclosed quote diagnostic");
+        assert_eq!(
+            diagnostic
+                .details
+                .as_ref()
+                .and_then(|details| details.get("contract"))
+                .and_then(Value::as_str),
+            Some("quote-closure-policy")
+        );
+        assert_eq!(
+            diagnostic
+                .details
+                .as_ref()
+                .and_then(|details| details.get("factKind"))
+                .and_then(Value::as_str),
+            Some("unclosed-quote")
+        );
+        assert!(
+            resp.report.diagnostics.iter().all(|diagnostic| {
+                !diagnostic.code.starts_with("cem.token")
+                    && !diagnostic.code.starts_with("cem.parser")
+            }),
+            "CSV check must not fall through to CEM token/parser diagnostics: {:?}",
+            resp.report.diagnostics
+        );
     }
 
     #[test]

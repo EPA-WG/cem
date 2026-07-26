@@ -32,7 +32,11 @@ stream.
       import DOM/AST boundary, preserving row and field source ranges, parser
       facts, formatter/colorizer inputs, and writer source maps without a
       convert-only bypass.
-- [ ] Move CLI-owned source validation collectors for JSON, YAML, CSV,
+- [x] Move CSV validate/check off the CLI-owned source validation collector and
+      into `RealCemMlEngine` lifecycle validation, so `text/csv` validation
+      consumes the lifecycle-owned `CsvDocumentAst` stream and schema-owned
+      parse-fact diagnostics without falling through to CEM parsing.
+- [ ] Move CLI-owned source validation collectors for JSON, YAML,
       Markdown, CSS, HTML, XML, SVG, MathML, Relax NG, XSLT, CEM-QL, and
       native-template behind engine lifecycle adapters, or prove each collector
       consumes the same imported DOM/AST and source-map model as

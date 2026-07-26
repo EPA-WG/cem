@@ -13209,7 +13209,7 @@ mod tests {
                 .iter()
                 .find(|param| param.name == "subject")
                 .map(|param| param.value_type.as_contract_name()),
-            Some("json")
+            Some("any")
         );
         assert_eq!(
             formatter.body_expression.as_deref(),

@@ -278,12 +278,17 @@ are warnings or errors, and which diagnostic codes are emitted.
 
 ### Current Boundary
 
-The current CLI path still has CSV-specific fact extraction in Rust. It
-interprets the `text/csv` parameters, checks UTF-8 and US-ASCII byte
+The current engine lifecycle path still has CSV-specific fact extraction in
+Rust. It interprets the `text/csv` parameters, checks UTF-8 and US-ASCII byte
 compatibility, parses records, and detects parser facts such as inconsistent
 field counts, invalid quote escapes, and unclosed quotes.
 
-The source projection now carries the schema-facing parser facts used by
+Validation and check commands route `text/csv` through `RealCemMlEngine`, where
+the CSV lifecycle adapter emits a typed `CsvDocumentAst` stream. The engine
+consumes that lifecycle AST for CSV validation instead of falling through to
+CEM syntax parsing, and the CLI only renders the engine report.
+
+The source projection carries the schema-facing parser facts used by
 formatter/colorizer stages: source identity, encoding report, dialect facts,
 row and field source ranges, field quoted state, and recoverable/fatal
 `parseFacts`. Diagnostic policy selection is schema-owned: `schema/csv.cem`
@@ -404,24 +409,18 @@ diagnostic provenance schema-owned and inspectable.
 
 1. Add a generic host behavior for CSV parse fact extraction. The behavior name
    should be referenced from `csv-source-parser` instead of being called
-   directly by CLI CSV special cases.
-2. Change CLI validation to route `text/csv` through the generic
-   schema-package validation path. The CLI should provide bytes, content type,
-   schema URI, and resolver context, then consume schema-produced diagnostics.
-3. Keep CSV diagnostic mapping out of CLI dispatch. CLI code should retain only
-   generic source loading, media-type parsing, schema selection, and report
-   projection there.
-4. Expand package examples so every current Rust-owned condition has a
+   directly by CSV-specific validation code.
+2. Expand package examples so every current Rust-owned condition has a
    schema-owned fixture: valid table, quoted fields, unclosed quote, invalid
    quote escape, ragged row, unsupported charset, US-ASCII byte mismatch, and
    invalid `header` parameter.
-5. Add contract tests that mutate `schema/csv.cem` behavior bindings and prove
+3. Add contract tests that mutate `schema/csv.cem` behavior bindings and prove
    CSV diagnostics change because the schema changed, not because a Rust CSV
    branch changed.
 
 ### Target Migration Gates
 
-The migration is not complete until these gates pass:
+Completed gates:
 
 - the CSV package examples validate through the same schema-package example
   harness used by other packages;
@@ -430,10 +429,19 @@ The migration is not complete until these gates pass:
 - source ranges for row, field, quote, and encoding diagnostics survive through
   CLI JSON output;
 - CEMT formatter/colorizer assets consume the schema-facing table model rather
-  than reparsing CSV bytes;
+  than reparsing CSV bytes.
+
+Remaining gates:
+
+- replace the CSV-specific validation module entry point with a generic
+  host-behavior boundary for parse fact extraction;
 - `yarn nx run cem_ml_cli:validate-cemt-pipeline-fixture` and
-  `yarn nx run cem_ml:test` pass after the Rust-specific CSV validator is
-  removed.
+  `yarn nx run cem_ml:test` pass after that generic boundary replaces the
+  Rust-specific CSV validator entry point.
+
+The remaining open migration work is the generic host-behavior boundary for
+parse fact extraction plus the future fragment, CSVW, and dialect coverage
+tracked in the release notes above.
 
 ## Examples
 
