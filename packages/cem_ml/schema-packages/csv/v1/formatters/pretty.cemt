@@ -7,7 +7,7 @@
         @name="csv.format-document"
         @visibility="public"
         @category="csv-document"
-        @subject="json"
+        @subject="csv-document"
         @produces="cem-tree"
         @content-type="text/csv"
         @schema="https://cem.dev/ns/data/csv/1"
@@ -15,7 +15,7 @@
         @canonical=false
         @deterministic=true
         @streamable=true |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="any" @required=true}
         {body |
             {$ {
                 kind: "cem-tree",
@@ -565,8 +565,8 @@
         }
     }
 
-    {function @name="csv.format-document.output-span" @visibility="private" @returns="json" @deterministic=true |
-        {param @name="sourceMap" @type="json" @required=true}
+    {function @name="csv.format-document.output-span" @visibility="private" @returns="any" @deterministic=true |
+        {param @name="sourceMap" @type="any" @required=true}
         {body |
             {$ match(typeOf($sourceMap), {
                 null: null,

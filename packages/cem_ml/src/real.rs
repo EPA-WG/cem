@@ -46,11 +46,11 @@ use crate::schema::registry::{
     content_type_essence, schema_descriptor_from_manifest_and_schema_sources,
     schema_source_path_from_manifest_source, SchemaDescriptor,
     CEM_DOM_JSON_PROJECTION_CONTENT_TYPE, CEM_DOM_PROJECTION_CONTENT_TYPE,
-    CEM_DOM_PROJECTION_SCHEMA_URI, CEM_NATIVE_TEMPLATE_CONTENT_TYPE,
-    CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_CONTENT_TYPE,
-    CEM_SCHEMA_PACKAGE_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI, CSV_CONTENT_TYPE, CSV_SCHEMA_URI,
-    HTML_CONTENT_TYPE, HTML_SCHEMA_URI, XHTML_CONTENT_TYPE, XHTML_SCHEMA_URI, XML_CONTENT_TYPE,
-    XML_SCHEMA_URI,
+    CEM_DOM_PROJECTION_SCHEMA_URI, CEM_ML_CONTENT_TYPE, CEM_ML_SCHEMA_URI,
+    CEM_NATIVE_TEMPLATE_CONTENT_TYPE, CEM_NATIVE_TEMPLATE_SCHEMA_URI, CEM_SCHEMA_CONTENT_TYPE,
+    CEM_SCHEMA_PACKAGE_CONTENT_TYPE, CEM_SCHEMA_PACKAGE_URI, CSS_CONTENT_TYPE, CSS_SCHEMA_URI,
+    CSV_CONTENT_TYPE, CSV_SCHEMA_URI, HTML_CONTENT_TYPE, HTML_SCHEMA_URI, XHTML_CONTENT_TYPE,
+    XHTML_SCHEMA_URI, XML_CONTENT_TYPE, XML_SCHEMA_URI,
 };
 use crate::schema::vocab::CompiledSchema;
 use crate::source::line_index::LineIndex;
@@ -85,6 +85,7 @@ use crate::transform_template::{
     TRANSFORM_TEMPLATE_PARAM_DUPLICATE_ALIAS_CODE, TRANSFORM_TEMPLATE_PARAM_REQUIRED_CODE,
     TRANSFORM_TEMPLATE_PARAM_TYPE_CODE, TRANSFORM_TEMPLATE_PARAM_UNKNOWN_CODE,
 };
+use crate::validation::csv::CsvDocumentAst;
 use crate::validation::{
     rules::validate_cem_native_template_source_semantics, RuleContext, RuleRegistry,
     RuleResourceRead, RuleResourceReader,
@@ -708,7 +709,7 @@ fn execute_cem_tree_output_pipeline_with_context(
     execute_conversion_output_pipeline_with_context(
         context,
         pipeline,
-        rendered_stream.into_pipeline_subject(),
+        rendered_stream.into_cemt_subject(),
         rendered_source_map,
         rendered_output_spans,
         converter_id,
@@ -1324,53 +1325,8 @@ fn cem_tree_nodes_for_markup_output(
         document,
         Some(input_format_content_type(from_format)),
     );
-    remove_cem_directive_nodes_from_stream(&mut nodes);
+    nodes.retain_non_directive_nodes();
     nodes
-}
-
-fn remove_cem_directive_nodes_from_stream(stream: &mut projection::CemTreeAstStream) {
-    let nodes = stream.nodes_mut();
-    nodes.retain(|item| !is_cem_directive_node(item));
-    for node in nodes {
-        remove_cem_directive_nodes(node);
-    }
-}
-
-fn remove_cem_directive_nodes(value: &mut Value) {
-    match value {
-        Value::Array(items) => {
-            items.retain(|item| !is_cem_directive_node(item));
-            for item in items {
-                remove_cem_directive_nodes(item);
-            }
-        }
-        Value::Object(fields) => {
-            for key in ["children", "nodes", "slots"] {
-                if let Some(children) = fields.get_mut(key) {
-                    remove_cem_directive_nodes(children);
-                }
-            }
-        }
-        _ => {}
-    }
-}
-
-fn is_cem_directive_node(value: &Value) -> bool {
-    let Value::Object(fields) = value else {
-        return false;
-    };
-    fields
-        .get("kind")
-        .and_then(Value::as_str)
-        .is_some_and(|kind| kind.trim() == "directive")
-        || fields
-            .get("name")
-            .or_else(|| fields.get("localName"))
-            .or_else(|| fields.get("tag"))
-            .or_else(|| fields.get("tagName"))
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .is_some_and(|name| name.starts_with('@'))
 }
 
 fn direct_cem_output_pipeline_diagnostic(uri: Option<&str>, message: &str) -> Diagnostic {
@@ -4777,7 +4733,7 @@ fn csv_direct_output_primary_identity(
 fn convert_loaded_csv_ast_output(
     context: &EngineContext,
     request: &ConvertRequest,
-    table_value: Value,
+    table: CsvDocumentAst,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> (Value, Option<PrimaryBytes>, ConvertExecutionMetadata) {
     let metadata = convert_metadata_for_csv_lifecycle_output(&request.target_scope);
@@ -4789,7 +4745,7 @@ fn convert_loaded_csv_ast_output(
     };
     let execution = execute_csv_document_output_pipeline_with_environment(
         &environment,
-        table_value,
+        table,
         &request.target_scope,
         Some(&request.input.uri),
     );
@@ -5824,7 +5780,7 @@ impl CemMlEngine for RealCemMlEngine {
             ParseProjection::DomJson | ParseProjection::Json => projection::dom_json(&run.document),
             ParseProjection::Ast => {
                 projection::ast_stream(&run.document, Some(input_format_content_type(from_format)))
-                    .into_pipeline_subject()
+                    .into_cemt_subject()
             }
             ParseProjection::Events => projection::events_json_as(&loaded.bytes, from_format),
         };
@@ -5927,7 +5883,7 @@ impl CemMlEngine for RealCemMlEngine {
             }
             InspectView::Ast => {
                 projection::ast_stream(&run.document, Some(input_format_content_type(from_format)))
-                    .into_pipeline_subject()
+                    .into_cemt_subject()
             }
             InspectView::Events => projection::events_json_as(&loaded.bytes, from_format),
             InspectView::Diagnostics => json!({
@@ -6102,7 +6058,7 @@ impl CemMlEngine for RealCemMlEngine {
                         "direct-cem-output",
                         &pipeline,
                     ));
-                    convert_primary_to_cem_with_cemt_pipeline(
+                    let cem_primary = convert_primary_to_cem_with_cemt_pipeline(
                         Some(&context),
                         &run.document,
                         from_format,
@@ -6112,7 +6068,16 @@ impl CemMlEngine for RealCemMlEngine {
                     .unwrap_or_else(|mut cemt_diagnostics| {
                         diagnostics.append(&mut cemt_diagnostics);
                         Value::Null
-                    })
+                    });
+                    if let Some(content) = cem_primary.get("content").and_then(Value::as_str) {
+                        let document = GenericDataTextDocument {
+                            content: content.to_owned(),
+                            content_type: CEM_ML_CONTENT_TYPE.to_owned(),
+                            schema: CEM_ML_SCHEMA_URI.to_owned(),
+                        };
+                        primary_bytes = Some(primary_bytes_from_text_document(&document));
+                    }
+                    cem_primary
                 }
                 LayerFormat::Html => match export_conversion.as_ref() {
                     Some(export_conversion) => {
@@ -6358,7 +6323,7 @@ impl CemMlEngine for RealCemMlEngine {
                 LayerFormat::DomJson => projection::dom_json(&run.document),
                 LayerFormat::Ast => {
                     projection::ast_stream(&run.document, Some(input_format_content_type(from_format)))
-                        .into_pipeline_subject()
+                        .into_cemt_subject()
                 }
                 LayerFormat::Events => projection::events_json_as(&loaded.bytes, from_format),
                 LayerFormat::DomBin => {
@@ -11876,6 +11841,13 @@ mod tests {
             resp.primary["content"].as_str().unwrap(),
             "{button @type=submit @cem:action=primary | Save}\n"
         );
+        let primary_bytes = resp.primary_bytes.as_ref().expect("native CEM bytes");
+        assert_eq!(primary_bytes.content_type, CEM_ML_CONTENT_TYPE);
+        assert_eq!(primary_bytes.schema.as_deref(), Some(CEM_ML_SCHEMA_URI));
+        assert_eq!(
+            std::str::from_utf8(&primary_bytes.bytes).unwrap(),
+            resp.primary["content"].as_str().unwrap()
+        );
         assert!(resp.primary["outputSpans"]
             .as_array()
             .unwrap()
@@ -12985,7 +12957,7 @@ mod tests {
         @canonical=true
         @deterministic=true
         @streamable=true |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="any" @required=true}
         {body |
             {$ {
                 kind: "cem-tree",

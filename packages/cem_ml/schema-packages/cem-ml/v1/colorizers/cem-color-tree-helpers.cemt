@@ -175,10 +175,10 @@
     {function
         @name="cem.color-tree.color-value"
         @visibility="private"
-        @returns="json"
+        @returns="any"
         @deterministic=true
         |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="any" @required=true}
         {param @name="colorProfile" @type="string" @required=true}
         {body |
             {$ match(typeOf($subject), {
@@ -677,7 +677,7 @@
         @returns="object"
         @deterministic=true
         |
-        {param @name="source" @type="json" @required=true}
+        {param @name="source" @type="any" @required=true}
         {param @name="colorProfile" @type="string" @required=true}
         {body |
             {$ call("cem.color-tree.generated-node", {
@@ -699,7 +699,7 @@
         @returns="object"
         @deterministic=true
         |
-        {param @name="source" @type="json" @required=true}
+        {param @name="source" @type="any" @required=true}
         {param @name="name" @type="string" @required=true}
         {param @name="role" @type="string" @required=true}
         {param @name="value" @type="string" @required=true}
@@ -726,7 +726,7 @@
         @deterministic=true
         |
         {param @name="subject" @type="object" @required=true}
-        {param @name="source" @type="json" @required=true}
+        {param @name="source" @type="any" @required=true}
         {body |
             {$ match(typeOf(sourceMap($source, "cem.color-tree")), {
                 null: $subject,
@@ -769,7 +769,7 @@
         @returns="array"
         @deterministic=true
         |
-        {param @name="source" @type="json" @required=true}
+        {param @name="source" @type="any" @required=true}
         {param @name="role" @type="string" @required=true}
         {param @name="colorProfile" @type="string" @required=true}
         {body |
@@ -798,7 +798,7 @@
         @returns="object"
         @deterministic=true
         |
-        {param @name="source" @type="json" @required=true}
+        {param @name="source" @type="any" @required=true}
         {param @name="name" @type="string" @required=true}
         {param @name="value" @type="string" @required=true}
         {param @name="colorProfile" @type="string" @required=true}

@@ -38,9 +38,12 @@ stream.
       consumes the same imported DOM/AST and source-map model as
       `RealCemMlEngine`.
 - [x] Fix the CEM-ML `ast` projection so it no longer aliases `dom_json`:
-      replace `projection::ast_json` with a source-map-bearing CEM tree AST
-      stream projection consumed as CEM-ML/CEMT data, not as a DOM/JSON
-      projection.
+      replace `projection::ast_json` with a source-map-bearing typed CEM
+      tree AST stream consumed as CEM-ML/CEMT data, not as a DOM/JSON
+      projection or JSON-named internal boundary.
+- [x] Replace CSV native input/output stream carriers that still use
+      `serde_json::Value` with typed CSV/CEMT AST models, leaving any
+      dynamic lowering isolated to explicit CEMT adapter boundaries.
 - [ ] Fix or explicitly declare the reduced-fidelity contract for the CEM-ML
       `dom-json` debug projection when callers expect source-map preservation:
       `CemDocument` and the CEM tree AST stream preserve `SourceMapStack`, but

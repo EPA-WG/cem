@@ -61,6 +61,7 @@ use crate::transform_template::{
     TransformTemplateTargetSyntaxRules, TransformTemplateTerminalColorCapability,
     DEFAULT_FORMATTER_TAB_SIZE,
 };
+use crate::validation::csv::CsvDocumentAst;
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -3875,9 +3876,35 @@ pub fn execute_conversion_output_pipeline_from_formatted_cem_tree_with_environme
     )
 }
 
+pub trait CsvDocumentOutputSubject {
+    fn source_line_ending(&self) -> Option<&str>;
+    fn into_cemt_subject(self) -> Value;
+}
+
+impl CsvDocumentOutputSubject for CsvDocumentAst {
+    fn source_line_ending(&self) -> Option<&str> {
+        self.line_ending.as_deref()
+    }
+
+    fn into_cemt_subject(self) -> Value {
+        self.to_cemt_subject()
+    }
+}
+
+#[cfg(test)]
+impl CsvDocumentOutputSubject for Value {
+    fn source_line_ending(&self) -> Option<&str> {
+        self.get("lineEnding").and_then(Value::as_str)
+    }
+
+    fn into_cemt_subject(self) -> Value {
+        self
+    }
+}
+
 pub fn execute_csv_document_output_pipeline_with_environment(
     environment: &ConversionOutputPipelineEnvironment<'_>,
-    table_value: Value,
+    table: impl CsvDocumentOutputSubject,
     target_scope: &ScopeConfig,
     diagnostic_uri: Option<&str>,
 ) -> ConversionOutputPipelineExecution {
@@ -3916,7 +3943,8 @@ pub fn execute_csv_document_output_pipeline_with_environment(
             Ok(options) => options,
             Err(message) => return csv_output_pipeline_failed(diagnostic_uri, message),
         };
-    let line_ending = csv_formatter_line_ending(&table_value, &presentation_options);
+    let line_ending = csv_formatter_line_ending(table.source_line_ending(), &presentation_options);
+    let table_subject = table.into_cemt_subject();
     let format_options = TransformTemplateEncodeOptions {
         formatter: Some(formatter_name.to_owned()),
         formatter_profile: Some(formatter_profile.to_owned()),
@@ -3933,8 +3961,8 @@ pub fn execute_csv_document_output_pipeline_with_environment(
         &target,
         Some(formatter_profile),
         Some(formatter_name),
-        &table_value,
-        "json",
+        &table_subject,
+        "csv-document",
         format_options,
     ) {
         Ok(resolved) => resolved,
@@ -3947,7 +3975,7 @@ pub fn execute_csv_document_output_pipeline_with_environment(
         environment,
         format_stage,
         &format_binding,
-        &table_value,
+        &table_subject,
     );
     let format_elapsed_ns = Some(format_started.elapsed().as_nanos());
     let (formatted_output, format_execution) = match format_result {
@@ -4129,7 +4157,7 @@ pub fn execute_csv_document_output_pipeline_with_environment(
                 csv_output_function_descriptor(
                     CSV_FORMAT_CEMT_STAGE_SPEC.function_name,
                     "csv-document",
-                    "json",
+                    "csv-document",
                     TransformTemplateOutputFunctionKind::Format,
                     TransformTemplateOutputProducedKind::CemTree,
                     Some(formatter_profile.to_owned()),
@@ -4458,17 +4486,14 @@ impl CsvFormatterPresentationOptions {
 }
 
 fn csv_formatter_line_ending(
-    table_value: &Value,
+    source_line_ending: Option<&str>,
     options: &CsvFormatterPresentationOptions,
 ) -> Option<String> {
     match options.line_ending {
         Some(FormatterLineEndingMode::Lf) => Some("lf".to_owned()),
         Some(FormatterLineEndingMode::Crlf) => Some("crlf".to_owned()),
         Some(FormatterLineEndingMode::Preserve) => {
-            let source_line_ending = table_value
-                .get("lineEnding")
-                .and_then(Value::as_str)
-                .unwrap_or("lf");
+            let source_line_ending = source_line_ending.unwrap_or("lf");
             Some(
                 match source_line_ending {
                     "crlf" => "crlf",
@@ -12990,7 +13015,7 @@ mod tests {
         @canonical=true
         @deterministic=true
         @streamable=true |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="any" @required=true}
         {body | {$ { kind: "cem-tree", nodes: [$subject] } } }
     }
 }
@@ -13737,7 +13762,7 @@ mod tests {
         @canonical=true
         @deterministic=true
         @streamable=true |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="any" @required=true}
         {body |
             {$ encode($subject, { contentType: "application/cem", schema: "https://cem.dev/ns/cem-ml/1", category: "cem-tree", subjectType: "cem-ast-node" }, { formatter: "cem.format-tree" }) }
         }
@@ -13813,7 +13838,7 @@ mod tests {
         @canonical=true
         @deterministic=true
         @streamable=true |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="any" @required=true}
         {body | {$ $subject } }
     }
 }
@@ -13990,7 +14015,7 @@ mod tests {
             ]
         });
         let request = TransformTemplateEncodeBindingRequest::new(subject.clone(), target)
-            .with_subject_type("json")
+            .with_subject_type("csv-document")
             .with_options(TransformTemplateEncodeOptions {
                 formatter: Some("csv.format-document".to_owned()),
                 formatter_profile: Some(profile.to_owned()),
@@ -14010,6 +14035,61 @@ mod tests {
         profile: &str,
     ) -> Result<(Value, ConversionOutputPipelineStageExecution), String> {
         execute_builtin_csv_formatter_profile_with_options(profile, BTreeMap::new())
+    }
+
+    #[test]
+    fn cem_ml_and_csv_output_cemt_assets_do_not_use_json_ast_boundaries() {
+        for (path, source) in [
+            (
+                "schema-packages/cem-ml/v1/colorizers/cem-color-tree-helpers.cemt",
+                include_str!("../schema-packages/cem-ml/v1/colorizers/cem-color-tree-helpers.cemt"),
+            ),
+            (
+                "schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt",
+                include_str!("../schema-packages/cem-ml/v1/formatters/cem-format-tree.cemt"),
+            ),
+            (
+                "schema-packages/cem-ml/v1/formatters/cem-format-tree-helpers.cemt",
+                include_str!(
+                    "../schema-packages/cem-ml/v1/formatters/cem-format-tree-helpers.cemt"
+                ),
+            ),
+            (
+                "schema-packages/cem-ml/v1/formatters/cem-tree-helpers.cemt",
+                include_str!("../schema-packages/cem-ml/v1/formatters/cem-tree-helpers.cemt"),
+            ),
+            (
+                "schema-packages/cem-ml/v1/formatters/formatter-coloring-pipeline.cemt",
+                include_str!(
+                    "../schema-packages/cem-ml/v1/formatters/formatter-coloring-pipeline.cemt"
+                ),
+            ),
+            (
+                "schema-packages/csv/v1/formatters/compact.cemt",
+                include_str!("../schema-packages/csv/v1/formatters/compact.cemt"),
+            ),
+            (
+                "schema-packages/csv/v1/formatters/pretty.cemt",
+                include_str!("../schema-packages/csv/v1/formatters/pretty.cemt"),
+            ),
+            (
+                "schema-packages/csv/v1/formatters/tabular.cemt",
+                include_str!("../schema-packages/csv/v1/formatters/tabular.cemt"),
+            ),
+        ] {
+            assert!(
+                !source.contains("@subject=\"json\""),
+                "{path} must not declare internal AST subject as JSON"
+            );
+            assert!(
+                !source.contains("@type=\"json\""),
+                "{path} must not type internal AST parameters as JSON"
+            );
+            assert!(
+                !source.contains("@returns=\"json\""),
+                "{path} must not type internal AST returns as JSON"
+            );
+        }
     }
 
     fn csv_test_output_span(start: u64, len: u32) -> Value {

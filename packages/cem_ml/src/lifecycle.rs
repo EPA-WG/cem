@@ -21,9 +21,11 @@ use crate::schema::registry::{
     XSLT_SCHEMA_URI,
 };
 use crate::transform_config::TRANSFORM_CONFIG_SCHEMA_URI;
-use crate::validation::csv::{csv_table_value_from_source_bytes, CsvSourceValidationRequest};
+use crate::validation::csv::{
+    csv_document_ast_from_source_bytes, CsvDocumentAst, CsvSourceValidationRequest,
+};
 use crate::validation::xslt::{validate_xslt_source_bytes, XsltSourceValidationRequest};
-use serde_json::{json, Value};
+use serde_json::json;
 
 pub const ADAPTER_AMBIGUOUS_CODE: &str = "cem.lifecycle.adapter_ambiguous";
 pub const ADAPTER_UNSUPPORTED_CODE: &str = "cem.lifecycle.adapter_unsupported";
@@ -68,7 +70,7 @@ pub struct LoadedInput {
 
 #[derive(Debug, Clone)]
 pub enum LoadedInputAstStream {
-    CsvDocument(Value),
+    CsvDocument(CsvDocumentAst),
 }
 
 #[derive(Debug, Clone)]
@@ -567,16 +569,15 @@ impl LifecycleAdapter for CsvAdapter {
             .as_deref()
             .or(input.root_scope.default_content_type.as_deref())
             .unwrap_or(CSV_CONTENT_TYPE);
-        let (table_value, diagnostics) =
-            csv_table_value_from_source_bytes(CsvSourceValidationRequest {
-                bytes: &input.bytes,
-                source_uri: &input.uri,
-                content_type: Some(content_type),
-            });
+        let (table, diagnostics) = csv_document_ast_from_source_bytes(CsvSourceValidationRequest {
+            bytes: &input.bytes,
+            source_uri: &input.uri,
+            content_type: Some(content_type),
+        });
         LoadedInput {
             bytes: input.bytes.clone(),
             from_format: input.from_format.unwrap_or(InputFormat::Cem),
-            ast_stream: table_value.map(LoadedInputAstStream::CsvDocument),
+            ast_stream: table.map(LoadedInputAstStream::CsvDocument),
             diagnostics: csv_lifecycle_adapter_diagnostics(self.id(), diagnostics),
             adapter_id: Some(self.id()),
         }
@@ -993,14 +994,14 @@ mod tests {
         let LoadedInputAstStream::CsvDocument(table) = loaded
             .ast_stream
             .expect("CSV adapter emits internal AST stream");
-        assert_eq!(table["kind"], "csv-table");
-        assert_eq!(table["source"]["contentType"], CSV_CONTENT_TYPE);
-        assert_eq!(table["rows"][0]["fields"][0]["value"], "id");
-        assert_eq!(
-            table["rows"][0]["fields"][0]["sourceMap"]["frames"][0]["span"]["ranges"]["start"],
-            0
-        );
-        assert_eq!(table["rows"][1]["fields"][1]["value"], "Ada");
+        assert_eq!(table.source.content_type, CSV_CONTENT_TYPE);
+        assert_eq!(table.rows[0].fields[0].value, "id");
+        let field_source = table.rows[0].fields[0].range.source_map();
+        let crate::source_map::FrameSpan::Single(field_range) = field_source.frames[0].span else {
+            panic!("field source range should be single-span");
+        };
+        assert_eq!(field_range.start, 0);
+        assert_eq!(table.rows[1].fields[1].value, "Ada");
     }
 
     #[test]

@@ -16,7 +16,7 @@
         @canonical=true
         @deterministic=true
         @streamable=true |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="any" @required=true}
         {body |
             {$ applyEdits(
                 appendFormatNode(
@@ -47,7 +47,7 @@
         @returns="array"
         @deterministic=true
         |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="any" @required=true}
         {body |
             {$ match(typeOf(call("cem.format-tree.build-node-list", { subject: $subject })), {
                 array: call("cem.format-tree.format-inter-node-whitespace", {
@@ -65,7 +65,7 @@
         @returns="array"
         @deterministic=true
         |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="any" @required=true}
         {body |
             {$ match(typeOf($subject), {
                 array: map($subject, call("cem.format-tree.format-node", { subject: $item, depth: 0 })),
@@ -116,10 +116,10 @@
     {function
         @name="cem.format-tree.format-node"
         @visibility="private"
-        @returns="json"
+        @returns="any"
         @deterministic=true
         |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="any" @required=true}
         {param @name="depth" @type="integer" @default="0"}
         {body |
             {$ call("cem.format-tree.format-node-children", {
@@ -132,10 +132,10 @@
     {function
         @name="cem.format-tree.format-node-attributes"
         @visibility="private"
-        @returns="json"
+        @returns="any"
         @deterministic=true
         |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="any" @required=true}
         {param @name="depth" @type="integer" @default="0"}
         {body |
             {$ match(exists($subject.attributes), {
@@ -162,10 +162,10 @@
     {function
         @name="cem.format-tree.format-node-children"
         @visibility="private"
-        @returns="json"
+        @returns="any"
         @deterministic=true
         |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="any" @required=true}
         {param @name="depth" @type="integer" @default="0"}
         {body |
             {$ match(exists($subject.children), {
@@ -318,8 +318,8 @@
         @returns="object"
         @deterministic=true
         |
-        {param @name="previous" @type="json" @required=true}
-        {param @name="current" @type="json" @required=true}
+        {param @name="previous" @type="any" @required=true}
+        {param @name="current" @type="any" @required=true}
         {param @name="value" @type="string" @required=true}
         {param @name="formatterRole" @type="string" @required=true}
         {body |
@@ -344,7 +344,7 @@
         @returns="object"
         @deterministic=true
         |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="any" @required=true}
         {param @name="value" @type="string" @required=true}
         {param @name="formatterRole" @type="string" @required=true}
         {body |
@@ -558,10 +558,10 @@
     {function
         @name="cem.format-tree.attribute-prefix"
         @visibility="private"
-        @returns="json"
+        @returns="any"
         @deterministic=true
         |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="any" @required=true}
         {param @name="depth" @type="integer" @default="0"}
         {body |
             {$ {
@@ -577,10 +577,10 @@
     {function
         @name="cem.format-tree.attribute-spacing"
         @visibility="private"
-        @returns="json"
+        @returns="any"
         @deterministic=true
         |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="any" @required=true}
         {param @name="depth" @type="integer" @default="0"}
         {body |
             {$ {
@@ -615,7 +615,7 @@
         @returns="boolean"
         @deterministic=true
         |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="any" @required=true}
         {body |
             {$ match($formatterProfile, {
                 tabular: match($wrapColumn, { none: false, preserve: false, default: gt(toInteger($wrapColumn), 0) }),
@@ -740,7 +740,7 @@
         @returns="integer"
         @deterministic=true
         |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="any" @required=true}
         {body |
             {$ match(typeOf($subject), {
                 string: match(call("cem.format-tree.attribute-bare-value-safe", { subject: $subject }), {
@@ -791,7 +791,7 @@
         @returns="array"
         @deterministic=true
         |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="any" @required=true}
         {param @name="depth" @type="integer" @default="0"}
         {param @name="formatterRole" @type="string" @required=true}
         {body |

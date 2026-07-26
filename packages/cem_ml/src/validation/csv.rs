@@ -2,7 +2,8 @@ use crate::diagnostics::{Diagnostic, Severity};
 use crate::schema::document_model::compile_schema_document_model;
 use crate::schema::registry::{CSV_CONTENT_TYPE, CSV_SCHEMA_URI};
 use crate::source::decode::Utf8Decoder;
-use crate::source::{BytesSource, EncodingDecoder, SourceId};
+use crate::source::{ByteRange, BytesSource, EncodingDecoder, SourceId};
+use crate::source_map::{FrameSpan, SourceMapFrame, SourceMapStack, TransformKind};
 use serde_json::json;
 use std::collections::BTreeMap;
 
@@ -13,6 +14,345 @@ pub struct CsvSourceValidationRequest<'a> {
     pub bytes: &'a [u8],
     pub source_uri: &'a str,
     pub content_type: Option<&'a str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CsvDocumentAst {
+    pub source: CsvDocumentSource,
+    pub encoding: String,
+    pub encoding_report: CsvEncodingReportAst,
+    pub delimiter: String,
+    pub header: String,
+    pub dialect: CsvDialectAst,
+    pub parse_facts: Vec<CsvDocumentParseFact>,
+    pub rows: Vec<CsvRecordAst>,
+    pub line_ending: Option<String>,
+}
+
+impl CsvDocumentAst {
+    pub fn to_cemt_subject(&self) -> serde_json::Value {
+        let mut table = serde_json::Map::new();
+        table.insert("kind".to_owned(), json!("csv-table"));
+        table.insert("source".to_owned(), self.source.to_cemt_subject());
+        table.insert("encoding".to_owned(), json!(self.encoding));
+        table.insert(
+            "encodingReport".to_owned(),
+            self.encoding_report.to_cemt_subject(),
+        );
+        table.insert("delimiter".to_owned(), json!(self.delimiter));
+        table.insert("header".to_owned(), json!(self.header));
+        table.insert("dialect".to_owned(), self.dialect.to_cemt_subject());
+        table.insert(
+            "parseFacts".to_owned(),
+            serde_json::Value::Array(
+                self.parse_facts
+                    .iter()
+                    .map(CsvDocumentParseFact::to_cemt_subject)
+                    .collect(),
+            ),
+        );
+        table.insert(
+            "rows".to_owned(),
+            serde_json::Value::Array(
+                self.rows
+                    .iter()
+                    .map(CsvRecordAst::to_cemt_subject)
+                    .collect(),
+            ),
+        );
+        if let Some(line_ending) = self.line_ending.as_deref() {
+            table.insert("lineEnding".to_owned(), json!(line_ending));
+        }
+        serde_json::Value::Object(table)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CsvDocumentSource {
+    pub uri: String,
+    pub content_type: String,
+    pub media_type: String,
+    pub parameters: BTreeMap<String, String>,
+    pub byte_length: usize,
+}
+
+impl CsvDocumentSource {
+    fn from_request(
+        request: CsvSourceValidationRequest<'_>,
+        parameters: BTreeMap<String, String>,
+    ) -> Self {
+        Self {
+            uri: request.source_uri.to_owned(),
+            content_type: request.content_type.unwrap_or(CSV_CONTENT_TYPE).to_owned(),
+            media_type: request
+                .content_type
+                .map(csv_content_type_essence)
+                .unwrap_or(CSV_CONTENT_TYPE.to_owned()),
+            parameters,
+            byte_length: request.bytes.len(),
+        }
+    }
+
+    fn to_cemt_subject(&self) -> serde_json::Value {
+        json!({
+            "uri": self.uri,
+            "contentType": self.content_type,
+            "mediaType": self.media_type,
+            "parameters": self.parameters,
+            "byteLength": self.byte_length,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CsvEncodingReportAst {
+    pub declared_charset: Option<String>,
+    pub normalized_charset: String,
+    pub decoder_status: String,
+    pub invalid_byte_offset: Option<u64>,
+}
+
+impl CsvEncodingReportAst {
+    fn from_report(report: &CsvParseReport) -> Self {
+        Self {
+            declared_charset: report
+                .content_type
+                .as_deref()
+                .and_then(|content_type| content_type_parameter(content_type, "charset")),
+            normalized_charset: csv_normalized_charset_for_report(report).to_owned(),
+            decoder_status: csv_decoder_status_for_report(report).to_owned(),
+            invalid_byte_offset: report.facts.iter().find_map(|fact| match fact.kind {
+                CsvParseFactKind::UnsupportedEncoding
+                | CsvParseFactKind::DeclaredUsAsciiNonAsciiByte => fact.byte_offset,
+                _ => None,
+            }),
+        }
+    }
+
+    fn to_cemt_subject(&self) -> serde_json::Value {
+        let mut value = serde_json::Map::new();
+        if let Some(charset) = self.declared_charset.as_deref() {
+            value.insert("declaredCharset".to_owned(), json!(charset));
+        }
+        value.insert(
+            "normalizedCharset".to_owned(),
+            json!(self.normalized_charset),
+        );
+        value.insert("decoderStatus".to_owned(), json!(self.decoder_status));
+        if let Some(byte_offset) = self.invalid_byte_offset {
+            value.insert("invalidByteOffset".to_owned(), json!(byte_offset));
+        }
+        serde_json::Value::Object(value)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CsvDialectAst {
+    pub delimiter: String,
+    pub quote: String,
+    pub escape: String,
+    pub header: String,
+    pub line_ending: Option<String>,
+}
+
+impl CsvDialectAst {
+    fn new(header: impl Into<String>, line_ending: Option<&str>) -> Self {
+        Self {
+            delimiter: ",".to_owned(),
+            quote: "\"".to_owned(),
+            escape: "double-quote".to_owned(),
+            header: header.into(),
+            line_ending: line_ending.map(str::to_owned),
+        }
+    }
+
+    fn to_cemt_subject(&self) -> serde_json::Value {
+        let mut value = serde_json::Map::new();
+        value.insert("delimiter".to_owned(), json!(self.delimiter));
+        value.insert("quote".to_owned(), json!(self.quote));
+        value.insert("escape".to_owned(), json!(self.escape));
+        value.insert("header".to_owned(), json!(self.header));
+        if let Some(line_ending) = self.line_ending.as_deref() {
+            value.insert("lineEnding".to_owned(), json!(line_ending));
+        }
+        serde_json::Value::Object(value)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CsvDocumentParseFact {
+    pub kind: CsvParseFactKind,
+    pub contract: Option<String>,
+    pub behavior: Option<String>,
+    pub diagnostic_code: Option<String>,
+    pub diagnostic_severity: Option<String>,
+    pub recoverable: bool,
+    pub fatal: bool,
+    pub parameter: Option<String>,
+    pub actual: Option<String>,
+    pub expected: Vec<String>,
+    pub row_index: Option<usize>,
+    pub field_index: Option<usize>,
+    pub expected_count: Option<usize>,
+    pub actual_count: Option<usize>,
+    pub line: Option<u32>,
+    pub column: Option<u32>,
+    pub byte_offset: Option<u64>,
+    pub message: String,
+}
+
+impl CsvDocumentParseFact {
+    fn from_parse_fact(fact: &CsvParseFact, contracts: &CsvSchemaContractCatalog) -> Self {
+        let binding = contracts.binding_for_fact(fact.kind);
+        let fatal = binding.is_some_and(|binding| binding.severity.is_hard_violation());
+        Self {
+            kind: fact.kind,
+            contract: binding.map(|binding| binding.contract.clone()),
+            behavior: binding.and_then(|binding| binding.behavior.clone()),
+            diagnostic_code: binding.map(|binding| binding.diagnostic_code.clone()),
+            diagnostic_severity: binding
+                .map(|binding| csv_severity_name(binding.severity).to_owned()),
+            recoverable: !fatal,
+            fatal,
+            parameter: fact.parameter.clone(),
+            actual: fact.actual.clone(),
+            expected: fact.expected.clone(),
+            row_index: fact.row_index,
+            field_index: fact.field_index,
+            expected_count: fact.expected_count,
+            actual_count: fact.actual_count,
+            line: fact.line,
+            column: fact.column,
+            byte_offset: fact.byte_offset,
+            message: csv_fact_message(fact),
+        }
+    }
+
+    fn to_cemt_subject(&self) -> serde_json::Value {
+        json!({
+            "kind": self.kind.as_str(),
+            "contract": self.contract,
+            "behavior": self.behavior,
+            "diagnosticCode": self.diagnostic_code,
+            "diagnosticSeverity": self.diagnostic_severity,
+            "recoverable": self.recoverable,
+            "fatal": self.fatal,
+            "parameter": self.parameter,
+            "actual": self.actual,
+            "expected": self.expected,
+            "rowIndex": self.row_index,
+            "fieldIndex": self.field_index,
+            "expectedCount": self.expected_count,
+            "actualCount": self.actual_count,
+            "line": self.line,
+            "column": self.column,
+            "byteOffset": self.byte_offset,
+            "message": self.message,
+            "sourceRange": {
+                "byteOffset": self.byte_offset,
+                "line": self.line,
+                "column": self.column,
+            },
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CsvRecordAst {
+    pub index: usize,
+    pub range: CsvSourceRange,
+    pub record_ending: Option<CsvSourceRange>,
+    pub fields: Vec<CsvFieldAst>,
+}
+
+impl CsvRecordAst {
+    fn to_cemt_subject(&self) -> serde_json::Value {
+        json!({
+            "index": self.index,
+            "fieldCount": self.fields.len(),
+            "byteOffset": self.range.start.byte_offset,
+            "byteLength": self.range.byte_length(),
+            "sourceRange": self.range.to_cemt_subject(),
+            "sourceMap": self.range.source_map(),
+            "recordEndingSourceRange": self.record_ending.map(CsvSourceRange::to_cemt_subject),
+            "recordEndingSourceMap": self.record_ending.map(CsvSourceRange::source_map),
+            "fields": self.fields.iter().map(CsvFieldAst::to_cemt_subject).collect::<Vec<_>>(),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CsvFieldAst {
+    pub index: usize,
+    pub value: String,
+    pub quoted: bool,
+    pub range: CsvSourceRange,
+    pub delimiter_before: Option<CsvSourceRange>,
+}
+
+impl CsvFieldAst {
+    fn to_cemt_subject(&self) -> serde_json::Value {
+        json!({
+            "index": self.index,
+            "value": self.value,
+            "quoted": self.quoted,
+            "byteOffset": self.range.start.byte_offset,
+            "byteLength": self.range.byte_length(),
+            "sourceRange": self.range.to_cemt_subject(),
+            "sourceMap": self.range.source_map(),
+            "delimiterBeforeSourceRange": self.delimiter_before.map(CsvSourceRange::to_cemt_subject),
+            "delimiterBeforeSourceMap": self.delimiter_before.map(CsvSourceRange::source_map),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CsvSourcePosition {
+    pub line: u32,
+    pub column: u32,
+    pub byte_offset: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CsvSourceRange {
+    pub start: CsvSourcePosition,
+    pub end: CsvSourcePosition,
+}
+
+impl CsvSourceRange {
+    pub fn byte_length(self) -> u64 {
+        self.end.byte_offset.saturating_sub(self.start.byte_offset)
+    }
+
+    fn byte_range(self) -> ByteRange {
+        ByteRange::new(
+            self.start.byte_offset,
+            u32::try_from(self.byte_length()).unwrap_or(u32::MAX),
+        )
+    }
+
+    pub fn source_map(self) -> SourceMapStack {
+        SourceMapStack {
+            frames: vec![SourceMapFrame {
+                source_id: SourceId(1),
+                span: FrameSpan::Single(self.byte_range()),
+                transform: TransformKind::ContentTypeTransform {
+                    content_type: CSV_CONTENT_TYPE.to_owned(),
+                },
+            }],
+        }
+    }
+
+    fn to_cemt_subject(self) -> serde_json::Value {
+        json!({
+            "byteOffset": self.start.byte_offset,
+            "byteLength": self.byte_length(),
+            "line": self.start.line,
+            "column": self.start.column,
+            "endLine": self.end.line,
+            "endColumn": self.end.column,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -140,6 +480,13 @@ pub fn validate_csv_source_bytes(request: CsvSourceValidationRequest<'_>) -> Vec
 pub fn csv_table_value_from_source_bytes(
     request: CsvSourceValidationRequest<'_>,
 ) -> (Option<serde_json::Value>, Vec<Diagnostic>) {
+    let (table, diagnostics) = csv_document_ast_from_source_bytes(request);
+    (table.map(|table| table.to_cemt_subject()), diagnostics)
+}
+
+pub fn csv_document_ast_from_source_bytes(
+    request: CsvSourceValidationRequest<'_>,
+) -> (Option<CsvDocumentAst>, Vec<Diagnostic>) {
     let report = extract_csv_parse_report(request);
     let contracts = CsvSchemaContractCatalog::from_builtin();
     let diagnostics = validate_csv_parse_report(&report, &contracts);
@@ -153,31 +500,22 @@ pub fn csv_table_value_from_source_bytes(
         .filter(|_| !csv_parse_report_has_encoding_blocker(&report))
         .map(csv_project_rows)
         .unwrap_or_default();
+    let table = CsvDocumentAst {
+        source: CsvDocumentSource::from_request(
+            request,
+            content_type_parameters(request.content_type),
+        ),
+        encoding: csv_table_encoding(&report).to_owned(),
+        encoding_report: CsvEncodingReportAst::from_report(&report),
+        delimiter: ",".to_owned(),
+        header: header.to_owned(),
+        dialect: CsvDialectAst::new(header, line_ending),
+        parse_facts: csv_parse_facts_for_document(&report, &contracts),
+        rows,
+        line_ending: line_ending.map(str::to_owned),
+    };
 
-    let mut table = serde_json::Map::new();
-    table.insert("kind".to_owned(), json!("csv-table"));
-    table.insert(
-        "source".to_owned(),
-        csv_source_value(request, content_type_parameters(request.content_type)),
-    );
-    table.insert("encoding".to_owned(), json!(csv_table_encoding(&report)));
-    table.insert(
-        "encodingReport".to_owned(),
-        csv_encoding_report_value(&report),
-    );
-    table.insert("delimiter".to_owned(), json!(","));
-    table.insert("header".to_owned(), json!(header));
-    table.insert("dialect".to_owned(), csv_dialect_value(header, line_ending));
-    table.insert(
-        "parseFacts".to_owned(),
-        json!(csv_parse_fact_values(&report, &contracts)),
-    );
-    table.insert("rows".to_owned(), json!(rows));
-    if let Some(line_ending) = line_ending {
-        table.insert("lineEnding".to_owned(), json!(line_ending));
-    }
-
-    (Some(serde_json::Value::Object(table)), diagnostics)
+    (Some(table), diagnostics)
 }
 
 pub fn extract_csv_parse_report(request: CsvSourceValidationRequest<'_>) -> CsvParseReport {
@@ -346,13 +684,6 @@ fn collect_csv_record_facts(source: &CsvDecodedSource, facts: &mut Vec<CsvParseF
             }
         }
     }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct CsvSourcePosition {
-    line: u32,
-    column: u32,
-    byte_offset: u64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -624,67 +955,11 @@ fn csv_line_ending_style_from_flags(
     }
 }
 
-fn csv_project_rows(source: &CsvDecodedSource) -> Vec<serde_json::Value> {
-    let records = csv_scan_projected_records(source);
-    records
-        .into_iter()
-        .map(|record| {
-            let fields = record
-                .fields
-                .into_iter()
-                .enumerate()
-                .map(|(field_index, field)| {
-                    json!({
-                        "index": field_index,
-                        "value": field.value,
-                        "quoted": field.quoted,
-                        "byteOffset": field.range.start.byte_offset,
-                        "byteLength": csv_range_byte_length(field.range),
-                        "sourceRange": csv_source_range_value(field.range),
-                        "sourceMap": csv_source_map_value(field.range),
-                        "delimiterBeforeSourceRange": field.delimiter_before.map(csv_source_range_value),
-                        "delimiterBeforeSourceMap": field.delimiter_before.map(csv_source_map_value),
-                    })
-                })
-                .collect::<Vec<_>>();
-            json!({
-                "index": record.index,
-                "fieldCount": fields.len(),
-                "byteOffset": record.range.start.byte_offset,
-                "byteLength": csv_range_byte_length(record.range),
-                "sourceRange": csv_source_range_value(record.range),
-                "sourceMap": csv_source_map_value(record.range),
-                "recordEndingSourceRange": record.record_ending.map(csv_source_range_value),
-                "recordEndingSourceMap": record.record_ending.map(csv_source_map_value),
-                "fields": fields,
-            })
-        })
-        .collect()
+fn csv_project_rows(source: &CsvDecodedSource) -> Vec<CsvRecordAst> {
+    csv_scan_projected_records(source)
 }
 
-#[derive(Debug, Clone)]
-struct CsvProjectedRecord {
-    index: usize,
-    range: CsvSourceRange,
-    record_ending: Option<CsvSourceRange>,
-    fields: Vec<CsvProjectedField>,
-}
-
-#[derive(Debug, Clone)]
-struct CsvProjectedField {
-    value: String,
-    quoted: bool,
-    range: CsvSourceRange,
-    delimiter_before: Option<CsvSourceRange>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct CsvSourceRange {
-    start: CsvSourcePosition,
-    end: CsvSourcePosition,
-}
-
-fn csv_scan_projected_records(source: &CsvDecodedSource) -> Vec<CsvProjectedRecord> {
+fn csv_scan_projected_records(source: &CsvDecodedSource) -> Vec<CsvRecordAst> {
     let text = source.text.as_str();
     let bytes = text.as_bytes();
     if bytes.is_empty() {
@@ -729,7 +1004,11 @@ fn csv_scan_projected_records(source: &CsvDecodedSource) -> Vec<CsvProjectedReco
             });
         }
 
-        records.push(CsvProjectedRecord {
+        for (field_index, field) in fields.iter_mut().enumerate() {
+            field.index = field_index;
+        }
+
+        records.push(CsvRecordAst {
             index: row_index,
             range: CsvSourceRange {
                 start: row_start,
@@ -757,7 +1036,7 @@ fn csv_scan_projected_field(
     byte: &mut usize,
     line: &mut u32,
     column: &mut u32,
-) -> CsvProjectedField {
+) -> CsvFieldAst {
     let text = source.text.as_str();
     let bytes = text.as_bytes();
     let start = csv_current_position(*byte, *line, *column, source.byte_offset_base);
@@ -799,7 +1078,8 @@ fn csv_scan_projected_field(
         }
     }
 
-    CsvProjectedField {
+    CsvFieldAst {
+        index: 0,
         value,
         quoted,
         range: CsvSourceRange {
@@ -853,137 +1133,14 @@ fn csv_current_position(
     }
 }
 
-fn csv_source_range_value(range: CsvSourceRange) -> serde_json::Value {
-    json!({
-        "byteOffset": range.start.byte_offset,
-        "byteLength": csv_range_byte_length(range),
-        "line": range.start.line,
-        "column": range.start.column,
-        "endLine": range.end.line,
-        "endColumn": range.end.column,
-    })
-}
-
-fn csv_range_byte_length(range: CsvSourceRange) -> u64 {
-    range
-        .end
-        .byte_offset
-        .saturating_sub(range.start.byte_offset)
-}
-
-fn csv_source_map_value(range: CsvSourceRange) -> serde_json::Value {
-    json!({
-        "frames": [{
-            "source_id": 1,
-            "span": {
-                "kind": "Single",
-                "ranges": {
-                    "start": range.start.byte_offset,
-                    "len": u32::try_from(csv_range_byte_length(range)).unwrap_or(u32::MAX),
-                },
-            },
-            "transform": {
-                "kind": "ContentTypeTransform",
-                "content_type": CSV_CONTENT_TYPE,
-            },
-        }],
-    })
-}
-
-fn csv_source_value(
-    request: CsvSourceValidationRequest<'_>,
-    parameters: BTreeMap<String, String>,
-) -> serde_json::Value {
-    json!({
-        "uri": request.source_uri,
-        "contentType": request.content_type.unwrap_or(CSV_CONTENT_TYPE),
-        "mediaType": request
-            .content_type
-            .map(csv_content_type_essence)
-            .unwrap_or(CSV_CONTENT_TYPE.to_owned()),
-        "parameters": parameters,
-        "byteLength": request.bytes.len(),
-    })
-}
-
-fn csv_encoding_report_value(report: &CsvParseReport) -> serde_json::Value {
-    let declared_charset = report
-        .content_type
-        .as_deref()
-        .and_then(|content_type| content_type_parameter(content_type, "charset"));
-    let invalid_byte_offset = report.facts.iter().find_map(|fact| match fact.kind {
-        CsvParseFactKind::UnsupportedEncoding | CsvParseFactKind::DeclaredUsAsciiNonAsciiByte => {
-            fact.byte_offset
-        }
-        _ => None,
-    });
-
-    let mut value = serde_json::Map::new();
-    if let Some(charset) = declared_charset.as_deref() {
-        value.insert("declaredCharset".to_owned(), json!(charset));
-    }
-    value.insert(
-        "normalizedCharset".to_owned(),
-        json!(csv_normalized_charset_for_report(report)),
-    );
-    value.insert(
-        "decoderStatus".to_owned(),
-        json!(csv_decoder_status_for_report(report)),
-    );
-    if let Some(byte_offset) = invalid_byte_offset {
-        value.insert("invalidByteOffset".to_owned(), json!(byte_offset));
-    }
-    serde_json::Value::Object(value)
-}
-
-fn csv_dialect_value(header: &'static str, line_ending: Option<&'static str>) -> serde_json::Value {
-    let mut value = serde_json::Map::new();
-    value.insert("delimiter".to_owned(), json!(","));
-    value.insert("quote".to_owned(), json!("\""));
-    value.insert("escape".to_owned(), json!("double-quote"));
-    value.insert("header".to_owned(), json!(header));
-    if let Some(line_ending) = line_ending {
-        value.insert("lineEnding".to_owned(), json!(line_ending));
-    }
-    serde_json::Value::Object(value)
-}
-
-fn csv_parse_fact_values(
+fn csv_parse_facts_for_document(
     report: &CsvParseReport,
     contracts: &CsvSchemaContractCatalog,
-) -> Vec<serde_json::Value> {
+) -> Vec<CsvDocumentParseFact> {
     report
         .facts
         .iter()
-        .map(|fact| {
-            let binding = contracts.binding_for_fact(fact.kind);
-            let fatal = binding.is_some_and(|binding| binding.severity.is_hard_violation());
-            json!({
-                "kind": fact.kind.as_str(),
-                "contract": binding.map(|binding| binding.contract.as_str()),
-                "behavior": binding.and_then(|binding| binding.behavior.as_deref()),
-                "diagnosticCode": binding.map(|binding| binding.diagnostic_code.as_str()),
-                "diagnosticSeverity": binding.map(|binding| csv_severity_name(binding.severity)),
-                "recoverable": !fatal,
-                "fatal": fatal,
-                "parameter": fact.parameter,
-                "actual": fact.actual,
-                "expected": fact.expected,
-                "rowIndex": fact.row_index,
-                "fieldIndex": fact.field_index,
-                "expectedCount": fact.expected_count,
-                "actualCount": fact.actual_count,
-                "line": fact.line,
-                "column": fact.column,
-                "byteOffset": fact.byte_offset,
-                "message": csv_fact_message(fact),
-                "sourceRange": {
-                    "byteOffset": fact.byte_offset,
-                    "line": fact.line,
-                    "column": fact.column,
-                },
-            })
-        })
+        .map(|fact| CsvDocumentParseFact::from_parse_fact(fact, contracts))
         .collect()
 }
 

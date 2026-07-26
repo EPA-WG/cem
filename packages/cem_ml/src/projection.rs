@@ -1069,11 +1069,11 @@ pub fn dom_json(doc: &CemDocument) -> Value {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CemTreeAstStream {
-    nodes: Vec<Value>,
+    nodes: Vec<CemTreeAstNode>,
 }
 
 impl CemTreeAstStream {
-    pub fn new(nodes: Vec<Value>) -> Self {
+    pub fn new(nodes: Vec<CemTreeAstNode>) -> Self {
         Self { nodes }
     }
 
@@ -1081,22 +1081,221 @@ impl CemTreeAstStream {
         Self { nodes: Vec::new() }
     }
 
-    pub fn as_nodes(&self) -> &[Value] {
+    pub fn as_nodes(&self) -> &[CemTreeAstNode] {
         &self.nodes
     }
 
-    pub fn nodes_mut(&mut self) -> &mut Vec<Value> {
-        &mut self.nodes
+    pub fn retain_non_directive_nodes(&mut self) {
+        self.nodes.retain(|node| !node.is_cem_directive());
+        for node in &mut self.nodes {
+            node.retain_non_directive_descendants();
+        }
     }
 
-    pub fn into_pipeline_subject(self) -> Value {
-        Value::Array(self.nodes)
+    pub fn into_cemt_subject(self) -> Value {
+        Value::Array(
+            self.nodes
+                .into_iter()
+                .map(CemTreeAstNode::into_cemt_subject)
+                .collect(),
+        )
     }
 }
 
-impl From<CemTreeAstStream> for Value {
-    fn from(stream: CemTreeAstStream) -> Self {
-        stream.into_pipeline_subject()
+#[derive(Debug, Clone, PartialEq)]
+pub struct CemTreeAstAttribute {
+    pub name: String,
+    pub value: Option<String>,
+    pub source: SourceMapStack,
+}
+
+impl CemTreeAstAttribute {
+    fn into_cemt_subject(self) -> Value {
+        json!({
+            "kind": "attribute",
+            "name": self.name,
+            "value": self.value,
+            "sourceMap": self.source,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum CemTreeAstNode {
+    Document {
+        children: Vec<CemTreeAstNode>,
+        source: SourceMapStack,
+    },
+    Element {
+        name: String,
+        attributes: Vec<CemTreeAstAttribute>,
+        children: Vec<CemTreeAstNode>,
+        source: SourceMapStack,
+    },
+    Text {
+        value: String,
+        source: SourceMapStack,
+    },
+    Whitespace {
+        data: String,
+        source: SourceMapStack,
+    },
+    Comment {
+        data: String,
+        source: SourceMapStack,
+    },
+    ProcessingInstruction {
+        name: String,
+        target: String,
+        data: String,
+        source: SourceMapStack,
+    },
+    Cdata {
+        data: String,
+        source: SourceMapStack,
+    },
+    RawText {
+        data: String,
+        source: SourceMapStack,
+    },
+    Error {
+        code: String,
+        source: SourceMapStack,
+    },
+}
+
+impl CemTreeAstNode {
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Self::Document { .. } => "document",
+            Self::Element { .. } => "element",
+            Self::Text { .. } => "text",
+            Self::Whitespace { .. } => "whitespace",
+            Self::Comment { .. } => "comment",
+            Self::ProcessingInstruction { .. } => "processing-instruction",
+            Self::Cdata { .. } => "cdata",
+            Self::RawText { .. } => "raw-text",
+            Self::Error { .. } => "error",
+        }
+    }
+
+    pub fn name(&self) -> Option<&str> {
+        match self {
+            Self::Element { name, .. } | Self::ProcessingInstruction { name, .. } => {
+                Some(name.as_str())
+            }
+            _ => None,
+        }
+    }
+
+    pub fn attributes(&self) -> &[CemTreeAstAttribute] {
+        match self {
+            Self::Element { attributes, .. } => attributes,
+            _ => &[],
+        }
+    }
+
+    pub fn children(&self) -> &[CemTreeAstNode] {
+        match self {
+            Self::Document { children, .. } | Self::Element { children, .. } => children,
+            _ => &[],
+        }
+    }
+
+    pub fn source_map(&self) -> &SourceMapStack {
+        match self {
+            Self::Document { source, .. }
+            | Self::Element { source, .. }
+            | Self::Text { source, .. }
+            | Self::Whitespace { source, .. }
+            | Self::Comment { source, .. }
+            | Self::ProcessingInstruction { source, .. }
+            | Self::Cdata { source, .. }
+            | Self::RawText { source, .. }
+            | Self::Error { source, .. } => source,
+        }
+    }
+
+    fn is_cem_directive(&self) -> bool {
+        self.name()
+            .map(str::trim)
+            .is_some_and(|name| name.starts_with('@'))
+    }
+
+    fn retain_non_directive_descendants(&mut self) {
+        match self {
+            Self::Document { children, .. } | Self::Element { children, .. } => {
+                children.retain(|node| !node.is_cem_directive());
+                for child in children {
+                    child.retain_non_directive_descendants();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn into_cemt_subject(self) -> Value {
+        match self {
+            Self::Document { children, source } => json!({
+                "kind": "document",
+                "children": children.into_iter().map(CemTreeAstNode::into_cemt_subject).collect::<Vec<_>>(),
+                "sourceMap": source,
+            }),
+            Self::Element {
+                name,
+                attributes,
+                children,
+                source,
+            } => json!({
+                "kind": "element",
+                "name": name,
+                "attributes": attributes.into_iter().map(CemTreeAstAttribute::into_cemt_subject).collect::<Vec<_>>(),
+                "children": children.into_iter().map(CemTreeAstNode::into_cemt_subject).collect::<Vec<_>>(),
+                "sourceMap": source,
+            }),
+            Self::Text { value, source } => json!({
+                "kind": "text",
+                "value": value,
+                "sourceMap": source,
+            }),
+            Self::Whitespace { data, source } => json!({
+                "kind": "whitespace",
+                "data": data,
+                "sourceMap": source,
+            }),
+            Self::Comment { data, source } => json!({
+                "kind": "comment",
+                "data": data,
+                "sourceMap": source,
+            }),
+            Self::ProcessingInstruction {
+                name,
+                target,
+                data,
+                source,
+            } => json!({
+                "kind": "processing-instruction",
+                "name": name,
+                "target": target,
+                "data": data,
+                "sourceMap": source,
+            }),
+            Self::Cdata { data, source } => json!({
+                "kind": "cdata",
+                "data": data,
+                "sourceMap": source,
+            }),
+            Self::RawText { data, source } => json!({
+                "kind": "raw-text",
+                "data": data,
+                "sourceMap": source,
+            }),
+            Self::Error { code, source } => json!({
+                "kind": "error",
+                "code": code,
+                "sourceMap": source,
+            }),
+        }
     }
 }
 
@@ -1217,18 +1416,20 @@ fn project_cem_tree_node(
     doc: &CemDocument,
     id: AstNodeId,
     source_content_type: Option<&str>,
-) -> Option<Value> {
+) -> Option<CemTreeAstNode> {
     let node = doc.get(id)?;
     let value = match node {
         CemAstNode::Document {
             root_children,
             source,
             ..
-        } => json!({
-            "kind": "document",
-            "children": root_children.iter().filter_map(|id| project_cem_tree_node(doc, *id, source_content_type)).collect::<Vec<_>>(),
-            "sourceMap": source_map_value(source, source_content_type),
-        }),
+        } => CemTreeAstNode::Document {
+            children: root_children
+                .iter()
+                .filter_map(|id| project_cem_tree_node(doc, *id, source_content_type))
+                .collect(),
+            source: source_map_with_content_type_transform(source, source_content_type),
+        },
         CemAstNode::Element {
             expanded_name,
             attributes,
@@ -1238,79 +1439,82 @@ fn project_cem_tree_node(
         } => {
             let mut attrs = attributes
                 .iter()
-                .filter_map(|aid| project_cem_tree_node(doc, *aid, source_content_type))
+                .filter_map(|aid| project_cem_tree_attribute(doc, *aid, source_content_type))
                 .collect::<Vec<_>>();
             attrs.sort_by(|left, right| {
-                let left_name = left.get("name").and_then(Value::as_str).unwrap_or_default();
-                let right_name = right
-                    .get("name")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default();
+                let left_name = left.name.as_str();
+                let right_name = right.name.as_str();
                 (left_name.contains(':'), left_name).cmp(&(right_name.contains(':'), right_name))
             });
-            json!({
-                "kind": "element",
-                "name": projected_expanded_name(expanded_name),
-                "attributes": attrs,
-                "children": children.iter().filter_map(|cid| project_cem_tree_node(doc, *cid, source_content_type)).collect::<Vec<_>>(),
-                "sourceMap": source_map_value(source, source_content_type),
-            })
+            CemTreeAstNode::Element {
+                name: projected_expanded_name(expanded_name),
+                attributes: attrs,
+                children: children
+                    .iter()
+                    .filter_map(|cid| project_cem_tree_node(doc, *cid, source_content_type))
+                    .collect(),
+                source: source_map_with_content_type_transform(source, source_content_type),
+            }
         }
-        CemAstNode::Attribute {
-            expanded_name,
-            value,
-            source,
-            ..
-        } => json!({
-            "kind": "attribute",
-            "name": projected_expanded_name(expanded_name),
-            "value": value,
-            "sourceMap": source_map_value(source, source_content_type),
-        }),
-        CemAstNode::Text { data, source, .. } => json!({
-            "kind": "text",
-            "value": data,
-            "sourceMap": source_map_value(source, source_content_type),
-        }),
-        CemAstNode::Whitespace { data, source, .. } => json!({
-            "kind": "whitespace",
-            "data": data,
-            "sourceMap": source_map_value(source, source_content_type),
-        }),
-        CemAstNode::Comment { data, source, .. } => json!({
-            "kind": "comment",
-            "data": data,
-            "sourceMap": source_map_value(source, source_content_type),
-        }),
+        CemAstNode::Attribute { .. } => return None,
+        CemAstNode::Text { data, source, .. } => CemTreeAstNode::Text {
+            value: data.clone(),
+            source: source_map_with_content_type_transform(source, source_content_type),
+        },
+        CemAstNode::Whitespace { data, source, .. } => CemTreeAstNode::Whitespace {
+            data: data.clone(),
+            source: source_map_with_content_type_transform(source, source_content_type),
+        },
+        CemAstNode::Comment { data, source, .. } => CemTreeAstNode::Comment {
+            data: data.clone(),
+            source: source_map_with_content_type_transform(source, source_content_type),
+        },
         CemAstNode::ProcessingInstruction {
             target,
             data,
             source,
             ..
-        } => json!({
-            "kind": "processing-instruction",
-            "name": target,
-            "target": target,
-            "data": data,
-            "sourceMap": source_map_value(source, source_content_type),
-        }),
-        CemAstNode::Cdata { data, source, .. } => json!({
-            "kind": "cdata",
-            "data": data,
-            "sourceMap": source_map_value(source, source_content_type),
-        }),
-        CemAstNode::RawText { data, source, .. } => json!({
-            "kind": "raw-text",
-            "data": data,
-            "sourceMap": source_map_value(source, source_content_type),
-        }),
-        CemAstNode::Error { code, source, .. } => json!({
-            "kind": "error",
-            "code": code,
-            "sourceMap": source_map_value(source, source_content_type),
-        }),
+        } => CemTreeAstNode::ProcessingInstruction {
+            name: target.clone(),
+            target: target.clone(),
+            data: data.clone(),
+            source: source_map_with_content_type_transform(source, source_content_type),
+        },
+        CemAstNode::Cdata { data, source, .. } => CemTreeAstNode::Cdata {
+            data: data.clone(),
+            source: source_map_with_content_type_transform(source, source_content_type),
+        },
+        CemAstNode::RawText { data, source, .. } => CemTreeAstNode::RawText {
+            data: data.clone(),
+            source: source_map_with_content_type_transform(source, source_content_type),
+        },
+        CemAstNode::Error { code, source, .. } => CemTreeAstNode::Error {
+            code: code.clone(),
+            source: source_map_with_content_type_transform(source, source_content_type),
+        },
     };
     Some(value)
+}
+
+fn project_cem_tree_attribute(
+    doc: &CemDocument,
+    id: AstNodeId,
+    source_content_type: Option<&str>,
+) -> Option<CemTreeAstAttribute> {
+    let CemAstNode::Attribute {
+        expanded_name,
+        value,
+        source,
+        ..
+    } = doc.get(id)?
+    else {
+        return None;
+    };
+    Some(CemTreeAstAttribute {
+        name: projected_expanded_name(expanded_name),
+        value: value.clone(),
+        source: source_map_with_content_type_transform(source, source_content_type),
+    })
 }
 
 fn projected_expanded_name(name: &ExpandedName) -> String {
@@ -1319,14 +1523,6 @@ fn projected_expanded_name(name: &ExpandedName) -> String {
     } else {
         format!("{}:{}", name.namespace_uri, name.local_name)
     }
-}
-
-fn source_map_value(source: &SourceMapStack, source_content_type: Option<&str>) -> Value {
-    serde_json::to_value(source_map_with_content_type_transform(
-        source,
-        source_content_type,
-    ))
-    .unwrap_or(Value::Null)
 }
 
 fn source_map_with_content_type_transform(
@@ -1559,6 +1755,15 @@ mod tests {
         CemAstBuilder::new(normalizer).build()
     }
 
+    fn has_content_type_transform(source: &SourceMapStack, expected: &str) -> bool {
+        source.frames.iter().any(|frame| {
+            matches!(
+                &frame.transform,
+                TransformKind::ContentTypeTransform { content_type } if content_type == expected
+            )
+        })
+    }
+
     #[test]
     fn dom_json_root_is_document_kind() {
         let doc = parse("{p Hi}");
@@ -1591,25 +1796,17 @@ mod tests {
         let nodes = v.as_nodes();
         let button = &nodes[0];
 
-        assert_eq!(button["kind"], "element");
-        assert_eq!(button["name"], "button");
-        assert_eq!(button["attributes"][0]["name"], "type");
-        assert_eq!(button["attributes"][1]["name"], "cem:action");
-        let text = button["children"]
-            .as_array()
-            .unwrap()
+        assert_eq!(button.kind(), "element");
+        assert_eq!(button.name(), Some("button"));
+        assert_eq!(button.attributes()[0].name, "type");
+        assert_eq!(button.attributes()[1].name, "cem:action");
+        let text = button
+            .children()
             .iter()
-            .find(|child| child["kind"] == "text")
+            .find(|child| child.kind() == "text")
             .expect("projected text child");
-        assert_eq!(text["value"], "Save");
-        assert!(text["sourceMap"]["frames"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|frame| {
-                frame["transform"]["kind"] == "ContentTypeTransform"
-                    && frame["transform"]["content_type"] == "text/html"
-            }));
+        assert!(matches!(text, CemTreeAstNode::Text { value, .. } if value == "Save"));
+        assert!(has_content_type_transform(text.source_map(), "text/html"));
     }
 
     #[test]
@@ -1619,19 +1816,15 @@ mod tests {
         let nodes = v.as_nodes();
         let button = &nodes[0];
 
-        assert_eq!(button["kind"], "element");
-        assert_eq!(button["name"], "button");
-        assert!(button["sourceMap"]["frames"].as_array().is_some());
-        assert!(button["sourceMap"]["frames"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|frame| {
-                frame["transform"]["kind"] == "ContentTypeTransform"
-                    && frame["transform"]["content_type"] == "application/cem"
-            }));
-        assert!(button["attributes"][0]["sourceMap"]["frames"].is_array());
-        assert!(button["children"][0]["sourceMap"]["frames"].is_array());
+        assert_eq!(button.kind(), "element");
+        assert_eq!(button.name(), Some("button"));
+        assert!(!button.source_map().frames.is_empty());
+        assert!(has_content_type_transform(
+            button.source_map(),
+            "application/cem"
+        ));
+        assert!(!button.attributes()[0].source.frames.is_empty());
+        assert!(!button.children()[0].source_map().frames.is_empty());
     }
 
     #[test]

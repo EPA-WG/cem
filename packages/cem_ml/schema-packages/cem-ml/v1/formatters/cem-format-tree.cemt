@@ -13,7 +13,7 @@
         @canonical=true
         @deterministic=true
         @streamable=true |
-        {param @name="subject" @type="json" @required=true}
+        {param @name="subject" @type="any" @required=true}
         {body |
             {$ call("cem.format-tree.apply-stage", { subject: $subject }) }
         }
