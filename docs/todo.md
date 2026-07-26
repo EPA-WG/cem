@@ -37,6 +37,15 @@ stream.
       native-template behind engine lifecycle adapters, or prove each collector
       consumes the same imported DOM/AST and source-map model as
       `RealCemMlEngine`.
+- [x] Fix the CEM-ML `ast` projection so it no longer aliases `dom_json`:
+      replace `projection::ast_json` with a source-map-bearing CEM tree AST
+      stream projection consumed as CEM-ML/CEMT data, not as a DOM/JSON
+      projection.
+- [ ] Fix or explicitly declare the reduced-fidelity contract for the CEM-ML
+      `dom-json` debug projection when callers expect source-map preservation:
+      `CemDocument` and the CEM tree AST stream preserve `SourceMapStack`, but
+      `projection::dom_json` omits `sourceMap` and can expose collapsed byte
+      ranges.
 - [ ] Add regression coverage that every schema-package preview and validation
       path either uses the generic source import boundary or has an explicit
       tracked waiver with equivalent source-map and artifact metadata.

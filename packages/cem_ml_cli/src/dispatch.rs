@@ -24399,6 +24399,40 @@ start =
     }
 
     #[test]
+    fn convert_to_format_ast_outputs_source_mapped_cem_tree_stream() {
+        let p = write_fixture("convert-ast.cem", "@doc cem-ml 1\n{p | Hi}");
+        let (outcome, stdout, stderr) = run(
+            &RealCemMlEngine::new(),
+            &[
+                "--no-color",
+                "convert",
+                "--to-format",
+                "ast",
+                p.to_str().unwrap(),
+            ],
+        );
+
+        assert_eq!(outcome.exit_code, EXIT_OK, "{stderr}");
+        assert!(stderr.trim().is_empty(), "{stderr}");
+        let nodes: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap();
+        let nodes = nodes.as_array().expect("AST stream node array");
+        let p_node = nodes
+            .iter()
+            .find(|node| node["kind"] == "element" && node["name"] == "p")
+            .expect("p element in AST stream");
+        assert!(p_node.get("byteRange").is_none());
+        assert!(p_node["sourceMap"]["frames"].as_array().is_some());
+        assert!(p_node["sourceMap"]["frames"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|frame| {
+                frame["transform"]["kind"] == "ContentTypeTransform"
+                    && frame["transform"]["content_type"] == "application/cem"
+            }));
+    }
+
+    #[test]
     fn convert_cemt_output_stage_options_select_manifest_aliases() {
         let p = write_fixture(
             "convert-cemt-aliases.cem",

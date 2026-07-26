@@ -1,9 +1,10 @@
 //! Projection artifacts and debug/interchange views for AST / events / DOM.
 //!
 //! The `*_binary_artifact` functions produce hash-addressed CEM binary chunks
-//! for runtime/cache handoff. The JSON projection functions remain
+//! for runtime/cache handoff. The DOM/events projection functions remain
 //! consumer-friendly debug/interchange views for `cem-ml parse --format
-//! dom-json|ast|events` and the same projections for `convert` / `inspect`.
+//! dom-json|events` and the same projections for `convert` / `inspect`; the
+//! AST projection exposes the source-map-bearing CEM tree stream used by CEMT.
 
 use crate::engine::InputFormat;
 use crate::events::{
@@ -1066,28 +1067,61 @@ pub fn dom_json(doc: &CemDocument) -> Value {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct CemTreeAstStream {
+    nodes: Vec<Value>,
+}
+
+impl CemTreeAstStream {
+    pub fn new(nodes: Vec<Value>) -> Self {
+        Self { nodes }
+    }
+
+    pub fn empty() -> Self {
+        Self { nodes: Vec::new() }
+    }
+
+    pub fn as_nodes(&self) -> &[Value] {
+        &self.nodes
+    }
+
+    pub fn nodes_mut(&mut self) -> &mut Vec<Value> {
+        &mut self.nodes
+    }
+
+    pub fn into_pipeline_subject(self) -> Value {
+        Value::Array(self.nodes)
+    }
+}
+
+impl From<CemTreeAstStream> for Value {
+    fn from(stream: CemTreeAstStream) -> Self {
+        stream.into_pipeline_subject()
+    }
+}
+
 /// Project root document children as CEM tree formatter input.
 ///
 /// This intentionally differs from `dom_json`: it preserves the full
 /// `sourceMap` stacks that the CEMT formatter/colorizer/writer pipeline uses
 /// for output spans, and it emits namespace-qualified names as writer-ready
 /// CEM names.
-pub fn cem_tree_nodes_json(doc: &CemDocument) -> Value {
-    cem_tree_nodes_json_with_source_content_type(doc, None)
+pub fn cem_tree_nodes(doc: &CemDocument) -> CemTreeAstStream {
+    cem_tree_nodes_with_source_content_type(doc, None)
 }
 
-pub fn cem_tree_nodes_json_with_source_content_type(
+pub fn cem_tree_nodes_with_source_content_type(
     doc: &CemDocument,
     source_content_type: Option<&str>,
-) -> Value {
+) -> CemTreeAstStream {
     match doc.root() {
-        Some(CemAstNode::Document { root_children, .. }) => Value::Array(
+        Some(CemAstNode::Document { root_children, .. }) => CemTreeAstStream::new(
             root_children
                 .iter()
                 .filter_map(|id| project_cem_tree_node(doc, *id, source_content_type))
                 .collect(),
         ),
-        _ => Value::Array(Vec::new()),
+        _ => CemTreeAstStream::empty(),
     }
 }
 
@@ -1403,11 +1437,9 @@ fn project_byte_range(range: Option<ByteRange>) -> Value {
     }
 }
 
-/// Project the parsed AST as a typed-tree JSON (alias for `dom_json` in
-/// Tier A; future CEM-specific projections add the `annotations` /
-/// `state` fields here).
-pub fn ast_json(doc: &CemDocument) -> Value {
-    dom_json(doc)
+/// Project the parsed AST as the source-map-bearing CEM tree stream.
+pub fn ast_stream(doc: &CemDocument, source_content_type: Option<&str>) -> CemTreeAstStream {
+    cem_tree_nodes_with_source_content_type(doc, source_content_type)
 }
 
 /// Project the input source as a flat list of normalized events:
@@ -1553,10 +1585,10 @@ mod tests {
     }
 
     #[test]
-    fn cem_tree_nodes_json_preserves_writer_names_and_source_map_transform() {
+    fn cem_tree_nodes_preserves_writer_names_and_source_map_transform() {
         let doc = parse(r#"{button @cem:action=primary @type=submit | Save}"#);
-        let v = cem_tree_nodes_json_with_source_content_type(&doc, Some("text/html"));
-        let nodes = v.as_array().expect("CEM tree projection is node array");
+        let v = cem_tree_nodes_with_source_content_type(&doc, Some("text/html"));
+        let nodes = v.as_nodes();
         let button = &nodes[0];
 
         assert_eq!(button["kind"], "element");
@@ -1578,6 +1610,28 @@ mod tests {
                 frame["transform"]["kind"] == "ContentTypeTransform"
                     && frame["transform"]["content_type"] == "text/html"
             }));
+    }
+
+    #[test]
+    fn ast_stream_preserves_source_maps_and_cem_content_type_transform() {
+        let doc = parse(r#"{button @type=submit | Save}"#);
+        let v = ast_stream(&doc, Some("application/cem"));
+        let nodes = v.as_nodes();
+        let button = &nodes[0];
+
+        assert_eq!(button["kind"], "element");
+        assert_eq!(button["name"], "button");
+        assert!(button["sourceMap"]["frames"].as_array().is_some());
+        assert!(button["sourceMap"]["frames"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|frame| {
+                frame["transform"]["kind"] == "ContentTypeTransform"
+                    && frame["transform"]["content_type"] == "application/cem"
+            }));
+        assert!(button["attributes"][0]["sourceMap"]["frames"].is_array());
+        assert!(button["children"][0]["sourceMap"]["frames"].is_array());
     }
 
     #[test]

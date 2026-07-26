@@ -695,6 +695,28 @@ fn execute_conversion_output_pipeline_with_context(
     )
 }
 
+fn execute_cem_tree_output_pipeline_with_context(
+    context: Option<&EngineContext>,
+    pipeline: &ConversionOutputPipeline,
+    rendered_stream: projection::CemTreeAstStream,
+    rendered_source_map: Option<SourceMapStack>,
+    rendered_output_spans: Vec<OutputSpan>,
+    converter_id: &str,
+    diagnostic_node: Option<&str>,
+    diagnostic_uri: Option<&str>,
+) -> crate::conversion::ConversionOutputPipelineExecution {
+    execute_conversion_output_pipeline_with_context(
+        context,
+        pipeline,
+        rendered_stream.into_pipeline_subject(),
+        rendered_source_map,
+        rendered_output_spans,
+        converter_id,
+        diagnostic_node,
+        diagnostic_uri,
+    )
+}
+
 fn execute_conversion_output_pipeline_from_formatted_cem_tree_with_context(
     context: &EngineContext,
     pipeline: &ConversionOutputPipeline,
@@ -1182,10 +1204,10 @@ fn convert_primary_to_cem_with_cemt_pipeline(
     diagnostic_uri: Option<&str>,
 ) -> Result<Value, Vec<Diagnostic>> {
     let pipeline = cemt_output_pipeline_for_scope(direct_cem_output_pipeline(), target_scope);
-    let pipeline_execution = execute_conversion_output_pipeline_with_context(
+    let pipeline_execution = execute_cem_tree_output_pipeline_with_context(
         context,
         &pipeline,
-        projection::cem_tree_nodes_json_with_source_content_type(
+        projection::cem_tree_nodes_with_source_content_type(
             document,
             Some(input_format_content_type(from_format)),
         ),
@@ -1247,7 +1269,7 @@ fn convert_primary_to_markup_with_cemt_pipeline(
     diagnostic_uri: Option<&str>,
 ) -> Result<Value, Vec<Diagnostic>> {
     let pipeline = cemt_output_pipeline_for_scope(pipeline, target_scope);
-    let pipeline_execution = execute_conversion_output_pipeline_with_context(
+    let pipeline_execution = execute_cem_tree_output_pipeline_with_context(
         context,
         &pipeline,
         cem_tree_nodes_for_markup_output(document, from_format),
@@ -1294,13 +1316,24 @@ fn convert_primary_to_markup_with_cemt_pipeline(
     }))
 }
 
-fn cem_tree_nodes_for_markup_output(document: &CemDocument, from_format: InputFormat) -> Value {
-    let mut nodes = projection::cem_tree_nodes_json_with_source_content_type(
+fn cem_tree_nodes_for_markup_output(
+    document: &CemDocument,
+    from_format: InputFormat,
+) -> projection::CemTreeAstStream {
+    let mut nodes = projection::cem_tree_nodes_with_source_content_type(
         document,
         Some(input_format_content_type(from_format)),
     );
-    remove_cem_directive_nodes(&mut nodes);
+    remove_cem_directive_nodes_from_stream(&mut nodes);
     nodes
+}
+
+fn remove_cem_directive_nodes_from_stream(stream: &mut projection::CemTreeAstStream) {
+    let nodes = stream.nodes_mut();
+    nodes.retain(|item| !is_cem_directive_node(item));
+    for node in nodes {
+        remove_cem_directive_nodes(node);
+    }
 }
 
 fn remove_cem_directive_nodes(value: &mut Value) {
@@ -5789,7 +5822,10 @@ impl CemMlEngine for RealCemMlEngine {
         );
         let primary = match request.projection {
             ParseProjection::DomJson | ParseProjection::Json => projection::dom_json(&run.document),
-            ParseProjection::Ast => projection::ast_json(&run.document),
+            ParseProjection::Ast => {
+                projection::ast_stream(&run.document, Some(input_format_content_type(from_format)))
+                    .into_pipeline_subject()
+            }
             ParseProjection::Events => projection::events_json_as(&loaded.bytes, from_format),
         };
         let mut diagnostics = root_scope_execution_diagnostics(
@@ -5889,7 +5925,10 @@ impl CemMlEngine for RealCemMlEngine {
                     "diagnosticCount": diagnostics.len(),
                 })
             }
-            InspectView::Ast => projection::ast_json(&run.document),
+            InspectView::Ast => {
+                projection::ast_stream(&run.document, Some(input_format_content_type(from_format)))
+                    .into_pipeline_subject()
+            }
             InspectView::Events => projection::events_json_as(&loaded.bytes, from_format),
             InspectView::Diagnostics => json!({
                 "kind": "diagnostics",
@@ -6317,7 +6356,10 @@ impl CemMlEngine for RealCemMlEngine {
                     Value::Null
                 }
                 LayerFormat::DomJson => projection::dom_json(&run.document),
-                LayerFormat::Ast => projection::ast_json(&run.document),
+                LayerFormat::Ast => {
+                    projection::ast_stream(&run.document, Some(input_format_content_type(from_format)))
+                        .into_pipeline_subject()
+                }
                 LayerFormat::Events => projection::events_json_as(&loaded.bytes, from_format),
                 LayerFormat::DomBin => {
                     let artifact = projection::dom_binary_projection_artifact(&run.document);
@@ -11734,6 +11776,36 @@ mod tests {
         let resp = RealCemMlEngine::new().convert(req).unwrap();
         assert_eq!(resp.primary["kind"], "document");
         assert_eq!(resp.scheduler_trace.event_count, 9);
+    }
+
+    #[test]
+    fn convert_ast_returns_source_mapped_cem_tree_stream() {
+        let req = ConvertRequest {
+            input: input(b"{p | Hi}", "in"),
+            to_format: LayerFormat::Ast,
+            preserve_source_offsets: false,
+            context: ctx(),
+            target: None,
+            target_scope: Default::default(),
+            scheduler_scope_id: 0,
+        };
+        let resp = RealCemMlEngine::new().convert(req).unwrap();
+        let nodes = resp.primary.as_array().expect("AST stream node array");
+        let p = &nodes[0];
+
+        assert_eq!(p["kind"], "element");
+        assert_eq!(p["name"], "p");
+        assert!(p["sourceMap"]["frames"].as_array().is_some());
+        assert!(p["sourceMap"]["frames"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|frame| {
+                frame["transform"]["kind"] == "ContentTypeTransform"
+                    && frame["transform"]["content_type"] == "application/cem"
+            }));
+        assert!(p["byteRange"].is_null());
+        assert!(p["children"][0]["sourceMap"]["frames"].is_array());
     }
 
     #[test]
